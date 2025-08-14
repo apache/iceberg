@@ -18,13 +18,10 @@
  */
 package org.apache.iceberg.flink.data;
 
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
-
-import org.apache.flink.table.data.StringData;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.sink.RowDataTransformer;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
 
@@ -32,36 +29,28 @@ public class FlinkFormatModels {
   public static final String MODEL_NAME = "flink";
 
   public static void register() {
-    FormatModelRegistry.registerFormatModel(
+    FormatModelRegistry.register(
         new ParquetFormatModel<>(
             MODEL_NAME,
             FlinkParquetReaders::buildReader,
             (schema, messageType) ->
                 FlinkParquetWriters.buildWriter(FlinkSchemaUtil.convert(schema), messageType),
-            path -> StringData.fromString(path.toString())));
+            RowDataTransformer::transform));
 
-    FormatModelRegistry.registerFormatModel(
+    FormatModelRegistry.register(
         new AvroFormatModel<>(
             MODEL_NAME,
             FlinkPlannedAvroReader::create,
             (schema, avroSchema) -> new FlinkAvroWriter(FlinkSchemaUtil.convert(schema)),
-            (schema, avroSchema) ->
-                new FlinkAvroWriter(
-                    FlinkSchemaUtil.convert(
-                        new Schema(
-                            schema
-                                .findField(DELETE_FILE_ROW_FIELD_NAME)
-                                .type()
-                                .asStructType()
-                                .fields())))));
+            RowDataTransformer::transform));
 
-    FormatModelRegistry.registerFormatModel(
+    FormatModelRegistry.register(
         new ORCFormatModel<>(
             MODEL_NAME,
             FlinkOrcReader::new,
             (schema, messageType) ->
                 FlinkOrcWriter.buildWriter(FlinkSchemaUtil.convert(schema), schema),
-            path -> StringData.fromString(path.toString())));
+            RowDataTransformer::transform));
   }
 
   private FlinkFormatModels() {}

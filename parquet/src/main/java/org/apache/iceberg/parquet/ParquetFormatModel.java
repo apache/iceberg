@@ -21,7 +21,6 @@ package org.apache.iceberg.parquet;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -35,27 +34,27 @@ public class ParquetFormatModel<D, F> implements FormatModel<D> {
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D, F> batchReaderFunction;
   private final BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction;
-  private final Function<CharSequence, ?> pathTransformFunc;
+  private final Function<PositionDelete<D>, D> positionDeleteConverter;
 
   private ParquetFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D, F> batchReaderFunction,
       BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction,
-      Function<CharSequence, ?> pathTransformFunc) {
+      Function<PositionDelete<D>, D> positionDeleteConverter) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.writerFunction = writerFunction;
-    this.pathTransformFunc = pathTransformFunc;
+    this.positionDeleteConverter = positionDeleteConverter;
   }
 
   public ParquetFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction,
-      Function<CharSequence, ?> pathTransformFunc) {
-    this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
+      Function<PositionDelete<D>, D> positionDeleteConverter) {
+    this(objectModelName, readerFunction, null, writerFunction, positionDeleteConverter);
   }
 
   public ParquetFormatModel(String objectModelName, BatchReaderFunction<D, F> batchReaderFunction) {
@@ -73,36 +72,21 @@ public class ParquetFormatModel<D, F> implements FormatModel<D> {
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, D>> B dataBuilder(OutputFile outputFile) {
-    return (B)
-        new Parquet.WriteBuilderImpl<D>(outputFile, FileContent.DATA)
-            .writerFunction(writerFunction);
+  public org.apache.iceberg.io.WriteBuilder<D> writeBuilder(OutputFile outputFile) {
+    return new Parquet.WriteBuilderImpl<D>(outputFile).writerFunction(writerFunction);
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, D>> B equalityDeleteBuilder(
-      OutputFile outputFile) {
-    return (B)
-        new Parquet.WriteBuilderImpl<D>(outputFile, FileContent.EQUALITY_DELETES)
-            .writerFunction(writerFunction);
+  public Function<PositionDelete<D>, D> positionDeleteConverter(Schema schema) {
+    return positionDeleteConverter;
   }
 
   @Override
-  public <B extends org.apache.iceberg.io.WriteBuilder<B, PositionDelete<D>>>
-      B positionDeleteBuilder(OutputFile outputFile) {
-    return (B)
-        new Parquet.WriteBuilderImpl<D>(outputFile, FileContent.POSITION_DELETES)
-            .writerFunction(writerFunction)
-            .pathTransformFunc(pathTransformFunc);
-  }
-
-  @Override
-  public <B extends org.apache.iceberg.io.ReadBuilder<B, D>> B readBuilder(InputFile inputFile) {
+  public org.apache.iceberg.io.ReadBuilder<D> readBuilder(InputFile inputFile) {
     if (batchReaderFunction != null) {
-      return (B)
-          new Parquet.ReadBuilderImpl<D, F>(inputFile).batchReaderFunction(batchReaderFunction);
+      return new Parquet.ReadBuilderImpl<D, F>(inputFile).batchReaderFunction(batchReaderFunction);
     } else {
-      return (B) new Parquet.ReadBuilderImpl<D, F>(inputFile).readerFunction(readerFunction);
+      return new Parquet.ReadBuilderImpl<D, F>(inputFile).readerFunction(readerFunction);
     }
   }
 

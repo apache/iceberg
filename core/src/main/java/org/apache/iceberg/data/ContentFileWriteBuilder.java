@@ -50,7 +50,7 @@ import org.apache.iceberg.io.DataWriter;
 interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
 
   /** Set the file schema. */
-  B fileSchema(Schema newSchema);
+  B schema(Schema schema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.
@@ -67,7 +67,10 @@ interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
    * @param properties a map of writer config properties
    * @return this for method chaining
    */
-  B set(Map<String, String> properties);
+  default B set(Map<String, String> properties) {
+    properties.forEach(this::set);
+    return self();
+  }
 
   /**
    * Set a file metadata property in the created file.
@@ -84,10 +87,13 @@ interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
    * @param properties a map of file metadata properties
    * @return this for method chaining
    */
-  B meta(Map<String, String> properties);
+  default B meta(Map<String, String> properties) {
+    properties.forEach(this::meta);
+    return self();
+  }
 
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
-  B metricsConfig(MetricsConfig newMetricsConfig);
+  B metricsConfig(MetricsConfig metricsConfig);
 
   /** Overwrite the file if it already exists. By default, overwrite is disabled. */
   B overwrite();
@@ -108,11 +114,13 @@ interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
   B spec(PartitionSpec newSpec);
 
   /** Sets the partition value for the Iceberg metadata. */
-  B partition(StructLike newPartition);
+  B partition(StructLike partition);
 
   /** Sets the encryption key metadata for Iceberg metadata. */
-  B keyMetadata(EncryptionKeyMetadata metadata);
+  B keyMetadata(EncryptionKeyMetadata keyMetadata);
 
   /** Sets the sort order for the Iceberg metadata. */
-  B sortOrder(SortOrder newSortOrder);
+  B sortOrder(SortOrder sortOrder);
+
+  B self();
 }

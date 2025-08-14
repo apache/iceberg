@@ -36,12 +36,13 @@ import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RowTransformer;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.flink.data.FlinkSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-class RowDataTransformer implements RowTransformer<RowData> {
+public class RowDataTransformer implements RowTransformer<RowData> {
   private static final int ROOT_POSITION = -1;
   private final PositionalGetter<RowData, RowData> getter;
 
@@ -56,8 +57,125 @@ class RowDataTransformer implements RowTransformer<RowData> {
     return getter.get(data, ROOT_POSITION);
   }
 
+  public static RowData transform(PositionDelete<RowData> delete) {
+    DeleteAccessor deleteAccessor = new DeleteAccessor();
+    deleteAccessor.delete = delete;
+    return deleteAccessor;
+  }
+
   private interface PositionalGetter<T, I> {
     T get(I data, int pos);
+  }
+
+  private static class DeleteAccessor implements RowData {
+    private PositionDelete<RowData> delete = null;
+
+    @Override
+    public int getArity() {
+      return 3;
+    }
+
+    @Override
+    public RowKind getRowKind() {
+      return RowKind.INSERT;
+    }
+
+    @Override
+    public void setRowKind(RowKind kind) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public boolean isNullAt(int pos) {
+      return pos == 2 && delete.row() == null;
+    }
+
+    @Override
+    public boolean getBoolean(int pos) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public byte getByte(int pos) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public short getShort(int pos) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public int getInt(int pos) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public long getLong(int pos) {
+      if (pos == 1) {
+        return delete.pos();
+      } else {
+        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+      }
+    }
+
+    @Override
+    public float getFloat(int pos) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public double getDouble(int pos) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public StringData getString(int pos) {
+      if (pos == 0) {
+        return StringData.fromString(delete.path().toString());
+      } else {
+        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+      }
+    }
+
+    @Override
+    public DecimalData getDecimal(int pos, int precision, int scale) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public TimestampData getTimestamp(int pos, int precision) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public <T> RawValueData<T> getRawValue(int pos) {
+      throw new UnsupportedOperationException("Not supported in RowDataAccessor");
+    }
+
+    @Override
+    public byte[] getBinary(int pos) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public ArrayData getArray(int pos) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public MapData getMap(int pos) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public RowData getRow(int pos, int numFields) {
+      if (pos == 2) {
+        return delete.row();
+      } else {
+        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+      }
+    }
   }
 
   private static class RowDataAccessor implements RowData {
@@ -380,7 +498,7 @@ class RowDataTransformer implements RowTransformer<RowData> {
         List<LogicalType> fieldTypes) {
       RowDataAccessor accessor = new RowDataAccessor(results.toArray(new PositionalGetter[0]));
       boolean isInListFlag = Boolean.TRUE.equals(isInList.peek());
-      return ((data, pos) -> {
+      return (data, pos) -> {
         if (isInListFlag) {
           accessor.rowData = ((ArrayData) data).getRow(pos, iStruct.fields().size());
         } else {
@@ -392,7 +510,7 @@ class RowDataTransformer implements RowTransformer<RowData> {
         }
 
         return accessor;
-      });
+      };
     }
 
     @Override

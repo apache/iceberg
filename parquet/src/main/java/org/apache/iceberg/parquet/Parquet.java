@@ -180,11 +180,11 @@ public class Parquet {
     private final WriteBuilderImpl<?> impl;
 
     private WriteBuilder(OutputFile file) {
-      this.impl = new WriteBuilderImpl<>(file, null);
+      this.impl = new WriteBuilderImpl<>(file);
     }
 
     public WriteBuilder forTable(Table table) {
-      impl.fileSchema(table.schema())
+      impl.schema(table.schema())
           .set(table.properties())
           .metricsConfig(MetricsConfig.forTable(table));
       return this;
@@ -192,7 +192,7 @@ public class Parquet {
 
     @Override
     public WriteBuilder schema(Schema newSchema) {
-      impl.fileSchema(newSchema);
+      impl.schema(newSchema);
       return this;
     }
 
@@ -311,10 +311,9 @@ public class Parquet {
   }
 
   @SuppressWarnings("unchecked")
-  static class WriteBuilderImpl<D>
-      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<D>, D> {
+  static class WriteBuilderImpl<D> implements org.apache.iceberg.io.WriteBuilder<D> {
     private final OutputFile file;
-    private final FileContent content;
+    private FileContent content;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
@@ -329,11 +328,9 @@ public class Parquet {
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
-    private Function<CharSequence, ?> pathTransformFunc = null;
 
-    WriteBuilderImpl(OutputFile file, FileContent content) {
+    WriteBuilderImpl(OutputFile file) {
       this.file = file;
-      this.content = content;
       if (file instanceof HadoopOutputFile) {
         this.conf = new Configuration(((HadoopOutputFile) file).getConf());
       } else {
@@ -349,13 +346,14 @@ public class Parquet {
       return this;
     }
 
-    WriteBuilderImpl<D> pathTransformFunc(Function<CharSequence, ?> newPathTransformFunc) {
-      this.pathTransformFunc = newPathTransformFunc;
+    @Override
+    public WriteBuilderImpl<D> content(FileContent newContent) {
+      this.content = newContent;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> fileSchema(Schema newSchema) {
+    public WriteBuilderImpl<D> schema(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
@@ -463,52 +461,27 @@ public class Parquet {
               });
     }
 
-    private void initWriterFunctionAndContext() {
-      Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-      switch (content) {
-        case DATA:
-          this.createWriterFunc =
-              (icebergSchema, messageType) -> writerFunction.apply(icebergSchema, messageType);
-          this.createContextFunc = Context::dataContext;
-          break;
-        case EQUALITY_DELETES:
-          this.createWriterFunc =
-              (icebergSchema, messageType) -> writerFunction.apply(icebergSchema, messageType);
-          this.createContextFunc = Context::deleteContext;
-          break;
-        case POSITION_DELETES:
-          this.createContextFunc = Context::deleteContext;
-          if (schema.columns().size() == DeleteSchemaUtil.pathPosSchema().columns().size()) {
-            // this is a position delete without rows
-
-            this.createWriterFunc =
-                (icebergSchema, messageType) ->
-                    new PositionDeleteStructWriter<D>(
-                        (StructWriter<?>) GenericParquetWriter.create(icebergSchema, messageType),
-                        Function.identity());
-          } else {
-            // this is a position delete with rows
-            Preconditions.checkState(
-                pathTransformFunc != null, "Path transformation function has to be set.");
-            this.createWriterFunc =
-                (icebergSchema, messageType) ->
-                    new PositionDeleteStructWriter<D>(
-                        (StructWriter<?>) writerFunction.apply(icebergSchema, messageType),
-                        pathTransformFunc);
-          }
-          break;
-        default:
-          throw new IllegalArgumentException("Not supported content: " + content);
-      }
-    }
-
     @Override
+    @SuppressWarnings("MethodLength")
     public FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
 
       if (content != null) {
-        initWriterFunctionAndContext();
+        Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+        this.createWriterFunc =
+            (icebergSchema, messageType) -> writerFunction.apply(icebergSchema, messageType);
+        switch (content) {
+          case DATA:
+            this.createContextFunc = Context::dataContext;
+            break;
+          case EQUALITY_DELETES:
+          case POSITION_DELETES:
+            this.createContextFunc = Context::deleteContext;
+            break;
+          default:
+            throw new IllegalArgumentException("Not supported content: " + content);
+        }
       }
 
       // add the Iceberg schema to keyValueMetadata
@@ -1482,8 +1455,7 @@ public class Parquet {
     }
 
     public ReadBuilder recordsPerBatch(int numRowsPerBatch) {
-      impl.set(
-          org.apache.iceberg.io.ReadBuilder.RECORDS_PER_BATCH_KEY, String.valueOf(numRowsPerBatch));
+      impl.recordsPerBatch(numRowsPerBatch);
       return this;
     }
 
@@ -1521,7 +1493,7 @@ public class Parquet {
 
   static class ReadBuilderImpl<D, F>
       implements InternalData.ReadBuilder,
-          org.apache.iceberg.io.ReadBuilder<ReadBuilderImpl<D, F>, D>,
+          org.apache.iceberg.io.ReadBuilder<D>,
           ParquetFormatModel.SupportsDeleteFilter<F> {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();
@@ -1544,6 +1516,7 @@ public class Parquet {
     private ByteBuffer fileAADPrefix = null;
     private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
     private F deleteFilter = null;
+    private int maxRecordsPerBatch = MAX_RECORDS_PER_BATCH_DEFAULT;
 
     ReadBuilderImpl(InputFile file) {
       this.file = file;
@@ -1616,6 +1589,12 @@ public class Parquet {
     }
 
     @Override
+    public ReadBuilderImpl<D, F> recordsPerBatch(int numRowsPerBatch) {
+      this.maxRecordsPerBatch = numRowsPerBatch;
+      return this;
+    }
+
+    @Override
     public ReadBuilderImpl<D, F> nameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
@@ -1645,7 +1624,7 @@ public class Parquet {
     }
 
     @Override
-    public ReadBuilderImpl<D, F> constantFieldAccessors(Map<Integer, ?> newConstantFieldAccessors) {
+    public ReadBuilderImpl<D, F> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
       this.constantFieldAccessors = newConstantFieldAccessors;
       return this;
     }
@@ -1774,9 +1753,7 @@ public class Parquet {
             filter,
             reuseContainers,
             filterCaseSensitive,
-            properties.containsKey(RECORDS_PER_BATCH_KEY)
-                ? Integer.parseInt(properties.get(RECORDS_PER_BATCH_KEY))
-                : MAX_RECORDS_PER_BATCH_DEFAULT);
+            maxRecordsPerBatch);
       } else {
         Function<MessageType, ParquetValueReader<D>> readBuilder =
             readerFuncWithSchema != null

@@ -128,11 +128,11 @@ public class Avro {
     private final WriteBuilderImpl<?> impl;
 
     private WriteBuilder(OutputFile file) {
-      this.impl = new WriteBuilderImpl<>(file, null);
+      this.impl = new WriteBuilderImpl<>(file);
     }
 
     public WriteBuilder forTable(Table table) {
-      impl.fileSchema(table.schema())
+      impl.schema(table.schema())
           .set(table.properties())
           .metricsConfig(MetricsConfig.forTable(table));
       return this;
@@ -140,7 +140,7 @@ public class Avro {
 
     @Override
     public WriteBuilder schema(org.apache.iceberg.Schema newSchema) {
-      impl.fileSchema(newSchema);
+      impl.schema(newSchema);
       return this;
     }
 
@@ -213,10 +213,9 @@ public class Avro {
     }
   }
 
-  static class WriteBuilderImpl<D>
-      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<D>, D> {
+  static class WriteBuilderImpl<D> implements org.apache.iceberg.io.WriteBuilder<D> {
     private final OutputFile file;
-    private final FileContent content;
+    private FileContent content;
     private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private org.apache.iceberg.Schema schema = null;
@@ -229,9 +228,8 @@ public class Avro {
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
 
-    WriteBuilderImpl(OutputFile file, FileContent content) {
+    WriteBuilderImpl(OutputFile file) {
       this.file = file;
-      this.content = content;
     }
 
     WriteBuilderImpl<D> writerFunction(
@@ -251,7 +249,13 @@ public class Avro {
     }
 
     @Override
-    public WriteBuilderImpl<D> fileSchema(org.apache.iceberg.Schema newSchema) {
+    public WriteBuilderImpl<D> content(FileContent newContent) {
+      this.content = newContent;
+      return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<D> schema(org.apache.iceberg.Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
@@ -290,49 +294,25 @@ public class Avro {
       throw new UnsupportedOperationException("Not supported");
     }
 
-    private void initWriterFunctionAndContext() {
-      switch (content) {
-        case DATA:
-          Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-          this.createWriterFunc = avroSchema -> writerFunction.apply(schema, avroSchema);
-          this.createContextFunc = Context::dataContext;
-          break;
-        case EQUALITY_DELETES:
-          Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-          this.createWriterFunc = avroSchema -> writerFunction.apply(schema, avroSchema);
-          this.createContextFunc = Context::deleteContext;
-          break;
-        case POSITION_DELETES:
-          this.createContextFunc = Context::deleteContext;
-          if (schema.columns().size() == DeleteSchemaUtil.pathPosSchema().columns().size()) {
-            // this is a position delete without rows
-            this.createWriterFunc = ignored -> new PositionDatumWriter();
-          } else {
-            // this is a position delete with rows
-            Preconditions.checkState(
-                deleteRowWriterFunction != null || writerFunction != null,
-                "Writer function has to be set.");
-            this.createWriterFunc =
-                deleteRowWriterFunction != null
-                    ? avroSchema ->
-                        new PositionAndRowDatumWriter<>(
-                            deleteRowWriterFunction.apply(schema, avroSchema))
-                    : avroSchema ->
-                        new PositionAndRowDatumWriter<>(writerFunction.apply(schema, avroSchema));
-          }
-          break;
-        default:
-          throw new IllegalArgumentException("Not supported content: " + content);
-      }
-    }
-
     @Override
     public FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
 
       if (content != null) {
-        initWriterFunctionAndContext();
+        Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+        this.createWriterFunc = avroSchema -> writerFunction.apply(schema, avroSchema);
+        switch (content) {
+          case DATA:
+            this.createContextFunc = Context::dataContext;
+            break;
+          case EQUALITY_DELETES:
+          case POSITION_DELETES:
+            this.createContextFunc = Context::deleteContext;
+            break;
+          default:
+            throw new IllegalArgumentException("Not supported content: " + content);
+        }
       }
 
       Function<Schema, DatumWriter<?>> writerFunc;
@@ -924,8 +904,7 @@ public class Avro {
   }
 
   static class ReadBuilderImpl<D>
-      implements InternalData.ReadBuilder,
-          org.apache.iceberg.io.ReadBuilder<ReadBuilderImpl<D>, D> {
+      implements InternalData.ReadBuilder, org.apache.iceberg.io.ReadBuilder<D> {
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
@@ -992,7 +971,12 @@ public class Avro {
     }
 
     @Override
-    public ReadBuilderImpl<D> constantFieldAccessors(Map<Integer, ?> newConstantFieldAccessors) {
+    public org.apache.iceberg.io.ReadBuilder<D> recordsPerBatch(int numRowsPerBatch) {
+      throw new UnsupportedOperationException("Batch reading is not supported in Avro reader");
+    }
+
+    @Override
+    public ReadBuilderImpl<D> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
       this.constantFieldAccessors = newConstantFieldAccessors;
       return this;
     }

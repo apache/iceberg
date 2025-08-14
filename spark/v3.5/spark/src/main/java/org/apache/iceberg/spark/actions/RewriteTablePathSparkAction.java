@@ -675,7 +675,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private static CloseableIterable<Record> positionDeletesReader(
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
-    ReadBuilder<?, Record> builder =
+    ReadBuilder<Record> builder =
         FormatModelRegistry.readBuilder(format, GenericFormatModels.MODEL_NAME, inputFile);
     return builder.project(deleteSchema).reuseContainers().build();
   }
@@ -687,7 +687,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       StructLike partition,
       Schema rowSchema)
       throws IOException {
-    PositionDeleteWriteBuilder<?, Record> builder =
+    PositionDeleteWriteBuilder<Record> builder =
         FormatModelRegistry.positionDeleteWriteBuilder(
             format,
             GenericFormatModels.MODEL_NAME,

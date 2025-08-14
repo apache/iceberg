@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -35,6 +36,7 @@ import org.apache.iceberg.io.FormatModel;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.io.WriteBuilder;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
@@ -57,9 +59,9 @@ import org.slf4j.LoggerFactory;
  *
  * The appropriate builder is selected based on {@link FileFormat} and object model name.
  *
- * <p>{@link FormatModel} objects are registered through {@link #registerFormatModel(FormatModel)}
- * and used for creating readers and writers. Read builders are returned directly from the factory.
- * Write builders may be wrapped in specialized content file writer implementations depending on the
+ * <p>{@link FormatModel} objects are registered through {@link #register(FormatModel)} and used for
+ * creating readers and writers. Read builders are returned directly from the factory. Write
+ * builders may be wrapped in specialized content file writer implementations depending on the
  * requested builder type.
  */
 public final class FormatModelRegistry {
@@ -74,6 +76,8 @@ public final class FormatModelRegistry {
 
   private static final Map<Pair<FileFormat, String>, FormatModel<?>> FORMAT_MODELS =
       Maps.newConcurrentMap();
+
+  private FormatModelRegistry() {}
 
   /**
    * Registers an {@link FormatModel} in this registry.
@@ -91,15 +95,15 @@ public final class FormatModelRegistry {
    * @throws IllegalArgumentException if a factory is already registered for the combination of
    *     {@link FormatModel#format()} and {@link FormatModel#modelName()}
    */
-  @SuppressWarnings("CatchBlockLogException")
-  public static void registerFormatModel(FormatModel<?> formatModel) {
+  public static void register(FormatModel<?> formatModel) {
     Pair<FileFormat, String> key = Pair.of(formatModel.format(), formatModel.modelName());
-    if (FORMAT_MODELS.containsKey(key)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Object model factory %s clashes with %s. Both serves %s",
-              formatModel.getClass(), FORMAT_MODELS.get(key), key));
-    }
+    Preconditions.checkArgument(
+        !FORMAT_MODELS.containsKey(key),
+        "Cannot register %s: %s is registered for format=%s model=%s",
+        formatModel.getClass(),
+        FORMAT_MODELS.containsKey(key) ? FORMAT_MODELS.get(key).getClass() : null,
+        key.first(),
+        key.second());
 
     FORMAT_MODELS.put(key, formatModel);
   }
@@ -112,7 +116,7 @@ public final class FormatModelRegistry {
         DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
       } catch (NoSuchMethodException e) {
         // failing to register a factory is normal and does not require a stack trace
-        LOG.info("Unable to register {} for data files: {}", classToRegister, e.getMessage());
+        LOG.info("Unable to register {}: {}", classToRegister, e.getMessage());
       }
     }
   }
@@ -120,8 +124,6 @@ public final class FormatModelRegistry {
   static {
     registerSupportedFormats();
   }
-
-  private FormatModelRegistry() {}
 
   /**
    * Returns a reader builder for the specified file format and object model.
@@ -137,7 +139,7 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the reader will produce
    * @return a configured reader builder for the specified format and object model
    */
-  public static <D> ReadBuilder<?, D> readBuilder(
+  public static <D> ReadBuilder<D> readBuilder(
       FileFormat format, String modelName, InputFile inputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
     return factory.readBuilder(inputFile);
@@ -156,10 +158,10 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the writer will accept
    * @return a configured writer builder for creating the appender
    */
-  public static <D> WriteBuilder<?, D> writeBuilder(
+  public static <D> WriteBuilder<D> writeBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
-    return factory.dataBuilder(outputFile.encryptingOutputFile());
+    return factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
   }
 
   /**
@@ -176,11 +178,11 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the writer will accept
    * @return a configured data write builder for creating a {@link DataWriter}
    */
-  public static <D> DataWriteBuilder<?, D> dataWriteBuilder(
+  public static <D> DataWriteBuilder<D> dataWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<?, D> writeBuilder =
-        factory.equalityDeleteBuilder(outputFile.encryptingOutputFile());
+    WriteBuilder<D> writeBuilder =
+        factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
     return ContentFileWriteBuilderImpl.forDataFile(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
@@ -199,11 +201,13 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the writer will accept
    * @return a configured delete write builder for creating an {@link EqualityDeleteWriter}
    */
-  public static <D> EqualityDeleteWriteBuilder<?, D> equalityDeleteWriteBuilder(
+  public static <D> EqualityDeleteWriteBuilder<D> equalityDeleteWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<?, D> writeBuilder =
-        factory.equalityDeleteBuilder(outputFile.encryptingOutputFile());
+    WriteBuilder<D> writeBuilder =
+        factory
+            .writeBuilder(outputFile.encryptingOutputFile())
+            .content(FileContent.EQUALITY_DELETES);
     return ContentFileWriteBuilderImpl.forEqualityDelete(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
@@ -223,13 +227,18 @@ public final class FormatModelRegistry {
    *     will accept
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  public static <D> PositionDeleteWriteBuilder<?, D> positionDeleteWriteBuilder(
+  public static <D> PositionDeleteWriteBuilder<D> positionDeleteWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
     FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<?, PositionDelete<D>> writeBuilder =
-        factory.positionDeleteBuilder(outputFile.encryptingOutputFile());
+    WriteBuilder<D> writeBuilder =
+        factory
+            .writeBuilder(outputFile.encryptingOutputFile())
+            .content(FileContent.POSITION_DELETES);
     return ContentFileWriteBuilderImpl.forPositionDelete(
-        writeBuilder, outputFile.encryptingOutputFile().location(), format);
+        writeBuilder,
+        outputFile.encryptingOutputFile().location(),
+        format,
+        factory::positionDeleteConverter);
   }
 
   @SuppressWarnings("unchecked")

@@ -49,11 +49,11 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Expression residual,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    ReadBuilder<?, InternalRow> reader =
+    ReadBuilder<InternalRow> reader =
         FormatModelRegistry.readBuilder(format, SparkFormatModels.MODEL_NAME, file);
     return reader
         .project(projection)
-        .constantFieldAccessors(idToConstant)
+        .constantValues(idToConstant)
         .reuseContainers()
         .split(start, length)
         .caseSensitive(caseSensitive())

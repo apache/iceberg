@@ -87,10 +87,10 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      DataWriteBuilder<?, T> builder =
+      DataWriteBuilder<T> builder =
           FormatModelRegistry.dataWriteBuilder(dataFileFormat, inputType, file);
       return builder
-          .fileSchema(dataSchema)
+          .schema(dataSchema)
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
@@ -113,7 +113,7 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      EqualityDeleteWriteBuilder<?, T> builder =
+      EqualityDeleteWriteBuilder<T> builder =
           FormatModelRegistry.equalityDeleteWriteBuilder(deleteFileFormat, inputType, file);
       return builder
           .set(properties)
@@ -140,7 +140,7 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      PositionDeleteWriteBuilder<?, T> builder =
+      PositionDeleteWriteBuilder<T> builder =
           FormatModelRegistry.positionDeleteWriteBuilder(deleteFileFormat, inputType, file);
       return builder
           .set(properties)

@@ -127,15 +127,10 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      WriteBuilder<?, Record> builder =
+      WriteBuilder<Record> builder =
           FormatModelRegistry.writeBuilder(
               fileFormat, GenericFormatModels.MODEL_NAME, encryptedOutputFile);
-      return builder
-          .fileSchema(schema)
-          .set(config)
-          .metricsConfig(metricsConfig)
-          .overwrite()
-          .build();
+      return builder.schema(schema).set(config).metricsConfig(metricsConfig).overwrite().build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -147,10 +142,10 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig =
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
     try {
-      DataWriteBuilder<?, Record> builder =
+      DataWriteBuilder<Record> builder =
           FormatModelRegistry.dataWriteBuilder(format, GenericFormatModels.MODEL_NAME, file);
       return builder
-          .fileSchema(schema)
+          .schema(schema)
           .set(config)
           .metricsConfig(metricsConfig)
           .overwrite()
@@ -176,11 +171,11 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      EqualityDeleteWriteBuilder<?, Record> builder =
+      EqualityDeleteWriteBuilder<Record> builder =
           FormatModelRegistry.equalityDeleteWriteBuilder(
               format, GenericFormatModels.MODEL_NAME, file);
       return builder
-          .fileSchema(schema)
+          .schema(schema)
           .partition(partition)
           .overwrite()
           .set(config)
@@ -204,11 +199,11 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
             : MetricsConfig.fromProperties(config);
 
     try {
-      PositionDeleteWriteBuilder<?, Record> builder =
+      PositionDeleteWriteBuilder<Record> builder =
           FormatModelRegistry.positionDeleteWriteBuilder(
               format, GenericFormatModels.MODEL_NAME, file);
       return builder
-          .fileSchema(schema)
+          .schema(schema)
           .partition(partition)
           .overwrite()
           .set(config)

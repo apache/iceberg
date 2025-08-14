@@ -137,11 +137,11 @@ public class ORC {
     private final WriteBuilderImpl<?> impl;
 
     private WriteBuilder(OutputFile file) {
-      this.impl = new WriteBuilderImpl<>(file, null);
+      this.impl = new WriteBuilderImpl<>(file);
     }
 
     public WriteBuilder forTable(Table table) {
-      impl.fileSchema(table.schema())
+      impl.schema(table.schema())
           .set(table.properties())
           .metricsConfig(MetricsConfig.forTable(table));
       return this;
@@ -169,7 +169,7 @@ public class ORC {
     }
 
     public WriteBuilder schema(Schema newSchema) {
-      impl.fileSchema(newSchema);
+      impl.schema(newSchema);
       return this;
     }
 
@@ -198,10 +198,9 @@ public class ORC {
     }
   }
 
-  static class WriteBuilderImpl<D>
-      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<D>, D> {
+  static class WriteBuilderImpl<D> implements org.apache.iceberg.io.WriteBuilder<D> {
     private final OutputFile file;
-    private final FileContent content;
+    private FileContent content;
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
@@ -211,11 +210,9 @@ public class ORC {
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private boolean overwrite = false;
-    private Function<CharSequence, ?> pathTransformFunc;
 
-    WriteBuilderImpl(OutputFile file, FileContent content) {
+    WriteBuilderImpl(OutputFile file) {
       this.file = file;
-      this.content = content;
       if (file instanceof HadoopOutputFile) {
         this.conf = new Configuration(((HadoopOutputFile) file).getConf());
       } else {
@@ -228,11 +225,6 @@ public class ORC {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
-      return this;
-    }
-
-    WriteBuilderImpl<D> pathTransformFunc(Function<CharSequence, ?> newPathTransformFunc) {
-      this.pathTransformFunc = newPathTransformFunc;
       return this;
     }
 
@@ -249,7 +241,13 @@ public class ORC {
     }
 
     @Override
-    public WriteBuilderImpl<D> fileSchema(Schema newSchema) {
+    public WriteBuilderImpl<D> content(FileContent newContent) {
+      this.content = newContent;
+      return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<D> schema(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
@@ -276,51 +274,26 @@ public class ORC {
       throw new UnsupportedOperationException("Not supported");
     }
 
-    private void initWriterFunctionAndContext() {
-      Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-      switch (content) {
-        case DATA:
-          this.createWriterFunc =
-              (icebergSchema, typeDescription) ->
-                  writerFunction.apply(icebergSchema, typeDescription);
-          this.createContextFunc = Context::dataContext;
-          break;
-        case EQUALITY_DELETES:
-          this.createWriterFunc =
-              (icebergSchema, typeDescription) ->
-                  writerFunction.apply(icebergSchema, typeDescription);
-          this.createContextFunc = Context::deleteContext;
-          break;
-        case POSITION_DELETES:
-          this.createContextFunc = Context::deleteContext;
-          if (schema.columns().size() == DeleteSchemaUtil.pathPosSchema().columns().size()) {
-            // this is a position delete without rows
-            this.createWriterFunc =
-                (icebergSchema, typeDescription) ->
-                    GenericOrcWriters.positionDelete(
-                        GenericOrcWriter.buildWriter(icebergSchema, typeDescription),
-                        Function.identity());
-          } else {
-            // this is a position delete with rows
-            Preconditions.checkState(
-                pathTransformFunc != null, "Path transform function has to be set.");
-            this.createWriterFunc =
-                (icebergSchema, typeDescription) ->
-                    GenericOrcWriters.positionDelete(
-                        writerFunction.apply(icebergSchema, typeDescription), pathTransformFunc);
-          }
-          break;
-        default:
-          throw new IllegalArgumentException("Not supported content: " + content);
-      }
-    }
-
     @Override
     public FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
 
       if (content != null) {
-        initWriterFunctionAndContext();
+        Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+        this.createWriterFunc =
+            (icebergSchema, typeDescription) ->
+                writerFunction.apply(icebergSchema, typeDescription);
+        switch (content) {
+          case DATA:
+            this.createContextFunc = Context::dataContext;
+            break;
+          case EQUALITY_DELETES:
+          case POSITION_DELETES:
+            this.createContextFunc = Context::deleteContext;
+            break;
+          default:
+            throw new IllegalArgumentException("Not supported content: " + content);
+        }
       }
 
       for (Map.Entry<String, String> entry : config.entrySet()) {
@@ -944,9 +917,7 @@ public class ORC {
     }
 
     public ReadBuilder recordsPerBatch(int numRecordsPerBatch) {
-      impl.set(
-          org.apache.iceberg.io.ReadBuilder.RECORDS_PER_BATCH_KEY,
-          String.valueOf(numRecordsPerBatch));
+      impl.recordsPerBatch(numRecordsPerBatch);
       return this;
     }
 
@@ -960,8 +931,7 @@ public class ORC {
     }
   }
 
-  public static class ReadBuilderImpl<D>
-      implements org.apache.iceberg.io.ReadBuilder<ReadBuilderImpl<D>, D> {
+  public static class ReadBuilderImpl<D> implements org.apache.iceberg.io.ReadBuilder<D> {
     private final InputFile file;
     private final Configuration conf;
     private Schema schema = null;
@@ -977,6 +947,7 @@ public class ORC {
     private ORCFormatModel.ReaderFunction<D> readerFunction;
     private ORCFormatModel.BatchReaderFunction<D> batchReaderFunction;
     private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
+    private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
 
     protected ReadBuilderImpl(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
@@ -1055,8 +1026,14 @@ public class ORC {
     }
 
     @Override
-    public ReadBuilderImpl<D> constantFieldAccessors(Map<Integer, ?> newConstantFieldAccessors) {
+    public ReadBuilderImpl<D> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
       this.constantFieldAccessors = newConstantFieldAccessors;
+      return this;
+    }
+
+    @Override
+    public ReadBuilderImpl<D> recordsPerBatch(int numRowsPerBatch) {
+      this.recordsPerBatch = numRowsPerBatch;
       return this;
     }
 
@@ -1107,7 +1084,7 @@ public class ORC {
           filterCaseSensitive,
           filter,
           batchReader,
-          conf.getInt(RECORDS_PER_BATCH_KEY, VectorizedRowBatch.DEFAULT_SIZE));
+          recordsPerBatch);
     }
   }
 

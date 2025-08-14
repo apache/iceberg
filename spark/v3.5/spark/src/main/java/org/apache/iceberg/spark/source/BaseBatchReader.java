@@ -62,18 +62,17 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Map<Integer, ?> idToConstant,
       SparkDeleteFilter deleteFilter) {
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
-    ReadBuilder<?, ColumnarBatch> readBuilder =
+    ReadBuilder<ColumnarBatch> readBuilder =
         FormatModelRegistry.readBuilder(format, SparkFormatModels.VECTORIZED_MODEL_NAME, inputFile);
     if (parquetConf != null) {
       readBuilder =
           readBuilder
-              .set(ReadBuilder.RECORDS_PER_BATCH_KEY, String.valueOf(parquetConf.batchSize()))
+              .recordsPerBatch(parquetConf.batchSize())
               .set(
                   VectorizedSparkParquetReaders.PARQUET_READER_TYPE,
                   parquetConf.readerType().name());
     } else if (orcConf != null) {
-      readBuilder =
-          readBuilder.set(ReadBuilder.RECORDS_PER_BATCH_KEY, String.valueOf(orcConf.batchSize()));
+      readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
     }
 
     if (readBuilder instanceof ParquetFormatModel.SupportsDeleteFilter<?>) {
@@ -83,7 +82,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
 
     return readBuilder
         .project(requiredSchema)
-        .constantFieldAccessors(idToConstant)
+        .constantValues(idToConstant)
         .split(start, length)
         .caseSensitive(caseSensitive())
         .filter(residual)

@@ -126,7 +126,7 @@ public class ArrowReader extends CloseableGroup {
   private static final String MODEL_NAME = "arrow";
 
   public static void register() {
-    FormatModelRegistry.registerFormatModel(
+    FormatModelRegistry.register(
         new ParquetFormatModel<>(
             MODEL_NAME,
             (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
@@ -336,7 +336,7 @@ public class ArrowReader extends CloseableGroup {
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
-        ReadBuilder<?, ColumnarBatch> builder =
+        ReadBuilder<ColumnarBatch> builder =
             FormatModelRegistry.readBuilder(FileFormat.PARQUET, MODEL_NAME, location);
 
         if (reuseContainers) {
@@ -350,7 +350,7 @@ public class ArrowReader extends CloseableGroup {
             builder
                 .project(expectedSchema)
                 .split(task.start(), task.length())
-                .set(ReadBuilder.RECORDS_PER_BATCH_KEY, String.valueOf(batchSize))
+                .recordsPerBatch(batchSize)
                 .caseSensitive(filterCaseSensitive)
                 .filter(task.residual())
                 .build();

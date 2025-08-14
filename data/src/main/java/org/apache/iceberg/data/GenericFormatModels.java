@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.data;
 
-import java.util.function.Function;
+import java.util.Map;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
@@ -26,13 +26,16 @@ import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class GenericFormatModels {
   private static final Logger LOG = LoggerFactory.getLogger(GenericFormatModels.class);
+  private static final DeleteRecord DELETE_RECORD = new DeleteRecord();
 
   public static final String MODEL_NAME = "generic";
 
@@ -47,33 +50,34 @@ public class GenericFormatModels {
   private static void registerParquet() {
     logAngIgnoreNoClassDefFoundError(
         () ->
-            FormatModelRegistry.registerFormatModel(
+            FormatModelRegistry.register(
                 new ParquetFormatModel<>(
                     MODEL_NAME,
                     GenericParquetReaders::buildReader,
                     GenericParquetWriter::create,
-                    Function.identity())));
+                    DELETE_RECORD::wrap)));
   }
 
   private static void registerAvro() {
     logAngIgnoreNoClassDefFoundError(
         () ->
-            FormatModelRegistry.registerFormatModel(
+            FormatModelRegistry.register(
                 new AvroFormatModel<>(
                     MODEL_NAME,
                     PlannedDataReader::create,
-                    (schema, avroSchema) -> DataWriter.create(avroSchema))));
+                    (schema, avroSchema) -> DataWriter.create(avroSchema),
+                    DELETE_RECORD::wrap)));
   }
 
   private static void registerOrc() {
     logAngIgnoreNoClassDefFoundError(
         () ->
-            FormatModelRegistry.registerFormatModel(
+            FormatModelRegistry.register(
                 new ORCFormatModel<>(
                     MODEL_NAME,
                     GenericOrcReader::buildReader,
                     GenericOrcWriter::buildWriter,
-                    Function.identity())));
+                    DELETE_RECORD::wrap)));
   }
 
   private GenericFormatModels() {}
@@ -85,6 +89,69 @@ public class GenericFormatModels {
     } catch (NoClassDefFoundError e) {
       // Log the exception and ignore it
       LOG.info("Exception occurred when trying to register object models: {}", e.getMessage());
+    }
+  }
+
+  private static class DeleteRecord implements Record {
+    private PositionDelete<Record> delete;
+
+    private DeleteRecord wrap(PositionDelete<Record> newDelete) {
+      this.delete = newDelete;
+      return this;
+    }
+
+    @Override
+    public Types.StructType struct() {
+      throw new UnsupportedOperationException("Not supported for DeleteRecord");
+    }
+
+    @Override
+    public Object getField(String name) {
+      throw new UnsupportedOperationException("Not supported for DeleteRecord");
+    }
+
+    @Override
+    public void setField(String name, Object value) {
+      throw new UnsupportedOperationException("DeleteRecord is immutable");
+    }
+
+    @Override
+    public Object get(int pos) {
+      switch (pos) {
+        case 0:
+          return delete.path();
+        case 1:
+          return delete.pos();
+        case 2:
+          return delete.row();
+      }
+
+      throw new IllegalArgumentException("Cannot get value for invalid index: " + pos);
+    }
+
+    @Override
+    public Record copy() {
+      throw new UnsupportedOperationException("Not supported for DeleteRecord");
+    }
+
+    @Override
+    public Record copy(Map<String, Object> overwriteValues) {
+      throw new UnsupportedOperationException("Not supported for DeleteRecord");
+    }
+
+    @Override
+    public int size() {
+      return 3;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("DeleteRecord is immutable");
     }
   }
 }

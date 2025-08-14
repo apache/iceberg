@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import org.apache.iceberg.data.RowTransformer;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -50,8 +51,139 @@ public class InternalRowTransformer implements RowTransformer<InternalRow> {
     return getter.get(row, ROOT_POSITION);
   }
 
+  public static InternalRow transform(PositionDelete<InternalRow> delete) {
+    DeleteAccessor deleteAccessor = new DeleteAccessor();
+    deleteAccessor.delete = delete;
+    return deleteAccessor;
+  }
+
   private interface PositionalGetter<T> {
     T get(SpecializedGetters data, int pos);
+  }
+
+  private static class DeleteAccessor extends InternalRow {
+    private PositionDelete<InternalRow> delete = null;
+
+    @Override
+    public boolean isNullAt(int ordinal) {
+      return ordinal == 2 && delete.row() == null;
+    }
+
+    @Override
+    public boolean getBoolean(int ordinal) {
+      throw new UnsupportedOperationException("Not supported for InternalRowAccessor");
+    }
+
+    @Override
+    public byte getByte(int ordinal) {
+      throw new UnsupportedOperationException("Not supported for InternalRowAccessor");
+    }
+
+    @Override
+    public short getShort(int ordinal) {
+      throw new UnsupportedOperationException("Not supported for InternalRowAccessor");
+    }
+
+    @Override
+    public int getInt(int ordinal) {
+
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public long getLong(int ordinal) {
+      if (ordinal == 1) {
+        return delete.pos();
+      } else {
+        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+      }
+    }
+
+    @Override
+    public float getFloat(int ordinal) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public double getDouble(int ordinal) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public Decimal getDecimal(int ordinal, int precision, int scale) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public UTF8String getUTF8String(int ordinal) {
+      if (ordinal == 0) {
+        return UTF8String.fromString(delete.path().toString());
+      } else {
+        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+      }
+    }
+
+    @Override
+    public byte[] getBinary(int ordinal) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public CalendarInterval getInterval(int ordinal) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public InternalRow getStruct(int ordinal, int numFields) {
+      if (ordinal == 2) {
+        return delete.row();
+      } else {
+        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+      }
+    }
+
+    @Override
+    public ArrayData getArray(int ordinal) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public MapData getMap(int ordinal) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public Object get(int ordinal, DataType dataType) {
+      if (ordinal == 0) {
+        return getUTF8String(0);
+      } else if (ordinal == 1) {
+        return getLong(1);
+      } else if (ordinal == 2) {
+        return getStruct(2, -1);
+      } else {
+        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+      }
+    }
+
+    @Override
+    public int numFields() {
+      return 3;
+    }
+
+    @Override
+    public void setNullAt(int i) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public void update(int i, Object value) {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
+
+    @Override
+    public InternalRow copy() {
+      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    }
   }
 
   private static class InternalRowAccessor extends InternalRow {

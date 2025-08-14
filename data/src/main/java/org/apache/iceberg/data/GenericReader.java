@@ -88,7 +88,7 @@ class GenericReader implements Serializable {
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
-    ReadBuilder<?, Record> builder =
+    ReadBuilder<Record> builder =
         FormatModelRegistry.readBuilder(
             task.file().format(), GenericFormatModels.MODEL_NAME, input);
     if (reuseContainers) {
@@ -97,7 +97,7 @@ class GenericReader implements Serializable {
 
     return builder
         .project(fileProjection)
-        .constantFieldAccessors(partition)
+        .constantValues(partition)
         .split(task.start(), task.length())
         .caseSensitive(filterCaseSensitive)
         .filter(task.residual())
