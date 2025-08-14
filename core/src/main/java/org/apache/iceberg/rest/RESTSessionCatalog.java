@@ -370,11 +370,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    // Assume context will have loaded-via key
+    Map<String, String> queryParams = Maps.newHashMap(mode.params());
+    if (!context.properties().containsKey("loaded-via")) {
+      queryParams.put("loaded-via", context.properties().get("loaded-via"));
+    }
+
     return client
         .withAuthSession(contextualSession)
         .get(
             paths.table(identifier),
-            mode.params(),
+            queryParams,
             LoadTableResponse.class,
             Map.of(),
             ErrorHandlers.tableErrorHandler());

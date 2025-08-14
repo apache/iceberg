@@ -960,6 +960,15 @@ paths:
           schema:
             type: string
             enum: [ all, refs ]
+        - in: query
+          name: loaded-via
+          description:
+            The fully qualified name of the view that loaded the table.
+            
+            Note only 2 part identifiers are supported and the nested namespaces are separated by the separator configured.
+          required: false
+          schema:
+            type: string
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
