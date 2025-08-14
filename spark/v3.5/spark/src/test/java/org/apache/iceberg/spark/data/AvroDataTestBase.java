@@ -109,7 +109,7 @@ public abstract class AvroDataTestBase {
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)), // long encoded
           required(116, "dec_20_5", Types.DecimalType.of(20, 5)), // requires padding
           required(117, "dec_38_10", Types.DecimalType.of(38, 10)), // Spark's maximum precision
-          required(118, "unk", Types.UnknownType.get()));
+          optional(118, "unk", Types.UnknownType.get()));
 
   @TempDir protected Path temp;
 

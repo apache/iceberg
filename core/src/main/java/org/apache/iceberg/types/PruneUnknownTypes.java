@@ -69,7 +69,7 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
 
   private boolean needsRewrite(Types.NestedField field, Type type) {
     return field.type().typeId().equals(Type.TypeID.UNKNOWN)
-        || field.type().typeId().equals(Type.TypeID.UNKNOWN)
+        || type.typeId().equals(Type.TypeID.UNKNOWN)
         || !field.type().equals(type);
   }
 
