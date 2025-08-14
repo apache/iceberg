@@ -76,7 +76,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
    * same uri.
    *
    * @param uri of the jdbc connection
-   * @param lockId which should indentify the job and the table
+   * @param lockId which should identify the job and the table
    * @param properties used for creating the jdbc connection pool
    */
   public JdbcLockFactory(String uri, String lockId, Map<String, String> properties) {
