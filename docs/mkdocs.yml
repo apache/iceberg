@@ -72,13 +72,13 @@ nav:
       - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
       - Daft: daft.md
       - Databend: https://docs.databend.com/guides/access-data-lake/iceberg
-      - Memiiso Debezium: https://memiiso.github.io/debezium-server-iceberg/
       - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
       - DuckDB: https://duckdb.org/docs/preview/core_extensions/iceberg/overview
       - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
       - Firebolt: https://docs.firebolt.io/reference-sql/functions-reference/table-valued/read_iceberg
       - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
       - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
+      - Memiiso Debezium: https://memiiso.github.io/debezium-server-iceberg/
       - Presto: https://prestodb.io/docs/current/connector/iceberg.html
       - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
       - RisingWave: risingwave.md
