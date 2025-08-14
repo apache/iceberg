@@ -89,7 +89,10 @@ public class PruneUnknownTypes extends TypeUtil.SchemaVisitor<Type> {
       Type fieldResult = fieldResults.get(pos);
 
       if (needsRewrite(field, fieldResult)) {
-        newFields.add(Types.NestedField.from(field).ofType(fieldResult).build());
+        if (!field.type().typeId().equals(Type.TypeID.UNKNOWN)
+            && !fieldResult.typeId().equals(Type.TypeID.UNKNOWN)) {
+          newFields.add(Types.NestedField.from(field).ofType(fieldResult).build());
+        }
         rewritten = true;
       } else {
         newFields.add(field);
