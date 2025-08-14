@@ -1064,19 +1064,7 @@ paths:
                   }
                 }
         503:
-          description:
-            Service Unavailable; the commit state is unknown.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergErrorResponse'
-              example: {
-                "error": {
-                  "message": "Service Unavailable",
-                  "type": "CommitStateUnknownException",
-                  "code": 503
-                }
-              }
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
           description:
             A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
@@ -4659,10 +4647,10 @@ components:
 
     ServiceUnavailableResponse:
       description:
-        The service is not ready to handle the request. The client should wait and retry.
+        The service is not ready to handle the request, request could have been partially processed.
 
-
-        The service may additionally send a Retry-After header to indicate when to retry.
+        The service may additionally send a Retry-After header to indicate when to retry, a non idempotent
+        request should only be retried when the Retry-After header is present.
       content:
         application/json:
           schema:

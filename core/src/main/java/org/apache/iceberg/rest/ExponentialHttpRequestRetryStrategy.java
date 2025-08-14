@@ -141,12 +141,20 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     HttpRequest request =
         context instanceof HttpCoreContext ? ((HttpCoreContext) context).getRequest() : null;
 
-    boolean shouldRetry =
-        execCount <= maxRetries
-            && (retriableCodes.contains(response.getCode())
-                || shouldRetryIdempotent(request, response.getCode()));
+    boolean is503Retryable =
+        response.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE
+            && response.getFirstHeader(HttpHeaders.RETRY_AFTER) != null;
 
-    return shouldRetry;
+    // A retry is permitted if all the following conditions are met:
+    // 1. The maximum retry count has not been exceeded.
+    // 2. The response code is considered retryable, for one of the following reasons:
+    //    - It's in a predefined list of retriable codes.
+    //    - The request is idempotent, and the response code indicates a retry is safe.
+    //    - The response code is '503 Service Unavailable' and includes a 'Retry-After' header.
+    return execCount <= maxRetries
+        && (retriableCodes.contains(response.getCode())
+            || shouldRetryIdempotent(request, response.getCode())
+            || is503Retryable);
   }
 
   @Override

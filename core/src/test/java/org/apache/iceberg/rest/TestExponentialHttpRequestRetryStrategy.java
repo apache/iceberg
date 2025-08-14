@@ -37,6 +37,8 @@ import org.apache.hc.client5.http.utils.DateUtils;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.http.message.BasicHttpRequest;
 import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.junit.jupiter.api.Test;
@@ -208,6 +210,15 @@ public class TestExponentialHttpRequestRetryStrategy {
   public void testRetryDoesNotHappenOnUnacceptableStatusCodes(int statusCode) {
     BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
     assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
+  }
+
+  @Test
+  public void testRetryHappensWith503WithRetryAfterHeader() {
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_SERVICE_UNAVAILABLE, "Service Unavailable");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "60"));
+
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isTrue();
   }
 
   @ParameterizedTest
