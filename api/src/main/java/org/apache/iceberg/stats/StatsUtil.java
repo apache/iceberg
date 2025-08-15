@@ -20,9 +20,13 @@ package org.apache.iceberg.stats;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -30,7 +34,7 @@ import org.apache.iceberg.types.Types;
 public class StatsUtil {
   private static final int NUM_STATS_PER_COLUMN = 200;
   static final int RESERVED_FIELD_IDS = 200;
-  static final int DATA_SPACE_FIELD_ID_START = 100_000;
+  static final int DATA_SPACE_FIELD_ID_START = 10_000;
   static final int METADATA_SPACE_FIELD_ID_START = 1_417_000_000;
   static final int RESERVED_FIELD_IDS_START = Integer.MAX_VALUE - RESERVED_FIELD_IDS;
 
@@ -83,10 +87,6 @@ public class StatsUtil {
 
   private static Types.StructType contentStatsFor(Type type, int id) {
     int fieldId = id;
-    Type boundType = type;
-    if (type.isNestedType()) {
-      boundType = Types.BinaryType.get();
-    }
 
     return Types.StructType.of(
         optional(fieldId++, "column_size", Types.LongType.get(), "Total size on disk"),
@@ -97,27 +97,64 @@ public class StatsUtil {
             "Total value count, including null and NaN"),
         optional(fieldId++, "nan_value_count", Types.LongType.get(), "Total NaN value count"),
         optional(fieldId++, "null_value_count", Types.LongType.get(), "Total null value count"),
-        optional(fieldId++, "lower_bound", boundType, "Lower bound"),
-        optional(fieldId, "upper_bound", boundType, "Upper bound"));
+        optional(fieldId++, "lower_bound", type, "Lower bound"),
+        optional(fieldId, "upper_bound", type, "Upper bound"));
   }
 
   private static class ContentStatsSchemaVisitor extends TypeUtil.SchemaVisitor<Types.NestedField> {
+    private final List<Types.NestedField> statsFields = Lists.newArrayList();
 
     @Override
     public Types.NestedField schema(Schema schema, Types.NestedField structResult) {
-      return structResult;
+      return optional(
+          DataFile.CONTENT_STATS.fieldId(),
+          DataFile.CONTENT_STATS.name(),
+          Types.StructType.of(
+              statsFields.stream()
+                  .filter(Objects::nonNull)
+                  .sorted(Comparator.comparing(Types.NestedField::fieldId))
+                  .collect(Collectors.toList())));
+    }
+
+    @Override
+    public Types.NestedField list(Types.ListType list, Types.NestedField elementResult) {
+      list.fields()
+          .forEach(
+              field -> {
+                Types.NestedField result = field(field, null);
+                if (null != result) {
+                  statsFields.add(result);
+                }
+              });
+      return null;
+    }
+
+    @Override
+    public Types.NestedField map(
+        Types.MapType map, Types.NestedField keyResult, Types.NestedField valueResult) {
+      map.fields()
+          .forEach(
+              field -> {
+                Types.NestedField result = field(field, null);
+                if (null != result) {
+                  statsFields.add(result);
+                }
+              });
+      return null;
     }
 
     @Override
     public Types.NestedField struct(Types.StructType struct, List<Types.NestedField> fields) {
-      return optional(
-          DataFile.CONTENT_STATS.fieldId(),
-          DataFile.CONTENT_STATS.name(),
-          Types.StructType.of(fields));
+      statsFields.addAll(fields);
+      return null;
     }
 
     @Override
     public Types.NestedField field(Types.NestedField field, Types.NestedField fieldResult) {
+      if (field.type().isNestedType() || field.type().isVariantType()) {
+        return null;
+      }
+
       int fieldId = StatsUtil.statsFieldIdFor(field.fieldId());
       // don't overflow and don't overlap with the metadata ID range
       if (fieldId >= 0) {
