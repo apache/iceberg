@@ -141,7 +141,6 @@ class ParquetIO {
         throws IOException {
       IntFunction<ByteBuffer> delegateAllocate = (allocate::allocate);
       List<ParquetObjectRange> delegateRange = convertRanges(ranges);
-
       delegate.readVectored(delegateRange, delegateAllocate);
     }
 

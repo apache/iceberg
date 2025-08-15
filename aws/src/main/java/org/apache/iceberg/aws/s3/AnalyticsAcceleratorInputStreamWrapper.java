@@ -77,6 +77,7 @@ class AnalyticsAcceleratorInputStreamWrapper extends SeekableInputStream {
   @Override
   public void readVectored(List<ParquetObjectRange> ranges, IntFunction<ByteBuffer> allocate)
       throws IOException {
+    LOG.info("Read vectored ranges: {}", ranges);
     this.delegate.readVectored(convertRanges(ranges), allocate, LOG_BYTE_BUFFER_RELEASED);
   }
 
