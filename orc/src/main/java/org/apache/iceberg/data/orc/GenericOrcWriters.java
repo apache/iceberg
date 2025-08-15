@@ -151,6 +151,10 @@ public class GenericOrcWriters {
     return VariantWriter.INSTANCE;
   }
 
+  public static OrcValueWriter<Void> noop() {
+    return NoopWriter.INSTANCE;
+  }
+
   public static <T> OrcValueWriter<List<T>> list(OrcValueWriter<T> element) {
     return new ListWriter<>(element);
   }
@@ -181,6 +185,13 @@ public class GenericOrcWriters {
     public void nonNullWrite(int rowId, Byte data, ColumnVector output) {
       ((LongColumnVector) output).vector[rowId] = data;
     }
+  }
+
+  private static class NoopWriter implements OrcValueWriter<Void> {
+    private static final OrcValueWriter<Void> INSTANCE = new NoopWriter();
+
+    @Override
+    public void nonNullWrite(int rowId, Void data, ColumnVector output) {}
   }
 
   private static class ShortWriter implements OrcValueWriter<Short> {
