@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,6 +24,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.ContentFileParser;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -49,6 +53,7 @@ public class TableScanResponseParser {
         DeleteFile deleteFile = (DeleteFile) ContentFileParser.fromJson(deleteFileNode, specsById);
         deleteFilesBuilder.add(deleteFile);
       }
+
       return deleteFilesBuilder.build();
     }
 
@@ -94,6 +99,7 @@ public class TableScanResponseParser {
         deleteFilePathToIndex.put(String.valueOf(deleteFile.path()), i);
         ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
       }
+
       gen.writeEndArray();
     }
 
@@ -114,6 +120,7 @@ public class TableScanResponseParser {
             fileScanTask.file().specId());
         RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, spec, gen);
       }
+
       gen.writeEndArray();
     }
   }

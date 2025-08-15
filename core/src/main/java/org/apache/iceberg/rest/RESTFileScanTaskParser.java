@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,13 +25,21 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseFileScanTask;
+import org.apache.iceberg.ContentFileParser;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
-public class RESTFileScanTaskParser {
+class RESTFileScanTaskParser {
   private static final String DATA_FILE = "data-file";
   private static final String DELETE_FILE_REFERENCES = "delete-file-references";
   private static final String RESIDUAL_FILTER = "residual-filter";
@@ -83,10 +91,7 @@ public class RESTFileScanTaskParser {
           "Invalid delete file references: %s, expected indices < %s",
           indices,
           allDeleteFiles.size());
-      deleteFiles =
-          indices.stream()
-              .map(index -> (GenericDeleteFile) allDeleteFiles.get(index))
-              .toArray(GenericDeleteFile[]::new);
+      deleteFiles = indices.stream().map(allDeleteFiles::get).toArray(DeleteFile[]::new);
     }
 
     Expression filter = null;

@@ -40,18 +40,6 @@ public class TestPlanTableScanRequest {
   }
 
   @Test
-  public void roundTripSerdeWithEmptyRequestAndDefaultsPresent() {
-    PlanTableScanRequest request = new PlanTableScanRequest.Builder().build();
-
-    String expectedJson = "{" + "\"case-sensitive\":true," + "\"use-snapshot-schema\":false}";
-
-    String json = PlanTableScanRequestParser.toJson(request, false);
-    assertThat(json).isEqualTo(expectedJson);
-    assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), false))
-        .isEqualTo(expectedJson);
-  }
-
-  @Test
   public void roundTripSerdeWithSelectField() {
     PlanTableScanRequest request =
         new PlanTableScanRequest.Builder()
@@ -136,5 +124,25 @@ public class TestPlanTableScanRequest {
     assertThat(json).isEqualTo(expectedJson);
     assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), false))
         .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void testToStringContainsAllFields() {
+    PlanTableScanRequest request = new PlanTableScanRequest.Builder()
+            .withSnapshotId(123L)
+            .withSelect(Lists.newArrayList("colA", "colB"))
+            .withFilter(Expressions.alwaysTrue())
+            .withCaseSensitive(false)
+            .withUseSnapshotSchema(true)
+            .withStatsFields(Lists.newArrayList("stat1"))
+            .build();
+
+    String str = request.toString();
+    assertThat(str).contains("snapshotId=123");
+    assertThat(str).contains("select=[colA, colB]");
+    assertThat(str).contains("filter=true");
+    assertThat(str).contains("caseSensitive=false");
+    assertThat(str).contains("useSnapshotSchema=true");
+    assertThat(str).contains("statsFields=[stat1]");
   }
 }

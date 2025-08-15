@@ -88,21 +88,22 @@ public class PlanTableScanRequest implements RESTRequest {
 
   @Override
   public void validate() {
-    if (snapshotId != null || startSnapshotId != null || endSnapshotId != null) {
-      Preconditions.checkArgument(
-          snapshotId != null ^ (startSnapshotId != null && endSnapshotId != null),
-          "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
-    }
+    Preconditions.checkArgument(
+        snapshotId != null ^ (startSnapshotId != null && endSnapshotId != null),
+        "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("snapshotId", snapshotId)
+        .add("select", select)
+        .add("filter", filter)
         .add("caseSensitive", caseSensitive)
         .add("useSnapshotSchema", useSnapshotSchema)
         .add("startSnapshotId", startSnapshotId)
         .add("endSnapshotId", endSnapshotId)
+        .add("statsFields", statsFields)
         .toString();
   }
 

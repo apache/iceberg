@@ -26,10 +26,10 @@ import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.TableScanResponseParser;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
+import org.apache.iceberg.rest.TableScanResponseParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class FetchPlanningResultResponseParser {
