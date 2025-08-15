@@ -144,9 +144,9 @@ public final class MetricsConfig implements Serializable {
               }
             }
 
-            // visit children to add more ids
             Iterator<Set<Integer>> iter = fieldResults.iterator();
-            while (iter.hasNext()) {
+            while (shouldContinue() && iter.hasNext()) {
+              // visit children lazily to add more ids
               iter.next();
             }
 
