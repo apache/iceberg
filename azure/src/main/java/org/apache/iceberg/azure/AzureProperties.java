@@ -61,6 +61,7 @@ public class AzureProperties implements Serializable {
   private Long adlsWriteBlockSize;
   private String adlsRefreshCredentialsEndpoint;
   private boolean adlsRefreshCredentialsEnabled;
+  private String token;
   private Map<String, String> allProperties;
 
   public AzureProperties() {}
