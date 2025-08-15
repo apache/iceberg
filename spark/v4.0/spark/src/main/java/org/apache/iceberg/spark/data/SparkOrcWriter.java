@@ -51,8 +51,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         "Top level must be a struct " + orcSchema);
 
     writer =
-        (InternalRowWriter)
-            OrcSchemaWithTypeVisitor.visit(iSchema.asStruct(), orcSchema, new WriteBuilder());
+        (InternalRowWriter) OrcSchemaWithTypeVisitor.visit(iSchema, orcSchema, new WriteBuilder());
   }
 
   @Override
