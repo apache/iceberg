@@ -128,7 +128,8 @@ public class TestPlanTableScanRequest {
 
   @Test
   public void testToStringContainsAllFields() {
-    PlanTableScanRequest request = new PlanTableScanRequest.Builder()
+    PlanTableScanRequest request =
+        new PlanTableScanRequest.Builder()
             .withSnapshotId(123L)
             .withSelect(Lists.newArrayList("colA", "colB"))
             .withFilter(Expressions.alwaysTrue())
