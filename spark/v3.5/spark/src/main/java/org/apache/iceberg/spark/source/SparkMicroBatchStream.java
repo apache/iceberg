@@ -64,11 +64,11 @@ import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles;
 import org.apache.spark.sql.connector.read.streaming.ReadMaxRows;
-import org.apache.spark.sql.connector.read.streaming.SupportsAdmissionControl;
+import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissionControl {
+public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
   private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
@@ -522,6 +522,11 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     } else {
       return ReadLimit.allAvailable();
     }
+  }
+
+  @Override
+  public void prepareForTriggerAvailableNow() {
+    LOG.info("The streaming query reports to use Trigger.AvailableNow");
   }
 
   private static class InitialOffsetStore {

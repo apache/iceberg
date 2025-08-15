@@ -62,6 +62,7 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
+import org.apache.spark.sql.streaming.Trigger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -214,6 +215,88 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
             SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
             SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"),
         List.of(1L, 2L, 1L, 1L, 1L, 1L));
+  }
+
+  @TestTemplate
+  public void testAvailableNowReadStreamWithMaxFiles2() throws Exception {
+    spark.conf().set("spark.sql.streaming.triggerAvailableNowWrapper.enabled", true);
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2"),
+        List.of(3L, 2L, 2L),
+        Trigger.AvailableNow());
+  }
+
+  @TestTemplate
+  public void testAvailableNowReadStreamWithMaxRows4() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"),
+        List.of(4L, 3L),
+        Trigger.AvailableNow());
+  }
+
+  @TestTemplate
+  public void testAvailableNowReadStreamWithCompositeReadLimit() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(
+            SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
+            SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L),
+        Trigger.AvailableNow());
+  }
+
+  @TestTemplate
+  public void testAvailableNowStreamReadShouldNotHangOrReprocessData() throws Exception {
+    File writerCheckpointFolder = temp.resolve("writer-checkpoint-folder").toFile();
+    File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
+    File output = temp.resolve("junit").toFile();
+
+    DataStreamWriter querySource =
+        spark
+            .readStream()
+            .format("iceberg")
+            .load(tableName)
+            .writeStream()
+            .option("checkpointLocation", writerCheckpoint.toString())
+            .format("parquet")
+            .trigger(Trigger.AvailableNow())
+            .option("path", output.getPath());
+
+    List<SimpleRecord> expected = Lists.newArrayList();
+    for (List<List<SimpleRecord>> expectedCheckpoint :
+        TEST_DATA_MULTIPLE_WRITES_MULTIPLE_SNAPSHOTS) {
+
+      // New data was added while the stream was down
+      appendDataAsMultipleSnapshots(expectedCheckpoint);
+      expected.addAll(Lists.newArrayList(Iterables.concat(Iterables.concat(expectedCheckpoint))));
+
+      try {
+        StreamingQuery query = querySource.start();
+
+        // Query should terminate on its own after processing all available data
+        assertThat(query.awaitTermination(60000)).isTrue();
+
+        // Check output
+        List<SimpleRecord> actual =
+            spark
+                .read()
+                .load(output.getPath())
+                .as(Encoders.bean(SimpleRecord.class))
+                .collectAsList();
+        assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+
+        // Restarting immediately should not reprocess data
+        query = querySource.start();
+        assertThat(query.awaitTermination(60000)).isTrue();
+        assertThat(query.recentProgress().length).isEqualTo(1);
+        assertThat(query.recentProgress()[0].sources()[0].startOffset())
+            .isEqualTo(query.recentProgress()[0].sources()[0].endOffset());
+      } finally {
+        stopStreams();
+      }
+    }
   }
 
   @TestTemplate
@@ -754,11 +837,18 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   private void assertMicroBatchRecordSizes(
       Map<String, String> options, List<Long> expectedMicroBatchRecordSize)
       throws TimeoutException {
+    assertMicroBatchRecordSizes(options, expectedMicroBatchRecordSize, Trigger.ProcessingTime(0L));
+  }
+
+  private void assertMicroBatchRecordSizes(
+      Map<String, String> options, List<Long> expectedMicroBatchRecordSize, Trigger trigger)
+      throws TimeoutException {
     Dataset<Row> ds = spark.readStream().options(options).format("iceberg").load(tableName);
 
     List<Long> syncList = Collections.synchronizedList(Lists.newArrayList());
     ds.writeStream()
         .options(options)
+        .trigger(trigger)
         .foreachBatch(
             (VoidFunction2<Dataset<Row>, Long>)
                 (dataset, batchId) -> {
