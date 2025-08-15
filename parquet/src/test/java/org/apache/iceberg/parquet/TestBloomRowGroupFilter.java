@@ -320,7 +320,9 @@ public class TestBloomRowGroupFilter {
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, isNull("struct_not_null.int_field"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
+    assertThat(shouldRead)
+        .as("Should read: required nested field can still be null if any ancestor is optional")
+        .isTrue();
   }
 
   @Test

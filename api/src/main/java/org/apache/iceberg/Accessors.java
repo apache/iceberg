@@ -61,7 +61,7 @@ public class Accessors {
     private final Class<?> javaClass;
     private final boolean hasOptionalFieldInPath;
 
-    PositionAccessor(int pos, boolean isOptional, Type type) {
+    PositionAccessor(int pos, Type type, boolean isOptional) {
       this.position = pos;
       this.type = type;
       this.javaClass = type.typeId().javaClass();
@@ -212,7 +212,7 @@ public class Accessors {
   }
 
   private static Accessor<StructLike> newAccessor(int pos, boolean isOptional, Type type) {
-    return new PositionAccessor(pos, isOptional, type);
+    return new PositionAccessor(pos, type, isOptional);
   }
 
   private static Accessor<StructLike> newAccessor(

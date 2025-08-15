@@ -59,7 +59,7 @@ public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
   public boolean producesNull() {
     // A leaf required field can evaluate to null if it is optional itself or any
     // ancestor on the path is optional.
-    return field.isOptional() || accessor.hasOptionalFieldInPath();
+    return accessor.hasOptionalFieldInPath();
   }
 
   @Override
