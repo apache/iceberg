@@ -42,6 +42,7 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
   public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
   public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
+  public static final String ADLS_TOKEN = "adls.token";
 
   /**
    * When set, the {@link VendedAdlsCredentialProvider} will be used to fetch and refresh vended
@@ -92,6 +93,7 @@ public class AzureProperties implements Serializable {
             properties.get(ADLS_REFRESH_CREDENTIALS_ENDPOINT));
     this.adlsRefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, ADLS_REFRESH_CREDENTIALS_ENABLED, true);
+    this.token = properties.get(ADLS_TOKEN);
     this.allProperties = SerializableMap.copyOf(properties);
   }
 
@@ -131,6 +133,16 @@ public class AzureProperties implements Serializable {
       } else if (namedKeyCreds != null) {
         builder.credential(
             new StorageSharedKeyCredential(namedKeyCreds.getKey(), namedKeyCreds.getValue()));
+      } else if (token != null && !token.isEmpty()) {
+        // Use TokenCredential with the provided token
+        TokenCredential tokenCredential = new TokenCredential() {
+          @Override
+          public Mono<AccessToken> getToken(TokenRequestContext request) {
+            // Set expiry far in the future, or customize as needed
+            return Mono.just(new AccessToken(token, java.time.OffsetDateTime.now().plusHours(1)));
+          }
+        };
+        builder.credential(tokenCredential);
       } else {
         builder.credential(new DefaultAzureCredentialBuilder().build());
       }
