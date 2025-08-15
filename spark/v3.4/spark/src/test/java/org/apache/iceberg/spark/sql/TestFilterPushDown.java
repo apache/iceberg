@@ -581,7 +581,8 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
   @TestTemplate
   public void testFilterPushdownWithRequiredNestedFieldInOptionalStruct() {
     sql(
-        "CREATE TABLE %s (id INT NOT NULL, address STRUCT<street: STRING NOT NULL>)" + "USING iceberg ",
+        "CREATE TABLE %s (id INT NOT NULL, address STRUCT<street: STRING NOT NULL>)"
+            + "USING iceberg ",
         tableName);
     configurePlanningMode(planningMode);
 
