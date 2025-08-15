@@ -277,7 +277,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     if (globalStatistics != null) {
       runInCoordinatorThread(
           () -> {
-            if (event.signature() != null && event.signature() != globalStatistics.hashCode()) {
+            if (event.signature() != null && event.signature() == globalStatistics.hashCode()) {
               LOG.debug(
                   "Skip responding to statistics request from subtask {}, as hashCode matches or not included in the request",
                   subtask);
