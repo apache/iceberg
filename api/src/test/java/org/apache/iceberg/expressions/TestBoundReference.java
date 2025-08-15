@@ -92,7 +92,7 @@ public class TestBoundReference {
   @MethodSource("producesNullCases")
   public void testProducesNull(List<Boolean> optionalList, boolean expectedProducesNull) {
     String leafName = "leaf";
-    Schema schema = buildSchemaFromoptionalList(optionalList, leafName);
+    Schema schema = buildSchemaFromOptionalList(optionalList, leafName);
     int leafId = optionalList.size();
     Types.NestedField leafField = schema.findField(leafId);
     Accessor<StructLike> accessor = schema.accessorForField(leafId);
