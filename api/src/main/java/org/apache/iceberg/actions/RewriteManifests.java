@@ -48,8 +48,8 @@ public interface RewriteManifests
   /**
    * Rewrite manifests in a given order, based on partition field names
    *
-   * <p>Supply an optional set of partition field names to sort the rewritten manifests by.
-   * Choosing a frequently queried partition field can reduce planning time by skipping unnecessary
+   * <p>Supply an optional set of partition field names to sort the rewritten manifests by. Choosing
+   * a frequently queried partition field can reduce planning time by skipping unnecessary
    * manifests.
    *
    * <p>For example, given a table PARTITIONED BY (a, b, c, d), one may wish to rewrite and sort
