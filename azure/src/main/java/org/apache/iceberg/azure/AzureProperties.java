@@ -26,6 +26,7 @@ import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -146,7 +147,8 @@ public class AzureProperties implements Serializable {
               @Override
               public Mono<AccessToken> getToken(TokenRequestContext request) {
                 // Assume the token is valid for 1 hour from the current time
-                return Mono.just(new AccessToken(token, OffsetDateTime.now().plusHours(1)));
+                return Mono.just(
+                    new AccessToken(token, OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
               }
             };
         builder.credential(tokenCredential);
