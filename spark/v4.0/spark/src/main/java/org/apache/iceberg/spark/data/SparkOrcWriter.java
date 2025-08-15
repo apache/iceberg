@@ -29,8 +29,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
+import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.orc.OrcValueWriter;
-import org.apache.iceberg.orc.SchemaWithOrcTypeVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -52,7 +52,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
     writer =
         (InternalRowWriter)
-            SchemaWithOrcTypeVisitor.visit(iSchema.asStruct(), orcSchema, new WriteBuilder());
+            OrcSchemaWithTypeVisitor.visit(iSchema.asStruct(), orcSchema, new WriteBuilder());
   }
 
   @Override
@@ -71,7 +71,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     return writer.metrics();
   }
 
-  private static class WriteBuilder extends SchemaWithOrcTypeVisitor<OrcValueWriter<?>> {
+  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter<?>> {
     private WriteBuilder() {}
 
     @Override
@@ -97,11 +97,6 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
     @Override
     public OrcValueWriter<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
-
-      if (primitive == null && iPrimitive.typeId() == Type.TypeID.UNKNOWN) {
-        return GenericOrcWriters.noop();
-      }
-
       switch (primitive.getCategory()) {
         case BOOLEAN:
           return GenericOrcWriters.booleans();
