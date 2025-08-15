@@ -34,7 +34,6 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -620,9 +619,6 @@ public class TestRewriteManifestsAction extends TestBase {
     // an array of structs with lower_bound and upper_bound as strings
     Dataset<Row> manifestsDf = spark.read().format("iceberg").load(tableLocation + "#manifests");
 
-      Dataset<Row> entries = spark.read().format("iceberg").load(tableLocation + "#entries");
-      entries.select("status", "data_file", "readable_metrics").show(false);
-
     List<Integer> bounds = Lists.newArrayList();
     for (Row row : manifestsDf.select("partition_summaries").collectAsList()) {
       // partition_summaries is an array of structs;
@@ -638,9 +634,9 @@ public class TestRewriteManifestsAction extends TestBase {
 
     // Ensure that the list of bounds is sorted; if custom sorting is working,
     // the lower/upper bounds should form a non‑decreasing sequence. AKA [0, 4, 4, 9]
-    List<Integer> sorted = Lists.newArrayList(bounds);
-    Collections.sort(sorted);
-    assertThat(bounds).as("Manifest boundaries should be sorted").isEqualTo(sorted);
+    assertThat(bounds)
+        .as("Manifest boundaries should be sorted")
+        .isSortedAccordingTo(Integer::compareTo);
   }
 
   @TestTemplate
