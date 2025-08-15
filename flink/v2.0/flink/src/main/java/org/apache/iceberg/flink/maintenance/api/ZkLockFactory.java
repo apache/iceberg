@@ -86,7 +86,7 @@ public class ZkLockFactory implements TriggerLockFactory {
   @Override
   public void open() {
     if (isOpen) {
-      LOG.warn("ZkLockFactory already opened for lockId: {}.", lockId);
+      LOG.debug("ZkLockFactory already opened for lockId: {}.", lockId);
       return;
     }
 
@@ -159,6 +159,7 @@ public class ZkLockFactory implements TriggerLockFactory {
       if (client != null) {
         client.close();
       }
+
       isOpen = false;
     }
   }
