@@ -590,13 +590,13 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (1, STRUCT('123 Main St'))", tableName);
 
     checkOnlyIcebergFilters(
-        "address is null" /* query predicate */,
-        "address IS NULL" /* Iceberg scan filters */,
+        "address.street is null" /* query predicate */,
+        "address.street IS NULL" /* Iceberg scan filters */,
         ImmutableList.of(row(0, null)));
 
     checkOnlyIcebergFilters(
-        "address is not null" /* query predicate */,
-        "address IS NOT NULL" /* Iceberg scan filters */,
+        "address.street is not null" /* query predicate */,
+        "address.street IS NOT NULL" /* Iceberg scan filters */,
         ImmutableList.of(row(1, row("123 Main St"))));
   }
 

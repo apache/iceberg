@@ -22,130 +22,82 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestBoundReference {
-  @Test
-  public void testProducesNullNonNestedField() {
-    // schema: x (required), y (optional)
-    Schema schema =
-        new Schema(
-            required(1, "x", Types.IntegerType.get()), optional(2, "y", Types.IntegerType.get()));
+  // Build a schema with a single nested struct with optionalList.size() levels with the following
+  // structure:
+  // s1: struct(s2: struct(s3: struct(..., sn: struct(leaf: int))))
+  // where each s{i} is an optional struct if optionalList.get(i) is true and a required struct if
+  // false
+  private static Schema buildSchemaFromoptionalList(List<Boolean> optionalList, String leafName) {
+    if (optionalList == null || optionalList.isEmpty()) {
+      throw new IllegalArgumentException("optionalList must not be empty");
+    }
 
-    Types.NestedField requiredField = schema.findField(1);
-    Accessor<StructLike> requiredAccessor = schema.accessorForField(1);
+    Types.NestedField leaf =
+        optionalList.get(optionalList.size() - 1)
+            ? optional(optionalList.size(), leafName, Types.IntegerType.get())
+            : required(optionalList.size(), leafName, Types.IntegerType.get());
 
-    BoundReference<Integer> requiredRef =
-        new BoundReference<>(requiredField, requiredAccessor, "x");
-    assertThat(requiredRef.producesNull()).isFalse();
+    Types.StructType current = Types.StructType.of(leaf);
 
-    Types.NestedField optionalField = schema.findField(2);
-    Accessor<StructLike> optionalAccessor = schema.accessorForField(2);
+    for (int i = optionalList.size() - 2; i >= 0; i--) {
+      int id = i + 1;
+      String name = "s" + (i + 1);
+      current =
+          Types.StructType.of(
+              optionalList.get(i) ? optional(id, name, current) : required(id, name, current));
+    }
 
-    BoundReference<Integer> optionalRef =
-        new BoundReference<>(optionalField, optionalAccessor, "y");
-    assertThat(optionalRef.producesNull()).isTrue();
+    return new Schema(current.fields());
   }
 
-  @Test
-  public void testProducesNullRequiredLeafNoOptional_ancestors() {
-    // schema: s1 (required) -> s2 (required)
-    Schema schema =
-        new Schema(
-            required(1, "s1", Types.StructType.of(required(2, "s2", Types.IntegerType.get()))));
-
-    Types.NestedField requiredLeafField = schema.findField(2);
-    Accessor<StructLike> accessor = schema.accessorForField(2);
-
-    BoundReference<Integer> ref = new BoundReference<>(requiredLeafField, accessor, "s2");
-    assertThat(ref.producesNull()).isFalse();
+  private static Stream<Arguments> producesNullCases() {
+    return Stream.of(
+        // basic fields, no struct levels
+        Arguments.of(Arrays.asList(false), false),
+        Arguments.of(Arrays.asList(true), true),
+        // one level
+        Arguments.of(Arrays.asList(false, false), false),
+        Arguments.of(Arrays.asList(false, true), true),
+        Arguments.of(Arrays.asList(true, false), true),
+        // two levels
+        Arguments.of(Arrays.asList(false, false, false), false),
+        Arguments.of(Arrays.asList(false, false, true), true),
+        Arguments.of(Arrays.asList(true, false, false), true),
+        Arguments.of(Arrays.asList(false, true, false), true),
+        // three levels
+        Arguments.of(Arrays.asList(false, false, false, false), false),
+        Arguments.of(Arrays.asList(false, false, false, true), true),
+        Arguments.of(Arrays.asList(true, false, false, false), true),
+        Arguments.of(Arrays.asList(false, true, false, false), true),
+        // four levels
+        Arguments.of(Arrays.asList(false, false, false, false, false), false),
+        Arguments.of(Arrays.asList(false, false, false, false, true), true),
+        Arguments.of(Arrays.asList(true, false, false, false, false), true),
+        Arguments.of(Arrays.asList(false, true, true, true, false), true));
   }
 
-  @Test
-  public void testProducesNullOptionalLeaf() {
-    // schema: s1 (required) -> s2 (optional)
-    Schema schema =
-        new Schema(
-            required(1, "s1", Types.StructType.of(optional(2, "s2", Types.IntegerType.get()))));
+  @ParameterizedTest
+  @MethodSource("producesNullCases")
+  public void testProducesNull(List<Boolean> optionalList, boolean expectedProducesNull) {
+    String leafName = "leaf";
+    Schema schema = buildSchemaFromoptionalList(optionalList, leafName);
+    int leafId = optionalList.size();
+    Types.NestedField leafField = schema.findField(leafId);
+    Accessor<StructLike> accessor = schema.accessorForField(leafId);
 
-    Types.NestedField optionalLeafField = schema.findField(2);
-    Accessor<StructLike> accessor = schema.accessorForField(2);
-
-    BoundReference<Integer> ref = new BoundReference<>(optionalLeafField, accessor, "s2");
-    assertThat(ref.producesNull()).isTrue();
-  }
-
-  @Test
-  public void testProducesNullRequiredLeafWithOptionalTopAncestor() {
-    // schema: s1 (optional) -> s2 (required)
-    Schema schema =
-        new Schema(
-            optional(1, "s1", Types.StructType.of(required(2, "s2", Types.IntegerType.get()))));
-
-    Types.NestedField requiredLeafField = schema.findField(2);
-    Accessor<StructLike> accessor = schema.accessorForField(2);
-
-    BoundReference<Integer> ref = new BoundReference<>(requiredLeafField, accessor, "s2");
-    assertThat(ref.producesNull()).isTrue();
-  }
-
-  @Test
-  public void testProducesNullRequiredLeafWithOptionalIntermediateAncestor() {
-    // schema: s1 (required) -> s2 (optional) -> s3 (required) -> s4 (required)
-    Schema schema =
-        new Schema(
-            required(
-                1,
-                "s1",
-                Types.StructType.of(
-                    optional(
-                        2,
-                        "s2",
-                        Types.StructType.of(
-                            required(
-                                3,
-                                "s3",
-                                Types.StructType.of(
-                                    required(4, "s4", Types.IntegerType.get()))))))));
-
-    Types.NestedField requiredLeafField = schema.findField(4);
-    Accessor<StructLike> accessor = schema.accessorForField(4);
-
-    BoundReference<Integer> ref = new BoundReference<>(requiredLeafField, accessor, "s4");
-    assertThat(ref.producesNull()).isTrue();
-  }
-
-  @Test
-  public void testProducesNullRequiredNestedField4() {
-    // schema: s1 (required) -> s2 (required) -> s3 (required) -> s4 (required) -> s5 (required)
-    Schema schema =
-        new Schema(
-            required(
-                1,
-                "s1",
-                Types.StructType.of(
-                    required(
-                        2,
-                        "s2",
-                        Types.StructType.of(
-                            required(
-                                3,
-                                "s3",
-                                Types.StructType.of(
-                                    required(
-                                        4,
-                                        "s4",
-                                        Types.StructType.of(
-                                            required(5, "s5", Types.IntegerType.get()))))))))));
-
-    Types.NestedField requiredLeafField = schema.findField(5);
-    Accessor<StructLike> accessor = schema.accessorForField(5);
-
-    BoundReference<Integer> ref = new BoundReference<>(requiredLeafField, accessor, "s5");
-    assertThat(ref.producesNull()).isFalse();
+    BoundReference<Integer> ref = new BoundReference<>(leafField, accessor, leafName);
+    assertThat(ref.producesNull()).isEqualTo(expectedProducesNull);
   }
 }
