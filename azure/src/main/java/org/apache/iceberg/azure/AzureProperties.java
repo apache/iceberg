@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.azure;
 
+import com.azure.core.credential.AccessToken;
+import com.azure.core.credential.TokenCredential;
+import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
+import reactor.core.publisher.Mono;
 
 public class AzureProperties implements Serializable {
   public static final String ADLS_SAS_TOKEN_PREFIX = "adls.sas-token.";
@@ -136,13 +141,14 @@ public class AzureProperties implements Serializable {
             new StorageSharedKeyCredential(namedKeyCreds.getKey(), namedKeyCreds.getValue()));
       } else if (token != null && !token.isEmpty()) {
         // Use TokenCredential with the provided token
-        TokenCredential tokenCredential = new TokenCredential() {
-          @Override
-          public Mono<AccessToken> getToken(TokenRequestContext request) {
-            // Set expiry far in the future, or customize as needed
-            return Mono.just(new AccessToken(token, java.time.OffsetDateTime.now().plusHours(1)));
-          }
-        };
+        TokenCredential tokenCredential =
+            new TokenCredential() {
+              @Override
+              public Mono<AccessToken> getToken(TokenRequestContext request) {
+                // Assume the token is valid for 1 hour from the current time
+                return Mono.just(new AccessToken(token, OffsetDateTime.now().plusHours(1)));
+              }
+            };
         builder.credential(tokenCredential);
       } else {
         builder.credential(new DefaultAzureCredentialBuilder().build());
