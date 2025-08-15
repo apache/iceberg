@@ -39,7 +39,7 @@ public class TestBoundReference {
   // s1: struct(s2: struct(s3: struct(..., sn: struct(leaf: int))))
   // where each s{i} is an optional struct if optionalList.get(i) is true and a required struct if
   // false
-  private static Schema buildSchemaFromoptionalList(List<Boolean> optionalList, String leafName) {
+  private static Schema buildSchemaFromOptionalList(List<Boolean> optionalList, String leafName) {
     if (optionalList == null || optionalList.isEmpty()) {
       throw new IllegalArgumentException("optionalList must not be empty");
     }
