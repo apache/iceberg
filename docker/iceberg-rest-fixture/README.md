@@ -22,7 +22,6 @@
 For converting different catalog implementations into a rest one.
 Adapter for wrapping the existing catalog backends over REST.
 
-
 ## Build the Docker Image
 
 When making changes to the local files and test them out, you can build the image locally:
@@ -39,7 +38,7 @@ docker image rm -f apache/iceberg-rest-fixture && docker build -t apache/iceberg
 
 To browse the catalog, you can use `pyiceberg`:
 
-```
+```bash
 ➜  ~ pyiceberg --uri http://localhost:8181 list 
 default             
 nyc                 
@@ -82,5 +81,3 @@ Snapshots             Snapshots
 Properties            write.object-storage.enabled  true                                                                                                                        
                       write.object-storage.path     s3://iceberg-test-data/tpc/tpc-ds/3.2.0/1000/iceberg/customer/data
 ```
-
-

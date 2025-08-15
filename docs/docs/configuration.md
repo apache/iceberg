@@ -68,7 +68,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.metadata.metrics.column.col1                   | (not set)                   | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full                                                                                                |
 | write.target-file-size-bytes                         | 536870912 (512 MB)          | Controls the size of files generated to target about this many bytes                                                                                                                              |
 | write.delete.target-file-size-bytes                  | 67108864 (64 MB)            | Controls the size of delete files generated to target about this many bytes                                                                                                                       |
-| write.distribution-mode |  not set, see engines for specific defaults, for example [Spark Writes](spark-writes.md#writing-distribution-modes) | Defines distribution of write data: __none__: don't shuffle rows; __hash__: hash distribute by partition key ; __range__: range distribute by partition key or sort key if table has an SortOrder |
+| write.distribution-mode |  not set, see engines for specific defaults, for example [Spark Writes](spark-writes.md#writing-distribution-modes) | Defines distribution of write data: **none**: don't shuffle rows; **hash**: hash distribute by partition key ; **range**: range distribute by partition key or sort key if table has an SortOrder |
 | write.delete.distribution-mode                       | (not set)                   | Defines distribution of write delete data                                                                                                                                                         |
 | write.update.distribution-mode                       | (not set)                   | Defines distribution of write update data                                                                                                                                                         |
 | write.merge.distribution-mode                        | (not set)                   | Defines distribution of write merge data                                                                                                                                                          |
@@ -87,7 +87,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.update.isolation-level                         | serializable                | Isolation level for update commands: serializable or snapshot                                                                                                                                     |
 | write.merge.mode                                     | copy-on-write               | Mode used for merge commands: copy-on-write or merge-on-read (v2 and above)                                                                                                                       |
 | write.merge.isolation-level                          | serializable                | Isolation level for merge commands: serializable or snapshot                                                                                                                                      |
-| write.delete.granularity                             | partition                   | Controls the granularity of generated delete files: partition or file                                                                                                                     |
+| write.delete.granularity                             | partition                   | Controls the granularity of generated delete files: partition or file                                                                                                                             |
 
 ### Table behavior properties
 
@@ -109,6 +109,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | history.expire.max-ref-age-ms      | `Long.MAX_VALUE` (forever) | For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires. |
 
 ### Reserved table properties
+
 Reserved table properties are only used to control behaviors when creating or updating a table.
 The value of these properties are not persisted as a part of the table metadata.
 
@@ -156,7 +157,6 @@ Here are the catalog properties related to locking. They are used by some catalo
 | lock.heartbeat-interval-ms        | 3000 (3 s)         | the interval to wait between each heartbeat after acquiring a lock  |
 | lock.heartbeat-timeout-ms         | 15000 (15 s)       | the maximum time without a heartbeat to consider a lock expired  |
 
-
 ## Hadoop configuration
 
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
@@ -179,19 +179,17 @@ The HMS table locking is a 2-step process:
 | iceberg.hive.table-level-lock-evict-ms    | 600000 (10 min) | The timeout for the JVM table lock is                                        |
 | iceberg.engine.hive.lock-enabled          | true            | Use HMS locks to ensure atomicity of commits                                 |
 
-Note: `iceberg.hive.lock-check-max-wait-ms` and `iceberg.hive.lock-heartbeat-interval-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout) 
-of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the 
+Note: `iceberg.hive.lock-check-max-wait-ms` and `iceberg.hive.lock-heartbeat-interval-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout)
+of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the
 Hive Metastore before the lock is retried from Iceberg.
 
 Warn: Setting `iceberg.engine.hive.lock-enabled`=`false` will cause HiveCatalog to commit to tables without using Hive locks.
 This should only be set to `false` if all following conditions are met:
 
- - [HIVE-26882](https://issues.apache.org/jira/browse/HIVE-26882)
-is available on the Hive Metastore server
- - [HIVE-28121](https://issues.apache.org/jira/browse/HIVE-28121)
-is available on the Hive Metastore server, if it is backed by MySQL or MariaDB
- - All other HiveCatalogs committing to tables that this HiveCatalog commits to are also on Iceberg 1.3 or later
- - All other HiveCatalogs committing to tables that this HiveCatalog commits to have also disabled Hive locks on commit.
+- [HIVE-26882](https://issues.apache.org/jira/browse/HIVE-26882) is available on the Hive Metastore server
+- [HIVE-28121](https://issues.apache.org/jira/browse/HIVE-28121) is available on the Hive Metastore server, if it is backed by MySQL or MariaDB
+- All other HiveCatalogs committing to tables that this HiveCatalog commits to are also on Iceberg 1.3 or later
+- All other HiveCatalogs committing to tables that this HiveCatalog commits to have also disabled Hive locks on commit.
 
 **Failing to ensure these conditions risks corrupting the table.**
 

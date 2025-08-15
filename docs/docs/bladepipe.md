@@ -23,6 +23,7 @@ title: "BladePipe"
 [BladePipe](https://www.bladepipe.com/) is a real-time end-to-end data integration tool, offering 40+ out-of-the-box connectors for analytics or AI. It allows to move data faster and easier than ever, with ultra-low latency less than 3 seconds. It provides a one-stop data movement solution, including schema evolution, data migration and sync, verification and correction, monitoring and alerting.
 
 ## Supported Sources
+
 Now BladePipe supports data integration to Iceberg from the following sources:
 
 - MySQL/MariaDB/AuroraMySQL
@@ -34,6 +35,7 @@ Now BladePipe supports data integration to Iceberg from the following sources:
 More sources are to be supported.
 
 ## Supported Catalogs and Storage
+
 BladePipe currently supports 3 catalogs and 2 object storage:
 
 - AWS Glue + AWS S3
@@ -42,9 +44,11 @@ BladePipe currently supports 3 catalogs and 2 object storage:
 
 
 ## Getting Started
+
 In this article, we will show how to load data from MySQL (self-hosted) to Iceberg (AWS Glue + S3).
 
 ### 1. Download and Run BladePipe
+
 Follow the instructions in [Install Worker (Docker)](https://doc.bladepipe.com/productOP/byoc/installation/install_worker_docker) or [Install Worker (Binary)](https://doc.bladepipe.com/productOP/byoc/installation/install_worker_binary) to download and install a BladePipe Worker.
 
 **Note**: Alternatively, you can choose to deploy and run [BladePipe Enterprise](https://doc.bladepipe.com/productOP/onPremise/installation/install_all_in_one_binary).
@@ -67,8 +71,8 @@ Follow the instructions in [Install Worker (Docker)](https://doc.bladepipe.com/p
         - **catalogName**: Enter a meaningful name, such as glue_<biz_name>_catalog.
         - **catalogType**: Fill in `GLUE`.
         - **catalogWarehouse**: The place where metadata and files are stored, such as s3://<biz_name>_iceberg.
-        - **catalogProps**:    
-     
+        - **catalogProps**:
+
     ```json
     {
     "io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
@@ -87,8 +91,10 @@ Follow the instructions in [Install Worker (Docker)](https://doc.bladepipe.com/p
     See [Add an Iceberg DataSource](https://doc.bladepipe.com/dataMigrationAndSync/datasource_func/Iceberg/props_for_iceberg_ds) for more details.
 
 ### 3. Create a DataJob
+
 1. Go to **DataJob** > [**Create DataJob**](https://doc.bladepipe.com/operation/job_manage/create_job/create_full_incre_task).
 2. Select the source and target DataSources, and click **Test Connection** for both. Here's the recommended Iceberg structure configuration:  
+   
    ```json
    {
      "format-version": "2",
@@ -104,7 +110,8 @@ Follow the instructions in [Install Worker (Docker)](https://doc.bladepipe.com/p
      "write.spark.accept-any-schema": "true"
    }
    ```
-    ![Iceberg structure configuration](https://doc.bladepipe.com/assets/images/2-e436c11d029481dc58c5a86d17a2fc7b.png)
+   
+   ![Iceberg structure configuration](https://doc.bladepipe.com/assets/images/2-e436c11d029481dc58c5a86d17a2fc7b.png)
 
 3. Select **Incremental** for DataJob Type, together with the **Full Data** option.
   ![DataJob Type](https://doc.bladepipe.com/assets/images/3-aaf4ce14be8ce88cbcdb85c426ceab33.png)

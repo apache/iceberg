@@ -19,6 +19,7 @@ title: "Delta Lake Migration"
  -->
 
 # Delta Lake Table Migration
+
 Delta Lake is a table format that supports Parquet file format and provides time travel and versioning features. When migrating data from Delta Lake to Iceberg,
 it is common to migrate all snapshots to maintain the history of the data.
 
@@ -28,13 +29,15 @@ For Delta Lake tables, any additional data files added after the initial migrati
 The Add Transaction action, a variant of the Add File action, is still under development.
 
 ## Enabling Migration from Delta Lake to Iceberg
+
 The `iceberg-delta-lake` module is not bundled with Spark and Flink engine runtimes. To enable migration from delta lake features, the minimum required dependencies are:
 
-- [iceberg-delta-lake](https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-delta-lake/1.2.1/iceberg-delta-lake-1.2.1.jar)
-- [delta-standalone-0.6.0](https://repo1.maven.org/maven2/io/delta/delta-standalone_2.13/0.6.0/delta-standalone_2.13-0.6.0.jar)
-- [delta-storage-2.2.0](https://repo1.maven.org/maven2/io/delta/delta-storage/2.2.0/delta-storage-2.2.0.jar)
+* [iceberg-delta-lake](https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-delta-lake/1.2.1/iceberg-delta-lake-1.2.1.jar)
+* [delta-standalone-0.6.0](https://repo1.maven.org/maven2/io/delta/delta-standalone_2.13/0.6.0/delta-standalone_2.13-0.6.0.jar)
+* [delta-storage-2.2.0](https://repo1.maven.org/maven2/io/delta/delta-storage/2.2.0/delta-storage-2.2.0.jar)
 
 ### Compatibilities
+
 The module is built and tested with `Delta Standalone:0.6.0` and supports Delta Lake tables with the following protocol version:
 
 * `minReaderVersion`: 1
@@ -43,18 +46,22 @@ The module is built and tested with `Delta Standalone:0.6.0` and supports Delta 
 Please refer to [Delta Lake Table Protocol Versioning](https://docs.delta.io/latest/versioning.html) for more details about Delta Lake protocol versions.
 
 ### API
+
 The `iceberg-delta-lake` module provides an interface named `DeltaLakeToIcebergMigrationActionsProvider`, which contains actions that helps converting from Delta Lake to Iceberg.
 The supported actions are:
 
 * `snapshotDeltaLakeTable`: snapshot an existing Delta Lake table to an Iceberg table
 
 ### Default Implementation
+
 The `iceberg-delta-lake` module also provides a default implementation of the interface which can be accessed by
+
 ```java
 DeltaLakeToIcebergMigrationActionsProvider defaultActions = DeltaLakeToIcebergMigrationActionsProvider.defaultActions()
 ```
 
 ## Snapshot Delta Lake Table to Iceberg
+
 The action `snapshotDeltaLakeTable` reads the Delta Lake table's transactions and converts them to a new Iceberg table with the same schema and partitioning in one iceberg transaction.
 The original Delta Lake table remains unchanged.
 
@@ -73,6 +80,7 @@ of the source Delta Lake Table. Users can also specify a different location for 
 
 
 #### Usage
+
 | Required Input               | Configured By                                                                                                                                                                                             | Description                                                                     |
 |------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
 | Source Table Location        | Argument [`sourceTableLocation`](../../javadoc/latest/org/apache/iceberg/delta/DeltaLakeToIcebergMigrationActionsProvider.html#snapshotDeltaLakeTable(java.lang.String))             | The location of the source Delta Lake table                                     | 
@@ -83,11 +91,13 @@ of the source Delta Lake Table. Users can also specify a different location for 
 For detailed usage and other optional configurations, please refer to the [SnapshotDeltaLakeTable API](../../javadoc/latest/org/apache/iceberg/delta/SnapshotDeltaLakeTable.html)
 
 #### Output
+
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `imported_files_count` | long | Number of files added to the new table |
 
 #### Added Table Properties
+
 The following table properties are added to the Iceberg table to be created by default:
 
 | Property Name                 | Value                                     | Description                                                        |
@@ -97,6 +107,7 @@ The following table properties are added to the Iceberg table to be created by d
 | `schema.name-mapping.default` | JSON name mapping derived from the schema | The name mapping string used to read Delta Lake table's data files |
 
 #### Examples
+
 ```java
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.Catalog;

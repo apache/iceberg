@@ -160,7 +160,7 @@ Run a query:
     .print()) 
 ```
 
-```
+```python
 +----+----------------------+----------------------+--------------------------------+
 | op |         PULocationID |         DOLocationID |                passenger_count |
 +----+----------------------+----------------------+--------------------------------+
@@ -319,16 +319,13 @@ SELECT * FROM `hive_catalog`.`default`.`sample`.`snapshots`
 
 Iceberg support streaming or batch read in Java API:
 
-```
+```java
 DataStream<RowData> batch = FlinkSource.forRowData()
      .env(env)
      .tableLoader(tableLoader)
      .streaming(false)
      .build();
 ```
-
-
-
 
 ## Type conversion
 

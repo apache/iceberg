@@ -20,7 +20,7 @@ title: "Flink DDL"
 
 ## DDL commands
 
-###  `CREATE Catalog`
+### `CREATE Catalog`
 
 #### Hive catalog
 

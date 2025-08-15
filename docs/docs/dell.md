@@ -18,7 +18,6 @@ title: "Dell"
  - limitations under the License.
  -->
 
-
 # Iceberg Dell Integration
 
 ## Dell ECS Integration

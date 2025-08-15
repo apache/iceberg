@@ -143,7 +143,7 @@ Here are some examples using Hive CLI:
 
 Register a `HiveCatalog` called `another_hive`:
 
-```
+```sql
 SET iceberg.catalog.another_hive.type=hive;
 SET iceberg.catalog.another_hive.uri=thrift://example.com:9083;
 SET iceberg.catalog.another_hive.clients=10;
@@ -152,14 +152,14 @@ SET iceberg.catalog.another_hive.warehouse=hdfs://example.com:8020/warehouse;
 
 Register a `HadoopCatalog` called `hadoop`:
 
-```
+```sql
 SET iceberg.catalog.hadoop.type=hadoop;
 SET iceberg.catalog.hadoop.warehouse=hdfs://example.com:8020/warehouse;
 ```
 
 Register an AWS `GlueCatalog` called `glue`:
 
-```
+```sql
 SET iceberg.catalog.glue.type=glue;
 SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
 SET iceberg.catalog.glue.lock.table=myGlueLockTable;
@@ -206,16 +206,17 @@ Use the DESCRIBE command to get information about the Iceberg identity partition
 ```sql
 DESCRIBE x;
 ```
+
 The result is:
 
-| col_name                           | data_type      | comment
-| ---------------------------------- | -------------- | -------
-| i                                  | int            |
-| j                                  | int            |
-|                                    | NULL           | NULL
-| # Partition Transform Information  | NULL           | NULL
-| # col_name                         | transform_type | NULL
-| j                                  | IDENTITY       | NULL
+| col_name                           | data_type      | comment |
+| ---------------------------------- | -------------- | ------- |
+| i                                  | int            |         |
+| j                                  | int            |         |
+|                                    | NULL           | NULL    |
+| # Partition Transform Information  | NULL           | NULL    |
+| # col_name                         | transform_type | NULL    |
+| j                                  | IDENTITY       | NULL    |
 
 You can create Iceberg partitions using the following Iceberg partition specification syntax
 (supported only from Hive 4.0.0):
@@ -226,15 +227,15 @@ DESCRIBE x;
 ```
 The result is:
 
-| col_name                           | data_type      | comment
-| ---------------------------------- | -------------- | -------
-| i                                  | int            |
-| ts                                 | timestamp      |
-|                                    | NULL           | NULL
-| # Partition Transform Information  | NULL           | NULL
-| # col_name                         | transform_type | NULL
-| ts                                 | MONTH          | NULL
-| i                                  | BUCKET\[2\]    | NULL
+| col_name                           | data_type      | comment |
+| ---------------------------------- | -------------- | ------- |
+| i                                  | int            |         |
+| ts                                 | timestamp      |         |
+|                                    | NULL           | NULL    |
+| # Partition Transform Information  | NULL           | NULL    |
+| # col_name                         | transform_type | NULL    |
+| ts                                 | MONTH          | NULL    |
+| i                                  | BUCKET\[2\]    | NULL    |
 
 The supported transformations for Hive are the same as for Spark:
 
@@ -341,6 +342,7 @@ TBLPROPERTIES ('iceberg.catalog'='hadoop_cat');
 
 ### ALTER TABLE
 #### Table properties
+
 For HiveCatalog tables the Iceberg table properties and the Hive table properties stored in HMS are kept in sync.
     
 !!! info
@@ -351,64 +353,84 @@ ALTER TABLE t SET TBLPROPERTIES('...'='...');
 ```
 
 #### Schema evolution
+
 The Hive table schema is kept in sync with the Iceberg table. If an outside source (Impala/Spark/Java API/etc)
 changes the schema, the Hive table immediately reflects the changes. You alter the table schema using Hive commands:
 
 * Rename a table
+* 
 ```sql
 ALTER TABLE orders RENAME TO renamed_orders;
 ```
 
 * Add a column
+
 ```sql
 ALTER TABLE orders ADD COLUMNS (nickname string);
 ```
+
 * Rename a column
+
 ```sql
 ALTER TABLE orders CHANGE COLUMN item fruit string;
 ```
 * Reorder columns
+
 ```sql
 ALTER TABLE orders CHANGE COLUMN quantity quantity int AFTER price;
 ```
+
 * Change a column type - only if the Iceberg defined the column type change as safe
+
 ```sql
 ALTER TABLE orders CHANGE COLUMN price price long;
 ```
+
 * Drop column by using REPLACE COLUMN to remove the old column
+
 ```sql
 ALTER TABLE orders REPLACE COLUMNS (remaining string);
 ```
+
 !!! info
     Note, that dropping columns is only thing REPLACE COLUMNS can be used for
     i.e. if columns are specified out-of-order an error will be thrown signalling this limitation.
 
-
 #### Partition evolution
+
 You change the partitioning schema using the following commands:
 
 * Change the partitioning schema to new identity partitions:
+
 ```sql
 ALTER TABLE default.customers SET PARTITION SPEC (last_name);
 ```
+
 * Alternatively, provide a partition specification:
+
 ```sql
 ALTER TABLE order SET PARTITION SPEC (month(ts));
 ```
 
 #### Table migration
+
 You can migrate Avro / Parquet / ORC external tables to Iceberg tables using the following command:
+
 ```sql
 ALTER TABLE t SET TBLPROPERTIES ('storage_handler'='org.apache.iceberg.mr.hive.HiveIcebergStorageHandler');
 ```
+
 During the migration the data files are not changed, only the appropriate Iceberg metadata files are created.
 After the migration, handle the table as a normal Iceberg table.
 
 #### Drop partitions
+
 You can drop partitions based on a single / multiple partition specification using the following commands:
+
 ```sql
 ALTER TABLE orders DROP PARTITION (buy_date == '2023-01-01', market_price > 1000), PARTITION (buy_date == '2024-01-01', market_price <= 2000);
 ```
+
 The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
 
 #### Branches and tags
@@ -508,16 +530,21 @@ Cherry-pick of a snapshot requires the ID of the snapshot. Cherry-pick of snapsh
 ```
 
 ### TRUNCATE TABLE
+
 The following command truncates the Iceberg table:
+
 ```sql
 TRUNCATE TABLE t;
 ```
 
 #### TRUNCATE TABLE ... PARTITION
+
 The following command truncates the partition in an Iceberg table:
+
 ```sql
 TRUNCATE TABLE orders PARTITION (customer_id = 1, first_name = 'John');
 ```
+
 The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
 
 ### DROP TABLE
@@ -557,6 +584,7 @@ Some of the advanced / little used optimizations are not yet implemented for Ice
 Also currently the statistics stored in the MetaStore are used for query planning. This is something we are planning to improve in the future.
 
 Hive 4 supports select operations on branches which also work similar to the table level select operations. However, the branch must be provided as follows - 
+
 ```sql
 -- Branches should be specified as <database_name>.<table_name>.branch_<branch_name>
 SELECT * FROM default.test.branch_branch1;
@@ -604,6 +632,7 @@ VALUES (1,2);
 INSERT INTO table_a PARTITION (customer_id = 1, first_name = 'John')
 SELECT...;
 ```
+
 The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
 
 ### INSERT OVERWRITE

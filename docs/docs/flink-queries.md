@@ -78,6 +78,7 @@ SET table.exec.iceberg.use-flip27-source = false;
 All other SQL settings and options documented above are applicable to the FLIP-27 source.
 
 ### Reading branches and tags with SQL
+
 Branch and tags can be read via SQL by specifying options. For more details
 refer to [Flink Configuration](flink-configuration.md#read-options)
 
@@ -210,6 +211,7 @@ There are other options that could be set by Java API, please see the
 [IcebergSource#Builder](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/flink/source/IcebergSource.html).
 
 ### Reading branches and tags with DataStream
+
 Branches and tags can also be read via the DataStream API
 
 ```java
@@ -274,6 +276,7 @@ DataStream<Row> stream = env.fromSource(source, WatermarkStrategy.noWatermarks()
 ```
 
 ### Emitting watermarks
+
 Emitting watermarks from the source itself could be beneficial for several purposes, like harnessing the
 [Flink Watermark Alignment](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/datastream/event-time/generating_watermarks/#watermark-alignment),
 or prevent triggering [windows](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/datastream/operators/windows/)
@@ -301,6 +304,7 @@ If watermark column doesn't have stats enabled by default, use
 
 The following example could be useful if watermarks are used for windowing. The source reads Iceberg data files
 in order, using a timestamp column and emits watermarks:
+
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
 TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
@@ -321,6 +325,7 @@ DataStream<RowData> stream =
 ```
 
 Example for reading Iceberg table using a long event column for watermark alignment:
+
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
 TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
@@ -348,7 +353,7 @@ DataStream<RowData> stream =
 
 Flink read options are passed when configuring the Flink IcebergSource:
 
-```
+```java
 IcebergSource.forRowData()
     .tableLoader(TableLoader.fromCatalog(...))
     .assignerFactory(new SimpleSplitAssignerFactory())
@@ -361,14 +366,14 @@ IcebergSource.forRowData()
 
 For Flink SQL, read options can be passed in via SQL hints like this:
 
-```
+```sql
 SELECT * FROM tableName /*+ OPTIONS('monitor-interval'='10s') */
 ...
 ```
 
 Options can be passed in via Flink configuration, which will be applied to current session. Note that not all options support this mode.
 
-```
+```java
 env.getConfig()
     .getConfiguration()
     .set(FlinkReadOptions.SPLIT_FILE_OPEN_COST_OPTION, 1000L);

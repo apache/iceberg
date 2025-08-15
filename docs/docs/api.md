@@ -43,7 +43,6 @@ Tables also provide `refresh` to update the table to the latest version, and exp
 * `io` returns the `FileIO` used to read and write table files
 * `locationProvider` returns a `LocationProvider` used to create paths for data and metadata files
 
-
 ### Scanning
 
 #### File level
@@ -96,6 +95,7 @@ CloseableIterable<Record> result = IcebergGenerics.read(table)
         .where(Expressions.lessThan("id", 5))
         .build();
 ```
+
 where `Record` is Iceberg record for iceberg-data module `org.apache.iceberg.data.Record`.
 
 ### Update operations
@@ -129,6 +129,7 @@ Available operations to update a table are:
 Transactions are used to commit multiple table changes in a single atomic operation. A transaction is used to create individual operations using factory methods, like `newAppend`, just like working with a `Table`. Operations created by a transaction are committed as a group when `commitTransaction` is called.
 
 For example, deleting and appending a file in the same transaction:
+
 ```java
 Transaction t = table.newTransaction();
 
@@ -169,6 +170,7 @@ StructType struct = Struct.of(
     Types.NestedField.optional(2, "data", Types.StringType.get())
   )
 ```
+
 ```java
 // map<1 key: int, 2 value: optional string>
 MapType map = MapType.ofOptional(
@@ -177,11 +179,11 @@ MapType map = MapType.ofOptional(
     Types.StringType.get()
   )
 ```
+
 ```java
 // array<1 element: int>
 ListType list = ListType.ofRequired(1, IntegerType.get());
 ```
-
 
 ## Expressions
 
@@ -229,7 +231,6 @@ table.newScan()
     .filter(Expressions.lessThan("x", 10))
 ```
 
-
 ## Modules
 
 Iceberg table support is organized in library modules:
@@ -252,4 +253,3 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 * `iceberg-nessie` is a module used to integrate Iceberg table metadata history and operations with [Project Nessie](https://projectnessie.org/)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
 * `iceberg-runtime` generates a shaded runtime jar for Spark to integrate with iceberg tables
-

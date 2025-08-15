@@ -32,7 +32,7 @@ Daft DataFrames are a powerful interface to power use-cases across ML/AI trainin
 
 To use Iceberg with Daft, ensure that the [PyIceberg](https://py.iceberg.apache.org/) library is also installed in your current Python environment.
 
-```
+```bash
 pip install daft pyiceberg
 ```
 
@@ -46,7 +46,7 @@ Daft interacts natively with [PyIceberg](https://py.iceberg.apache.org/) to read
 
 To follow along with this code, first create an Iceberg table following [the Spark Quickstart tutorial](https://iceberg.apache.org/spark-quickstart/). PyIceberg must then be correctly configured by ensuring that the `~/.pyiceberg.yaml` file contains an appropriate catalog entry:
 
-```
+```yaml
 catalog:
   default:
     # URL to the Iceberg REST server Docker container
@@ -76,7 +76,7 @@ df = daft.read_iceberg(table)
 df.show()
 ```
 
-```
+```py
 ╭───────────┬─────────┬───────────────┬─────────────┬────────────────────╮
 │ vendor_id ┆ trip_id ┆ trip_distance ┆ fare_amount ┆ store_and_fwd_flag │
 │ ---       ┆ ---     ┆ ---           ┆ ---         ┆ ---                │
@@ -103,7 +103,7 @@ df = df.where(df["vendor_id"] > 1)
 df.show()
 ```
 
-```
+```py
 ╭───────────┬─────────┬───────────────┬─────────────┬────────────────────╮
 │ vendor_id ┆ trip_id ┆ trip_distance ┆ fare_amount ┆ store_and_fwd_flag │
 │ ---       ┆ ---     ┆ ---           ┆ ---         ┆ ---                │
@@ -121,10 +121,10 @@ df.show()
 
 Daft and Iceberg have compatible type systems. Here are how types are converted across the two systems.
 
+#### Primitive Types
 
 | Iceberg | Daft |
 |---------|------|
-| **Primitive Types** |
 | `boolean` | [`daft.DataType.bool()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.bool) |
 | `int` | [`daft.DataType.int32()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.int32) |
 | `long` | [`daft.DataType.int64()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.int64) |
@@ -139,7 +139,11 @@ Daft and Iceberg have compatible type systems. Here are how types are converted 
 | `uuid` | [`daft.DataType.binary()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.binary) |
 | `fixed(L)` | [`daft.DataType.binary()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.fixed_size_binary) |
 | `binary` | [`daft.DataType.binary()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.binary) |
-| **Nested Types** |
+
+#### Nested Types
+
+| Iceberg | Daft |
+|---------|------|
 | `struct(**fields)` | [`daft.DataType.struct(**fields)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.struct) |
 | `list(child_type)` | [`daft.DataType.list(child_type)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.list) |
 | `map(K, V)` | [`daft.DataType.map(K, V)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.map) |

@@ -73,7 +73,7 @@ The following properties can be set if using the REST catalog:
 
 Flink read options are passed when configuring the Flink IcebergSource:
 
-```
+```java
 IcebergSource.forRowData()
     .tableLoader(TableLoader.fromCatalog(...))
     .assignerFactory(new SimpleSplitAssignerFactory())
@@ -86,14 +86,14 @@ IcebergSource.forRowData()
 
 For Flink SQL, read options can be passed in via SQL hints like this:
 
-```
+```sql
 SELECT * FROM tableName /*+ OPTIONS('monitor-interval'='10s') */
 ...
 ```
 
 Options can be passed in via Flink configuration, which will be applied to current session. Note that not all options support this mode.
 
-```
+```java
 env.getConfig()
     .getConfiguration()
     .set(FlinkReadOptions.SPLIT_FILE_OPEN_COST_OPTION, 1000L);
@@ -124,14 +124,14 @@ env.getConfig()
 | max-planning-snapshot-count   | connector.iceberg.max-planning-snapshot-count   | N/A                          | Integer.MAX_VALUE                | Max number of snapshots limited per split enumeration. Applicable only to streaming read.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | limit                         | connector.iceberg.limit                         | N/A                          | -1                               | Limited output number of rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | max-allowed-planning-failures | connector.iceberg.max-allowed-planning-failures | N/A                          | 3                                | Max allowed consecutive failures for scan planning before failing the job. Set to -1 for never failing the job for scan planing failure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| watermark-column              | connector.iceberg.watermark-column              | N/A                          | null                             | Specifies the watermark column to use for watermark generation. If this option is present, the `splitAssignerFactory` will be overridden with `OrderedSplitAssignerFactory`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 
-| watermark-column-time-unit    | connector.iceberg.watermark-column-time-unit    | N/A                          | TimeUnit.MICROSECONDS            | Specifies the watermark time unit to use for watermark generation. The possible values are  DAYS, HOURS, MINUTES, SECONDS, MILLISECONDS, MICROSECONDS, NANOSECONDS.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 
+| watermark-column              | connector.iceberg.watermark-column              | N/A                          | null                             | Specifies the watermark column to use for watermark generation. If this option is present, the `splitAssignerFactory` will be overridden with `OrderedSplitAssignerFactory`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| watermark-column-time-unit    | connector.iceberg.watermark-column-time-unit    | N/A                          | TimeUnit.MICROSECONDS            | Specifies the watermark time unit to use for watermark generation. The possible values are  DAYS, HOURS, MINUTES, SECONDS, MILLISECONDS, MICROSECONDS, NANOSECONDS.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ### Write options
 
 Flink write options are passed when configuring the FlinkSink, like this:
 
-```
+```java
 FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
     .table(table)
     .tableLoader(tableLoader)
@@ -141,7 +141,7 @@ FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SC
 
 For Flink SQL, write options can be passed in via SQL hints like this:
 
-```
+```sql
 INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
@@ -163,14 +163,13 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 #### Range distribution statistics type
 
 Config value is a enum type: `Map`, `Sketch`, `Auto`.
-<ul>
-<li>Map: collects accurate sampling count for every single key.
+
+* Map: collects accurate sampling count for every single key.
 It should be used for low cardinality scenarios (like hundreds or thousands).
-<li>Sketch: constructs a uniform random sampling via reservoir sampling.
+* Sketch: constructs a uniform random sampling via reservoir sampling.
 It fits well for high cardinality scenarios (like millions), as memory footprint is kept low.
-<li>Auto: starts with Maps statistics. But if cardinality is detected higher
+* Auto: starts with Maps statistics. But if cardinality is detected higher
 than a threshold (currently 10,000), statistics are automatically switched to Sketch.
-</ul>
 
 #### Range distribution sort key base weight
 
