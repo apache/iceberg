@@ -21,11 +21,13 @@ package org.apache.iceberg.azure;
 import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.TokenCredential;
 import com.azure.core.credential.TokenRequestContext;
+import com.azure.identity.ClientSecretCredentialBuilder;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -48,6 +50,9 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
   public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
   public static final String ADLS_TOKEN = "adls.token";
+  public static final String ADLS_TENANT_ID = "adls.tenant-id";
+  public static final String ADLS_CLIENT_ID = "adls.client-id";
+  public static final String ADLS_CLIENT_SECRET = "adls.client-secret";
 
   /**
    * When set, the {@link VendedAdlsCredentialProvider} will be used to fetch and refresh vended
@@ -67,6 +72,9 @@ public class AzureProperties implements Serializable {
   private String adlsRefreshCredentialsEndpoint;
   private boolean adlsRefreshCredentialsEnabled;
   private String token;
+  private String adlsTenantId;
+  private String adlsClientId;
+  private String adlsClientSecret;
   private Map<String, String> allProperties;
 
   public AzureProperties() {}
@@ -100,6 +108,9 @@ public class AzureProperties implements Serializable {
     this.adlsRefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, ADLS_REFRESH_CREDENTIALS_ENABLED, true);
     this.token = properties.get(ADLS_TOKEN);
+    this.adlsTenantId = properties.get(ADLS_TENANT_ID);
+    this.adlsClientId = properties.get(ADLS_CLIENT_ID);
+    this.adlsClientSecret = properties.get(ADLS_CLIENT_SECRET);
     this.allProperties = SerializableMap.copyOf(properties);
   }
 
@@ -133,26 +144,7 @@ public class AzureProperties implements Serializable {
    */
   public void applyClientConfiguration(String account, DataLakeFileSystemClientBuilder builder) {
     if (!adlsRefreshCredentialsEnabled || Strings.isNullOrEmpty(adlsRefreshCredentialsEndpoint)) {
-      String sasToken = adlsSasTokens.get(account);
-      if (sasToken != null && !sasToken.isEmpty()) {
-        builder.sasToken(sasToken);
-      } else if (namedKeyCreds != null) {
-        builder.credential(
-            new StorageSharedKeyCredential(namedKeyCreds.getKey(), namedKeyCreds.getValue()));
-      } else if (token != null && !token.isEmpty()) {
-        // Use TokenCredential with the provided token
-        TokenCredential tokenCredential =
-            new TokenCredential() {
-              @Override
-              public Mono<AccessToken> getToken(TokenRequestContext request) {
-                // Assume the token is valid for 1 hour from the current time
-                return Mono.just(new AccessToken(token, OffsetDateTime.now().plusHours(1)));
-              }
-            };
-        builder.credential(tokenCredential);
-      } else {
-        builder.credential(new DefaultAzureCredentialBuilder().build());
-      }
+      applyCredential(account, builder);
     }
 
     // apply connection string last so its parameters take precedence, e.g. SAS token
@@ -162,5 +154,39 @@ public class AzureProperties implements Serializable {
     } else {
       builder.endpoint("https://" + account);
     }
+  }
+
+  private void applyCredential(String account, DataLakeFileSystemClientBuilder builder) {
+    String sasToken = adlsSasTokens.get(account);
+    if (sasToken != null && !sasToken.isEmpty()) {
+      builder.sasToken(sasToken);
+      return;
+    }
+    if (namedKeyCreds != null) {
+      builder.credential(
+          new StorageSharedKeyCredential(namedKeyCreds.getKey(), namedKeyCreds.getValue()));
+      return;
+    }
+    if (adlsTenantId != null && adlsClientId != null && adlsClientSecret != null) {
+      builder.credential(
+          new ClientSecretCredentialBuilder()
+              .tenantId(adlsTenantId)
+              .clientId(adlsClientId)
+              .clientSecret(adlsClientSecret)
+              .build());
+      return;
+    }
+    if (token != null && !token.isEmpty()) {
+      builder.credential(
+          new TokenCredential() {
+            @Override
+            public Mono<AccessToken> getToken(TokenRequestContext request) {
+              return Mono.just(
+                  new AccessToken(token, OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
+            }
+          });
+      return;
+    }
+    builder.credential(new DefaultAzureCredentialBuilder().build());
   }
 }
