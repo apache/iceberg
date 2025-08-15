@@ -134,9 +134,6 @@ public class ArrowSchemaUtil {
             new Field("", new FieldType(field.isOptional(), arrowType, null), entryFields);
         children.add(entry);
         break;
-      case UNKNOWN:
-        arrowType = new ArrowType.Null();
-        break;
       default:
         throw new UnsupportedOperationException("Unsupported field type: " + field);
     }

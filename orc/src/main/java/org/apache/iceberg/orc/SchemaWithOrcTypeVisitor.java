@@ -69,7 +69,10 @@ public abstract class SchemaWithOrcTypeVisitor<T> {
 
     for (Types.NestedField iField : struct.fields()) {
       TypeDescription orcField = idToField.get(iField.fieldId());
-      results.add(visit(iField.type(), orcField, visitor));
+
+      if (iField.type().typeId() != Type.TypeID.UNKNOWN) {
+          results.add(visit(iField.type(), orcField, visitor));
+      }
     }
     List<String> names =
         struct.fields().stream().map(Types.NestedField::name).collect(Collectors.toList());

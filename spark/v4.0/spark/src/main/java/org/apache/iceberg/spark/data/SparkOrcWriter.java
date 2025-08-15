@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.data;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.apache.iceberg.FieldMetrics;
@@ -78,7 +80,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         TypeDescription record,
         List<String> names,
         List<OrcValueWriter<?>> fields) {
-      return new InternalRowWriter(fields, record.getChildren());
+      return new InternalRowWriter(fields, iStruct, record.getChildren());
     }
 
     @Override
@@ -139,12 +141,16 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   private static class InternalRowWriter extends GenericOrcWriters.StructWriter<InternalRow> {
     private final List<FieldGetter<?>> fieldGetters;
 
-    InternalRowWriter(List<OrcValueWriter<?>> writers, List<TypeDescription> orcTypes) {
-      super(writers);
+    InternalRowWriter(
+        List<OrcValueWriter<?>> writers, Types.StructType iStruct, List<TypeDescription> orcTypes) {
+      super(iStruct, writers);
       this.fieldGetters = Lists.newArrayListWithExpectedSize(orcTypes.size());
 
-      for (TypeDescription orcType : orcTypes) {
-        fieldGetters.add(createFieldGetter(orcType));
+      Map<Integer, TypeDescription> idToType =
+          orcTypes.stream().collect(Collectors.toMap(ORCSchemaUtil::fieldId, s -> s));
+
+      for (Types.NestedField iField : iStruct.fields()) {
+        fieldGetters.add(createFieldGetter(idToType.get(iField.fieldId())));
       }
     }
 
@@ -155,6 +161,11 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   }
 
   static FieldGetter<?> createFieldGetter(TypeDescription fieldType) {
+    // In the case of an UnknownType
+    if (fieldType == null) {
+      return (row, ordinal) -> null;
+    }
+
     final FieldGetter<?> fieldGetter;
     switch (fieldType.getCategory()) {
       case BOOLEAN:
