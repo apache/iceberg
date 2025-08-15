@@ -89,7 +89,8 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   private def createViewRelation(nameParts: Seq[String], view: View): LogicalPlan = {
     val parsed = parseViewText(nameParts.quoted, view.query)
-    val isSecurityView: Boolean = view.properties().get("security") == "true"
+    // TODO: should this be named property that all engines agree on?
+    val isSecurityView: Boolean = view.properties().containsKey("security")
 
 
     // Apply any necessary rewrites to preserve correct resolution

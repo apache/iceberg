@@ -372,10 +372,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     TableIdentifier cleanedIdentifier = identifier;
-    // Assume context will have loaded-via key
     Map<String, String> queryParams = Maps.newHashMap(mode.params());
-    // FIXME: This should not be handled here but rather propagated from SparkCatalog, via
-    // sessionContext
+    // FIXME: This should not be handled here but rather propagated from SparkCatalog, maybe via
+    // sessionContext ?
     if (identifier.name().contains("__#")) {
       List<String> parts = Splitter.on("__#").splitToList(identifier.name());
       cleanedIdentifier = TableIdentifier.of(cleanedIdentifier.namespace(), parts.get(0));

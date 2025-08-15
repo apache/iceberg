@@ -963,9 +963,9 @@ paths:
         - in: query
           name: loaded-via
           description:
-            The fully qualified name of the view that loaded the table.
+            The fully qualified name of the view (i.e `namespace_of_view.view_name`) that referenced the table.
             
-            Note only 2 part identifiers are supported and the nested namespaces are separated by the separator configured.
+            nested namespaces are separated by a unit separator (`0x1F`) byte.
           required: false
           schema:
             type: string
