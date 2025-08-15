@@ -34,27 +34,42 @@ public class TestMetricsConfig {
         new Schema(
             required(
                 1,
-                "top_struct",
+                "top_struct_a1",
                 Types.StructType.of(
-                    required(2, "middle_b", Types.IntegerType.get()),
+                    required(2, "middle_b1", Types.IntegerType.get()),
                     required(
                         3,
-                        "middle_struct",
-                        Types.StructType.of(optional(4, "bottom_c", Types.StringType.get()))))),
-            required(5, "top_a", Types.IntegerType.get()));
+                        "middle_struct_b1",
+                        Types.StructType.of(optional(4, "bottom_c1", Types.StringType.get()))))),
+            required(
+                5,
+                "top_struct_a2",
+                Types.StructType.of(
+                    required(6, "middle_b2", Types.IntegerType.get()),
+                    required(
+                        7,
+                        "middle_struct_b2",
+                        Types.StructType.of(optional(8, "bottom_c2", Types.StringType.get()))))),
+            required(9, "top_a", Types.IntegerType.get()));
 
     assertThat(MetricsConfig.limitFieldIds(schema, 1))
         .as("Should only include top level primitive field")
-        .isEqualTo(Set.of(5));
+        .isEqualTo(Set.of(9));
     assertThat(MetricsConfig.limitFieldIds(schema, 2))
-        .as("Should only include primitive fields from top to bottom")
-        .isEqualTo(Set.of(5, 2));
+        .as("Should include next level primitive field before nested struct")
+        .isEqualTo(Set.of(9, 2));
     assertThat(MetricsConfig.limitFieldIds(schema, 3))
-        .as("Should include all primitive fields")
-        .isEqualTo(Set.of(5, 2, 4));
+        .as("Should include all eligible fields of first struct before evaluate second struct")
+        .isEqualTo(Set.of(9, 2, 4));
     assertThat(MetricsConfig.limitFieldIds(schema, 4))
+        .as("Should only include middle_b2 when evaluate second struct")
+        .isEqualTo(Set.of(9, 2, 4, 6));
+    assertThat(MetricsConfig.limitFieldIds(schema, 5))
+        .as("Should include all primitive fields")
+        .isEqualTo(Set.of(9, 2, 6, 4, 8));
+    assertThat(MetricsConfig.limitFieldIds(schema, 6))
         .as("Should return all primitive fields when limit is higher")
-        .isEqualTo(Set.of(5, 2, 4));
+        .isEqualTo(Set.of(9, 2, 6, 4, 8));
   }
 
   @Test
