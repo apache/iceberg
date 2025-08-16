@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.expressions;
 
+import static java.util.stream.Collectors.joining;
+
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -38,6 +40,12 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
+import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantPrimitive;
+import org.apache.iceberg.variants.VariantValue;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
@@ -419,7 +427,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
+                  .collect(joining(", ", "(", ")"));
         case NOT_IN:
           return term
               + " NOT IN "
@@ -428,7 +436,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
+                  .collect(joining(", ", "(", ")"));
         case STARTS_WITH:
           return term + " STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
         case NOT_STARTS_WITH:
@@ -471,7 +479,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
+                  .collect(joining(", ", "(", ")"));
         case NOT_IN:
           return term
               + " NOT IN "
@@ -480,7 +488,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
+                  .collect(joining(", ", "(", ")"));
         case STARTS_WITH:
           return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
@@ -533,6 +541,8 @@ public class ExpressionUtil {
         return sanitizeTimestamp(DateTimeUtil.nanosToMicros((long) value / 1000), now);
       case STRING:
         return sanitizeString((CharSequence) value, now, today);
+      case VARIANT:
+        return sanitizeVariant((Variant) value, now, today);
       case UNKNOWN:
         return "(unknown)";
       case BOOLEAN:
@@ -540,8 +550,7 @@ public class ExpressionUtil {
       case DECIMAL:
       case FIXED:
       case BINARY:
-      case VARIANT:
-        // for boolean, uuid, decimal, fixed, variant, unknown, and binary, match the string result
+        // for boolean, uuid, decimal, fixed, unknown, and binary, match the string result
         return sanitizeSimpleString(value.toString());
     }
     throw new UnsupportedOperationException(
@@ -568,8 +577,10 @@ public class ExpressionUtil {
       return sanitizeNumber(((Literals.FloatLiteral) literal).value(), "float");
     } else if (literal instanceof Literals.DoubleLiteral) {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
+    } else if (literal instanceof Literals.VariantLiteral) {
+      return sanitizeVariant(((Literals.VariantLiteral) literal).value(), now, today);
     } else {
-      // for uuid, decimal, fixed, variant, and binary, match the string result
+      // for uuid, decimal, fixed and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());
     }
   }
@@ -644,6 +655,95 @@ public class ExpressionUtil {
   private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
     return String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply(value));
+  }
+
+  private static String sanitizeVariant(Variant value, long now, int today) {
+    return sanitizeVariant(value.value(), now, today);
+  }
+
+  private static String sanitizeVariant(VariantValue value, long now, int today) {
+    if (value instanceof VariantObject) {
+      return sanitizeVariantObject(value.asObject(), now, today);
+    } else if (value instanceof VariantPrimitive) {
+      return sanitizeVariantValue(value.asPrimitive(), value.type(), now, today);
+    } else {
+      return sanitizeVariantArray(value.asArray(), now, today);
+    }
+  }
+
+  private static String sanitizeVariantObject(VariantObject value, long now, int today) {
+    StringBuilder builder = new StringBuilder();
+    builder.append("{");
+    boolean first = true;
+    for (String field : value.fieldNames()) {
+      if (first) {
+        first = false;
+      } else {
+        builder.append(", ");
+      }
+      builder.append(String.format(Locale.ROOT, "(hash-%s)", field)).append(": ");
+      VariantValue fieldValue = value.get(field);
+      PhysicalType fieldType = fieldValue.type();
+      builder.append(sanitizeVariantValue(fieldValue, fieldType, now, today));
+    }
+    builder.append("}");
+    return builder.toString();
+  }
+
+  private static String sanitizeVariantArray(VariantArray value, long now, int today) {
+    StringBuilder builder = new StringBuilder();
+    builder.append("[");
+    boolean first = true;
+    for (int i = 0; i < value.numElements(); i++) {
+      if (first) {
+        first = false;
+      } else {
+        builder.append(", ");
+      }
+      builder.append(sanitizeVariantValue(value.get(i), value.get(i).type(), now, today));
+    }
+    builder.append("]");
+    return builder.toString();
+  }
+
+  private static String sanitizeVariantValue(
+      VariantValue fieldValue, PhysicalType fieldType, long now, int today) {
+    StringBuilder builder = new StringBuilder();
+    switch (fieldType) {
+      case INT8:
+      case INT16:
+      case INT32:
+      case INT64:
+      case FLOAT:
+      case DOUBLE:
+      case DECIMAL4:
+      case DECIMAL8:
+      case DECIMAL16:
+        builder.append(sanitizeNumber((Number) fieldValue.asPrimitive().get(), fieldType.name()));
+        break;
+      case DATE:
+        builder.append(sanitizeDate(((Number) fieldValue.asPrimitive().get()).intValue(), today));
+        break;
+      case TIMESTAMPTZ:
+      case TIMESTAMPNTZ:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
+        builder.append(
+            sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
+        break;
+      case TIME:
+        return "(time)";
+      case ARRAY:
+        builder.append(sanitizeVariantArray((VariantArray) fieldValue, now, today));
+        break;
+      case OBJECT:
+        builder.append(sanitizeVariantObject((VariantObject) fieldValue, now, today));
+        break;
+      default:
+        builder.append(sanitizeSimpleString(fieldValue.toString()));
+        break;
+    }
+    return builder.toString();
   }
 
   private static PartitionSpec identitySpec(Schema schema, int... ids) {
