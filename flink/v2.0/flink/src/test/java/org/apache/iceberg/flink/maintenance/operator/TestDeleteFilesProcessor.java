@@ -28,10 +28,9 @@ import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeutils.base.StringSerializer;
-import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.Histogram;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
@@ -40,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.testcontainers.shaded.org.awaitility.Awaitility;
 
 class TestDeleteFilesProcessor extends OperatorTestBase {
   private static final String DUMMY_FILE_NAME = "dummy";
@@ -69,7 +69,7 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
         .contains(DUMMY_FILE_NAME)
         .hasSize(TABLE_FILES.size() + 1);
 
-    deleteFile(tableLoader(), dummyFile.toString());
+    deleteFile(tableLoader(), dummyFile.toString(), true);
 
     assertThat(listFiles(table)).isEqualTo(TABLE_FILES);
   }
@@ -79,14 +79,14 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
     Path dummyFile =
         FileSystems.getDefault().getPath(table.location().substring(5), DUMMY_FILE_NAME);
 
-    deleteFile(tableLoader(), dummyFile.toString());
+    deleteFile(tableLoader(), dummyFile.toString(), true);
 
     assertThat(listFiles(table)).isEqualTo(TABLE_FILES);
   }
 
   @Test
   void testInvalidURIScheme() throws Exception {
-    deleteFile(tableLoader(), "wrong://");
+    deleteFile(tableLoader(), "wrong://", false);
 
     assertThat(listFiles(table)).isEqualTo(TABLE_FILES);
   }
@@ -95,7 +95,7 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
   void testDeleteNonExistentFile() throws Exception {
     String nonexistentFile = "nonexistentFile.txt";
 
-    deleteFile(tableLoader(), nonexistentFile);
+    deleteFile(tableLoader(), nonexistentFile, true);
 
     assertThat(listFiles(table)).isEqualTo(TABLE_FILES);
   }
@@ -115,14 +115,15 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
     assertThat(files).contains(largeFileName);
 
     // Use the DeleteFilesProcessor to delete the large file
-    deleteFile(tableLoader(), largeFile.toString());
+    deleteFile(tableLoader(), largeFile.toString(), true);
 
     // Verify that the large file has been deleted
     files = listFiles(table);
     assertThat(files).doesNotContain(largeFileName);
   }
 
-  private void deleteFile(TableLoader tableLoader, String fileName) throws Exception {
+  private void deleteFile(TableLoader tableLoader, String fileName, boolean expectSuccess)
+      throws Exception {
     tableLoader.open();
     DeleteFilesProcessor deleteFilesProcessor =
         new DeleteFilesProcessor(table, DUMMY_TASK_NAME, 0, 10);
@@ -132,6 +133,22 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
       testHarness.processElement(fileName, System.currentTimeMillis());
       testHarness.processWatermark(EVENT_TIME);
       testHarness.endInput();
+
+      // Validate if the metrics meet expectations
+      if (expectSuccess) {
+        assertThat(deleteFilesProcessor.getSucceededCounter().getCount()).isEqualTo(1);
+        assertThat(deleteFilesProcessor.getFailedCounter().getCount()).isEqualTo(0);
+        assertThat(deleteFilesProcessor.getDeleteFileTimeMsHistogram().getStatistics().getMean())
+            .isGreaterThan(0);
+      } else {
+        assertThat(deleteFilesProcessor.getSucceededCounter().getCount()).isEqualTo(0);
+        assertThat(deleteFilesProcessor.getFailedCounter().getCount()).isEqualTo(1);
+        assertThat(deleteFilesProcessor.getDeleteFileTimeMsHistogram().getStatistics().getMean())
+            .isGreaterThan(0);
+      }
+
+    } finally {
+      deleteFilesProcessor.close();
     }
   }
 
@@ -158,12 +175,11 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
 
       // Verify that files are deleted
       assertThat(listFiles(table)).isEqualTo(TABLE_FILES);
-      Counter succeededCounter = deleteFilesProcessor.getSucceededCounter();
-      Counter failedCounter = deleteFilesProcessor.getFailedCounter();
-      Histogram histogram = deleteFilesProcessor.getDeleteFileTimeMsHistogram();
-      assertThat(succeededCounter.getCount()).isEqualTo(filesToDelete.size());
-      assertThat(failedCounter.getCount()).isEqualTo(0);
-      assertThat(histogram.getStatistics().getStdDev()).isGreaterThan(0); // Ensure there is data
+      assertThat(deleteFilesProcessor.getSucceededCounter().getCount())
+          .isEqualTo(filesToDelete.size());
+      assertThat(deleteFilesProcessor.getFailedCounter().getCount()).isEqualTo(0);
+      assertThat(deleteFilesProcessor.getDeleteFileTimeMsHistogram().getStatistics().getMean())
+          .isGreaterThan(0);
     } finally {
       deleteFilesProcessor.close();
     }
@@ -194,7 +210,9 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
       }
 
       executorService.shutdown();
-      while (!executorService.isTerminated()) {}
+      Awaitility.await("ExecutorService was not terminated.")
+          .atMost(5, TimeUnit.SECONDS)
+          .untilAsserted(() -> assertThat(executorService.isTerminated()).isTrue());
 
       testHarness.processWatermark(EVENT_TIME);
       testHarness.endInput();
