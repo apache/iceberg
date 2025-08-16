@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.UUID;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
@@ -32,5 +34,27 @@ public class LocationUtil {
       result = result.substring(0, result.length() - 1);
     }
     return result;
+  }
+
+  /**
+   * Returns a path component derived from the {@code tableIdentifier}, used as part of the table
+   * location URI.
+   *
+   * <p>If {@code unique} is {@code true}, the returned component will include a random UUID suffix.
+   * Otherwise, the plain table name is returned.
+   *
+   * @param tableIdentifier Iceberg table identifier
+   * @param unique whether to ensure uniqueness
+   * @return a string representing the table name component for a location URI
+   */
+  public static String getTableNameComponent(TableIdentifier tableIdentifier, boolean unique) {
+    Preconditions.checkNotNull(tableIdentifier, "tableIdentifier must not be null");
+
+    if (unique) {
+      return String.format(
+          "%s-%s", tableIdentifier.name(), UUID.randomUUID().toString().replace("-", ""));
+    } else {
+      return tableIdentifier.name();
+    }
   }
 }
