@@ -32,11 +32,13 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.TableNotModifiedException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -44,6 +46,8 @@ import org.apache.iceberg.util.LocationUtil;
 
 class RESTTableOperations implements TableOperations {
   private static final String METADATA_FOLDER_NAME = "metadata";
+  static final String ETAG_HEADER = "ETag";
+  static final String IF_NONE_MATCH_HEADER = "If-None-Match";
 
   enum UpdateType {
     CREATE,
@@ -60,6 +64,7 @@ class RESTTableOperations implements TableOperations {
   private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
+  private String etag;
 
   RESTTableOperations(
       RESTClient client,
@@ -68,7 +73,36 @@ class RESTTableOperations implements TableOperations {
       FileIO io,
       TableMetadata current,
       Set<Endpoint> endpoints) {
-    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
+    this(
+        client,
+        path,
+        headers,
+        io,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints,
+        null /* etag */);
+  }
+
+  RESTTableOperations(
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> headers,
+      FileIO io,
+      TableMetadata current,
+      Set<Endpoint> endpoints,
+      String etag) {
+    this(
+        client,
+        path,
+        headers,
+        io,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints,
+        etag);
   }
 
   RESTTableOperations(
@@ -79,7 +113,8 @@ class RESTTableOperations implements TableOperations {
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      String etag) {
     this.client = client;
     this.path = path;
     this.headers = headers;
@@ -93,6 +128,7 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+    this.etag = etag;
   }
 
   @Override
@@ -100,11 +136,45 @@ class RESTTableOperations implements TableOperations {
     return current;
   }
 
+  public String etag() {
+    return etag;
+  }
+
   @Override
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
-    return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
+    LoadTableResponse response;
+    try {
+      response =
+          client.get(
+              path,
+              LoadTableResponse.class,
+              customRequestHeaders(),
+              ErrorHandlers.tableErrorHandler(),
+              this::consumeResponseHeaders);
+    } catch (TableNotModifiedException e) {
+      Preconditions.checkState(
+          current != null, "Invalid base metadata: null when server returned TableNotModified");
+      return current;
+    }
+    return updateCurrentMetadata(response);
+  }
+
+  void consumeResponseHeaders(Map<String, String> responseHeaders) {
+    if (responseHeaders.containsKey(ETAG_HEADER)) {
+      etag = responseHeaders.get(ETAG_HEADER);
+    }
+  }
+
+  private Supplier<Map<String, String>> customRequestHeaders() {
+    if (etag == null) {
+      return headers;
+    }
+    return () -> {
+      Map<String, String> result = Maps.newHashMap(headers.get());
+      result.put(IF_NONE_MATCH_HEADER, etag);
+      return result;
+    };
   }
 
   @Override
@@ -156,7 +226,13 @@ class RESTTableOperations implements TableOperations {
     // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
     LoadTableResponse response =
-        client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+        client.post(
+            path,
+            request,
+            LoadTableResponse.class,
+            headers,
+            errorHandler,
+            this::consumeResponseHeaders);
 
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
