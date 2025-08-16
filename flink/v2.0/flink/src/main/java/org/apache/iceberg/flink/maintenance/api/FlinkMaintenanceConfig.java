@@ -31,27 +31,50 @@ public class FlinkMaintenanceConfig {
 
   public static final String PREFIX = "flink-maintenance.";
 
+  // Configuration for lock check delay (in seconds)
+  // This setting controls the delay between each lock check during the rewrite operation
   public static final String LOCK_CHECK_DELAY = PREFIX + "lock-check-delay-seconds";
   public static final ConfigOption<Long> LOCK_CHECK_DELAY_OPTION =
       ConfigOptions.key(LOCK_CHECK_DELAY)
           .longType()
-          .defaultValue(TableMaintenance.LOCK_CHECK_DELAY_SECOND_DEFAULT);
+          .defaultValue(TableMaintenance.LOCK_CHECK_DELAY_SECOND_DEFAULT)
+          .withDescription(
+              "The delay time (in seconds) between each lock check during the rewrite operation.");
 
+  // Configuration for parallelism
+  // This setting controls the parallelism level for the maintenance tasks,
+  // determining how many tasks can run concurrently
   public static final String PARALLELISM = PREFIX + "parallelism";
   public static final ConfigOption<Integer> PARALLELISM_OPTION =
-      ConfigOptions.key(PARALLELISM).intType().defaultValue(ExecutionConfig.PARALLELISM_DEFAULT);
+      ConfigOptions.key(PARALLELISM)
+          .intType()
+          .defaultValue(ExecutionConfig.PARALLELISM_DEFAULT)
+          .withDescription(
+              "The parallelism level for the maintenance task. "
+                  + "Determines how many tasks can run concurrently.");
 
+  // Configuration for rate limit (in seconds)
+  // This setting controls the rate at which maintenance operations can occur,
+  // limiting the number of operations per second
   public static final String RATE_LIMIT = PREFIX + "rate-limit-seconds";
   public static final ConfigOption<Long> RATE_LIMIT_OPTION =
       ConfigOptions.key(RATE_LIMIT)
           .longType()
-          .defaultValue(TableMaintenance.RATE_LIMIT_SECOND_DEFAULT);
+          .defaultValue(TableMaintenance.RATE_LIMIT_SECOND_DEFAULT)
+          .withDescription(
+              "The rate limit (in seconds) for maintenance operations. "
+                  + "This controls how many operations can be performed per second.");
 
+  // Configuration for slot sharing group
+  // This setting determines which operators in Flink can share the same slots
   public static final String SLOT_SHARING_GROUP = PREFIX + "slot-sharing-group";
   public static final ConfigOption<String> SLOT_SHARING_GROUP_OPTION =
       ConfigOptions.key(SLOT_SHARING_GROUP)
           .stringType()
-          .defaultValue(StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP);
+          .defaultValue(StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP)
+          .withDescription(
+              "The slot sharing group for maintenance tasks. "
+                  + "Determines which operators can share slots in the Flink execution environment.");
 
   private final FlinkConfParser confParser;
   private final Table table;
@@ -66,6 +89,11 @@ public class FlinkMaintenanceConfig {
     this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
   }
 
+  /**
+   * Gets the rate limit value (in seconds) for maintenance operations.
+   *
+   * @return The rate limit for maintenance operations
+   */
   public long rateLimit() {
     return confParser
         .longConf()
@@ -75,6 +103,11 @@ public class FlinkMaintenanceConfig {
         .parse();
   }
 
+  /**
+   * Gets the parallelism value for maintenance tasks.
+   *
+   * @return The parallelism for maintenance tasks
+   */
   public int parallelism() {
     return confParser
         .intConf()
@@ -84,6 +117,11 @@ public class FlinkMaintenanceConfig {
         .parse();
   }
 
+  /**
+   * Gets the lock check delay value (in seconds).
+   *
+   * @return The lock check delay time (in seconds)
+   */
   public long lockCheckDelay() {
     return confParser
         .longConf()
@@ -93,6 +131,11 @@ public class FlinkMaintenanceConfig {
         .parse();
   }
 
+  /**
+   * Gets the slot sharing group value for maintenance tasks.
+   *
+   * @return The slot sharing group for maintenance tasks
+   */
   public String slotSharingGroup() {
     return confParser
         .stringConf()
