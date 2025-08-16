@@ -131,6 +131,7 @@ public abstract class DataTestBase {
         Types.GeographyType.crs84(),
         Types.GeographyType.of("srid:4269"),
         Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
+        Types.UnknownType.get()
       };
 
   protected boolean supportsUnknown() {

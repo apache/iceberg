@@ -220,7 +220,9 @@ public final class ORCSchemaUtil {
           orcType = TypeDescription.createStruct();
           for (Types.NestedField field : type.asStructType().fields()) {
             TypeDescription childType = convert(field.fieldId(), field.type(), field.isRequired());
-            orcType.addField(field.name(), childType);
+            if (childType != null) {
+              orcType.addField(field.name(), childType);
+            }
           }
           break;
         }
@@ -229,6 +231,11 @@ public final class ORCSchemaUtil {
           Types.ListType list = (Types.ListType) type;
           TypeDescription elementType =
               convert(list.elementId(), list.elementType(), list.isElementRequired());
+
+          if (list.elementType().typeId().equals(Type.TypeID.UNKNOWN)) {
+            throw new IllegalArgumentException("Cannot create ListType with unknown element type");
+          }
+
           orcType = TypeDescription.createList(elementType);
           break;
         }
@@ -236,8 +243,14 @@ public final class ORCSchemaUtil {
         {
           Types.MapType map = (Types.MapType) type;
           TypeDescription keyType = convert(map.keyId(), map.keyType(), true);
+
+          if (map.valueType().typeId().equals(Type.TypeID.UNKNOWN)) {
+            throw new IllegalArgumentException("Cannot create MapType with unknown value type");
+          }
+
           TypeDescription valueType =
               convert(map.valueId(), map.valueType(), map.isValueRequired());
+
           orcType = TypeDescription.createMap(keyType, valueType);
           break;
         }
