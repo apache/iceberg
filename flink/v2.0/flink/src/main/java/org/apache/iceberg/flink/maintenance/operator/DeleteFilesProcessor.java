@@ -21,7 +21,9 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
+import org.apache.flink.runtime.metrics.DescriptiveStatisticsHistogram;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -30,6 +32,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -50,6 +53,7 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
 
   private transient Counter failedCounter;
   private transient Counter succeededCounter;
+  private transient Histogram deleteFileTimeMsHistogram;
 
   public DeleteFilesProcessor(Table table, String taskName, int taskIndex, int batchSize) {
     Preconditions.checkNotNull(taskName, "Task name should no be null");
@@ -76,6 +80,10 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
         taskMetricGroup.counter(TableMaintenanceMetrics.DELETE_FILE_FAILED_COUNTER);
     this.succeededCounter =
         taskMetricGroup.counter(TableMaintenanceMetrics.DELETE_FILE_SUCCEEDED_COUNTER);
+    this.deleteFileTimeMsHistogram =
+        taskMetricGroup.histogram(
+            TableMaintenanceMetrics.DELETE_FILE_TIME_MS_HISTOGRAM,
+            new DescriptiveStatisticsHistogram(1000));
   }
 
   @Override
@@ -100,6 +108,7 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
   }
 
   private void deleteFiles() {
+    long startTime = System.currentTimeMillis();
     try {
       io.deleteFiles(filesToDelete);
       LOG.info(
@@ -116,6 +125,26 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
           e);
       succeededCounter.inc(deletedFilesCount);
       failedCounter.inc(e.numberFailedObjects());
+    } finally {
+      long elapsed = System.currentTimeMillis() - startTime;
+      if (deleteFileTimeMsHistogram != null) {
+        deleteFileTimeMsHistogram.update(elapsed);
+      }
     }
+  }
+
+  @VisibleForTesting
+  public Counter getFailedCounter() {
+    return failedCounter;
+  }
+
+  @VisibleForTesting
+  public Counter getSucceededCounter() {
+    return succeededCounter;
+  }
+
+  @VisibleForTesting
+  public Histogram getDeleteFileTimeMsHistogram() {
+    return deleteFileTimeMsHistogram;
   }
 }
