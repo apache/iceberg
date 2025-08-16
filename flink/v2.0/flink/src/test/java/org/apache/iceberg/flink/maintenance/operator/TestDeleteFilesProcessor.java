@@ -204,7 +204,7 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
               try {
                 testHarness.processElement(file, System.currentTimeMillis());
               } catch (Exception e) {
-                e.printStackTrace();
+                // do nothing
               }
             });
       }

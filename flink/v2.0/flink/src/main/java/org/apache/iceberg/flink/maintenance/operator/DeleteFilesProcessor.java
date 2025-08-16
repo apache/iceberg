@@ -32,7 +32,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -133,17 +132,14 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
     }
   }
 
-  @VisibleForTesting
   public Counter getFailedCounter() {
     return failedCounter;
   }
 
-  @VisibleForTesting
   public Counter getSucceededCounter() {
     return succeededCounter;
   }
 
-  @VisibleForTesting
   public Histogram getDeleteFileTimeMsHistogram() {
     return deleteFileTimeMsHistogram;
   }
