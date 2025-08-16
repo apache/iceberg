@@ -154,6 +154,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     compileOnly project(':iceberg-api')
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
+    compileOnly project(':iceberg-hive-metastore')
     compileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
     compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark35.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
