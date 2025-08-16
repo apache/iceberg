@@ -1147,7 +1147,7 @@ class NotExpression(BaseModel):
 
 
 class TableMetadata(BaseModel):
-    format_version: int = Field(..., alias='format-version', ge=1, le=2)
+    format_version: int = Field(..., alias='format-version', ge=1, le=3)
     table_uuid: str = Field(..., alias='table-uuid')
     location: Optional[str] = None
     last_updated_ms: Optional[int] = Field(None, alias='last-updated-ms')
