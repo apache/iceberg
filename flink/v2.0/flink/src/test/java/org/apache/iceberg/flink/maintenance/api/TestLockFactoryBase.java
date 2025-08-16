@@ -30,6 +30,8 @@ abstract class TestLockFactoryBase {
 
   abstract TriggerLockFactory lockFactory();
 
+  abstract TriggerLockFactory createOtherLockFactory(String tableName);
+
   @BeforeEach
   void before() {
     this.lockFactory = lockFactory();
@@ -76,5 +78,17 @@ abstract class TestLockFactoryBase {
     lock.unlock();
     assertThat(lock.tryLock()).isTrue();
     assertThat(lock.tryLock()).isFalse();
+  }
+
+  @Test
+  void testMultiTableLock() throws IOException {
+    TriggerLockFactory other = createOtherLockFactory("tableName2");
+    TriggerLockFactory.Lock lock1 = lockFactory.createLock();
+    TriggerLockFactory.Lock lock2 = other.createLock();
+    assertThat(lock1.tryLock()).isTrue();
+    assertThat(lock2.tryLock()).isTrue();
+    lock1.unlock();
+    lock2.unlock();
+    other.close();
   }
 }
