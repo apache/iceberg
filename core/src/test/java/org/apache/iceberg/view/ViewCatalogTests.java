@@ -87,6 +87,27 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
+  public void loadViewThatAlreadyExistsAsTable() {
+    assumeThat(tableCatalog()).as("Only valid for catalogs that support tables").isNotNull();
+
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should not exist").isFalse();
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    assertThatThrownBy(() -> catalog().loadView(tableIdentifier))
+        .isInstanceOf(NoSuchViewException.class)
+        .hasMessageStartingWith("View does not exist");
+  }
+
+  @Test
   public void basicCreateView() {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
