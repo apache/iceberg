@@ -59,11 +59,13 @@ public class Accessors {
     private final int position;
     private final Type type;
     private final Class<?> javaClass;
+    private final boolean hasOptionalFieldInPath;
 
-    PositionAccessor(int pos, Type type) {
+    PositionAccessor(int pos, Type type, boolean isOptional) {
       this.position = pos;
       this.type = type;
       this.javaClass = type.typeId().javaClass();
+      this.hasOptionalFieldInPath = isOptional;
     }
 
     @Override
@@ -85,6 +87,11 @@ public class Accessors {
     }
 
     @Override
+    public boolean hasOptionalFieldInPath() {
+      return hasOptionalFieldInPath;
+    }
+
+    @Override
     public String toString() {
       return "Accessor(positions=[" + position + "], type=" + type + ")";
     }
@@ -95,12 +102,14 @@ public class Accessors {
     private final int p1;
     private final Type type;
     private final Class<?> javaClass;
+    private final boolean hasOptionalFieldInPath;
 
-    Position2Accessor(int pos, PositionAccessor wrapped) {
+    Position2Accessor(int pos, PositionAccessor wrapped, boolean isOptional) {
       this.p0 = pos;
       this.p1 = wrapped.position();
       this.type = wrapped.type();
       this.javaClass = wrapped.javaClass();
+      this.hasOptionalFieldInPath = isOptional || wrapped.hasOptionalFieldInPath();
     }
 
     @Override
@@ -118,6 +127,11 @@ public class Accessors {
     }
 
     @Override
+    public boolean hasOptionalFieldInPath() {
+      return hasOptionalFieldInPath;
+    }
+
+    @Override
     public String toString() {
       return "Accessor(positions=[" + p0 + ", " + p1 + "], type=" + type + ")";
     }
@@ -129,13 +143,15 @@ public class Accessors {
     private final int p2;
     private final Type type;
     private final Class<?> javaClass;
+    private final boolean hasOptionalFieldInPath;
 
-    Position3Accessor(int pos, Position2Accessor wrapped) {
+    Position3Accessor(int pos, Position2Accessor wrapped, boolean isOptional) {
       this.p0 = pos;
       this.p1 = wrapped.p0;
       this.p2 = wrapped.p1;
       this.type = wrapped.type();
       this.javaClass = wrapped.javaClass();
+      this.hasOptionalFieldInPath = isOptional || wrapped.hasOptionalFieldInPath();
     }
 
     @Override
@@ -149,6 +165,11 @@ public class Accessors {
     }
 
     @Override
+    public boolean hasOptionalFieldInPath() {
+      return hasOptionalFieldInPath;
+    }
+
+    @Override
     public String toString() {
       return "Accessor(positions=[" + p0 + ", " + p1 + ", " + p2 + "], type=" + type + ")";
     }
@@ -157,10 +178,12 @@ public class Accessors {
   private static class WrappedPositionAccessor implements Accessor<StructLike> {
     private final int position;
     private final Accessor<StructLike> accessor;
+    private final boolean hasOptionalFieldInPath;
 
-    WrappedPositionAccessor(int pos, Accessor<StructLike> accessor) {
+    WrappedPositionAccessor(int pos, Accessor<StructLike> accessor, boolean isOptional) {
       this.position = pos;
       this.accessor = accessor;
+      this.hasOptionalFieldInPath = isOptional || accessor.hasOptionalFieldInPath();
     }
 
     @Override
@@ -178,26 +201,31 @@ public class Accessors {
     }
 
     @Override
+    public boolean hasOptionalFieldInPath() {
+      return hasOptionalFieldInPath;
+    }
+
+    @Override
     public String toString() {
       return "WrappedAccessor(position=" + position + ", wrapped=" + accessor + ")";
     }
   }
 
-  private static Accessor<StructLike> newAccessor(int pos, Type type) {
-    return new PositionAccessor(pos, type);
+  private static Accessor<StructLike> newAccessor(int pos, boolean isOptional, Type type) {
+    return new PositionAccessor(pos, type, isOptional);
   }
 
   private static Accessor<StructLike> newAccessor(
       int pos, boolean isOptional, Accessor<StructLike> accessor) {
     if (isOptional) {
       // the wrapped position handles null layers
-      return new WrappedPositionAccessor(pos, accessor);
+      return new WrappedPositionAccessor(pos, accessor, isOptional);
     } else if (accessor.getClass() == PositionAccessor.class) {
-      return new Position2Accessor(pos, (PositionAccessor) accessor);
+      return new Position2Accessor(pos, (PositionAccessor) accessor, isOptional);
     } else if (accessor instanceof Position2Accessor) {
-      return new Position3Accessor(pos, (Position2Accessor) accessor);
+      return new Position3Accessor(pos, (Position2Accessor) accessor, isOptional);
     } else {
-      return new WrappedPositionAccessor(pos, accessor);
+      return new WrappedPositionAccessor(pos, accessor, isOptional);
     }
   }
 
@@ -226,7 +254,7 @@ public class Accessors {
         }
 
         // Add an accessor for this field as an Object (may or may not be primitive).
-        accessors.put(field.fieldId(), newAccessor(i, field.type()));
+        accessors.put(field.fieldId(), newAccessor(i, field.isOptional(), field.type()));
       }
 
       return accessors;
