@@ -35,6 +35,13 @@ public class TestZkLockFactory extends TestLockFactoryBase {
     return lockFactory("tableName");
   }
 
+  @Override
+  TriggerLockFactory createOtherLockFactory(String tableName) {
+    ZkLockFactory other = lockFactory(tableName);
+    other.open();
+    return other;
+  }
+
   @BeforeEach
   @Override
   void before() {
@@ -45,24 +52,6 @@ public class TestZkLockFactory extends TestLockFactoryBase {
     }
 
     super.before();
-  }
-
-  @Test
-  void testMultiTableLock() throws IOException {
-    // Create two lock factories for different tables
-    ZkLockFactory other = lockFactory("tableName2");
-    other.open();
-    TriggerLockFactory.Lock lock1 = lockFactory.createLock();
-    TriggerLockFactory.Lock lock2 = other.createLock();
-
-    // Verify that locks for different tables can be acquired independently
-    assertThat(lock1.tryLock()).isTrue();
-    assertThat(lock2.tryLock()).isTrue();
-
-    // Clean up
-    lock1.unlock();
-    lock2.unlock();
-    other.close();
   }
 
   ZkLockFactory lockFactory(String lockId) {

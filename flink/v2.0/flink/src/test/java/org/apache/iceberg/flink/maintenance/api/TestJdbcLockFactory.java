@@ -33,14 +33,11 @@ class TestJdbcLockFactory extends TestLockFactoryBase {
     return lockFactory("tableName");
   }
 
-  @Test
-  void testMultiTableLock() {
-    JdbcLockFactory other = lockFactory("tableName2");
+  @Override
+  TriggerLockFactory createOtherLockFactory(String tableName) {
+    JdbcLockFactory other = lockFactory(tableName);
     other.open((JdbcLockFactory) this.lockFactory);
-    TriggerLockFactory.Lock lock1 = lockFactory.createLock();
-    TriggerLockFactory.Lock lock2 = other.createLock();
-    assertThat(lock1.tryLock()).isTrue();
-    assertThat(lock2.tryLock()).isTrue();
+    return other;
   }
 
   private JdbcLockFactory lockFactory(String tableName) {
