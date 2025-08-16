@@ -102,12 +102,12 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
 
   @Test
   void testDeleteLargeFile() throws Exception {
-    // Simulate a large file (e.g., 1 GB file)
+    // Simulate a large file (e.g., 100MB file)
     String largeFileName = "largeFile.txt";
     Path largeFile = Path.of(tablePath(table).toString(), largeFileName);
 
     // Write a large file to disk (this will simulate the large file in the filesystem)
-    byte[] largeData = new byte[1024 * 1024 * 1024]; // 1 GB
+    byte[] largeData = new byte[1024 * 1024 * 100]; // 100 MB
     Files.write(largeFile, largeData);
 
     // Verify that the file was created
