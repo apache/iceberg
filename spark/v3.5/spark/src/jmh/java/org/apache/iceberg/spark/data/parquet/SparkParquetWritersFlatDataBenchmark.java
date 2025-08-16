@@ -27,13 +27,12 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.InternalRowTransformer;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
-import org.apache.spark.sql.types.StructType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -77,6 +76,8 @@ public class SparkParquetWritersFlatDataBenchmark {
   private static final int NUM_RECORDS = 1000000;
   private Iterable<InternalRow> rows;
   private File dataFile;
+  private InternalRowTransformer transformer =
+      new InternalRowTransformer(SparkSchemaUtil.convert(SCHEMA));
 
   @Setup
   public void setupBenchmark() throws IOException {
@@ -103,28 +104,22 @@ public class SparkParquetWritersFlatDataBenchmark {
             .schema(SCHEMA)
             .build()) {
 
-      writer.addAll(rows);
+      rows.forEach(writer::add);
     }
   }
 
   @Benchmark
   @Threads(1)
-  public void writeUsingSparkWriter() throws IOException {
-    StructType sparkSchema = SparkSchemaUtil.convert(SCHEMA);
+  public void writeUsingIcebergWriterWithTransformer() throws IOException {
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(dataFile))
-            .writeSupport(new ParquetWriteSupport())
-            .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
-            .set("spark.sql.parquet.writeLegacyFormat", "false")
-            .set("spark.sql.parquet.binaryAsString", "false")
-            .set("spark.sql.parquet.int96AsTimestamp", "false")
-            .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
-            .set("spark.sql.caseSensitive", "false")
-            .set("spark.sql.parquet.fieldId.write.enabled", "false")
+            .createWriterFunc(
+                msgType ->
+                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
             .schema(SCHEMA)
             .build()) {
 
-      writer.addAll(rows);
+      rows.forEach(r -> writer.add(transformer.transform(r)));
     }
   }
 }

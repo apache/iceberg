@@ -48,23 +48,19 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.actions.ImmutableRewriteTablePath;
 import org.apache.iceberg.actions.RewriteTablePath;
-import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.FormatModelRegistry;
+import org.apache.iceberg.data.GenericFormatModels;
+import org.apache.iceberg.data.PositionDeleteWriteBuilder;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -686,31 +682,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private static CloseableIterable<Record> positionDeletesReader(
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
-    switch (format) {
-      case AVRO:
-        return Avro.read(inputFile)
-            .project(deleteSchema)
-            .reuseContainers()
-            .createReaderFunc(DataReader::create)
-            .build();
-
-      case PARQUET:
-        return Parquet.read(inputFile)
-            .project(deleteSchema)
-            .reuseContainers()
-            .createReaderFunc(
-                fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema))
-            .build();
-
-      case ORC:
-        return ORC.read(inputFile)
-            .project(deleteSchema)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema))
-            .build();
-
-      default:
-        throw new UnsupportedOperationException("Unsupported file format: " + format);
-    }
+    ReadBuilder<Record> builder =
+        FormatModelRegistry.readBuilder(format, GenericFormatModels.MODEL_NAME, inputFile);
+    return builder.project(deleteSchema).reuseContainers().build();
   }
 
   private static PositionDeleteWriter<Record> positionDeletesWriter(
@@ -720,31 +694,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       StructLike partition,
       Schema rowSchema)
       throws IOException {
-    switch (format) {
-      case AVRO:
-        return Avro.writeDeletes(outputFile)
-            .createWriterFunc(DataWriter::create)
-            .withPartition(partition)
-            .rowSchema(rowSchema)
-            .withSpec(spec)
-            .buildPositionWriter();
-      case PARQUET:
-        return Parquet.writeDeletes(outputFile)
-            .createWriterFunc(GenericParquetWriter::create)
-            .withPartition(partition)
-            .rowSchema(rowSchema)
-            .withSpec(spec)
-            .buildPositionWriter();
-      case ORC:
-        return ORC.writeDeletes(outputFile)
-            .createWriterFunc(GenericOrcWriter::buildWriter)
-            .withPartition(partition)
-            .rowSchema(rowSchema)
-            .withSpec(spec)
-            .buildPositionWriter();
-      default:
-        throw new UnsupportedOperationException("Unsupported file format: " + format);
-    }
+    PositionDeleteWriteBuilder<Record> builder =
+        FormatModelRegistry.positionDeleteWriteBuilder(
+            format,
+            GenericFormatModels.MODEL_NAME,
+            EncryptedFiles.plainAsEncryptedOutput(outputFile));
+    return builder.partition(partition).rowSchema(rowSchema).spec(spec).build();
   }
 
   private Set<Snapshot> snapshotSet(TableMetadata metadata) {
