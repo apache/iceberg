@@ -58,7 +58,7 @@ interface VectorizedValuesReader {
   double readDouble();
 
   /**
-   * Read binary data of some length
+   * Read a single binary value of some length
    *
    * @param len The number of bytes to read
    */
@@ -75,6 +75,9 @@ interface VectorizedValuesReader {
 
   /** Read `total` doubles into `vec` starting at `vec[rowId]` */
   void readDoubles(int total, FieldVector vec, int rowId);
+
+  /** Read `total` binary values into `vec` starting at `vec[rowId]` */
+  void readBinary(int total, FieldVector vec, int rowId);
 
   /**
    * Initialize the reader from a page. See {@link ValuesReader#initFromPage(int,
