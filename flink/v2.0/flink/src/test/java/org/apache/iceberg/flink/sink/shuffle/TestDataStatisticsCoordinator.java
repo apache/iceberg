@@ -309,12 +309,14 @@ public class TestDataStatisticsCoordinator {
           .atMost(Duration.ofSeconds(10))
           .until(() -> receivingTasks.getSentEventsForSubtask(0).size() == 2);
 
-      //  signature is right
+      // Simulate the scenario where a subtask send global statistics request with the same hash
+      // code. The coordinator would skip the response after comparing the request contained hash
+      // code with latest global statistics hash code.
       int correctSignature = dataStatisticsCoordinator.globalStatistics().hashCode();
       dataStatisticsCoordinator.handleEventFromOperator(
           0, 0, new RequestGlobalStatisticsEvent(correctSignature));
 
-      Thread.sleep(200);
+      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
       // Checkpoint StatisticEvent + RequestGlobalStatisticsEvent
       assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(2);
 
