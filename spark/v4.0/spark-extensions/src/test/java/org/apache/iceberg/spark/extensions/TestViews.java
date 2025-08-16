@@ -152,6 +152,7 @@ public class TestViews extends ExtensionsTestBase {
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
         .withSchema(schema(sql))
+        .withProperties(ImmutableMap.of("security", "definer"))
         .create();
 
     List<Object[]> expected =
