@@ -2841,6 +2841,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     verifyTableExistsFallbackToGETRequest(ConfigResponse.builder().build());
   }
 
+  @Test
+  @Override
+  public void testLoadMissingTableWithMetadataName() {
+    super.testLoadMissingTableWithMetadataName(true);
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
