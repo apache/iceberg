@@ -287,4 +287,68 @@ public class TestSortOrderUtil {
         .as("Should add spec fields as prefix")
         .isEqualTo(expected);
   }
+
+  @Test
+  public void testFindSortOrderForTable() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 2);
+
+    SortOrder tableSortOrder = table.sortOrder();
+
+    SortOrder actualOrder = SortOrderUtil.maybeFindTableSortOrder(table, tableSortOrder);
+
+    assertThat(actualOrder).as("Should find current table sort order").isEqualTo(table.sortOrder());
+  }
+
+  @Test
+  public void testFindSortOrderForTableWithoutFieldId() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 2);
+
+    SortOrder userSuppliedOrder =
+        SortOrder.builderFor(table.schema()).asc("id", NULLS_LAST).build();
+
+    SortOrder actualOrder = SortOrderUtil.maybeFindTableSortOrder(table, userSuppliedOrder);
+
+    assertThat(actualOrder).as("Should find current table sort order").isEqualTo(table.sortOrder());
+  }
+
+  @Test
+  public void testFindSortOrderForTableThatIsNotCurrentOrder() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 2);
+
+    table.replaceSortOrder().asc("data").desc("ts").commit();
+
+    SortOrder userSuppliedOrder =
+        SortOrder.builderFor(table.schema()).asc("id", NULLS_LAST).build();
+
+    SortOrder actualOrder = SortOrderUtil.maybeFindTableSortOrder(table, userSuppliedOrder);
+
+    assertThat(actualOrder)
+        .as("Should find first sorted table sort order")
+        .isEqualTo(table.sortOrders().get(1));
+  }
+
+  @Test
+  public void testReturnsEmptyForFindingNonMatchingSortOrder() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    SortOrder order = SortOrder.builderFor(SCHEMA).withOrderId(1).asc("id", NULLS_LAST).build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, 2);
+
+    table.replaceSortOrder().asc("data").desc("ts").commit();
+
+    SortOrder userSuppliedOrder =
+        SortOrder.builderFor(table.schema()).desc("id", NULLS_LAST).build();
+
+    SortOrder actualOrder = SortOrderUtil.maybeFindTableSortOrder(table, userSuppliedOrder);
+
+    assertThat(actualOrder)
+        .as(
+            "Should return unsorted order if user supplied order does not match any table sort order")
+        .isEqualTo(SortOrder.unsorted());
+  }
 }
