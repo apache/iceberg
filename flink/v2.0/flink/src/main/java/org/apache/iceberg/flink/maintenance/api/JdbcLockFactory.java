@@ -142,6 +142,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
             try (PreparedStatement ps = conn.prepareStatement(CREATE_LOCK_TABLE_SQL)) {
               ps.execute();
             }
+
             return true;
           });
     } catch (SQLTimeoutException e) {
