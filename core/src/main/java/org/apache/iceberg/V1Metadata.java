@@ -445,6 +445,11 @@ class V1Metadata {
     }
 
     @Override
+    public int schemaId() {
+      return wrapped.schemaId();
+    }
+
+    @Override
     public Map<Integer, Long> columnSizes() {
       return wrapped.columnSizes();
     }
