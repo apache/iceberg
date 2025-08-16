@@ -845,6 +845,7 @@ project(':iceberg-orc') {
 }
 
 project(':iceberg-parquet') {
+
   test {
     useJUnitPlatform()
   }
@@ -853,6 +854,13 @@ project(':iceberg-parquet') {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
+
+    implementation("org.apache.datafusion:comet-spark-spark${ sparkVersionsString}_${scalaVersion}:${libs.versions.comet.get()}") {
+      exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
+      exclude group: 'org.apache.spark'
+      exclude group: 'org.apache.iceberg'
+    }
 
     implementation(libs.parquet.avro) {
       exclude group: 'org.apache.avro', module: 'avro'
