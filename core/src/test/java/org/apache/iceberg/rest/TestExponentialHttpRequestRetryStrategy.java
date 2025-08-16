@@ -37,6 +37,8 @@ import org.apache.hc.client5.http.utils.DateUtils;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.http.message.BasicHttpRequest;
 import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.junit.jupiter.api.Test;
@@ -82,9 +84,6 @@ public class TestExponentialHttpRequestRetryStrategy {
 
   @Test
   public void basicRetry() {
-    BasicHttpResponse response503 = new BasicHttpResponse(503, "Oopsie");
-    assertThat(retryStrategy.retryRequest(response503, 3, null)).isTrue();
-
     BasicHttpResponse response429 = new BasicHttpResponse(429, "Oopsie");
     assertThat(retryStrategy.retryRequest(response429, 3, null)).isTrue();
 
@@ -200,17 +199,26 @@ public class TestExponentialHttpRequestRetryStrategy {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {429, 503})
+  @ValueSource(ints = 429)
   public void testRetryHappensOnAcceptableStatusCodes(int statusCode) {
     BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
     assertThat(retryStrategy.retryRequest(response, 3, null)).isTrue();
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {500, 502, 504})
+  @ValueSource(ints = {500, 502, 503, 504})
   public void testRetryDoesNotHappenOnUnacceptableStatusCodes(int statusCode) {
     BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
     assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
+  }
+
+  @Test
+  public void testRetryHappensWith503WithRetryAfterHeader() {
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_SERVICE_UNAVAILABLE, "Service Unavailable");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "60"));
+
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isTrue();
   }
 
   @ParameterizedTest
