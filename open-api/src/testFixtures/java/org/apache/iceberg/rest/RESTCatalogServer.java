@@ -95,7 +95,6 @@ public class RESTCatalogServer {
       LOG.info("No warehouse location set. Defaulting to temp location: {}", warehouseLocation);
     }
 
-    // Get catalog name from environment or use default
     String catalogName =
         PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
 
