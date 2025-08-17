@@ -29,12 +29,15 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -43,6 +46,8 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSparkParquetWriter {
   @TempDir private Path temp;
@@ -95,8 +100,17 @@ public class TestSparkParquetWriter {
                       required(24, "couch rope", Types.IntegerType.get())))),
           optional(2, "slide", Types.StringType.get()));
 
-  @Test
-  public void testCorrectness() throws IOException {
+  static Stream<Function<MessageType, ParquetValueWriter<?>>> functionProvider() {
+    return Stream.of(
+        msgType ->
+            SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(COMPLEX_SCHEMA), msgType),
+        msgType -> SparkParquetWriters.buildWriter(COMPLEX_SCHEMA, msgType));
+  }
+
+  @ParameterizedTest
+  @MethodSource("functionProvider")
+  public void testCorrectness(Function<MessageType, ParquetValueWriter<?>> buildWriter)
+      throws IOException {
     int numRows = 50_000;
     Iterable<InternalRow> records = RandomData.generateSpark(COMPLEX_SCHEMA, numRows, 19981);
 
@@ -106,10 +120,7 @@ public class TestSparkParquetWriter {
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(testFile))
             .schema(COMPLEX_SCHEMA)
-            .createWriterFunc(
-                msgType ->
-                    SparkParquetWriters.buildWriter(
-                        SparkSchemaUtil.convert(COMPLEX_SCHEMA), msgType))
+            .createWriterFunc(buildWriter)
             .build()) {
       writer.addAll(records);
     }

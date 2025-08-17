@@ -20,8 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
@@ -184,16 +183,18 @@ public class ParquetWithSparkSchemaVisitor<T> {
   private static <T> List<T> visitFields(
       StructType struct, GroupType group, ParquetWithSparkSchemaVisitor<T> visitor) {
     StructField[] sFields = struct.fields();
-    List<T> results = Lists.newArrayListWithExpectedSize(sFields.length);
-
-    Map<String, Type> typeByName =
-        group.getFields().stream().collect(Collectors.toMap(Type::getName, f -> f));
-
-    // TODO: Rewrite this
-    for (StructField sField : sFields) {
-      if (typeByName.containsKey(sField.name())) {
-        results.add(visitField(sField, typeByName.get(sField.name()), visitor));
-      }
+    Preconditions.checkArgument(
+        sFields.length == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
+    List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
+    for (int i = 0; i < sFields.length; i += 1) {
+      Type field = group.getFields().get(i);
+      StructField sField = sFields[i];
+      Preconditions.checkArgument(
+          field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.name())),
+          "Structs do not match: field %s != %s",
+          field.getName(),
+          sField.name());
+      results.add(visitField(sField, field, visitor));
     }
 
     return results;
