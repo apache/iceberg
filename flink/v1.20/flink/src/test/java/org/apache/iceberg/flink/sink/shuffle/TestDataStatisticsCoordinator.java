@@ -279,6 +279,59 @@ public class TestDataStatisticsCoordinator {
     }
   }
 
+  @Test
+  public void testMultipleRequestGlobalStatisticsEvents() throws Exception {
+    try (DataStatisticsCoordinator dataStatisticsCoordinator =
+        createCoordinator(StatisticsType.Map)) {
+      dataStatisticsCoordinator.start();
+      tasksReady(dataStatisticsCoordinator);
+
+      StatisticsEvent checkpoint1Subtask0DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              StatisticsType.Map, Fixtures.TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("a"));
+      StatisticsEvent checkpoint1Subtask1DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              StatisticsType.Map, Fixtures.TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("b"));
+
+      dataStatisticsCoordinator.handleEventFromOperator(
+          0, 0, checkpoint1Subtask0DataStatisticEvent);
+      dataStatisticsCoordinator.handleEventFromOperator(
+          1, 0, checkpoint1Subtask1DataStatisticEvent);
+
+      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+
+      // signature is null
+      dataStatisticsCoordinator.handleEventFromOperator(0, 0, new RequestGlobalStatisticsEvent());
+
+      // Checkpoint StatisticEvent + RequestGlobalStatisticsEvent
+      Awaitility.await("wait for first statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(0).size() == 2);
+
+      // Simulate the scenario where a subtask send global statistics request with the same hash
+      // code. The coordinator would skip the response after comparing the request contained hash
+      // code with latest global statistics hash code.
+      int correctSignature = dataStatisticsCoordinator.globalStatistics().hashCode();
+      dataStatisticsCoordinator.handleEventFromOperator(
+          0, 0, new RequestGlobalStatisticsEvent(correctSignature));
+
+      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+      // Checkpoint StatisticEvent + RequestGlobalStatisticsEvent
+      assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(2);
+
+      // signature is different
+      dataStatisticsCoordinator.handleEventFromOperator(
+          0, 0, new RequestGlobalStatisticsEvent(correctSignature + 1));
+
+      // Checkpoint StatisticEvent + RequestGlobalStatisticsEvent + RequestGlobalStatisticsEvent
+      Awaitility.await("wait for second statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(0).size() == 3);
+    }
+  }
+
   static void setAllTasksReady(
       int subtasks,
       DataStatisticsCoordinator dataStatisticsCoordinator,

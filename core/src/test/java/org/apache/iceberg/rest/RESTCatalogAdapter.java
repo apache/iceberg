@@ -112,10 +112,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   enum Route {
-    TOKENS(HTTPMethod.POST, "v1/oauth/tokens", null, OAuthTokenResponse.class),
+    TOKENS(HTTPMethod.POST, ResourcePaths.tokens(), null, OAuthTokenResponse.class),
     SEPARATE_AUTH_TOKENS_URI(
         HTTPMethod.POST, "https://auth-server.com/token", null, OAuthTokenResponse.class),
-    CONFIG(HTTPMethod.GET, "v1/config", null, ConfigResponse.class),
+    CONFIG(HTTPMethod.GET, ResourcePaths.config(), null, ConfigResponse.class),
     LIST_NAMESPACES(
         HTTPMethod.GET, ResourcePaths.V1_NAMESPACES, null, ListNamespacesResponse.class),
     CREATE_NAMESPACE(

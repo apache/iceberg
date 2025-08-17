@@ -87,6 +87,11 @@ public class SparkSQLProperties {
   public static final String EXECUTOR_CACHE_ENABLED = "spark.sql.iceberg.executor-cache.enabled";
   public static final boolean EXECUTOR_CACHE_ENABLED_DEFAULT = true;
 
+  // Controls whether to enable executor cache for delete files
+  public static final String EXECUTOR_CACHE_DELETE_FILES_ENABLED =
+      "spark.sql.iceberg.executor-cache.delete-files.enabled";
+  public static final boolean EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT = true;
+
   public static final String EXECUTOR_CACHE_TIMEOUT = "spark.sql.iceberg.executor-cache.timeout";
   public static final Duration EXECUTOR_CACHE_TIMEOUT_DEFAULT = Duration.ofMinutes(10);
 
