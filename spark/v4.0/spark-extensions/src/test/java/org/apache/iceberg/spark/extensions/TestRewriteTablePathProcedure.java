@@ -171,6 +171,23 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
             "Cannot find provided version file %s in metadata log.", "v11.metadata.json");
   }
 
+  @TestTemplate
+  public void testRewriteTablePathWithSkipFileList() {
+    String location = targetTableDir.toFile().toURI().toString();
+    Table table = validationCatalog.loadTable(tableIdent);
+    String metadataJson = TableUtil.metadataFileLocation(table);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.rewrite_table_path(table => '%s', source_prefix => '%s', target_prefix => '%s', skip_file_list => true)",
+            catalogName, tableIdent, table.location(), location);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0])
+        .as("Should return correct latest version")
+        .isEqualTo(RewriteTablePathUtil.fileName(metadataJson));
+    assertThat(result.get(0)[1]).as("Should return empty").asString().isEqualTo("");
+  }
+
   private void checkFileListLocationCount(String fileListLocation, long expectedFileCount) {
     long fileCount = spark.read().format("text").load(fileListLocation).count();
     assertThat(fileCount).isEqualTo(expectedFileCount);
