@@ -32,6 +32,7 @@ import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -117,6 +118,19 @@ interface HiveOperationsBase {
         fullName,
         tableTypeProp,
         table.getTableType());
+  }
+
+  static void validateLoadIcebergTableAsIcebergView(Table table, String fullName) {
+    String tableType = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
+    boolean isIcebergTable =
+        tableType != null
+            && tableType.equalsIgnoreCase(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
+    boolean isIcebergView =
+        TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(table.getTableType())
+            && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(tableType);
+    if (!isIcebergView && isIcebergTable) {
+      throw new NoSuchViewException("View does not exist: %s", fullName);
+    }
   }
 
   default void persistTable(Table hmsTable, boolean updateHiveTable, String metadataLocation)
