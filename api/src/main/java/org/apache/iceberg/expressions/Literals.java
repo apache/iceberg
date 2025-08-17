@@ -56,7 +56,7 @@ class Literals {
    * @param <T> Java type of value
    * @return a Literal for the given value
    */
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "CyclomaticComplexity"})
   static <T> Literal<T> from(T value) {
     Preconditions.checkNotNull(value, "Cannot create expression literal from null");
     Preconditions.checkArgument(!NaNUtil.isNaN(value), "Cannot create expression literal from NaN");

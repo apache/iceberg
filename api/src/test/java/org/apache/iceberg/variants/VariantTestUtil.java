@@ -145,12 +145,12 @@ public class VariantTestUtil {
   }
 
   public static VariantPrimitive<?> createSerializedPrimitive(int primitiveType, byte[] bytes) {
-    byte[] header = new byte[1];
-    header[0] = primitiveHeader(primitiveType);
-    byte[] primitives = new byte[bytes.length + header.length];
-    System.arraycopy(header, 0, primitives, 0, header.length);
-    System.arraycopy(bytes, 0, primitives, header.length, bytes.length);
-    return SerializedPrimitive.from(primitives);
+    ByteBuffer buffer = ByteBuffer.allocate(1 + bytes.length).order(ByteOrder.LITTLE_ENDIAN);
+    buffer.put(0, primitiveHeader(primitiveType));
+    buffer.position(1);
+    buffer.put(bytes);
+    buffer.flip();
+    return SerializedPrimitive.from(buffer, buffer.get(0));
   }
 
   public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {

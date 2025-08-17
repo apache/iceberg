@@ -427,7 +427,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(joining(", ", "(", ")"));
+                  .collect(Collectors.joining(", ", "(", ")"));
         case NOT_IN:
           return term
               + " NOT IN "

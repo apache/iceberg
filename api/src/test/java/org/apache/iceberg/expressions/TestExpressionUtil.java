@@ -1265,7 +1265,7 @@ public class TestExpressionUtil {
         ExpressionUtil.sanitize(bound));
   }
 
-  private VariantPrimitive<?> createTimestampNanos(int primitiveHeader) {
+  private static VariantPrimitive<?> createTimestampNanos(int primitiveHeader) {
     return VariantTestUtil.createSerializedPrimitive(
         primitiveHeader,
         new byte[] {
@@ -1273,13 +1273,13 @@ public class TestExpressionUtil {
         });
   }
 
-  private VariantPrimitive<?> createTimestamp(int primitiveHeader) {
+  private static VariantPrimitive<?> createTimestamp(int primitiveHeader) {
     return VariantTestUtil.createSerializedPrimitive(
         primitiveHeader,
         new byte[] {0x18, (byte) 0xD3, (byte) 0xB1, (byte) 0xD6, 0x07, 0x57, 0x05, 0x00});
   }
 
-  private VariantArray createArrayWithNestedTypes() {
+  private static VariantArray createArrayWithNestedTypes() {
     ByteBuffer nestedArrayBuffer =
         VariantTestUtil.createArray(
             VariantTestUtil.createSerializedPrimitive(3, new byte[] {(byte) 32}),
