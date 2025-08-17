@@ -62,12 +62,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
       Schema positionDeleteRowSchema) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
-    if (dataSchema != null) {
-      this.dataSchema = dataSchema;
-      //      this.dataSchema = PruneUnknownTypes.prune(dataSchema);
-    } else {
-      this.dataSchema = null;
-    }
+    this.dataSchema = dataSchema;
     this.dataSortOrder = dataSortOrder;
     this.deleteFileFormat = deleteFileFormat;
     this.equalityFieldIds = equalityFieldIds;
