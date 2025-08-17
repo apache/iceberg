@@ -79,6 +79,12 @@ public class Expressions {
   }
 
   @SuppressWarnings("unchecked")
+  public static <T> UnboundTerm<T> identity(String name) {
+    Transform<?, T> transform = (Transform<?, T>) Transforms.identity();
+    return new UnboundTransform<>(ref(name), transform);
+  }
+
+  @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> year(String name) {
     return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.year());
   }
