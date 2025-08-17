@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
-import static org.apache.iceberg.expressions.Expressions.identity;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -308,8 +307,7 @@ public class TestTableUpdatePartitionSpec extends TestBase {
     table.updateSchema().addColumn("new_field", Types.StringType.get()).commit();
 
     // Add a new partition field referencing 'new_field' and name it 'new_field_partition'
-    // table.updateSpec().addField("new_field_partition", bucket("new_field", 8)).commit();
-    table.updateSpec().addField("new_field_partition", identity("new_field")).commit();
+    table.updateSpec().addField("new_field_partition", bucket("new_field", 8)).commit();
 
     // Assert that adding a column named 'new_field_partition' throws due to name collision
     assertThatThrownBy(
