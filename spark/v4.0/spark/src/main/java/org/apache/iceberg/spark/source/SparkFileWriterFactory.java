@@ -39,7 +39,6 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
-import org.apache.iceberg.types.PruneUnknownTypes;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -115,7 +114,8 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   @Override
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dataSparkType(), msgType));
+    builder.createWriterFunc(
+        msgType -> SparkParquetWriters.buildWriter(dataSparkType(), msgType, this.dataSchema()));
     builder.setAll(writeProperties);
   }
 
@@ -156,7 +156,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
   private StructType dataSparkType() {
     if (dataSparkType == null) {
       Preconditions.checkNotNull(dataSchema(), "Data schema must not be null");
-      this.dataSparkType = SparkSchemaUtil.convert(PruneUnknownTypes.prune(dataSchema()));
+      this.dataSparkType = SparkSchemaUtil.convert(dataSchema());
     }
 
     return dataSparkType;
