@@ -73,7 +73,7 @@ public class RESTCatalogServer {
     }
   }
 
-private CatalogContext initializeBackendCatalog() throws IOException {
+  private CatalogContext initializeBackendCatalog() throws IOException {
     // Translate environment variables to catalog properties
     Map<String, String> catalogProperties = Maps.newHashMap(RCKUtils.environmentCatalogConfig());
     catalogProperties.putAll(config);
