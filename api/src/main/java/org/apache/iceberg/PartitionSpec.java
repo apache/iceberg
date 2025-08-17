@@ -388,26 +388,24 @@ public class PartitionSpec implements Serializable {
       return lastAssignedFieldId.incrementAndGet();
     }
 
-    private void checkAndAddPartitionName(String name) {
-      checkAndAddPartitionName(name, null);
-    }
-
     Builder checkConflicts(boolean check) {
       checkConflicts = check;
       return this;
     }
 
-    private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
+    private void checkAndAddPartitionName(
+        String name, Integer sourceColumnId, Transform<?, ?> transform) {
       Types.NestedField schemaField =
           this.caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
       if (checkConflicts) {
-        if (sourceColumnId != null) {
-          // for identity transform case we allow conflicts between partition and schema field name
-          // as
-          //   long as they are sourced from the same schema field
+        if (transform.equals(Transforms.identity()) || transform.equals(Transforms.alwaysNull())) {
+          // for identity and void transform case, we allow conflicts between partition and schema
+          // field name as long as they are sourced from the same schema field
           Preconditions.checkArgument(
-              schemaField == null || schemaField.fieldId() == sourceColumnId,
-              "Cannot create identity partition sourced from different field in schema: %s",
+              schemaField == null
+                  || (sourceColumnId != null && schemaField.fieldId() == sourceColumnId),
+              "Cannot create %s partition sourced from different field in schema: %s",
+              transform,
               name);
         } else {
           // for all other transforms we don't allow conflicts between partition name and schema
@@ -461,10 +459,10 @@ public class PartitionSpec implements Serializable {
     }
 
     private Builder identity(Types.NestedField sourceColumn, String targetName) {
-      checkAndAddPartitionName(targetName, sourceColumn.fieldId());
+      Transform<?, ?> transform = Transforms.identity();
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), transform);
       PartitionField field =
-          new PartitionField(
-              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity());
+          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform);
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -480,9 +478,10 @@ public class PartitionSpec implements Serializable {
     }
 
     private Builder year(Types.NestedField sourceColumn, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Transform<?, ?> transform = Transforms.year();
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), transform);
       PartitionField field =
-          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.year());
+          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform);
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -499,9 +498,10 @@ public class PartitionSpec implements Serializable {
     }
 
     private Builder month(Types.NestedField sourceColumn, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Transform<?, ?> transform = Transforms.month();
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), transform);
       PartitionField field =
-          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.month());
+          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform);
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -518,9 +518,10 @@ public class PartitionSpec implements Serializable {
     }
 
     private Builder day(Types.NestedField sourceColumn, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Transform<?, ?> transform = Transforms.day();
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), transform);
       PartitionField field =
-          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.day());
+          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform);
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -537,9 +538,10 @@ public class PartitionSpec implements Serializable {
     }
 
     private Builder hour(Types.NestedField sourceColumn, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Transform<?, ?> transform = Transforms.hour();
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), transform);
       PartitionField field =
-          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.hour());
+          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform);
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -556,10 +558,9 @@ public class PartitionSpec implements Serializable {
     }
 
     private Builder bucket(Types.NestedField sourceColumn, int numBuckets, String targetName) {
-      checkAndAddPartitionName(targetName);
-      fields.add(
-          new PartitionField(
-              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.bucket(numBuckets)));
+      Transform<?, ?> transform = Transforms.bucket(numBuckets);
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), transform);
+      fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform));
       return this;
     }
 
@@ -574,10 +575,9 @@ public class PartitionSpec implements Serializable {
     }
 
     private Builder truncate(Types.NestedField sourceColumn, int width, String targetName) {
-      checkAndAddPartitionName(targetName);
-      fields.add(
-          new PartitionField(
-              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.truncate(width)));
+      Transform<?, ?> transform = Transforms.truncate(width);
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId(), transform);
+      fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform));
       return this;
     }
 
@@ -592,11 +592,10 @@ public class PartitionSpec implements Serializable {
     }
 
     private Builder alwaysNull(Types.NestedField sourceColumn, String targetName) {
+      Transform<?, ?> transform = Transforms.alwaysNull();
       checkAndAddPartitionName(
-          targetName, sourceColumn.fieldId()); // can duplicate a source column name
-      fields.add(
-          new PartitionField(
-              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.alwaysNull()));
+          targetName, sourceColumn.fieldId(), transform); // can duplicate a source column name
+      fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, transform));
       return this;
     }
 
@@ -613,7 +612,7 @@ public class PartitionSpec implements Serializable {
     }
 
     Builder add(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
-      checkAndAddPartitionName(name, sourceId);
+      checkAndAddPartitionName(name, sourceId, transform);
       fields.add(new PartitionField(sourceId, fieldId, name, transform));
       lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;
