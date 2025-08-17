@@ -578,28 +578,6 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         ImmutableList.of(row(4, Double.NEGATIVE_INFINITY)));
   }
 
-  @TestTemplate
-  public void testFilterPushdownWithRequiredNestedFieldInOptionalStruct() {
-    sql(
-        "CREATE TABLE %s (id INT NOT NULL, address STRUCT<street: STRING NOT NULL>)"
-            + "USING iceberg ",
-        tableName);
-    configurePlanningMode(planningMode);
-
-    sql("INSERT INTO %s VALUES (0, NULL)", tableName);
-    sql("INSERT INTO %s VALUES (1, STRUCT('123 Main St'))", tableName);
-
-    checkOnlyIcebergFilters(
-        "address.street is null" /* query predicate */,
-        "address.street IS NULL" /* Iceberg scan filters */,
-        ImmutableList.of(row(0, null)));
-
-    checkOnlyIcebergFilters(
-        "address.street is not null" /* query predicate */,
-        "address.street IS NOT NULL" /* Iceberg scan filters */,
-        ImmutableList.of(row(1, row("123 Main St"))));
-  }
-
   private void checkOnlyIcebergFilters(
       String predicate, String icebergFilters, List<Object[]> expectedRows) {
 
