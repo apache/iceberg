@@ -29,12 +29,15 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -440,48 +443,75 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
   }
 
-  private void assertIdenticalFileContents(File actual, File expected, Schema schema)
-      throws IOException {
-    try (CloseableIterable<InternalRow> actualReader =
-        Parquet.read(Files.localInput(actual))
-            .project(schema)
-            .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
-            .build()) {
-      Iterator<InternalRow> actualIterator = actualReader.iterator();
-      try (CloseableIterable<InternalRow> plainReader =
-          Parquet.read(Files.localInput(expected))
+  private Parquet.ReadBuilder createReadFunc(
+          Parquet.ReadBuilder readBuilder,
+          Schema schema,
+          boolean vectorized) {
+    if (vectorized) {
+      return readBuilder
               .project(schema)
-              .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
-              .build()) {
-        Iterator<InternalRow> expectedIterator = plainReader.iterator();
+              .createBatchedReaderFunc(t -> VectorizedSparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT, null));
+    } else {
+      return readBuilder
+              .project(schema)
+              .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT));
+    }
+  }
 
-        List<InternalRow> expectedList = Lists.newArrayList();
+  @SuppressWarnings("unchecked")
+  private <T> void assertIdenticalFileContents(File actual, File expected, Schema schema, boolean vectorized)
+      throws IOException {
+    try (CloseableIterable<T> actualReader =
+                 createReadFunc(Parquet.read(Files.localInput(actual)), schema, vectorized).build()) {
+      Iterator<T> actualIterator = actualReader.iterator();
+      try (CloseableIterable<T> plainReader =
+                   createReadFunc(Parquet.read(Files.localInput(expected)), schema, vectorized).build()) {
+        Iterator<T> expectedIterator = plainReader.iterator();
+        List<T> expectedList = Lists.newArrayList();
         expectedIterator.forEachRemaining(expectedList::add);
-        List<InternalRow> actualList = Lists.newArrayList();
+        List<T> actualList = Lists.newArrayList();
         actualIterator.forEachRemaining(actualList::add);
 
-        assertThat(actualList)
-            .as("Comparison between files failed %s <-> %s", actual, expected)
-            .isNotEmpty()
-            .hasSameSizeAs(expectedList)
-            .hasSameElementsAs(expectedList);
+        if (vectorized) {
+          assertBatchListsEqualByRows((List<ColumnarBatch>) actualList, (List<ColumnarBatch>) expectedList);
+        } else {
+          assertThat(actualList)
+                  .as("Comparison between files failed %s <-> %s", actual, expected)
+                  .isNotEmpty()
+                  .hasSameSizeAs(expectedList)
+                  .hasSameElementsAs(expectedList);
+        }
       }
     }
   }
 
+  static void assertBatchListsEqualByRows(List<ColumnarBatch> actual, List<ColumnarBatch> expected) {
+    List<InternalRow> actualRows = new ArrayList<>();
+    actual.forEach(b -> b.rowIterator().forEachRemaining(actualRows::add));
+    List<InternalRow> expectedRows = new ArrayList<>();
+    expected.forEach(b -> b.rowIterator().forEachRemaining(expectedRows::add));
+    assertThat(actualRows)
+            .as("(Vectorized) Comparison between files failed %s <-> %s", actual, expected)
+            .hasSameSizeAs(expectedRows)
+            .hasSameElementsAs(expectedRows);
+  }
+
   static Stream<Arguments> goldenFilesAndEncodings() {
     return GOLDEN_FILE_ENCODINGS.stream()
-        .flatMap(
-            encoding ->
-                GOLDEN_FILE_TYPES.entrySet().stream()
-                    .map(
-                        typeEntry ->
-                            Arguments.of(encoding, typeEntry.getKey(), typeEntry.getValue())));
+            .flatMap(encoding ->
+                    GOLDEN_FILE_TYPES.entrySet().stream()
+                            .flatMap(e ->
+                                    Stream.of(true, false)
+                                            .map(vectorized ->
+                                                    Arguments.of(encoding, e.getKey(), e.getValue(), vectorized)
+                                            )
+                            )
+            );
   }
 
   @ParameterizedTest
   @MethodSource("goldenFilesAndEncodings")
-  public void testGoldenFiles(String encoding, String typeName, PrimitiveType primitiveType)
+  public void testGoldenFiles(String encoding, String typeName, PrimitiveType primitiveType, boolean vectorized)
       throws Exception {
     Path goldenResourcePath = Paths.get("encodings", encoding, typeName + ".parquet");
     URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
@@ -495,6 +525,6 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
     Schema expectedSchema = new Schema(optional(1, "data", primitiveType));
     assertIdenticalFileContents(
-        new File(goldenFileUrl.toURI()), new File(plainFileUrl.toURI()), expectedSchema);
+        new File(goldenFileUrl.toURI()), new File(plainFileUrl.toURI()), expectedSchema, vectorized);
   }
 }
