@@ -618,8 +618,8 @@ public class TestSelect extends CatalogTestBase {
   public void testRequiredNestedFieldInOptionalStructFilter() {
     String nestedStructTable = tableName("nested_struct_table");
     sql(
-        "CREATE TABLE %s (id INT NOT NULL, address STRUCT<street: STRING NOT NULL>)"
-            + "USING iceberg ",
+        "CREATE TABLE %s (id INT NOT NULL, address STRUCT<street: STRING NOT NULL>) "
+            + "USING iceberg",
         nestedStructTable);
     sql("INSERT INTO %s VALUES (0, NULL)", nestedStructTable);
     sql("INSERT INTO %s VALUES (1, STRUCT('123 Main St'))", nestedStructTable);
