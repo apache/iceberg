@@ -254,7 +254,7 @@ public class SparkUtil {
   }
 
   public static boolean caseSensitive(SparkSession spark) {
-    return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    return Boolean.parseBoolean(spark.conf().get(SqlApiConf.CASE_SENSITIVE_KEY()));
   }
 
   public static List<String> executorLocations() {
