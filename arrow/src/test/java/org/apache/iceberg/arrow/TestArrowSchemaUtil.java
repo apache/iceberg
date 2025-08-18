@@ -88,7 +88,7 @@ public class TestArrowSchemaUtil {
   }
 
   @Test
-  public void convertComplex() {
+  public void convertMap() {
     Schema iceberg =
         new Schema(
             Types.NestedField.optional(
