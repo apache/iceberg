@@ -637,6 +637,9 @@ public class TestRewriteManifestsAction extends TestBase {
     assertThat(bounds)
         .as("Manifest boundaries should be sorted")
         .isSortedAccordingTo(Integer::compareTo);
+
+    // Make sure we have at least two manifests, otherwise the test misses the point
+    assertThat(manifestsDf.count()).as("There should be at least 2 manifests").isGreaterThan(1L);
   }
 
   @TestTemplate
