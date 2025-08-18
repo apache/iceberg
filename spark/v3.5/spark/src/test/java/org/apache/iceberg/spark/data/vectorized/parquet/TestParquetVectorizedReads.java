@@ -368,12 +368,12 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     // also Parquet V2 will dictionary encode decimals that use fixed length binary
     // (i.e. decimals > 8 bytes). Int and long types use DELTA_BINARY_PACKED.
     Schema schema =
-            new Schema(
-                    optional(102, "float_data", Types.FloatType.get()),
-                    optional(103, "double_data", Types.DoubleType.get()),
-                    optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
-                    optional(105, "int_data", Types.IntegerType.get()),
-                    optional(106, "long_data", Types.LongType.get()));
+        new Schema(
+            optional(102, "float_data", Types.FloatType.get()),
+            optional(103, "double_data", Types.DoubleType.get()),
+            optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
+            optional(105, "int_data", Types.IntegerType.get()),
+            optional(106, "long_data", Types.LongType.get()));
 
     File dataFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
