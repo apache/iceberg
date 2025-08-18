@@ -24,6 +24,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -31,14 +32,13 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
-import org.apache.iceberg.data.RowTransformer;
 import org.apache.iceberg.data.TransformingWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.InternalRowTransformer;
+import org.apache.iceberg.spark.InternalRowTransformerUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 
@@ -46,9 +46,9 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
   private final StructType dataSparkType;
   private final StructType equalityDeleteSparkType;
   private final StructType positionDeleteSparkType;
-  private RowTransformer<InternalRow> rowTransformer;
-  private RowTransformer<InternalRow> equalityDeleteTransformer;
-  private RowTransformer<InternalRow> positionDeleteTransformer;
+  private Function<InternalRow, InternalRow> rowTransformer;
+  private Function<InternalRow, InternalRow> equalityDeleteTransformer;
+  private Function<InternalRow, InternalRow> positionDeleteTransformer;
 
   SparkFileWriterFactory(
       Table table,
@@ -220,7 +220,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
     }
   }
 
-  private RowTransformer<InternalRow> lazyRowTransformer() {
+  private Function<InternalRow, InternalRow> lazyRowTransformer() {
     if (rowTransformer == null) {
       rowTransformer = createTransformer(dataSparkType);
     }
@@ -228,7 +228,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
     return rowTransformer;
   }
 
-  private RowTransformer<InternalRow> lazyEqualityDeleteTransformer() {
+  private Function<InternalRow, InternalRow> lazyEqualityDeleteTransformer() {
     if (equalityDeleteTransformer == null) {
       equalityDeleteTransformer = createTransformer(equalityDeleteSparkType);
     }
@@ -236,7 +236,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
     return equalityDeleteTransformer;
   }
 
-  private RowTransformer<InternalRow> lazyPositionDeleteTransformer() {
+  private Function<InternalRow, InternalRow> lazyPositionDeleteTransformer() {
     if (positionDeleteTransformer == null) {
       StructType rowType = null;
       if (positionDeleteSparkType != null
@@ -251,7 +251,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow>
     return positionDeleteTransformer;
   }
 
-  private static RowTransformer<InternalRow> createTransformer(StructType sparkType) {
-    return sparkType != null ? new InternalRowTransformer(sparkType) : row -> row;
+  private static Function<InternalRow, InternalRow> createTransformer(StructType sparkType) {
+    return sparkType != null ? InternalRowTransformerUtil.transformer(sparkType) : row -> row;
   }
 }

@@ -20,6 +20,7 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -38,74 +39,74 @@ import org.apache.iceberg.io.FileWriter;
 public class TransformingWriters {
   private TransformingWriters() {}
 
-  public static <T> DataWriter<T> of(DataWriter<T> delegate, RowTransformer<T> transformer) {
+  public static <T> DataWriter<T> of(DataWriter<T> delegate, Function<T, T> transformer) {
     return new TransformingDataWriter<>(delegate, transformer);
   }
 
   public static <T> EqualityDeleteWriter<T> of(
-      EqualityDeleteWriter<T> delegate, RowTransformer<T> transformer) {
+      EqualityDeleteWriter<T> delegate, Function<T, T> transformer) {
     return new TransformingEqualityDeleteWriter<>(delegate, transformer);
   }
 
   public static <T> PositionDeleteWriter<T> of(
-      PositionDeleteWriter<T> delegate, RowTransformer<T> transformer) {
+      PositionDeleteWriter<T> delegate, Function<T, T> transformer) {
     return new TransformingPositionDeleteWriter<>(delegate, transformer);
   }
 
-  public static <T> FileAppender<T> of(FileAppender<T> delegate, RowTransformer<T> transformer) {
+  public static <T> FileAppender<T> of(FileAppender<T> delegate, Function<T, T> transformer) {
     return new TransformingAppender<>(delegate, transformer);
   }
 
   private static class TransformingDataWriter<T> extends DataWriter<T> {
-    private final RowTransformer<T> transformer;
+    private final Function<T, T> transformer;
 
-    private TransformingDataWriter(DataWriter<T> delegate, RowTransformer<T> transformer) {
+    private TransformingDataWriter(DataWriter<T> delegate, Function<T, T> transformer) {
       super(delegate);
       this.transformer = transformer;
     }
 
     @Override
     public void write(T row) {
-      super.write(transformer.transform(row));
+      super.write(transformer.apply(row));
     }
   }
 
   private static class TransformingEqualityDeleteWriter<T> extends EqualityDeleteWriter<T> {
-    private final RowTransformer<T> transformer;
+    private final Function<T, T> transformer;
 
     private TransformingEqualityDeleteWriter(
-        EqualityDeleteWriter<T> delegate, RowTransformer<T> transformer) {
+        EqualityDeleteWriter<T> delegate, Function<T, T> transformer) {
       super(delegate);
       this.transformer = transformer;
     }
 
     @Override
     public void write(T row) {
-      super.write(transformer.transform(row));
+      super.write(transformer.apply(row));
     }
   }
 
   private static class TransformingPositionDeleteWriter<T> extends PositionDeleteWriter<T> {
-    private final RowTransformer<T> transformer;
+    private final Function<T, T> transformer;
     private final PositionDelete<T> positionDelete = PositionDelete.create();
 
     private TransformingPositionDeleteWriter(
-        PositionDeleteWriter<T> delegate, RowTransformer<T> transformer) {
+        PositionDeleteWriter<T> delegate, Function<T, T> transformer) {
       super(delegate);
       this.transformer = transformer;
     }
 
     @Override
     public void write(PositionDelete<T> row) {
-      super.write(positionDelete.set(row.path(), row.pos(), transformer.transform(row.row())));
+      super.write(positionDelete.set(row.path(), row.pos(), transformer.apply(row.row())));
     }
   }
 
   private static class TransformingAppender<T> implements FileAppender<T> {
     private final FileAppender<T> delegate;
-    private final RowTransformer<T> transformer;
+    private final Function<T, T> transformer;
 
-    private TransformingAppender(FileAppender<T> delegate, RowTransformer<T> transformer) {
+    private TransformingAppender(FileAppender<T> delegate, Function<T, T> transformer) {
       this.delegate = delegate;
       this.transformer = transformer;
     }
@@ -117,7 +118,7 @@ public class TransformingWriters {
 
     @Override
     public void add(T datum) {
-      delegate.add(transformer.transform(datum));
+      delegate.add(transformer.apply(datum));
     }
 
     @Override

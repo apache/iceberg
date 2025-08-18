@@ -19,6 +19,8 @@
 package org.apache.iceberg.data;
 
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
@@ -35,7 +37,6 @@ import org.slf4j.LoggerFactory;
 
 public class GenericFormatModels {
   private static final Logger LOG = LoggerFactory.getLogger(GenericFormatModels.class);
-  private static final DeleteRecord DELETE_RECORD = new DeleteRecord();
 
   public static final String MODEL_NAME = "generic";
 
@@ -55,7 +56,7 @@ public class GenericFormatModels {
                     MODEL_NAME,
                     GenericParquetReaders::buildReader,
                     GenericParquetWriter::create,
-                    DELETE_RECORD::wrap)));
+                    deleteTransformer())));
   }
 
   private static void registerAvro() {
@@ -66,7 +67,7 @@ public class GenericFormatModels {
                     MODEL_NAME,
                     PlannedDataReader::create,
                     (schema, avroSchema) -> DataWriter.create(avroSchema),
-                    DELETE_RECORD::wrap)));
+                    deleteTransformer())));
   }
 
   private static void registerOrc() {
@@ -77,7 +78,7 @@ public class GenericFormatModels {
                     MODEL_NAME,
                     GenericOrcReader::buildReader,
                     GenericOrcWriter::buildWriter,
-                    DELETE_RECORD::wrap)));
+                    deleteTransformer())));
   }
 
   private GenericFormatModels() {}
@@ -92,10 +93,15 @@ public class GenericFormatModels {
     }
   }
 
+  private static Supplier<Function<PositionDelete<Record>, Record>> deleteTransformer() {
+    DeleteRecord deleteRecord = new DeleteRecord();
+    return () -> deleteRecord::transform;
+  }
+
   private static class DeleteRecord implements Record {
     private PositionDelete<Record> delete;
 
-    private DeleteRecord wrap(PositionDelete<Record> newDelete) {
+    private DeleteRecord transform(PositionDelete<Record> newDelete) {
       this.delete = newDelete;
       return this;
     }

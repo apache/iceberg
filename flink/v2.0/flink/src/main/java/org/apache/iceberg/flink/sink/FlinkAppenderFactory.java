@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -34,7 +35,6 @@ import org.apache.iceberg.data.DataWriteBuilder;
 import org.apache.iceberg.data.EqualityDeleteWriteBuilder;
 import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.data.PositionDeleteWriteBuilder;
-import org.apache.iceberg.data.RowTransformer;
 import org.apache.iceberg.data.TransformingWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -58,7 +58,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private final Schema posDeleteRowSchema;
   private final Table table;
 
-  private RowTransformer<RowData> rowTransformer = null;
+  private Function<RowData, RowData> rowTransformer = null;
 
   public FlinkAppenderFactory(
       Table table,
@@ -80,9 +80,9 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     this.posDeleteRowSchema = posDeleteRowSchema;
   }
 
-  private RowTransformer<RowData> lazyRowTransformer() {
+  private Function<RowData, RowData> lazyRowTransformer() {
     if (rowTransformer == null) {
-      this.rowTransformer = new RowDataTransformer(flinkSchema, schema.asStruct());
+      this.rowTransformer = RowDataTransformerUtil.transformer(flinkSchema, schema.asStruct());
     }
 
     return rowTransformer;

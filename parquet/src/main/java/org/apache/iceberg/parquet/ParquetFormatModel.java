@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -34,14 +35,14 @@ public class ParquetFormatModel<D, F> implements FormatModel<D> {
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D, F> batchReaderFunction;
   private final BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction;
-  private final Function<PositionDelete<D>, D> positionDeleteConverter;
+  private final Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter;
 
   private ParquetFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D, F> batchReaderFunction,
       BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction,
-      Function<PositionDelete<D>, D> positionDeleteConverter) {
+      Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
@@ -53,7 +54,7 @@ public class ParquetFormatModel<D, F> implements FormatModel<D> {
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction,
-      Function<PositionDelete<D>, D> positionDeleteConverter) {
+      Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter) {
     this(objectModelName, readerFunction, null, writerFunction, positionDeleteConverter);
   }
 
@@ -78,7 +79,7 @@ public class ParquetFormatModel<D, F> implements FormatModel<D> {
 
   @Override
   public Function<PositionDelete<D>, D> positionDeleteConverter(Schema schema) {
-    return positionDeleteConverter;
+    return positionDeleteConverter.get();
   }
 
   @Override

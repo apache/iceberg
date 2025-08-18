@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.Deque;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
@@ -27,52 +28,144 @@ import org.apache.flink.table.data.RawValueData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
+import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.RowTransformer;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.flink.data.FlinkSchemaVisitor;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class RowDataTransformer implements RowTransformer<RowData> {
+public class RowDataTransformerUtil {
   private static final int ROOT_POSITION = -1;
-  private final PositionalGetter<RowData, RowData> getter;
+  private static final Getter<PositionDelete<RowData>, ?> DELETE_PATH_GETTER =
+      (PositionDelete<RowData> data, int pos) -> StringData.fromString(data.path().toString());
+  private static final Getter<PositionDelete<RowData>, ?> DELETE_POS_GETTER =
+      (PositionDelete<RowData> data, int pos) -> data.pos();
+  private static final Getter<PositionDelete<RowData>, ?> DELETE_ROW_GETTER =
+      (PositionDelete<RowData> data, int pos) -> data.row();
 
-  RowDataTransformer(RowType rowType, Types.StructType struct) {
-    this.getter =
-        (PositionalGetter<RowData, RowData>)
+  private RowDataTransformerUtil() {}
+
+  public static Function<RowData, RowData> transformer(RowType rowType, Types.StructType struct) {
+    if (containsSpecialType(rowType)) {
+      // Only create a transformer if the rowType contains types to convert
+      DataAccessor accessor = accessor(rowType, struct);
+      return accessor::transform;
+    } else {
+      return row -> row;
+    }
+  }
+
+  public static Function<PositionDelete<RowData>, RowData> deleteTransformer() {
+    DeleteAccessor accessor =
+        new DeleteAccessor(new Getter[] {DELETE_PATH_GETTER, DELETE_POS_GETTER, DELETE_ROW_GETTER});
+    return accessor::transform;
+  }
+
+  @VisibleForTesting
+  static Function<RowData, RowData> forcedTransformer(RowType rowType, Types.StructType struct) {
+    DataAccessor accessor = accessor(rowType, struct);
+    return accessor::transform;
+  }
+
+  private static DataAccessor accessor(RowType rowType, Types.StructType struct) {
+    Getter<?, RowData> getter =
+        (Getter<?, RowData>)
             RowDataVisitor.visit(rowType, new Schema(struct.fields()), new RowDataVisitor());
+    return new DataAccessor(new Getter[] {getter});
   }
 
-  @Override
-  public RowData transform(RowData data) {
-    return getter.get(data, ROOT_POSITION);
+  /**
+   * Checks if the given LogicalType is or contains TINYINT, SMALLINT, DECIMAL, or TIMESTAMP type.
+   *
+   * @param logicalType the LogicalType to check
+   * @return true if the LogicalType is or contains the specified types
+   */
+  @SuppressWarnings("CyclomaticComplexity")
+  private static boolean containsSpecialType(LogicalType logicalType) {
+    if (logicalType == null) {
+      return false;
+    }
+
+    LogicalTypeRoot typeRoot = logicalType.getTypeRoot();
+
+    // Check for direct match
+    if (typeRoot == LogicalTypeRoot.TINYINT
+        || typeRoot == LogicalTypeRoot.SMALLINT
+        || typeRoot == LogicalTypeRoot.DECIMAL
+        || typeRoot == LogicalTypeRoot.TIMESTAMP_WITHOUT_TIME_ZONE
+        || typeRoot == LogicalTypeRoot.TIMESTAMP_WITH_LOCAL_TIME_ZONE) {
+      return true;
+    }
+
+    // Check nested types
+    if (typeRoot == LogicalTypeRoot.ROW) {
+      // For RowType, check each field
+      RowType rowType = (RowType) logicalType;
+      for (RowType.RowField field : rowType.getFields()) {
+        if (containsSpecialType(field.getType())) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    if (typeRoot == LogicalTypeRoot.ARRAY) {
+      return containsSpecialType(((ArrayType) logicalType).getElementType());
+    }
+
+    if (typeRoot == LogicalTypeRoot.MAP) {
+      MapType mapType = (MapType) logicalType;
+      return containsSpecialType(mapType.getKeyType())
+          || containsSpecialType(mapType.getValueType());
+    }
+
+    return false;
   }
 
-  public static RowData transform(PositionDelete<RowData> delete) {
-    DeleteAccessor deleteAccessor = new DeleteAccessor();
-    deleteAccessor.delete = delete;
-    return deleteAccessor;
+  private interface Getter<D, T> {
+    T get(D data, int pos);
   }
 
-  private interface PositionalGetter<T, I> {
-    T get(I data, int pos);
-  }
-
-  private static class DeleteAccessor implements RowData {
-    private PositionDelete<RowData> delete = null;
+  private static class DataAccessor extends RowDataAccessor<RowData> {
+    private DataAccessor(Getter<RowData, ?>[] getters) {
+      super(getters);
+    }
 
     @Override
-    public int getArity() {
-      return 3;
+    public RowKind getRowKind() {
+      return data().getRowKind();
+    }
+
+    @Override
+    public boolean isNullAt(int pos) {
+      return data().isNullAt(pos);
+    }
+
+    RowData transform(RowData row) {
+      return (RowData) getters()[0].get(row, ROOT_POSITION);
+    }
+  }
+
+  private static class DeleteAccessor extends RowDataAccessor<PositionDelete<RowData>> {
+    private DeleteAccessor(Getter<PositionDelete<RowData>, ?>[] getters) {
+      super(getters);
+    }
+
+    @Override
+    public boolean isNullAt(int ordinal) {
+      return ordinal == 2 && data().row() == null;
     }
 
     @Override
@@ -80,120 +173,35 @@ public class RowDataTransformer implements RowTransformer<RowData> {
       return RowKind.INSERT;
     }
 
-    @Override
-    public void setRowKind(RowKind kind) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public boolean isNullAt(int pos) {
-      return pos == 2 && delete.row() == null;
-    }
-
-    @Override
-    public boolean getBoolean(int pos) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public byte getByte(int pos) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public short getShort(int pos) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public int getInt(int pos) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public long getLong(int pos) {
-      if (pos == 1) {
-        return delete.pos();
-      } else {
-        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-      }
-    }
-
-    @Override
-    public float getFloat(int pos) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public double getDouble(int pos) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public StringData getString(int pos) {
-      if (pos == 0) {
-        return StringData.fromString(delete.path().toString());
-      } else {
-        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-      }
-    }
-
-    @Override
-    public DecimalData getDecimal(int pos, int precision, int scale) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public TimestampData getTimestamp(int pos, int precision) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public <T> RawValueData<T> getRawValue(int pos) {
-      throw new UnsupportedOperationException("Not supported in RowDataAccessor");
-    }
-
-    @Override
-    public byte[] getBinary(int pos) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public ArrayData getArray(int pos) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public MapData getMap(int pos) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public RowData getRow(int pos, int numFields) {
-      if (pos == 2) {
-        return delete.row();
-      } else {
-        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-      }
+    RowData transform(PositionDelete<RowData> delete) {
+      this.data(delete);
+      return this;
     }
   }
 
-  private static class RowDataAccessor implements RowData {
-    private final PositionalGetter<?, RowData>[] getters;
-    private RowData rowData = null;
+  private abstract static class RowDataAccessor<D> implements RowData {
+    private final Getter<D, ?>[] getters;
+    private D data = null;
 
-    private RowDataAccessor(PositionalGetter<?, RowData>[] getters) {
+    private RowDataAccessor(Getter<D, ?>[] getters) {
       this.getters = getters;
+    }
+
+    Getter<D, ?>[] getters() {
+      return getters;
+    }
+
+    D data() {
+      return data;
+    }
+
+    void data(D newData) {
+      this.data = newData;
     }
 
     @Override
     public int getArity() {
-      return rowData.getArity();
-    }
-
-    @Override
-    public RowKind getRowKind() {
-      return rowData.getRowKind();
+      return getters.length;
     }
 
     @Override
@@ -202,13 +210,8 @@ public class RowDataTransformer implements RowTransformer<RowData> {
     }
 
     @Override
-    public boolean isNullAt(int pos) {
-      return rowData.isNullAt(pos);
-    }
-
-    @Override
     public boolean getBoolean(int pos) {
-      return (boolean) getters[pos].get(rowData, pos);
+      return (boolean) getters[pos].get(data, pos);
     }
 
     @Override
@@ -223,37 +226,37 @@ public class RowDataTransformer implements RowTransformer<RowData> {
 
     @Override
     public int getInt(int pos) {
-      return (int) getters[pos].get(rowData, pos);
+      return (int) getters[pos].get(data, pos);
     }
 
     @Override
     public long getLong(int pos) {
-      return (long) getters[pos].get(rowData, pos);
+      return (long) getters[pos].get(data, pos);
     }
 
     @Override
     public float getFloat(int pos) {
-      return (float) getters[pos].get(rowData, pos);
+      return (float) getters[pos].get(data, pos);
     }
 
     @Override
     public double getDouble(int pos) {
-      return (double) getters[pos].get(rowData, pos);
+      return (double) getters[pos].get(data, pos);
     }
 
     @Override
     public StringData getString(int pos) {
-      return (StringData) getters[pos].get(rowData, pos);
+      return (StringData) getters[pos].get(data, pos);
     }
 
     @Override
     public DecimalData getDecimal(int pos, int precision, int scale) {
-      return (DecimalData) getters[pos].get(rowData, pos);
+      return (DecimalData) getters[pos].get(data, pos);
     }
 
     @Override
     public TimestampData getTimestamp(int pos, int precision) {
-      return (TimestampData) getters[pos].get(rowData, pos);
+      return (TimestampData) getters[pos].get(data, pos);
     }
 
     @Override
@@ -263,30 +266,30 @@ public class RowDataTransformer implements RowTransformer<RowData> {
 
     @Override
     public byte[] getBinary(int pos) {
-      return (byte[]) getters[pos].get(rowData, pos);
+      return (byte[]) getters[pos].get(data, pos);
     }
 
     @Override
     public ArrayData getArray(int pos) {
-      return (ArrayData) getters[pos].get(rowData, pos);
+      return (ArrayData) getters[pos].get(data, pos);
     }
 
     @Override
     public MapData getMap(int pos) {
-      return (MapData) getters[pos].get(rowData, pos);
+      return (MapData) getters[pos].get(data, pos);
     }
 
     @Override
     public RowData getRow(int pos, int numFields) {
-      return (RowData) getters[pos].get(rowData, pos);
+      return (RowData) getters[pos].get(data, pos);
     }
   }
 
   private static class ArrayDataAccessor implements ArrayData {
-    private final PositionalGetter<?, ArrayData> getter;
+    private final Getter<ArrayData, ?> getter;
     private ArrayData arrayData = null;
 
-    private ArrayDataAccessor(PositionalGetter<?, ArrayData> getter) {
+    private ArrayDataAccessor(Getter<ArrayData, ?> getter) {
       this.getter = getter;
     }
 
@@ -436,7 +439,7 @@ public class RowDataTransformer implements RowTransformer<RowData> {
     }
   }
 
-  private static class RowDataVisitor extends FlinkSchemaVisitor<PositionalGetter<?, ?>> {
+  private static class RowDataVisitor extends FlinkSchemaVisitor<Getter<?, ?>> {
     private final Deque<Boolean> isInList = Queues.newArrayDeque();
 
     private RowDataVisitor() {
@@ -492,20 +495,18 @@ public class RowDataTransformer implements RowTransformer<RowData> {
     }
 
     @Override
-    public PositionalGetter<RowData, ?> record(
-        Types.StructType iStruct,
-        List<PositionalGetter<?, ?>> results,
-        List<LogicalType> fieldTypes) {
-      RowDataAccessor accessor = new RowDataAccessor(results.toArray(new PositionalGetter[0]));
+    public Getter<?, RowData> record(
+        Types.StructType iStruct, List<Getter<?, ?>> results, List<LogicalType> fieldTypes) {
+      DataAccessor accessor = new DataAccessor(results.toArray(new Getter[0]));
       boolean isInListFlag = Boolean.TRUE.equals(isInList.peek());
       return (data, pos) -> {
         if (isInListFlag) {
-          accessor.rowData = ((ArrayData) data).getRow(pos, iStruct.fields().size());
+          accessor.data(((ArrayData) data).getRow(pos, iStruct.fields().size()));
         } else {
           if (pos == ROOT_POSITION) {
-            accessor.rowData = (RowData) data;
+            accessor.data((RowData) data);
           } else {
-            accessor.rowData = ((RowData) data).getRow(pos, iStruct.fields().size());
+            accessor.data(((RowData) data).getRow(pos, iStruct.fields().size()));
           }
         }
 
@@ -514,9 +515,9 @@ public class RowDataTransformer implements RowTransformer<RowData> {
     }
 
     @Override
-    public PositionalGetter<ArrayData, ?> list(
-        Types.ListType iList, PositionalGetter<?, ?> getter, LogicalType elementType) {
-      ArrayDataAccessor accessor = new ArrayDataAccessor((PositionalGetter<?, ArrayData>) getter);
+    public Getter<?, ArrayData> list(
+        Types.ListType iList, Getter<?, ?> getter, LogicalType elementType) {
+      ArrayDataAccessor accessor = new ArrayDataAccessor((Getter<ArrayData, ?>) getter);
       boolean isInListFlag = Boolean.TRUE.equals(isInList.peek());
       return (data, pos) -> {
         accessor.arrayData =
@@ -526,16 +527,16 @@ public class RowDataTransformer implements RowTransformer<RowData> {
     }
 
     @Override
-    public PositionalGetter<MapData, ?> map(
+    public Getter<?, MapData> map(
         Types.MapType iMap,
-        PositionalGetter<?, ?> keyGetter,
-        PositionalGetter<?, ?> valueGetter,
+        Getter<?, ?> keyGetter,
+        Getter<?, ?> valueGetter,
         LogicalType keyType,
         LogicalType valueType) {
       MapDataAccessor mapDataAccessor =
           new MapDataAccessor(
-              new ArrayDataAccessor((PositionalGetter<?, ArrayData>) keyGetter),
-              new ArrayDataAccessor((PositionalGetter<?, ArrayData>) valueGetter));
+              new ArrayDataAccessor((Getter<ArrayData, ?>) keyGetter),
+              new ArrayDataAccessor((Getter<ArrayData, ?>) valueGetter));
       boolean isInListFlag = Boolean.TRUE.equals(isInList.peek());
       return (data, pos) -> {
         if (isInListFlag) {
@@ -551,7 +552,7 @@ public class RowDataTransformer implements RowTransformer<RowData> {
     }
 
     @Override
-    public PositionalGetter<?, ?> primitive(Type.PrimitiveType type, LogicalType logicalType) {
+    public Getter<?, ?> primitive(Type.PrimitiveType type, LogicalType logicalType) {
       if (Boolean.TRUE.equals(isInList.peek())) {
         return arrayPrimitive(type, logicalType);
       } else {
@@ -559,7 +560,7 @@ public class RowDataTransformer implements RowTransformer<RowData> {
       }
     }
 
-    private PositionalGetter<?, RowData> rowDataPrimitive(Type type, LogicalType logicalType) {
+    private Getter<RowData, ?> rowDataPrimitive(Type type, LogicalType logicalType) {
       switch (type.typeId()) {
         case BOOLEAN:
           return RowData::getBoolean;
@@ -609,7 +610,7 @@ public class RowDataTransformer implements RowTransformer<RowData> {
       }
     }
 
-    private PositionalGetter<?, ArrayData> arrayPrimitive(Type type, LogicalType logicalType) {
+    private Getter<ArrayData, ?> arrayPrimitive(Type type, LogicalType logicalType) {
       switch (type.typeId()) {
         case BOOLEAN:
           return ArrayData::getBoolean;

@@ -21,6 +21,7 @@ package org.apache.iceberg.orc;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -34,14 +35,14 @@ public class ORCFormatModel<D> implements FormatModel<D> {
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D> batchReaderFunction;
   private final BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction;
-  private final Function<PositionDelete<D>, D> positionDeleteConverter;
+  private final Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter;
 
   private ORCFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D> batchReaderFunction,
       BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction,
-      Function<PositionDelete<D>, D> positionDeleteConverter) {
+      Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
@@ -53,7 +54,7 @@ public class ORCFormatModel<D> implements FormatModel<D> {
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction,
-      Function<PositionDelete<D>, D> positionDeleteConverter) {
+      Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter) {
     this(objectModelName, readerFunction, null, writerFunction, positionDeleteConverter);
   }
 
@@ -78,7 +79,7 @@ public class ORCFormatModel<D> implements FormatModel<D> {
 
   @Override
   public Function<PositionDelete<D>, D> positionDeleteConverter(Schema schema) {
-    return positionDeleteConverter;
+    return positionDeleteConverter.get();
   }
 
   @Override

@@ -23,7 +23,7 @@ import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
-import org.apache.iceberg.spark.InternalRowTransformer;
+import org.apache.iceberg.spark.InternalRowTransformerUtil;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcReader;
@@ -46,7 +46,7 @@ public class SparkFormatModels {
             MODEL_NAME,
             SparkPlannedAvroReader::create,
             (schema, avroSchema) -> new SparkAvroWriter(SparkSchemaUtil.convert(schema)),
-            InternalRowTransformer::transform));
+            InternalRowTransformerUtil::deleteTransformer));
 
     FormatModelRegistry.register(
         new ParquetFormatModel<InternalRow, DeleteFilter<InternalRow>>(
@@ -55,7 +55,7 @@ public class SparkFormatModels {
             (icebergSchema, messageType) ->
                 SparkParquetWriters.buildWriter(
                     SparkSchemaUtil.convert(icebergSchema), messageType),
-            InternalRowTransformer::transform));
+            InternalRowTransformerUtil::deleteTransformer));
 
     FormatModelRegistry.register(
         new ParquetFormatModel<ColumnarBatch, DeleteFilter<InternalRow>>(
@@ -66,7 +66,7 @@ public class SparkFormatModels {
             MODEL_NAME,
             SparkOrcReader::new,
             SparkOrcWriter::new,
-            InternalRowTransformer::transform));
+            InternalRowTransformerUtil::deleteTransformer));
 
     FormatModelRegistry.register(
         new ORCFormatModel<>(VECTORIZED_MODEL_NAME, VectorizedSparkOrcReaders::buildReader));

@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.FileFormat;
@@ -34,13 +35,13 @@ public class AvroFormatModel<D> implements FormatModel<D> {
   private final String objectModelName;
   private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
   private final BiFunction<Schema, org.apache.avro.Schema, DatumWriter<D>> writerFunction;
-  private final Function<PositionDelete<D>, D> positionDeleteConverter;
+  private final Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter;
 
   public AvroFormatModel(
       String objectModelName,
       BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
       BiFunction<Schema, org.apache.avro.Schema, DatumWriter<D>> writerFunction,
-      Function<PositionDelete<D>, D> positionDeleteConverter) {
+      Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.writerFunction = writerFunction;
@@ -64,7 +65,7 @@ public class AvroFormatModel<D> implements FormatModel<D> {
 
   @Override
   public Function<PositionDelete<D>, D> positionDeleteConverter(Schema schema) {
-    return positionDeleteConverter;
+    return positionDeleteConverter.get();
   }
 
   @Override

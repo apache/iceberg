@@ -23,11 +23,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.function.Function;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.spark.InternalRowTransformer;
+import org.apache.iceberg.spark.InternalRowTransformerUtil;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
@@ -76,8 +77,8 @@ public class SparkParquetWritersFlatDataBenchmark {
   private static final int NUM_RECORDS = 1000000;
   private Iterable<InternalRow> rows;
   private File dataFile;
-  private InternalRowTransformer transformer =
-      new InternalRowTransformer(SparkSchemaUtil.convert(SCHEMA));
+  private Function<InternalRow, InternalRow> transformer =
+      InternalRowTransformerUtil.transformer(SparkSchemaUtil.convert(SCHEMA));
 
   @Setup
   public void setupBenchmark() throws IOException {
@@ -119,7 +120,7 @@ public class SparkParquetWritersFlatDataBenchmark {
             .schema(SCHEMA)
             .build()) {
 
-      rows.forEach(r -> writer.add(transformer.transform(r)));
+      rows.forEach(r -> writer.add(transformer.apply(r)));
     }
   }
 }

@@ -21,7 +21,7 @@ package org.apache.iceberg.flink.data;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.sink.RowDataTransformer;
+import org.apache.iceberg.flink.sink.RowDataTransformerUtil;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
 
@@ -35,14 +35,14 @@ public class FlinkFormatModels {
             FlinkParquetReaders::buildReader,
             (schema, messageType) ->
                 FlinkParquetWriters.buildWriter(FlinkSchemaUtil.convert(schema), messageType),
-            RowDataTransformer::transform));
+            RowDataTransformerUtil::deleteTransformer));
 
     FormatModelRegistry.register(
         new AvroFormatModel<>(
             MODEL_NAME,
             FlinkPlannedAvroReader::create,
             (schema, avroSchema) -> new FlinkAvroWriter(FlinkSchemaUtil.convert(schema)),
-            RowDataTransformer::transform));
+            RowDataTransformerUtil::deleteTransformer));
 
     FormatModelRegistry.register(
         new ORCFormatModel<>(
@@ -50,7 +50,7 @@ public class FlinkFormatModels {
             FlinkOrcReader::new,
             (schema, messageType) ->
                 FlinkOrcWriter.buildWriter(FlinkSchemaUtil.convert(schema), schema),
-            RowDataTransformer::transform));
+            RowDataTransformerUtil::deleteTransformer));
   }
 
   private FlinkFormatModels() {}

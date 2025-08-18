@@ -19,7 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
-import org.apache.iceberg.data.RowTransformer;
+import java.util.function.Function;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
@@ -36,172 +36,135 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class InternalRowTransformer implements RowTransformer<InternalRow> {
+public class InternalRowTransformerUtil {
   private static final int ROOT_POSITION = -1;
-  private final PositionalGetter<InternalRow> getter;
+  private static final Getter<PositionDelete<InternalRow>, ?> DELETE_PATH_GETTER =
+      (PositionDelete<InternalRow> data, int pos) -> UTF8String.fromString(data.path().toString());
+  private static final Getter<PositionDelete<InternalRow>, ?> DELETE_POS_GETTER =
+      (PositionDelete<InternalRow> data, int pos) -> data.pos();
+  private static final Getter<PositionDelete<InternalRow>, ?> DELETE_ROW_GETTER =
+      (PositionDelete<InternalRow> data, int pos) -> data.row();
 
-  public InternalRowTransformer(StructType sparkType) {
-    this.getter =
-        (PositionalGetter<InternalRow>)
-            InternalRowVisitor.visit(sparkType, new InternalRowVisitor());
+  private InternalRowTransformerUtil() {}
+
+  @SuppressWarnings("unchecked")
+  public static Function<InternalRow, InternalRow> transformer(StructType structType) {
+    if (containsSpecialType(structType)) {
+      // Only create a transformer if the structType contains ShortType or ByteType
+      // to avoid unnecessary overhead.
+      Getter<SpecializedGetters, InternalRow> getter =
+          (Getter<SpecializedGetters, InternalRow>)
+              InternalRowVisitor.visit(structType, new InternalRowVisitor());
+      DataAccessor accessor = new DataAccessor(new Getter[] {getter});
+      return accessor::transform;
+    } else {
+      return row -> row;
+    }
   }
 
-  @Override
-  public InternalRow transform(InternalRow row) {
-    return getter.get(row, ROOT_POSITION);
+  @SuppressWarnings("unchecked")
+  public static Function<PositionDelete<InternalRow>, InternalRow> deleteTransformer() {
+    DeleteAccessor accessor =
+        new DeleteAccessor(new Getter[] {DELETE_PATH_GETTER, DELETE_POS_GETTER, DELETE_ROW_GETTER});
+    return accessor::transform;
   }
 
-  public static InternalRow transform(PositionDelete<InternalRow> delete) {
-    DeleteAccessor deleteAccessor = new DeleteAccessor();
-    deleteAccessor.delete = delete;
-    return deleteAccessor;
+  /**
+   * Checks if the given DataType is or contains ShortType or ByteType.
+   *
+   * @param dataType the DataType to check
+   * @return true if the DataType is or contains ShortType or ByteType
+   */
+  private static boolean containsSpecialType(DataType dataType) {
+    if (dataType == null) {
+      return false;
+    }
+
+    if (dataType instanceof ShortType || dataType instanceof ByteType) {
+      return true;
+    }
+
+    if (dataType instanceof StructType) {
+      StructType structType = (StructType) dataType;
+      for (StructField field : structType.fields()) {
+        if (containsSpecialType(field.dataType())) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    if (dataType instanceof ArrayType) {
+      return containsSpecialType(((ArrayType) dataType).elementType());
+    }
+
+    if (dataType instanceof MapType) {
+      MapType mapType = (MapType) dataType;
+      return containsSpecialType(mapType.keyType()) || containsSpecialType(mapType.valueType());
+    }
+
+    return false;
   }
 
-  private interface PositionalGetter<T> {
-    T get(SpecializedGetters data, int pos);
+  private interface Getter<D, T> {
+    T get(D data, int pos);
   }
 
-  private static class DeleteAccessor extends InternalRow {
-    private PositionDelete<InternalRow> delete = null;
+  private static class DataAccessor extends InternalRowAccessor<SpecializedGetters> {
+    private DataAccessor(Getter<SpecializedGetters, ?>[] getters) {
+      super(getters);
+    }
 
     @Override
     public boolean isNullAt(int ordinal) {
-      return ordinal == 2 && delete.row() == null;
+      return data().isNullAt(ordinal);
     }
 
-    @Override
-    public boolean getBoolean(int ordinal) {
-      throw new UnsupportedOperationException("Not supported for InternalRowAccessor");
-    }
-
-    @Override
-    public byte getByte(int ordinal) {
-      throw new UnsupportedOperationException("Not supported for InternalRowAccessor");
-    }
-
-    @Override
-    public short getShort(int ordinal) {
-      throw new UnsupportedOperationException("Not supported for InternalRowAccessor");
-    }
-
-    @Override
-    public int getInt(int ordinal) {
-
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public long getLong(int ordinal) {
-      if (ordinal == 1) {
-        return delete.pos();
-      } else {
-        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-      }
-    }
-
-    @Override
-    public float getFloat(int ordinal) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public double getDouble(int ordinal) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public Decimal getDecimal(int ordinal, int precision, int scale) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public UTF8String getUTF8String(int ordinal) {
-      if (ordinal == 0) {
-        return UTF8String.fromString(delete.path().toString());
-      } else {
-        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-      }
-    }
-
-    @Override
-    public byte[] getBinary(int ordinal) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public CalendarInterval getInterval(int ordinal) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public InternalRow getStruct(int ordinal, int numFields) {
-      if (ordinal == 2) {
-        return delete.row();
-      } else {
-        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-      }
-    }
-
-    @Override
-    public ArrayData getArray(int ordinal) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public MapData getMap(int ordinal) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public Object get(int ordinal, DataType dataType) {
-      if (ordinal == 0) {
-        return getUTF8String(0);
-      } else if (ordinal == 1) {
-        return getLong(1);
-      } else if (ordinal == 2) {
-        return getStruct(2, -1);
-      } else {
-        throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-      }
-    }
-
-    @Override
-    public int numFields() {
-      return 3;
-    }
-
-    @Override
-    public void setNullAt(int i) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public void update(int i, Object value) {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
-    }
-
-    @Override
-    public InternalRow copy() {
-      throw new UnsupportedOperationException("Not supported in DeleteAccessor");
+    InternalRow transform(InternalRow row) {
+      return (InternalRow) getters()[0].get(row, ROOT_POSITION);
     }
   }
 
-  private static class InternalRowAccessor extends InternalRow {
-    private final PositionalGetter<?>[] getters;
-    private SpecializedGetters row;
+  private static class DeleteAccessor extends InternalRowAccessor<PositionDelete<InternalRow>> {
+    private DeleteAccessor(Getter<PositionDelete<InternalRow>, ?>[] getters) {
+      super(getters);
+    }
 
-    private InternalRowAccessor(PositionalGetter<?>[] getters) {
+    @Override
+    public boolean isNullAt(int ordinal) {
+      return ordinal == 2 && data().row() == null;
+    }
+
+    public InternalRow transform(PositionDelete<InternalRow> delete) {
+      this.data(delete);
+      return this;
+    }
+  }
+
+  private abstract static class InternalRowAccessor<D> extends InternalRow {
+    private final Getter<D, ?>[] getters;
+    private D data;
+
+    private InternalRowAccessor(Getter<D, ?>[] getters) {
       this.getters = getters;
     }
 
-    @Override
-    public boolean isNullAt(int ordinal) {
-      return row.isNullAt(ordinal);
+    Getter<D, ?>[] getters() {
+      return getters;
+    }
+
+    D data() {
+      return data;
+    }
+
+    void data(D newData) {
+      this.data = newData;
     }
 
     @Override
     public boolean getBoolean(int ordinal) {
-      return (boolean) getters[ordinal].get(row, ordinal);
+      return (boolean) getters[ordinal].get(data, ordinal);
     }
 
     @Override
@@ -216,37 +179,37 @@ public class InternalRowTransformer implements RowTransformer<InternalRow> {
 
     @Override
     public int getInt(int ordinal) {
-      return (int) getters[ordinal].get(row, ordinal);
+      return (int) getters[ordinal].get(data, ordinal);
     }
 
     @Override
     public long getLong(int ordinal) {
-      return (long) getters[ordinal].get(row, ordinal);
+      return (long) getters[ordinal].get(data, ordinal);
     }
 
     @Override
     public float getFloat(int ordinal) {
-      return (float) getters[ordinal].get(row, ordinal);
+      return (float) getters[ordinal].get(data, ordinal);
     }
 
     @Override
     public double getDouble(int ordinal) {
-      return (double) getters[ordinal].get(row, ordinal);
+      return (double) getters[ordinal].get(data, ordinal);
     }
 
     @Override
     public Decimal getDecimal(int ordinal, int precision, int scale) {
-      return (Decimal) getters[ordinal].get(row, ordinal);
+      return (Decimal) getters[ordinal].get(data, ordinal);
     }
 
     @Override
     public UTF8String getUTF8String(int ordinal) {
-      return (UTF8String) getters[ordinal].get(row, ordinal);
+      return (UTF8String) getters[ordinal].get(data, ordinal);
     }
 
     @Override
     public byte[] getBinary(int ordinal) {
-      return (byte[]) getters[ordinal].get(row, ordinal);
+      return (byte[]) getters[ordinal].get(data, ordinal);
     }
 
     @Override
@@ -256,22 +219,22 @@ public class InternalRowTransformer implements RowTransformer<InternalRow> {
 
     @Override
     public InternalRow getStruct(int ordinal, int numFields) {
-      return (InternalRow) getters[ordinal].get(row, ordinal);
+      return (InternalRow) getters[ordinal].get(data, ordinal);
     }
 
     @Override
     public ArrayData getArray(int ordinal) {
-      return (ArrayData) getters[ordinal].get(row, ordinal);
+      return (ArrayData) getters[ordinal].get(data, ordinal);
     }
 
     @Override
     public MapData getMap(int ordinal) {
-      return (MapData) getters[ordinal].get(row, ordinal);
+      return (MapData) getters[ordinal].get(data, ordinal);
     }
 
     @Override
     public Object get(int ordinal, DataType dataType) {
-      return getters[ordinal].get(row, ordinal);
+      return getters[ordinal].get(data, ordinal);
     }
 
     @Override
@@ -296,10 +259,10 @@ public class InternalRowTransformer implements RowTransformer<InternalRow> {
   }
 
   private static class ArrayDataAccessor extends ArrayData {
-    private final PositionalGetter<?> elementGetter;
+    private final Getter<SpecializedGetters, ?> elementGetter;
     private ArrayData arrayData;
 
-    private ArrayDataAccessor(PositionalGetter<?> elementGetter) {
+    private ArrayDataAccessor(Getter<SpecializedGetters, ?> elementGetter) {
       this.elementGetter = elementGetter;
     }
 
@@ -439,25 +402,27 @@ public class InternalRowTransformer implements RowTransformer<InternalRow> {
     }
   }
 
-  private static class InternalRowVisitor extends SparkTypeVisitor<PositionalGetter<?>> {
+  private static class InternalRowVisitor extends SparkTypeVisitor<Getter<SpecializedGetters, ?>> {
     @Override
-    public PositionalGetter<InternalRow> struct(
-        StructType struct, List<PositionalGetter<?>> fieldResults) {
-      InternalRowAccessor accessor =
-          new InternalRowAccessor(fieldResults.toArray(new PositionalGetter[0]));
+    @SuppressWarnings("unchecked")
+    public Getter<SpecializedGetters, InternalRow> struct(
+        StructType struct, List<Getter<SpecializedGetters, ?>> fieldResults) {
+      DataAccessor accessor = new DataAccessor(fieldResults.toArray(new Getter[0]));
       return (data, pos) -> {
-        accessor.row = pos == ROOT_POSITION ? data : (SpecializedGetters) data.get(pos, struct);
-        return accessor.row != null ? accessor : null;
+        accessor.data(pos == ROOT_POSITION ? data : (SpecializedGetters) data.get(pos, struct));
+        return accessor.data() != null ? accessor : null;
       };
     }
 
     @Override
-    public PositionalGetter<?> field(StructField field, PositionalGetter<?> typeResult) {
+    public Getter<SpecializedGetters, ?> field(
+        StructField field, Getter<SpecializedGetters, ?> typeResult) {
       return typeResult;
     }
 
     @Override
-    public PositionalGetter<ArrayData> array(ArrayType array, PositionalGetter<?> elementResult) {
+    public Getter<SpecializedGetters, ArrayData> array(
+        ArrayType array, Getter<SpecializedGetters, ?> elementResult) {
       ArrayDataAccessor accessor = new ArrayDataAccessor(elementResult);
       return (data, pos) -> {
         accessor.arrayData = data.getArray(pos);
@@ -466,8 +431,10 @@ public class InternalRowTransformer implements RowTransformer<InternalRow> {
     }
 
     @Override
-    public PositionalGetter<MapData> map(
-        MapType map, PositionalGetter<?> keyResult, PositionalGetter<?> valueResult) {
+    public Getter<SpecializedGetters, MapData> map(
+        MapType map,
+        Getter<SpecializedGetters, ?> keyResult,
+        Getter<SpecializedGetters, ?> valueResult) {
       MapDataAccessor mapDataAccessor =
           new MapDataAccessor(new ArrayDataAccessor(keyResult), new ArrayDataAccessor(valueResult));
       return (data, pos) -> {
@@ -483,7 +450,7 @@ public class InternalRowTransformer implements RowTransformer<InternalRow> {
     }
 
     @Override
-    public PositionalGetter<?> atomic(DataType atomic) {
+    public Getter<SpecializedGetters, ?> atomic(DataType atomic) {
       if (atomic instanceof ShortType) {
         return (data, pos) -> (int) data.getShort(pos);
 
