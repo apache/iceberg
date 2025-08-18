@@ -289,15 +289,6 @@ public class OAuth2Manager extends RefreshingAuthManager {
             ResourcePaths.tokens(),
             OAuth2Properties.OAUTH2_SERVER_URI);
       }
-    } else {
-      String oauth2ServerUri = properties.get(OAuth2Properties.OAUTH2_SERVER_URI);
-      if (!oauth2ServerUri.startsWith("http") && oauth2ServerUri.endsWith(ResourcePaths.tokens())) {
-        LOG.warn(
-            "Iceberg REST client is configured to use the deprecated v1 tokens endpoint {}. "
-                + "This endpoint will be removed in a future Iceberg release. "
-                + "See https://github.com/apache/iceberg/issues/10537",
-            OAuth2Properties.OAUTH2_SERVER_URI);
-      }
     }
   }
 
