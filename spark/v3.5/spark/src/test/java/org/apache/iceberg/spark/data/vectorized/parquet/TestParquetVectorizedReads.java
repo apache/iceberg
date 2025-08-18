@@ -475,7 +475,10 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
         if (vectorized) {
           assertBatchListsEqualByRows(
-              schema, (List<ColumnarBatch>) actualList, (List<ColumnarBatch>) expectedList);
+              String.format("(Vectorized) Comparison between files failed %s <-> %s", actual, expected),
+              schema,
+              (List<ColumnarBatch>) actualList,
+              (List<ColumnarBatch>) expectedList);
         } else {
           assertThat(actualList)
               .as("Comparison between files failed %s <-> %s", actual, expected)
@@ -500,7 +503,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   }
 
   private void assertBatchListsEqualByRows(
-      Schema schema, List<ColumnarBatch> actual, List<ColumnarBatch> expected) {
+      String message, Schema schema, List<ColumnarBatch> actual, List<ColumnarBatch> expected) {
     StructType sparkSchema = SparkSchemaUtil.convert(schema);
     List<String> actualRows = Lists.newArrayList();
     actual.forEach(
@@ -509,7 +512,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     expected.forEach(
         b -> b.rowIterator().forEachRemaining(e -> expectedRows.add(rowToJson(sparkSchema, e))));
     assertThat(actualRows)
-        .as("(Vectorized) Comparison between files failed %s <-> %s", actual, expected)
+        .as(message)
         .hasSameSizeAs(expectedRows)
         .hasSameElementsAs(expectedRows);
   }
