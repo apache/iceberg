@@ -219,7 +219,6 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
   @TestTemplate
   public void testAvailableNowReadStreamWithMaxFiles2() throws Exception {
-    spark.conf().set("spark.sql.streaming.triggerAvailableNowWrapper.enabled", true);
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
     assertMicroBatchRecordSizes(
         ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2"),
