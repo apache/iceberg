@@ -100,6 +100,31 @@ public class TestArrowSchemaUtil {
                     4, 5, StringType.get(), ListType.ofOptional(6, TimestampType.withoutZone()))));
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
     assertThat(arrow.getFields()).hasSameSizeAs(iceberg.columns());
+
+    // Validate simple map with primitive values
+    Field simpleMap = arrow.findField("m");
+    assertThat(simpleMap).isNotNull();
+    assertThat(simpleMap.getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Map);
+    assertThat(simpleMap.getChildren()).hasSize(1);
+    Field simpleEntry = simpleMap.getChildren().get(0);
+    assertThat(simpleEntry.getChildren()).hasSize(2);
+    assertThat(simpleEntry.getChildren().get(0).getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Utf8);
+    assertThat(simpleEntry.getChildren().get(1).getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Int);
+
+    // Validate map with complex values (list of timestamps)
+    Field complexMap = arrow.findField("m2");
+    assertThat(complexMap).isNotNull();
+    assertThat(complexMap.getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Map);
+    assertThat(complexMap.getChildren()).hasSize(1);
+    Field complexEntry = complexMap.getChildren().get(0);
+    assertThat(complexEntry.getChildren()).hasSize(2);
+    assertThat(complexEntry.getChildren().get(0).getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Utf8);
+    assertThat(complexEntry.getChildren().get(1).getType().getTypeID()).isEqualTo(ArrowType.List.TYPE_TYPE);
+
+    // Validate the list element type within the map value
+    Field listValue = complexEntry.getChildren().get(1);
+    assertThat(listValue.getChildren()).hasSize(1);
+    assertThat(listValue.getChildren().get(0).getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Timestamp);
   }
 
   @Test
