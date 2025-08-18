@@ -97,9 +97,7 @@ public class SparkParquetWritersNestedDataBenchmark {
   public void writeUsingIcebergWriter() throws IOException {
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(dataFile))
-            .createWriterFunc(
-                msgType ->
-                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
+            .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SCHEMA, msgType))
             .schema(SCHEMA)
             .build()) {
 

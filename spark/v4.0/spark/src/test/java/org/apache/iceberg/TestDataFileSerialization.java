@@ -43,7 +43,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.types.Types;
@@ -149,14 +148,10 @@ public class TestDataFileSerialization {
     FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(parquetFile))
             .schema(DATE_SCHEMA)
-            .createWriterFunc(
-                msgType ->
-                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(DATE_SCHEMA), msgType))
+            .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(DATE_SCHEMA, msgType))
             .build();
-    try {
+    try (writer) {
       writer.addAll(records);
-    } finally {
-      writer.close();
     }
 
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
