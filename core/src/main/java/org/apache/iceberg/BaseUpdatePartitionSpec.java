@@ -425,7 +425,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     }
 
     @Override
-    public Boolean truncate(int fieldId, String sourceName, int sourceId, int width) {
+    public Boolean truncate(int fieldId, String sourceName, int sourceId, long width) {
       return false;
     }
 
@@ -480,7 +480,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     }
 
     @Override
-    public Boolean truncate(int fieldId, String sourceName, int sourceId, int width) {
+    public Boolean truncate(int fieldId, String sourceName, int sourceId, long width) {
       return false;
     }
 
@@ -531,7 +531,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     }
 
     @Override
-    public String truncate(int fieldId, String sourceName, int sourceId, int width) {
+    public String truncate(int fieldId, String sourceName, int sourceId, long width) {
       return sourceName + "_trunc_" + width;
     }
 

@@ -320,7 +320,7 @@ public class Spark3Util {
     }
 
     @Override
-    public Transform truncate(String sourceName, int sourceId, int width) {
+    public Transform truncate(String sourceName, int sourceId, long width) {
       NamedReference column = Expressions.column(quotedName(sourceId));
       return Expressions.apply("truncate", Expressions.literal(width), column);
     }
@@ -393,7 +393,8 @@ public class Spark3Util {
         case "hours":
           return org.apache.iceberg.expressions.Expressions.hour(colName);
         case "truncate":
-          return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
+          return org.apache.iceberg.expressions.Expressions.truncate(
+              colName, findWidthLong(transform));
         case "zorder":
           return new Zorder(
               Stream.of(transform.references())
@@ -458,7 +459,7 @@ public class Spark3Util {
           builder.hour(colName);
           break;
         case "truncate":
-          builder.truncate(colName, findWidth(transform));
+          builder.truncate(colName, findWidthLong(transform));
           break;
         default:
           throw new UnsupportedOperationException("Transform is not supported: " + transform);
@@ -488,6 +489,28 @@ public class Spark3Util {
             throw new IllegalArgumentException();
           }
           return lit.value().intValue();
+        }
+      }
+    }
+
+    throw new IllegalArgumentException("Cannot find width for transform: " + transform.describe());
+  }
+
+  @SuppressWarnings("unchecked")
+  private static long findWidthLong(Transform transform) {
+    for (Expression expr : transform.arguments()) {
+      if (expr instanceof Literal) {
+        if (((Literal) expr).dataType() instanceof IntegerType) {
+          Literal<Integer> lit = (Literal<Integer>) expr;
+          Preconditions.checkArgument(
+              lit.value() > 0, "Unsupported width for transform: %s", transform.describe());
+          return lit.value();
+
+        } else if (((Literal) expr).dataType() instanceof LongType) {
+          Literal<Long> lit = (Literal<Long>) expr;
+          Preconditions.checkArgument(
+              lit.value() > 0, "Unsupported width for transform: %s", transform.describe());
+          return lit.value();
         }
       }
     }
@@ -1019,7 +1042,7 @@ public class Spark3Util {
     public String truncate(
         String sourceName,
         int sourceId,
-        int width,
+        long width,
         org.apache.iceberg.SortDirection direction,
         NullOrder nullOrder) {
       return String.format("truncate(%s, %s) %s %s", sourceName, width, direction, nullOrder);

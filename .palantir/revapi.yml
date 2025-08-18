@@ -1254,6 +1254,59 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
       justification: "Changing deprecated code"
   "1.9.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter <T> org.apache.iceberg.expressions.UnboundTerm<T> org.apache.iceberg.expressions.Expressions::truncate(java.lang.String,\
+        \ ===int===)"
+      new: "parameter <T> org.apache.iceberg.expressions.UnboundTerm<T> org.apache.iceberg.expressions.Expressions::truncate(java.lang.String,\
+        \ ===long===)"
+      justification: "Support longer width for long and decimal truncation"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter <T> org.apache.iceberg.transforms.Transform<T, T> org.apache.iceberg.transforms.Transforms::truncate(===int===)"
+      new: "parameter <T> org.apache.iceberg.transforms.Transform<T, T> org.apache.iceberg.transforms.Transforms::truncate(===long===)"
+      justification: "Support longer width for long and decimal truncation"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter <T> org.apache.iceberg.transforms.Transform<T, T> org.apache.iceberg.transforms.Transforms::truncate(org.apache.iceberg.types.Type,\
+        \ ===int===)"
+      new: "parameter <T> org.apache.iceberg.transforms.Transform<T, T> org.apache.iceberg.transforms.Transforms::truncate(org.apache.iceberg.types.Type,\
+        \ ===long===)"
+      justification: "Support longer width for long and decimal truncation"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter T org.apache.iceberg.transforms.PartitionSpecVisitor<T>::truncate(int,\
+        \ java.lang.String, int, ===int===)"
+      new: "parameter T org.apache.iceberg.transforms.PartitionSpecVisitor<T>::truncate(int,\
+        \ java.lang.String, int, ===long===)"
+      justification: "Support longer width for long and decimal truncation"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter T org.apache.iceberg.transforms.PartitionSpecVisitor<T>::truncate(java.lang.String,\
+        \ int, ===int===)"
+      new: "parameter T org.apache.iceberg.transforms.PartitionSpecVisitor<T>::truncate(java.lang.String,\
+        \ int, ===long===)"
+      justification: "Support longer width for long and decimal truncation"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter T org.apache.iceberg.transforms.SortOrderVisitor<T>::truncate(java.lang.String,\
+        \ int, ===int===, org.apache.iceberg.SortDirection, org.apache.iceberg.NullOrder)"
+      new: "parameter T org.apache.iceberg.transforms.SortOrderVisitor<T>::truncate(java.lang.String,\
+        \ int, ===long===, org.apache.iceberg.SortDirection, org.apache.iceberg.NullOrder)"
+      justification: "Support longer width for long and decimal truncation"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter long org.apache.iceberg.util.TruncateUtil::truncateLong(===int===,\
+        \ long)"
+      new: "parameter long org.apache.iceberg.util.TruncateUtil::truncateLong(===long===,\
+        \ long)"
+      justification: "Support longer width for long and decimal truncation"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter org.apache.iceberg.PartitionSpec.Builder org.apache.iceberg.PartitionSpec.Builder::truncate(java.lang.String,\
+        \ ===int===)"
+      new: "parameter org.apache.iceberg.PartitionSpec.Builder org.apache.iceberg.PartitionSpec.Builder::truncate(java.lang.String,\
+        \ ===long===)"
+      justification: "Support longer width for long and decimal truncation"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter org.apache.iceberg.PartitionSpec.Builder org.apache.iceberg.PartitionSpec.Builder::truncate(java.lang.String,\
+        \ ===int===, java.lang.String)"
+      new: "parameter org.apache.iceberg.PartitionSpec.Builder org.apache.iceberg.PartitionSpec.Builder::truncate(java.lang.String,\
+        \ ===long===, java.lang.String)"
+      justification: "Support longer width for long and decimal truncation"
     org.apache.iceberg:iceberg-common:
     - code: "java.method.visibilityReduced"
       old: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\

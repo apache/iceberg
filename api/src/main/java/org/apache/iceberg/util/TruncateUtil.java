@@ -56,7 +56,7 @@ public class TruncateUtil {
     return value - (((value % width) + width) % width);
   }
 
-  public static long truncateLong(int width, long value) {
+  public static long truncateLong(long width, long value) {
     return value - (((value % width) + width) % width);
   }
 

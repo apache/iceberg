@@ -63,7 +63,7 @@ public class Partitioning {
               }
 
               @Override
-              public Boolean truncate(int fieldId, String sourceName, int sourceId, int width) {
+              public Boolean truncate(int fieldId, String sourceName, int sourceId, long width) {
                 return false;
               }
 
@@ -161,7 +161,7 @@ public class Partitioning {
     }
 
     @Override
-    public Void truncate(int fieldId, String sourceName, int sourceId, int width) {
+    public Void truncate(int fieldId, String sourceName, int sourceId, long width) {
       builder.asc(Expressions.truncate(sourceName, width));
       return null;
     }

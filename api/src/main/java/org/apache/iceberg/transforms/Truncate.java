@@ -31,6 +31,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.SerializableFunction;
@@ -38,7 +39,7 @@ import org.apache.iceberg.util.TruncateUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 
 class Truncate<T> implements Transform<T, T>, Function<T, T> {
-  static <T> Truncate<T> get(int width) {
+  static <T> Truncate<T> get(long width) {
     Preconditions.checkArgument(width > 0, "Invalid truncate width: %s (must be > 0)", width);
     return new Truncate<>(width);
   }
@@ -48,33 +49,33 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
    */
   @Deprecated
   @SuppressWarnings("unchecked")
-  static <T, R extends Truncate<T> & SerializableFunction<T, T>> R get(Type type, int width) {
+  static <T, R extends Truncate<T> & SerializableFunction<T, T>> R get(Type type, long width) {
     Preconditions.checkArgument(width > 0, "Invalid truncate width: %s (must be > 0)", width);
 
     switch (type.typeId()) {
       case INTEGER:
-        return (R) new TruncateInteger(width);
+        return (R) new TruncateInteger(Ints.checkedCast(width));
       case LONG:
         return (R) new TruncateLong(width);
       case DECIMAL:
         return (R) new TruncateDecimal(width);
       case STRING:
-        return (R) new TruncateString(width);
+        return (R) new TruncateString(Ints.checkedCast(width));
       case BINARY:
-        return (R) new TruncateByteBuffer(width);
+        return (R) new TruncateByteBuffer(Ints.checkedCast(width));
       default:
         throw new UnsupportedOperationException("Cannot truncate type: " + type);
     }
   }
 
   @SuppressWarnings("checkstyle:VisibilityModifier")
-  protected final int width;
+  protected final long width;
 
-  Truncate(int width) {
+  Truncate(long width) {
     this.width = width;
   }
 
-  public Integer width() {
+  public Long width() {
     return width;
   }
 
@@ -183,7 +184,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return null;
       }
 
-      return TruncateUtil.truncateInt(width, value);
+      return TruncateUtil.truncateInt((int) width, value);
     }
 
     @Override
@@ -225,7 +226,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   private static class TruncateLong extends Truncate<Long>
       implements SerializableFunction<Long, Long> {
 
-    private TruncateLong(int width) {
+    private TruncateLong(long width) {
       super(width);
     }
 
@@ -300,7 +301,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return null;
       }
 
-      return UnicodeUtil.truncateString(value, width);
+      return UnicodeUtil.truncateString(value, (int) width);
     }
 
     @Override
@@ -416,7 +417,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return null;
       }
 
-      return BinaryUtil.truncateBinaryUnsafe(value, width);
+      return BinaryUtil.truncateBinaryUnsafe(value, (int) width);
     }
 
     @Override
@@ -458,7 +459,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
 
     private final BigInteger unscaledWidth;
 
-    private TruncateDecimal(int unscaledWidth) {
+    private TruncateDecimal(long unscaledWidth) {
       super(unscaledWidth);
       this.unscaledWidth = BigInteger.valueOf(unscaledWidth);
     }

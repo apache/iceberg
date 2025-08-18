@@ -50,7 +50,7 @@ class CopySortOrderFields implements SortOrderVisitor<Void> {
 
   @Override
   public Void truncate(
-      String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder) {
+      String sourceName, int sourceId, long width, SortDirection direction, NullOrder nullOrder) {
     builder.sortBy(Expressions.truncate(sourceName, width), direction, nullOrder);
     return null;
   }

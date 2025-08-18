@@ -569,11 +569,11 @@ public class PartitionSpec implements Serializable {
       return bucket(sourceColumn, numBuckets, columnName + "_bucket");
     }
 
-    public Builder truncate(String sourceName, int width, String targetName) {
+    public Builder truncate(String sourceName, long width, String targetName) {
       return truncate(findSourceColumn(sourceName), width, targetName);
     }
 
-    private Builder truncate(Types.NestedField sourceColumn, int width, String targetName) {
+    private Builder truncate(Types.NestedField sourceColumn, long width, String targetName) {
       checkAndAddPartitionName(targetName);
       fields.add(
           new PartitionField(
@@ -581,7 +581,7 @@ public class PartitionSpec implements Serializable {
       return this;
     }
 
-    public Builder truncate(String sourceName, int width) {
+    public Builder truncate(String sourceName, long width) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       String columnName = schema.findColumnName(sourceColumn.fieldId());
       return truncate(sourceColumn, width, columnName + "_trunc");

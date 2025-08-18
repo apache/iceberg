@@ -473,8 +473,13 @@ public class SparkV2Filters {
             int numBuckets = (Integer) convertLiteral((Literal<?>) children[0]);
             return bucket(column, numBuckets);
           case "truncate":
-            int width = (Integer) convertLiteral((Literal<?>) children[0]);
-            return truncate(column, width);
+            Object width = convertLiteral((Literal<?>) children[0]);
+            if (width instanceof Integer) {
+              return truncate(column, (Integer) width);
+            } else if (width instanceof Long) {
+              return truncate(column, (Long) width);
+            }
+            throw new IllegalArgumentException("Invalid truncate width: " + width);
         }
       }
     }

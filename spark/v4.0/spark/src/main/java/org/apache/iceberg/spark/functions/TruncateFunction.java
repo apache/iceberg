@@ -56,7 +56,8 @@ public class TruncateFunction implements UnboundFunction {
   private static final int VALUE_ORDINAL = 1;
 
   private static final Set<DataType> SUPPORTED_WIDTH_TYPES =
-      ImmutableSet.of(DataTypes.ByteType, DataTypes.ShortType, DataTypes.IntegerType);
+      ImmutableSet.of(
+          DataTypes.ByteType, DataTypes.ShortType, DataTypes.IntegerType, DataTypes.LongType);
 
   @Override
   public BoundFunction bind(StructType inputType) {
@@ -69,7 +70,7 @@ public class TruncateFunction implements UnboundFunction {
 
     if (!SUPPORTED_WIDTH_TYPES.contains(widthField.dataType())) {
       throw new UnsupportedOperationException(
-          "Expected truncation width to be tinyint, shortint or int");
+          "Expected truncation width to be tinyint, shortint, int or long");
     }
 
     DataType valueType = valueField.dataType();
@@ -208,13 +209,13 @@ public class TruncateFunction implements UnboundFunction {
 
   public static class TruncateBigInt extends TruncateBase<Long> {
     // magic function for usage with codegen
-    public static long invoke(int width, long value) {
+    public static long invoke(long width, long value) {
       return TruncateUtil.truncateLong(width, value);
     }
 
     @Override
     public DataType[] inputTypes() {
-      return new DataType[] {DataTypes.IntegerType, DataTypes.LongType};
+      return new DataType[] {DataTypes.LongType, DataTypes.LongType};
     }
 
     @Override
@@ -232,7 +233,7 @@ public class TruncateFunction implements UnboundFunction {
       if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
         return null;
       } else {
-        return invoke(input.getInt(WIDTH_ORDINAL), input.getLong(VALUE_ORDINAL));
+        return invoke(input.getLong(WIDTH_ORDINAL), input.getLong(VALUE_ORDINAL));
       }
     }
   }
@@ -318,7 +319,7 @@ public class TruncateFunction implements UnboundFunction {
     }
 
     // magic method used in codegen
-    public static Decimal invoke(int width, Decimal value) {
+    public static Decimal invoke(long width, Decimal value) {
       if (value == null) {
         return null;
       }
@@ -329,7 +330,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public DataType[] inputTypes() {
-      return new DataType[] {DataTypes.IntegerType, DataTypes.createDecimalType(precision, scale)};
+      return new DataType[] {DataTypes.LongType, DataTypes.createDecimalType(precision, scale)};
     }
 
     @Override
@@ -347,7 +348,7 @@ public class TruncateFunction implements UnboundFunction {
       if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
         return null;
       } else {
-        int width = input.getInt(WIDTH_ORDINAL);
+        long width = input.getLong(WIDTH_ORDINAL);
         Decimal value = input.getDecimal(VALUE_ORDINAL, precision, scale);
         return invoke(width, value);
       }
