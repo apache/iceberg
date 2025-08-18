@@ -26,9 +26,15 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.StringWriter;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
@@ -39,26 +45,50 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
+import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.json.JSONOptions;
+import org.apache.spark.sql.catalyst.json.JacksonGenerator;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import scala.collection.immutable.HashMap;
 
 public class TestParquetVectorizedReads extends AvroDataTestBase {
   private static final int NUM_ROWS = 200_000;
   static final int BATCH_SIZE = 10_000;
+
+  private static final String PLAIN = "PLAIN";
+  private static final List<String> GOLDEN_FILE_ENCODINGS =
+      ImmutableList.of("PLAIN_DICTIONARY", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
+  private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
+      ImmutableMap.of(
+          "string", Types.StringType.get(),
+          "float", Types.FloatType.get(),
+          "int32", Types.IntegerType.get(),
+          "int64", Types.LongType.get(),
+          "binary", Types.BinaryType.get(),
+          "boolean", Types.BooleanType.get());
 
   static final Function<Record, Record> IDENTITY = record -> record;
 
@@ -415,5 +445,108 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       writer.addAll(data);
     }
     assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
+  }
+
+  private Parquet.ReadBuilder createReadFunc(
+      Parquet.ReadBuilder readBuilder, Schema schema, boolean vectorized) {
+    if (vectorized) {
+      return readBuilder
+          .project(schema)
+          .createBatchedReaderFunc(
+              t -> VectorizedSparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT, null));
+    } else {
+      return readBuilder
+          .project(schema)
+          .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT));
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T> void assertIdenticalFileContents(
+      File actual, File expected, Schema schema, boolean vectorized) throws IOException {
+    try (CloseableIterable<T> actualReader =
+        createReadFunc(Parquet.read(Files.localInput(actual)), schema, vectorized).build()) {
+      Iterator<T> actualIterator = actualReader.iterator();
+      try (CloseableIterable<T> plainReader =
+          createReadFunc(Parquet.read(Files.localInput(expected)), schema, vectorized).build()) {
+        Iterator<T> expectedIterator = plainReader.iterator();
+        List<T> expectedList = Lists.newArrayList();
+        expectedIterator.forEachRemaining(expectedList::add);
+        List<T> actualList = Lists.newArrayList();
+        actualIterator.forEachRemaining(actualList::add);
+
+        if (vectorized) {
+          assertBatchListsEqualByRows(
+              schema, (List<ColumnarBatch>) actualList, (List<ColumnarBatch>) expectedList);
+        } else {
+          assertThat(actualList)
+              .as("Comparison between files failed %s <-> %s", actual, expected)
+              .isNotEmpty()
+              .hasSameSizeAs(expectedList)
+              .hasSameElementsAs(expectedList);
+        }
+      }
+    }
+  }
+
+  private String rowToJson(StructType schema, InternalRow row) {
+    StringWriter out = new StringWriter();
+    JacksonGenerator gen =
+        new JacksonGenerator(schema, out, new JSONOptions(new HashMap<>(), "UTC", "_corrupt"));
+    gen.write(row);
+    gen.flush();
+    return out.toString();
+  }
+
+  private void assertBatchListsEqualByRows(
+      Schema schema, List<ColumnarBatch> actual, List<ColumnarBatch> expected) {
+    StructType sparkSchema = SparkSchemaUtil.convert(schema);
+    List<String> actualRows = new ArrayList<>();
+    actual.forEach(
+        b -> b.rowIterator().forEachRemaining(e -> actualRows.add(rowToJson(sparkSchema, e))));
+    List<String> expectedRows = new ArrayList<>();
+    expected.forEach(
+        b -> b.rowIterator().forEachRemaining(e -> expectedRows.add(rowToJson(sparkSchema, e))));
+    assertThat(actualRows)
+        .as("(Vectorized) Comparison between files failed %s <-> %s", actual, expected)
+        .hasSameSizeAs(expectedRows)
+        .hasSameElementsAs(expectedRows);
+  }
+
+  static Stream<Arguments> goldenFilesAndEncodings() {
+    return GOLDEN_FILE_ENCODINGS.stream()
+        .flatMap(
+            encoding ->
+                GOLDEN_FILE_TYPES.entrySet().stream()
+                    .flatMap(
+                        e ->
+                            Stream.of(true, false)
+                                .map(
+                                    vectorized ->
+                                        Arguments.of(
+                                            encoding, e.getKey(), e.getValue(), vectorized))));
+  }
+
+  @ParameterizedTest
+  @MethodSource("goldenFilesAndEncodings")
+  public void testGoldenFiles(
+      String encoding, String typeName, PrimitiveType primitiveType, boolean vectorized)
+      throws Exception {
+    Path goldenResourcePath = Paths.get("encodings", encoding, typeName + ".parquet");
+    URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
+    assumeThat(goldenFileUrl).isNotNull().as("type/encoding pair exists");
+
+    Path plainResourcePath = Paths.get("encodings", PLAIN, typeName + ".parquet");
+    URL plainFileUrl = getClass().getClassLoader().getResource(plainResourcePath.toString());
+    if (plainFileUrl == null) {
+      throw new IllegalStateException("PLAIN encoded file should exist: " + plainResourcePath);
+    }
+
+    Schema expectedSchema = new Schema(optional(1, "data", primitiveType));
+    assertIdenticalFileContents(
+        new File(goldenFileUrl.toURI()),
+        new File(plainFileUrl.toURI()),
+        expectedSchema,
+        vectorized);
   }
 }
