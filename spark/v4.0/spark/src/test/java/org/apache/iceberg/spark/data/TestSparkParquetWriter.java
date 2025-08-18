@@ -38,7 +38,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueWriter;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ParquetProperties;
@@ -102,8 +101,7 @@ public class TestSparkParquetWriter {
 
   static Stream<Function<MessageType, ParquetValueWriter<?>>> functionProvider() {
     return Stream.of(
-        msgType ->
-            SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(COMPLEX_SCHEMA), msgType),
+        msgType -> SparkParquetWriters.buildWriter(COMPLEX_SCHEMA, msgType),
         msgType -> SparkParquetWriters.buildWriter(COMPLEX_SCHEMA, msgType));
   }
 
@@ -148,9 +146,7 @@ public class TestSparkParquetWriter {
             .schema(SCHEMA)
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX + "id", "0.05")
-            .createWriterFunc(
-                msgType ->
-                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
+            .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SCHEMA, msgType))
             .build()) {
       // Using reflection to access the private 'props' field in ParquetWriter
       Field propsField = writer.getClass().getDeclaredField("props");

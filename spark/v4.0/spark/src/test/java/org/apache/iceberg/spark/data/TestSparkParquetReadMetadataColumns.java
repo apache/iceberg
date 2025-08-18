@@ -49,7 +49,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.ParquetReadOptions;
@@ -59,7 +58,6 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.BeforeEach;
@@ -128,7 +126,6 @@ public class TestSparkParquetReadMetadataColumns {
   @BeforeEach
   public void writeFile() throws IOException {
     List<Path> fileSplits = Lists.newArrayList();
-    StructType struct = SparkSchemaUtil.convert(DATA_SCHEMA);
     Configuration conf = new Configuration();
 
     testFile = File.createTempFile("junit", null, temp.toFile());
@@ -146,7 +143,7 @@ public class TestSparkParquetReadMetadataColumns {
       fileSplits.add(new Path(split.getAbsolutePath()));
       try (FileAppender<InternalRow> writer =
           Parquet.write(Files.localOutput(split))
-              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(struct, msgType))
+              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(DATA_SCHEMA, msgType))
               .schema(DATA_SCHEMA)
               .overwrite()
               .build()) {

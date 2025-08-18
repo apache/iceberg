@@ -90,7 +90,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.internal.SQLConf;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
@@ -572,7 +571,6 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     Table tbl = createTable(tblName, SCHEMA, PartitionSpec.unpartitioned());
 
     List<Path> fileSplits = Lists.newArrayList();
-    StructType sparkSchema = SparkSchemaUtil.convert(SCHEMA);
     Configuration conf = new Configuration();
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
@@ -589,7 +587,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
       fileSplits.add(splitPath);
       try (FileAppender<InternalRow> writer =
           Parquet.write(Files.localOutput(split))
-              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(sparkSchema, msgType))
+              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SCHEMA, msgType))
               .schema(SCHEMA)
               .overwrite()
               .build()) {
