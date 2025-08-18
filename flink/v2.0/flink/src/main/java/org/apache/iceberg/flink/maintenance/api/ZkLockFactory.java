@@ -199,7 +199,7 @@ public class ZkLockFactory implements TriggerLockFactory {
 
         return acquired;
       } catch (Exception e) {
-        LOG.error("Failed to acquire Zookeeper lock.", e);
+        LOG.warn("Failed to acquire Zookeeper lock.", e);
         return false;
       }
     }
@@ -223,7 +223,7 @@ public class ZkLockFactory implements TriggerLockFactory {
         sharedCount.setCount(UNLOCKED);
         LOG.debug("Released {} lock for lockId: {}, path: {}", lockType, lockId, lockPath);
       } catch (Exception e) {
-        LOG.error(
+        LOG.warn(
             "Failed to release {} lock for lockId: {}, path: {}", lockType, lockId, lockPath, e);
         throw new RuntimeException("Failed to release lock", e);
       }
