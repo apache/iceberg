@@ -30,7 +30,6 @@ import java.io.StringWriter;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +71,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import scala.collection.immutable.HashMap;
 
 public class TestParquetVectorizedReads extends AvroDataTestBase {
   private static final int NUM_ROWS = 200_000;
@@ -492,7 +490,10 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   private String rowToJson(StructType schema, InternalRow row) {
     StringWriter out = new StringWriter();
     JacksonGenerator gen =
-        new JacksonGenerator(schema, out, new JSONOptions(new HashMap<>(), "UTC", "_corrupt"));
+        new JacksonGenerator(
+            schema,
+            out,
+            new JSONOptions(new scala.collection.immutable.HashMap<>(), "UTC", "_corrupt"));
     gen.write(row);
     gen.flush();
     return out.toString();
@@ -501,10 +502,10 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   private void assertBatchListsEqualByRows(
       Schema schema, List<ColumnarBatch> actual, List<ColumnarBatch> expected) {
     StructType sparkSchema = SparkSchemaUtil.convert(schema);
-    List<String> actualRows = new ArrayList<>();
+    List<String> actualRows = Lists.newArrayList();
     actual.forEach(
         b -> b.rowIterator().forEachRemaining(e -> actualRows.add(rowToJson(sparkSchema, e))));
-    List<String> expectedRows = new ArrayList<>();
+    List<String> expectedRows = Lists.newArrayList();
     expected.forEach(
         b -> b.rowIterator().forEachRemaining(e -> expectedRows.add(rowToJson(sparkSchema, e))));
     assertThat(actualRows)
