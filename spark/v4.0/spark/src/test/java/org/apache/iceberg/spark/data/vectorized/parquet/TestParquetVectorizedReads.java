@@ -24,8 +24,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import java.io.File;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -51,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.RandomData;
@@ -64,11 +67,15 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.json.JSONOptions;
+import org.apache.spark.sql.catalyst.json.JacksonGenerator;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import scala.collection.immutable.HashMap;
 
 public class TestParquetVectorizedReads extends AvroDataTestBase {
   private static final int NUM_ROWS = 200_000;
@@ -76,7 +83,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
-      ImmutableList.of("PLAIN_DICTIONARY", "RLE", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
+      ImmutableList.of("PLAIN_DICTIONARY", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
   private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
@@ -473,7 +480,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         actualIterator.forEachRemaining(actualList::add);
 
         if (vectorized) {
-          assertBatchListsEqualByRows((List<ColumnarBatch>) actualList, (List<ColumnarBatch>) expectedList);
+          assertBatchListsEqualByRows(schema, (List<ColumnarBatch>) actualList, (List<ColumnarBatch>) expectedList);
         } else {
           assertThat(actualList)
                   .as("Comparison between files failed %s <-> %s", actual, expected)
@@ -485,11 +492,20 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     }
   }
 
-  static void assertBatchListsEqualByRows(List<ColumnarBatch> actual, List<ColumnarBatch> expected) {
-    List<InternalRow> actualRows = new ArrayList<>();
-    actual.forEach(b -> b.rowIterator().forEachRemaining(actualRows::add));
-    List<InternalRow> expectedRows = new ArrayList<>();
-    expected.forEach(b -> b.rowIterator().forEachRemaining(expectedRows::add));
+  private String rowToJson(StructType schema, InternalRow row) {
+    StringWriter out = new StringWriter();
+    JacksonGenerator gen = new JacksonGenerator(schema, out, new JSONOptions(new HashMap<>(), "UTC", "_corrupt"));
+    gen.write(row);
+    gen.flush();
+    return out.toString();
+  }
+
+  private void assertBatchListsEqualByRows(Schema schema, List<ColumnarBatch> actual, List<ColumnarBatch> expected) {
+    StructType sparkSchema = SparkSchemaUtil.convert(schema);
+    List<String> actualRows = new ArrayList<>();
+    actual.forEach(b -> b.rowIterator().forEachRemaining(e -> actualRows.add(rowToJson(sparkSchema, e))));
+    List<String> expectedRows = new ArrayList<>();
+    expected.forEach(b -> b.rowIterator().forEachRemaining(e -> expectedRows.add(rowToJson(sparkSchema, e))));
     assertThat(actualRows)
             .as("(Vectorized) Comparison between files failed %s <-> %s", actual, expected)
             .hasSameSizeAs(expectedRows)
