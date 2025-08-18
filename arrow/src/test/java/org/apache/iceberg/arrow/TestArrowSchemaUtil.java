@@ -108,8 +108,10 @@ public class TestArrowSchemaUtil {
     assertThat(simpleMap.getChildren()).hasSize(1);
     Field simpleEntry = simpleMap.getChildren().get(0);
     assertThat(simpleEntry.getChildren()).hasSize(2);
-    assertThat(simpleEntry.getChildren().get(0).getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Utf8);
-    assertThat(simpleEntry.getChildren().get(1).getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Int);
+    assertThat(simpleEntry.getChildren().get(0).getType().getTypeID())
+        .isEqualTo(ArrowType.ArrowTypeID.Utf8);
+    assertThat(simpleEntry.getChildren().get(1).getType().getTypeID())
+        .isEqualTo(ArrowType.ArrowTypeID.Int);
 
     // Validate map with complex values (list of timestamps)
     Field complexMap = arrow.findField("m2");
@@ -118,13 +120,16 @@ public class TestArrowSchemaUtil {
     assertThat(complexMap.getChildren()).hasSize(1);
     Field complexEntry = complexMap.getChildren().get(0);
     assertThat(complexEntry.getChildren()).hasSize(2);
-    assertThat(complexEntry.getChildren().get(0).getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Utf8);
-    assertThat(complexEntry.getChildren().get(1).getType().getTypeID()).isEqualTo(ArrowType.List.TYPE_TYPE);
+    assertThat(complexEntry.getChildren().get(0).getType().getTypeID())
+        .isEqualTo(ArrowType.ArrowTypeID.Utf8);
+    assertThat(complexEntry.getChildren().get(1).getType().getTypeID())
+        .isEqualTo(ArrowType.List.TYPE_TYPE);
 
     // Validate the list element type within the map value
     Field listValue = complexEntry.getChildren().get(1);
     assertThat(listValue.getChildren()).hasSize(1);
-    assertThat(listValue.getChildren().get(0).getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Timestamp);
+    assertThat(listValue.getChildren().get(0).getType().getTypeID())
+        .isEqualTo(ArrowType.ArrowTypeID.Timestamp);
   }
 
   @Test
