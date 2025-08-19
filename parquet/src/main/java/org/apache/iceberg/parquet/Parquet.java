@@ -1163,7 +1163,6 @@ public class Parquet {
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
 
-    private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
     private InternalReader<?> internalReader;
 
     private ReadBuilder(InputFile file) {
@@ -1242,8 +1241,8 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder createInternalReader(InternalReader<?> internalReader) {
-      this.internalReader = internalReader;
+    public ReadBuilder createInternalReader(InternalReader<?> newInternalReader) {
+      this.internalReader = newInternalReader;
       return this;
     }
 
@@ -1290,7 +1289,9 @@ public class Parquet {
 
     @Override
     public ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
-      typeMap.put(-1, rootClass);
+      Preconditions.checkArgument(
+          this.internalReader != null, "Cannot set Custom Root Type: InternalReader not set");
+      internalReader.setCustomType(-1, rootClass);
       return this;
     }
 
@@ -1298,7 +1299,7 @@ public class Parquet {
     public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
       Preconditions.checkArgument(
           this.internalReader != null, "Cannot set Custom Type: InternalReader not set");
-      this.typeMap.put(fieldId, structClass);
+      internalReader.setCustomType(fieldId, structClass);
       return this;
     }
 
@@ -1381,15 +1382,13 @@ public class Parquet {
         } else {
           Function<MessageType, ParquetValueReader<?>> readBuilder;
           if (internalReader != null) {
-            internalReader.setCustomTypeMap(typeMap);
-            readBuilder = (fileType -> internalReader.create(schema, fileType));
+            readBuilder = fileType -> internalReader.reader(schema, fileType);
           } else {
             readBuilder =
                 readerFuncWithSchema != null
                     ? fileType -> readerFuncWithSchema.apply(schema, fileType)
                     : readerFunc;
           }
-
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
         }

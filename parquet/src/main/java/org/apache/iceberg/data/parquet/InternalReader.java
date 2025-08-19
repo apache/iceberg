@@ -34,6 +34,8 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   private Class<? extends StructLike> rootType = Record.class;
   private Map<Integer, Class<? extends StructLike>> typesById = Map.of();
 
+  private static final InternalReader<?> INSTANCE = new InternalReader<>();
+
   public InternalReader() {}
 
   @Override
@@ -47,12 +49,17 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   @SuppressWarnings("unchecked")
   public static <T extends StructLike> ParquetValueReader<T> create(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
-    return (ParquetValueReader<T>)
-        new InternalReader<>().createReader(expectedSchema, fileSchema, idToConstant);
+    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
   @SuppressWarnings("unchecked")
-  public <T extends StructLike> ParquetValueReader<T> create(
+  public static <T extends StructLike> ParquetValueReader<T> create(
+      Schema expectedSchema, MessageType fileSchema) {
+    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema);
+  }
+
+  @SuppressWarnings("unchecked")
+  public <T extends StructLike> ParquetValueReader<T> reader(
       Schema expectedSchema, MessageType fileSchema) {
     return (ParquetValueReader<T>) createReader(expectedSchema, fileSchema);
   }
@@ -86,7 +93,7 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
     return ParquetValueReaders.timestamps(desc);
   }
 
-  public void setCustomTypeMap(Map<Integer, Class<? extends StructLike>> typesById) {
-    this.typesById = typesById;
+  public void setCustomType(int fieldId, Class<? extends StructLike> structClass) {
+    this.typesById.put(fieldId, structClass);
   }
 }

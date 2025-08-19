@@ -1174,13 +1174,13 @@ public class ParquetValueReaders {
     }
 
     @Override
-    protected T buildStruct(T struct) {
-      return struct;
+    protected T buildStruct(T s) {
+      return s;
     }
 
     @Override
-    protected void set(T struct, int pos, Object value) {
-      struct.set(pos, value);
+    protected void set(T s, int pos, Object value) {
+      s.set(pos, value);
     }
   }
 

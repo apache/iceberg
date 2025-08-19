@@ -34,41 +34,52 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
  * - needs to be discussed and changed
  */
 public class SnapshotChanges {
-  private final List<DataFile> addedDataFiles;
-  private final List<DataFile> removedDataFiles;
-  private final List<DeleteFile> addedDeleteFiles;
-  private final List<DeleteFile> removedDeleteFiles;
 
-  private SnapshotChanges(
-      List<DataFile> addedDataFiles,
-      List<DataFile> removedDataFiles,
-      List<DeleteFile> addedDeleteFiles,
-      List<DeleteFile> removedDeleteFiles) {
-    this.addedDataFiles = addedDataFiles;
-    this.removedDataFiles = removedDataFiles;
-    this.addedDeleteFiles = addedDeleteFiles;
-    this.removedDeleteFiles = removedDeleteFiles;
+  private final Snapshot snapshot;
+  private final FileIO io;
+  private final Map<Integer, PartitionSpec> specsById;
+
+  // Lazy Cache
+  private List<DataFile> addedDataFiles = null;
+  private List<DataFile> removedDataFiles = null;
+  private List<DeleteFile> addedDeleteFiles = null;
+  private List<DeleteFile> removedDeleteFiles = null;
+
+  private SnapshotChanges(Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    this.snapshot = snapshot;
+    this.io = io;
+    this.specsById = specsById;
   }
 
   public List<DataFile> addedDataFiles() {
+    if (addedDataFiles == null) {
+      cacheDataFileChanges();
+    }
     return addedDataFiles;
   }
 
   public List<DataFile> removedDataFiles() {
+    if (removedDataFiles == null) {
+      cacheDataFileChanges();
+    }
     return removedDataFiles;
   }
 
   public List<DeleteFile> addedDeleteFiles() {
+    if (addedDeleteFiles == null) {
+      cacheDeleteFileChanges();
+    }
     return addedDeleteFiles;
   }
 
   public List<DeleteFile> removedDeleteFiles() {
+    if (removedDeleteFiles == null) {
+      cacheDeleteFileChanges();
+    }
     return removedDeleteFiles;
   }
 
-  public static SnapshotChanges changesFrom(
-      Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
-    // Data File Changes
+  private void cacheDataFileChanges() {
     ImmutableList.Builder<DataFile> addedDataFileBuilder = ImmutableList.builder();
     ImmutableList.Builder<DataFile> removedDataFileBuilder = ImmutableList.builder();
 
@@ -98,8 +109,9 @@ public class SnapshotChanges {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close entries while caching changes");
     }
+  }
 
-    // Delete File Changes
+  private void cacheDeleteFileChanges() {
     ImmutableList.Builder<DeleteFile> addedDeleteFilesBuilder = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> removedDeleteFilesBuilder = ImmutableList.builder();
 
@@ -127,11 +139,10 @@ public class SnapshotChanges {
         throw new UncheckedIOException("Failed to close manifest reader", e);
       }
     }
+  }
 
-    return new SnapshotChanges(
-        addedDataFileBuilder.build(),
-        removedDataFileBuilder.build(),
-        addedDeleteFilesBuilder.build(),
-        removedDeleteFilesBuilder.build());
+  public static SnapshotChanges changesFrom(
+      Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return new SnapshotChanges(snapshot, io, specsById);
   }
 }
