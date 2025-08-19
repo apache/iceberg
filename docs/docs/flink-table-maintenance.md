@@ -53,7 +53,7 @@ Compacts small files to optimize file sizes. Supports partial progress commits a
 
 ## Lock Management
 
-The `TriggerLockFactory` is essential for coordinating maintenance tasks across multiple Flink jobs or instances. It prevents concurrent maintenance operations on the same table, which could lead to conflicts or data corruption.
+The `TriggerLockFactory` is essential for coordinating maintenance tasks. It prevents concurrent maintenance operations on the same table, which could lead to conflicts or data corruption. This locking mechanism is necessary even for a single job, as multiple instances of the same task could otherwise conflict.
 
 ### Why Locks Are Needed
 - **Concurrent Access**: Multiple Flink jobs may attempt maintenance simultaneously
