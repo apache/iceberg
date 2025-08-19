@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.expressions;
 
-import static java.util.stream.Collectors.joining;
-
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -436,7 +434,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(joining(", ", "(", ")"));
+                  .collect(Collectors.joining(", ", "(", ")"));
         case STARTS_WITH:
           return term + " STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
         case NOT_STARTS_WITH:
@@ -479,7 +477,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(joining(", ", "(", ")"));
+                  .collect(Collectors.joining(", ", "(", ")"));
         case NOT_IN:
           return term
               + " NOT IN "
@@ -488,7 +486,7 @@ public class ExpressionUtil {
                           .map(lit -> sanitize(lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
-                  .collect(joining(", ", "(", ")"));
+                  .collect(Collectors.joining(", ", "(", ")"));
         case STARTS_WITH:
           return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:

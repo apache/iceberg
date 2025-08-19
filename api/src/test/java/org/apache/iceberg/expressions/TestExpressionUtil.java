@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.expressions;
 
-import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
@@ -1068,7 +1067,8 @@ public class TestExpressionUtil {
     Expression bound =
         Binder.bind(
             STRUCT,
-            equal("var", Variant.of(VariantMetadata.empty(), createArrayWithNestedTypes())));
+            Expressions.equal(
+                "var", Variant.of(VariantMetadata.empty(), createArrayWithNestedTypes())));
     assertEquals(
         Expressions.equal(
             "var",
@@ -1081,7 +1081,7 @@ public class TestExpressionUtil {
     Expression int8Bound =
         Binder.bind(
             STRUCT,
-            equal(
+            Expressions.equal(
                 "var",
                 Variant.of(
                     VariantMetadata.empty(),
@@ -1090,7 +1090,7 @@ public class TestExpressionUtil {
     Expression int16Bound =
         Binder.bind(
             STRUCT,
-            equal(
+            Expressions.equal(
                 "var",
                 Variant.of(
                     VariantMetadata.empty(),
@@ -1099,7 +1099,7 @@ public class TestExpressionUtil {
     Expression doubleBound =
         Binder.bind(
             STRUCT,
-            equal(
+            Expressions.equal(
                 "var",
                 Variant.of(
                     VariantMetadata.empty(),
@@ -1114,7 +1114,7 @@ public class TestExpressionUtil {
     Expression timestamp =
         Binder.bind(
             STRUCT,
-            equal(
+            Expressions.equal(
                 "var",
                 Variant.of(
                     VariantMetadata.empty(),
@@ -1237,7 +1237,7 @@ public class TestExpressionUtil {
 
     data.put("event_array", createArrayWithNestedTypes());
     Variant value = VariantTestUtil.variant(data);
-    Expression bound = Binder.bind(STRUCT, equal("var", value));
+    Expression bound = Binder.bind(STRUCT, Expressions.equal("var", value));
     assertEquals(
         Expressions.equal(
             "var",
