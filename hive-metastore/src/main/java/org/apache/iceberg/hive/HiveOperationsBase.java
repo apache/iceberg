@@ -100,21 +100,27 @@ interface HiveOperationsBase {
             metadataLocation);
   }
 
+  private static boolean isValidIcebergView(Table table) {
+    String tableType = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
+    return TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(table.getTableType())
+        && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(tableType);
+  }
+
+  private static boolean isValidIcebergTable(Table table) {
+    String tableType = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
+    return BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(tableType);
+  }
+
   static void validateTableIsIceberg(Table table, String fullName) {
     String tableType = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
     NoSuchIcebergTableException.check(
-        tableType != null
-            && tableType.equalsIgnoreCase(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE),
-        "Not an iceberg table: %s (type=%s)",
-        fullName,
-        tableType);
+        isValidIcebergTable(table), "Not an iceberg table: %s (type=%s)", fullName, tableType);
   }
 
   static void validateTableIsIcebergView(Table table, String fullName) {
     String tableTypeProp = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
     NoSuchIcebergViewException.check(
-        TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(table.getTableType())
-            && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(tableTypeProp),
+        isValidIcebergView(table),
         "Not an iceberg view: %s (type=%s) (tableType=%s)",
         fullName,
         tableTypeProp,
@@ -122,25 +128,13 @@ interface HiveOperationsBase {
   }
 
   static void validateIcebergTableNotLoadedAsIcebergView(Table table, String fullName) {
-    String tableType = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
-    boolean isIcebergTable =
-        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(tableType);
-    boolean isIcebergView =
-        TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(table.getTableType())
-            && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(tableType);
-    if (!isIcebergView && isIcebergTable) {
+    if (!isValidIcebergView(table) && isValidIcebergTable(table)) {
       throw new NoSuchViewException("View does not exist: %s", fullName);
     }
   }
 
   static void validateIcebergViewNotLoadedAsIcebergTable(Table table, String fullName) {
-    String tableType = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
-    boolean isIcebergTable =
-        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(tableType);
-    boolean isIcebergView =
-        TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(table.getTableType())
-            && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(tableType);
-    if (!isIcebergTable && isIcebergView) {
+    if (!isValidIcebergTable(table) && isValidIcebergView(table)) {
       throw new NoSuchTableException("Table does not exist: %s", fullName);
     }
   }

@@ -102,12 +102,11 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
 
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+    assertThat(catalog().viewExists(tableIdentifier)).as("View should not exist").isFalse();
 
     assertThatThrownBy(() -> catalog().loadView(tableIdentifier))
         .isInstanceOf(NoSuchViewException.class)
         .hasMessageStartingWith("View does not exist");
-
-    assertThat(catalog().viewExists(tableIdentifier)).as("View should not exist").isFalse();
   }
 
   @Test
@@ -129,12 +128,11 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .create();
 
     assertThat(catalog().viewExists(viewIdentifier)).as("View should exist").isTrue();
+    assertThat(tableCatalog().tableExists(viewIdentifier)).as("Table should not exist").isFalse();
 
     assertThatThrownBy(() -> tableCatalog().loadTable(viewIdentifier))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
-
-    assertThat(tableCatalog().tableExists(viewIdentifier)).as("Table should not exist").isFalse();
   }
 
   @Test
