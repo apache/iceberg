@@ -447,7 +447,7 @@ public class RewriteTablePathUtil {
         ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
     RewriteResult<DataFile> rewriteResult = null;
 
-    try (ManifestWriter<DataFile> dataManifestWriter = writer;
+    try (writer;
         ManifestReader<DataFile> reader =
             ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
       rewriteResult =
@@ -582,7 +582,7 @@ public class RewriteTablePathUtil {
         ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
     RewriteResult<DeleteFile> rewriteResult = null;
 
-    try (ManifestWriter<DeleteFile> deleteManifestWriter = writer;
+    try (writer;
         ManifestReader<DeleteFile> reader =
             ManifestFiles.readDeleteManifest(manifestFile, io, specsById)
                 .select(Arrays.asList("*"))) {

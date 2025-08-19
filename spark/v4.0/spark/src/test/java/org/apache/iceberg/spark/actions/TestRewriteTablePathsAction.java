@@ -39,7 +39,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
-import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -1219,7 +1218,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     String location = newTableLocation();
     Table sourceTable = createTableWithSnapshots(location, 10);
 
-    addAnyPositionDelete(
+    commitNewPositionDelete(
         sourceTable, removePrefix(sourceTable.location() + "/data/deeply/nested/deletes.parquet"));
 
     Map<String, Long> manifestSizesBeforeRewrite =
@@ -1287,13 +1286,6 @@ public class TestRewriteTablePathsAction extends TestBase {
     Table targetTable = TABLES.load(targetLocation);
     Snapshot lastSnapshot = targetTable.currentSnapshot();
 
-    List<ManifestFile> allManifests = lastSnapshot.allManifests(targetTable.io());
-    ManifestFile rewrittenManifest =
-        Iterables.getOnlyElement(
-            allManifests.stream()
-                .filter(manifest -> manifest.snapshotId() == lastSnapshot.snapshotId())
-                .collect(Collectors.toList()));
-
     // We have rewritten all manifests in one snapshot. Make sure all sizes were correctly
     // updated in the manifest list
     assertThat(targetTable.currentSnapshot().allManifests(targetTable.io()))
@@ -1317,10 +1309,10 @@ public class TestRewriteTablePathsAction extends TestBase {
     Table sourceTable = createTableWithSnapshots(location, 5);
 
     // Add two more snapshots with just position deletes
-    addAnyPositionDelete(
+    commitNewPositionDelete(
         sourceTable,
         removePrefix(sourceTable.location() + "/data/deeply/nested/deletes-1.parquet"));
-    addAnyPositionDelete(
+    commitNewPositionDelete(
         sourceTable,
         removePrefix(sourceTable.location() + "/data/deeply/nested/deletes-2.parquet"));
 
@@ -1344,13 +1336,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     Table targetTable = TABLES.load(targetLocation);
     Snapshot lastSnapshot = targetTable.currentSnapshot();
-
-    List<ManifestFile> allManifests = lastSnapshot.allManifests(targetTable.io());
-    ManifestFile rewrittenManifest =
-        Iterables.getOnlyElement(
-            allManifests.stream()
-                .filter(manifest -> manifest.snapshotId() == lastSnapshot.snapshotId())
-                .collect(Collectors.toList()));
 
     // We have rewritten all manifests in one snapshot. Make sure all sizes were correctly
     // updated in the manifest list
@@ -1377,7 +1362,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     return pathBuilder.toString();
   }
 
-  protected void addAnyPositionDelete(Table targetTable, String path) throws Exception {
+  protected void commitNewPositionDelete(Table targetTable, String path) throws Exception {
     DataFile dataFile =
         StreamSupport.stream(targetTable.snapshots().spliterator(), false)
             .flatMap(
