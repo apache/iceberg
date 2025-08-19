@@ -59,6 +59,7 @@ The `TriggerLockFactory` is essential for coordinating maintenance tasks across 
 - **Concurrent Access**: Multiple Flink jobs may attempt maintenance simultaneously
 - **Data Consistency**: Ensures only one maintenance operation runs per table at a time
 - **Resource Management**: Prevents resource conflicts and scheduling issues
+- **Avoid Duplicate Work**: Even when only a single compaction job is scheduled, multiple instances could attempt the same operation, leading to redundant work and wasted resources.
 
 ### Supported Lock Types
 
@@ -85,13 +86,6 @@ TriggerLockFactory lockFactory = new ZkLockFactory(
     "localhost:2181",        // ZooKeeper connection string
     "catalog.db.table"       // Lock ID (unique identifier)
 );
-```
-
-#### Default Lock Factory
-For single-job scenarios or testing:
-
-```java
-TriggerLockFactory lockFactory = TriggerLockFactory.defaultLockFactory();
 ```
 
 ## Quick Start
