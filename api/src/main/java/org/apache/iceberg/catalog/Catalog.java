@@ -20,6 +20,7 @@ package org.apache.iceberg.catalog;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -324,6 +325,47 @@ public interface Catalog {
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(TableIdentifier identifier);
+
+    /**
+     * Computes the eTag of a given table.
+     *
+     * <p>This fetches the up-to-date eTag for a given table identifier</p>
+     *
+     * @param identifier the table identifier
+     * @return the eTag as a type 5 uuid or null if the eTag could not be computed
+     */
+    default UUID getTableETag(TableIdentifier identifier) {
+        return null;
+    }
+
+    /**
+     * Computes the eTag of a given table.
+     *
+     * <p>This computes the eTag from the table instance as is.
+     *
+     * @param table the Iceberg table instance
+     * @return the eTag as a type 5 uuid or null if the eTag could not be computed
+     */
+    default UUID getTableETag(Table table) {
+        return null;
+    }
+
+    /**
+     * Load a table if its eTag changed.
+     *
+     * <p>This method is useful to avoid re-loading a table if it has not changed.</p>
+     * @param identifier a table identifier
+     * @param etag the expected eTag of the table
+     * @return instance of {@link Table} implementation referred by {@code tableIdentifier} if the eTag has changed,
+     *        or null if the eTag has not changed.
+     * @throws NoSuchTableException if the table does not exist
+     */
+  default Table loadTable(TableIdentifier identifier, UUID etag) {
+      if (etag == null || !etag.equals(getTableETag(identifier))) {
+          return loadTable(identifier);
+      }
+      return null;
+  }
 
   /**
    * Invalidate cached table metadata from current catalog.
