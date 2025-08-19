@@ -291,6 +291,29 @@ public class SnapshotUtil {
    */
   @Deprecated
   public static List<DataFile> newFiles(
+      Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
+
+    List<DataFile> newFiles = Lists.newArrayList();
+    Snapshot lastSnapshot = null;
+
+    for (Snapshot currentSnapshot : ancestorsOf(latestSnapshotId, lookup)) {
+      lastSnapshot = currentSnapshot;
+      if (Objects.equals(currentSnapshot.snapshotId(), baseSnapshotId)) {
+        return newFiles;
+      }
+      Iterables.addAll(newFiles, currentSnapshot.addedDataFiles(io));
+    }
+
+    ValidationException.check(
+        Objects.equals(lastSnapshot.parentId(), baseSnapshotId),
+        "Cannot determine history between read snapshot %s and the last known ancestor %s",
+        baseSnapshotId,
+        lastSnapshot.snapshotId());
+
+    return newFiles;
+  }
+
+  public static List<DataFile> newFiles(
       Long baseSnapshotId,
       long latestSnapshotId,
       Function<Long, Snapshot> lookup,

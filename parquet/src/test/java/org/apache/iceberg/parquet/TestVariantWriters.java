@@ -26,11 +26,12 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.InternalTestHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.data.parquet.InternalWriter;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -249,10 +250,7 @@ public class TestVariantWriters {
     }
 
     try (CloseableIterable<Record> reader =
-        Parquet.read(outputFile.toInputFile())
-            .project(SCHEMA)
-            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema))
-            .build()) {
+        InternalData.read(FileFormat.PARQUET, outputFile.toInputFile()).project(SCHEMA).build()) {
       return Lists.newArrayList(reader);
     }
   }
