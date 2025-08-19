@@ -1213,8 +1213,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
-  public void testFullRewriteUpdatesAllManifestLengthsInManifestList(
-      @TempDir Path rootTargetLocation) throws Exception {
+  public void testFullRewriteUpdatesAllManifestLengthsInManifestList() throws Exception {
     String location = newTableLocation();
     Table sourceTable = createTableWithSnapshots(location, 10);
 
@@ -1225,13 +1224,13 @@ public class TestRewriteTablePathsAction extends TestBase {
         sourceTable.currentSnapshot().allManifests(sourceTable.io()).stream()
             .collect(Collectors.toMap(m -> fileName(m.path()), m -> m.length()));
 
-    // Rewrite table metadata to a location that's much longer than the original in order
+    // Rewrite table metadata to a location that's longer than the original in order
     // to make manifests larger
-    String targetLocation = toAbsolute(rootTargetLocation) + generateLongNestedPath(25);
+    String targetLocation = longTargetTableLocation();
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(sourceTable)
-            .rewriteLocationPrefix(newTableLocation(), targetLocation)
+            .rewriteLocationPrefix(location, targetLocation)
             .execute();
 
     // 1 + 11 JSON metadata files, 11 snapshots, 11 manifests, 10 data files, 1 delete file
@@ -1260,8 +1259,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
-  public void testPartialRewriteUpdatesDataManifestLengthInManifestList(
-      @TempDir Path rootTargetLocation) throws Exception {
+  public void testPartialRewriteUpdatesDataManifestLengthInManifestList() throws Exception {
     String location = newTableLocation();
     Table sourceTable = createTableWithSnapshots(location, 10);
 
@@ -1269,13 +1267,13 @@ public class TestRewriteTablePathsAction extends TestBase {
         sourceTable.currentSnapshot().allManifests(sourceTable.io()).stream()
             .collect(Collectors.toMap(m -> fileName(m.path()), m -> m.length()));
 
-    // Rewrite just the latest table version to a location that's much longer than
+    // Rewrite just the latest table version to a location that's longer than
     // the original in order to make manifests larger
-    String targetLocation = toAbsolute(rootTargetLocation) + generateLongNestedPath(25);
+    String targetLocation = longTargetTableLocation();
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(sourceTable)
-            .rewriteLocationPrefix(newTableLocation(), targetLocation)
+            .rewriteLocationPrefix(location, targetLocation)
             .startVersion("v10.metadata.json")
             .execute();
 
@@ -1303,8 +1301,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
-  public void testPartialRewriteUpdatesDeleteManifestLengthInManifestList(
-      @TempDir Path rootTargetLocation) throws Exception {
+  public void testPartialRewriteUpdatesDeleteManifestLengthInManifestList() throws Exception {
     String location = newTableLocation();
     Table sourceTable = createTableWithSnapshots(location, 5);
 
@@ -1320,13 +1317,13 @@ public class TestRewriteTablePathsAction extends TestBase {
         sourceTable.currentSnapshot().allManifests(sourceTable.io()).stream()
             .collect(Collectors.toMap(m -> fileName(m.path()), m -> m.length()));
 
-    // Rewrite just the latest table version to a location that's much longer than
+    // Rewrite just the latest table version to a location that's longer than
     // the original in order to make manifests larger
-    String targetLocation = toAbsolute(rootTargetLocation) + generateLongNestedPath(25);
+    String targetLocation = longTargetTableLocation();
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(sourceTable)
-            .rewriteLocationPrefix(newTableLocation(), targetLocation)
+            .rewriteLocationPrefix(location, targetLocation)
             .startVersion("v7.metadata.json")
             .execute();
 
@@ -1435,6 +1432,10 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   protected String targetTableLocation() throws IOException {
     return toAbsolute(targetTableDir);
+  }
+
+  protected String longTargetTableLocation() throws IOException {
+    return toAbsolute(targetTableDir) + generateLongNestedPath(5);
   }
 
   protected String stagingLocation() throws IOException {
