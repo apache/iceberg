@@ -32,7 +32,7 @@ import org.apache.parquet.schema.MessageType;
 public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> {
 
   private Class<? extends StructLike> rootType = Record.class;
-  private Map<Integer, Class<? extends StructLike>> typesById = Map.of();
+  private Map<Integer, Class<? extends StructLike>> typesById = new java.util.HashMap<>();
 
   private static final InternalReader<?> INSTANCE = new InternalReader<>();
 
