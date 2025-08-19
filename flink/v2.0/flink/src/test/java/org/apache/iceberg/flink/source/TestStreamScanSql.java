@@ -27,6 +27,7 @@ import java.util.List;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
+import org.apache.flink.table.api.ExplainDetail;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -430,5 +431,31 @@ public class TestStreamScanSql extends CatalogTestBase {
                     TABLE, tagName, startSnapshotId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("START_SNAPSHOT_ID and START_TAG cannot both be set.");
+  }
+
+  @TestTemplate
+  void testWithParallelismWithProps() {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR) WITH ('scan.parallelism'='10')", TABLE);
+
+    final org.apache.flink.table.api.Table table =
+        getTableEnv().sqlQuery(String.format("select * from test_table", TABLE));
+    final String explain = table.explain(ExplainDetail.JSON_EXECUTION_PLAN);
+    final String expectedPhysicalExecutionPlanFragment = "\"parallelism\" : 10";
+    assertThat(explain).contains(expectedPhysicalExecutionPlanFragment);
+  }
+
+  @TestTemplate
+  void testWithParallelismWithHints() {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+
+    final org.apache.flink.table.api.Table table =
+        getTableEnv()
+            .sqlQuery(
+                String.format(
+                    "select * from test_table/*+ OPTIONS('streaming'='true', 'scan.parallelism'='10') */",
+                    TABLE));
+    final String explain = table.explain(ExplainDetail.JSON_EXECUTION_PLAN);
+    final String expectedPhysicalExecutionPlanFragment = "\"parallelism\" : 10";
+    assertThat(explain).contains(expectedPhysicalExecutionPlanFragment);
   }
 }

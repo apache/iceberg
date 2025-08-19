@@ -40,6 +40,7 @@ import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushD
 import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
+import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.expressions.Expression;
@@ -215,6 +216,12 @@ public class IcebergTableSource
       @Override
       public boolean isBounded() {
         return FlinkSource.isBounded(properties);
+      }
+
+      @Override
+      public Optional<Integer> getParallelism() {
+        return Optional.ofNullable(properties.get(FactoryUtil.SOURCE_PARALLELISM.key()))
+            .map(Integer::parseInt);
       }
     };
   }
