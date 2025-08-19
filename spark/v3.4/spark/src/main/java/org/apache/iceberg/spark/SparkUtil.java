@@ -53,6 +53,7 @@ import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Decimal;
@@ -290,7 +291,7 @@ public class SparkUtil {
   }
 
   public static boolean caseSensitive(SparkSession spark) {
-    return Boolean.parseBoolean(spark.conf().get(SqlApiConf.CASE_SENSITIVE_KEY()));
+    return Boolean.parseBoolean(spark.conf().get(SQLConf.CASE_SENSITIVE().key()));
   }
 
   public static List<String> executorLocations() {
