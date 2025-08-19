@@ -38,6 +38,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -445,79 +446,31 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
   }
 
-  private Parquet.ReadBuilder createReadFunc(
-      Parquet.ReadBuilder readBuilder, Schema schema, boolean vectorized) {
-    if (vectorized) {
-      return readBuilder
-          .project(schema)
-          .createBatchedReaderFunc(
-              t -> VectorizedSparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT, null));
-    } else {
-      return readBuilder
-          .project(schema)
-          .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT));
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  private <T> void assertIdenticalFileContents(
+  private void assertIdenticalFileContents(
       File actual, File expected, Schema schema, boolean vectorized) throws IOException {
-    try (CloseableIterable<T> actualReader =
-        createReadFunc(Parquet.read(Files.localInput(actual)), schema, vectorized).build()) {
-      Iterator<T> actualIterator = actualReader.iterator();
-      try (CloseableIterable<T> plainReader =
-          createReadFunc(Parquet.read(Files.localInput(expected)), schema, vectorized).build()) {
-        Iterator<T> expectedIterator = plainReader.iterator();
-        List<T> expectedList = Lists.newArrayList();
-        expectedIterator.forEachRemaining(expectedList::add);
-        List<T> actualList = Lists.newArrayList();
-        actualIterator.forEachRemaining(actualList::add);
-
+      try (CloseableIterable<Record> expectedIterator =
+                   Parquet.read(Files.localInput(expected))
+                           .project(schema)
+                           .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
+                           .build()) {
         if (vectorized) {
-          assertBatchListsEqualByRows(
-                  String.format("(Vectorized) Comparison between files failed %s <-> %s", actual, expected),
+          assertRecordsMatch(
                   schema,
-                  (List<ColumnarBatch>) actualList,
-                  (List<ColumnarBatch>) expectedList);
+                  1000,
+                  expectedIterator,
+                  actual,
+                  false,
+                  BATCH_SIZE);
         } else {
-          assertThat(actualList)
-              .as("Comparison between files failed %s <-> %s", actual, expected)
-              .isNotEmpty()
-              .hasSameSizeAs(expectedList)
-              .hasSameElementsAs(expectedList);
-        }
+          try (CloseableIterable<Record> actualIterator = Parquet.read(Files.localInput(actual)).project(schema)
+                  .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType)).build()) {
+            assertThat(actualIterator)
+                    .as("Comparison between files failed %s <-> %s", actual, expected)
+                    .isNotEmpty()
+                    .containsExactlyElementsOf(expectedIterator);
+          }
       }
     }
-  }
-
-  private String rowToJson(StructType schema, InternalRow row) {
-    StringWriter out = new StringWriter();
-    JacksonGenerator gen =
-        new JacksonGenerator(
-            schema,
-            out,
-            new JSONOptions(new scala.collection.immutable.HashMap<>(), "UTC", "_corrupt"));
-    gen.write(row);
-    gen.flush();
-    return out.toString();
-  }
-
-  private void assertBatchListsEqualByRows(
-      String message,
-      Schema schema,
-      List<ColumnarBatch> actual,
-      List<ColumnarBatch> expected) {
-    StructType sparkSchema = SparkSchemaUtil.convert(schema);
-    List<String> actualRows = Lists.newArrayList();
-    actual.forEach(
-        b -> b.rowIterator().forEachRemaining(e -> actualRows.add(rowToJson(sparkSchema, e))));
-    List<String> expectedRows = Lists.newArrayList();
-    expected.forEach(
-        b -> b.rowIterator().forEachRemaining(e -> expectedRows.add(rowToJson(sparkSchema, e))));
-    assertThat(actualRows)
-        .as(message)
-        .hasSameSizeAs(expectedRows)
-        .hasSameElementsAs(expectedRows);
   }
 
   static Stream<Arguments> goldenFilesAndEncodings() {
