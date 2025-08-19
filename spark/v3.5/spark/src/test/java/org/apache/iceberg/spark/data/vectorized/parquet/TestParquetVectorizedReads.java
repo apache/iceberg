@@ -454,10 +454,11 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                          .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
                          .build()) {
       if (vectorized) {
+        List<Record> expectedRecords = Lists.newArrayList(expectedIterator);
         assertRecordsMatch(
                 schema,
-                1000,
-                expectedIterator,
+                expectedRecords.size(),
+                expectedRecords,
                 actual,
                 false,
                 BATCH_SIZE);
