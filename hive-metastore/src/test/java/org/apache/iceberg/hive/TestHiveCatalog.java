@@ -325,8 +325,6 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
       Table table = catalog.loadTable(tableIdent);
       String initialLocation = catalog.getTableMetadataLocation(tableIdent);
-      UUID initialETag = catalog.getTableETag(tableIdent);
-      assertThat(catalog.getTableETag(table)).isEqualTo(initialETag);
       if (table instanceof HasTableOperations) {
         HasTableOperations tops = (HasTableOperations) table;
         String metaLocation = tops.operations().current().metadataFileLocation();
@@ -344,16 +342,10 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
               .replaceTransaction();
       replaceTxn.commitTransaction();
 
-      table = catalog.loadTable(tableIdent, initialETag);
-      assertThat(table).isNotNull();
+      table = catalog.loadTable(tableIdent);
       assertThat(table.location()).isEqualTo(newLocation);
       String currentLocation = catalog.getTableMetadataLocation(tableIdent);
-      UUID currentETag = catalog.getTableETag(tableIdent);
       assertThat(currentLocation).isNotEqualTo(initialLocation);
-      assertThat(currentETag).isNotEqualTo(initialETag);
-      assertThat(catalog.getTableETag(table)).isNotEqualTo(initialETag);
-      assertThat(catalog.getTableETag(table)).isEqualTo(currentETag);
-      assertThat(catalog.loadTable(tableIdent, currentETag)).isNull();
       if (table instanceof HasTableOperations) {
         HasTableOperations tops = (HasTableOperations) table;
         String metaLocation = tops.operations().current().metadataFileLocation();
@@ -375,15 +367,6 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
       assertThat(table.properties()).containsEntry("key1", "value1");
       assertThat(table.properties()).containsEntry("key2", "value2");
-
-      replaceTxn =
-          catalog
-              .buildTable(tableIdent, schema)
-              .withProperty("key2", "value42")
-              .withLocation(newLocation)
-              .replaceTransaction();
-      replaceTxn.commitTransaction();
-      Table updatedTable = catalog.loadTable(tableIdent, currentETag);
     } finally {
       catalog.dropTable(tableIdent);
     }

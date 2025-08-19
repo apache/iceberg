@@ -18,11 +18,9 @@
  */
 package org.apache.iceberg.hive;
 
-import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -40,7 +38,6 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -65,7 +62,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
-import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
@@ -445,46 +441,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     return table == null
         ? null
         : table.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
-  }
-
-  /**
-   * Computes the eTag of a given table.
-   *
-   * <p>This fetches the up-to-date eTag for a given table identifier
-   *
-   * @param identifier the table identifier
-   * @return the eTag as a type 5 uuid or null if the eTag could not be computed
-   */
-  @Override
-  public UUID getTableETag(TableIdentifier identifier) {
-    try {
-      return UUIDUtil.uuid5(getTableMetadataLocation(identifier));
-    } catch (NoSuchAlgorithmException e) {
-      LOG.error("Failed to compute eTag for table {}. ", identifier, e);
-      return null;
-    }
-  }
-
-  /**
-   * Computes the eTag of a given table.
-   *
-   * <p>This computes the eTag from the table instance which might be stale.
-   *
-   * @param table the Iceberg table instance
-   * @return the eTag as a type 5 uuid or null if the eTag could not be computed
-   */
-  @Override
-  public UUID getTableETag(org.apache.iceberg.Table table) {
-    try {
-      return table instanceof HasTableOperations
-          ? UUIDUtil.uuid5(
-              ((HasTableOperations) table).operations().current().metadataFileLocation())
-          : null;
-
-    } catch (NoSuchAlgorithmException e) {
-      LOG.error("Failed to compute eTag for table {}. ", table.name(), e);
-      return null;
-    }
   }
 
   /**
