@@ -109,6 +109,9 @@ public class SnapshotChanges {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close entries while caching changes");
     }
+
+    this.addedDataFiles = addedDataFileBuilder.build();
+    this.removedDataFiles = removedDataFileBuilder.build();
   }
 
   private void cacheDeleteFileChanges() {
@@ -139,6 +142,9 @@ public class SnapshotChanges {
         throw new UncheckedIOException("Failed to close manifest reader", e);
       }
     }
+
+    this.addedDeleteFiles = addedDeleteFilesBuilder.build();
+    this.removedDeleteFiles = removedDeleteFilesBuilder.build();
   }
 
   public static SnapshotChanges changesFrom(
