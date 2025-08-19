@@ -83,8 +83,12 @@ Uses Apache ZooKeeper for distributed coordination:
 
 ```java
 TriggerLockFactory lockFactory = new ZkLockFactory(
-    "localhost:2181",        // ZooKeeper connection string
-    "catalog.db.table"       // Lock ID (unique identifier)
+    "localhost:2181",       // ZooKeeper connection string
+    "catalog.db.table",     // Lock ID (unique identifier)
+    60000,                  // sessionTimeoutMs
+    15000,                  // connectionTimeoutMs
+    3000,                   // baseSleepTimeMs
+    3                       // maxRetries
 );
 ```
 
@@ -156,11 +160,11 @@ env.execute("Table Maintenance Job");
 
 | Method | Description | Default Value | Type |
 |--------|-------------|---------------|------|
-| `maxSnapshotAge(Duration)` | Maximum age of snapshots to retain | None | Duration |
-| `retainLast(int)` | Minimum number of snapshots to retain | None | int |
+| `maxSnapshotAge(Duration)` | Maximum age of snapshots to retain | 5 days | Duration |
+| `retainLast(int)` | Minimum number of snapshots to retain | 1 | int |
 | `deleteBatchSize(int)` | Number of files to delete in each batch | 1000 | int |
 | `planningWorkerPoolSize(int)` | Number of worker threads for planning snapshot expiration | Shared worker pool | int |
-| `cleanExpiredMetadata(boolean)` | Remove expired metadata files when expiring snapshots | true | boolean |
+| `cleanExpiredMetadata(boolean)` | Remove expired metadata files when expiring snapshots | false | boolean |
 
 ### RewriteDataFiles Configuration
 
@@ -169,13 +173,13 @@ env.execute("Table Maintenance Job");
 | `targetFileSizeBytes(long)` | Target size for rewritten files | Table property or 512MB | long |
 | `minFileSizeBytes(long)` | Minimum size of files eligible for compaction | 0 | long |
 | `maxFileSizeBytes(long)` | Maximum size of files eligible for compaction | Long.MAX_VALUE | long |
-| `minInputFiles(int)` | Minimum number of files to trigger rewrite | Integer.MAX_VALUE | int |
+| `minInputFiles(int)` | Minimum number of files to trigger rewrite | 1 | int |
 | `deleteFileThreshold(int)` | Minimum delete-file count per data file to force rewrite | Integer.MAX_VALUE | int |
 | `rewriteAll(boolean)` | Rewrite all data files regardless of thresholds | false | boolean |
 | `maxFileGroupSizeBytes(long)` | Maximum total size of a file group | 107374182400 (100GB) | long |
 | `maxFilesToRewrite(int)` | Maximum number of files to rewrite per task | Integer.MAX_VALUE | int |
 | `partialProgressEnabled(boolean)` | Enable partial progress commits | false | boolean |
-| `partialProgressMaxCommits(int)` | Maximum commits for partial progress | 10 | int |
+| `partialProgressMaxCommits(int)` | Maximum commits allowed for partial progress when partialProgressEnabled is true | 10 | int |
 | `maxRewriteBytes(long)` | Maximum bytes to rewrite per execution | Long.MAX_VALUE | long |
 
 ## Complete Example
