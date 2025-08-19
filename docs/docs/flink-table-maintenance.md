@@ -22,7 +22,7 @@ title: "Flink Table Maintenance "
 
 ## Overview
 
-In **Apache Iceberg** deployments within **Flink streaming environments**, implementing automated table maintenance operations—including `snapshot expiration`, `small file compaction`, and `orphan file cleanup`—is critical for optimal performance and storage efficiency.
+In **Apache Iceberg** deployments within **Flink streaming environments**, implementing automated table maintenance operations—including `snapshot expiration`, `small file compaction`, and `orphan file cleanup`—is critical for optimal query performance and storage efficiency.
 
 Traditionally, these maintenance operations were exclusively accessible through **Iceberg Spark Actions**, necessitating the deployment and management of dedicated Spark clusters. This dependency on **Spark infrastructure** solely for table optimization introduces significant **architectural complexity** and **operational overhead**.
 
@@ -30,23 +30,68 @@ The `TableMaintenance` API in **Apache Iceberg** empowers **Flink jobs** to exec
 
 ## Supported Features (Flink)
 
-- ExpireSnapshots: removes old snapshots and their files. Internally uses `cleanExpiredFiles(true)` when committing, so expired metadata/files are cleaned up automatically.
-- RewriteDataFiles: compacts small files to optimize file sizes. Supports partial progress commits and limiting maximum rewritten bytes per run.
+### ExpireSnapshots
+Removes old snapshots and their files. Internally uses `cleanExpiredFiles(true)` when committing, so expired metadata/files are cleaned up automatically.
 
-Example usage:
 ```java
-// Snapshot expiration
 .add(ExpireSnapshots.builder()
     .maxSnapshotAge(Duration.ofDays(7))
     .retainLast(10)
     .deleteBatchSize(1000))
+```
 
-// Continuous file optimization
+### RewriteDataFiles
+Compacts small files to optimize file sizes. Supports partial progress commits and limiting maximum rewritten bytes per run.
+
+```java
 .add(RewriteDataFiles.builder()
     .targetFileSizeBytes(256 * 1024 * 1024)
     .minFileSizeBytes(32 * 1024 * 1024)
     .partialProgressEnabled(true)
     .partialProgressMaxCommits(5))
+```
+
+## Lock Management
+
+The `TriggerLockFactory` is essential for coordinating maintenance tasks across multiple Flink jobs or instances. It prevents concurrent maintenance operations on the same table, which could lead to conflicts or data corruption.
+
+### Why Locks Are Needed
+- **Concurrent Access**: Multiple Flink jobs may attempt maintenance simultaneously
+- **Data Consistency**: Ensures only one maintenance operation runs per table at a time
+- **Resource Management**: Prevents resource conflicts and scheduling issues
+
+### Supported Lock Types
+
+#### JDBC Lock Factory
+Uses a database table to manage distributed locks:
+
+```java
+Map<String, String> jdbcProps = new HashMap<>();
+jdbcProps.put("jdbc.user", "flink");
+jdbcProps.put("jdbc.password", "flinkpw");
+
+TriggerLockFactory lockFactory = new JdbcLockFactory(
+    "jdbc:postgresql://localhost:5432/iceberg", // JDBC URL
+    "catalog.db.table",                         // Lock ID (unique identifier)
+    jdbcProps                                   // JDBC connection properties
+);
+```
+
+#### ZooKeeper Lock Factory
+Uses Apache ZooKeeper for distributed coordination:
+
+```java
+TriggerLockFactory lockFactory = new ZkLockFactory(
+    "localhost:2181",        // ZooKeeper connection string
+    "catalog.db.table"       // Lock ID (unique identifier)
+);
+```
+
+#### Default Lock Factory
+For single-job scenarios or testing:
+
+```java
+TriggerLockFactory lockFactory = TriggerLockFactory.defaultLockFactory();
 ```
 
 ## Quick Start
