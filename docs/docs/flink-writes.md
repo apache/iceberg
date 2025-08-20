@@ -524,6 +524,57 @@ There are two distinct caches involved: the table metadata cache and the input s
 
 To improve cache hit rates and performance, reuse the same DynamicRecord.schema instance if the record schema is unchanged.
 
+### Dynamic Table Properties
+
+The Dynamic Sink supports dynamically updating table properties. This feature allows you to:
+
+- Set different properties for different tables based on table names
+- Apply properties during table creation
+- Update properties for existing tables
+
+#### TablePropertiesUpdater Interface
+
+The `TablePropertiesUpdater` is an interface that receives the fully-qualified table name and current properties, then returns the updated properties:
+
+```java
+interface TablePropertiesUpdater extends Serializable {
+    Map<String, String> apply(String tableName, Map<String, String> currentProperties);
+}
+```
+
+#### Usage Example
+
+```java
+TablePropertiesUpdater updater = (tableName, currentProps) -> {
+    Map<String, String> updatedProps = new HashMap<>(currentProps);
+
+    // Set compression based on table name
+    if (tableName.contains("logs")) {
+        updatedProps.put("write.parquet.compression-codec", "gzip");
+    } else {
+        updatedProps.put("write.parquet.compression-codec", "snappy");
+    }
+
+    // Set format properties
+    updatedProps.put("write.format.default", "parquet");
+
+    // Add custom metadata
+    updatedProps.put("created.by", "dynamic-sink");
+    updatedProps.put("table.identifier", tableName);
+
+    // Remove table properties
+    updatedProps.remove("to.be.removed.prop");
+
+    return updatedProps;
+};
+
+DynamicIcebergSink.forInput(dataStream)
+    .generator(new CustomRecordGenerator())
+    .catalogLoader(catalogLoader)
+    .tablePropertiesUpdater(updater)
+    .append();
+```
+
 ### Dynamic Sink Configuration
 
 The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are the key configuration methods:
@@ -538,7 +589,8 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `cacheMaxSize(int maxSize)`                          | Set cache size for table metadata                                                                                                                                       |
 | `cacheRefreshMs(long refreshMs)`                     | Set cache refresh interval                                                                                                                                              |
 | `inputSchemasPerTableCacheMaxSize(int size)`         | Set max input schemas to cache per table                                                                                                                                |
-| `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                                                                                                                   |
+| `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                            |
+| `tablePropertiesUpdater(TablePropertiesUpdater updater)` | Set a function to dynamically update table properties based on table name and current properties                                                                    |
 | `set(String property, String value)`                 | Set any Iceberg write property (e.g., `"write.format"`, `"write.upsert.enabled"`).Check out all the options here: [write-options](flink-configuration.md#write-options) |
 | `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
 

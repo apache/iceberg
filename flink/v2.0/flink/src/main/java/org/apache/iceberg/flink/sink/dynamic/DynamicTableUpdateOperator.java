@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -42,17 +43,21 @@ class DynamicTableUpdateOperator
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
 
+  @Nullable private final TablePropertiesUpdater tablePropertiesUpdater;
+
   private transient TableUpdater updater;
 
   DynamicTableUpdateOperator(
       CatalogLoader catalogLoader,
       int cacheMaximumSize,
       long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize) {
+      int inputSchemasPerTableCacheMaximumSize,
+      @Nullable TablePropertiesUpdater tablePropertiesUpdater) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
+    this.tablePropertiesUpdater = tablePropertiesUpdater;
   }
 
   @Override
@@ -63,7 +68,8 @@ class DynamicTableUpdateOperator
         new TableUpdater(
             new TableMetadataCache(
                 catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize),
-            catalog);
+            catalog,
+            tablePropertiesUpdater);
   }
 
   @Override

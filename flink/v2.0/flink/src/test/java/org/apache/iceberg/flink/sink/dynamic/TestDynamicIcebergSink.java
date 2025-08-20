@@ -503,7 +503,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 Sets.newHashSet("id"),
                 true));
 
-    executeDynamicSink(rows, env, true, 1, null);
+    executeDynamicSink(rows, env, true, 1, null, null);
 
     try (CloseableIterable<Record> iterable =
         IcebergGenerics.read(
@@ -544,7 +544,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(FailBeforeAndAfterCommit.failedBeforeCommit).isFalse();
     assertThat(FailBeforeAndAfterCommit.failedAfterCommit).isFalse();
 
-    executeDynamicSink(rows, env, true, 1, commitHook);
+    executeDynamicSink(rows, env, true, 1, commitHook, null);
 
     assertThat(FailBeforeAndAfterCommit.failedBeforeCommit).isTrue();
     assertThat(FailBeforeAndAfterCommit.failedAfterCommit).isTrue();
@@ -566,7 +566,58 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     final CommitHook commitHook = new AppendRightBeforeCommit(tableIdentifier.toString());
 
-    executeDynamicSink(rows, env, true, 1, commitHook);
+    executeDynamicSink(rows, env, true, 1, commitHook, null);
+  }
+
+  @Test
+  void testTablePropertiesUpdate() throws Exception {
+    TableIdentifier newTable = TableIdentifier.of(DATABASE, "newTable");
+    TableIdentifier existingTable = TableIdentifier.of(DATABASE, "existingTable");
+
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    catalog.createTable(existingTable, new Schema());
+
+    assertThat(catalog.tableExists(newTable)).isFalse();
+    assertThat(catalog.tableExists(existingTable)).isTrue();
+
+    TablePropertiesUpdater tablePropertiesUpdater =
+        (tableName, currentProps) -> {
+          Map<String, String> updatedProps = Maps.newHashMap(currentProps);
+          updatedProps.put("table_name", tableName);
+          updatedProps.put("write.format.default", "parquet");
+          updatedProps.put("write.parquet.compression-codec", "snappy");
+          updatedProps.put("my_custom_property", "my_value");
+          return updatedProps;
+        };
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, newTable.name(), "main", PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                existingTable.name(),
+                "main",
+                PartitionSpec.unpartitioned()));
+
+    executeDynamicSink(rows, env, true, 1, null, tablePropertiesUpdater);
+
+    assertThat(catalog.tableExists(newTable)).isTrue();
+    assertThat(catalog.tableExists(existingTable)).isTrue();
+
+    Table table = catalog.loadTable(newTable);
+    Map<String, String> properties = table.properties();
+    assertThat(properties).containsEntry("table_name", newTable.toString());
+    assertThat(properties).containsEntry("write.format.default", "parquet");
+    assertThat(properties).containsEntry("write.parquet.compression-codec", "snappy");
+    assertThat(properties).containsEntry("my_custom_property", "my_value");
+
+    table = catalog.loadTable(existingTable);
+    properties = table.properties();
+    assertThat(properties).containsEntry("table_name", existingTable.toString());
+    assertThat(properties).containsEntry("write.format.default", "parquet");
+    assertThat(properties).containsEntry("write.parquet.compression-codec", "snappy");
+    assertThat(properties).containsEntry("my_custom_property", "my_value");
   }
 
   interface CommitHook extends Serializable {
@@ -652,7 +703,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       boolean immediateUpdate,
       int parallelism)
       throws Exception {
-    executeDynamicSink(dynamicData, env, immediateUpdate, parallelism, null);
+    executeDynamicSink(dynamicData, env, immediateUpdate, parallelism, null, null);
     verifyResults(dynamicData);
   }
 
@@ -661,7 +712,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       StreamExecutionEnvironment env,
       boolean immediateUpdate,
       int parallelism,
-      @Nullable CommitHook commitHook)
+      @Nullable CommitHook commitHook,
+      @Nullable TablePropertiesUpdater tablePropertiesUpdater)
       throws Exception {
     DataStream<DynamicIcebergDataImpl> dataStream =
         env.addSource(createBoundedSource(dynamicData), TypeInformation.of(new TypeHint<>() {}));
@@ -674,6 +726,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
+          .tablePropertiesUpdater(tablePropertiesUpdater)
           .setSnapshotProperty("commit.retry.num-retries", "0")
           .append();
     } else {
@@ -682,6 +735,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
+          .tablePropertiesUpdater(tablePropertiesUpdater)
           .append();
     }
 
@@ -727,6 +781,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           snapshotProperties,
           uidPrefix,
           writeProperties,
+          null,
           flinkWriteConf,
           cacheMaximumSize);
       this.commitHook = commitHook;
@@ -734,7 +789,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     @Override
     public Committer<DynamicCommittable> createCommitter(CommitterInitContext context) {
-      //      return super.createCommitter(context);
       return new CommitHookEnabledDynamicCommitter(
           commitHook,
           CATALOG_EXTENSION.catalogLoader().loadCatalog(),
