@@ -52,6 +52,7 @@ import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.PropertyUtil;
 
 /** Flink Iceberg table source. */
 @Internal
@@ -220,8 +221,8 @@ public class IcebergTableSource
 
       @Override
       public Optional<Integer> getParallelism() {
-        return Optional.ofNullable(properties.get(FactoryUtil.SOURCE_PARALLELISM.key()))
-            .map(Integer::parseInt);
+        return Optional.ofNullable(
+            PropertyUtil.propertyAsNullableInt(properties, FactoryUtil.SOURCE_PARALLELISM.key()));
       }
     };
   }

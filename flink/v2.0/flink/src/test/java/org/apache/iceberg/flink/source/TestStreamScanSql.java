@@ -56,6 +56,8 @@ public class TestStreamScanSql extends CatalogTestBase {
   private static final String TABLE = "test_table";
   private static final FileFormat FORMAT = FileFormat.PARQUET;
 
+  private volatile int defaultJobParallelism;
+
   private volatile TableEnvironment tEnv;
 
   @Override
@@ -76,6 +78,7 @@ public class TestStreamScanSql extends CatalogTestBase {
 
         StreamTableEnvironment streamTableEnv =
             StreamTableEnvironment.create(env, settingsBuilder.build());
+        defaultJobParallelism = env.getParallelism();
         streamTableEnv
             .getConfig()
             .getConfiguration()
@@ -435,27 +438,33 @@ public class TestStreamScanSql extends CatalogTestBase {
 
   @TestTemplate
   void testWithParallelismWithProps() {
-    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR) WITH ('scan.parallelism'='10')", TABLE);
+    int customScanParallelism = defaultJobParallelism + 1;
+    sql(
+        "CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR) WITH ('scan.parallelism'='%s')",
+        TABLE, customScanParallelism);
 
     final org.apache.flink.table.api.Table table =
-        getTableEnv().sqlQuery(String.format("select * from test_table", TABLE));
+        getTableEnv().sqlQuery(String.format("select * from %s", TABLE));
     final String explain = table.explain(ExplainDetail.JSON_EXECUTION_PLAN);
-    final String expectedPhysicalExecutionPlanFragment = "\"parallelism\" : 10";
+    final String expectedPhysicalExecutionPlanFragment =
+        "\"parallelism\" : " + customScanParallelism;
     assertThat(explain).contains(expectedPhysicalExecutionPlanFragment);
   }
 
   @TestTemplate
   void testWithParallelismWithHints() {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    int customScanParallelism = defaultJobParallelism + 1;
 
     final org.apache.flink.table.api.Table table =
         getTableEnv()
             .sqlQuery(
                 String.format(
-                    "select * from test_table/*+ OPTIONS('streaming'='true', 'scan.parallelism'='10') */",
-                    TABLE));
+                    "select * from %s/*+ OPTIONS('streaming'='true', 'scan.parallelism'='%s') */",
+                    TABLE, customScanParallelism));
     final String explain = table.explain(ExplainDetail.JSON_EXECUTION_PLAN);
-    final String expectedPhysicalExecutionPlanFragment = "\"parallelism\" : 10";
+    final String expectedPhysicalExecutionPlanFragment =
+        "\"parallelism\" : " + customScanParallelism;
     assertThat(explain).contains(expectedPhysicalExecutionPlanFragment);
   }
 }
