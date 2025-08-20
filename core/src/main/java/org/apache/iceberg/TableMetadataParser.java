@@ -295,7 +295,7 @@ public class TableMetadataParser {
   }
 
   /**
-   * @deprecated use {@link #read(InputFile)} instead.
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link #read(InputFile)} instead.
    */
   @Deprecated
   public static TableMetadata read(FileIO io, InputFile file) {
