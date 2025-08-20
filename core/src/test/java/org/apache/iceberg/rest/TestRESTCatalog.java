@@ -2707,8 +2707,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testETagCreateTableAndLoadTable() {
-    Map<String, String> respHeaders = Maps.newConcurrentMap();
+  public void testETagWithCreateAndLoadTable() {
+    Map<String, String> respHeaders = Maps.newHashMap();
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
@@ -2728,8 +2728,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testETagDifferentTables() {
-    Map<String, String> respHeaders = Maps.newConcurrentMap();
+  public void testETagWithDifferentTables() {
+    Map<String, String> respHeaders = Maps.newHashMap();
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
@@ -2796,8 +2796,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testETagRegisterTable() {
-    Map<String, String> respHeaders = Maps.newConcurrentMap();
+  public void testETagWithRegisterTable() {
+    Map<String, String> respHeaders = Maps.newHashMap();
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
