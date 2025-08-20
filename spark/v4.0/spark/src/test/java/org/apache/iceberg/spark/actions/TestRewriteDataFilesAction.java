@@ -39,7 +39,6 @@ import static org.mockito.Mockito.spy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -153,8 +152,8 @@ public class TestRewriteDataFilesAction extends TestBase {
   @Parameter private int formatVersion;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> parameters() {
+    return org.apache.iceberg.TestHelpers.V2_AND_ABOVE;
   }
 
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();

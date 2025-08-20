@@ -81,8 +81,8 @@ public class TestPositionDeletesReader extends TestBase {
   private int formatVersion;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return ImmutableList.of(2, 3);
+  protected static List<Integer> parameters() {
+    return org.apache.iceberg.TestHelpers.V2_AND_ABOVE;
   }
 
   @BeforeEach
