@@ -32,36 +32,28 @@ public class LockConfig {
 
   public static final String PREFIX = FlinkMaintenanceConfig.PREFIX + "lock.";
 
-  // Configuration option for lock type
-  // Specifies the type of lock to use, e.g., jdbc or zookeeper
   public static final ConfigOption<String> LOCK_TYPE_OPTION =
       ConfigOptions.key(PREFIX + "type")
           .stringType()
           .defaultValue(StringUtils.EMPTY)
           .withDescription("The type of lock to use, e.g., jdbc or zookeeper.");
 
-  // Configuration option for lock ID
-  // Specifies the unique identifier for the lock
   public static final ConfigOption<String> LOCK_ID_OPTION =
       ConfigOptions.key(PREFIX + "lock-id")
           .stringType()
           .defaultValue(StringUtils.EMPTY)
           .withDescription("The unique identifier for the lock.");
 
-  // Configuration options for JDBC-based locking
   public static class JdbcLockConfig {
 
     public static final String JDBC = "jdbc";
 
-    // JDBC URI configuration option
-    // Specifies the URI for the JDBC connection used for locking
     public static final ConfigOption<String> JDBC_URI_OPTION =
         ConfigOptions.key(PREFIX + JDBC + ".uri")
             .stringType()
             .defaultValue(StringUtils.EMPTY)
             .withDescription("The URI of the JDBC connection for acquiring the lock.");
 
-    // Option to initialize the lock table in the JDBC database
     public static final ConfigOption<String> JDBC_INIT_LOCK_TABLE_OPTION =
         ConfigOptions.key(PREFIX + JDBC + ".init-lock-table")
             .stringType()
@@ -69,36 +61,27 @@ public class LockConfig {
             .withDescription("Whether to initialize the lock table in the JDBC database.");
   }
 
-  // Configuration options for Zookeeper-based locking
   public static class ZkLockConfig {
     public static final String ZK = "zookeeper";
 
-    // Zookeeper URI configuration option
-    // Specifies the URI of the Zookeeper service for acquiring the lock
     public static final ConfigOption<String> ZK_URI_OPTION =
         ConfigOptions.key(PREFIX + ZK + ".uri")
             .stringType()
             .defaultValue(StringUtils.EMPTY)
             .withDescription("The URI of the Zookeeper service for acquiring the lock.");
 
-    // Zookeeper session timeout in milliseconds
-    // Specifies the session timeout for the Zookeeper client
     public static final ConfigOption<Integer> ZK_SESSION_TIMEOUT_MS_OPTION =
         ConfigOptions.key(PREFIX + ZK + ".session-timeout-ms")
             .intType()
             .defaultValue(60000)
             .withDescription("The session timeout (in milliseconds) for the Zookeeper client.");
 
-    // Zookeeper connection timeout in milliseconds
-    // Specifies the connection timeout for the Zookeeper client
     public static final ConfigOption<Integer> ZK_CONNECTION_TIMEOUT_MS_OPTION =
         ConfigOptions.key(PREFIX + ZK + ".connection-timeout-ms")
             .intType()
             .defaultValue(15000)
             .withDescription("The connection timeout (in milliseconds) for the Zookeeper client.");
 
-    // Zookeeper base sleep time in milliseconds
-    // Specifies the base sleep time between retries for the Zookeeper client
     public static final ConfigOption<Integer> ZK_BASE_SLEEP_MS_OPTION =
         ConfigOptions.key(PREFIX + ZK + ".base-sleep-ms")
             .intType()
@@ -106,8 +89,6 @@ public class LockConfig {
             .withDescription(
                 "The base sleep time (in milliseconds) between retries for the Zookeeper client.");
 
-    // Zookeeper maximum retries
-    // Specifies the maximum number of retries for the Zookeeper client in case of failure
     public static final ConfigOption<Integer> ZK_MAX_RETRIES_OPTION =
         ConfigOptions.key(PREFIX + ZK + ".max-retries")
             .intType()
@@ -127,8 +108,6 @@ public class LockConfig {
 
   /**
    * Gets the lock type configuration value (e.g., jdbc or zookeeper).
-   *
-   * @return The lock type
    */
   public String lockType() {
     return confParser
@@ -141,9 +120,6 @@ public class LockConfig {
 
   /**
    * Gets the lock ID configuration value. If blank, returns the provided default value.
-   *
-   * @param defaultValue The default value to return if lock ID is not provided
-   * @return The lock ID
    */
   public String lockId(String defaultValue) {
     String lockId =
@@ -162,8 +138,6 @@ public class LockConfig {
 
   /**
    * Gets the JDBC URI configuration value.
-   *
-   * @return The JDBC URI
    */
   public String jdbcUri() {
     return confParser
@@ -176,8 +150,6 @@ public class LockConfig {
 
   /**
    * Gets the configuration value for initializing the JDBC lock table.
-   *
-   * @return The value indicating whether to initialize the lock table in JDBC
    */
   public String jdbcInitTable() {
     return confParser
@@ -190,8 +162,6 @@ public class LockConfig {
 
   /**
    * Gets the Zookeeper URI configuration value.
-   *
-   * @return The Zookeeper URI
    */
   public String zkUri() {
     return confParser
@@ -204,8 +174,6 @@ public class LockConfig {
 
   /**
    * Gets the Zookeeper session timeout configuration (in milliseconds).
-   *
-   * @return The session timeout (in milliseconds)
    */
   public int zkSessionTimeoutMs() {
     return confParser
@@ -218,8 +186,6 @@ public class LockConfig {
 
   /**
    * Gets the Zookeeper connection timeout configuration (in milliseconds).
-   *
-   * @return The connection timeout (in milliseconds)
    */
   public int zkConnectionTimeoutMs() {
     return confParser
@@ -232,8 +198,6 @@ public class LockConfig {
 
   /**
    * Gets the Zookeeper base sleep time configuration (in milliseconds).
-   *
-   * @return The base sleep time (in milliseconds)
    */
   public int zkBaseSleepMs() {
     return confParser
@@ -246,8 +210,6 @@ public class LockConfig {
 
   /**
    * Gets the Zookeeper maximum retry count configuration.
-   *
-   * @return The maximum retry count
    */
   public int zkMaxRetries() {
     return confParser
