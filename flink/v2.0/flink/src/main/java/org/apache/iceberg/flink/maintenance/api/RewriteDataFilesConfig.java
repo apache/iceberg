@@ -101,9 +101,7 @@ public class RewriteDataFilesConfig {
     this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
   }
 
-  /**
-   * Gets the number of commits that trigger a rewrite operation.
-   */
+  /** Gets the number of commits that trigger a rewrite operation. */
   public int scheduleOnCommitCount() {
     return confParser
         .intConf()
@@ -113,9 +111,7 @@ public class RewriteDataFilesConfig {
         .parse();
   }
 
-  /**
-   * Gets the number of data files that trigger a rewrite operation.
-   */
+  /** Gets the number of data files that trigger a rewrite operation. */
   public int scheduleOnDataFileCount() {
     return confParser
         .intConf()
@@ -125,9 +121,7 @@ public class RewriteDataFilesConfig {
         .parse();
   }
 
-  /**
-   * Gets the total size of data files that trigger a rewrite operation.
-   */
+  /** Gets the total size of data files that trigger a rewrite operation. */
   public long scheduleOnDataFileSize() {
     return confParser
         .longConf()
@@ -137,9 +131,7 @@ public class RewriteDataFilesConfig {
         .parse();
   }
 
-  /**
-   * Gets the time interval (in seconds) between two consecutive rewrite operations.
-   */
+  /** Gets the time interval (in seconds) between two consecutive rewrite operations. */
   public long scheduleOnIntervalSecond() {
     return confParser
         .longConf()
@@ -149,9 +141,7 @@ public class RewriteDataFilesConfig {
         .parse();
   }
 
-  /**
-   * Gets whether partial progress commits are enabled.
-   */
+  /** Gets whether partial progress commits are enabled. */
   public boolean partialProgressEnable() {
     return confParser
         .booleanConf()
@@ -161,9 +151,7 @@ public class RewriteDataFilesConfig {
         .parse();
   }
 
-  /**
-   * Gets the maximum number of commits allowed for partial progress.
-   */
+  /** Gets the maximum number of commits allowed for partial progress. */
   public int partialProgressMaxCommits() {
     return confParser
         .intConf()
@@ -173,9 +161,7 @@ public class RewriteDataFilesConfig {
         .parse();
   }
 
-  /**
-   * Gets the maximum rewrite bytes allowed for a single rewrite operation.
-   */
+  /** Gets the maximum rewrite bytes allowed for a single rewrite operation. */
   public long maxRewriteBytes() {
     return confParser
         .longConf()

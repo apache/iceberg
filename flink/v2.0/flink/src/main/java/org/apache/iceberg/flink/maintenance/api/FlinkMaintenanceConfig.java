@@ -77,9 +77,7 @@ public class FlinkMaintenanceConfig {
     this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
   }
 
-  /**
-   * Gets the rate limit value (in seconds) for maintenance operations.
-   */
+  /** Gets the rate limit value (in seconds) for maintenance operations. */
   public long rateLimit() {
     return confParser
         .longConf()
@@ -89,9 +87,7 @@ public class FlinkMaintenanceConfig {
         .parse();
   }
 
-  /**
-   * Gets the parallelism value for maintenance tasks.
-   */
+  /** Gets the parallelism value for maintenance tasks. */
   public int parallelism() {
     return confParser
         .intConf()
@@ -101,9 +97,7 @@ public class FlinkMaintenanceConfig {
         .parse();
   }
 
-  /**
-   * Gets the lock check delay value (in seconds).
-   */
+  /** Gets the lock check delay value (in seconds). */
   public long lockCheckDelay() {
     return confParser
         .longConf()
@@ -113,9 +107,7 @@ public class FlinkMaintenanceConfig {
         .parse();
   }
 
-  /**
-   * Gets the slot sharing group value for maintenance tasks.
-   */
+  /** Gets the slot sharing group value for maintenance tasks. */
   public String slotSharingGroup() {
     return confParser
         .stringConf()

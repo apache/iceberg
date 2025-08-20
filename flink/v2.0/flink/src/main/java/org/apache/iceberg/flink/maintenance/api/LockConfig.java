@@ -106,9 +106,7 @@ public class LockConfig {
     this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
   }
 
-  /**
-   * Gets the lock type configuration value (e.g., jdbc or zookeeper).
-   */
+  /** Gets the lock type configuration value (e.g., jdbc or zookeeper). */
   public String lockType() {
     return confParser
         .stringConf()
@@ -118,9 +116,7 @@ public class LockConfig {
         .parse();
   }
 
-  /**
-   * Gets the lock ID configuration value. If blank, returns the provided default value.
-   */
+  /** Gets the lock ID configuration value. If blank, returns the provided default value. */
   public String lockId(String defaultValue) {
     String lockId =
         confParser
@@ -136,9 +132,7 @@ public class LockConfig {
     return lockId;
   }
 
-  /**
-   * Gets the JDBC URI configuration value.
-   */
+  /** Gets the JDBC URI configuration value. */
   public String jdbcUri() {
     return confParser
         .stringConf()
@@ -148,9 +142,7 @@ public class LockConfig {
         .parse();
   }
 
-  /**
-   * Gets the configuration value for initializing the JDBC lock table.
-   */
+  /** Gets the configuration value for initializing the JDBC lock table. */
   public String jdbcInitTable() {
     return confParser
         .stringConf()
@@ -160,9 +152,7 @@ public class LockConfig {
         .parse();
   }
 
-  /**
-   * Gets the Zookeeper URI configuration value.
-   */
+  /** Gets the Zookeeper URI configuration value. */
   public String zkUri() {
     return confParser
         .stringConf()
@@ -172,9 +162,7 @@ public class LockConfig {
         .parse();
   }
 
-  /**
-   * Gets the Zookeeper session timeout configuration (in milliseconds).
-   */
+  /** Gets the Zookeeper session timeout configuration (in milliseconds). */
   public int zkSessionTimeoutMs() {
     return confParser
         .intConf()
@@ -184,9 +172,7 @@ public class LockConfig {
         .parse();
   }
 
-  /**
-   * Gets the Zookeeper connection timeout configuration (in milliseconds).
-   */
+  /** Gets the Zookeeper connection timeout configuration (in milliseconds). */
   public int zkConnectionTimeoutMs() {
     return confParser
         .intConf()
@@ -196,9 +182,7 @@ public class LockConfig {
         .parse();
   }
 
-  /**
-   * Gets the Zookeeper base sleep time configuration (in milliseconds).
-   */
+  /** Gets the Zookeeper base sleep time configuration (in milliseconds). */
   public int zkBaseSleepMs() {
     return confParser
         .intConf()
@@ -208,9 +192,7 @@ public class LockConfig {
         .parse();
   }
 
-  /**
-   * Gets the Zookeeper maximum retry count configuration.
-   */
+  /** Gets the Zookeeper maximum retry count configuration. */
   public int zkMaxRetries() {
     return confParser
         .intConf()
