@@ -28,15 +28,8 @@ public class TestZkLockFactory extends TestLockFactoryBase {
   private TestingServer zkTestServer;
 
   @Override
-  TriggerLockFactory lockFactory() {
-    return lockFactory("tableName");
-  }
-
-  @Override
-  TriggerLockFactory createOtherLockFactory(String tableName) {
-    ZkLockFactory other = lockFactory(tableName);
-    other.open();
-    return other;
+  TriggerLockFactory lockFactory(String tableName) {
+    return new ZkLockFactory(zkTestServer.getConnectString(), tableName, 5000, 3000, 1000, 3);
   }
 
   @BeforeEach
@@ -49,10 +42,6 @@ public class TestZkLockFactory extends TestLockFactoryBase {
     }
 
     super.before();
-  }
-
-  ZkLockFactory lockFactory(String lockId) {
-    return new ZkLockFactory(zkTestServer.getConnectString(), lockId, 5000, 3000, 1000, 3);
   }
 
   @AfterEach

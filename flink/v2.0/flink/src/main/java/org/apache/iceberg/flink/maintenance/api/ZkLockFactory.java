@@ -44,7 +44,7 @@ public class ZkLockFactory implements TriggerLockFactory {
   private transient CuratorFramework client;
   private transient SharedCount taskSharedCount;
   private transient SharedCount recoverySharedCount;
-  private volatile boolean isOpen = false;
+  private volatile boolean isOpen;
 
   /**
    * Create Zookeeper lock factory
@@ -66,13 +66,13 @@ public class ZkLockFactory implements TriggerLockFactory {
     Preconditions.checkNotNull(connectString, "Zookeeper connection string cannot be null");
     Preconditions.checkNotNull(lockId, "Lock ID cannot be null");
     Preconditions.checkArgument(
-        sessionTimeoutMs > 0, "Session timeout must be positive, got: %s", sessionTimeoutMs);
+        sessionTimeoutMs >= 0, "Session timeout must be positive, got: %s", sessionTimeoutMs);
     Preconditions.checkArgument(
-        connectionTimeoutMs > 0,
+        connectionTimeoutMs >= 0,
         "Connection timeout must be positive, got: %s",
         connectionTimeoutMs);
     Preconditions.checkArgument(
-        baseSleepTimeMs > 0, "Base sleep time must be positive, got: %s", baseSleepTimeMs);
+        baseSleepTimeMs >= 0, "Base sleep time must be positive, got: %s", baseSleepTimeMs);
     Preconditions.checkArgument(
         maxRetries >= 0, "Max retries must be non-negative, got: %s", maxRetries);
     this.connectString = connectString;
@@ -137,12 +137,12 @@ public class ZkLockFactory implements TriggerLockFactory {
 
   @Override
   public Lock createLock() {
-    return new ZkLock(lockId, "task", getTaskSharePath(), taskSharedCount);
+    return new ZkLock(getTaskSharePath(), taskSharedCount);
   }
 
   @Override
   public Lock createRecoveryLock() {
-    return new ZkLock(lockId, "recovery", getRecoverySharedPath(), recoverySharedCount);
+    return new ZkLock(getRecoverySharedPath(), recoverySharedCount);
   }
 
   @Override
@@ -167,16 +167,12 @@ public class ZkLockFactory implements TriggerLockFactory {
   /** Zookeeper lock implementation */
   private static class ZkLock implements Lock {
     private final SharedCount sharedCount;
-    private final String lockId;
-    private final String lockType;
     private final String lockPath;
 
     private static final int LOCKED = 1;
     private static final int UNLOCKED = 0;
 
-    private ZkLock(String lockId, String lockType, String lockPath, SharedCount sharedCount) {
-      this.lockId = lockId;
-      this.lockType = lockType;
+    private ZkLock(String lockPath, SharedCount sharedCount) {
       this.lockPath = lockPath;
       this.sharedCount = sharedCount;
     }
@@ -185,16 +181,14 @@ public class ZkLockFactory implements TriggerLockFactory {
     public boolean tryLock() {
       VersionedValue<Integer> versionedValue = sharedCount.getVersionedValue();
       if (isHeld(versionedValue)) {
-        LOG.debug(
-            "Lock is already held for lockId: {}, type: {}, path: {}.", lockId, lockType, lockPath);
+        LOG.debug("Lock is already held for path: {}.", lockPath);
         return false;
       }
 
       try {
         boolean acquired = sharedCount.trySetCount(versionedValue, LOCKED);
         if (!acquired) {
-          LOG.warn(
-              "Failed to acquire {} lock for lockId: {}, path: {}", lockType, lockId, lockPath);
+          LOG.debug("Failed to acquire lock for path: {}", lockPath);
         }
 
         return acquired;
@@ -221,10 +215,9 @@ public class ZkLockFactory implements TriggerLockFactory {
     public void unlock() {
       try {
         sharedCount.setCount(UNLOCKED);
-        LOG.debug("Released {} lock for lockId: {}, path: {}", lockType, lockId, lockPath);
+        LOG.debug("Released lock for path: {}", lockPath);
       } catch (Exception e) {
-        LOG.warn(
-            "Failed to release {} lock for lockId: {}, path: {}", lockType, lockId, lockPath, e);
+        LOG.warn("Failed to release lock for path: {}", lockPath, e);
         throw new RuntimeException("Failed to release lock", e);
       }
     }

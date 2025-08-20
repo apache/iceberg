@@ -28,13 +28,11 @@ import org.junit.jupiter.api.Test;
 abstract class TestLockFactoryBase {
   protected TriggerLockFactory lockFactory;
 
-  abstract TriggerLockFactory lockFactory();
-
-  abstract TriggerLockFactory createOtherLockFactory(String tableName);
+  abstract TriggerLockFactory lockFactory(String tableName);
 
   @BeforeEach
   void before() {
-    this.lockFactory = lockFactory();
+    this.lockFactory = lockFactory("tableName");
     lockFactory.open();
   }
 
@@ -82,7 +80,7 @@ abstract class TestLockFactoryBase {
 
   @Test
   void testMultiTableLock() throws IOException {
-    TriggerLockFactory other = createOtherLockFactory("tableName2");
+    TriggerLockFactory other = lockFactory("tableName2");
     TriggerLockFactory.Lock lock1 = lockFactory.createLock();
     TriggerLockFactory.Lock lock2 = other.createLock();
     assertThat(lock1.tryLock()).isTrue();

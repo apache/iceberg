@@ -27,18 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 class TestJdbcLockFactory extends TestLockFactoryBase {
   @Override
-  TriggerLockFactory lockFactory() {
-    return lockFactory("tableName");
-  }
-
-  @Override
-  TriggerLockFactory createOtherLockFactory(String tableName) {
-    JdbcLockFactory other = lockFactory(tableName);
-    other.open((JdbcLockFactory) this.lockFactory);
-    return other;
-  }
-
-  private JdbcLockFactory lockFactory(String tableName) {
+  TriggerLockFactory lockFactory(String tableName) {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
