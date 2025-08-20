@@ -1451,6 +1451,24 @@ class ViewUpdate(BaseModel):
     )
 
 
+class FineGrainedDataProtectionRules(BaseModel):
+    """
+    Fine-grained data protection rules for a table as result of fine grained policy evaluation at the catalog end based on the clients access rights.
+    The client SHOULD use these rules to enforce fine-grained data protection like column and row level access when reading data from the table.
+
+    """
+
+    projections: Optional[List[Term]] = Field(
+        None,
+        description='This field contains a list of columns or column transforms to be projected.\nNote: That each column must have only a single projection, meaning a column can be projected as-is or as a transformed value, but not both.\n',
+    )
+    row_filter: Optional[Expression] = Field(
+        None,
+        alias='row-filter',
+        description='An expression that filters rows. Only rows for which the expression evaluates to true should be allowed to read. If the catalog supports multiple row access filter against the table, its the catalogs responsibility to combine them with the appropriate logic (e.g., AND, OR).\n',
+    )
+
+
 class LoadTableResult(BaseModel):
     """
     Result used when a table is successfully loaded.
@@ -1496,6 +1514,9 @@ class LoadTableResult(BaseModel):
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
+    fine_grained_data_protection_instructions: Optional[
+        FineGrainedDataProtectionRules
+    ] = Field(None, alias='fine-grained-data-protection-instructions')
 
 
 class ScanTasks(BaseModel):
