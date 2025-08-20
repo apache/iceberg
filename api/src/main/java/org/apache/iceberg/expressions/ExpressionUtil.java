@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -670,38 +672,28 @@ public class ExpressionUtil {
   }
 
   private static String sanitizeVariantObject(VariantObject value, long now, int today) {
-    StringBuilder builder = new StringBuilder();
-    builder.append("{");
-    boolean first = true;
-    for (String field : value.fieldNames()) {
-      if (first) {
-        first = false;
-      } else {
-        builder.append(", ");
-      }
-      builder.append(String.format(Locale.ROOT, "(hash-%s)", field)).append(": ");
-      VariantValue fieldValue = value.get(field);
-      PhysicalType fieldType = fieldValue.type();
-      builder.append(sanitizeVariantValue(fieldValue, fieldType, now, today));
-    }
-    builder.append("}");
-    return builder.toString();
+    return StreamSupport.stream(value.fieldNames().spliterator(), false)
+        .map(
+            field -> {
+              VariantValue fieldValue = value.get(field);
+              PhysicalType fieldType = fieldValue.type();
+              return String.format(
+                  Locale.ROOT,
+                  "(hash-%s): %s",
+                  field,
+                  sanitizeVariantValue(fieldValue, fieldType, now, today));
+            })
+        .collect(Collectors.joining(", ", "{", "}"));
   }
 
   private static String sanitizeVariantArray(VariantArray value, long now, int today) {
-    StringBuilder builder = new StringBuilder();
-    builder.append("[");
-    boolean first = true;
-    for (int i = 0; i < value.numElements(); i++) {
-      if (first) {
-        first = false;
-      } else {
-        builder.append(", ");
-      }
-      builder.append(sanitizeVariantValue(value.get(i), value.get(i).type(), now, today));
-    }
-    builder.append("]");
-    return builder.toString();
+    return IntStream.range(0, value.numElements())
+        .mapToObj(
+            i -> {
+              VariantValue element = value.get(i);
+              return sanitizeVariantValue(element, element.type(), now, today);
+            })
+        .collect(Collectors.joining(", ", "[", "]"));
   }
 
   private static String sanitizeVariantValue(

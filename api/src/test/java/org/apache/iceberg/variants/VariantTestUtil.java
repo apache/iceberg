@@ -107,10 +107,6 @@ public class VariantTestUtil {
     return (byte) (((offsetSize - 1) << 6) | (isSorted ? 0b10000 : 0) | 0b0001);
   }
 
-  public static VariantValue value(VariantMetadata metadata, ByteBuffer value) {
-    return VariantValue.from(metadata, value);
-  }
-
   /** A hacky absolute put for ByteBuffer */
   private static int writeBufferAbsolute(ByteBuffer buffer, int offset, ByteBuffer toCopy) {
     int originalPosition = buffer.position();

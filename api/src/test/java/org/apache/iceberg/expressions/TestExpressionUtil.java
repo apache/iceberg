@@ -1289,7 +1289,7 @@ public class TestExpressionUtil {
             VariantTestUtil.createSerializedPrimitive(
                 11, new byte[] {(byte) 0xF4, 0x43, 0x00, 0x00}));
     VariantArray nestedArray =
-        (VariantArray) VariantTestUtil.value(VariantMetadata.empty(), nestedArrayBuffer);
+        (VariantArray) VariantValue.from(VariantMetadata.empty(), nestedArrayBuffer);
 
     Map<String, VariantValue> innerData =
         ImmutableMap.of("a", VariantTestUtil.createSerializedPrimitive(3, new byte[] {(byte) 40}));
@@ -1297,12 +1297,12 @@ public class TestExpressionUtil {
     ByteBuffer nestedBBObject = VariantTestUtil.createObject(meta, innerData);
 
     VariantMetadata metadata = VariantMetadata.from(meta);
-    VariantObject nestedObject = (VariantObject) VariantTestUtil.value(metadata, nestedBBObject);
+    VariantObject nestedObject = (VariantObject) VariantValue.from(metadata, nestedBBObject);
 
     ByteBuffer variantBB =
         VariantTestUtil.createArray(
             VariantTestUtil.createString("iceberg"), nestedObject, nestedArray);
-    return (VariantArray) VariantTestUtil.value(metadata, variantBB);
+    return (VariantArray) VariantValue.from(metadata, variantBB);
   }
 
   private void assertEquals(Expression expected, Expression actual) {
