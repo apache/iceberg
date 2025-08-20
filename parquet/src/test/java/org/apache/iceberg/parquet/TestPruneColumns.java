@@ -242,26 +242,6 @@ public class TestPruneColumns {
                             .named("z"))
                     .id(6)
                     .named("struct_name_2"))
-            .addField(
-                Types.buildGroup(Type.Repetition.OPTIONAL)
-                    .addField(
-                        Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED)
-                            .id(11)
-                            .named("x"))
-                    .addField(
-                        Types.buildGroup(Type.Repetition.OPTIONAL)
-                            .addField(
-                                Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                                    .id(13)
-                                    .named("y"))
-                            .addField(
-                                Types.primitive(PrimitiveTypeName.BOOLEAN, Type.Repetition.REQUIRED)
-                                    .id(14)
-                                    .named("z"))
-                            .id(12)
-                            .named("nested_struct_1"))
-                    .id(10)
-                    .named("struct_name_3"))
             .named("table");
 
     // project map.value.x and map.value.y
@@ -273,16 +253,7 @@ public class TestPruneColumns {
                 StructType.of(
                     NestedField.required(4, "y", DoubleType.get()),
                     NestedField.required(5, "z", DoubleType.get()))),
-            NestedField.optional(6, "struct_name_2", StructType.of()),
-            NestedField.optional(
-                10,
-                "struct_name_3",
-                StructType.of(
-                    NestedField.required(11, "x", DoubleType.get()),
-                    NestedField.optional(
-                        12,
-                        "nested_struct_1",
-                        StructType.of(NestedField.required(13, "y", BinaryType.get()))))));
+            NestedField.optional(6, "struct_name_2", StructType.of()));
 
     MessageType expected =
         Types.buildMessage()
@@ -299,22 +270,75 @@ public class TestPruneColumns {
                     .id(2)
                     .named("struct_name_1"))
             .addField(Types.buildGroup(Type.Repetition.OPTIONAL).id(6).named("struct_name_2"))
+            .named("table");
+
+    MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
+    assertThat(actual).as("Pruned schema should be matched").isEqualTo(expected);
+  }
+
+  @Test
+  public void testNestedStructElementName() {
+    // Parquet columns path with field_id:
+    // struct_name_1 --> 1
+    // struct_name_1.x --> 2
+    // struct_name_1.nested_struct_1 --> 3
+    // struct_name_1.nested_struct_1.y --> 4
+    // struct_name_1.nested_struct_1.z --> 5
+    MessageType fileSchema =
+        Types.buildMessage()
             .addField(
                 Types.buildGroup(Type.Repetition.OPTIONAL)
                     .addField(
                         Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED)
-                            .id(11)
+                            .id(2)
                             .named("x"))
                     .addField(
                         Types.buildGroup(Type.Repetition.OPTIONAL)
                             .addField(
                                 Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                                    .id(13)
+                                    .id(4)
                                     .named("y"))
-                            .id(12)
+                            .addField(
+                                Types.primitive(PrimitiveTypeName.BOOLEAN, Type.Repetition.REQUIRED)
+                                    .id(5)
+                                    .named("z"))
+                            .id(3)
                             .named("nested_struct_1"))
-                    .id(10)
-                    .named("struct_name_3"))
+                    .id(1)
+                    .named("struct_name_1"))
+            .named("table");
+
+    // project columns struct_name_1.x and struct_name_1.nested_struct_1.y
+    Schema projection =
+        new Schema(
+            NestedField.optional(
+                1,
+                "struct_name_1",
+                StructType.of(
+                    NestedField.required(2, "x", DoubleType.get()),
+                    NestedField.optional(
+                        3,
+                        "nested_struct_1",
+                        StructType.of(NestedField.required(4, "y", BinaryType.get()))))));
+
+    MessageType expected =
+        Types.buildMessage()
+            .addField(
+                Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .addField(
+                        Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED)
+                            .id(2)
+                            .named("x"))
+                    .addField(
+                        Types.buildGroup(Type.Repetition.OPTIONAL)
+                            .addField(
+                                Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
+                                    .id(4)
+                                    .named("y"))
+                            .id(3)
+                            .named("nested_struct_1"))
+                    .id(1)
+                    .named("struct_name_1"))
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
