@@ -19,7 +19,9 @@ title: "Flink Writes"
  -->
 # Flink Writes
 
-Iceberg support batch and streaming writes With [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API.
+Iceberg support batch and streaming writes with [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API.
+
+The Flink Iceberg sink guarantees exactly-once semantics.
 
 ## Writing with SQL
 
