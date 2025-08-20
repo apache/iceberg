@@ -2751,7 +2751,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testETagAfterDataUpdate() {
-    Map<String, String> respHeaders = Maps.newConcurrentMap();
+    Map<String, String> respHeaders = Maps.newHashMap();
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
@@ -2774,7 +2774,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testETagAfterMetadataOnlyUpdate() {
-    Map<String, String> respHeaders = Maps.newConcurrentMap();
+    Map<String, String> respHeaders = Maps.newHashMap();
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
