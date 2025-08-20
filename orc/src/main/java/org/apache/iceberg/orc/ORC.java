@@ -661,6 +661,8 @@ public class ORC {
             (schema, typeDescription) ->
                 GenericOrcWriters.positionDelete(
                     createWriterFunc.apply(deleteSchema, typeDescription), pathTransformFunc));
+
+        throw new UnsupportedOperationException("Position delete writer does not support row data");
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 

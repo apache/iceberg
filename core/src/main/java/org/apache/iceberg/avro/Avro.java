@@ -552,6 +552,8 @@ public class Avro {
         appenderBuilder.createWriterFunc(
             avroSchema -> new PositionAndRowDatumWriter<>(createWriterFunc.apply(avroSchema)));
 
+        throw new UnsupportedOperationException("Position delete writer does not support row data");
+
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 

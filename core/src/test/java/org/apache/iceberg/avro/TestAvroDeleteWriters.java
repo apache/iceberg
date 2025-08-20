@@ -130,7 +130,6 @@ public class TestAvroDeleteWriters {
         Avro.writeDeletes(out)
             .createWriterFunc(DataWriter::create)
             .overwrite()
-            .rowSchema(SCHEMA)
             .withSpec(PartitionSpec.unpartitioned())
             .buildPositionWriter();
 
@@ -140,9 +139,7 @@ public class TestAvroDeleteWriters {
         int pos = i * 3 + 2;
         writer.write(positionDelete.set(deletePath, pos, records.get(i)));
         expectedDeleteRecords.add(
-            posDelete.copy(
-                ImmutableMap.of(
-                    "file_path", deletePath, "pos", (long) pos, "row", records.get(i))));
+            posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));
       }
     }
 

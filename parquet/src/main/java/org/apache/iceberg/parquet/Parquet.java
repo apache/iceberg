@@ -1067,6 +1067,8 @@ public class Parquet {
               }
             });
 
+        throw new UnsupportedOperationException("Position delete writer does not support row data");
+
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 

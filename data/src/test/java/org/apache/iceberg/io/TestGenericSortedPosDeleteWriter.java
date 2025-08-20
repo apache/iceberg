@@ -50,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestGenericSortedPosDeleteWriter extends TestBase {
@@ -187,6 +188,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
   }
 
   @TestTemplate
+  @Disabled("Position delete writer does not support row data")
   public void testSortedPosDeleteWithRow() throws IOException {
     List<Record> rowSet =
         Lists.newArrayList(

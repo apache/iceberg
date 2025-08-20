@@ -186,10 +186,7 @@ public class FileHelpers {
 
       return Iterables.getOnlyElement(writer.result().deleteFiles());
     } else {
-      FileWriterFactory<Record> factory =
-          GenericFileWriterFactory.builderFor(table)
-              .positionDeleteRowSchema(table.schema())
-              .build();
+      FileWriterFactory<Record> factory = GenericFileWriterFactory.builderFor(table).build();
 
       PositionDeleteWriter<?> writer =
           factory.newPositionDeleteWriter(encrypt(out), table.spec(), partition);
