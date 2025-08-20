@@ -467,4 +467,24 @@ public class TestStreamScanSql extends CatalogTestBase {
         "\"parallelism\" : " + customScanParallelism;
     assertThat(explain).contains(expectedPhysicalExecutionPlanFragment);
   }
+
+  @TestTemplate
+  void testWithParallelismHintsOverride() {
+    int scanParallelismInCreateTable = defaultJobParallelism + 1;
+    sql(
+        "CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR) WITH ('scan.parallelism'='%s')",
+        TABLE, scanParallelismInCreateTable);
+
+    int scanParallelismInHints = defaultJobParallelism + 2;
+    final org.apache.flink.table.api.Table table =
+        getTableEnv()
+            .sqlQuery(
+                String.format(
+                    "select * from %s/*+ OPTIONS('streaming'='true', 'scan.parallelism'='%s') */",
+                    TABLE, scanParallelismInHints));
+    final String explain = table.explain(ExplainDetail.JSON_EXECUTION_PLAN);
+    final String expectedPhysicalExecutionPlanFragment =
+        "\"parallelism\" : " + scanParallelismInHints;
+    assertThat(explain).contains(expectedPhysicalExecutionPlanFragment);
+  }
 }
