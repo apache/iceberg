@@ -21,6 +21,8 @@ title: "Flink Writes"
 
 Iceberg support batch and streaming writes With [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API.
 
+The Flink Iceberg sink guarantees exactly-once semantics.
+
 ## Writing with SQL
 
 Iceberg support both `INSERT INTO` and `INSERT OVERWRITE`.
@@ -75,7 +77,7 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
     ```
 
 !!! info
-    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields. 
+    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
 
 ## Writing with DataStream
 
@@ -258,7 +260,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
 
-Check out all the options here: [write-options](flink-configuration.md#write-options) 
+Check out all the options here: [write-options](flink-configuration.md#write-options)
 
 ## Distribution mode
 
@@ -352,7 +354,7 @@ FlinkSink.forRowData(input)
 
 ### Overhead
 
-Data shuffling (hash or range) has computational overhead of serialization/deserialization 
+Data shuffling (hash or range) has computational overhead of serialization/deserialization
 and network I/O. Expect some increase of CPU utilization.
 
 Range distribution also collect and aggregate data distribution statistics.
@@ -373,7 +375,7 @@ orphan files that are old enough.
 # Flink Writes (SinkV2 based implementation)
 
 At the time when the current default, `FlinkSink` implementation was created, Flink Sink's interface had some
-limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based 
+limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based
 on a custom chain of `StreamOperator`s  terminated by `DiscardingSink`.
 
 In the 1.15 version of Flink [SinkV2 interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction)
