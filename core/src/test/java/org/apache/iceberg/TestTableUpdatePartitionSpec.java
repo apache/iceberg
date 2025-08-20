@@ -22,6 +22,7 @@ import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -298,5 +299,25 @@ public class TestTableUpdatePartitionSpec extends TestBase {
                 .bucket("data", 16)
                 .identity("id")
                 .build());
+  }
+
+  @TestTemplate
+  public void testAddNewSchemaFieldCollidesWithPartitionFieldName() {
+    // Add a new schema column
+    table.updateSchema().addColumn("new_field", Types.StringType.get()).commit();
+
+    // Add a new partition field referencing 'new_field' and name it 'new_field_partition'
+    table.updateSpec().addField("new_field_partition", bucket("new_field", 8)).commit();
+
+    // Assert that adding a column named 'new_field_partition' throws due to name collision
+    assertThatThrownBy(
+            () ->
+                table
+                    .updateSchema()
+                    .addColumn("new_field_partition", Types.StringType.get())
+                    .commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot create identity partition sourced from different field in schema: new_field_partition");
   }
 }
