@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.identity;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -302,22 +303,55 @@ public class TestTableUpdatePartitionSpec extends TestBase {
   }
 
   @TestTemplate
-  public void testAddNewSchemaFieldCollidesWithPartitionFieldName() {
-    // Add a new schema column
-    table.updateSchema().addColumn("new_field", Types.StringType.get()).commit();
+  public void testUpdateSpecIdentityTransformAllowsReuseSameName() {
+    assertThat(table.schema().findField("id")).isNotNull();
 
-    // Add a new partition field referencing 'new_field' and name it 'new_field_partition'
-    table.updateSpec().addField("new_field_partition", bucket("new_field", 8)).commit();
+    // Identity transforms allows reusing the same name
+    table.updateSpec().addField("id", identity("id")).commit();
 
-    // Assert that adding a column named 'new_field_partition' throws due to name collision
-    assertThatThrownBy(
-            () ->
-                table
-                    .updateSchema()
-                    .addColumn("new_field_partition", Types.StringType.get())
-                    .commit())
+    assertThat(table.spec().fields())
+        .extracting(PartitionField::name)
+        .as("Partition spec should include field 'id'")
+        .contains("id");
+  }
+
+  @TestTemplate
+  public void testUpdateSpecIdentityTransformConflictsWithSchemaFieldName() {
+    assertThat(table.schema().findField("id")).isNotNull();
+    assertThat(table.schema().findField("data")).isNotNull();
+
+    assertThatThrownBy(() -> table.updateSpec().addField("data", identity("id")).commit())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot create identity partition sourced from different field in schema: new_field_partition");
+        .hasMessageContaining(
+            "Cannot create identity partition sourced from different field in schema: data");
+  }
+
+  @TestTemplate
+  public void testUpdateSpecBucketTransformConflictsWithSchemaFieldName() {
+    assertThat(table.schema().findField("id")).isNotNull();
+    assertThat(table.schema().findField("data")).isNotNull();
+
+    assertThatThrownBy(() -> table.updateSpec().addField("id", bucket("data", 8)).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .as("Adding a new partition field named 'id' throws due to name collision")
+        .hasMessage("Cannot create partition from name that exists in schema: id");
+
+    assertThatThrownBy(() -> table.updateSpec().addField("data", bucket("data", 8)).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .as("Adding a new partition field with the same name throws due to name collision")
+        .hasMessage("Cannot create partition from name that exists in schema: data");
+  }
+
+  @TestTemplate
+  public void testUpdateSchemaConflictsWithPartitionFieldName() {
+    assertThat(table.spec().fields())
+        .extracting(PartitionField::name)
+        .as("Partition spec should include field name 'data_bucket'")
+        .contains("data_bucket");
+
+    assertThatThrownBy(
+            () -> table.updateSchema().addColumn("data_bucket", Types.StringType.get()).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create partition from name that exists in schema: data_bucket");
   }
 }
