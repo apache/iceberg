@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -50,11 +49,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
@@ -63,10 +60,6 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.json.JSONOptions;
-import org.apache.spark.sql.catalyst.json.JacksonGenerator;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -448,28 +441,26 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   private void assertIdenticalFileContents(
       File actual, File expected, Schema schema, boolean vectorized) throws IOException {
-      try (CloseableIterable<Record> expectedIterator =
-                   Parquet.read(Files.localInput(expected))
-                           .project(schema)
-                           .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
-                           .build()) {
-        if (vectorized) {
-          List<Record> expectedRecords = Lists.newArrayList(expectedIterator);
-          assertRecordsMatch(
-                  schema,
-                  expectedRecords.size(),
-                  expectedRecords,
-                  actual,
-                  false,
-                  BATCH_SIZE);
-        } else {
-          try (CloseableIterable<Record> actualIterator = Parquet.read(Files.localInput(actual)).project(schema)
-                  .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType)).build()) {
-            assertThat(actualIterator)
-                    .as("Comparison between files failed %s <-> %s", actual, expected)
-                    .isNotEmpty()
-                    .containsExactlyElementsOf(expectedIterator);
-          }
+    try (CloseableIterable<Record> expectedIterator =
+        Parquet.read(Files.localInput(expected))
+            .project(schema)
+            .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
+            .build()) {
+      if (vectorized) {
+        List<Record> expectedRecords = Lists.newArrayList(expectedIterator);
+        assertRecordsMatch(
+            schema, expectedRecords.size(), expectedRecords, actual, false, BATCH_SIZE);
+      } else {
+        try (CloseableIterable<Record> actualIterator =
+            Parquet.read(Files.localInput(actual))
+                .project(schema)
+                .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
+                .build()) {
+          assertThat(actualIterator)
+              .as("Comparison between files failed %s <-> %s", actual, expected)
+              .isNotEmpty()
+              .containsExactlyElementsOf(expectedIterator);
+        }
       }
     }
   }
