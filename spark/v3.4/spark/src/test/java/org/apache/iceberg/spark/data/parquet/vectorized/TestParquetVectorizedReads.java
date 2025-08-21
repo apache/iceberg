@@ -322,4 +322,18 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         .hasMessageStartingWith("Cannot support vectorized reads for column")
         .hasMessageEndingWith("Disable vectorized reads to read this table/file");
   }
+
+  @Test
+  public void testUuidReads() throws Exception {
+    // Just one row to maintain dictionary encoding
+    int numRows = 1;
+    Schema schema = new Schema(optional(100, "uuid", Types.UUIDType.get()));
+
+    InMemoryOutputFile dataFile = new InMemoryOutputFile();
+    Iterable<GenericData.Record> data = generateData(schema, numRows, 0L, 0, IDENTITY);
+    try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
+      writer.addAll(data);
+    }
+    assertRecordsMatch(schema, numRows, data, dataFile.toInputFile(), false, BATCH_SIZE);
+  }
 }
