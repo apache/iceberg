@@ -378,7 +378,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (identifier.name().contains("__#")) {
       List<String> parts = Splitter.on("__#").splitToList(identifier.name());
       cleanedIdent = TableIdentifier.of(cleanedIdent.namespace(), parts.get(0));
-      queryParams.put("loaded-via", parts.get(1));
+      queryParams.put("referenced-by", parts.get(1));
     }
 
     return client

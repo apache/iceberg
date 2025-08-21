@@ -160,7 +160,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     catalogAndNamespace: Seq[String],
     viewName: String,
     isSecurity: Boolean): LogicalPlan = {
-    // FIXME: This is a workaround for Spark's sending over loaded-via to the catalog plugin.
+    // FIXME: This is a workaround for Spark's sending over referenced-by to the catalog plugin.
     // As view context is not propagated to the catalog plugin.
     // FIXME: fix view references a view, may be add a new rule and make sure its only done
     // for security enabled views.
