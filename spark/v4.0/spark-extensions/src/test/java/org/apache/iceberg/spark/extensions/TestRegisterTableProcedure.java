@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.atIndex;
 
+import java.nio.file.Paths;
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
@@ -52,7 +53,8 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRegisterTable() throws NoSuchTableException, ParseException {
+  public void testRegisterTableWithMetadataFileLocation()
+      throws NoSuchTableException, ParseException {
     long numRows = 1000;
 
     sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
@@ -69,6 +71,41 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
 
     List<Object[]> result =
         sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);
+    assertThat(result.get(0))
+        .as("Current Snapshot is not correct")
+        .contains(currentSnapshotId, atIndex(0));
+
+    List<Object[]> original = sql("SELECT * FROM %s", tableName);
+    List<Object[]> registered = sql("SELECT * FROM %s", targetName);
+    assertEquals("Registered table rows should match original table rows", original, registered);
+    assertThat(result.get(0))
+        .as("Should have the right row count in the procedure result")
+        .contains(numRows, atIndex(1))
+        .as("Should have the right datafile count in the procedure result")
+        .contains(originalFileCount, atIndex(2));
+  }
+
+  @TestTemplate
+  public void testRegisterTableWithMetadataFolderLocation()
+      throws NoSuchTableException, ParseException {
+    long numRows = 1000;
+
+    sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
+    spark
+        .range(0, numRows)
+        .withColumn("data", functions.col("id").cast(DataTypes.StringType))
+        .writeTo(tableName)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    long originalFileCount = (long) scalarSql("SELECT COUNT(*) from %s.files", tableName);
+    long currentSnapshotId = table.currentSnapshot().snapshotId();
+    String metadataFolderLocation = Paths.get(table.location(), "metadata").toString();
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.register_table('%s', '%s')",
+            catalogName, targetName, metadataFolderLocation);
     assertThat(result.get(0))
         .as("Current Snapshot is not correct")
         .contains(currentSnapshotId, atIndex(0));
