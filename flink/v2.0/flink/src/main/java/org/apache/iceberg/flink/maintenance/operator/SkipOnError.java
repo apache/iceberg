@@ -19,8 +19,8 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.state.v2.ListState;
-import org.apache.flink.api.common.state.v2.ListStateDescriptor;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
@@ -58,14 +58,14 @@ public class SkipOnError extends AbstractStreamOperator<String>
   }
 
   @Override
-  public void processElement1(StreamRecord<String> element) {
+  public void processElement1(StreamRecord<String> element) throws Exception {
     if (!hasErrorFlag) {
       filesToDelete.add(element.getValue());
     }
   }
 
   @Override
-  public void processElement2(StreamRecord<Exception> element) {
+  public void processElement2(StreamRecord<Exception> element) throws Exception {
     hasError.add(true);
     hasErrorFlag = true;
     filesToDelete.clear();
