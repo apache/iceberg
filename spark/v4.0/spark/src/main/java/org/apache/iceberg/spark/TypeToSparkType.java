@@ -134,7 +134,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case UNKNOWN:
         return NullType$.MODULE$;
       default:
-        throw new UnsupportedOperationException("Type not known to Spark: " + primitive);
+        throw new UnsupportedOperationException("Cannot convert unsupported type to Spark: " + primitive);
     }
   }
 
