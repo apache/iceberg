@@ -20,8 +20,6 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Arrays;
-import java.util.List;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.Parameter;
@@ -38,9 +36,9 @@ class TestListFileSystemFiles extends OperatorTestBase {
   @Parameter(index = 0)
   private boolean usePrefixListing;
 
-  @Parameters(name = "usePrefixListing={0}")
-  public static List<Object[]> parameters() {
-    return Arrays.asList(new Object[] {true}, new Object[] {false});
+  @Parameters(name = "usePrefixListing = {0}")
+  private static Object[][] parameters() {
+    return new Object[][] {{true}, {false}};
   }
 
   @TestTemplate
