@@ -200,8 +200,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRewriteTablePathWithManifestAndDeleteCounts()
-      throws IOException {
+  public void testRewriteTablePathWithManifestAndDeleteCounts() throws IOException {
 
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
@@ -214,8 +213,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
                 table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
                 0L));
 
-    File file =
-        new File(removePrefix(table.location()) + "/data/deletes.parquet");
+    File file = new File(removePrefix(table.location()) + "/data/deletes.parquet");
     DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(
                 table, table.io().newOutputFile(file.toURI().toString()), deletes)
@@ -235,7 +233,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
                 + "source_prefix => '%s', "
                 + "target_prefix => '%s', "
                 + "staging_location => '%s')",
-                catalogName, tableIdent, table.location(), targetLocation, stagingLocation);
+            catalogName, tableIdent, table.location(), targetLocation, stagingLocation);
 
     assertThat(result).hasSize(1);
     Object[] row = result.get(0);
