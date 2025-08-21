@@ -51,7 +51,6 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private final Map<Pair<Integer, String>, PartitionField> transformToField;
 
   private final List<PartitionField> adds = Lists.newArrayList();
-  private final Map<Integer, PartitionField> addedTimeFields = Maps.newHashMap();
   private final Map<Pair<Integer, String>, PartitionField> transformToAddedField =
       Maps.newHashMap();
   private final Map<String, PartitionField> nameToAddedField = Maps.newHashMap();
@@ -182,31 +181,30 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
     Pair<Integer, Transform<?, ?>> sourceTransform = resolve(term);
     Pair<Integer, String> validationKey =
-        Pair.of(sourceTransform.first(), sourceTransform.second().toString());
+        Pair.of(sourceTransform.first(), sourceTransform.second().dedupName());
 
     PartitionField existing = transformToField.get(validationKey);
-    if (existing != null
-        && deletes.contains(existing.fieldId())
-        && existing.transform().equals(sourceTransform.second())) {
-      return rewriteDeleteAndAddField(existing, name);
+    if (existing != null) {
+      if (deletes.contains(existing.fieldId())
+          && existing.transform().equals(sourceTransform.second())) {
+        return rewriteDeleteAndAddField(existing, name);
+      } else if (deletes.contains(existing.fieldId())) {
+        Preconditions.checkArgument(
+            !existing.transform().toString().equals(sourceTransform.second().toString()),
+            "Cannot add duplicate partition field %s=%s, conflicts with %s",
+            name,
+            term,
+            existing);
+      } else {
+        throwConflicts(existing.transform(), sourceTransform.second(), name, term);
+      }
     }
 
-    Preconditions.checkArgument(
-        existing == null
-            || (deletes.contains(existing.fieldId())
-                && !existing.transform().toString().equals(sourceTransform.second().toString())),
-        "Cannot add duplicate partition field %s=%s, conflicts with %s",
-        name,
-        term,
-        existing);
-
     PartitionField added = transformToAddedField.get(validationKey);
-    Preconditions.checkArgument(
-        added == null,
-        "Cannot add duplicate partition field %s=%s, already added: %s",
-        name,
-        term,
-        added);
+
+    if (added != null) {
+      throwConflicts(added.transform(), sourceTransform.second(), name, term);
+    }
 
     PartitionField newField = recycleOrCreatePartitionField(sourceTransform, name);
     if (newField.name() == null) {
@@ -217,7 +215,6 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
               newField.sourceId(), newField.fieldId(), partitionName, newField.transform());
     }
 
-    checkForRedundantAddedPartitions(newField);
     transformToAddedField.put(validationKey, newField);
 
     PartitionField existingField = nameToField.get(newField.name());
@@ -261,13 +258,19 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   public BaseUpdatePartitionSpec removeField(Term term) {
     Pair<Integer, Transform<?, ?>> sourceTransform = resolve(term);
     Pair<Integer, String> key =
-        Pair.of(sourceTransform.first(), sourceTransform.second().toString());
+        Pair.of(sourceTransform.first(), sourceTransform.second().dedupName());
 
     PartitionField added = transformToAddedField.get(key);
-    Preconditions.checkArgument(added == null, "Cannot delete newly added field: %s", added);
+    Preconditions.checkArgument(
+        added == null || !added.transform().toString().equals(sourceTransform.second().toString()),
+        "Cannot delete newly added field: %s",
+        added);
 
     PartitionField field = transformToField.get(key);
-    Preconditions.checkArgument(field != null, "Cannot find partition field to remove: %s", term);
+    Preconditions.checkArgument(
+        field != null && field.transform().toString().equals(sourceTransform.second().toString()),
+        "Cannot find partition field to remove: %s",
+        term);
     Preconditions.checkArgument(
         renames.get(field.name()) == null,
         "Cannot rename and delete partition field: %s",
@@ -372,16 +375,17 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     }
   }
 
-  private void checkForRedundantAddedPartitions(PartitionField field) {
-    if (isTimeTransform(field)) {
-      PartitionField timeField = addedTimeFields.get(field.sourceId());
-      Preconditions.checkArgument(
-          timeField == null,
-          "Cannot add redundant partition field: %s conflicts with %s",
-          timeField,
-          field);
-      addedTimeFields.put(field.sourceId(), field);
-    }
+  private void throwConflicts(
+      Transform<?, ?> target, Transform<?, ?> source, String sourceName, Term sourceTerm) {
+    throw target.toString().equals(source.toString())
+        ? new IllegalArgumentException(
+            String.format(
+                "Cannot add duplicate partition field %s=%s, conflicts with %s",
+                sourceName, sourceTerm, target))
+        : new IllegalArgumentException(
+            String.format(
+                "Cannot add redundant partition field %s=%s, conflicts with %s",
+                sourceName, sourceTerm, target));
   }
 
   private static Map<String, PartitionField> indexSpecByName(PartitionSpec spec) {
@@ -399,65 +403,10 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     Map<Pair<Integer, String>, PartitionField> indexSpecs = Maps.newHashMap();
     List<PartitionField> fields = spec.fields();
     for (PartitionField field : fields) {
-      indexSpecs.put(Pair.of(field.sourceId(), field.transform().toString()), field);
+      indexSpecs.put(Pair.of(field.sourceId(), field.transform().dedupName()), field);
     }
 
     return indexSpecs;
-  }
-
-  private boolean isTimeTransform(PartitionField field) {
-    return PartitionSpecVisitor.visit(schema, field, IsTimeTransform.INSTANCE);
-  }
-
-  private static class IsTimeTransform implements PartitionSpecVisitor<Boolean> {
-    private static final IsTimeTransform INSTANCE = new IsTimeTransform();
-
-    private IsTimeTransform() {}
-
-    @Override
-    public Boolean identity(int fieldId, String sourceName, int sourceId) {
-      return false;
-    }
-
-    @Override
-    public Boolean bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
-      return false;
-    }
-
-    @Override
-    public Boolean truncate(int fieldId, String sourceName, int sourceId, int width) {
-      return false;
-    }
-
-    @Override
-    public Boolean year(int fieldId, String sourceName, int sourceId) {
-      return true;
-    }
-
-    @Override
-    public Boolean month(int fieldId, String sourceName, int sourceId) {
-      return true;
-    }
-
-    @Override
-    public Boolean day(int fieldId, String sourceName, int sourceId) {
-      return true;
-    }
-
-    @Override
-    public Boolean hour(int fieldId, String sourceName, int sourceId) {
-      return true;
-    }
-
-    @Override
-    public Boolean alwaysNull(int fieldId, String sourceName, int sourceId) {
-      return false;
-    }
-
-    @Override
-    public Boolean unknown(int fieldId, String sourceName, int sourceId, String transform) {
-      return false;
-    }
   }
 
   private boolean isVoidTransform(PartitionField field) {
