@@ -991,23 +991,19 @@ public class TestRewriteTablePathsAction extends TestBase {
     // Read the file list to verify statistics file paths
     List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
 
-    // Find the statistics file entry in the file list
-    Tuple2<String, String> statsFilePathPair = null;
-    for (Tuple2<String, String> pathPair : filesToMove) {
-      if (pathPair._1().endsWith(".stats")) {
-        statsFilePathPair = pathPair;
-        break;
-      }
-    }
+    // Find the statistics file entry in the file list using stream
+    Tuple2<String, String> statsFilePathPair = filesToMove.stream()
+        .filter(pathPair -> pathPair._1().endsWith(".stats"))
+        .findFirst()
+        .orElse(null);
 
     assertThat(statsFilePathPair).as("Should find statistics file in file list").isNotNull();
 
     // Verify the source path points to the actual source location, not staging
     assertThat(statsFilePathPair._1())
-        .as("Statistics file source should point to source table location")
-        .startsWith(sourceTableLocation);
-    assertThat(statsFilePathPair._1())
-        .as("Statistics file source should NOT point to staging directory")
+        .as("Statistics file source should point to source table location and NOT staging")
+        .startsWith(sourceTableLocation)
+        .contains("/metadata/")
         .doesNotContain("staging");
 
     // Verify the target path is correctly rewritten
