@@ -86,7 +86,7 @@ public class RESTCatalogServer {
     if (warehouseLocation == null) {
       File tmp = java.nio.file.Files.createTempDirectory("iceberg_warehouse").toFile();
       tmp.deleteOnExit();
-      warehouseLocation = new File(tmp, "iceberg_data").getAbsolutePath();
+      warehouseLocation = new File(tmp, "iceberg_data").toURI().toString();
       catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
 
       LOG.info("No warehouse location set. Defaulting to temp location: {}", warehouseLocation);

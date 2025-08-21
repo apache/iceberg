@@ -123,7 +123,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
           if (stagingLocation != null) {
             action.stagingLocation(stagingLocation);
           }
-          action.saveFileList(skipFileList);
+          action.skipFileList(skipFileList);
 
           return asScanIterator(
               OUTPUT_TYPE,
@@ -136,8 +136,8 @@ public class RewriteTablePathProcedure extends BaseProcedure {
       newInternalRow(
           UTF8String.fromString(result.latestVersion()),
           UTF8String.fromString(result.fileListLocation()),
-          result.metadataFilesCount(),
-          result.deleteFilesCount())
+          result.rewrittenManifestFilesCount(),
+          result.rewrittenDeleteFilesCount())
     };
   }
 

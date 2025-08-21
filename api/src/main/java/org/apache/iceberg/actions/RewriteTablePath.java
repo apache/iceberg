@@ -92,7 +92,7 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    * @param skipFileList true to skip saving the file list, false to include it
    * @return this instance for method chaining
    */
-  default RewriteTablePath saveFileList(boolean skipFileList) {
+  default RewriteTablePath skipFileList(boolean skipFileList) {
     return this;
   }
 
@@ -124,12 +124,12 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
     String latestVersion();
 
     /** count of rewrite delete files, default value is 0 */
-    default int deleteFilesCount() {
+    default int rewrittenDeleteFilesCount() {
       return 0;
     }
 
     /** count of rewrite metadata files involved, default value is 0 */
-    default int metadataFilesCount() {
+    default int rewrittenManifestFilesCount() {
       return 0;
     }
   }
