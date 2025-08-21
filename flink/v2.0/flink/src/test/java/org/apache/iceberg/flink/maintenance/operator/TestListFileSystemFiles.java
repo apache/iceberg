@@ -38,19 +38,9 @@ class TestListFileSystemFiles extends OperatorTestBase {
   @Parameter(index = 0)
   private boolean usePrefixListing;
 
-  @Parameter(index = 1)
-  private int maxListingDepth;
-
-  @Parameter(index = 2)
-  private int maxListingDirectSubDirs;
-
-  @Parameters(name = "usePrefixListing={0},maxListingDepth={1},maxListingDirectSubDirs={2}")
+  @Parameters(name = "usePrefixListing={0}")
   public static List<Object[]> parameters() {
-    return Arrays.asList(
-        new Object[] {true, 0, 0},
-        new Object[] {false, 0, 0},
-        new Object[] {true, 1, 5},
-        new Object[] {false, 1, 5});
+    return Arrays.asList(new Object[] {true}, new Object[] {false});
   }
 
   @TestTemplate
@@ -67,9 +57,7 @@ class TestListFileSystemFiles extends OperatorTestBase {
                 tableLoader(),
                 table.location(),
                 0,
-                usePrefixListing,
-                maxListingDepth,
-                maxListingDirectSubDirs))) {
+                usePrefixListing))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
 
@@ -93,9 +81,7 @@ class TestListFileSystemFiles extends OperatorTestBase {
                 tableLoader(),
                 table.location(),
                 0,
-                usePrefixListing,
-                maxListingDepth,
-                maxListingDirectSubDirs))) {
+                usePrefixListing))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
 
@@ -115,9 +101,7 @@ class TestListFileSystemFiles extends OperatorTestBase {
                 tableLoader(),
                 table.location(),
                 0,
-                usePrefixListing,
-                maxListingDepth,
-                maxListingDirectSubDirs))) {
+                usePrefixListing))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
 

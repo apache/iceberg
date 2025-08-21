@@ -79,10 +79,6 @@ public class DeleteOrphanFiles {
     private Duration minAge = Duration.ofDays(3);
     private int planningWorkerPoolSize = ThreadPools.WORKER_THREAD_POOL_SIZE;
     private int deleteBatchSize = 1000;
-    // The default values of maxListingDepth and maxListingDirectSubDirs are aligned with the
-    // defaults in the Spark component.
-    private int maxListingDepth = 3;
-    private int maxListingDirectSubDirs = 10;
     private boolean usePrefixListing = false;
     private Map<String, String> equalSchemes =
         Maps.newHashMap(
@@ -117,32 +113,6 @@ public class DeleteOrphanFiles {
      */
     public Builder usePrefixListing(boolean newUsePrefixListing) {
       this.usePrefixListing = newUsePrefixListing;
-      return this;
-    }
-
-    /**
-     * The maximum number of direct subdirectories to list in a single directory. This parameter is
-     * not used when {@link #usePrefixListing(boolean)} is set to true. This parameter is only used
-     * when prefix listing is disabled.
-     *
-     * @param newMaxListingDirectSubDirs the maximum number of direct sub-directories to list
-     * @return for chained calls
-     */
-    public Builder maxListingDirectSubDirs(int newMaxListingDirectSubDirs) {
-      this.maxListingDirectSubDirs = newMaxListingDirectSubDirs;
-      return this;
-    }
-
-    /**
-     * The maximum depth to recurse when listing files from the file system. This parameter is not
-     * used when {@link #usePrefixListing(boolean)} is set to true. This parameter is only used when
-     * prefix listing is disabled.
-     *
-     * @param newMaxListingDepth the maximum depth to recurse
-     * @return for chained calls
-     */
-    public Builder maxListingDepth(int newMaxListingDepth) {
-      this.maxListingDepth = newMaxListingDepth;
       return this;
     }
 
@@ -275,9 +245,7 @@ public class DeleteOrphanFiles {
                       tableLoader(),
                       location,
                       minAge.toMillis(),
-                      usePrefixListing,
-                      maxListingDepth,
-                      maxListingDirectSubDirs))
+                      usePrefixListing))
               .name(operatorName(FILESYSTEM_FILES_TASK_NAME))
               .uid(FILESYSTEM_FILES_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())

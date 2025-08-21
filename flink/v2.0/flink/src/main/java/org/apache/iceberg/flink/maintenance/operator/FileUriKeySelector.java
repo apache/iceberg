@@ -53,7 +53,7 @@ public class FileUriKeySelector implements KeySelector<String, String> {
       FileURI fileUri = new FileURI(new Path(value).toUri(), equalSchemes, equalAuthorities);
       return fileUri.getPath();
     } catch (Exception e) {
-      LOG.error("Uri convert to FileURI error! Uri is {}.", value, e);
+      LOG.warn("Uri convert to FileURI error! Uri is {}.", value, e);
       return INVALID_URI;
     }
   }

@@ -77,13 +77,14 @@ public class MetadataTablePlanner extends ProcessFunction<Trigger, MetadataTable
   @Override
   public void open(OpenContext openContext) throws Exception {
     tableLoader.open();
-    Table tableOri = tableLoader.loadTable();
-    this.table = MetadataTableUtils.createMetadataTableInstance(tableOri, metadataTableType);
+    Table originalTable = tableLoader.loadTable();
+    this.table = MetadataTableUtils.createMetadataTableInstance(originalTable, metadataTableType);
     this.workerPool =
         ThreadPools.newFixedThreadPool(table.name() + "-table-planner", workerPoolSize);
     this.splitSerializer = new IcebergSourceSplitSerializer(scanContext.caseSensitive());
     this.errorCounter =
-        TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableOri.name(), taskName, taskIndex)
+        TableMaintenanceMetrics.groupFor(
+                getRuntimeContext(), originalTable.name(), taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);
   }
 
@@ -97,7 +98,7 @@ public class MetadataTablePlanner extends ProcessFunction<Trigger, MetadataTable
         out.collect(new SplitInfo(splitSerializer.getVersion(), splitSerializer.serialize(split)));
       }
     } catch (Exception e) {
-      LOG.error("Exception planning scan for {} at {}", table, ctx.timestamp(), e);
+      LOG.warn("Exception planning scan for {} at {}", table, ctx.timestamp(), e);
       ctx.output(DeleteOrphanFiles.ERROR_STREAM, e);
       errorCounter.inc();
     }
@@ -107,7 +108,9 @@ public class MetadataTablePlanner extends ProcessFunction<Trigger, MetadataTable
   public void close() throws Exception {
     super.close();
     tableLoader.close();
-    workerPool.shutdown();
+    if (workerPool != null) {
+      workerPool.shutdown();
+    }
   }
 
   public static class SplitInfo {

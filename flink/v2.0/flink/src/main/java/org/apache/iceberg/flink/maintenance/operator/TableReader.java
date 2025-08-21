@@ -98,7 +98,7 @@ abstract class TableReader<R> extends ProcessFunction<MetadataTablePlanner.Split
     try (DataIterator<RowData> iterator = rowDataReaderFunction.createDataIterator(split)) {
       iterator.forEachRemaining(rowData -> extract(rowData, out));
     } catch (Exception e) {
-      LOG.error("Exception processing split {} at {}", split, ctx.timestamp(), e);
+      LOG.warn("Exception processing split {} at {}", split, ctx.timestamp(), e);
       ctx.output(DeleteOrphanFiles.ERROR_STREAM, e);
       errorCounter.inc();
     }

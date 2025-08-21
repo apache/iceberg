@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import org.apache.flink.annotation.Internal;
@@ -37,7 +36,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.FileSystemWalker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,8 +59,6 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
   private final TableLoader tableLoader;
   private final boolean usePrefixListing;
   private transient Configuration configuration;
-  private final int maxListingDepth;
-  private final int maxListingDirectSubDirs;
 
   public ListFileSystemFiles(
       String taskName,
@@ -70,9 +66,7 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
       TableLoader tableLoader,
       String location,
       long minAgeMs,
-      boolean usePrefixListing,
-      int maxListingDepth,
-      int maxListingDirectSubDirs) {
+      boolean usePrefixListing) {
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "TableLoad should no be null");
 
@@ -82,8 +76,6 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
     this.minAgeMs = minAgeMs;
     this.location = location;
     this.usePrefixListing = usePrefixListing;
-    this.maxListingDepth = maxListingDepth;
-    this.maxListingDirectSubDirs = maxListingDirectSubDirs;
   }
 
   @Override
@@ -116,30 +108,18 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
             (SupportsPrefixOperations) io, location, specs, predicate, out::collect);
       } else {
         Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
-        List<String> remainingSubDirs = Lists.newArrayList();
         FileSystemWalker.listDirRecursivelyWithHadoop(
             location,
             specs,
             predicate,
             configuration,
-            maxListingDepth,
-            maxListingDirectSubDirs,
-            remainingSubDirs::add,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            dir -> {},
             out::collect);
-        for (String remainingSubDir : remainingSubDirs) {
-          FileSystemWalker.listDirRecursivelyWithHadoop(
-              remainingSubDir,
-              specs,
-              predicate,
-              configuration,
-              Integer.MAX_VALUE,
-              Integer.MAX_VALUE,
-              dir -> {},
-              out::collect);
-        }
       }
     } catch (Exception e) {
-      LOG.error("Exception listing files for {} at {}", location, ctx.timestamp(), e);
+      LOG.warn("Exception listing files for {} at {}", location, ctx.timestamp(), e);
       ctx.output(DeleteOrphanFiles.ERROR_STREAM, e);
       errorCounter.inc();
     }
