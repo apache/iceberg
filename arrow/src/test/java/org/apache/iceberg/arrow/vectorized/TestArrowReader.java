@@ -782,10 +782,7 @@ public class TestArrowReader {
 
     Table table =
         tables.create(
-            schema,
-            spec,
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"),
-            tableLocation);
+            schema, spec, ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"), tableLocation);
 
     OverwriteFiles overwrite = table.newOverwrite();
     for (int i = 1; i <= 12; i++) {
