@@ -79,6 +79,8 @@ public class DeleteOrphanFiles {
     private Duration minAge = Duration.ofDays(3);
     private int planningWorkerPoolSize = ThreadPools.WORKER_THREAD_POOL_SIZE;
     private int deleteBatchSize = 1000;
+    // The default values of maxListingDepth and maxListingDirectSubDirs are aligned with the
+    // defaults in the Spark component.
     private int maxListingDepth = 3;
     private int maxListingDirectSubDirs = 10;
     private boolean usePrefixListing = false;
