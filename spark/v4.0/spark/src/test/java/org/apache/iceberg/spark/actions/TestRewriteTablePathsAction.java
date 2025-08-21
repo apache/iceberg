@@ -964,6 +964,59 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
+  public void testStatisticsFileSourcePath() throws IOException {
+    String sourceTableLocation = newTableLocation();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("format-version", "2");
+    String tableName = "v2tblwithstats";
+    Table sourceTable =
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 1);
+
+    // Compute table statistics to generate a .stats file
+    actions().computeTableStats(sourceTable).execute();
+
+    assertThat(sourceTable.statisticsFiles())
+        .hasSize(1)
+        .as("Should include 1 statistics file after compute stats");
+
+    String targetTableLocation = targetTableLocation();
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation)
+            .execute();
+
+    checkFileNum(3, 1, 1, 1, 7, result);
+
+    // Read the file list to verify statistics file paths
+    List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
+
+    // Find the statistics file entry in the file list
+    Tuple2<String, String> statsFilePathPair = null;
+    for (Tuple2<String, String> pathPair : filesToMove) {
+      if (pathPair._1().endsWith(".stats")) {
+        statsFilePathPair = pathPair;
+        break;
+      }
+    }
+
+    assertThat(statsFilePathPair).isNotNull().as("Should find statistics file in file list");
+
+    // Verify the source path points to the actual source location, not staging
+    assertThat(statsFilePathPair._1())
+        .startsWith(sourceTableLocation)
+        .as("Statistics file source should point to source table location");
+    assertThat(statsFilePathPair._1())
+        .doesNotContain("staging")
+        .as("Statistics file source should NOT point to staging directory");
+
+    // Verify the target path is correctly rewritten
+    assertThat(statsFilePathPair._2())
+        .startsWith(targetTableLocation)
+        .as("Statistics file target should point to target table location");
+  }
+
+  @Test
   public void testMetadataCompressionWithMetastoreTable() throws Exception {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
