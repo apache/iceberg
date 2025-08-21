@@ -55,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -101,6 +102,10 @@ public class RewriteDataFilesSparkAction
     super(((org.apache.spark.sql.classic.SparkSession) spark).cloneSession());
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
+    // Disable executor cache for delete files as each partition is rewritten separately.
+    // Note: when compacting to a different target spec, data from multiple partitions
+    // may be grouped together, but caching is still disabled to avoid connection pool issues.
+    spark().conf().set(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false");
     this.caseSensitive = SparkUtil.caseSensitive(spark);
     this.table = table;
   }

@@ -20,38 +20,13 @@ title: "Community"
 
 # Welcome!
 
-Apache Iceberg tracks issues in GitHub and prefers to receive contributions as pull requests.
+We're glad that you're interested in joining the Apache Iceberg community! Read along to learn how to connect with existing community members and where you can get involved with the project, both technically and socially.
 
-Community discussions happen primarily on the dev mailing list, on apache-iceberg Slack workspace, and on specific GitHub issues.
+## Join the Discussion
 
-## Contribute
+Community discussions happen across various mailing lists, on the apache-iceberg Slack workspace, and on specific GitHub issues.
 
-See [Contributing](contribute.md) for more details on how to contribute to Iceberg.
-
-## Issues
-
-Issues are tracked in GitHub:
-
-* [View open issues][open-issues]
-* [Open a new issue][new-issue]
-
-[open-issues]: https://github.com/apache/iceberg/issues
-[new-issue]: https://github.com/apache/iceberg/issues/new
-
-## Slack
-
-We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A).
-
-Please note that this link may occasionally break when Slack does an upgrade. If you encounter problems using it, please let us know by sending an email to <dev@iceberg.apache.org>.
-
-## Iceberg Community Events
-
-This calendar contains two calendar feeds:
-
-* [Iceberg Community Events](https://calendar.google.com/calendar/u/0?cid=NTkzYmIwMGJmZTQ1N2QzMTkxNDEzNTBkZDI0Yzk2NGYzOWJkYmQ5ZmQyNDMyODFhODYzMmEwMDk2M2EyMWQ4NkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"} : Events such as conferences and meetups, aimed to educate and inspire Iceberg users.
-* [Iceberg Dev Events](https://calendar.google.com/calendar/u/0?cid=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"} : Events such as the triweekly Iceberg sync, aimed to discuss the project roadmap and how to implement features.
-
-## Mailing Lists
+### Mailing Lists
 
 Iceberg has four mailing lists:
 
@@ -69,6 +44,49 @@ Iceberg has four mailing lists:
     - [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org)
 * **Private**: <private@iceberg.apache.org> -- private list for the PMC to discuss sensitive issues related to the health of the project
     - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org)
+
+### Slack
+
+We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A).
+
+Please note that this link may occasionally break when Slack does an upgrade. If you encounter problems using it, please let us know by sending an email to <dev@iceberg.apache.org>.
+
+### Issues
+
+Apache Iceberg tracks issues in GitHub and prefers to receive contributions as pull requests.
+Issues are tracked in GitHub:
+
+* [View open issues][open-issues]
+* [Open a new issue][new-issue]
+
+[open-issues]: https://github.com/apache/iceberg/issues
+[new-issue]: https://github.com/apache/iceberg/issues/new
+
+Looking to contribute to Apache Iceberg? See [Contributing](contribute.md) for more details on how to get started.
+
+## Connect with Community Events 
+
+The Apache Iceberg community regularly meets for technical discussion both in-person and virtually.
+
+### Apache Iceberg Community Calendar
+
+The community maintains two calendar feeds:
+
+* [Iceberg Dev Events](https://calendar.google.com/calendar/u/0?cid=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: A shared calendar for all Iceberg development syncs, including the triweekly community sync, subproject syncs for Python, Rust, and Go, the Iceberg Catalog Community Sync, and other ad hoc syncs the community may want to schedule or discuss.
+* [Iceberg Community Events](https://calendar.google.com/calendar/u/0?cid=NTkzYmIwMGJmZTQ1N2QzMTkxNDEzNTBkZDI0Yzk2NGYzOWJkYmQ5ZmQyNDMyODFhODYzMmEwMDk2M2EyMWQ4NkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: Events such as conferences and meetups, aimed to educate and inspire Iceberg users.
+
+### Hosting an Apache Iceberg Meetup
+
+Meetups related to the Apache Iceberg project are held around the globe thanks to community volunteers. Interested individuals are encouraged to host community meetups using the name **Apache Iceberg Meetup <geographical location\>** in
+compliance with [Apache Software Foundation's branding and trademarks guidelines](https://www.apache.org/foundation/marks/events.html#approval). No explicit PMC approval is required.
+
+Hosts are required to ensure that: 
+
+1. The Apache Iceberg ecosystem should be championed in every meetup and technical session 
+2. All talks should be vendor-neutral and not sales pitches
+3. Each meetup should have at least two talks with speakers representing different companies/organizations
+4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
+5. All [Community Guidelines](#community-guidelines) must be respected
 
 ## Community Guidelines
 
@@ -101,7 +119,7 @@ channels or through direct messages.
 Recruitment of community members should not be conducted through direct messages or community channels, but opportunities 
 related to contributing to or using Iceberg can be posted to the `#jobs` channel. 
 
-For questions regarding any of the guidelines above, please contact a PMC member
+For questions regarding any of the guidelines above, please contact a PMC member.
 
 ## The Path from Contributor to Committer
 
@@ -154,4 +172,3 @@ Keep in mind that it’s best not to compare your contributions to others. Inste
 The number of contributions is not what matters — the quality of those contributions (including reviews!) is what demonstrates that a contributor is ready to be a committer.
 
 You can always reach out to PMC members directly or using private@iceberg.apache.org for feedback and guidance if you have questions.
-

@@ -55,7 +55,7 @@ public class RewriteDataFilesConfig {
 
   public static final String SCHEDULE_ON_DATA_FILE_SIZE = PREFIX + "schedule.data-file-size";
   public static final ConfigOption<Long> SCHEDULE_ON_DATA_FILE_SIZE_OPTION =
-      ConfigOptions.key(SCHEDULE_ON_DATA_FILE_COUNT)
+      ConfigOptions.key(SCHEDULE_ON_DATA_FILE_SIZE)
           .longType()
           .defaultValue(100L * 1024 * 1024 * 1024); // 100G
 
