@@ -70,6 +70,7 @@ Uses a database table to manage distributed locks:
 Map<String, String> jdbcProps = new HashMap<>();
 jdbcProps.put("jdbc.user", "flink");
 jdbcProps.put("jdbc.password", "flinkpw");
+jdbcProps.put("flink-maintenance.lock.jdbc.init-lock-tables", "true"); // Auto-create lock table if it doesn't exist
 
 TriggerLockFactory lockFactory = new JdbcLockFactory(
     "jdbc:postgresql://localhost:5432/iceberg", // JDBC URL
@@ -79,7 +80,7 @@ TriggerLockFactory lockFactory = new JdbcLockFactory(
 ```
 
 #### ZooKeeper Lock Factory
-Uses Apache ZooKeeper for distributed coordination:
+Uses Apache ZooKeeper for distributed locks:
 
 ```java
 TriggerLockFactory lockFactory = new ZkLockFactory(
@@ -171,16 +172,17 @@ env.execute("Table Maintenance Job");
 | Method | Description | Default Value | Type |
 |--------|-------------|---------------|------|
 | `targetFileSizeBytes(long)` | Target size for rewritten files | Table property or 512MB | long |
-| `minFileSizeBytes(long)` | Minimum size of files eligible for compaction | 0 | long |
-| `maxFileSizeBytes(long)` | Maximum size of files eligible for compaction | Long.MAX_VALUE | long |
-| `minInputFiles(int)` | Minimum number of files to trigger rewrite | 1 | int |
+| `minFileSizeBytes(long)` | Minimum size of files eligible for compaction | 75% of target file size | long |
+| `maxFileSizeBytes(long)` | Maximum size of files eligible for compaction | 180% of target file size | long |
+| `minInputFiles(int)` | Minimum number of files to trigger rewrite | 5 | int |
 | `deleteFileThreshold(int)` | Minimum delete-file count per data file to force rewrite | Integer.MAX_VALUE | int |
 | `rewriteAll(boolean)` | Rewrite all data files regardless of thresholds | false | boolean |
 | `maxFileGroupSizeBytes(long)` | Maximum total size of a file group | 107374182400 (100GB) | long |
-| `maxFilesToRewrite(int)` | Maximum number of files to rewrite per task | Integer.MAX_VALUE | int |
+| `maxFilesToRewrite(int)` | About the description we can add: If this option is not specified, all eligible files will be rewritten | null | int |
 | `partialProgressEnabled(boolean)` | Enable partial progress commits | false | boolean |
 | `partialProgressMaxCommits(int)` | Maximum commits allowed for partial progress when partialProgressEnabled is true | 10 | int |
 | `maxRewriteBytes(long)` | Maximum bytes to rewrite per execution | Long.MAX_VALUE | long |
+| `filter(Expression)` | Filter expression for selecting files to rewrite | null | Expression |
 
 ## Complete Example
 
@@ -195,9 +197,21 @@ public class TableMaintenanceJob {
             CatalogLoader.hive("my_catalog", configuration),
             TableIdentifier.of("database", "table")
         );
+		
+		// Set up JDBC lock factory
+        Map<String, String> jdbcProps = new HashMap<>();
+        jdbcProps.put("jdbc.user", "flink");
+        jdbcProps.put("jdbc.password", "flinkpw");
+        jdbcProps.put("flink-maintenance.lock.jdbc.init-lock-tables", "true");
+        
+        TriggerLockFactory lockFactory = new JdbcLockFactory(
+            "jdbc:postgresql://localhost:5432/iceberg",
+            "catalog.db.table",
+            jdbcProps
+        );
         
         // Set up maintenance with comprehensive configuration
-        TableMaintenance.forTable(env, tableLoader, TriggerLockFactory.defaultLockFactory())
+        TableMaintenance.forTable(env, tableLoader, lockFactory)
             .uidSuffix("production-maintenance")
             .rateLimit(Duration.ofMinutes(15))
             .lockCheckDelay(Duration.ofSeconds(30))
@@ -263,7 +277,7 @@ SET 'compaction-enabled' = 'true';
 SET 'flink-maintenance.lock.type' = 'jdbc';
 SET 'flink-maintenance.lock.lock-id' = 'catalog.db.table';
 SET 'flink-maintenance.lock.jdbc.uri' = 'jdbc:postgresql://localhost:5432/iceberg';
-SET 'flink-maintenance.lock.jdbc.init-lock-table' = 'true';
+SET 'flink-maintenance.lock.jdbc.init-lock-tables' = 'true';
 
 -- Now run writes; maintenance will be scheduled post-commit
 INSERT INTO db.tbl SELECT ...;
@@ -277,14 +291,14 @@ CREATE TABLE db.tbl (
 ) WITH (
   'connector' = 'iceberg',
   'catalog-name' = 'my_catalog',
-  'namespace' = 'db',
-  'table' = 'tbl',
+  'catalog-database' = 'db',
+  'catalog-table' = 'tbl',
   'compaction-enabled' = 'true',
 
   'flink-maintenance.lock.type' = 'jdbc',
   'flink-maintenance.lock.lock-id' = 'catalog.db.table',
   'flink-maintenance.lock.jdbc.uri' = 'jdbc:postgresql://localhost:5432/iceberg',
-  'flink-maintenance.lock.jdbc.init-lock-table' = 'true'
+  'flink-maintenance.lock.jdbc.init-lock-tables' = 'true'
 );
 ```
 
@@ -299,7 +313,7 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 | `flink-maintenance.lock.type` | Set to `jdbc` |  |
 | `flink-maintenance.lock.lock-id` | Unique lock ID per table |  |
 | `flink-maintenance.lock.jdbc.uri` | JDBC URI |  |
-| `flink-maintenance.lock.jdbc.init-lock-table` | Auto-create lock table | `false` |
+| `flink-maintenance.lock.jdbc.init-lock-tables` | Auto-create lock table | `false` |
 
 - ZooKeeper
 
@@ -329,6 +343,7 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 - Adjust `deleteBatchSize` based on storage performance
 - Enable `partialProgressEnabled` for large rewrite operations
 - Set reasonable `maxRewriteBytes` limits
+- Setting an appropriate `maxFileGroupSizeBytes` can break down large FileGroups into smaller ones, thereby increasing the speed of parallel processing
 
 ## Troubleshooting
 
