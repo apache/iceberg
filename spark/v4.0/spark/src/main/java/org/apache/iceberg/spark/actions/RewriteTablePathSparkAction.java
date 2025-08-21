@@ -83,7 +83,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.Tuple3;
+import scala.Tuple2;
 
 public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePath>
     implements RewriteTablePath {
@@ -287,21 +287,26 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     // rebuild manifest files
     Set<ManifestFile> manifestsToRewrite = manifestsToRewrite(validSnapshots);
 
-    ManifestsRewriteResult rewriteManifestResult =
+    Map<String, RewriteContentFileResult> rewriteManifestResult =
         rewriteManifests(deltaSnapshots, endMetadata, manifestsToRewrite);
+
+    RewriteContentFileResult allManifestsResult = new RewriteContentFileResult();
+    Map<String, Long> rewrittenManifestLengths = Maps.newHashMap();
+    rewriteManifestResult.forEach(
+        (path, rewriteResult) -> {
+          rewrittenManifestLengths.put(path, rewriteResult.size());
+          allManifestsResult.append(rewriteResult);
+        });
 
     // rebuild manifest-list files
     RewriteResult<ManifestFile> rewriteManifestListResult =
         validSnapshots.stream()
-            .map(
-                snapshot ->
-                    rewriteManifestList(
-                        snapshot, endMetadata, rewriteManifestResult.getRewrittenManifests()))
+            .map(snapshot -> rewriteManifestList(snapshot, endMetadata, rewrittenManifestLengths))
             .reduce(new RewriteResult<>(), RewriteResult::append);
 
     // rebuild position delete files
     Set<DeleteFile> deleteFiles =
-        rewriteManifestResult.getContentFileResult().toRewrite().stream()
+        allManifestsResult.toRewrite().stream()
             .filter(e -> e instanceof DeleteFile)
             .map(e -> (DeleteFile) e)
             .collect(Collectors.toSet());
@@ -310,7 +315,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();
     copyPlan.addAll(rewriteVersionResult.copyPlan());
     copyPlan.addAll(rewriteManifestListResult.copyPlan());
-    copyPlan.addAll(rewriteManifestResult.getContentFileResult().copyPlan());
+    copyPlan.addAll(allManifestsResult.copyPlan());
     return saveFileList(copyPlan);
   }
 
@@ -478,48 +483,28 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     }
   }
 
-  private static class ManifestsRewriteResult {
-    private final RewriteContentFileResult contentFileResult;
-    private final Map<String, Long> rewrittenManifests;
-
-    ManifestsRewriteResult(
-        RewriteContentFileResult contentFileResult, Map<String, Long> rewrittenManifests) {
-      this.contentFileResult = contentFileResult;
-      this.rewrittenManifests = rewrittenManifests;
-    }
-
-    public RewriteContentFileResult getContentFileResult() {
-      return contentFileResult;
-    }
-
-    public Map<String, Long> getRewrittenManifests() {
-      return rewrittenManifests;
-    }
-  }
-
   /**
    * Rewrite manifest files in a distributed manner and return the resulting manifests and content
    * files selected for rewriting.
    */
-  private ManifestsRewriteResult rewriteManifests(
+  private Map<String, RewriteContentFileResult> rewriteManifests(
       Set<Snapshot> deltaSnapshots, TableMetadata tableMetadata, Set<ManifestFile> toRewrite) {
     if (toRewrite.isEmpty()) {
-      return new ManifestsRewriteResult(new RewriteContentFileResult(), Maps.newHashMap());
+      return Maps.newHashMap();
     }
 
     Encoder<ManifestFile> manifestFileEncoder = Encoders.javaSerialization(ManifestFile.class);
-    Encoder<RewriteContentFileResult> contentResultEncoder =
+    Encoder<RewriteContentFileResult> manifestResultEncoder =
         Encoders.javaSerialization(RewriteContentFileResult.class);
-    Encoder<Tuple3<String, Long, RewriteContentFileResult>> tupleEncoder =
-        Encoders.tuple(Encoders.STRING(), Encoders.LONG(), contentResultEncoder);
+    Encoder<Tuple2<String, RewriteContentFileResult>> tupleEncoder =
+        Encoders.tuple(Encoders.STRING(), manifestResultEncoder);
 
     Dataset<ManifestFile> manifestDS =
         spark().createDataset(Lists.newArrayList(toRewrite), manifestFileEncoder);
     Set<Long> deltaSnapshotIds =
         deltaSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
 
-    RewriteContentFileResult finalContentResult = new RewriteContentFileResult();
-    Iterator<Tuple3<String, Long, RewriteContentFileResult>> resultIterator =
+    Iterator<Tuple2<String, RewriteContentFileResult>> resultIterator =
         manifestDS
             .repartition(toRewrite.size())
             .map(
@@ -533,39 +518,38 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                 tupleEncoder)
             .toLocalIterator();
 
-    Map<String, Long> rewrittenManifests = Maps.newHashMap();
+    Map<String, RewriteContentFileResult> rewrittenManifests = Maps.newHashMap();
 
     while (resultIterator.hasNext()) {
-      Tuple3<String, Long, RewriteContentFileResult> resultTuple = resultIterator.next();
+      Tuple2<String, RewriteContentFileResult> resultTuple = resultIterator.next();
       String originalManifestPath = resultTuple._1();
-      Long rewrittenManifestLength = resultTuple._2();
-      RewriteContentFileResult contentFileResult = resultTuple._3();
+      RewriteContentFileResult manifestRewriteResult = resultTuple._2();
       String stagingManifestPath =
           RewriteTablePathUtil.stagingPath(originalManifestPath, sourcePrefix, stagingDir);
       String targetManifestPath =
           RewriteTablePathUtil.newPath(originalManifestPath, sourcePrefix, targetPrefix);
 
-      finalContentResult.append(contentFileResult);
-      finalContentResult.copyPlan().add(Pair.of(stagingManifestPath, targetManifestPath));
-      rewrittenManifests.put(originalManifestPath, rewrittenManifestLength);
+      manifestRewriteResult.copyPlan().add(Pair.of(stagingManifestPath, targetManifestPath));
+      rewrittenManifests.put(originalManifestPath, manifestRewriteResult);
     }
 
-    return new ManifestsRewriteResult(finalContentResult, rewrittenManifests);
+    return rewrittenManifests;
   }
 
-  private static MapFunction<ManifestFile, Tuple3<String, Long, RewriteContentFileResult>>
-      toManifests(
-          Broadcast<Table> table,
-          Broadcast<Set<Long>> deltaSnapshotIds,
-          String stagingLocation,
-          int format,
-          String sourcePrefix,
-          String targetPrefix) {
+  private static MapFunction<ManifestFile, Tuple2<String, RewriteContentFileResult>> toManifests(
+      Broadcast<Table> table,
+      Broadcast<Set<Long>> deltaSnapshotIds,
+      String stagingLocation,
+      int format,
+      String sourcePrefix,
+      String targetPrefix) {
 
     return manifestFile -> {
+      RewriteContentFileResult result;
+
       switch (manifestFile.content()) {
         case DATA:
-          Pair<Long, RewriteResult<DataFile>> dataManifestResult =
+          RewriteResult<DataFile> dataManifestResult =
               writeDataManifest(
                   manifestFile,
                   table,
@@ -574,12 +558,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                   format,
                   sourcePrefix,
                   targetPrefix);
-          return Tuple3.apply(
-              manifestFile.path(),
-              dataManifestResult.first(),
-              new RewriteContentFileResult().appendDataFile(dataManifestResult.second()));
+
+          result = new RewriteContentFileResult().appendDataFile(dataManifestResult);
+          result.setSize(dataManifestResult.size());
+          return Tuple2.apply(manifestFile.path(), result);
         case DELETES:
-          Pair<Long, RewriteResult<DeleteFile>> deleteManifestResult =
+          RewriteResult<DeleteFile> deleteManifestResult =
               writeDeleteManifest(
                   manifestFile,
                   table,
@@ -588,10 +572,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                   format,
                   sourcePrefix,
                   targetPrefix);
-          return Tuple3.apply(
-              manifestFile.path(),
-              deleteManifestResult.first(),
-              new RewriteContentFileResult().appendDeleteFile(deleteManifestResult.second()));
+
+          result = new RewriteContentFileResult().appendDeleteFile(deleteManifestResult);
+          result.setSize(deleteManifestResult.size());
+          return Tuple2.apply(manifestFile.path(), result);
         default:
           throw new UnsupportedOperationException(
               "Unsupported manifest type: " + manifestFile.content());
@@ -599,7 +583,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     };
   }
 
-  private static Pair<Long, RewriteResult<DataFile>> writeDataManifest(
+  private static RewriteResult<DataFile> writeDataManifest(
       ManifestFile manifestFile,
       Broadcast<Table> table,
       Broadcast<Set<Long>> snapshotIds,
@@ -614,7 +598,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = table.getValue().specs();
       Set<Long> deltaSnapshotIds = snapshotIds.value();
-      return RewriteTablePathUtil.rewriteDataManifestWithResult(
+      return RewriteTablePathUtil.rewriteDataManifest(
           manifestFile,
           deltaSnapshotIds,
           outputFile,
@@ -628,7 +612,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     }
   }
 
-  private static Pair<Long, RewriteResult<DeleteFile>> writeDeleteManifest(
+  private static RewriteResult<DeleteFile> writeDeleteManifest(
       ManifestFile manifestFile,
       Broadcast<Table> table,
       Broadcast<Set<Long>> snapshotIds,
@@ -643,7 +627,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = table.getValue().specs();
       Set<Long> deltaSnapshotIds = snapshotIds.value();
-      return RewriteTablePathUtil.rewriteDeleteManifestWithResult(
+      return RewriteTablePathUtil.rewriteDeleteManifest(
           manifestFile,
           deltaSnapshotIds,
           outputFile,
