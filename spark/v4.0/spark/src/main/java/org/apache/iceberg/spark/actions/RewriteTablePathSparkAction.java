@@ -290,19 +290,21 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Map<String, RewriteContentFileResult> rewriteManifestResult =
         rewriteManifests(deltaSnapshots, endMetadata, manifestsToRewrite);
 
-    RewriteContentFileResult allManifestsResult = new RewriteContentFileResult();
-    Map<String, Long> rewrittenManifestLengths = Maps.newHashMap();
-    rewriteManifestResult.forEach(
-        (path, rewriteResult) -> {
-          rewrittenManifestLengths.put(path, rewriteResult.length());
-          allManifestsResult.append(rewriteResult);
-        });
+    // Extract manifest file sizes for manifest list rewriting
+    Map<String, Long> rewrittenManifestLengths =
+        rewriteManifestResult.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().length()));
 
     // rebuild manifest-list files
     RewriteResult<ManifestFile> rewriteManifestListResult =
         validSnapshots.stream()
             .map(snapshot -> rewriteManifestList(snapshot, endMetadata, rewrittenManifestLengths))
             .reduce(new RewriteResult<>(), RewriteResult::append);
+
+    // Aggregate all manifest rewrite results
+    RewriteContentFileResult allManifestsResult =
+        rewriteManifestResult.values().stream()
+            .reduce(new RewriteContentFileResult(), RewriteContentFileResult::append);
 
     // rebuild position delete files
     Set<DeleteFile> deleteFiles =
