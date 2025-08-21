@@ -64,7 +64,7 @@ public class RewriteTablePathUtil {
   public static class RewriteResult<T> implements Serializable {
     private final Set<T> toRewrite = Sets.newHashSet();
     private final Set<Pair<String, String>> copyPlan = Sets.newHashSet();
-    private Long size = null;
+    private Long length = null;
 
     public RewriteResult() {}
 
@@ -87,12 +87,12 @@ public class RewriteTablePathUtil {
       return copyPlan;
     }
 
-    public Long size() {
-      return size;
+    public Long length() {
+      return length;
     }
 
-    public void setSize(long newSize) {
-      this.size = newSize;
+    public void length(long newLength) {
+      this.length = newLength;
     }
   }
 
@@ -430,7 +430,7 @@ public class RewriteTablePathUtil {
               .reduce(new RewriteResult<>(), RewriteResult::append);
     }
 
-    rewriteResult.setSize(writer.length());
+    rewriteResult.length(writer.length());
     return rewriteResult;
   }
 
@@ -525,7 +525,7 @@ public class RewriteTablePathUtil {
               .reduce(new RewriteResult<>(), RewriteResult::append);
     }
 
-    rewriteResult.setSize(writer.length());
+    rewriteResult.length(writer.length());
     return rewriteResult;
   }
 

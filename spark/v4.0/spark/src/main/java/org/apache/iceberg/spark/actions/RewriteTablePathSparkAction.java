@@ -294,7 +294,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Map<String, Long> rewrittenManifestLengths = Maps.newHashMap();
     rewriteManifestResult.forEach(
         (path, rewriteResult) -> {
-          rewrittenManifestLengths.put(path, rewriteResult.size());
+          rewrittenManifestLengths.put(path, rewriteResult.length());
           allManifestsResult.append(rewriteResult);
         });
 
@@ -560,7 +560,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                   targetPrefix);
 
           result = new RewriteContentFileResult().appendDataFile(dataManifestResult);
-          result.setSize(dataManifestResult.size());
+          result.length(dataManifestResult.length());
           return Tuple2.apply(manifestFile.path(), result);
         case DELETES:
           RewriteResult<DeleteFile> deleteManifestResult =
@@ -574,7 +574,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                   targetPrefix);
 
           result = new RewriteContentFileResult().appendDeleteFile(deleteManifestResult);
-          result.setSize(deleteManifestResult.size());
+          result.length(deleteManifestResult.length());
           return Tuple2.apply(manifestFile.path(), result);
         default:
           throw new UnsupportedOperationException(
