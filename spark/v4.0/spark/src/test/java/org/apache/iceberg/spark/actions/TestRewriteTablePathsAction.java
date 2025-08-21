@@ -976,8 +976,8 @@ public class TestRewriteTablePathsAction extends TestBase {
     actions().computeTableStats(sourceTable).execute();
 
     assertThat(sourceTable.statisticsFiles())
-        .hasSize(1)
-        .as("Should include 1 statistics file after compute stats");
+        .as("Should include 1 statistics file after compute stats")
+        .hasSize(1);
 
     String targetTableLocation = targetTableLocation();
     RewriteTablePath.Result result =
@@ -1000,20 +1000,20 @@ public class TestRewriteTablePathsAction extends TestBase {
       }
     }
 
-    assertThat(statsFilePathPair).isNotNull().as("Should find statistics file in file list");
+    assertThat(statsFilePathPair).as("Should find statistics file in file list").isNotNull();
 
     // Verify the source path points to the actual source location, not staging
     assertThat(statsFilePathPair._1())
-        .startsWith(sourceTableLocation)
-        .as("Statistics file source should point to source table location");
+        .as("Statistics file source should point to source table location")
+        .startsWith(sourceTableLocation);
     assertThat(statsFilePathPair._1())
-        .doesNotContain("staging")
-        .as("Statistics file source should NOT point to staging directory");
+        .as("Statistics file source should NOT point to staging directory")
+        .doesNotContain("staging");
 
     // Verify the target path is correctly rewritten
     assertThat(statsFilePathPair._2())
-        .startsWith(targetTableLocation)
-        .as("Statistics file target should point to target table location");
+        .as("Statistics file target should point to target table location")
+        .startsWith(targetTableLocation);
   }
 
   @Test
