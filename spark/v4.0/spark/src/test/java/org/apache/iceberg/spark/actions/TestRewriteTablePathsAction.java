@@ -992,10 +992,11 @@ public class TestRewriteTablePathsAction extends TestBase {
     List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
 
     // Find the statistics file entry in the file list using stream
-    Tuple2<String, String> statsFilePathPair = filesToMove.stream()
-        .filter(pathPair -> pathPair._1().endsWith(".stats"))
-        .findFirst()
-        .orElse(null);
+    Tuple2<String, String> statsFilePathPair =
+        filesToMove.stream()
+            .filter(pathPair -> pathPair._1().endsWith(".stats"))
+            .findFirst()
+            .orElse(null);
 
     assertThat(statsFilePathPair).as("Should find statistics file in file list").isNotNull();
 
