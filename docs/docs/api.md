@@ -113,8 +113,8 @@ table.updateSchema()
 Available operations to update a table are:
 
 * `updateSchema` -- update the table schema
+* `updateSpec` -- creates a new `updatePartitionSpec` to modify a table's partition spec and commit the changes
 * `updateStatistics` -- update statistics files of a table
-* `updatePartitionSpec` -- for partition spec evolution
 * `updatePartitionStatistics` -- update statistics for a specific partition in table
 * `updateProperties` -- update table properties
 * `updateLocation` -- update the table's base location
