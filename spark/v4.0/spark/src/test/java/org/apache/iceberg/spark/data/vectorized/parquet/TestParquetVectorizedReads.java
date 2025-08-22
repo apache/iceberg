@@ -49,9 +49,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
@@ -60,6 +62,9 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.CatalystTypeConverters;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -446,20 +451,26 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
             .project(schema)
             .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
             .build()) {
+      List<Record> expectedRecords = Lists.newArrayList(expectedIterator);
       if (vectorized) {
-        List<Record> expectedRecords = Lists.newArrayList(expectedIterator);
         assertRecordsMatch(
             schema, expectedRecords.size(), expectedRecords, actual, false, BATCH_SIZE);
       } else {
-        try (CloseableIterable<Record> actualIterator =
+        try (CloseableIterable<InternalRow> actualIterator =
             Parquet.read(Files.localInput(actual))
                 .project(schema)
-                .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
+                .createReaderFunc(msgType -> SparkParquetReaders.buildReader(schema, msgType))
                 .build()) {
-          assertThat(actualIterator)
-              .as("Comparison between files failed %s <-> %s", actual, expected)
-              .isNotEmpty()
-              .containsExactlyElementsOf(expectedIterator);
+          List<InternalRow> actualRecords = Lists.newArrayList(actualIterator);
+          assertThat(actualRecords).hasSameSizeAs(expectedRecords);
+          for (int i = 0; i < actualRecords.size(); i++) {
+            GenericsHelpers.assertEqualsSafe(
+                schema.asStruct(),
+                expectedRecords.get(i),
+                (Row)
+                    CatalystTypeConverters.convertToScala(
+                        actualRecords.get(i), SparkSchemaUtil.convert(schema)));
+          }
         }
       }
     }
