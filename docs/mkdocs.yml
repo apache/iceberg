@@ -24,17 +24,17 @@ nav:
   - index.md
   - Concepts:
     - Tables:
-      - concepts/branching.md
-      - concepts/configuration.md
-      - concepts/evolution.md
-      - concepts/maintenance.md
-      - concepts/metrics-reporting.md
-      - concepts/partitioning.md
-      - concepts/performance.md
-      - concepts/reliability.md
-      - concepts/schemas.md
+      - branching.md
+      - configuration.md
+      - evolution.md
+      - maintenance.md
+      - metrics-reporting.md
+      - partitioning.md
+      - performance.md
+      - reliability.md
+      - schemas.md
     - Views:
-      - concepts/view-configuration.md
+      - view-configuration.md
   - API:
     - Quickstart: java-api-quickstart.md
     - API: api.md
