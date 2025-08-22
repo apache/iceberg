@@ -3309,6 +3309,7 @@ components:
         metadata-location:
           type: string
           description: May be null if the table is staged as part of a transaction
+          nullable: true
         metadata:
           $ref: '#/components/schemas/TableMetadata'
         config:
