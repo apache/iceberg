@@ -165,13 +165,7 @@ public class VectorizedSparkOrcReaders {
       }
       return (columnVector, batchSize, batchOffsetInFile, isSelectedInUse, selected) ->
           new PrimitiveOrcColumnVector(
-              iPrimitive,
-              batchSize,
-              columnVector,
-              primitiveValueReader,
-              batchOffsetInFile,
-              isSelectedInUse,
-              selected);
+              iPrimitive, batchSize, columnVector, primitiveValueReader, isSelectedInUse, selected);
     }
   }
 
@@ -310,20 +304,17 @@ public class VectorizedSparkOrcReaders {
   private static class PrimitiveOrcColumnVector extends BaseOrcColumnVector {
     private final org.apache.orc.storage.ql.exec.vector.ColumnVector vector;
     private final OrcValueReader<?> primitiveValueReader;
-    private final long batchOffsetInFile;
 
     PrimitiveOrcColumnVector(
         Type type,
         int batchSize,
         org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
         OrcValueReader<?> primitiveValueReader,
-        long batchOffsetInFile,
         boolean isSelectedInUse,
         int[] selected) {
       super(type, batchSize, vector, isSelectedInUse, selected);
       this.vector = vector;
       this.primitiveValueReader = primitiveValueReader;
-      this.batchOffsetInFile = batchOffsetInFile;
     }
 
     @Override
