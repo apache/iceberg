@@ -131,7 +131,7 @@ public class ZkLockFactory implements TriggerLockFactory {
     try {
       close();
     } catch (Exception e) {
-      LOG.warn("Failed to close ZkLockFactory for lockId: {}.", lockId, e);
+      LOG.warn("Failed to close ZkLockFactory for lockId: {}", lockId, e);
     }
   }
 
@@ -181,7 +181,7 @@ public class ZkLockFactory implements TriggerLockFactory {
     public boolean tryLock() {
       VersionedValue<Integer> versionedValue = sharedCount.getVersionedValue();
       if (isHeld(versionedValue)) {
-        LOG.debug("Lock is already held for path: {}.", lockPath);
+        LOG.debug("Lock is already held for path: {}", lockPath);
         return false;
       }
 
@@ -193,7 +193,7 @@ public class ZkLockFactory implements TriggerLockFactory {
 
         return acquired;
       } catch (Exception e) {
-        LOG.warn("Failed to acquire Zookeeper lock.", e);
+        LOG.warn("Failed to acquire Zookeeper lock", e);
         return false;
       }
     }
