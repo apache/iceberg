@@ -81,6 +81,7 @@ abstract class TestLockFactoryBase {
   @Test
   void testMultiTableLock() throws IOException {
     TriggerLockFactory other = lockFactory("tableName2");
+    other.open();
     TriggerLockFactory.Lock lock1 = lockFactory.createLock();
     TriggerLockFactory.Lock lock2 = other.createLock();
     assertThat(lock1.tryLock()).isTrue();
