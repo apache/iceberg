@@ -390,7 +390,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
-    int curRecordCount = 0;
+    long curRecordCount = 0;
     int curPos = 0;
 
     // Note : we produce nextOffset with pos as non-inclusive
@@ -501,6 +501,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     if (snapshot == null) {
       throw new IllegalStateException(
           String.format(
+              Locale.ROOT,
               "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
               currentOffset.snapshotId()));
     }
