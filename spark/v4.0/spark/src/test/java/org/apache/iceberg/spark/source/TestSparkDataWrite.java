@@ -139,7 +139,7 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
-        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
@@ -208,7 +208,7 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
-        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
@@ -253,7 +253,7 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
-        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
@@ -305,7 +305,7 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
-        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
@@ -347,7 +347,7 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
-        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
@@ -386,7 +386,7 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
-        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
 
     List<DataFile> files = Lists.newArrayList();
@@ -498,7 +498,7 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<ThreeColumnRecord> actual =
-        result.orderBy("c1", "c3").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
+        result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
@@ -701,7 +701,7 @@ public class TestSparkDataWrite {
     // Since write and commit succeeded, the rows should be readable
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
     List<SimpleRecord> actual =
-        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual)
         .hasSize(records.size() + records2.size())
         .containsExactlyInAnyOrder(
