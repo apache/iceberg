@@ -29,7 +29,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -38,13 +37,10 @@ import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedKeyValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedWriter;
 import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.TripleWriter;
-import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VariantWriterBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.Variant;
@@ -62,10 +58,15 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.ShortType;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -73,47 +74,41 @@ public class SparkParquetWriters {
   private SparkParquetWriters() {}
 
   @SuppressWarnings("unchecked")
-  public static <T> ParquetValueWriter<T> buildWriter(Schema iSchema, MessageType type) {
+  public static <T> ParquetValueWriter<T> buildWriter(StructType dfSchema, MessageType type) {
     return (ParquetValueWriter<T>)
-        TypeWithSchemaVisitor.visit(iSchema.asStruct(), type, new IcebergWriteBuilder(type));
+        ParquetWithSparkSchemaVisitor.visit(dfSchema, type, new WriteBuilder(type));
   }
 
-  private static class IcebergWriteBuilder extends TypeWithSchemaVisitor<ParquetValueWriter<?>> {
+  private static class WriteBuilder extends ParquetWithSparkSchemaVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
 
-    private IcebergWriteBuilder(MessageType type) {
+    WriteBuilder(MessageType type) {
       this.type = type;
     }
 
+    @Override
     public ParquetValueWriter<?> message(
-        Types.StructType iStruct, MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
-      return struct(iStruct.asStructType(), message.asGroupType(), fieldWriters);
+        StructType sStruct, MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
+      return struct(sStruct, message.asGroupType(), fieldWriters);
     }
 
+    @Override
     public ParquetValueWriter<?> struct(
-        Types.StructType iStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
+        StructType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
+      StructField[] sparkFields = sStruct.fields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
+      List<DataType> sparkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
+        sparkTypes.add(sparkFields[i].dataType());
       }
-
-      List<Types.NestedField> iFields = iStruct.fields();
-      List<DataType> sparkTypes = Lists.newArrayListWithExpectedSize(iFields.size());
-      for (int i = 0; i < iFields.size(); i += 1) {
-        sparkTypes.add(SparkSchemaUtil.convert(iFields.get(i).type()));
-      }
-
-      return new InternalRowWriter(writers, sparkTypes, iStruct);
+      return new InternalRowWriter(writers, sparkTypes);
     }
 
-    private ParquetValueWriter<?> newOption(Type fieldType, ParquetValueWriter<?> writer) {
-      int maxD = this.type.getMaxDefinitionLevel(path(fieldType.getName()));
-      return ParquetValueWriters.option(fieldType, maxD, writer);
-    }
-
+    @Override
     public ParquetValueWriter<?> list(
-        Types.ListType iList, GroupType array, ParquetValueWriter<?> elementWriter) {
+        ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -124,11 +119,12 @@ public class SparkParquetWriters {
           repeatedD,
           repeatedR,
           newOption(repeated.getType(0), elementWriter),
-          SparkSchemaUtil.convert(iList.elementType()));
+          sArray.elementType());
     }
 
+    @Override
     public ParquetValueWriter<?> map(
-        Types.MapType iMap,
+        MapType sMap,
         GroupType map,
         ParquetValueWriter<?> keyWriter,
         ParquetValueWriter<?> valueWriter) {
@@ -143,16 +139,21 @@ public class SparkParquetWriters {
           repeatedR,
           newOption(repeatedKeyValue.getType(0), keyWriter),
           newOption(repeatedKeyValue.getType(1), valueWriter),
-          SparkSchemaUtil.convert(iMap.keyType()),
-          SparkSchemaUtil.convert(iMap.valueType()));
+          sMap.keyType(),
+          sMap.valueType());
     }
 
-    public ParquetValueWriter<?> variant(
-        Types.VariantType iVariant, GroupType variant, ParquetValueWriter<?> result) {
+    @Override
+    public ParquetValueWriter<?> variant(VariantType sVariant, GroupType variant) {
       ParquetValueWriter<?> writer =
           ParquetVariantVisitor.visit(
               variant, new VariantWriterBuilder(type, Arrays.asList(currentPath())));
       return new VariantWriter(writer);
+    }
+
+    private ParquetValueWriter<?> newOption(Type fieldType, ParquetValueWriter<?> writer) {
+      int maxD = type.getMaxDefinitionLevel(path(fieldType.getName()));
+      return ParquetValueWriters.option(fieldType, maxD, writer);
     }
 
     private static class LogicalTypeAnnotationParquetValueWriterVisitor
@@ -263,9 +264,8 @@ public class SparkParquetWriters {
       }
     }
 
-    public ParquetValueWriter<?> primitive(
-        org.apache.iceberg.types.Type.PrimitiveType iPrimitive, PrimitiveType primitive) {
-
+    @Override
+    public ParquetValueWriter<?> primitive(DataType sType, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
       LogicalTypeAnnotation logicalTypeAnnotation = primitive.getLogicalTypeAnnotation();
 
@@ -285,7 +285,7 @@ public class SparkParquetWriters {
         case BOOLEAN:
           return ParquetValueWriters.booleans(desc);
         case INT32:
-          return ints(SparkSchemaUtil.convert(iPrimitive), desc);
+          return ints(sType, desc);
         case INT64:
           return ParquetValueWriters.longs(desc);
         case FLOAT:
@@ -613,12 +613,7 @@ public class SparkParquetWriters {
     private final DataType[] types;
 
     private InternalRowWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
-      this(writers, types, null);
-    }
-
-    private InternalRowWriter(
-        List<ParquetValueWriter<?>> writers, List<DataType> types, Types.StructType iStruct) {
-      super(iStruct, writers);
+      super(writers);
       this.types = types.toArray(new DataType[0]);
     }
 

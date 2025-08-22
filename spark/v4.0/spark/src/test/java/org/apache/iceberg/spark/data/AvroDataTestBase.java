@@ -137,7 +137,7 @@ public abstract class AvroDataTestBase {
         Types.DecimalType.of(38, 10),
         Types.VariantType.get(),
         Types.GeometryType.crs84(),
-        Types.GeographyType.crs84()
+        Types.GeographyType.crs84(),
       };
 
   protected boolean supportsTime() {
