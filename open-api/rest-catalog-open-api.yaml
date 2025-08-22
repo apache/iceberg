@@ -3154,6 +3154,7 @@ components:
         snapshot-id:
           type: integer
           format: int64
+          nullable: true
 
     AssertLastAssignedFieldId:
       description:
