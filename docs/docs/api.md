@@ -128,7 +128,6 @@ Available operations to update a table are:
 * `newRowDelta` -- used to remove or replace rows in existing data files
 * `newTransaction` -- create a new table-level transaction
 * `rewriteManifests` -- rewrite manifest data by clustering files, for faster scan planning
-* `rollback` -- rollback the table state to a specific snapshot
 * `replaceSortOrder` -- for replacing table sort order with a newly created order
 * `newReplacePartitions` -- create a new `ReplacePartitions` to dynamically overwrite partitions in the table with new data
 
