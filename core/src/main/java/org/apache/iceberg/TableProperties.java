@@ -244,6 +244,12 @@ public class TableProperties {
   public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
   public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
 
+  public static final String METADATA_PLANNING_MODE = "read.metadata-planning-mode";
+  public static final String METADATA_PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
+  public static final String METADATA_PLANNING_MODE_AUTO_THRESHOLD =
+      "read.metadata-planning-mode-auto-threshold";
+  public static final long METADATA_PLANNING_MODE_AUTO_THRESHOLD_DEFAULT = 10;
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 

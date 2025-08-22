@@ -483,7 +483,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(scanNoFilter.schema().asStruct()).isEqualTo(expected);
 
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanNoFilter);
     if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {
@@ -508,7 +508,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanWithProjection = partitionsTable.newScan().select("file_count");
     assertThat(scanWithProjection.schema().asStruct()).isEqualTo(expected);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanWithProjection);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanWithProjection);
     if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {
@@ -527,7 +527,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     Table partitionsTable = new PartitionsTable(table);
     CloseableIterable<ManifestEntry<?>> tasksAndEq =
-        PartitionsTable.planEntries((StaticTableScan) partitionsTable.newScan());
+        PartitionsTable.planEntries((BaseMetadataTableScan) partitionsTable.newScan());
     for (ManifestEntry<? extends ContentFile<?>> task : tasksAndEq) {
       assertThat(task.file().columnSizes()).isNull();
       assertThat(task.file().valueCounts()).isNull();
@@ -550,7 +550,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanAndEq);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanAndEq);
     if (formatVersion >= 2) {
       assertThat(entries).hasSize(2);
     } else {
@@ -572,7 +572,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.greaterThan("record_count", 0));
     TableScan scanLtAnd = partitionsTable.newScan().filter(ltAnd);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanLtAnd);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanLtAnd);
     if (formatVersion >= 2) {
       assertThat(entries).hasSize(4);
     } else {
@@ -596,7 +596,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanOr = partitionsTable.newScan().filter(or);
 
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanOr);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanOr);
     if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {
@@ -617,7 +617,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
     TableScan scanNot = partitionsTable.newScan().filter(not);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanNot);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanNot);
     if (formatVersion >= 2) {
       assertThat(entries).hasSize(4);
     } else {
@@ -637,7 +637,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     Expression set = Expressions.in("partition.data_bucket", 2, 3);
     TableScan scanSet = partitionsTable.newScan().filter(set);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanSet);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanSet);
     if (formatVersion >= 2) {
       assertThat(entries).hasSize(4);
     } else {
@@ -657,7 +657,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     Expression unary = Expressions.notNull("partition.data_bucket");
     TableScan scanUnary = partitionsTable.newScan().filter(unary);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanUnary);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanUnary);
     if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {
@@ -957,7 +957,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scan);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scan);
     if (formatVersion >= 2) {
       // Four data files and delete files of old spec, one new data file of new spec
       assertThat(entries).hasSize(9);
@@ -971,7 +971,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.data_bucket", 0),
             Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
-    entries = PartitionsTable.planEntries((StaticTableScan) scan);
+    entries = PartitionsTable.planEntries((BaseMetadataTableScan) scan);
 
     if (formatVersion >= 2) {
       // 1 original data file and delete file written by old spec, plus 1 new data file written by
@@ -1022,7 +1022,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.id", 10), Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scan);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scan);
 
     if (formatVersion >= 2) {
       // Four data and delete files of original spec, one data file written by new spec
@@ -1039,7 +1039,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.equal("partition.data_bucket", 0),
             Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
-    entries = PartitionsTable.planEntries((StaticTableScan) scan);
+    entries = PartitionsTable.planEntries((BaseMetadataTableScan) scan);
 
     if (formatVersion == 1) {
       // 1 original data file written by old spec
@@ -1108,7 +1108,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanAndEq);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanAndEq);
     assertThat(entries).hasSize(1);
     validateSingleFieldPartition(entries, 0);
   }
@@ -1183,7 +1183,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                       return thread;
                     }));
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scan);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scan);
     if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {

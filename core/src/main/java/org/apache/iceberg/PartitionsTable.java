@@ -18,19 +18,31 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.PlanningMode.AUTO;
+import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
+
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 
@@ -96,7 +108,35 @@ public class PartitionsTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new PartitionsScan(table());
+    // Check if distributed scanning should be used based on table properties
+    String planningMode =
+        table()
+            .properties()
+            .getOrDefault(
+                TableProperties.METADATA_PLANNING_MODE,
+                TableProperties.METADATA_PLANNING_MODE_DEFAULT);
+
+    if (DISTRIBUTED.modeName().equals(planningMode)
+        || (AUTO.modeName().equals(planningMode) && shouldUseDistributedScanning(table()))) {
+      return new DistributedPartitionsScan(table(), schema());
+    } else {
+      return new PartitionsScan(table());
+    }
+  }
+
+  /**
+   * Determines if distributed scanning should be used in AUTO mode. Uses distributed scanning for
+   * tables with manifests exceeding a certain threshold.
+   */
+  private static boolean shouldUseDistributedScanning(Table table) {
+    long autoPlanningModeThreshold =
+        PropertyUtil.propertyAsLong(
+            table.properties(),
+            TableProperties.METADATA_PLANNING_MODE_AUTO_THRESHOLD,
+            TableProperties.METADATA_PLANNING_MODE_AUTO_THRESHOLD_DEFAULT);
+
+    return table.currentSnapshot() != null
+        && table.currentSnapshot().allManifests(table.io()).size() > autoPlanningModeThreshold;
   }
 
   @Override
@@ -122,7 +162,7 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private DataTask task(StaticTableScan scan) {
-    Iterable<Partition> partitions = partitions(table(), scan);
+    Iterable<Partition> partitions = partitions(table(), planEntries(scan));
     if (unpartitionedTable) {
       // the table is unpartitioned, partitions contains only the root partition
       return StaticDataTask.of(
@@ -130,17 +170,7 @@ public class PartitionsTable extends BaseMetadataTable {
           schema(),
           scan.schema(),
           partitions,
-          root ->
-              StaticDataTask.Row.of(
-                  root.dataRecordCount,
-                  root.dataFileCount,
-                  root.dataFileSizeInBytes,
-                  root.posDeleteRecordCount,
-                  root.posDeleteFileCount,
-                  root.eqDeleteRecordCount,
-                  root.eqDeleteFileCount,
-                  root.lastUpdatedAt,
-                  root.lastUpdatedSnapshotId));
+          PartitionsTable::convertRootPartition);
     } else {
       return StaticDataTask.of(
           io().newInputFile(table().operations().current().metadataFileLocation()),
@@ -166,13 +196,27 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.lastUpdatedSnapshotId);
   }
 
-  private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
+  private static StaticDataTask.Row convertRootPartition(Partition root) {
+    return StaticDataTask.Row.of(
+        root.dataRecordCount,
+        root.dataFileCount,
+        root.dataFileSizeInBytes,
+        root.posDeleteRecordCount,
+        root.posDeleteFileCount,
+        root.eqDeleteRecordCount,
+        root.eqDeleteFileCount,
+        root.lastUpdatedAt,
+        root.lastUpdatedSnapshotId);
+  }
+
+  private static Iterable<Partition> partitions(
+      Table table, CloseableIterable<ManifestEntry<?>> manifestEntries) {
     Types.StructType partitionType = Partitioning.partitionType(table);
 
     StructLikeMap<Partition> partitions =
         StructLikeMap.create(partitionType, new PartitionComparator(partitionType));
 
-    try (CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries = planEntries(scan)) {
+    try (CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries = manifestEntries) {
       for (ManifestEntry<? extends ContentFile<?>> entry : entries) {
         Snapshot snapshot = table.snapshot(entry.snapshotId());
         ContentFile<?> file = entry.file();
@@ -191,7 +235,7 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   @VisibleForTesting
-  static CloseableIterable<ManifestEntry<?>> planEntries(StaticTableScan scan) {
+  static CloseableIterable<ManifestEntry<?>> planEntries(BaseMetadataTableScan scan) {
     Table table = scan.table();
 
     CloseableIterable<ManifestFile> filteredManifests =
@@ -204,11 +248,19 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private static CloseableIterable<ManifestEntry<?>> readEntries(
-      ManifestFile manifest, StaticTableScan scan) {
+      ManifestFile manifest, BaseMetadataTableScan scan) {
     Table table = scan.table();
+    return readManifestEntries(manifest, table.io(), table.specs(), scan.isCaseSensitive());
+  }
+
+  private static CloseableIterable<ManifestEntry<?>> readManifestEntries(
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      boolean scanCaseSensitive) {
     return CloseableIterable.transform(
-        ManifestFiles.open(manifest, table.io(), table.specs())
-            .caseSensitive(scan.isCaseSensitive())
+        ManifestFiles.open(manifest, io, specsById)
+            .caseSensitive(scanCaseSensitive)
             .select(BaseScan.scanColumns(manifest.content())) // don't select stats columns
             .liveEntries(),
         t ->
@@ -218,7 +270,7 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private static CloseableIterable<ManifestFile> filteredManifests(
-      StaticTableScan scan, Table table, List<ManifestFile> manifestFilesList) {
+      BaseMetadataTableScan scan, Table table, List<ManifestFile> manifestFilesList) {
     CloseableIterable<ManifestFile> manifestFiles =
         CloseableIterable.withNoopClose(manifestFilesList);
 
@@ -329,6 +381,130 @@ public class PartitionsTable extends BaseMetadataTable {
     private static PartitionData toPartitionData(StructLike key, Types.StructType keyType) {
       PartitionData keyTemplate = new PartitionData(keyType);
       return keyTemplate.copyFor(key);
+    }
+  }
+
+  /** Distributed scan for partitions table that creates multiple tasks for processing manifests. */
+  private static class DistributedPartitionsScan extends BaseMetadataTableScan {
+
+    DistributedPartitionsScan(Table table, Schema partitionsTableSchema) {
+      super(table, partitionsTableSchema, MetadataTableType.PARTITIONS);
+    }
+
+    DistributedPartitionsScan(Table table, Schema partitionsTableSchema, TableScanContext context) {
+      super(table, partitionsTableSchema, MetadataTableType.PARTITIONS, context);
+    }
+
+    @Override
+    protected TableScan newRefinedScan(
+        Table table, Schema partitionsTableSchema, TableScanContext context) {
+      return new DistributedPartitionsScan(table, partitionsTableSchema, context);
+    }
+
+    @Override
+    protected CloseableIterable<FileScanTask> doPlanFiles() {
+      Table table = table();
+      Schema partitionsTableSchema = tableSchema();
+      Schema projectedSchema = schema();
+      TableScanContext context = context();
+
+      Snapshot snapshot =
+          context.snapshotId() != null
+              ? table.snapshot(context.snapshotId())
+              : table.currentSnapshot();
+      if (snapshot == null) {
+        return CloseableIterable.empty();
+      }
+
+      List<ManifestFile> allManifests = snapshot.allManifests(table.io());
+      CloseableIterable<ManifestFile> filteredManifests =
+          filteredManifests(this, table, allManifests);
+
+      String schemaString = SchemaParser.toJson(projectedSchema);
+      String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+      Expression filter =
+          context.ignoreResiduals() ? Expressions.alwaysTrue() : context.rowFilter();
+      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
+
+      Map<Integer, PartitionSpec> specsById = Maps.newHashMap(table.specs());
+      boolean isUnpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
+
+      return CloseableIterable.transform(
+          filteredManifests,
+          manifest ->
+              new PartitionReadTask(
+                  table,
+                  manifest,
+                  projectedSchema,
+                  schemaString,
+                  specString,
+                  residuals,
+                  specsById,
+                  partitionsTableSchema,
+                  isUnpartitionedTable,
+                  context.caseSensitive()));
+    }
+  }
+
+  /** A task that reads partition metadata from a single manifest file. */
+  public static class PartitionReadTask extends BaseFileScanTask implements DataTask {
+
+    private final Table table;
+    private final FileIO io;
+    private final Map<Integer, PartitionSpec> specsById;
+    private final ManifestFile manifest;
+    private final Schema projectedSchema;
+    private final boolean unpartitionedTable;
+    private final Schema tableSchema;
+    private final boolean scanIsCaseSensitive;
+
+    PartitionReadTask(
+        Table table,
+        ManifestFile manifest,
+        Schema projectedSchema,
+        String schemaString,
+        String specString,
+        ResidualEvaluator residuals,
+        Map<Integer, PartitionSpec> specsById,
+        Schema schema,
+        boolean unpartitionedTable,
+        boolean scanIsCaseSensitive) {
+      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
+      this.table = table;
+      this.io = table.io();
+      this.specsById = specsById;
+      this.manifest = manifest;
+      this.projectedSchema = projectedSchema;
+      this.unpartitionedTable = unpartitionedTable;
+      this.tableSchema = schema;
+      this.scanIsCaseSensitive = scanIsCaseSensitive;
+    }
+
+    @Override
+    public CloseableIterable<StructLike> rows() {
+      Iterable<Partition> partitions = partitions(table, readEntries());
+      StructProjection projection = StructProjection.create(tableSchema, projectedSchema);
+      Iterable<StructLike> projectedRows =
+          Iterables.transform(partitions, partition -> projection.wrap(convertToRow(partition)));
+
+      return CloseableIterable.withNoopClose(projectedRows);
+    }
+
+    private CloseableIterable<ManifestEntry<? extends ContentFile<?>>> readEntries() {
+      return readManifestEntries(manifest, io, specsById, scanIsCaseSensitive);
+    }
+
+    private StructLike convertToRow(Partition partition) {
+      if (unpartitionedTable) {
+        return convertRootPartition(partition);
+      } else {
+        return convertPartition(partition);
+      }
+    }
+
+    @Override
+    public Iterable<FileScanTask> split(long splitSize) {
+      return ImmutableList.of(this); // don't split
     }
   }
 }
