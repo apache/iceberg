@@ -64,12 +64,12 @@ push_remote () {
   git push "${REMOTE}" "${BRANCH}"  
 }
 
-# Installs or upgrades dependencies specified in the 'requirements.txt' file using uv pip.
+# Installs or upgrades dependencies specified in the 'requirements.txt' file using pip.
 install_deps () {
   echo " --> install deps"
 
-  # Use uv pip to install or upgrade dependencies from the 'requirements.txt' file quietly
-  uv pip -q install -r requirements.txt --upgrade
+  # Use pip to install or upgrade dependencies from the 'requirements.txt' file quietly
+  pip -q install -r requirements.txt --upgrade
 }
 
 # Checks if a provided argument is not empty. If empty, displays an error message and exits with a status code 1.
