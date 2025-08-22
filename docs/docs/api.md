@@ -130,6 +130,7 @@ Available operations to update a table are:
 * `rewriteManifests` -- rewrite manifest data by clustering files, for faster scan planning
 * `rollback` -- rollback the table state to a specific snapshot
 * `replaceSortOrder` -- for replacing table sort order with a newly created order
+* `newReplacePartitions` -- create a new `ReplacePartitions` to dynamically overwrite partitions in the table with new data
 
 ### Transactions
 
