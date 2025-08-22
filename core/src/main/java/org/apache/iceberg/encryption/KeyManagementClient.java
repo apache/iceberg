@@ -94,7 +94,7 @@ public interface KeyManagementClient extends Serializable, Closeable {
     private final ByteBuffer key;
     private final ByteBuffer wrappedKey;
 
-    KeyGenerationResult(ByteBuffer key, ByteBuffer wrappedKey) {
+    public KeyGenerationResult(ByteBuffer key, ByteBuffer wrappedKey) {
       this.key = key;
       this.wrappedKey = wrappedKey;
     }

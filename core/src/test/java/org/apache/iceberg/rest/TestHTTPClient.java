@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -48,6 +49,7 @@ import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.TLSConfigurer;
@@ -57,9 +59,11 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.configuration.Configuration;
 import org.mockserver.integration.ClientAndServer;
+import org.mockserver.matchers.Times;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
@@ -456,6 +460,27 @@ public class TestHTTPClient {
         .doesNotThrowAnyException();
   }
 
+  @ParameterizedTest
+  @EnumSource(HttpMethod.class)
+  public void testRetryIdemmpotentMethods(HttpMethod method) throws JsonProcessingException {
+    assumeThat(method.name().equals("GET") || method.name().equals("HEAD"))
+        .as("Only GET and HEAD methods are idempotent")
+        .isTrue();
+    ResourcePaths paths = ResourcePaths.forCatalogProperties(Map.of());
+    ErrorHandler errorHandler = (ErrorHandler) ErrorHandlers.defaultErrorHandler();
+    String path = paths.table(TableIdentifier.of("ns", "table"));
+    Item loadTableRequestBody = new Item(0L, "load table");
+
+    // First request will respond with a 504 (Gateway Timeout)
+    addRequestTestCaseAndGetPath(path, method, loadTableRequestBody, HttpStatus.SC_GATEWAY_TIMEOUT);
+
+    // Second request will respond with a 200 (OK)
+    addRequestTestCaseAndGetPath(path, method, loadTableRequestBody, HttpStatus.SC_OK);
+
+    // No exception should be thrown, and the second request should succeed
+    doExecuteRequest(method, path, loadTableRequestBody, errorHandler, headers -> {});
+  }
+
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
     Item body = new Item(0L, "hank");
     int statusCode = 200;
@@ -501,10 +526,14 @@ public class TestHTTPClient {
     verify(onError).accept(any());
   }
 
-  // Adds a request that the mock-server can match against, based on the method, path, body, and
-  // headers.
-  // Return the path generated for the test case, so that the client can call that path to exercise
-  // it.
+  /**
+   * Adds a request that the mock server can match against, using the HTTP method, request body, and
+   * status code to define behavior. This method generates a unique path (based on the method and
+   * success/failure outcome) so the client can call it during tests.
+   *
+   * <p>Note: This will only add one exact request test case, i.e., the response will only be
+   * returned for the next matching invocation of the path.
+   */
   private static String addRequestTestCaseAndGetPath(HttpMethod method, Item body, int statusCode)
       throws JsonProcessingException {
 
@@ -513,6 +542,21 @@ public class TestHTTPClient {
     // Using different paths keeps the expectations unique for the test's mock server
     String pathName = isSuccess ? "success" : "failure";
     String path = String.format("%s_%s", method, pathName);
+
+    return addRequestTestCaseAndGetPath(path, method, body, statusCode);
+  }
+
+  /**
+   * Adds a request that the mock server can match against, using the provided path, method, body,
+   * and status code. This version allows custom control over the path used in the test, e.g., in
+   * the retry scenario, we need to return different responses for the same path and request.
+   *
+   * <p>Note: This will only add one exact request test case, i.e., the response will only be
+   * returned for the next matching invocation of the path.
+   */
+  private static String addRequestTestCaseAndGetPath(
+      String path, HttpMethod method, Item body, int statusCode) throws JsonProcessingException {
+    boolean isSuccess = statusCode == 200;
 
     // Build the expected request
     String asJson = body != null ? MAPPER.writeValueAsString(body) : null;
@@ -542,7 +586,7 @@ public class TestHTTPClient {
       }
     }
 
-    mockServer.when(mockRequest).respond(mockResponse);
+    mockServer.when(mockRequest, Times.exactly(1)).respond(mockResponse);
 
     return path;
   }

@@ -35,6 +35,7 @@ interface SupportsFunctions extends FunctionCatalog {
     return namespace.length == 0;
   }
 
+  @Override
   default Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
     if (isFunctionNamespace(namespace)) {
       return SparkFunctions.list().stream()
@@ -47,6 +48,7 @@ interface SupportsFunctions extends FunctionCatalog {
     throw new NoSuchNamespaceException(namespace);
   }
 
+  @Override
   default UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
     String[] namespace = ident.namespace();
     String name = ident.name();

@@ -22,6 +22,7 @@ import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -55,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -101,6 +103,10 @@ public class RewriteDataFilesSparkAction
     super(((org.apache.spark.sql.classic.SparkSession) spark).cloneSession());
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
+    // Disable executor cache for delete files as each partition is rewritten separately.
+    // Note: when compacting to a different target spec, data from multiple partitions
+    // may be grouped together, but caching is still disabled to avoid connection pool issues.
+    spark().conf().set(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false");
     this.caseSensitive = SparkUtil.caseSensitive(spark);
     this.table = table;
   }
@@ -172,14 +178,17 @@ public class RewriteDataFilesSparkAction
         partialProgressEnabled
             ? doExecuteWithPartialProgress(plan, commitManager(startingSnapshotId))
             : doExecute(plan, commitManager(startingSnapshotId));
+    ImmutableRewriteDataFiles.Result result = resultBuilder.build();
 
     if (removeDanglingDeletes) {
       RemoveDanglingDeletesSparkAction action =
           new RemoveDanglingDeletesSparkAction(spark(), table);
-      int removedCount = Iterables.size(action.execute().removedDeleteFiles());
-      resultBuilder.removedDeleteFilesCount(removedCount);
+      int removedDeleteFiles = Iterables.size(action.execute().removedDeleteFiles());
+      return result.withRemovedDeleteFilesCount(
+          result.removedDeleteFilesCount() + removedDeleteFiles);
     }
-    return resultBuilder.build();
+
+    return result;
   }
 
   private void init(long startingSnapshotId) {
@@ -333,6 +342,7 @@ public class RewriteDataFilesSparkAction
     } else if (failedCommits > maxFailedCommits) {
       String errorMessage =
           String.format(
+              Locale.ROOT,
               "%s is true but %d rewrite commits failed. This is more than the maximum allowed failures of %d. "
                   + "Check the logs to determine why the individual commits failed. If this is persistent it may help to "
                   + "increase %s which will split the rewrite operation into smaller commits.",
@@ -414,6 +424,7 @@ public class RewriteDataFilesSparkAction
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(
+          Locale.ROOT,
           "Rewriting %d files (%s, file group %d/%d, %s (%d/%d)) in %s",
           group.rewrittenFiles().size(),
           runner.description(),
@@ -425,6 +436,7 @@ public class RewriteDataFilesSparkAction
           table.name());
     } else {
       return String.format(
+          Locale.ROOT,
           "Rewriting %d files (%s, file group %d/%d) in %s",
           group.rewrittenFiles().size(),
           runner.description(),

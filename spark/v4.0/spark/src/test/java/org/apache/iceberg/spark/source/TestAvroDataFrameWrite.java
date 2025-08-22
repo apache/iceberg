@@ -24,6 +24,11 @@ import org.apache.iceberg.TableProperties;
 
 public class TestAvroDataFrameWrite extends DataFrameWriteTestBase {
   @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
   protected void configureTable(Table table) {
     table
         .updateProperties()

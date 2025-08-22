@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestTransaction extends TestBase {
@@ -237,6 +239,43 @@ public class TestTransaction extends TestBase {
     assertThatThrownBy(txn::commitTransaction)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
+  }
+
+  @TestTemplate
+  public void testTransactionFailureBulkDeletionCleanup() throws IOException {
+    TestTables.TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestTables.TestBulkLocalFileIO());
+    Mockito.doNothing().when(spyFileIO).deleteFiles(any());
+
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnFailureBulkDeleteTest";
+    TestTables.TestTable tableWithBulkIO =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, location, spyFileIO));
+
+    // set retries to 0 to catch the failure
+    tableWithBulkIO.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "0").commit();
+
+    // eagerly generate manifest and manifest-list
+    Transaction txn = tableWithBulkIO.newTransaction();
+    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    ManifestFile appendManifest = txn.table().currentSnapshot().allManifests(table.io()).get(0);
+    String txnManifestList = txn.table().currentSnapshot().manifestListLocation();
+
+    // cause the transaction commit to fail
+    tableWithBulkIO.ops().failCommits(1);
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+
+    // ensure both files are deleted on transaction failure
+    Mockito.verify(spyFileIO).deleteFiles(Set.of(appendManifest.path(), txnManifestList));
   }
 
   @TestTemplate
@@ -463,10 +502,8 @@ public class TestTransaction extends TestBase {
     // create a manifest append
     OutputFile manifestLocation = Files.localOutput("/tmp/" + UUID.randomUUID() + ".avro");
     ManifestWriter<DataFile> writer = ManifestFiles.write(table.spec(), manifestLocation);
-    try {
+    try (writer) {
       writer.add(FILE_D);
-    } finally {
-      writer.close();
     }
 
     Transaction txn = table.newTransaction();
@@ -653,7 +690,7 @@ public class TestTransaction extends TestBase {
   }
 
   @TestTemplate
-  public void testSimpleTransactionNotDeletingMetadataOnUnknownSate() throws IOException {
+  public void testSimpleTransactionNotDeletingMetadataOnUnknownSate() {
     Table table = TestTables.tableWithCommitSucceedButStateUnknown(tableDir, "test");
 
     Transaction transaction = table.newTransaction();
@@ -849,5 +886,59 @@ public class TestTransaction extends TestBase {
         ids(first.snapshotId(), latestOverwrite.snapshotId(), second.snapshotId()),
         files(FILE_A, FILE_A2, FILE_B),
         statuses(Status.EXISTING, Status.DELETED, Status.EXISTING));
+  }
+
+  @TestTemplate
+  public void testExtendBaseTransaction() {
+    assertThat(version()).isEqualTo(0);
+    TableMetadata base = readMetadata();
+
+    Transaction txn =
+        new AppendToBranchTransaction(
+            table.name(),
+            table.ops(),
+            BaseTransaction.TransactionType.SIMPLE,
+            table.ops().refresh());
+    AppendFiles appendFiles = txn.newAppend().appendFile(FILE_A);
+    Snapshot branchSnapshot = appendFiles.apply();
+    appendFiles.commit();
+
+    assertThat(readMetadata()).isSameAs(base);
+    assertThat(version()).isEqualTo(0);
+
+    // first snapshot write to main
+    table.newAppend().appendFile(FILE_B).commit();
+
+    Snapshot mainSnapshot = readMetadata().currentSnapshot();
+    assertThat(version()).isEqualTo(1);
+    validateSnapshot(base.currentSnapshot(), mainSnapshot, FILE_B);
+
+    // second snapshot write to branch
+    txn.commitTransaction();
+    assertThat(version()).isEqualTo(2);
+
+    assertThat(readMetadata().refs()).hasSize(2).containsKey("main").containsKey("branch");
+    assertThat(readMetadata().ref("main").snapshotId()).isEqualTo(mainSnapshot.snapshotId());
+    assertThat(readMetadata().snapshot(mainSnapshot.snapshotId()).allManifests(table.io()))
+        .hasSize(1);
+    assertThat(readMetadata().ref("branch").snapshotId()).isEqualTo(branchSnapshot.snapshotId());
+    assertThat(readMetadata().snapshot(branchSnapshot.snapshotId()).allManifests(table.io()))
+        .hasSize(2);
+  }
+
+  private static class AppendToBranchTransaction extends BaseTransaction {
+
+    AppendToBranchTransaction(
+        String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
+      super(tableName, ops, type, start);
+    }
+
+    @Override
+    public AppendFiles newAppend() {
+      AppendFiles append =
+          new MergeAppend(tableName(), ((HasTableOperations) table()).operations())
+              .toBranch("branch");
+      return appendUpdate(append);
+    }
   }
 }

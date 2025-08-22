@@ -24,6 +24,7 @@ import static org.apache.iceberg.IsolationLevel.SNAPSHOT;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
@@ -51,13 +52,14 @@ import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -241,14 +243,14 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
   private void abort(WriterCommitMessage[] messages) {
     if (cleanupOnAbort) {
-      SparkCleanupUtil.deleteFiles("job abort", table.io(), files(messages));
+      SparkCleanupUtil.deleteFiles("job abort", table.io(), Lists.newArrayList(files(messages)));
     } else {
       LOG.warn("Skipping cleanup of written files");
     }
   }
 
-  private List<DataFile> files(WriterCommitMessage[] messages) {
-    List<DataFile> files = Lists.newArrayList();
+  private DataFileSet files(WriterCommitMessage[] messages) {
+    DataFileSet files = DataFileSet.create();
 
     for (WriterCommitMessage message : messages) {
       if (message != null) {
@@ -298,14 +300,15 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         append.appendFile(file);
       }
 
-      commitOperation(append, String.format("append with %d new data files", numFiles));
+      commitOperation(
+          append, String.format(Locale.ROOT, "append with %d new data files", numFiles));
     }
   }
 
   private class DynamicOverwrite extends BaseBatchWrite {
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      List<DataFile> files = files(messages);
+      DataFileSet files = files(messages);
 
       if (files.isEmpty()) {
         LOG.info("Dynamic overwrite is empty, skipping commit");
@@ -323,7 +326,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       if (isolationLevel == SERIALIZABLE) {
         dynamicOverwrite.validateNoConflictingData();
         dynamicOverwrite.validateNoConflictingDeletes();
-
       } else if (isolationLevel == SNAPSHOT) {
         dynamicOverwrite.validateNoConflictingDeletes();
       }
@@ -336,7 +338,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
       commitOperation(
           dynamicOverwrite,
-          String.format("dynamic partition overwrite with %d new data files", numFiles));
+          String.format(
+              Locale.ROOT, "dynamic partition overwrite with %d new data files", numFiles));
     }
   }
 
@@ -368,13 +371,16 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       if (isolationLevel == SERIALIZABLE) {
         overwriteFiles.validateNoConflictingDeletes();
         overwriteFiles.validateNoConflictingData();
-
       } else if (isolationLevel == SNAPSHOT) {
         overwriteFiles.validateNoConflictingDeletes();
       }
 
       String commitMsg =
-          String.format("overwrite by filter %s with %d new data files", overwriteExpr, numFiles);
+          String.format(
+              Locale.ROOT,
+              "overwrite by filter %s with %d new data files",
+              overwriteExpr,
+              numFiles);
       commitOperation(overwriteFiles, commitMsg);
     }
   }
@@ -388,11 +394,23 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       this.isolationLevel = isolationLevel;
     }
 
-    private List<DataFile> overwrittenFiles() {
+    private DataFileSet overwrittenFiles() {
       if (scan == null) {
-        return ImmutableList.of();
+        return DataFileSet.create();
       } else {
-        return scan.tasks().stream().map(FileScanTask::file).collect(Collectors.toList());
+        return scan.tasks().stream()
+            .map(FileScanTask::file)
+            .collect(Collectors.toCollection(DataFileSet::create));
+      }
+    }
+
+    private DeleteFileSet danglingDVs() {
+      if (scan == null) {
+        return DeleteFileSet.create();
+      } else {
+        return scan.tasks().stream()
+            .flatMap(task -> task.deletes().stream().filter(ContentFileUtil::isDV))
+            .collect(Collectors.toCollection(DeleteFileSet::create));
       }
     }
 
@@ -413,11 +431,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     public void commit(WriterCommitMessage[] messages) {
       OverwriteFiles overwriteFiles = table.newOverwrite();
 
-      List<DataFile> overwrittenFiles = overwrittenFiles();
+      DataFileSet overwrittenFiles = overwrittenFiles();
       int numOverwrittenFiles = overwrittenFiles.size();
-      for (DataFile overwrittenFile : overwrittenFiles) {
-        overwriteFiles.deleteFile(overwrittenFile);
-      }
+      DeleteFileSet danglingDVs = danglingDVs();
+      overwriteFiles.deleteFiles(overwrittenFiles, danglingDVs);
 
       int numAddedFiles = 0;
       for (DataFile file : files(messages)) {
@@ -428,18 +445,22 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       // the scan may be null if the optimizer replaces it with an empty relation (e.g. false cond)
       // no validation is needed in this case as the command does not depend on the table state
       if (scan != null) {
-        if (isolationLevel == SERIALIZABLE) {
-          commitWithSerializableIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
-        } else if (isolationLevel == SNAPSHOT) {
-          commitWithSnapshotIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
-        } else {
-          throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
+        switch (isolationLevel) {
+          case SERIALIZABLE:
+            commitWithSerializableIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+            break;
+          case SNAPSHOT:
+            commitWithSnapshotIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+            break;
+          default:
+            throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
         }
 
       } else {
         commitOperation(
             overwriteFiles,
-            String.format("overwrite with %d new data files (no validation)", numAddedFiles));
+            String.format(
+                Locale.ROOT, "overwrite with %d new data files (no validation)", numAddedFiles));
       }
     }
 
@@ -457,8 +478,12 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
       String commitMsg =
           String.format(
+              Locale.ROOT,
               "overwrite of %d data files with %d new data files, scanSnapshotId: %d, conflictDetectionFilter: %s",
-              numOverwrittenFiles, numAddedFiles, scanSnapshotId, conflictDetectionFilter);
+              numOverwrittenFiles,
+              numAddedFiles,
+              scanSnapshotId,
+              conflictDetectionFilter);
       commitOperation(overwriteFiles, commitMsg);
     }
 
@@ -475,8 +500,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
       String commitMsg =
           String.format(
+              Locale.ROOT,
               "overwrite of %d data files with %d new data files",
-              numOverwrittenFiles, numAddedFiles);
+              numOverwrittenFiles,
+              numAddedFiles);
       commitOperation(overwriteFiles, commitMsg);
     }
   }
@@ -491,7 +518,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public void commit(WriterCommitMessage[] messages) {
       FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
-      coordinator.stageRewrite(table, fileSetID, DataFileSet.of(files(messages)));
+      coordinator.stageRewrite(table, fileSetID, files(messages));
     }
   }
 
@@ -575,7 +602,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         append.appendFile(file);
         numFiles++;
       }
-      commit(append, epochId, String.format("streaming append with %d new data files", numFiles));
+      commit(
+          append,
+          epochId,
+          String.format(Locale.ROOT, "streaming append with %d new data files", numFiles));
     }
   }
 
@@ -597,7 +627,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       commit(
           overwriteFiles,
           epochId,
-          String.format("streaming complete overwrite with %d new data files", numFiles));
+          String.format(
+              Locale.ROOT, "streaming complete overwrite with %d new data files", numFiles));
     }
   }
 

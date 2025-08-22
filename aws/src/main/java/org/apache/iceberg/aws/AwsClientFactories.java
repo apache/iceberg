@@ -107,6 +107,7 @@ public class AwsClientFactories {
     public S3Client s3() {
       return S3Client.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
           .applyMutation(s3FileIOProperties::applyServiceConfigurations)
@@ -132,6 +133,7 @@ public class AwsClientFactories {
       }
       return S3AsyncClient.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
           .applyMutation(
               b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)

@@ -32,7 +32,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.DataTestHelpers;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -47,7 +47,7 @@ import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.Test;
 
-public class TestGenericData extends DataTest {
+public class TestGenericData extends DataTestBase {
   @Override
   protected boolean supportsDefaultValues() {
     return true;
@@ -139,8 +139,7 @@ public class TestGenericData extends DataTest {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
         AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(new Path(testFile.toURI()))
@@ -174,7 +173,7 @@ public class TestGenericData extends DataTest {
         assertThat(actualRecord.get(1, ByteBuffer.class)).isEqualTo(expectedBinary);
       }
 
-      assertThat(Lists.newArrayList(reader).size()).isEqualTo(1);
+      assertThat(Lists.newArrayList(reader)).hasSize(1);
     }
   }
 }

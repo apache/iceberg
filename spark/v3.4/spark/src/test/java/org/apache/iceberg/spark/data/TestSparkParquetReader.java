@@ -62,7 +62,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
 
-public class TestSparkParquetReader extends AvroDataTest {
+public class TestSparkParquetReader extends AvroDataTestBase {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);
@@ -185,7 +185,7 @@ public class TestSparkParquetReader extends AvroDataTest {
 
     InputFile parquetInputFile = Files.localInput(outputFilePath);
     List<InternalRow> readRows = rowsFromFile(parquetInputFile, schema);
-    assertThat(rows.size()).isEqualTo(readRows.size());
+    assertThat(rows).hasSameSizeAs(readRows);
     assertThat(readRows).isEqualTo(rows);
 
     // Now we try to import that file as an Iceberg table to make sure Iceberg can read
@@ -193,7 +193,7 @@ public class TestSparkParquetReader extends AvroDataTest {
     Table int96Table = tableFromInputFile(parquetInputFile, schema);
     List<Record> tableRecords = Lists.newArrayList(IcebergGenerics.read(int96Table).build());
 
-    assertThat(rows.size()).isEqualTo(tableRecords.size());
+    assertThat(rows).hasSameSizeAs(tableRecords);
 
     for (int i = 0; i < tableRecords.size(); i++) {
       GenericsHelpers.assertEqualsUnsafe(schema.asStruct(), tableRecords.get(i), rows.get(i));

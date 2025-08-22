@@ -34,7 +34,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -196,7 +195,7 @@ public class TestLocalScan {
 
   @BeforeEach
   public void createTables() throws IOException {
-    File location = Files.createTempDirectory(tempDir.toPath(), "shared").toFile();
+    File location = new File(tempDir, "shared" + System.nanoTime());
     this.sharedTableLocation = location.toString();
     this.sharedTable =
         TABLES.create(
@@ -227,8 +226,7 @@ public class TestLocalScan {
   public void testRandomData() throws IOException {
     List<Record> expected = RandomGenericData.generate(SCHEMA, 1000, 435691832918L);
 
-    File location = Files.createTempDirectory(tempDir.toPath(), "junit").toFile();
-    assertThat(location.delete()).isTrue();
+    File location = new File(tempDir, "junit" + System.nanoTime());
 
     Table table =
         TABLES.create(
@@ -554,8 +552,7 @@ public class TestLocalScan {
             required(3, "date", Types.DateType.get()),
             required(4, "time", Types.TimeType.get()));
 
-    File tableLocation = Files.createTempDirectory(tempDir.toPath(), "junit").toFile();
-    assertThat(tableLocation.delete()).isTrue();
+    File tableLocation = new File(tempDir, "junit" + System.nanoTime());
 
     Table table =
         TABLES.create(

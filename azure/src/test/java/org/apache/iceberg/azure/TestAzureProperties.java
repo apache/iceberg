@@ -36,8 +36,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.AzureSasCredential;
 import com.azure.core.credential.TokenCredential;
+import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.DefaultAzureCredential;
 import com.azure.security.keyvault.keys.cryptography.models.KeyWrapAlgorithm;
 import com.azure.storage.common.StorageSharedKeyCredential;
@@ -51,6 +53,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
+import reactor.core.publisher.Mono;
 
 public class TestAzureProperties {
 
@@ -212,5 +216,30 @@ public class TestAzureProperties {
     props.applyClientConfiguration("account", clientBuilder);
     verify(clientBuilder).credential(any(StorageSharedKeyCredential.class));
     verify(clientBuilder, never()).credential(any(TokenCredential.class));
+  }
+
+  @Test
+  public void testAdlsToken() {
+    String testToken = "test-token-value";
+    AzureProperties props = new AzureProperties(ImmutableMap.of("adls.token", testToken));
+
+    DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
+    ArgumentCaptor<TokenCredential> credentialCaptor =
+        ArgumentCaptor.forClass(TokenCredential.class);
+
+    props.applyClientConfiguration("account", clientBuilder);
+
+    verify(clientBuilder).credential(credentialCaptor.capture());
+    TokenCredential capturedCredential = credentialCaptor.getValue();
+
+    // Check that the credential returns the correct token
+    Mono<AccessToken> tokenMono = capturedCredential.getToken(new TokenRequestContext());
+    AccessToken accessToken = tokenMono.block();
+    assertThat(accessToken.getToken()).isEqualTo(testToken);
+
+    // Verify other credential types were not used
+    verify(clientBuilder, never()).sasToken(any());
+    verify(clientBuilder, never()).credential(any(StorageSharedKeyCredential.class));
+    verify(clientBuilder, never()).credential(any(com.azure.identity.DefaultAzureCredential.class));
   }
 }

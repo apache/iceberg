@@ -39,7 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
@@ -52,7 +52,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 
-public class TestParquetVectorizedReads extends AvroDataTest {
+public class TestParquetVectorizedReads extends AvroDataTestBase {
   private static final int NUM_ROWS = 200_000;
   static final int BATCH_SIZE = 10_000;
 
@@ -321,5 +321,19 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageStartingWith("Cannot support vectorized reads for column")
         .hasMessageEndingWith("Disable vectorized reads to read this table/file");
+  }
+
+  @Test
+  public void testUuidReads() throws Exception {
+    // Just one row to maintain dictionary encoding
+    int numRows = 1;
+    Schema schema = new Schema(optional(100, "uuid", Types.UUIDType.get()));
+
+    InMemoryOutputFile dataFile = new InMemoryOutputFile();
+    Iterable<GenericData.Record> data = generateData(schema, numRows, 0L, 0, IDENTITY);
+    try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
+      writer.addAll(data);
+    }
+    assertRecordsMatch(schema, numRows, data, dataFile.toInputFile(), false, BATCH_SIZE);
   }
 }

@@ -168,7 +168,7 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
   }
 
   private void addColumn(int parentId, Types.NestedField field) {
-    String parentName = targetSchema.findColumnName(parentId);
+    String parentName = existingSchema.findColumnName(parentId);
     api.addColumn(parentName, field.name(), field.type(), field.doc());
   }
 
