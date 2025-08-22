@@ -153,8 +153,10 @@ public class TestDataFileSerialization {
                 msgType ->
                     SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(DATE_SCHEMA), msgType))
             .build();
-    try (writer) {
+    try {
       writer.addAll(records);
+    } finally {
+      writer.close();
     }
 
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();

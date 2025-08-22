@@ -579,32 +579,30 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     Path testFilePath = new Path(testFile.getAbsolutePath());
 
     // Write a Parquet file with more than one row group
-    try (ParquetFileWriter parquetFileWriter =
-        new ParquetFileWriter(
-            conf, ParquetSchemaUtil.convert(SCHEMA, "test3Schema"), testFilePath)) {
-      parquetFileWriter.start();
-      for (int i = 0; i < 2; i += 1) {
-        File split = File.createTempFile("junit", null, temp.toFile());
-        assertThat(split.delete()).as("Delete should succeed").isTrue();
-        Path splitPath = new Path(split.getAbsolutePath());
-        fileSplits.add(splitPath);
-        try (FileAppender<InternalRow> writer =
-            Parquet.write(Files.localOutput(split))
-                .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(sparkSchema, msgType))
-                .schema(SCHEMA)
-                .overwrite()
-                .build()) {
-          Iterable<InternalRow> records = RandomData.generateSpark(SCHEMA, 100, 34 * i + 37);
-          writer.addAll(records);
-        }
-        parquetFileWriter.appendFile(
-            org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(splitPath, conf));
+    ParquetFileWriter parquetFileWriter =
+        new ParquetFileWriter(conf, ParquetSchemaUtil.convert(SCHEMA, "test3Schema"), testFilePath);
+    parquetFileWriter.start();
+    for (int i = 0; i < 2; i += 1) {
+      File split = File.createTempFile("junit", null, temp.toFile());
+      assertThat(split.delete()).as("Delete should succeed").isTrue();
+      Path splitPath = new Path(split.getAbsolutePath());
+      fileSplits.add(splitPath);
+      try (FileAppender<InternalRow> writer =
+          Parquet.write(Files.localOutput(split))
+              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(sparkSchema, msgType))
+              .schema(SCHEMA)
+              .overwrite()
+              .build()) {
+        Iterable<InternalRow> records = RandomData.generateSpark(SCHEMA, 100, 34 * i + 37);
+        writer.addAll(records);
       }
-      parquetFileWriter.end(
-          ParquetFileWriter.mergeMetadataFiles(fileSplits, conf)
-              .getFileMetaData()
-              .getKeyValueMetaData());
+      parquetFileWriter.appendFile(
+          org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(splitPath, conf));
     }
+    parquetFileWriter.end(
+        ParquetFileWriter.mergeMetadataFiles(fileSplits, conf)
+            .getFileMetaData()
+            .getKeyValueMetaData());
 
     // Add the file to the table
     DataFile dataFile =
