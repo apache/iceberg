@@ -515,6 +515,7 @@ project(':iceberg-aws') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
     testImplementation libs.jetty.servlet
+    testImplementation libs.mockito.junit.jupiter
   }
 
   sourceSets {
@@ -567,6 +568,7 @@ project(':iceberg-azure') {
     testImplementation libs.testcontainers
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+    testImplementation libs.mockito.junit.jupiter
   }
 
   sourceSets {

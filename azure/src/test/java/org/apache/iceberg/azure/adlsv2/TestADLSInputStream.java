@@ -16,13 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3;
+package org.apache.iceberg.azure.adlsv2;
 
-import static org.mockito.Mockito.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.azure.storage.file.datalake.DataLakeFileClient;
+import com.azure.storage.file.datalake.implementation.models.InternalDataLakeFileOpenInputStreamResult;
 import java.io.IOException;
 import java.io.InputStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,35 +32,33 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.core.sync.ResponseTransformer;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 @ExtendWith(MockitoExtension.class)
-public final class TestS3InputStream {
+class TestADLSInputStream {
 
-  @Mock private S3Client s3Client;
+  @Mock private DataLakeFileClient fileClient;
   @Mock private InputStream inputStream;
 
-  private S3InputStream s3InputStream;
+  private ADLSInputStream adlsInputStream;
 
   @BeforeEach
   void before() {
-    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
-        .thenReturn(inputStream);
-    s3InputStream = new S3InputStream(s3Client, mock());
+    InternalDataLakeFileOpenInputStreamResult openInputStreamResult =
+        new InternalDataLakeFileOpenInputStreamResult(inputStream, mock());
+    when(fileClient.openInputStream(any())).thenReturn(openInputStreamResult);
+    adlsInputStream = new ADLSInputStream(fileClient, 0L, mock(), mock());
   }
 
   @Test
   void testReadFullyClosesTheStream() throws IOException {
-    s3InputStream.readFully(0, new byte[0]);
+    adlsInputStream.readFully(0, new byte[0]);
 
     verify(inputStream).close();
   }
 
   @Test
   void testReadTailClosesTheStream() throws IOException {
-    s3InputStream.readTail(new byte[0], 0, 0);
+    adlsInputStream.readTail(new byte[0], 0, 0);
 
     verify(inputStream).close();
   }
