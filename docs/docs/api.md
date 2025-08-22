@@ -113,8 +113,12 @@ table.updateSchema()
 Available operations to update a table are:
 
 * `updateSchema` -- update the table schema
+* `updateStatistics` -- update the table metadata statistics
+* `updatePartitionStatistics` -- update statistics for a specific partition in table
 * `updateProperties` -- update table properties
 * `updateLocation` -- update the table's base location
+* `expireSnapshots` -- used to remove old snapshots from table
+* `manageSnapshots` -- used to manage table snapshots
 * `newAppend` -- used to append data files
 * `newFastAppend` -- used to append data files, will not compact metadata
 * `newOverwrite` -- used to append data files and remove files that are overwritten
