@@ -3357,8 +3357,8 @@ components:
         required-projection:
           description: >
             A list of projections that must be applied before query projections. If the term is a transform, it must replace the column referenced by the term.
-            For example, if the term is mask(cc, 0, 4) i.e mask transform on column cc, it must replace the column cc in the query with the masked value,
-            essentially projecting it as mask(cc, 0, 4) AS cc.
+            For example, if the term is truncate(4, cc) i.e truncate transform on column cc, it must replace the column cc in the query with the transformed value,
+            essentially projecting it as truncate(4, cc) AS cc.
             Readers are NOT allowed to project columns that are not listed and must apply transforms.
             If the required-projection is not present or is empty, it means that no projection is required and all columns can be read as-is.
             
