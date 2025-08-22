@@ -21,6 +21,20 @@ plugins:
   - search
 
 nav:
+  - index.md
+  - Concepts:
+    - Tables:
+      - concepts/branching.md
+      - concepts/configuration.md
+      - concepts/evolution.md
+      - concepts/maintenance.md
+      - concepts/metrics-reporting.md
+      - concepts/partitioning.md
+      - concepts/performance.md
+      - concepts/reliability.md
+      - concepts/schemas.md
+    - Views:
+      - concepts/view-configuration.md
   - API:
     - Quickstart: java-api-quickstart.md
     - API: api.md

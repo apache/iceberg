@@ -30,7 +30,7 @@ theme:
   font:
     text: Nunito Sans
   palette:
-    scheme: iceberg  
+    scheme: iceberg
   features:
     - navigation.tabs
     - navigation.tabs.sticky
@@ -55,17 +55,6 @@ plugins:
       enabled: !ENV [OFFLINE, false]
   - redirects:
       redirect_maps:
-        'docs/nightly/index.md': 'introduction.md'
-        'docs/nightly/branching.md': 'concepts/branching.md'
-        'docs/nightly/configuration.md': 'concepts/configuration.md'
-        'docs/nightly/evolution.md': 'concepts/evolution.md'
-        'docs/nightly/maintenance.md': 'concepts/maintenance.md'
-        'docs/nightly/metrics-reporting.md': 'concepts/metrics-reporting.md'
-        'docs/nightly/partitioning.md': 'concepts/partitioning.md'
-        'docs/nightly/performance.md': 'concepts/performance.md'
-        'docs/nightly/reliability.md': 'concepts/reliability.md'
-        'docs/nightly/schemas.md': 'concepts/schemas.md'
-        'docs/nightly/view-configuration.md': 'concepts/view-configuration.md'
         'docs/nightly/amoro.md': 'integrations/amoro.md'
         'docs/nightly/aws.md': 'integrations/aws.md'
         'docs/nightly/bladepipe.md': 'integrations/bladepipe.md'
@@ -73,7 +62,7 @@ plugins:
         'docs/nightly/dell.md': 'integrations/dell.md'
         'docs/nightly/nessie.md': 'integrations/nessie.md'
         'docs/nightly/risingwave.md': 'integrations/risingwave.md'
-        
+
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
@@ -86,7 +75,7 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.tabbed:
-      alternate_style: true 
+      alternate_style: true
   - pymdownx.mark
   - pymdownx.tilde
   - attr_list
@@ -125,7 +114,7 @@ extra_css:
   - assets/stylesheets/bootstrap-grid.css
   - assets/stylesheets/bootstrap-buttons.css
   - assets/stylesheets/home.css
-  
+
 extra_javascript:
   - assets/javascript/extra.js
 
