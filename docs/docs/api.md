@@ -120,6 +120,7 @@ Available operations to update a table are:
 * `newOverwrite` -- used to append data files and remove files that are overwritten
 * `newDelete` -- used to delete data files
 * `newRewrite` -- used to rewrite data files; will replace existing files with new versions
+* `newRowDelta` -- used to insert, update, and delete rows automatically
 * `newTransaction` -- create a new table-level transaction
 * `rewriteManifests` -- rewrite manifest data by clustering files, for faster scan planning
 * `rollback` -- rollback the table state to a specific snapshot
@@ -247,7 +248,6 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 
 * `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
 * `iceberg-flink` is an implementation of Flink's Table and DataStream API for Iceberg (use iceberg-flink-runtime for a shaded version)
-* `iceberg-hive3` is an implementation of Hive 3 specific SerDe's for Timestamp, TimestampWithZone, and Date object inspectors (use iceberg-hive-runtime for a shaded version).
 * `iceberg-mr` is an implementation of MapReduce and Hive InputFormats and SerDes for Iceberg (use iceberg-hive-runtime for a shaded version for use with Hive)
 * `iceberg-nessie` is a module used to integrate Iceberg table metadata history and operations with [Project Nessie](https://projectnessie.org/)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
