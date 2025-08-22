@@ -113,7 +113,8 @@ table.updateSchema()
 Available operations to update a table are:
 
 * `updateSchema` -- update the table schema
-* `updateStatistics` -- update the table metadata statistics
+* `updateStatistics` -- update statistics files of a table
+* `updatePartitionSpec` -- for partition spec evolution
 * `updatePartitionStatistics` -- update statistics for a specific partition in table
 * `updateProperties` -- update table properties
 * `updateLocation` -- update the table's base location
@@ -124,10 +125,11 @@ Available operations to update a table are:
 * `newOverwrite` -- used to append data files and remove files that are overwritten
 * `newDelete` -- used to delete data files
 * `newRewrite` -- used to rewrite data files; will replace existing files with new versions
-* `newRowDelta` -- used to insert, update, and delete rows automatically
+* `newRowDelta` -- used to remove or replace rows in existing data files
 * `newTransaction` -- create a new table-level transaction
 * `rewriteManifests` -- rewrite manifest data by clustering files, for faster scan planning
 * `rollback` -- rollback the table state to a specific snapshot
+* `replaceSortOrder` -- for replacing table sort order with a newly created order
 
 ### Transactions
 
