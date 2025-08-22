@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -40,10 +41,8 @@ public class TestBoundReference {
   // where each s{i} is an optional struct if optionalList.get(i) is true and a required struct if
   // false
   private static Schema buildSchemaFromOptionalList(List<Boolean> optionalList, String leafName) {
-    if (optionalList == null || optionalList.isEmpty()) {
-      throw new IllegalArgumentException("optionalList must not be empty");
-    }
-
+    Preconditions.checkArgument(
+        optionalList != null && !optionalList.isEmpty(), "optionalList must not be null or empty");
     Types.NestedField leaf =
         optionalList.get(optionalList.size() - 1)
             ? optional(optionalList.size(), leafName, Types.IntegerType.get())
@@ -63,6 +62,12 @@ public class TestBoundReference {
   }
 
   private static Stream<Arguments> producesNullCases() {
+    // the test cases specify two arguments:
+    // - the first is a list of booleans that indicate whether fields in the nested sequence of
+    //   structs are optional or required. For example, [false, true, false] will construct a
+    //   struct like s1.s2.s3 with s1 being required, s2 being optional, and s3 being required.
+    // - the second is a boolean that indicates whether calling producesNull() on the BoundReference
+    //   of the leaf field should return true or false.
     return Stream.of(
         // basic fields, no struct levels
         Arguments.of(Arrays.asList(false), false),

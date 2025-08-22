@@ -1254,10 +1254,6 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
       justification: "Changing deprecated code"
   "1.9.0":
-    org.apache.iceberg:iceberg-api:
-    - code: "java.method.addedToInterface"
-      new: "method boolean org.apache.iceberg.Accessor<T>::hasOptionalFieldInPath()"
-      justification: "All subclasses implement the method"
     org.apache.iceberg:iceberg-common:
     - code: "java.method.visibilityReduced"
       old: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\
