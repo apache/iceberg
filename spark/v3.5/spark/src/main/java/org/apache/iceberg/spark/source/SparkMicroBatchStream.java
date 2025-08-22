@@ -501,6 +501,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     if (snapshot == null) {
       throw new IllegalStateException(
           String.format(
+              Locale.ROOT,
               "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
               currentOffset.snapshotId()));
     }

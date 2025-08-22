@@ -110,7 +110,7 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
 
   private long toSnapshotId(Table table, String refName) {
     SnapshotRef ref = table.refs().get(refName);
-    ValidationException.check(ref != null, "Cannot find matching snapshot ID for ref " + refName);
+    ValidationException.check(ref != null, "Cannot find matching snapshot ID for ref %s", refName);
     return ref.snapshotId();
   }
 }

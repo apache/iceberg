@@ -102,7 +102,6 @@ public class RewriteManifestsSparkAction
           .addedManifests(ImmutableList.of())
           .build();
 
-  private static final String CUSTOM_CLUSTERING_COLUMN_NAME = "__clustering_column__";
   private static final String DATA_FILE_PARTITION_COLUMN_NAME = "data_file.partition";
 
   private final Table table;
