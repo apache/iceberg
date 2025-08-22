@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
@@ -63,6 +64,7 @@ import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.NullType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -96,14 +98,11 @@ public class SparkParquetWriters {
     public ParquetValueWriter<?> struct(
         StructType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
-      StructField[] sparkFields = sStruct.fields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
-      List<DataType> sparkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-        sparkTypes.add(sparkFields[i].dataType());
       }
-      return new InternalRowWriter(writers, sparkTypes);
+      return InternalRowWriter.create(sStruct, writers);
     }
 
     @Override
@@ -610,16 +609,45 @@ public class SparkParquetWriters {
   }
 
   private static class InternalRowWriter extends ParquetValueWriters.StructWriter<InternalRow> {
-    private final DataType[] types;
+    static InternalRowWriter create(StructType struct, List<ParquetValueWriter<?>> writers) {
+      int[] fieldIndexes = writerToFieldIndex(struct, writers.size());
+      return new InternalRowWriter(struct, fieldIndexes, writers);
+    }
 
-    private InternalRowWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
-      super(writers);
-      this.types = types.toArray(new DataType[0]);
+    private final StructField[] fields;
+    private final int[] fieldIndexes;
+
+    private InternalRowWriter(
+        StructType struct, int[] fieldIndexes, List<ParquetValueWriter<?>> writers) {
+      super(fieldIndexes, writers);
+      this.fields = struct.fields();
+      this.fieldIndexes = fieldIndexes;
     }
 
     @Override
     protected Object get(InternalRow struct, int index) {
-      return struct.get(index, types[index]);
+      return struct.get(index, fields[fieldIndexes[index]].dataType());
     }
+  }
+
+  /** Returns a mapping from writer index to field index, skipping Unknown columns. */
+  private static int[] writerToFieldIndex(StructType struct, int numWriters) {
+    if (null == struct) {
+      return IntStream.rangeClosed(0, numWriters).toArray();
+    }
+
+    StructField[] fields = struct.fields();
+
+    // value writer index to record field index
+    int[] indexes = new int[numWriters];
+    int writerIndex = 0;
+    for (int pos = 0; pos < fields.length; pos += 1) {
+      if (!(fields[pos].dataType() instanceof NullType)) {
+        indexes[writerIndex] = pos;
+        writerIndex += 1;
+      }
+    }
+
+    return indexes;
   }
 }
