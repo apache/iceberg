@@ -87,12 +87,15 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
   RewriteTablePath stagingLocation(String stagingLocation);
 
   /**
-   * Whether to skip saving the file list location.
+   * Whether to create the file list.
    *
-   * @param skipFileList true to skip saving the file list, false to include it
+   * <p>The default value is true, which means the file list will be created. If set to false, the
+   * file list will not be created.
+   *
+   * @param createFileList true to create the file list, false to skip it
    * @return this instance for method chaining
    */
-  default RewriteTablePath skipFileList(boolean skipFileList) {
+  default RewriteTablePath createFileList(boolean createFileList) {
     return this;
   }
 
@@ -123,13 +126,13 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
     /** Name of latest metadata file version */
     String latestVersion();
 
-    /** count of rewrite delete files, default value is 0 */
-    default int rewrittenDeleteFilesCount() {
+    /** Number of delete files whose paths were updated. Default value is 0. */
+    default int deleteFilesPathRewrittenCount() {
       return 0;
     }
 
-    /** count of rewrite metadata files involved, default value is 0 */
-    default int rewrittenManifestFilesCount() {
+    /** Number of manifest files whose paths were updated. Default value is 0. */
+    default int manifestFilesPathRewrittenCount() {
       return 0;
     }
   }

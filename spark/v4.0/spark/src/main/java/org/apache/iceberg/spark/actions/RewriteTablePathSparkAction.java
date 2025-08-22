@@ -96,7 +96,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private String startVersionName;
   private String endVersionName;
   private String stagingDir;
-  private boolean skipFileList;
+  private boolean fileListEnabled = true;
 
   private final Table table;
   private Broadcast<Table> tableBroadcast = null;
@@ -151,8 +151,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   @Override
-  public RewriteTablePath skipFileList(boolean pSkipFileList) {
-    this.skipFileList = pSkipFileList;
+  public RewriteTablePath createFileList(boolean createFileList) {
+    this.fileListEnabled = createFileList;
     return this;
   }
 
@@ -310,13 +310,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     ImmutableRewriteTablePath.Result.Builder builder =
         ImmutableRewriteTablePath.Result.builder()
             .stagingLocation(stagingDir)
-            .rewrittenDeleteFilesCount(deleteFiles.size())
-            .rewrittenManifestFilesCount(metaFiles.size())
+            .deleteFilesPathRewrittenCount(deleteFiles.size())
+            .manifestFilesPathRewrittenCount(metaFiles.size())
             .latestVersion(RewriteTablePathUtil.fileName(endVersionName));
 
-    // skip file list
-    if (skipFileList) {
-      return builder.build();
+    // file list generation disabled
+    if (!fileListEnabled) {
+      return builder.fileListLocation("N/A").build();
     }
 
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();

@@ -32,14 +32,14 @@ interface BaseRewriteTablePath extends RewriteTablePath {
   interface Result extends RewriteTablePath.Result {
     @Override
     @Value.Default
-    default int rewrittenDeleteFilesCount() {
-      return RewriteTablePath.Result.super.rewrittenDeleteFilesCount();
+    default int deleteFilesPathRewrittenCount() {
+      return RewriteTablePath.Result.super.deleteFilesPathRewrittenCount();
     }
 
     @Override
     @Value.Default
-    default int rewrittenManifestFilesCount() {
-      return RewriteTablePath.Result.super.rewrittenManifestFilesCount();
+    default int manifestFilesPathRewrittenCount() {
+      return RewriteTablePath.Result.super.manifestFilesPathRewrittenCount();
     }
   }
 }

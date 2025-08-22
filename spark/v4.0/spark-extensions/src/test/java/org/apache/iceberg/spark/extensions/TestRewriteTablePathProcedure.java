@@ -178,20 +178,23 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRewriteTablePathWithSkipFileList() {
+  public void testRewriteTablePathWithoutFileList() {
     String location = targetTableDir.toFile().toURI().toString();
     Table table = validationCatalog.loadTable(tableIdent);
     String metadataJson = TableUtil.metadataFileLocation(table);
 
     List<Object[]> result =
         sql(
-            "CALL %s.system.rewrite_table_path(table => '%s', source_prefix => '%s', target_prefix => '%s', skip_file_list => true)",
+            "CALL %s.system.rewrite_table_path(table => '%s', source_prefix => '%s', target_prefix => '%s', create_file_list => false)",
             catalogName, tableIdent, table.location(), location);
     assertThat(result).hasSize(1);
     assertThat(result.get(0)[0])
         .as("Should return correct latest version")
         .isEqualTo(RewriteTablePathUtil.fileName(metadataJson));
-    assertThat(result.get(0)[1]).as("Should return empty").asString().isEqualTo("");
+    assertThat(result.get(0)[1])
+        .as("Check if file list location is correctly marked as N/A when not generated")
+        .asString()
+        .isEqualTo("N/A");
   }
 
   private void checkFileListLocationCount(String fileListLocation, long expectedFileCount) {
@@ -201,13 +204,12 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testRewriteTablePathWithManifestAndDeleteCounts() throws IOException {
-
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
     sql("INSERT INTO %s VALUES (3, 'c')", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    List<Pair<CharSequence, Long>> deletes =
+    List<Pair<CharSequence, Long>> rowsToDelete =
         Lists.newArrayList(
             Pair.of(
                 table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
@@ -216,7 +218,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
     File file = new File(removePrefix(table.location()) + "/data/deletes.parquet");
     DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(
-                table, table.io().newOutputFile(file.toURI().toString()), deletes)
+                table, table.io().newOutputFile(file.toURI().toString()), rowsToDelete)
             .first();
 
     table.newRowDelta().addDeletes(positionDeletes).commit();
@@ -232,7 +234,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
                 + "table => '%s', "
                 + "source_prefix => '%s', "
                 + "target_prefix => '%s', "
-                + "staging_location => '%s')",
+                + "staging_location => '%s', create_file_list => false)",
             catalogName, tableIdent, table.location(), targetLocation, stagingLocation);
 
     assertThat(result).hasSize(1);
@@ -242,11 +244,16 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
     int rewrittenDeleteFilesCount = ((Number) row[3]).intValue();
 
     assertThat(rewrittenDeleteFilesCount)
-        .as("Should rewrite at least one delete file")
-        .isGreaterThan(0);
+        .as(
+            "Expected exactly 1 delete file to be rewritten, but found "
+                + rewrittenDeleteFilesCount)
+        .isEqualTo(1);
+
     assertThat(rewrittenManifestFilesCount)
-        .as("Should rewrite at least one manifest file")
-        .isGreaterThan(0);
+        .as(
+            "Expected exactly 5 manifest files to be rewritten, but found "
+                + rewrittenManifestFilesCount)
+        .isEqualTo(5);
   }
 
   private String removePrefix(String path) {
