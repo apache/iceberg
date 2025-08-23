@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.spark.actions.RewriteTablePathSparkAction.NOT_APPLICABLE;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -1386,7 +1387,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
-  public void testRewritePathWithCreateFileListFalse() throws Exception {
+  public void testRewritePathWithoutCreateFileList() throws Exception {
     // Target table location
     String targetTableLocation = targetTableLocation();
 
@@ -1404,6 +1405,6 @@ public class TestRewriteTablePathsAction extends TestBase {
     // Check that the file list location is empty since the file list was not created
     assertThat(result.fileListLocation())
         .as("File list location should not be set when createFileList is false")
-        .isEqualTo("N/A");
+        .isEqualTo(NOT_APPLICABLE);
   }
 }

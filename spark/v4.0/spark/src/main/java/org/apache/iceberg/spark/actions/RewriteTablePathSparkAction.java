@@ -90,13 +90,14 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteTablePathSparkAction.class);
   private static final String RESULT_LOCATION = "file-list";
+  public static final String NOT_APPLICABLE = "N/A";
 
   private String sourcePrefix;
   private String targetPrefix;
   private String startVersionName;
   private String endVersionName;
   private String stagingDir;
-  private boolean fileListEnabled = true;
+  private boolean createFileList = true;
 
   private final Table table;
   private Broadcast<Table> tableBroadcast = null;
@@ -152,7 +153,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   @Override
   public RewriteTablePath createFileList(boolean createFileList) {
-    this.fileListEnabled = createFileList;
+    this.createFileList = createFileList;
     return this;
   }
 
@@ -315,8 +316,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .latestVersion(RewriteTablePathUtil.fileName(endVersionName));
 
     // file list generation disabled
-    if (!fileListEnabled) {
-      return builder.fileListLocation("N/A").build();
+    if (!createFileList) {
+      return builder.fileListLocation(NOT_APPLICABLE).build();
     }
 
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();

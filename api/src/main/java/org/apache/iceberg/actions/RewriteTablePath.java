@@ -126,12 +126,12 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
     /** Name of latest metadata file version */
     String latestVersion();
 
-    /** Number of delete files whose paths were updated. Default value is 0. */
+    /** Number of delete files with rewritten paths. */
     default int deleteFilesPathRewrittenCount() {
       return 0;
     }
 
-    /** Number of manifest files whose paths were updated. Default value is 0. */
+    /** Number of manifest files with rewritten paths. */
     default int manifestFilesPathRewrittenCount() {
       return 0;
     }
