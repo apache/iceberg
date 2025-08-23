@@ -37,7 +37,8 @@ public class FlinkMaintenanceConfig {
           .longType()
           .defaultValue(TableMaintenance.LOCK_CHECK_DELAY_SECOND_DEFAULT)
           .withDescription(
-              "The delay time (in seconds) between each lock check during the rewrite operation.");
+              "The delay time (in seconds) between each lock check during maintenance operations such as "
+                  + "rewriting data files, manifest files, expiring snapshots, and deleting orphan files.");
 
   public static final String PARALLELISM = PREFIX + "parallelism";
   public static final ConfigOption<Integer> PARALLELISM_OPTION =
