@@ -202,9 +202,7 @@ search_exclude_versioned_docs () {
 
   # Modify .md files to exclude versioned documentation from search indexing
   python3 -c "import os
-for f in filter(lambda x: x.endswith('.md'), os.listdir()): lines = open(f).readlines(); open(f, 'w').writelines(lines[:2] + ['search:
-', '  exclude: true
-'] + lines[2:]);"
+for f in filter(lambda x: x.endswith('.md'), os.listdir()): lines = open(f).readlines(); open(f, 'w').writelines(lines[:2] + ['search:', '  exclude: true'] + lines[2:]);"
 
   cd -
 }
