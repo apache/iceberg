@@ -36,7 +36,7 @@ import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
 
-public class RestTableScan extends DataTableScan {
+class RestTableScan extends DataTableScan {
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
@@ -48,7 +48,7 @@ public class RestTableScan extends DataTableScan {
   // TODO revisit if this property should be configurable
   private static final int FETCH_PLANNING_SLEEP_DURATION_MS = 1000;
 
-  public RestTableScan(
+  RestTableScan(
       Table table,
       Schema schema,
       TableScanContext context,
@@ -85,6 +85,9 @@ public class RestTableScan extends DataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
+    Long startSnapshotId = context().fromSnapshotId();
+    Long endSnapshotId = context().toSnapshotId();
+    Long snapshotId = snapshotId();
     List<String> selectedColumns =
         schema().columns().stream().map(Types.NestedField::name).collect(Collectors.toList());
 
@@ -95,10 +98,6 @@ public class RestTableScan extends DataTableScan {
               .map(columnId -> schema().findColumnName(columnId))
               .collect(Collectors.toList());
     }
-
-    Long startSnapshotId = context().fromSnapshotId();
-    Long endSnapshotId = context().toSnapshotId();
-    Long snapshotId = snapshotId();
 
     PlanTableScanRequest.Builder planTableScanRequestBuilder =
         new PlanTableScanRequest.Builder()
@@ -127,12 +126,12 @@ public class RestTableScan extends DataTableScan {
   }
 
   private CloseableIterable<FileScanTask> planTableScan(PlanTableScanRequest planTableScanRequest) {
-    // we need to inject specById map here and also the caseSensitive
     ParserContext context =
         ParserContext.builder()
             .add("specsById", table.specs())
             .add("caseSensitive", context().caseSensitive())
             .build();
+
     PlanTableScanResponse response =
         client.post(
             resourcePaths.planTableScan(tableIdentifier),
@@ -146,13 +145,15 @@ public class RestTableScan extends DataTableScan {
     PlanStatus planStatus = response.planStatus();
     switch (planStatus) {
       case COMPLETED:
-        // List<FileScanTask> fileScanTasks = bindFileScanTasksWithSpec(response.fileScanTasks());
         return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
         return fetchPlanningResult(response.planId());
       case FAILED:
-        throw new RuntimeException(
+        throw new IllegalStateException(
             "Received \"failed\" status from service when planning a table scan");
+      case CANCELLED:
+        throw new IllegalStateException(
+            "Received \"cancelled\" status from service when planning a table scan");
       default:
         throw new RuntimeException(
             String.format("Invalid planStatus during planTableScan: %s", planStatus));
@@ -181,9 +182,10 @@ public class RestTableScan extends DataTableScan {
       PlanStatus planStatus = response.planStatus();
       switch (planStatus) {
         case COMPLETED:
-          // List<FileScanTask> fileScanTasks = bindFileScanTasksWithSpec(response.fileScanTasks());
           return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
         case SUBMITTED:
+          // TODO: Think more about whether we should use a backoff strategy here.
+          // For now, we will just sleep for a fixed duration before checking the status again.
           try {
             Thread.sleep(FETCH_PLANNING_SLEEP_DURATION_MS);
           } catch (InterruptedException e) {
