@@ -126,9 +126,7 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
       failedCounter.inc(e.numberFailedObjects());
     } finally {
       long elapsed = System.currentTimeMillis() - startTime;
-      if (deleteFileTimeMsHistogram != null) {
-        deleteFileTimeMsHistogram.update(elapsed);
-      }
+      deleteFileTimeMsHistogram.update(elapsed);
     }
   }
 
