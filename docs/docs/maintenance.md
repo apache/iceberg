@@ -1,27 +1,29 @@
 ---
+
 title: Maintenance
----
+------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Maintenance
 
 !!! info
-    Maintenance operations require the `Table` instance. Please refer [Java API quickstart](java-api-quickstart.md#create-a-table) page to refer how to load an existing table.
+Maintenance operations require the `Table` instance. Please refer [Java API quickstart](java-api-quickstart.md#create-a-table) page to refer how to load an existing table.
 
 ## Recommended Maintenance
 
@@ -57,9 +59,8 @@ SparkActions
 Expiring old snapshots removes them from metadata, so they are no longer available for time travel queries.
 
 !!! info
-    Data files are not deleted until they are no longer referenced by a snapshot that may be used for time travel or rollback.
-    Regularly expiring snapshots deletes unused data files.
-
+Data files are not deleted until they are no longer referenced by a snapshot that may be used for time travel or rollback.
+Regularly expiring snapshots deletes unused data files.
 
 ### Remove old metadata files
 
@@ -69,8 +70,8 @@ Old metadata files are kept for history by default. Tables with frequent commits
 
 To automatically clean metadata files, set `write.metadata.delete-after-commit.enabled=true` in table properties. This will keep some metadata files (up to `write.metadata.previous-versions-max`) and will delete the oldest metadata file after each new one is created.
 
-| Property                                     | Description                                                              |
-| -------------------------------------------- |--------------------------------------------------------------------------|
+|                   Property                   |                               Description                                |
+|----------------------------------------------|--------------------------------------------------------------------------|
 | `write.metadata.delete-after-commit.enabled` | Whether to delete old **tracked** metadata files after each table commit |
 | `write.metadata.previous-versions-max`       | The number of old metadata files to keep                                 |
 
@@ -99,17 +100,15 @@ See the [DeleteOrphanFiles Javadoc](../../javadoc/{{ icebergVersion }}/org/apach
 This action may take a long time to finish if you have lots of files in data and metadata directories. It is recommended to execute this periodically, but you may not need to execute this often.
 
 !!! info
-    It is dangerous to remove orphan files with a retention interval shorter than the time expected for any write to complete because it
-    might corrupt the table if in-progress files are considered orphaned and are deleted. The default interval is 3 days.
+It is dangerous to remove orphan files with a retention interval shorter than the time expected for any write to complete because it
+might corrupt the table if in-progress files are considered orphaned and are deleted. The default interval is 3 days.
 
-    
 !!! info
-    Iceberg uses the string representations of paths when determining which files need to be removed. On some file systems,
-    the path can change over time, but it still represents the same file. For example, if you change authorities for an HDFS cluster, 
-    none of the old path urls used during creation will match those that appear in a current listing. *This will lead to data loss when 
-    RemoveOrphanFiles is run*. Please be sure the entries in your MetadataTables match those listed by the Hadoop
-    FileSystem API to avoid unintentional deletion. 
-
+Iceberg uses the string representations of paths when determining which files need to be removed. On some file systems,
+the path can change over time, but it still represents the same file. For example, if you change authorities for an HDFS cluster,
+none of the old path urls used during creation will match those that appear in a current listing. *This will lead to data loss when
+RemoveOrphanFiles is run*. Please be sure the entries in your MetadataTables match those listed by the Hadoop
+FileSystem API to avoid unintentional deletion.
 
 ## Optional Maintenance
 

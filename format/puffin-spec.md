@@ -1,22 +1,24 @@
 ---
+
 title: "Puffin Spec"
----
+--------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Puffin file format
 
@@ -87,26 +89,25 @@ with content size present), UTF-8 encoded JSON payload representing a single
 
 `FileMetadata` has the following fields
 
-
-| Field Name | Field Type                              | Required | Description |
-| ---------- | --------------------------------------- | -------- | ----------- |
+| Field Name |               Field Type                | Required |                                                                                    Description                                                                                     |
+|------------|-----------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | blobs      | list of BlobMetadata objects            | yes      |
-| properties | JSON object with string property values | no       | storage for arbitrary meta-information, like writer identification/version. See [Common properties](#common-properties) for properties that are recommended to be set by a writer.
+| properties | JSON object with string property values | no       | storage for arbitrary meta-information, like writer identification/version. See [Common properties](#common-properties) for properties that are recommended to be set by a writer. |
 
 #### BlobMetadata
 
 `BlobMetadata` has the following fields
 
-| Field Name        | Field Type                              | Required | Description |
-|-------------------|-----------------------------------------|----------| ----------- |
-| type              | JSON string                             | yes      | See [Blob types](#blob-types)
-| fields            | JSON list of ints                       | yes      | List of field IDs the blob was computed for; the order of items is used to compute sketches stored in the blob.
-| snapshot-id       | JSON long                               | yes      | ID of the Iceberg table's snapshot the blob was computed from.
-| sequence-number   | JSON long                               | yes      | Sequence number of the Iceberg table's snapshot the blob was computed from.
-| offset            | JSON long                               | yes      | The offset in the file where the blob contents start
-| length            | JSON long                               | yes      | The length of the blob stored in the file (after compression, if compressed)
-| compression-codec | JSON string                             | no       | See [Compression codecs](#compression-codecs). If omitted, the data is assumed to be uncompressed.
-| properties        | JSON object with string property values | no       | storage for arbitrary meta-information about the blob
+|    Field Name     |               Field Type                | Required |                                                   Description                                                   |
+|-------------------|-----------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------|
+| type              | JSON string                             | yes      | See [Blob types](#blob-types)                                                                                   |
+| fields            | JSON list of ints                       | yes      | List of field IDs the blob was computed for; the order of items is used to compute sketches stored in the blob. |
+| snapshot-id       | JSON long                               | yes      | ID of the Iceberg table's snapshot the blob was computed from.                                                  |
+| sequence-number   | JSON long                               | yes      | Sequence number of the Iceberg table's snapshot the blob was computed from.                                     |
+| offset            | JSON long                               | yes      | The offset in the file where the blob contents start                                                            |
+| length            | JSON long                               | yes      | The length of the blob stored in the file (after compression, if compressed)                                    |
+| compression-codec | JSON string                             | no       | See [Compression codecs](#compression-codecs). If omitted, the data is assumed to be uncompressed.              |
+| properties        | JSON object with string property values | no       | storage for arbitrary meta-information about the blob                                                           |
 
 ### Blob types
 
@@ -157,8 +158,8 @@ consists of:
 
 * The number of 32-bit Roaring bitmaps, serialized as 8 bytes, little-endian
 * For each 32-bit Roaring bitmap, ordered by unsigned comparison of the 32-bit keys:
-    - The key stored as 4 bytes, little-endian
-    - A [32-bit Roaring bitmap][roaring-bitmap-general-layout]
+  - The key stored as 4 bytes, little-endian
+  - A [32-bit Roaring bitmap][roaring-bitmap-general-layout]
 
 Note that the length and CRC fields are stored using big-endian, but the
 Roaring bitmap format uses little-endian values. Big endian values were chosen
@@ -177,7 +178,6 @@ Snapshot ID and sequence number are not known at the time the Puffin file is
 created. `snapshot-id` and `sequence-number` must be set to -1 in blob metadata
 for Puffin v1.
 
-
 [roaring-bitmap-portable-serialization]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#extension-for-64-bit-implementations
 [roaring-bitmap-general-layout]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#general-layout
 
@@ -186,10 +186,11 @@ for Puffin v1.
 The data can also be uncompressed. If it is compressed the codec should be one of
 codecs listed below. For maximal interoperability, other codecs are not supported.
 
-| Codec name | Description                                                                                                                                                                                     |
+| Codec name |                                                                                           Description                                                                                           |
 |------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | lz4        | Single [LZ4 compression frame](https://github.com/lz4/lz4/blob/77d1b93f72628af7bbde0243b4bba9205c3138d9/doc/lz4_Frame_format.md), with content size present                                     |
 | zstd       | Single [Zstandard compression frame](https://github.com/facebook/zstd/blob/8af64f41161f6c2e0ba842006fe238c664a6a437/doc/zstd_compression_format.md#zstandard-frames), with content size present |
+
 __
 
 ### Common properties
@@ -199,3 +200,4 @@ When writing a Puffin file it is recommended to set the following fields in the
 
 - `created-by` - human-readable identification of the application writing the file,
   along with its version. Example "Trino version 381".
+

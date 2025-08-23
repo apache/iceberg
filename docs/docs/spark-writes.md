@@ -1,22 +1,24 @@
 ---
+
 title: "Writes"
----
+---------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Spark Writes
 
@@ -26,18 +28,17 @@ Some plans are only available when using [Iceberg SQL extensions](spark-configur
 
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
 
-| Feature support                                  | Spark 3 | Notes                                                                       |
-|--------------------------------------------------|-----------|-----------------------------------------------------------------------------|
-| [SQL insert into](#insert-into)                  | ✔️        | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
-| [SQL merge into](#merge-into)                    | ✔️        | ⚠ Requires Iceberg Spark extensions                                         |
-| [SQL insert overwrite](#insert-overwrite)        | ✔️        | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
-| [SQL delete from](#delete-from)                  | ✔️        | ⚠ Row-level delete requires Iceberg Spark extensions                        |
-| [SQL update](#update)                            | ✔️        | ⚠ Requires Iceberg Spark extensions                                         |
-| [DataFrame append](#appending-data)              | ✔️        |                                                                             |
-| [DataFrame overwrite](#overwriting-data)         | ✔️        |                                                                             |
-| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        | ⚠ Requires DSv2 API                                                         |
-| [DataFrame merge into](#merging-data)            | ✔️        | ⚠ Requires DSv2 API (Spark 4.0 and later)                                   |
-
+|               Feature support               | Spark 3 |                                    Notes                                    |
+|---------------------------------------------|---------|-----------------------------------------------------------------------------|
+| [SQL insert into](#insert-into)             | ✔️      | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL merge into](#merge-into)               | ✔️      | ⚠ Requires Iceberg Spark extensions                                         |
+| [SQL insert overwrite](#insert-overwrite)   | ✔️      | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL delete from](#delete-from)             | ✔️      | ⚠ Row-level delete requires Iceberg Spark extensions                        |
+| [SQL update](#update)                       | ✔️      | ⚠ Requires Iceberg Spark extensions                                         |
+| [DataFrame append](#appending-data)         | ✔️      |                                                                             |
+| [DataFrame overwrite](#overwriting-data)    | ✔️      |                                                                             |
+| [DataFrame CTAS and RTAS](#creating-tables) | ✔️      | ⚠ Requires DSv2 API                                                         |
+| [DataFrame merge into](#merging-data)       | ✔️      | ⚠ Requires DSv2 API (Spark 4.0 and later)                                   |
 
 ## Writing with SQL
 
@@ -50,6 +51,7 @@ To append new data to a table, use `INSERT INTO`.
 ```sql
 INSERT INTO prod.db.table VALUES (1, 'a'), (2, 'b')
 ```
+
 ```sql
 INSERT INTO prod.db.table SELECT ...
 ```
@@ -61,7 +63,6 @@ Spark 3 added support for `MERGE INTO` queries that can express row-level update
 Iceberg supports `MERGE INTO` by rewriting data files that contain rows that need to be updated in an `overwrite` commit.
 
 **`MERGE INTO` is recommended instead of `INSERT OVERWRITE`** because Iceberg can replace only the affected data files, and because the data overwritten by a dynamic overwrite may change if the table's partitioning changes.
-
 
 #### `MERGE INTO` syntax
 
@@ -206,7 +207,7 @@ The branch must exist before performing write. Operations do **not** create the 
 A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl).
 
 !!! info
-    Note: When writing to a branch, the current schema of the table will be used for validation.
+Note: When writing to a branch, the current schema of the table will be used for validation.
 
 ### Via SQL
 
@@ -214,7 +215,7 @@ Branch writes can be performed by providing a branch identifier, `branch_yourBra
 
 Branch writes can also be performed as part of a write-audit-publish (WAP) workflow by specifying the `spark.wap.branch` config.
 Note WAP branch and branch identifier cannot both be specified.
- 
+
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
 INSERT INTO prod.db.table.branch_audit VALUES (1, 'a'), (2, 'b');
@@ -262,18 +263,16 @@ Spark 3 introduced the new `DataFrameWriterV2` API for writing to tables using d
 * Hidden partition expressions are supported in `partitionedBy`
 * Overwrite behavior is explicit, either dynamic or by a user-supplied filter
 * The behavior of each operation corresponds to SQL statements
-    - `df.writeTo(t).create()` is equivalent to `CREATE TABLE AS SELECT`
-    - `df.writeTo(t).replace()` is equivalent to `REPLACE TABLE AS SELECT`
-    - `df.writeTo(t).append()` is equivalent to `INSERT INTO`
-    - `df.writeTo(t).overwritePartitions()` is equivalent to dynamic `INSERT OVERWRITE`
+  - `df.writeTo(t).create()` is equivalent to `CREATE TABLE AS SELECT`
+  - `df.writeTo(t).replace()` is equivalent to `REPLACE TABLE AS SELECT`
+  - `df.writeTo(t).append()` is equivalent to `INSERT INTO`
+  - `df.writeTo(t).overwritePartitions()` is equivalent to dynamic `INSERT OVERWRITE`
 
 The v1 DataFrame `write` API is still supported, but is not recommended.
 
 !!! danger
-    When writing with the v1 DataFrame API in Spark 3, use `saveAsTable` or `insertInto` to load tables with a catalog.
-    Using `format("iceberg")` loads an isolated table reference that will not automatically refresh tables used by queries.
-
-
+When writing with the v1 DataFrame API in Spark 3, use `saveAsTable` or `insertInto` to load tables with a catalog.
+Using `format("iceberg")` loads an isolated table reference that will not automatically refresh tables used by queries.
 
 ### Appending data
 
@@ -356,14 +355,13 @@ source.mergeInto("target", $"source.id" === $"target.id") // second argument is 
 
 While inserting or updating Iceberg is capable of resolving schema mismatch at runtime. If configured, Iceberg will perform an automatic schema evolution as follows:
 
-
 * A new column is present in the source but not in the target table.
-    
-    The new column is added to the target table. Column values are set to `NULL` in all the rows already present in the table
 
-* A column is present in the target but not in the source. 
+  The new column is added to the target table. Column values are set to `NULL` in all the rows already present in the table
 
-    The target column value is set to `NULL` when inserting or left unchanged when updating the row.
+* A column is present in the target but not in the source.
+
+  The target column value is set to `NULL` when inserting or left unchanged when updating the row.
 
 The target table must be configured to accept any schema change by setting the property `write.spark.accept-any-schema` to `true`.
 
@@ -372,14 +370,16 @@ ALTER TABLE prod.db.sample SET TBLPROPERTIES (
   'write.spark.accept-any-schema'='true'
 )
 ```
+
 The writer must enable the `mergeSchema` option.
 
 ```scala
 data.writeTo("prod.db.sample").option("mergeSchema","true").append()
 ```
+
 ## Writing Distribution Modes
 
-Iceberg's default Spark writers require that the data in each spark task is clustered by partition values. This 
+Iceberg's default Spark writers require that the data in each spark task is clustered by partition values. This
 distribution is required to minimize the number of file handles that are held open while writing. By default, starting
 in Iceberg 1.2.0, Iceberg also requests that Spark pre-sort data to be written to fit this distribution. The
 request to Spark is done through the table property `write.distribution-mode` with the value `hash`. Spark doesn't respect
@@ -398,7 +398,7 @@ PARTITIONED BY (days(ts), category)
 ```
 
 To write data to the sample table, data needs to be sorted by `days(ts), category` but this is taken care
-of automatically by the default `hash` distribution. Previously this would have required manually sorting, but this 
+of automatically by the default `hash` distribution. Previously this would have required manually sorting, but this
 is no longer the case.
 
 ```sql
@@ -406,50 +406,48 @@ INSERT INTO prod.db.sample
 SELECT id, data, category, ts FROM another_table
 ```
 
-
 There are 3 options for `write.distribution-mode`
 
 * `none` - This is the previous default for Iceberg.  
-This mode does not request any shuffles or sort to be performed automatically by Spark. Because no work is done 
-automatically by Spark, the data must be *manually* sorted by partition value. The data must be sorted either within 
-each spark task, or globally within the entire dataset. A global sort will minimize the number of output files.  
-A sort can be avoided by using the Spark [write fanout](spark-configuration.md#write-options) property but this will cause all 
-file handles to remain open until each write task has completed.
+  This mode does not request any shuffles or sort to be performed automatically by Spark. Because no work is done
+  automatically by Spark, the data must be *manually* sorted by partition value. The data must be sorted either within
+  each spark task, or globally within the entire dataset. A global sort will minimize the number of output files.  
+  A sort can be avoided by using the Spark [write fanout](spark-configuration.md#write-options) property but this will cause all
+  file handles to remain open until each write task has completed.
 * `hash` - This mode is the new default and requests that Spark uses a hash-based exchange to shuffle the incoming
-write data before writing.  
-Practically, this means that each row is hashed based on the row's partition value and then placed
-in a corresponding Spark task based upon that value. Further division and coalescing of tasks may take place because of
-[Spark's Adaptive Query planning](#controlling-file-sizes).
+  write data before writing.  
+  Practically, this means that each row is hashed based on the row's partition value and then placed
+  in a corresponding Spark task based upon that value. Further division and coalescing of tasks may take place because of
+  [Spark's Adaptive Query planning](#controlling-file-sizes).
 * `range` - This mode requests that Spark perform a range based exchange to shuffle the data before writing.  
-This is a two stage procedure which is more expensive than the `hash` mode. The first stage samples the data to 
-be written based on the partition and sort columns. The second stage uses the range information to shuffle the input data into Spark 
-tasks. Each task gets an exclusive range of the input data which clusters the data by partition and also globally sorts.  
-While this is more expensive than the hash distribution, the global ordering can be beneficial for read performance if
-sorted columns are used during queries. This mode is used by default if a table is created with a 
-sort-order. Further division and coalescing of tasks may take place because of
-[Spark's Adaptive Query planning](#controlling-file-sizes).
-
+  This is a two stage procedure which is more expensive than the `hash` mode. The first stage samples the data to
+  be written based on the partition and sort columns. The second stage uses the range information to shuffle the input data into Spark
+  tasks. Each task gets an exclusive range of the input data which clusters the data by partition and also globally sorts.  
+  While this is more expensive than the hash distribution, the global ordering can be beneficial for read performance if
+  sorted columns are used during queries. This mode is used by default if a table is created with a
+  sort-order. Further division and coalescing of tasks may take place because of
+  [Spark's Adaptive Query planning](#controlling-file-sizes).
 
 ## Controlling File Sizes
 
-When writing data to Iceberg with Spark, it's important to note that Spark cannot write a file larger than a Spark 
-task and a file cannot span an Iceberg partition boundary. This means although Iceberg will always roll over a file 
-when it grows to [`write.target-file-size-bytes`](configuration.md#write-properties), but unless the Spark task is 
-large enough that will not happen. The size of the file created on disk will also be much smaller than the Spark task 
-since the on disk data will be both compressed and in columnar format as opposed to Spark's uncompressed row 
+When writing data to Iceberg with Spark, it's important to note that Spark cannot write a file larger than a Spark
+task and a file cannot span an Iceberg partition boundary. This means although Iceberg will always roll over a file
+when it grows to [`write.target-file-size-bytes`](configuration.md#write-properties), but unless the Spark task is
+large enough that will not happen. The size of the file created on disk will also be much smaller than the Spark task
+since the on disk data will be both compressed and in columnar format as opposed to Spark's uncompressed row
 representation. This means a 100 megabyte Spark task will create a file much smaller than 100 megabytes even if that
 task is writing to a single Iceberg partition. If the task writes to multiple partitions, the files will be even
 smaller than that.
 
-To control what data ends up in each Spark task use a [`write distribution mode`](#writing-distribution-modes) 
-or manually repartition the data. 
+To control what data ends up in each Spark task use a [`write distribution mode`](#writing-distribution-modes)
+or manually repartition the data.
 
-To adjust Spark's task size it is important to become familiar with Spark's various Adaptive Query Execution (AQE) 
+To adjust Spark's task size it is important to become familiar with Spark's various Adaptive Query Execution (AQE)
 parameters. When the `write.distribution-mode` is not `none`, AQE will control the coalescing and splitting of Spark
-tasks during the exchange to try to create tasks of `spark.sql.adaptive.advisoryPartitionSizeInBytes` size. These 
-settings will also affect any user performed re-partitions or sorts. 
+tasks during the exchange to try to create tasks of `spark.sql.adaptive.advisoryPartitionSizeInBytes` size. These
+settings will also affect any user performed re-partitions or sorts.
 It is important again to note that this is the in-memory Spark row size and not the on disk
-columnar-compressed size, so a larger value than the target file size will need to be specified. The ratio of 
+columnar-compressed size, so a larger value than the target file size will need to be specified. The ratio of
 in-memory size to on disk size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this
 parameter at write time to match the `write.target-file-size-bytes`.
 

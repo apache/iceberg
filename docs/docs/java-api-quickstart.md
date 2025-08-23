@@ -1,22 +1,24 @@
 ---
+
 title: "Java Quickstart"
----
+------------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Java API Quickstart
 
@@ -29,7 +31,6 @@ Tables are created using either a [`Catalog`](../../javadoc/{{ icebergVersion }}
 The Hive catalog connects to a Hive metastore to keep track of Iceberg tables.
 You can initialize a Hive catalog with a name and some properties.
 (see: [Catalog properties](configuration.md#catalog-properties))
-
 
 ```java
 import java.util.HashMap
@@ -63,7 +64,6 @@ Table table = catalog.loadTable(name);
 
 The table's [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
 
-
 ### Using a Hadoop catalog
 
 A Hadoop catalog doesn't need to connect to a Hive MetaStore, but can only be used with HDFS or similar file systems that support atomic rename. Concurrent writes with a Hadoop catalog are not safe with a local FS or S3. To create a Hadoop catalog:
@@ -78,7 +78,7 @@ HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
 ```
 
 Like the Hive catalog, `HadoopCatalog` implements `Catalog`, so it also has methods for working with tables, like `createTable`, `loadTable`, and `dropTable`.
-                                                                                       
+
 This example creates a table with Hadoop catalog:
 
 ```java
@@ -94,7 +94,6 @@ Table table = catalog.loadTable(name);
 
 The table's [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
 
-
 ### Tables in Spark
 
 Spark can work with table by name using `HiveCatalog`.
@@ -106,6 +105,7 @@ spark.table("logging.logs");
 ```
 
 Spark can also load table created by `HadoopCatalog` by path.
+
 ```java
 spark.read.format("iceberg").load("hdfs://host:8020/warehouse_path/logging/logs");
 ```
@@ -178,7 +178,7 @@ For more information on the different partition transforms that Iceberg offers, 
 
 ### Creating branches and tags
 
-New branches and tags can be created via the Java library's ManageSnapshots API. 
+New branches and tags can be created via the Java library's ManageSnapshots API.
 
 ```java
 
@@ -203,7 +203,8 @@ table.manageSnapshots()
 
 ### Committing to branches
 
-Writing to a branch can be performed by specifying `toBranch` in the operation. For the full list refer to [UpdateOperations](api.md#update-operations). 
+Writing to a branch can be performed by specifying `toBranch` in the operation. For the full list refer to [UpdateOperations](api.md#update-operations).
+
 ```java
 // Append FILE_A to branch test-branch 
 String branch = "test-branch";
@@ -231,7 +232,8 @@ table.newRewrite()
 ```
 
 ### Reading from branches and tags
-Reading from a branch or tag can be done as usual via the Table Scan API, by passing in a branch or tag in the `useRef` API. When a branch is passed in, the snapshot that's used is the head of the branch. Note that currently reading from a branch and specifying an `asOfSnapshotId` in the scan is not supported. 
+
+Reading from a branch or tag can be done as usual via the Table Scan API, by passing in a branch or tag in the `useRef` API. When a branch is passed in, the snapshot that's used is the head of the branch. Note that currently reading from a branch and specifying an `asOfSnapshotId` in the scan is not supported.
 
 ```java
 // Read from the head snapshot of test-branch
@@ -265,7 +267,7 @@ table.manageSnapshots()
 ### Updating retention properties
 
 Retention properties for branches and tags can be updated as well.
-Use the setMaxRefAgeMs for updating the retention property of the branch or tag itself. Branch snapshot retention properties can be updated via the `setMinSnapshotsToKeep` and `setMaxSnapshotAgeMs` APIs. 
+Use the setMaxRefAgeMs for updating the retention property of the branch or tag itself. Branch snapshot retention properties can be updated via the `setMinSnapshotsToKeep` and `setMaxSnapshotAgeMs` APIs.
 
 ```java
 String branch = "test-branch";
@@ -297,3 +299,4 @@ table.manageSnapshots()
      .removeTag("test-tag")
      .commit()
 ```
+

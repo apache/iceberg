@@ -1,43 +1,45 @@
 ---
+
 title: "Flink Getting Started"
----
+------------------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Flink
 
 Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. See the [Multi-Engine Support](../../multi-engine-support.md#apache-flink) page for the integration of Apache Flink.
 
-| Feature support                                          | Flink | Notes                                                                                  |
-| -------------------------------------------------------- |-------|----------------------------------------------------------------------------------------|
-| [SQL create catalog](flink-ddl.md#create-catalog) | ✔️    |                                                                                        |
-| [SQL create database](flink-ddl.md#create-database) | ✔️    |                                                                                        |
-| [SQL create table](flink-ddl.md#create-table)                        | ✔️    |                                                                                        |
-| [SQL create table like](flink-ddl.md#create-table-like)              | ✔️    |                                                                                        |
-| [SQL alter table](flink-ddl.md#alter-table)                          | ✔️    | Only support altering table properties, column and partition changes are not supported |
-| [SQL drop_table](flink-ddl.md#drop-table)                            | ✔️    |                                                                                        |
-| [SQL select](flink-queries.md#reading-with-sql)                         | ✔️    | Support both streaming and batch mode                                                  |
-| [SQL insert into](flink-writes.md#insert-into)                          | ✔️ ️  | Support both streaming and batch mode                                                  |
-| [SQL insert overwrite](flink-writes.md#insert-overwrite)                | ✔️ ️  |                                                                                        |
-| [DataStream read](flink-queries.md#reading-with-datastream)              | ✔️ ️  |                                                                                        |
-| [DataStream append](flink-writes.md#appending-data)                    | ✔️ ️  |                                                                                        |
-| [DataStream overwrite](flink-writes.md#overwrite-data)                 | ✔️ ️  |                                                                                        |
-| [Metadata tables](flink-queries.md#inspecting-tables)                    | ✔️    |                                                                                        |
-| [Rewrite files action](flink-actions.md#rewrite-files-action)           | ✔️ ️  |                                                                                        |
+|                        Feature support                        | Flink |                                         Notes                                          |
+|---------------------------------------------------------------|-------|----------------------------------------------------------------------------------------|
+| [SQL create catalog](flink-ddl.md#create-catalog)             | ✔️    |                                                                                        |
+| [SQL create database](flink-ddl.md#create-database)           | ✔️    |                                                                                        |
+| [SQL create table](flink-ddl.md#create-table)                 | ✔️    |                                                                                        |
+| [SQL create table like](flink-ddl.md#create-table-like)       | ✔️    |                                                                                        |
+| [SQL alter table](flink-ddl.md#alter-table)                   | ✔️    | Only support altering table properties, column and partition changes are not supported |
+| [SQL drop_table](flink-ddl.md#drop-table)                     | ✔️    |                                                                                        |
+| [SQL select](flink-queries.md#reading-with-sql)               | ✔️    | Support both streaming and batch mode                                                  |
+| [SQL insert into](flink-writes.md#insert-into)                | ✔️ ️  | Support both streaming and batch mode                                                  |
+| [SQL insert overwrite](flink-writes.md#insert-overwrite)      | ✔️ ️  |                                                                                        |
+| [DataStream read](flink-queries.md#reading-with-datastream)   | ✔️ ️  |                                                                                        |
+| [DataStream append](flink-writes.md#appending-data)           | ✔️ ️  |                                                                                        |
+| [DataStream overwrite](flink-writes.md#overwrite-data)        | ✔️ ️  |                                                                                        |
+| [Metadata tables](flink-queries.md#inspecting-tables)         | ✔️    |                                                                                        |
+| [Rewrite files action](flink-actions.md#rewrite-files-action) | ✔️ ️  |                                                                                        |
 
 ## Preparation when using Flink SQL Client
 
@@ -110,8 +112,7 @@ wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_V
 ## Flink's Python API
 
 !!! info
-    PyFlink 1.6.1 [does not work on OSX with a M1 cpu](https://issues.apache.org/jira/browse/FLINK-28786)
-
+PyFlink 1.6.1 [does not work on OSX with a M1 cpu](https://issues.apache.org/jira/browse/FLINK-28786)
 
 Install the Apache Flink dependency using `pip`:
 
@@ -227,7 +228,7 @@ CREATE CATALOG rest_catalog WITH (
 );
 ```
 
-##  Creating a table
+## Creating a table
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
@@ -276,8 +277,10 @@ env.execute("Test Iceberg DataStream");
 ```
 
 ### Branch Writes
+
 Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
 For more information on branches please refer to [branches](branching.md).
+
 ```java
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
@@ -327,9 +330,6 @@ DataStream<RowData> batch = FlinkSource.forRowData()
      .build();
 ```
 
-
-
-
 ## Type conversion
 
 Iceberg's integration for Flink automatically converts between Flink and Iceberg types. When writing to a table with types that are not supported by Flink, like UUID, Iceberg will accept and convert values from the Flink type.
@@ -338,8 +338,8 @@ Iceberg's integration for Flink automatically converts between Flink and Iceberg
 
 Flink types are converted to Iceberg types according to the following table:
 
-| Flink               | Iceberg                    | Notes         |
-| ------------------- | -------------------------- | ------------- |
+|        Flink        |          Iceberg           |     Notes     |
+|---------------------|----------------------------|---------------|
 | boolean             | boolean                    |               |
 | tinyint             | integer                    |               |
 | smallint            | integer                    |               |
@@ -374,31 +374,31 @@ Flink types are converted to Iceberg types according to the following table:
 
 Iceberg types are converted to Flink types according to the following table:
 
-| Iceberg                    | Flink                 | Notes         |
-| -------------------------- | --------------------- | ------------- |
-| boolean                    | boolean               |               |
-| struct                     | row                   |               |
-| list                       | array                 |               |
-| map                        | map                   |               |
-| integer                    | integer               |               |
-| long                       | bigint                |               |
-| float                      | float                 |               |
-| double                     | double                |               |
-| date                       | date                  |               |
-| time                       | time                  |               |
-| timestamp without timezone | timestamp(6)          |               |
-| timestamp with timezone    | timestamp_ltz(6)      |               |
-| string                     | varchar(2147483647)   |               |
-| uuid                       | binary(16)            |               |
-| fixed(N)                   | binary(N)             |               |
-| binary                     | varbinary(2147483647) |               |
-| decimal(P, S)              | decimal(P, S)         |               |
-| nanosecond timestamp       | timestamp(9)          |               |
-| nanosecond timestamp with timezone | timestamp_ltz(9) |            |
-| unknown                    | null                  |               |
-| variant                    |                       | Not supported |
-| geometry                   |                       | Not supported |
-| geography                  |                       | Not supported |
+|              Iceberg               |         Flink         |     Notes     |
+|------------------------------------|-----------------------|---------------|
+| boolean                            | boolean               |               |
+| struct                             | row                   |               |
+| list                               | array                 |               |
+| map                                | map                   |               |
+| integer                            | integer               |               |
+| long                               | bigint                |               |
+| float                              | float                 |               |
+| double                             | double                |               |
+| date                               | date                  |               |
+| time                               | time                  |               |
+| timestamp without timezone         | timestamp(6)          |               |
+| timestamp with timezone            | timestamp_ltz(6)      |               |
+| string                             | varchar(2147483647)   |               |
+| uuid                               | binary(16)            |               |
+| fixed(N)                           | binary(N)             |               |
+| binary                             | varbinary(2147483647) |               |
+| decimal(P, S)                      | decimal(P, S)         |               |
+| nanosecond timestamp               | timestamp(9)          |               |
+| nanosecond timestamp with timezone | timestamp_ltz(9)      |               |
+| unknown                            | null                  |               |
+| variant                            |                       | Not supported |
+| geometry                           |                       | Not supported |
+| geography                          |                       | Not supported |
 
 ## Future improvements
 
@@ -406,3 +406,4 @@ There are some features that are not yet supported in the current Flink Iceberg 
 
 * Creation of Iceberg table with hidden partitioning. [Discussion](http://mail-archives.apache.org/mod_mbox/flink-dev/202008.mbox/%3cCABi+2jQCo3MsOa4+ywaxV5J-Z8TGKNZDX-pQLYB-dG+dVUMiMw@mail.gmail.com%3e) in flink mail list.
 * Creation of Iceberg table with computed column.
+

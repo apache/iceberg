@@ -1,22 +1,25 @@
 ---
+
 title: "Flink Writes"
----
+---------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
+
 # Flink Writes
 
 Iceberg support batch and streaming writes with [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API.
@@ -61,28 +64,26 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
 
 1. Enable the `UPSERT` mode as table-level property `write.upsert.enabled`. Here is an example SQL statement to set the table property when creating a table. It would be applied for all write paths to this table (batch or streaming) unless overwritten by write options as described later.
 
-    ```sql
-    CREATE TABLE `hive_catalog`.`default`.`sample` (
-        `id` INT COMMENT 'unique id',
-        `data` STRING NOT NULL,
-        PRIMARY KEY(`id`) NOT ENFORCED
-    ) with ('format-version'='2', 'write.upsert.enabled'='true');
-    ```
-
+   ```sql
+   CREATE TABLE `hive_catalog`.`default`.`sample` (
+       `id` INT COMMENT 'unique id',
+       `data` STRING NOT NULL,
+       PRIMARY KEY(`id`) NOT ENFORCED
+   ) with ('format-version'='2', 'write.upsert.enabled'='true');
+   ```
 2. Enabling `UPSERT` mode using `upsert-enabled` in the [write options](#write-options) provides more flexibility than a table level config. Note that you still need to use v2 table format and specify the [primary key](flink-ddl.md/#primary-key) or [identifier fields](../../spec.md#identifier-field-ids) when creating the table.
 
-    ```sql
-    INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
-    ...
-    ```
+   ```sql
+   INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
+   ...
+   ```
 
 !!! info
-    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields. 
+OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
 
 ## Writing with DataStream
 
 Iceberg support writing to iceberg table from different DataStream input.
-
 
 ### Appending data
 
@@ -141,9 +142,7 @@ env.execute("Test Iceberg DataStream");
 ```
 
 !!! info
-    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
-
-
+OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
 
 ### Write with Avro GenericRecord
 
@@ -182,8 +181,10 @@ FlinkSink.builderFor(
 ```
 
 ### Branch Writes
+
 Writing to branches in Iceberg tables is also supported via the `toBranch` API in `FlinkSink`
 For more information on branches please refer to [branches](branching.md).
+
 ```java
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
@@ -201,31 +202,31 @@ They should have the following key-value tags.
 * table: full table name (like iceberg.my_db.my_table)
 * subtask_index: writer subtask index starting from 0
 
- Metric name                | Metric type | Description                                                                                         |
-| ------------------------- |------------|-----------------------------------------------------------------------------------------------------|
-| lastFlushDurationMs       | Gauge      | The duration (in milli) that writer subtasks take to flush and upload the files during checkpoint.  |
-| flushedDataFiles          | Counter    | Number of data files flushed and uploaded.                                                          |
-| flushedDeleteFiles        | Counter    | Number of delete files flushed and uploaded.                                                        |
-| flushedReferencedDataFiles| Counter    | Number of data files referenced by the flushed delete files.                                        |
-| dataFilesSizeHistogram    | Histogram  | Histogram distribution of data file sizes (in bytes).                                               |
-| deleteFilesSizeHistogram  | Histogram  | Histogram distribution of delete file sizes (in bytes).                                             |
+|        Metric name         | Metric type |                                            Description                                             |
+|----------------------------|-------------|----------------------------------------------------------------------------------------------------|
+| lastFlushDurationMs        | Gauge       | The duration (in milli) that writer subtasks take to flush and upload the files during checkpoint. |
+| flushedDataFiles           | Counter     | Number of data files flushed and uploaded.                                                         |
+| flushedDeleteFiles         | Counter     | Number of delete files flushed and uploaded.                                                       |
+| flushedReferencedDataFiles | Counter     | Number of data files referenced by the flushed delete files.                                       |
+| dataFilesSizeHistogram     | Histogram   | Histogram distribution of data file sizes (in bytes).                                              |
+| deleteFilesSizeHistogram   | Histogram   | Histogram distribution of delete file sizes (in bytes).                                            |
 
 Committer metrics are added under the sub group of `IcebergFilesCommitter`.
 They should have the following key-value tags.
 
 * table: full table name (like iceberg.my_db.my_table)
 
- Metric name                      | Metric type | Description                                                                |
-|---------------------------------|--------|----------------------------------------------------------------------------|
-| lastCheckpointDurationMs        | Gauge  | The duration (in milli) that the committer operator checkpoints its state. |
-| lastCommitDurationMs            | Gauge  | The duration (in milli) that the Iceberg table commit takes.               |
-| committedDataFilesCount         | Counter | Number of data files committed.                                            |
-| committedDataFilesRecordCount   | Counter | Number of records contained in the committed data files.                   |
-| committedDataFilesByteCount     | Counter | Number of bytes contained in the committed data files.                     |
-| committedDeleteFilesCount       | Counter | Number of delete files committed.                                          |
-| committedDeleteFilesRecordCount | Counter | Number of records contained in the committed delete files.                 |
-| committedDeleteFilesByteCount   | Counter | Number of bytes contained in the committed delete files.                   |
-| elapsedSecondsSinceLastSuccessfulCommit| Gauge  | Elapsed time (in seconds) since last successful Iceberg commit.            |
+|               Metric name               | Metric type |                                Description                                 |
+|-----------------------------------------|-------------|----------------------------------------------------------------------------|
+| lastCheckpointDurationMs                | Gauge       | The duration (in milli) that the committer operator checkpoints its state. |
+| lastCommitDurationMs                    | Gauge       | The duration (in milli) that the Iceberg table commit takes.               |
+| committedDataFilesCount                 | Counter     | Number of data files committed.                                            |
+| committedDataFilesRecordCount           | Counter     | Number of records contained in the committed data files.                   |
+| committedDataFilesByteCount             | Counter     | Number of bytes contained in the committed data files.                     |
+| committedDeleteFilesCount               | Counter     | Number of delete files committed.                                          |
+| committedDeleteFilesRecordCount         | Counter     | Number of records contained in the committed delete files.                 |
+| committedDeleteFilesByteCount           | Counter     | Number of bytes contained in the committed delete files.                   |
+| elapsedSecondsSinceLastSuccessfulCommit | Gauge       | Elapsed time (in seconds) since last successful Iceberg commit.            |
 
 `elapsedSecondsSinceLastSuccessfulCommit` is an ideal alerting metric
 to detect failed or missing Iceberg commits.
@@ -236,8 +237,6 @@ to detect failed or missing Iceberg commits.
   As a result, there won't be any Iceberg commits attempted.
 
 If the checkpoint interval (and expected Iceberg commit interval) is 5 minutes, set up alert with rule like `elapsedSecondsSinceLastSuccessfulCommit > 60 minutes` to detect failed or missing Iceberg commits in the past hour.
-
-
 
 ## Options
 
@@ -260,7 +259,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
 
-Check out all the options here: [write-options](flink-configuration.md#write-options) 
+Check out all the options here: [write-options](flink-configuration.md#write-options)
 
 ## Distribution mode
 
@@ -275,6 +274,7 @@ equality fields (non-partitioned table). It simply leverages Flink's
 `DataStream#keyBy` to distribute the data.
 
 HASH distribution has a few limitations.
+
 <ul>
 <li>It doesn't handle skewed data well. E.g. some partitions have a lot more data than others.
 <li>It can result in unbalanced traffic distribution if cardinality of the partition key or
@@ -301,6 +301,7 @@ are used as sort order. If SortOrder is explicitly defined for the table, it is 
 the range partitioner.
 
 Range distribution can handle skewed data. E.g.
+
 <ul>
 <li>Table is partitioned by event time. Typically, recent hours have more data,
 while the long-tail hours have less and less data.
@@ -324,6 +325,7 @@ cycles to detect traffic distribution change and apply the new statistics to ran
 
 Range distribution can work with low cardinality (like `country_code`)
 or high cardinality (like `device_id`) scenarios.
+
 <ul>
 <li>For low cardinality scenario (like hundreds or thousands),
 HashMap is used to track traffic distribution for every key.
@@ -343,6 +345,7 @@ range split by uniform sampling probably won't work very well.
 
 Here is how to enable range distribution in Java. There are two optional advanced configs. Default should
 work well for most cases. See [write-options](flink-configuration.md#write-options) for details.
+
 ```java
 FlinkSink.forRowData(input)
     ...
@@ -354,7 +357,7 @@ FlinkSink.forRowData(input)
 
 ### Overhead
 
-Data shuffling (hash or range) has computational overhead of serialization/deserialization 
+Data shuffling (hash or range) has computational overhead of serialization/deserialization
 and network I/O. Expect some increase of CPU utilization.
 
 Range distribution also collect and aggregate data distribution statistics.
@@ -375,7 +378,7 @@ orphan files that are old enough.
 ## Sink V2 based implementation
 
 At the time when the current default, `FlinkSink` implementation was created, Flink Sink's interface had some
-limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based 
+limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based
 on a custom chain of `StreamOperator`s  terminated by `DiscardingSink`.
 
 In the 1.15 version of Flink [SinkV2 interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction)
@@ -386,6 +389,7 @@ The SinkV2 based implementation is currently an experimental feature so use it w
 ### Writing with SQL
 
 To turn on SinkV2 based implementation in SQL, set this configuration option:
+
 ```sql
 SET table.exec.iceberg.use-v2-sink = true;
 ```
@@ -394,11 +398,10 @@ SET table.exec.iceberg.use-v2-sink = true;
 
 To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in the provided snippets.
 !!! warning
-    There are some slight differences between these implementations:
+There are some slight differences between these implementations:
 
-     - The `RANGE` distribution mode is not yet available for the `IcebergSink`
-     - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
-
+- The `RANGE` distribution mode is not yet available for the `IcebergSink`
+- When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
 
 ## Flink Dynamic Iceberg Sink
 
@@ -479,20 +482,21 @@ builder.generator(new CustomRecordGenerator());
 // ... other config ...
 builder.append();
 ```
+
 The user should provide a converter which converts the input record to a DynamicRecord.
 We need the following information (DynamicRecord) for every record:
 
-| Property           | Description                                                                               |
-|--------------------|-------------------------------------------------------------------------------------------|
-| `TableIdentifier`  | The target table to which the record will be written.                                     |
-| `Branch`           | The target branch for writing the record (optional).                                      |
-| `Schema`           | The schema of the record.                                                                 |
-| `Spec`             | The expected partitioning specification for the record.                                   |
-| `RowData`          | The actual row data to be written.                                                        |
-| `DistributionMode` | The distribution mode for writing the record (currently supports NONE or HASH).           |
+|      Property      |                                        Description                                         |
+|--------------------|--------------------------------------------------------------------------------------------|
+| `TableIdentifier`  | The target table to which the record will be written.                                      |
+| `Branch`           | The target branch for writing the record (optional).                                       |
+| `Schema`           | The schema of the record.                                                                  |
+| `Spec`             | The expected partitioning specification for the record.                                    |
+| `RowData`          | The actual row data to be written.                                                         |
+| `DistributionMode` | The distribution mode for writing the record (currently supports NONE or HASH).            |
 | `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
-| `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                   |
-| `EqualityFields`   | The equality fields for the table(optional).                                                        |
+| `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                    |
+| `EqualityFields`   | The equality fields for the table(optional).                                               |
 
 ### Schema Evolution
 
@@ -516,7 +520,6 @@ Unsupported schema updates:
 
 Dropping columns is avoided to prevent issues with late or out-of-order data, as removed fields cannot be easily restored without data loss. Renaming is unsupported because schema comparison is name-based, and renames would require additional metadata or hints to resolve.
 
-
 ### Caching
 
 There are two distinct caches involved: the table metadata cache and the input schema cache.
@@ -530,7 +533,7 @@ To improve cache hit rates and performance, reuse the same DynamicRecord.schema 
 
 The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are the key configuration methods:
 
-| Method                                               | Description                                                                                                                                                             |
+|                        Method                        |                                                                               Description                                                                               |
 |------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `overwrite(boolean enabled)`                         | Enable overwrite mode                                                                                                                                                   |
 | `writeParallelism(int parallelism)`                  | Set writer parallelism                                                                                                                                                  |
@@ -540,12 +543,12 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `cacheMaxSize(int maxSize)`                          | Set cache size for table metadata                                                                                                                                       |
 | `cacheRefreshMs(long refreshMs)`                     | Set cache refresh interval                                                                                                                                              |
 | `inputSchemasPerTableCacheMaxSize(int size)`         | Set max input schemas to cache per table                                                                                                                                |
-| `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                                                                                                                   |
+| `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                            |
 | `set(String property, String value)`                 | Set any Iceberg write property (e.g., `"write.format"`, `"write.upsert.enabled"`).Check out all the options here: [write-options](flink-configuration.md#write-options) |
 | `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
-
 
 ### Notes
 
 - **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode, if set, it will fall back to `HASH`.
 - **Property Precedence Note**: When conflicts occur between table properties and sink properties, the sink properties will override the table properties configuration.
+

@@ -1,22 +1,24 @@
 ---
+
 title: "Procedures"
----
+-------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Spark Procedures
 
@@ -53,22 +55,21 @@ Roll back a table to a specific snapshot ID.
 To roll back to a specific time, use [`rollback_to_timestamp`](#rollback_to_timestamp).
 
 !!! info
-    This procedure invalidates all cached Spark plans that reference the affected table.
-
+This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `snapshot_id` | ✔️  | long   | Snapshot ID to rollback to |
+| Argument Name | Required? |  Type  |         Description         |
+|---------------|-----------|--------|-----------------------------|
+| `table`       | ✔️        | string | Name of the table to update |
+| `snapshot_id` | ✔️        | long   | Snapshot ID to rollback to  |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
+|      Output Name       | Type |                 Description                 |
+|------------------------|------|---------------------------------------------|
 | `previous_snapshot_id` | long | The current snapshot ID before the rollback |
-| `current_snapshot_id`  | long | The new current snapshot ID |
+| `current_snapshot_id`  | long | The new current snapshot ID                 |
 
 #### Example
 
@@ -83,26 +84,26 @@ CALL catalog_name.system.rollback_to_snapshot('db.sample', 1);
 Roll back a table to the snapshot that was current at some time.
 
 !!! info
-    This procedure invalidates all cached Spark plans that reference the affected table.
-
+This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `timestamp`   | ✔️  | timestamp | A timestamp to rollback to |
+| Argument Name | Required? |   Type    |         Description         |
+|---------------|-----------|-----------|-----------------------------|
+| `table`       | ✔️        | string    | Name of the table to update |
+| `timestamp`   | ✔️        | timestamp | A timestamp to rollback to  |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
+|      Output Name       | Type |                 Description                 |
+|------------------------|------|---------------------------------------------|
 | `previous_snapshot_id` | long | The current snapshot ID before the rollback |
-| `current_snapshot_id`  | long | The new current snapshot ID |
+| `current_snapshot_id`  | long | The new current snapshot ID                 |
 
 #### Example
 
 Roll back `db.sample` to a specific day and time.
+
 ```sql
 CALL catalog_name.system.rollback_to_timestamp('db.sample', TIMESTAMP '2021-06-30 00:00:00.000');
 ```
@@ -114,34 +115,35 @@ Sets the current snapshot ID for a table.
 Unlike rollback, the snapshot is not required to be an ancestor of the current table state.
 
 !!! info
-    This procedure invalidates all cached Spark plans that reference the affected table.
-
+This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `snapshot_id` | | long   | Snapshot ID to set as current |
-| `ref` | | string | Snapshot Reference (branch or tag) to set as current |
+| Argument Name | Required? |  Type  |                     Description                      |
+|---------------|-----------|--------|------------------------------------------------------|
+| `table`       | ✔️        | string | Name of the table to update                          |
+| `snapshot_id` |           | long   | Snapshot ID to set as current                        |
+| `ref`         |           | string | Snapshot Reference (branch or tag) to set as current |
 
 Either `snapshot_id` or `ref` must be provided but not both.
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
+|      Output Name       | Type |                 Description                 |
+|------------------------|------|---------------------------------------------|
 | `previous_snapshot_id` | long | The current snapshot ID before the rollback |
-| `current_snapshot_id`  | long | The new current snapshot ID |
+| `current_snapshot_id`  | long | The new current snapshot ID                 |
 
 #### Example
 
 Set the current snapshot for `db.sample` to 1:
+
 ```sql
 CALL catalog_name.system.set_current_snapshot('db.sample', 1);
 ```
 
 Set the current snapshot for `db.sample` to tag `s1`:
+
 ```sql
 CALL catalog_name.system.set_current_snapshot(table => 'db.sample', ref => 's1');
 ```
@@ -155,34 +157,36 @@ Cherry-picking creates a new snapshot from an existing snapshot without altering
 Only append and dynamic overwrite snapshots can be cherry-picked.
 
 !!! info
-    This procedure invalidates all cached Spark plans that reference the affected table.
-
+This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `snapshot_id` | ✔️  | long | The snapshot ID to cherry-pick |
+| Argument Name | Required? |  Type  |          Description           |
+|---------------|-----------|--------|--------------------------------|
+| `table`       | ✔️        | string | Name of the table to update    |
+| `snapshot_id` | ✔️        | long   | The snapshot ID to cherry-pick |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `source_snapshot_id` | long | The table's current snapshot before the cherry-pick |
+|      Output Name      | Type |                     Description                     |
+|-----------------------|------|-----------------------------------------------------|
+| `source_snapshot_id`  | long | The table's current snapshot before the cherry-pick |
 | `current_snapshot_id` | long | The snapshot ID created by applying the cherry-pick |
 
 #### Examples
 
 Cherry-pick snapshot 1
+
 ```sql
 CALL catalog_name.system.cherrypick_snapshot('my_table', 1);
 ```
 
 Cherry-pick snapshot 1 with named args
+
 ```sql
 CALL catalog_name.system.cherrypick_snapshot(snapshot_id => 1, table => 'my_table' );
 ```
+
 ### `publish_changes`
 
 Publish changes from a staged WAP ID into the current table state.
@@ -192,30 +196,32 @@ publish_changes creates a new snapshot from an existing snapshot without alterin
 Only append and dynamic overwrite snapshots can be successfully published.
 
 !!! info
-    This procedure invalidates all cached Spark plans that reference the affected table.
+This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `wap_id`      | ✔️  | long | The wap_id to be published from stage to prod |
+| Argument Name | Required? |  Type  |                  Description                  |
+|---------------|-----------|--------|-----------------------------------------------|
+| `table`       | ✔️        | string | Name of the table to update                   |
+| `wap_id`      | ✔️        | long   | The wap_id to be published from stage to prod |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `source_snapshot_id` | long | The table's current snapshot before publishing the change |
-| `current_snapshot_id` | long | The snapshot ID created by applying the change |
+|      Output Name      | Type |                        Description                        |
+|-----------------------|------|-----------------------------------------------------------|
+| `source_snapshot_id`  | long | The table's current snapshot before publishing the change |
+| `current_snapshot_id` | long | The snapshot ID created by applying the change            |
 
 #### Examples
 
 publish_changes with WAP ID 'wap_id_1'
+
 ```sql
 CALL catalog_name.system.publish_changes('my_table', 'wap_id_1');
 ```
 
 publish_changes with named args
+
 ```sql
 CALL catalog_name.system.publish_changes(wap_id => 'wap_id_2', table => 'my_table');
 ```
@@ -226,27 +232,27 @@ Fast-forward the current snapshot of one branch to the latest snapshot of anothe
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table` | ✔️ | string | Name of the table to update |
-| `branch` | ✔️ | string   | Name of the branch to fast-forward |
-| `to` | ✔️ | string | | Name of the branch to be fast-forwarded to |
+| Argument Name | Required? |  Type  |            Description             |
+|---------------|-----------|--------|------------------------------------|--------------------------------------------|
+| `table`       | ✔️        | string | Name of the table to update        |
+| `branch`      | ✔️        | string | Name of the branch to fast-forward |
+| `to`          | ✔️        | string |                                    | Name of the branch to be fast-forwarded to |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `branch_updated` | string | Name of the branch that has been fast-forwarded |
-| `previous_ref` | long | The snapshot ID before applying fast-forward |
-| `updated_ref`  | long | The current snapshot ID after applying fast-forward |
+|   Output Name    |  Type  |                     Description                     |
+|------------------|--------|-----------------------------------------------------|
+| `branch_updated` | string | Name of the branch that has been fast-forwarded     |
+| `previous_ref`   | long   | The snapshot ID before applying fast-forward        |
+| `updated_ref`    | long   | The current snapshot ID after applying fast-forward |
 
 #### Examples
 
 Fast-forward the main branch to the head of `audit-branch`
+
 ```sql
 CALL catalog_name.system.fast_forward('my_table', 'main', 'audit-branch');
 ```
-
 
 ## Metadata management
 
@@ -263,29 +269,29 @@ the `expire_snapshots` procedure will never remove files which are still require
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `older_than`  | ️   | timestamp | Timestamp before which snapshots will be removed (Default: 5 days ago) |
-| `retain_last` |    | int       | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1) |
-| `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
-| `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
-| `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
-| `clean_expired_metadata` |   | boolean       | When true, cleans up metadata such as partition specs and schemas that are no longer referenced by snapshots. |
+|      Argument Name       | Required? |     Type      |                                                                                                          Description                                                                                                           |
+|--------------------------|-----------|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`                  | ✔️        | string        | Name of the table to update                                                                                                                                                                                                    |
+| `older_than`             | ️         | timestamp     | Timestamp before which snapshots will be removed (Default: 5 days ago)                                                                                                                                                         |
+| `retain_last`            |           | int           | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1)                                                                                                                                            |
+| `max_concurrent_deletes` |           | int           | Size of the thread pool used for delete file actions (by default, no thread pool is used)                                                                                                                                      |
+| `stream_results`         |           | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
+| `snapshot_ids`           |           | array of long | Array of snapshot IDs to expire.                                                                                                                                                                                               |
+| `clean_expired_metadata` |           | boolean       | When true, cleans up metadata such as partition specs and schemas that are no longer referenced by snapshots.                                                                                                                  |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](configuration.md#table-behavior-properties) will be used.
 Snapshots that are still referenced by branches or tags won't be removed. By default, branches and tags never expire, but their retention policy can be changed with the table property `history.expire.max-ref-age-ms`. The `main` branch never expires.
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `deleted_data_files_count` | long | Number of data files deleted by this operation |
+|              Output Name              | Type |                        Description                        |
+|---------------------------------------|------|-----------------------------------------------------------|
+| `deleted_data_files_count`            | long | Number of data files deleted by this operation            |
 | `deleted_position_delete_files_count` | long | Number of position delete files deleted by this operation |
 | `deleted_equality_delete_files_count` | long | Number of equality delete files deleted by this operation |
-| `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
-| `deleted_manifest_lists_count` | long | Number of manifest list files deleted by this operation |
-| `deleted_statistics_files_count` | long | Number of statistics files deleted by this operation |
+| `deleted_manifest_files_count`        | long | Number of manifest files deleted by this operation        |
+| `deleted_manifest_lists_count`        | long | Number of manifest list files deleted by this operation   |
+| `deleted_statistics_files_count`      | long | Number of statistics files deleted by this operation      |
 
 #### Examples
 
@@ -307,38 +313,41 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to clean |
-| `older_than`  | ️   | timestamp | Remove orphan files created before this timestamp (Defaults to 3 days ago) |
-| `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
-| `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
-| `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
-| `file_list_view` |    | string | Dataset to look for files in (skipping the directory listing) |
-| `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
-| `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
-| `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
-| `prefix_listing` |    | boolean   | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false) |
+|      Argument Name       | Required? |        Type         |                                                                                                 Description                                                                                                  |
+|--------------------------|-----------|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`                  | ✔️        | string              | Name of the table to clean                                                                                                                                                                                   |
+| `older_than`             | ️         | timestamp           | Remove orphan files created before this timestamp (Defaults to 3 days ago)                                                                                                                                   |
+| `location`               |           | string              | Directory to look for files in (defaults to the table's location)                                                                                                                                            |
+| `dry_run`                |           | boolean             | When true, don't actually remove files (defaults to false)                                                                                                                                                   |
+| `max_concurrent_deletes` |           | int                 | Size of the thread pool used for delete file actions (by default, no thread pool is used)                                                                                                                    |
+| `file_list_view`         |           | string              | Dataset to look for files in (skipping the directory listing)                                                                                                                                                |
+| `equal_schemes`          |           | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`).                                                   |
+| `equal_authorities`      |           | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority.                                                                           |
+| `prefix_mismatch_mode`   |           | string              | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul>                   |
+| `prefix_listing`         |           | boolean             | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false) |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
+|      Output Name       |  Type  |                           Description                            |
+|------------------------|--------|------------------------------------------------------------------|
 | `orphan_file_location` | String | The path to each file determined to be an orphan by this command |
 
 #### Examples
 
 List all the files that are candidates for removal by performing a dry run of the `remove_orphan_files` command on this table without actually removing them:
+
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', dry_run => true);
 ```
 
 Remove any files in the `tablelocation/data` folder which are not known to the table `db.sample`.
+
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data');
 ```
 
 Remove any files in the `files_view` view which are not known to the table `db.sample`.
+
 ```java
 Dataset<Row> compareToFileList =
     spark
@@ -348,22 +357,26 @@ Dataset<Row> compareToFileList =
 String fileListViewName = "files_view";
 compareToFileList.createOrReplaceTempView(fileListViewName);
 ```
+
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', file_list_view => 'files_view');
 ```
 
-When a file matches references in metadata files except for location prefix (scheme/authority), an error is thrown by default. 
+When a file matches references in metadata files except for location prefix (scheme/authority), an error is thrown by default.
 The error can be ignored and the file will be skipped by setting `prefix_mismatch_mode` to `IGNORE`.
+
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismatch_mode => 'IGNORE');
 ```
 
 The file can still be deleted by setting `prefix_mismatch_mode` to `DELETE`.
+
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismatch_mode => 'DELETE');
 ```
 
 The file can also be deleted by considering the mismatched prefixes equal.
+
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_schemes => map('file', 'file1'));
 ```
@@ -373,6 +386,7 @@ CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_authori
 ```
 
 List all the files that are candidates for removal using prefix listing.
+
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_listing => true);
 ```
@@ -385,91 +399,97 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
-| `sort_order`  |    | string | For Zorder use a comma separated list of columns within zorder(). Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
-| `options`     | ️   | map<string, string> | Options to be used for actions|
-| `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
+| Argument Name | Required? |        Type         |                                                                                                                                                       Description                                                                                                                                                        |
+|---------------|-----------|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`       | ✔️        | string              | Name of the table to update                                                                                                                                                                                                                                                                                              |
+| `strategy`    |           | string              | Name of the strategy - binpack or sort. Defaults to binpack strategy                                                                                                                                                                                                                                                     |
+| `sort_order`  |           | string              | For Zorder use a comma separated list of columns within zorder(). Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort orders in the format (ColumnName SortDirection NullOrder). <br/>Where SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST. <br/>Defaults to the table's sort order |
+| `options`     | ️         | map<string, string> | Options to be used for actions                                                                                                                                                                                                                                                                                           |
+| `where`       | ️         | string              | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting                                                                                                                                                                         |
 
 #### Options
 
 ##### General Options
-| Name | Default Value | Description |
-|------|---------------|-------------|
-| `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
-| `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
-| `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
-| `partial-progress.max-failed-commits` | value of `partital-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
-| `use-starting-sequence-number` | true | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot |
-| `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
-| `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
-| `min-file-size-bytes` | 75% of target file size | Files under this threshold will be considered for rewriting regardless of any other criteria |
-| `max-file-size-bytes` | 180% of target file size | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria |
-| `min-input-files` | 5 | Any file group with this number of files or more will be rewritten regardless of other criteria (the file group should have at least two files) |
-| `rewrite-all` | false | Force rewriting of all provided files overriding other options |
-| `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
-| `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
-| `delete-ratio-threshold` | 0.3 | Minimum deletion ratio that needs to be associated with a data file for it to be considered for rewriting |
-| `output-spec-id` | current partition spec id | Identifier of the output partition spec. Data will be reorganized during the rewrite to align with the output partitioning. |
-| `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional commit for the removal. |
+
+|                 Name                  |                                                         Default Value                                                          |                                                                                                                                                                                                                                                                     Description                                                                                                                                                                                                                                                                     |
+|---------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `max-concurrent-file-group-rewrites`  | 5                                                                                                                              | Maximum number of file groups to be simultaneously rewritten                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `partial-progress.enabled`            | false                                                                                                                          | Enable committing groups of files prior to the entire rewrite completing                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `partial-progress.max-commits`        | 10                                                                                                                             | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `partial-progress.max-failed-commits` | value of `partital-progress.max-commits`                                                                                       | Maximum amount of failed commits allowed before job failure, if partial progress is enabled                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `use-starting-sequence-number`        | true                                                                                                                           | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `rewrite-job-order`                   | none                                                                                                                           | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
+| `target-file-size-bytes`              | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `min-file-size-bytes`                 | 75% of target file size                                                                                                        | Files under this threshold will be considered for rewriting regardless of any other criteria                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `max-file-size-bytes`                 | 180% of target file size                                                                                                       | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `min-input-files`                     | 5                                                                                                                              | Any file group with this number of files or more will be rewritten regardless of other criteria (the file group should have at least two files)                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `rewrite-all`                         | false                                                                                                                          | Force rewriting of all provided files overriding other options                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `max-file-group-size-bytes`           | 107374182400 (100GB)                                                                                                           | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster.                                                                                                                                                                             |
+| `delete-file-threshold`               | 2147483647                                                                                                                     | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `delete-ratio-threshold`              | 0.3                                                                                                                            | Minimum deletion ratio that needs to be associated with a data file for it to be considered for rewriting                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `output-spec-id`                      | current partition spec id                                                                                                      | Identifier of the output partition spec. Data will be reorganized during the rewrite to align with the output partitioning.                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `remove-dangling-deletes`             | false                                                                                                                          | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional commit for the removal.                                                                                                                                                                                                                                                                                                                                  |
 
 !!! info
-    Dangling delete files are removed based solely on data sequence numbers. This action does not apply to global 
-    equality deletes or invalid equality deletes if their delete conditions do not match any data files, 
-    nor to position delete files containing position deletes no longer matching any live data files.
+Dangling delete files are removed based solely on data sequence numbers. This action does not apply to global
+equality deletes or invalid equality deletes if their delete conditions do not match any data files,
+nor to position delete files containing position deletes no longer matching any live data files.
 
 ##### Options for sort strategy
 
-| Name | Default Value | Description |
-|------|---------------|-------------|
-| `compression-factor` | 1.0 | The number of shuffle partitions and consequently the number of output files created by the Spark sort is based on the size of the input data files used in this file rewriter. Due to compression, the disk file sizes may not accurately represent the size of files in the output. This parameter lets the user adjust the file size used for estimating actual output data size. A factor greater than 1.0 would generate more files than we would expect based on the on-disk file size. A value less than 1.0 would create fewer files than we would expect based on the on-disk size. |
-| `shuffle-partitions-per-file` | 1 | Number of shuffle partitions to use for each output file. Iceberg will use a custom coalesce operation to stitch these sorted partitions back together into a single sorted file. |
+|             Name              | Default Value |                                                                                                                                                                                                                                                                                         Description                                                                                                                                                                                                                                                                                          |
+|-------------------------------|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `compression-factor`          | 1.0           | The number of shuffle partitions and consequently the number of output files created by the Spark sort is based on the size of the input data files used in this file rewriter. Due to compression, the disk file sizes may not accurately represent the size of files in the output. This parameter lets the user adjust the file size used for estimating actual output data size. A factor greater than 1.0 would generate more files than we would expect based on the on-disk file size. A value less than 1.0 would create fewer files than we would expect based on the on-disk size. |
+| `shuffle-partitions-per-file` | 1             | Number of shuffle partitions to use for each output file. Iceberg will use a custom coalesce operation to stitch these sorted partitions back together into a single sorted file.                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ##### Options for sort strategy with zorder sort_order
 
-| Name | Default Value | Description |
-|------|---------------|-------------|
-| `var-length-contribution` | 8 | Number of bytes considered from an input column of a type with variable length (String, Binary) |
-| `max-output-size` | 2147483647 | Amount of bytes interleaved in the ZOrder algorithm |
+|           Name            | Default Value |                                           Description                                           |
+|---------------------------|---------------|-------------------------------------------------------------------------------------------------|
+| `var-length-contribution` | 8             | Number of bytes considered from an input column of a type with variable length (String, Binary) |
+| `max-output-size`         | 2147483647    | Amount of bytes interleaved in the ZOrder algorithm                                             |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `rewritten_data_files_count` | int | Number of data which were re-written by this command |
-| `added_data_files_count`     | int | Number of new data files which were written by this command |
-| `rewritten_bytes_count`      | long | Number of bytes which were written by this command |
-| `failed_data_files_count`    | int | Number of data files that failed to be rewritten when `partial-progress.enabled` is true |
-| `removed_delete_files_count` | int | Number of delete files removed by this command |
+|         Output Name          | Type |                                       Description                                        |
+|------------------------------|------|------------------------------------------------------------------------------------------|
+| `rewritten_data_files_count` | int  | Number of data which were re-written by this command                                     |
+| `added_data_files_count`     | int  | Number of new data files which were written by this command                              |
+| `rewritten_bytes_count`      | long | Number of bytes which were written by this command                                       |
+| `failed_data_files_count`    | int  | Number of data files that failed to be rewritten when `partial-progress.enabled` is true |
+| `removed_delete_files_count` | int  | Number of delete files removed by this command                                           |
 
 #### Examples
 
-Rewrite the data files in table `db.sample` using the default rewrite algorithm of bin-packing to combine small files 
+Rewrite the data files in table `db.sample` using the default rewrite algorithm of bin-packing to combine small files
 and also split large files according to the default write size of the table.
+
 ```sql
 CALL catalog_name.system.rewrite_data_files('db.sample');
 ```
 
-Rewrite the data files in table `db.sample` by sorting all the data on id and name 
+Rewrite the data files in table `db.sample` by sorting all the data on id and name
 using the same defaults as bin-pack to determine which files to rewrite.
+
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'id DESC NULLS LAST,name ASC NULLS FIRST');
 ```
 
 Rewrite the data files in table `db.sample` by zOrdering on column c1 and c2.
 Using the same defaults as bin-pack to determine which files to rewrite.
+
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'zorder(c1,c2)');
 ```
 
 Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where at least two files need rewriting, and then remove any dangling delete files.
+
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files', '2', 'remove-dangling-deletes', 'true'));
 ```
 
 Rewrite the data files in table `db.sample` and select the files that may contain data matching the filter (id = 3 and name = "foo") to be rewritten.
+
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', where => 'id = 3 and name = "foo"');
 ```
@@ -481,32 +501,33 @@ Rewrite manifests for a table to optimize scan planning.
 Data files in manifests are sorted by fields in the partition spec. This procedure runs in parallel using a Spark job.
 
 !!! info
-    This procedure invalidates all cached Spark plans that reference the affected table.
-
+This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description                                                   |
-|---------------|-----------|------|---------------------------------------------------------------|
-| `table`       | ✔️  | string | Name of the table to update                                   |
-| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to false). Enabling caching can increase memory footprint on executors. |
-| `spec_id`     | ️   | int | Spec id of the manifests to rewrite (defaults to current spec id) |
+| Argument Name | Required? |  Type   |                                                     Description                                                      |
+|---------------|-----------|---------|----------------------------------------------------------------------------------------------------------------------|
+| `table`       | ✔️        | string  | Name of the table to update                                                                                          |
+| `use_caching` | ️         | boolean | Use Spark caching during operation (defaults to false). Enabling caching can increase memory footprint on executors. |
+| `spec_id`     | ️         | int     | Spec id of the manifests to rewrite (defaults to current spec id)                                                    |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `rewritten_manifests_count` | int | Number of manifests which were re-written by this command |
-| `added_manifests_count`     | int | Number of new manifest files which were written by this command |
+|         Output Name         | Type |                           Description                           |
+|-----------------------------|------|-----------------------------------------------------------------|
+| `rewritten_manifests_count` | int  | Number of manifests which were re-written by this command       |
+| `added_manifests_count`     | int  | Number of new manifest files which were written by this command |
 
 #### Examples
 
 Rewrite the manifests in table `db.sample` and align manifest files with table partitioning.
+
 ```sql
 CALL catalog_name.system.rewrite_manifests('db.sample');
 ```
 
 Rewrite the manifests on the partition spec `1` in table `db.sample`.
+
 ```sql
 CALL catalog_name.system.rewrite_manifests(table => 'db.sample', spec_id => 1);
 ```
@@ -520,53 +541,55 @@ Iceberg can rewrite position delete files, which serves two purposes:
 
 #### Usage
 
-| Argument Name | Required? | Type | Description                      |
-|---------------|-----------|------|----------------------------------|
-| `table`       | ✔️  | string | Name of the table to update      |
-| `options`     | ️   | map<string, string> | Options to be used for procedure |
-| `where`       | ️   | string | predicate as a string used for filtering the files. |
+| Argument Name | Required? |        Type         |                     Description                     |
+|---------------|-----------|---------------------|-----------------------------------------------------|
+| `table`       | ✔️        | string              | Name of the table to update                         |
+| `options`     | ️         | map<string, string> | Options to be used for procedure                    |
+| `where`       | ️         | string              | predicate as a string used for filtering the files. |
 
 Dangling deletes are always filtered out during rewriting.
 
 #### Options
 
-| Name | Default Value | Description |
-|------|---------------|-------------|
-| `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
-| `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
-| `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
-| `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
-| `target-file-size-bytes` | 67108864 (64MB, default value of `write.delete.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
-| `min-file-size-bytes` | 75% of target file size | Files under this threshold will be considered for rewriting regardless of any other criteria |
-| `max-file-size-bytes` | 180% of target file size | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria |
-| `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
-| `rewrite-all` | false | Force rewriting of all provided files overriding other options |
-| `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
-| `max-files-to-rewrite` | null | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten. |
+|                 Name                 |                                                           Default Value                                                            |                                                                                                                                                                                                                                                                     Description                                                                                                                                                                                                                                                                     |
+|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `max-concurrent-file-group-rewrites` | 5                                                                                                                                  | Maximum number of file groups to be simultaneously rewritten                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `partial-progress.enabled`           | false                                                                                                                              | Enable committing groups of files prior to the entire rewrite completing                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `partial-progress.max-commits`       | 10                                                                                                                                 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `rewrite-job-order`                  | none                                                                                                                               | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
+| `target-file-size-bytes`             | 67108864 (64MB, default value of `write.delete.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `min-file-size-bytes`                | 75% of target file size                                                                                                            | Files under this threshold will be considered for rewriting regardless of any other criteria                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `max-file-size-bytes`                | 180% of target file size                                                                                                           | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `min-input-files`                    | 5                                                                                                                                  | Any file group exceeding this number of files will be rewritten regardless of other criteria                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `rewrite-all`                        | false                                                                                                                              | Force rewriting of all provided files overriding other options                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `max-file-group-size-bytes`          | 107374182400 (100GB)                                                                                                               | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster.                                                                                                                                                                             |
+| `max-files-to-rewrite`               | null                                                                                                                               | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten.                                                                                                                                                                                                                                                                                                                                                                                      |
 
 #### Output
 
-| Output Name                    | Type | Description                                                                |
-|--------------------------------|------|----------------------------------------------------------------------------|
-| `rewritten_delete_files_count` | int  | Number of delete files which were removed by this command                  |
-| `added_delete_files_count`     | int  | Number of delete files which were added by this command                    |
-| `rewritten_bytes_count`        | long | Count of bytes across delete files which were removed by this command      |
+|          Output Name           | Type |                                 Description                                 |
+|--------------------------------|------|-----------------------------------------------------------------------------|
+| `rewritten_delete_files_count` | int  | Number of delete files which were removed by this command                   |
+| `added_delete_files_count`     | int  | Number of delete files which were added by this command                     |
+| `rewritten_bytes_count`        | long | Count of bytes across delete files which were removed by this command       |
 | `added_bytes_count`            | long | Count of bytes across all new delete files which were added by this command |
-
 
 #### Examples
 
 Rewrite position delete files in table `db.sample`.  This selects position delete files that fit default rewrite criteria, and writes new files of target size `target-file-size-bytes`.  Dangling deletes are removed from rewritten delete files.
+
 ```sql
 CALL catalog_name.system.rewrite_position_delete_files('db.sample');
 ```
 
 Rewrite all position delete files in table `db.sample`, writing new files `target-file-size-bytes`.   Dangling deletes are removed from rewritten delete files.
+
 ```sql
 CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('rewrite-all', 'true'));
 ```
 
 Rewrite position delete files in table `db.sample`.  This selects position delete files in partitions where 2 or more position delete files need to be rewritten based on size criteria.  Dangling deletes are removed from rewritten delete files.
+
 ```sql
 CALL catalog_name.system.rewrite_position_delete_files(table => 'db.sample', options => map('min-input-files','2'));
 ```
@@ -586,41 +609,42 @@ When inserts or overwrites run on the snapshot, new files are placed in the snap
 When finished testing a snapshot table, clean it up by running `DROP TABLE`.
 
 !!! info
-    Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
-    actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
-    are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's 
-    integrity. DELETE statements executed against the original Hive table will remove original data files and the
-    `snapshot` table will no longer be able to access them.
-
+Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
+actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
+are still allowed. In addition, any operations which affect the original data files will disrupt the Snapshot's
+integrity. DELETE statements executed against the original Hive table will remove original data files and the
+`snapshot` table will no longer be able to access them.
 
 See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `source_table`| ✔️  | string | Name of the table to snapshot |
-| `table`       | ✔️  | string | Name of the new Iceberg table to create |
-| `location`    |    | string | Table location for the new table (delegated to the catalog by default) |
-| `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
-| `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
+| Argument Name  | Required? |        Type         |                              Description                               |
+|----------------|-----------|---------------------|------------------------------------------------------------------------|
+| `source_table` | ✔️        | string              | Name of the table to snapshot                                          |
+| `table`        | ✔️        | string              | Name of the new Iceberg table to create                                |
+| `location`     |           | string              | Table location for the new table (delegated to the catalog by default) |
+| `properties`   | ️         | map<string, string> | Properties to add to the newly created table                           |
+| `parallelism`  |           | int                 | Number of threads to use for file reading (defaults to 1)              |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
+|      Output Name       | Type |              Description               |
+|------------------------|------|----------------------------------------|
 | `imported_files_count` | long | Number of files added to the new table |
 
 #### Examples
 
 Make an isolated Iceberg table which references table `db.sample` named `db.snap` at the
 catalog's default location for `db.snap`.
+
 ```sql
 CALL catalog_name.system.snapshot('db.sample', 'db.snap');
 ```
 
 Migrate an isolated Iceberg table which references table `db.sample` named `db.snap` at
 a manually specified location `/tmp/temptable/`.
+
 ```sql
 CALL catalog_name.system.snapshot('db.sample', 'db.snap', '/tmp/temptable/');
 ```
@@ -640,18 +664,18 @@ By default, the original table is retained with the name `table_BACKUP_`.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to migrate |
-| `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |
-| `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
-| `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
-| `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
+|    Argument Name    | Required? |        Type         |                                   Description                                    |
+|---------------------|-----------|---------------------|----------------------------------------------------------------------------------|
+| `table`             | ✔️        | string              | Name of the table to migrate                                                     |
+| `properties`        | ️         | map<string, string> | Properties for the new Iceberg table                                             |
+| `drop_backup`       |           | boolean             | When true, the original table will not be retained as backup (defaults to false) |
+| `backup_table_name` |           | string              | Name of the table that will be retained as backup (defaults to `table_BACKUP_`)  |
+| `parallelism`       |           | int                 | Number of threads to use for file reading (defaults to 1)                        |
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
+|      Output Name       | Type |                  Description                  |
+|------------------------|------|-----------------------------------------------|
 | `migrated_files_count` | long | Number of files appended to the Iceberg table |
 
 #### Examples
@@ -663,6 +687,7 @@ CALL catalog_name.system.migrate('spark_catalog.db.sample', map('foo', 'bar'));
 ```
 
 Migrate `db.sample` in the current catalog to an Iceberg table without adding any additional properties:
+
 ```sql
 CALL catalog_name.system.migrate('db.sample');
 ```
@@ -671,24 +696,24 @@ CALL catalog_name.system.migrate('db.sample');
 
 Attempts to directly add files from a Hive or file based table into a given Iceberg table. Unlike migrate or
 snapshot, `add_files` can import files from a specific partition or partitions and does not create a new Iceberg table.
-This command will create metadata for the new files and will not move them. This procedure will not analyze the schema 
-of the files to determine if they actually match the schema of the Iceberg table. Upon completion, the Iceberg table 
-will then treat these files as if they are part of the set of files  owned by Iceberg. This means any subsequent 
-`expire_snapshot` calls will be able to physically delete the added files. This method should not be used if 
+This command will create metadata for the new files and will not move them. This procedure will not analyze the schema
+of the files to determine if they actually match the schema of the Iceberg table. Upon completion, the Iceberg table
+will then treat these files as if they are part of the set of files  owned by Iceberg. This means any subsequent
+`expire_snapshot` calls will be able to physically delete the added files. This method should not be used if
 `migrate` or `snapshot` are possible.
 
 !!! warning
-    Keep in mind the `add_files` procedure will fetch the Parquet metadata from each file being added just once. If you're using tiered storage, (such as [Amazon S3 Intelligent-Tiering storage class](https://aws.amazon.com/s3/storage-classes/intelligent-tiering/)), the underlying, file will be retrieved from the archive, and will remain on a higher tier for a set period of time.
+Keep in mind the `add_files` procedure will fetch the Parquet metadata from each file being added just once. If you're using tiered storage, (such as [Amazon S3 Intelligent-Tiering storage class](https://aws.amazon.com/s3/storage-classes/intelligent-tiering/)), the underlying, file will be retrieved from the archive, and will remain on a higher tier for a set period of time.
 
 #### Usage
 
-| Argument Name           | Required? | Type                | Description                                                                                         |
+|      Argument Name      | Required? |        Type         |                                             Description                                             |
 |-------------------------|-----------|---------------------|-----------------------------------------------------------------------------------------------------|
 | `table`                 | ✔️        | string              | Table which will have files added to                                                                |
 | `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
 | `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
-| `parallelism`           |           | int                 | Number of threads to use for file reading (defaults to 1)                                         |
+| `parallelism`           |           | int                 | Number of threads to use for file reading (defaults to 1)                                           |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
@@ -696,18 +721,19 @@ Warning : Files added by this method can be physically deleted by Iceberg operat
 
 #### Output
 
-| Output Name               | Type | Description                                       |
-|---------------------------|------|---------------------------------------------------|
-| `added_files_count`       | long | The number of files added by this command         |
+|        Output Name        | Type |                         Description                          |
+|---------------------------|------|--------------------------------------------------------------|
+| `added_files_count`       | long | The number of files added by this command                    |
 | `changed_partition_count` | long | The number of partitioned changed by this command (if known) |
 
 !!! warning
-    changed_partition_count will be NULL when table property `compatibility.snapshot-id-inheritance.enabled` is set to true or if the table format version is > 1.
+changed_partition_count will be NULL when table property `compatibility.snapshot-id-inheritance.enabled` is set to true or if the table format version is > 1.
 
 #### Examples
 
 Add the files from table `db.src_table`, a Hive or Spark table registered in the session Catalog, to Iceberg table
 `db.tbl`. Only add files that exist within partitions where `part_col_1` is equal to `A`.
+
 ```sql
 CALL spark_catalog.system.add_files(
   table => 'db.tbl',
@@ -718,6 +744,7 @@ CALL spark_catalog.system.add_files(
 
 Add files from a `parquet` file based table at location `path/to/table` to the Iceberg table `db.tbl`. Add all
 files regardless of what partition they belong to.
+
 ```sql
 CALL spark_catalog.system.add_files(
   table => 'db.tbl',
@@ -731,27 +758,27 @@ Creates a catalog entry for a metadata.json file which already exists but does n
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Table which is to be registered |
-| `metadata_file`| ✔️  | string | Metadata file which is to be registered as a new catalog identifier |
+|  Argument Name  | Required? |  Type  |                             Description                             |
+|-----------------|-----------|--------|---------------------------------------------------------------------|
+| `table`         | ✔️        | string | Table which is to be registered                                     |
+| `metadata_file` | ✔️        | string | Metadata file which is to be registered as a new catalog identifier |
 
 !!! warning
-    Having the same metadata.json registered in more than one catalog can lead to missing updates, loss of data, and table corruption.
-    Only use this procedure when the table is no longer registered in an existing catalog, or you are moving a table between catalogs.
-
+Having the same metadata.json registered in more than one catalog can lead to missing updates, loss of data, and table corruption.
+Only use this procedure when the table is no longer registered in an existing catalog, or you are moving a table between catalogs.
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `current_snapshot_id` | long | The current snapshot ID of the newly registered Iceberg table |
-| `total_records_count` | long | Total records count of the newly registered Iceberg table |
-| `total_data_files_count` | long | Total data files count of the newly registered Iceberg table |
+|       Output Name        | Type |                          Description                          |
+|--------------------------|------|---------------------------------------------------------------|
+| `current_snapshot_id`    | long | The current snapshot ID of the newly registered Iceberg table |
+| `total_records_count`    | long | Total records count of the newly registered Iceberg table     |
+| `total_data_files_count` | long | Total data files count of the newly registered Iceberg table  |
 
 #### Examples
 
 Register a new table as `db.tbl` to `spark_catalog` pointing to metadata.json file `path/to/metadata/file.json`.
+
 ```sql
 CALL spark_catalog.system.register_table(
   table => 'db.tbl',
@@ -767,73 +794,79 @@ Report the live snapshot IDs of parents of a specified snapshot
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to report live snapshot IDs |
-| `snapshot_id` |  ️  | long | Use a specified snapshot to get the live snapshot IDs of parents |
+| Argument Name | Required? |  Type  |                           Description                            |
+|---------------|-----------|--------|------------------------------------------------------------------|
+| `table`       | ✔️        | string | Name of the table to report live snapshot IDs                    |
+| `snapshot_id` | ️         | long   | Use a specified snapshot to get the live snapshot IDs of parents |
 
 > tip : Using snapshot_id
-> 
+>
 > Given snapshots history with roll back to B and addition of C' -> D'
+>
 > ```shell
 > A -> B - > C -> D
 >       \ -> C' -> (D')
 > ```
+>
 > Not specifying the snapshot ID would return A -> B -> C' -> D', while providing the snapshot ID of
 > D as an argument would return A-> B -> C -> D
 
 #### Output
 
-| Output Name | Type | Description |
-| ------------|------|-------------|
+|  Output Name  | Type |       Description        |
+|---------------|------|--------------------------|
 | `snapshot_id` | long | the ancestor snapshot id |
-| `timestamp` | long | snapshot creation time |
+| `timestamp`   | long | snapshot creation time   |
 
 #### Examples
 
 Get all the snapshot ancestors of current snapshots(default)
+
 ```sql
 CALL spark_catalog.system.ancestors_of('db.tbl');
 ```
 
 Get all the snapshot ancestors by a particular snapshot
+
 ```sql
 CALL spark_catalog.system.ancestors_of('db.tbl', 1);
 CALL spark_catalog.system.ancestors_of(snapshot_id => 1, table => 'db.tbl');
 ```
 
-## Change Data Capture 
+## Change Data Capture
 
 ### `create_changelog_view`
 
-Creates a view that contains the changes from a given table. 
+Creates a view that contains the changes from a given table.
 
 #### Usage
 
-| Argument Name        | Required? | Type                | Description                                                                                                                                                                                          |
-|----------------------|-----------|---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `table`              | ✔️         | string              | Name of the source table for the changelog                                                                                                                                                           |
-| `changelog_view`     |           | string              | Name of the view to create                                                                                                                                                                           |
-| `options`            |           | map<string, string> | A map of Spark read options to use                                                                                                                                                                   |
-| `net_changes`        |           | boolean             | Whether to output net changes (see below for more information). Defaults to false. It must be false when `compute_updates` is true.                                                                                                                  |
-| `compute_updates`    |           | boolean             | Whether to compute pre/post update images (see below for more information). Defaults to true if `identifer_columns` are provided; otherwise, defaults to false.                                                                                                       | 
-| `identifier_columns` |           | array<string>       | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used.   |
+|    Argument Name     | Required? |        Type         |                                                                                            Description                                                                                             |
+|----------------------|-----------|---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`              | ✔️        | string              | Name of the source table for the changelog                                                                                                                                                         |
+| `changelog_view`     |           | string              | Name of the view to create                                                                                                                                                                         |
+| `options`            |           | map<string, string> | A map of Spark read options to use                                                                                                                                                                 |
+| `net_changes`        |           | boolean             | Whether to output net changes (see below for more information). Defaults to false. It must be false when `compute_updates` is true.                                                                |
+| `compute_updates`    |           | boolean             | Whether to compute pre/post update images (see below for more information). Defaults to true if `identifer_columns` are provided; otherwise, defaults to false.                                    |
+| `identifier_columns` |           | array<string>       | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used. |
 
 Here is a list of commonly used Spark read options:
 
-* `start-snapshot-id`: the exclusive start snapshot ID. If not provided, it reads from the table’s first snapshot inclusively. 
-* `end-snapshot-id`: the inclusive end snapshot id, default to table's current snapshot.                                                                                                                                            
+* `start-snapshot-id`: the exclusive start snapshot ID. If not provided, it reads from the table’s first snapshot inclusively.
+* `end-snapshot-id`: the inclusive end snapshot id, default to table's current snapshot.
 * `start-timestamp`: the exclusive start timestamp. If not provided, it reads from the table’s first snapshot inclusively.
-* `end-timestamp`: the inclusive end timestamp, default to table's current snapshot.                                                                                  
+* `end-timestamp`: the inclusive end timestamp, default to table's current snapshot.
 
 #### Output
-| Output Name | Type | Description                            |
-| ------------|------|----------------------------------------|
+
+|   Output Name    |  Type  |              Description               |
+|------------------|--------|----------------------------------------|
 | `changelog_view` | string | The name of the created changelog view |
 
 #### Examples
 
 Create a changelog view `tbl_changes` based on the changes that happened between snapshot `1` (exclusive) and `2` (inclusive).
+
 ```sql
 CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
@@ -842,6 +875,7 @@ CALL spark_catalog.system.create_changelog_view(
 ```
 
 Create a changelog view `my_changelog_view` based on the changes that happened between timestamp `1678335750489` (exclusive) and `1678992105265` (inclusive).
+
 ```sql
 CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
@@ -851,6 +885,7 @@ CALL spark_catalog.system.create_changelog_view(
 ```
 
 Create a changelog view that computes updates based on the identifier columns `id` and `name`.
+
 ```sql
 CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
@@ -860,12 +895,15 @@ CALL spark_catalog.system.create_changelog_view(
 ```
 
 Once the changelog view is created, you can query the view to see the changes that happened between the snapshots.
+
 ```sql
 SELECT * FROM tbl_changes;
 ```
+
 ```sql
 SELECT * FROM tbl_changes where _change_type = 'INSERT' AND id = 3 ORDER BY _change_ordinal;
-``` 
+```
+
 Please note that the changelog view includes Change Data Capture(CDC) metadata columns
 that provide additional information about the changes being tracked. These columns are:
 
@@ -874,17 +912,17 @@ that provide additional information about the changes being tracked. These colum
 - `_commit_snapshot_id`: the snapshot ID where the change occurred
 
 Here is an example of corresponding results. It shows that the first snapshot inserted 2 records, and the
-second snapshot deleted 1 record. 
+second snapshot deleted 1 record.
 
-|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
-|---|--------|---|---|---|
-|1	| Alice	 |INSERT	|0	|5390529835796506035|
-|2	| Bob	   |INSERT	|0	|5390529835796506035|
-|1	| Alice  |DELETE	|1	|8764748981452218370|
+| id | name  | _change_type | _change_ordinal | _commit_snapshot_id |
+|----|-------|--------------|-----------------|---------------------|
+| 1  | Alice | INSERT       | 0               | 5390529835796506035 |
+| 2  | Bob   | INSERT       | 0               | 5390529835796506035 |
+| 1  | Alice | DELETE       | 1               | 8764748981452218370 |
 
 #### Net Changes
 
-The procedure can remove intermediate changes across multiple snapshots, and only outputs the net changes. Here is an example to create a changelog view that computes net changes. 
+The procedure can remove intermediate changes across multiple snapshots, and only outputs the net changes. Here is an example to create a changelog view that computes net changes.
 
 ```sql
 CALL spark_catalog.system.create_changelog_view(
@@ -896,9 +934,9 @@ CALL spark_catalog.system.create_changelog_view(
 
 With the net changes, the above changelog view only contains the following row since Alice was inserted in the first snapshot and deleted in the second snapshot.
 
-|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
-|---|--------|---|---|---|
-|2	| Bob	   |INSERT	|0	|5390529835796506035|
+| id | name | _change_type | _change_ordinal | _commit_snapshot_id |
+|----|------|--------------|-----------------|---------------------|
+| 2  | Bob  | INSERT       | 0               | 5390529835796506035 |
 
 #### Carry-over Rows
 
@@ -907,12 +945,13 @@ when using copy-on-write. For example, given a file which contains row1 `(id=1, 
 A copy-on-write delete of row2 would require erasing this file and preserving row1 in a new file. The changelog table
 reports this as the following pair of rows, despite it not being an actual change to the table.
 
-| id  | name  | _change_type |
-|-----|-------|--------------|
-| 1   | Alice | DELETE       |
-| 1   | Alice | INSERT       |
+| id | name  | _change_type |
+|----|-------|--------------|
+| 1  | Alice | DELETE       |
+| 1  | Alice | INSERT       |
 
 To see carry-over rows, query `SparkChangelogTable` as follows:
+
 ```sql
 SELECT * FROM spark_catalog.db.tbl.changes;
 ```
@@ -927,18 +966,18 @@ and after states of the same row. You can either set identifier fields in the ta
 The following example shows pre/post update images computation with an identifier column(`id`), where a row deletion
 and an insertion with the same `id` are treated as a single update operation. Specifically, suppose we have the following pair of rows:
 
-| id  | name   | _change_type |
-|-----|--------|--------------|
-| 3   | Robert | DELETE       |
-| 3   | Dan    | INSERT       |
+| id |  name  | _change_type |
+|----|--------|--------------|
+| 3  | Robert | DELETE       |
+| 3  | Dan    | INSERT       |
 
 In this case, the procedure marks the row before the update as an `UPDATE_BEFORE` image and the row after the update
 as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 
-| id  | name   | _change_type |
-|-----|--------|--------------|
-| 3   | Robert | UPDATE_BEFORE|
-| 3   | Dan    | UPDATE_AFTER |
+| id |  name  | _change_type  |
+|----|--------|---------------|
+| 3  | Robert | UPDATE_BEFORE |
+| 3  | Dan    | UPDATE_AFTER  |
 
 ## Table Statistics
 
@@ -948,7 +987,7 @@ This procedure calculates the [Number of Distinct Values (NDV) statistics](../..
 By default, statistics are computed for all columns using the table's current snapshot.
 The procedure can be optionally configured to compute statistics for a specific snapshot and/or a subset of columns.
 
-| Argument Name | Required? | Type          | Description                         |
+| Argument Name | Required? |     Type      |             Description             |
 |---------------|-----------|---------------|-------------------------------------|
 | `table`       | ✔️        | string        | Name of the table                   |
 | `snapshot_id` |           | string        | Id of the snapshot to collect stats |
@@ -956,23 +995,26 @@ The procedure can be optionally configured to compute statistics for a specific 
 
 #### Output
 
-| Output Name       | Type   | Description                                     |
+|    Output Name    |  Type  |                   Description                   |
 |-------------------|--------|-------------------------------------------------|
 | `statistics_file` | string | Path to stats file created from by this command |
 
 #### Examples
 
 Collect statistics of the latest snapshot of table `my_table`
+
 ```sql
 CALL catalog_name.system.compute_table_stats('my_table');
 ```
 
 Collect statistics of the snapshot with id `snap1` of table `my_table`
+
 ```sql
 CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1' );
 ```
 
 Collect statistics of the snapshot with id `snap1` of table `my_table` for columns `col1` and `col2`
+
 ```sql
 CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1', columns => array('col1', 'col2'));
 ```
@@ -981,30 +1023,32 @@ CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id =>
 
 ### `compute_partition_stats`
 
-This procedure computes the [partition stats](../../spec.md#partition-statistics) incrementally from the last snapshot that has a `PartitionStatisticsFile` 
-until the given snapshot (uses current snapshot if not specified) and writes the combined result into a `PartitionStatisticsFile`. 
-It performs a full compute if the previous partition statistics file does not exist. It also registers the 
+This procedure computes the [partition stats](../../spec.md#partition-statistics) incrementally from the last snapshot that has a `PartitionStatisticsFile`
+until the given snapshot (uses current snapshot if not specified) and writes the combined result into a `PartitionStatisticsFile`.
+It performs a full compute if the previous partition statistics file does not exist. It also registers the
 `PartitionStatisticsFile` to the table metadata.
 
-| Argument Name | Required? | Type          | Description                                                                    |
-|---------------|-----------|---------------|--------------------------------------------------------------------------------|
-| `table`       | ✔️        | string        | Name of the table                                                              |
-| `snapshot_id` |           | string        | Id of the snapshot to compute partition stats. Defaults to current snapshot id |
+| Argument Name | Required? |  Type  |                                  Description                                   |
+|---------------|-----------|--------|--------------------------------------------------------------------------------|
+| `table`       | ✔️        | string | Name of the table                                                              |
+| `snapshot_id` |           | string | Id of the snapshot to compute partition stats. Defaults to current snapshot id |
 
 #### Output
 
-| Output Name       | Type   | Description                                              |
-|-------------------|--------|----------------------------------------------------------|
+|         Output Name         |  Type  |                       Description                        |
+|-----------------------------|--------|----------------------------------------------------------|
 | `partition_statistics_file` | string | Path to the partition stats file created from by command |
 
 #### Examples
 
 Collect partition statistics of the latest snapshot of table `my_table`
+
 ```sql
 CALL catalog_name.system.compute_partition_stats('my_table');
 ```
 
 Collect partition statistics of the snapshot with id `snap1` of table `my_table`
+
 ```sql
 CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 'snap1');
 ```
@@ -1019,10 +1063,9 @@ Stages a copy of the Iceberg table's metadata files where every absolute path so
 This can be the starting point to fully or incrementally copy an Iceberg table to a new location.
 
 !!! info
-    This procedure only stages rewritten metadata files and prepares a list of files to copy. The actual file copy is not included in this procedure.
+This procedure only stages rewritten metadata files and prepares a list of files to copy. The actual file copy is not included in this procedure.
 
-
-| Argument Name      | Required? | default                                        | Type   | Description                                                            |
+|   Argument Name    | Required? |                    default                     |  Type  |                              Description                               |
 |--------------------|-----------|------------------------------------------------|--------|------------------------------------------------------------------------|
 | `table`            | ✔️        |                                                | string | Name of the table                                                      |
 | `source_prefix`    | ✔️        |                                                | string | The existing prefix to be replaced                                     |
@@ -1031,22 +1074,21 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 | `end_version`      |           | latest metadata.json in table's metadata log   | string | The name or path of the chronologically last metadata.json to rewrite  |
 | `staging_location` |           | new directory under table's metadata directory | string | The output location for newly rewritten metadata files                 |
 
-
 #### Modes of operation
 
 * Full Rewrite: A full rewrite will rewrite all reachable metadata files (this includes metadata.json, manifest lists, manifests, and position delete files), and will return all reachable files in the `file_list_location`. This is the default mode of operation for this procedure.
 
 * Incremental Rewrite: Optionally, `start_version` and `end_version` can be provided to limit the scope to an incremental rewrite. An incremental rewrite will only rewrite metadata files added between `start_version` and `end_version`, and will only return files added in this range in the `file_list_location`.
 
-
 #### Output
 
-| Output Name          | Type   | Description                                                       |
+|     Output Name      |  Type  |                            Description                            |
 |----------------------|--------|-------------------------------------------------------------------|
 | `latest_version`     | string | Name of the latest metadata file rewritten by this procedure      |
 | `file_list_location` | string | Path to a CSV file containing a mapping of source to target paths |
 
 ##### File List
+
 The file contains the copy plan for all files added to the table between `start_version` and `end_version`.
 
 For each file, it specifies:
@@ -1097,4 +1139,4 @@ metadata files and data files to the target location.
 Lastly, the [register_table](#register_table) procedure can be used to register the copied table in the target location with a catalog.
 
 !!! warning
-    Iceberg tables with partition statistics files are not currently supported for path rewrite.
+Iceberg tables with partition statistics files are not currently supported for path rewrite.

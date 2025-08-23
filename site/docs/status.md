@@ -1,22 +1,24 @@
 ---
+
 title: "Implementation Status"
----
+------------------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Implementation Status
 
@@ -34,7 +36,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ## Data Types
 
-| Data Type      | Java | PyIceberg | Rust | Go |
+|   Data Type    | Java | PyIceberg | Rust | Go |
 |----------------|------|-----------|------|----|
 | boolean        | Y    | Y         | Y    | Y  |
 | int            | Y    | Y         | Y    | Y  |
@@ -68,7 +70,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ## File IO
 
-| Storage           | Java | PyIceberg | Rust | Go |
+|      Storage      | Java | PyIceberg | Rust | Go |
 |-------------------|------|-----------|------|----|
 | Local Filesystem  | Y    | Y         | Y    | Y  |
 | Hadoop Filesystem | Y    | Y         | Y    | Y  |
@@ -80,7 +82,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ### Table Spec V1
 
-| Operation                   | Java | PyIceberg | Rust | Go |
+|          Operation          | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
 | Update schema               | Y    | Y         | Y    | N  |
 | Update partition spec       | Y    | Y         | Y    | N  |
@@ -94,7 +96,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ### Table Spec V2
 
-| Operation                   | Java | PyIceberg | Rust | Go |
+|          Operation          | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
 | Update schema               | Y    | Y         | N    | N  |
 | Update partition spec       | Y    | Y         | N    | N  |
@@ -110,7 +112,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ### Table Spec V1
 
-| Operation         | Java | PyIceberg | Rust | Go |
+|     Operation     | Java | PyIceberg | Rust | Go |
 |-------------------|------|-----------|------|----|
 | Append data files | Y    | Y         | N    | Y  |
 | Rewrite files     | Y    | Y         | N    | N  |
@@ -120,7 +122,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ### Table Spec V2
 
-| Operation         | Java | PyIceberg | Rust | Go |
+|     Operation     | Java | PyIceberg | Rust | Go |
 |-------------------|------|-----------|------|----|
 | Append data files | Y    | Y         | N    | Y  |
 | Rewrite files     | Y    | Y         | N    | N  |
@@ -133,7 +135,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ### Table Spec V1
 
-| Operation                   | Java | PyIceberg | Rust | Go |
+|          Operation          | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
 | Plan with data file         | Y    | Y         | Y    | Y  |
 | Plan with puffin statistics | Y    | Y         | Y    | Y  |
@@ -141,7 +143,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ### Table Spec V2
 
-| Operation                   | Java | PyIceberg | Rust | Go |
+|          Operation          | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
 | Plan with data file         | Y    | Y         | Y    | Y  |
 | Plan with position deletes  | Y    | Y         | N    | Y  |
@@ -155,13 +157,13 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ### Table Spec V1
 
-| Operation   | Java | PyIceberg | Rust | Go |
+|  Operation  | Java | PyIceberg | Rust | Go |
 |-------------|------|-----------|------|----|
 | Append data | Y    | Y         | Y    | Y  |
 
 ### Table Spec V2
 
-| Operation              | Java | PyIceberg | Rust | Go |
+|       Operation        | Java | PyIceberg | Rust | Go |
 |------------------------|------|-----------|------|----|
 | Append data            | Y    | Y         | Y    | Y  |
 | Write position deletes | Y    | N         | N    | N  |
@@ -208,7 +210,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 #### Namespace Operations
 
-| Namespace Operation       | Java | PyIceberg | Rust | Go |
+|    Namespace Operation    | Java | PyIceberg | Rust | Go |
 |---------------------------|------|-----------|------|----|
 | listNamespaces            | Y    | Y         | Y    | Y  |
 | createNamespace           | Y    | Y         | Y    | Y  |
@@ -264,7 +266,7 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 #### Namespace Operations
 
-| Namespace Operation       | Java | PyIceberg | Rust | Go |
+|    Namespace Operation    | Java | PyIceberg | Rust | Go |
 |---------------------------|------|-----------|------|----|
 | listNamespaces            | Y    | Y         | N    | Y  |
 | createNamespace           | Y    | Y         | N    | Y  |
@@ -312,7 +314,7 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 #### Namespace Operations
 
-| Namespace Operation       | Java | PyIceberg | Rust | Go |
+|    Namespace Operation    | Java | PyIceberg | Rust | Go |
 |---------------------------|------|-----------|------|----|
 | listNamespaces            | Y    | Y         | N    | Y  |
 | createNamespace           | Y    | Y         | N    | Y  |
@@ -360,7 +362,7 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 #### Namespace Operations
 
-| Namespace Operation       | Java | PyIceberg | Rust | Go |
+|    Namespace Operation    | Java | PyIceberg | Rust | Go |
 |---------------------------|------|-----------|------|----|
 | listNamespaces            | Y    | Y         | N    | N  |
 | createNamespace           | Y    | Y         | N    | N  |
@@ -368,3 +370,4 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 | namespaceExists           | Y    | N         | N    | N  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
 | loadNamespaceMetadata     | Y    | Y         | N    | N  |
+

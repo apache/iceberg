@@ -1,22 +1,24 @@
 ---
+
 title: "Java API"
----
+-----------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Iceberg Java API
 
@@ -42,7 +44,6 @@ Tables also provide `refresh` to update the table to the latest version, and exp
 
 * `io` returns the `FileIO` used to read and write table files
 * `locationProvider` returns a `LocationProvider` used to create paths for data and metadata files
-
 
 ### Scanning
 
@@ -96,6 +97,7 @@ CloseableIterable<Record> result = IcebergGenerics.read(table)
         .where(Expressions.lessThan("id", 5))
         .build();
 ```
+
 where `Record` is Iceberg record for iceberg-data module `org.apache.iceberg.data.Record`.
 
 ### Update operations
@@ -136,6 +138,7 @@ Available operations to update a table are:
 Transactions are used to commit multiple table changes in a single atomic operation. A transaction is used to create individual operations using factory methods, like `newAppend`, just like working with a `Table`. Operations created by a transaction are committed as a group when `commitTransaction` is called.
 
 For example, deleting and appending a file in the same transaction:
+
 ```java
 Transaction t = table.newTransaction();
 
@@ -176,6 +179,7 @@ StructType struct = Struct.of(
     Types.NestedField.optional(2, "data", Types.StringType.get())
   )
 ```
+
 ```java
 // map<1 key: int, 2 value: optional string>
 MapType map = MapType.ofOptional(
@@ -184,11 +188,11 @@ MapType map = MapType.ofOptional(
     Types.StringType.get()
   )
 ```
+
 ```java
 // array<1 element: int>
 ListType list = ListType.ofRequired(1, IntegerType.get());
 ```
-
 
 ## Expressions
 
@@ -235,7 +239,6 @@ table.newScan()
     .filter(Expressions.greaterThanOrEqual("x", 5))
     .filter(Expressions.lessThan("x", 10))
 ```
-
 
 ## Modules
 
