@@ -236,21 +236,16 @@ pull_versioned_docs () {
 
 # Sets up local worktrees for the documentation and performs operations related to different versions.
 pull_local_docs () {
-  echo " --> pull local docs"
+  echo " --> pull local docs (fast local mode)"
 
   mkdir -p docs/docs
   mkdir -p docs/javadoc
 
   # Retrieve the latest version of documentation for processing
   local latest_version=$(get_latest_version)
-
-  # Output the latest version for debugging purposes
   echo "Latest version is: ${latest_version}"
 
-  # Create the 'latest' version of documentation
-  create_latest "${latest_version}"
-
-  # Create the 'nightly' version of documentation
+  # Only create the 'nightly' version in local mode, skip 'latest' for speed
   create_nightly
 }
 
