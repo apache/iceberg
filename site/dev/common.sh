@@ -174,16 +174,17 @@ update_version () {
   # Ensure ICEBERG_VERSION is not empty
   assert_not_empty "${ICEBERG_VERSION}"  
 
-  # Update version information within the mkdocs.yml file using sed commands
-  if [ "$(uname)" == "Darwin" ]
+    # Update version information within the mkdocs.yml file using sed commands
+  if [ "$(uname)" = "Darwin" ]; 
   then
-    /usr/bin/sed -i '' -E "s/(^site\_name:[[:space:]]+docs\/).*$/${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
-    /usr/bin/sed -i '' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
-  elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]
+    /usr/bin/sed -i '' -E "s/(^site_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
+    /usr/bin/sed -i '' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
+  elif [ "$(expr substr "$(uname -s)" 1 5)" = "Linux" ]; 
   then
-    sed -i'' -E "s/(^site_name:[[:space:]]+docs\/)[^[:space:]]+/${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
-    sed -i'' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
+    sed -i'' -E "s/(^site_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
+    sed -i'' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
   fi
+
 
 }
 
