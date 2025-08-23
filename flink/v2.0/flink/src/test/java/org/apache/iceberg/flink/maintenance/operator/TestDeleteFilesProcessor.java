@@ -165,7 +165,9 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
       targets.add("delete-" + i + ".txt");
     }
 
-    for (String f : targets) Files.write(root.resolve(f), f.getBytes(StandardCharsets.UTF_8));
+    for (String f : targets) {
+      Files.write(root.resolve(f), f.getBytes(StandardCharsets.UTF_8));
+    }
     assertThat(listFiles(table)).containsAll(targets);
 
     DeleteFilesProcessor p1 = new DeleteFilesProcessor(table, DUMMY_TASK_NAME + "-p1", 0, 2);
