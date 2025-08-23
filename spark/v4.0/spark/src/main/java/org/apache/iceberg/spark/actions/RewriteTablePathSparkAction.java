@@ -152,8 +152,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   @Override
-  public RewriteTablePath createFileList(boolean createFileList) {
-    this.createFileList = createFileList;
+  public RewriteTablePath createFileList(boolean createFileListFlag) {
+    this.createFileList = createFileListFlag;
     return this;
   }
 
