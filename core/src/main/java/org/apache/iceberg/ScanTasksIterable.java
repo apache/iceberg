@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -43,7 +44,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
   // parallelizing on this where a planTask produces a list of file scan tasks, as
   //  well more planTasks.
   private final String planTask;
-  private final List<FileScanTask> fileScanTasks;
+  private final ArrayDeque<FileScanTask> fileScanTasks;
   private final ExecutorService executorService;
   private final Map<Integer, PartitionSpec> specsById;
   private final boolean caseSensitive;
@@ -78,7 +79,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive) {
     this.planTask = null;
-    this.fileScanTasks = fileScanTasks;
+    this.fileScanTasks = new ArrayDeque<>(fileScanTasks);
     this.client = client;
     this.resourcePaths = resourcePaths;
     this.tableIdentifier = tableIdentifier;
@@ -111,14 +112,14 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     private final TableIdentifier tableIdentifier;
     private final Supplier<Map<String, String>> headers;
     private String planTask;
-    private final List<FileScanTask> fileScanTasks;
+    private final ArrayDeque<FileScanTask> fileScanTasks;
     private final ExecutorService executorService;
     private final Map<Integer, PartitionSpec> specsById;
     private final boolean caseSensitive;
 
     ScanTasksIterator(
         String planTask,
-        List<FileScanTask> fileScanTasks,
+        ArrayDeque<FileScanTask> fileScanTasks,
         RESTClient client,
         ResourcePaths resourcePaths,
         TableIdentifier tableIdentifier,
@@ -131,7 +132,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       this.tableIdentifier = tableIdentifier;
       this.headers = headers;
       this.planTask = planTask;
-      this.fileScanTasks = fileScanTasks != null ? fileScanTasks : Lists.newArrayList();
+      this.fileScanTasks = fileScanTasks != null ? fileScanTasks : new ArrayDeque<>();
       this.executorService = executorService;
       this.specsById = specsById;
       this.caseSensitive = caseSensitive;
@@ -158,7 +159,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
 
     @Override
     public FileScanTask next() {
-      return fileScanTasks.remove(0);
+      return fileScanTasks.removeFirst();
     }
 
     private void fetchScanTasks(String withPlanTask) {
