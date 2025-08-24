@@ -178,11 +178,11 @@ env.execute("Table Maintenance Job");
 | `deleteFileThreshold(int)` | Minimum delete-file count per data file to force rewrite | Integer.MAX_VALUE | int |
 | `rewriteAll(boolean)` | Rewrite all data files regardless of thresholds | false | boolean |
 | `maxFileGroupSizeBytes(long)` | Maximum total size of a file group | 107374182400 (100GB) | long |
-| `maxFilesToRewrite(int)` | About the description we can add: If this option is not specified, all eligible files will be rewritten | null | int |
+| `maxFilesToRewrite(int)` | If this option is not specified, all eligible files will be rewritten | null | int |
 | `partialProgressEnabled(boolean)` | Enable partial progress commits | false | boolean |
 | `partialProgressMaxCommits(int)` | Maximum commits allowed for partial progress when partialProgressEnabled is true | 10 | int |
 | `maxRewriteBytes(long)` | Maximum bytes to rewrite per execution | Long.MAX_VALUE | long |
-| `filter(Expression)` | Filter expression for selecting files to rewrite | null | Expression |
+| `filter(Expression)` | Filter expression for selecting files to rewrite | Expressions.alwaysTrue() | Expression |
 
 ## Complete Example
 
