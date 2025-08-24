@@ -22,7 +22,6 @@ import static org.apache.iceberg.spark.data.TestHelpers.assertEquals;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -113,8 +112,6 @@ public class TestSparkOrcReader extends AvroDataTestBase {
   @Test
   @Override
   public void testUnknownListType() {
-    assumeThat(supportsNestedTypes()).isTrue();
-
     assertThatThrownBy(super::testUnknownListType)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot create ListType with unknown element type");

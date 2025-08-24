@@ -41,7 +41,6 @@ import org.apache.iceberg.parquet.TripleWriter;
 import org.apache.iceberg.parquet.VariantWriterBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.PruneNullType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
@@ -78,9 +77,8 @@ public class SparkParquetWriters {
 
   @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(StructType dfSchema, MessageType type) {
-    StructType writeSchema = PruneNullType.prune(dfSchema);
     return (ParquetValueWriter<T>)
-        ParquetWithSparkSchemaVisitor.visit(writeSchema, type, new WriteBuilder(type));
+        ParquetWithSparkSchemaVisitor.visit(dfSchema, type, new WriteBuilder(type));
   }
 
   private static class WriteBuilder extends ParquetWithSparkSchemaVisitor<ParquetValueWriter<?>> {
