@@ -49,11 +49,13 @@ class PublishChangesProcedure extends BaseProcedure {
 
   static final String NAME = "publish_changes";
 
+  private static final ProcedureParameter TABLE_PARAM =
+      requiredInParameter("table", DataTypes.StringType);
+  private static final ProcedureParameter WAP_ID_PARAM =
+      requiredInParameter("wap_id", DataTypes.StringType);
+
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        requiredInParameter("table", DataTypes.StringType),
-        requiredInParameter("wap_id", DataTypes.StringType)
-      };
+      new ProcedureParameter[] {TABLE_PARAM, WAP_ID_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -87,8 +89,10 @@ class PublishChangesProcedure extends BaseProcedure {
 
   @Override
   public Iterator<Scan> call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    String wapId = args.getString(1);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+
+    Identifier tableIdent = toIdentifier(input.asString(TABLE_PARAM), TABLE_PARAM.name());
+    String wapId = input.asString(WAP_ID_PARAM);
 
     return modifyIcebergTable(
         tableIdent,

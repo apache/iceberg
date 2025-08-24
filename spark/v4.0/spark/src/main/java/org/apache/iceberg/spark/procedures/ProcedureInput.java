@@ -22,10 +22,12 @@ import java.lang.reflect.Array;
 import java.util.Map;
 import java.util.function.BiFunction;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -80,6 +82,22 @@ class ProcedureInput {
     return args.isNullAt(ordinal) ? defaultValue : (Integer) args.getInt(ordinal);
   }
 
+  public long asTimestampLong(ProcedureParameter param) {
+    Long value = asTimestampLong(param, null);
+    Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
+    return value;
+  }
+
+  public Long asTimestampLong(ProcedureParameter param, Long defaultValue) {
+    validateParamType(param, DataTypes.TimestampType);
+    int ordinal = ordinal(param);
+    Long value = args.isNullAt(ordinal) ? defaultValue : (Long) args.getLong(ordinal);
+    if (value != null) {
+      value = DateTimeUtil.microsToMillis(value);
+    }
+    return value;
+  }
+
   public long asLong(ProcedureParameter param) {
     Long value = asLong(param, null);
     Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
@@ -90,6 +108,17 @@ class ProcedureInput {
     validateParamType(param, DataTypes.LongType);
     int ordinal = ordinal(param);
     return args.isNullAt(ordinal) ? defaultValue : (Long) args.getLong(ordinal);
+  }
+
+  public Long[] asLongArray(ProcedureParameter param) {
+    Long[] value = asLongArray(param, null);
+    Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
+    return value;
+  }
+
+  public Long[] asLongArray(ProcedureParameter param, Long[] defaultValue) {
+    validateParamType(param, DataTypes.createArrayType(DataTypes.LongType));
+    return array(param, (array, ordinal) -> array.getLong(ordinal), Long.class, defaultValue);
   }
 
   public String asString(ProcedureParameter param) {
@@ -117,6 +146,15 @@ class ProcedureInput {
         (array, ordinal) -> array.getUTF8String(ordinal).toString(),
         String.class,
         defaultValue);
+  }
+
+  public DeleteOrphanFiles.PrefixMismatchMode asPrefixMismatchMode(ProcedureParameter param) {
+    String modeAsString = asString(param, null);
+    DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode =
+        (modeAsString == null)
+            ? null
+            : DeleteOrphanFiles.PrefixMismatchMode.fromString(modeAsString);
+    return prefixMismatchMode;
   }
 
   @SuppressWarnings("unchecked")
