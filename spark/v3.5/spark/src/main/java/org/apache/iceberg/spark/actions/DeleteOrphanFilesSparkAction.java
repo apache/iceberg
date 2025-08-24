@@ -46,7 +46,6 @@ import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -241,7 +240,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       LOG.info("Deleted {} files using bulk deletes", paths.size());
     } catch (BulkDeletionFailureException e) {
       int deletedFilesCount = paths.size() - e.numberFailedObjects();
-      LOG.warn("Deleted only {} of {} files using bulk deletes", deletedFilesCount, paths.size());
+      LOG.warn(
+          "Deleted only {} of {} files using bulk deletes", deletedFilesCount, paths.size(), e);
     }
   }
 
@@ -487,10 +487,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
         return null;
       }
-    }
-
-    private boolean uriComponentMatch(String valid, String actual) {
-      return Strings.isNullOrEmpty(valid) || valid.equalsIgnoreCase(actual);
     }
   }
 

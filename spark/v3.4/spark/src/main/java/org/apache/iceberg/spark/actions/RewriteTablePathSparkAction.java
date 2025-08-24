@@ -475,6 +475,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   public static class RewriteContentFileResult extends RewriteResult<ContentFile<?>> {
+    @Override
     public RewriteContentFileResult append(RewriteResult<ContentFile<?>> r1) {
       this.copyPlan().addAll(r1.copyPlan());
       this.toRewrite().addAll(r1.toRewrite());

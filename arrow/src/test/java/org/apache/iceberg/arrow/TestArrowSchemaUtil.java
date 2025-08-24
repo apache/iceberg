@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.Schema;
@@ -47,6 +48,7 @@ public class TestArrowSchemaUtil {
   private static final String STRING_FIELD = "s";
   private static final String DATE_FIELD = "d2";
   private static final String TIMESTAMP_FIELD = "ts";
+  private static final String TIMESTAMP_NANO_FIELD = "tsn";
   private static final String LONG_FIELD = "l";
   private static final String FLOAT_FIELD = "f";
   private static final String TIME_FIELD = "tt";
@@ -80,7 +82,9 @@ public class TestArrowSchemaUtil {
                 MAP_FIELD,
                 Types.MapType.ofOptional(15, 16, StringType.get(), IntegerType.get())),
             Types.NestedField.optional(17, FIXED_WIDTH_BINARY_FIELD, Types.FixedType.ofLength(10)),
-            Types.NestedField.optional(18, UUID_FIELD, Types.UUIDType.get()));
+            Types.NestedField.optional(18, UUID_FIELD, Types.UUIDType.get()),
+            Types.NestedField.optional(
+                19, TIMESTAMP_NANO_FIELD, Types.TimestampNanoType.withZone()));
 
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
 
@@ -224,6 +228,12 @@ public class TestArrowSchemaUtil {
       case TIMESTAMP:
         assertThat(field.getName()).isEqualTo(TIMESTAMP_FIELD);
         assertThat(arrowType.getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Timestamp);
+        assertThat(((ArrowType.Timestamp) arrowType).getUnit()).isEqualTo(TimeUnit.MICROSECOND);
+        break;
+      case TIMESTAMP_NANO:
+        assertThat(field.getName()).isEqualTo(TIMESTAMP_NANO_FIELD);
+        assertThat(arrowType.getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Timestamp);
+        assertThat(((ArrowType.Timestamp) arrowType).getUnit()).isEqualTo(TimeUnit.NANOSECOND);
         break;
       case STRING:
         assertThat(field.getName()).isEqualTo(STRING_FIELD);

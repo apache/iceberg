@@ -371,8 +371,11 @@ public class SparkTableUtil {
       TaskContext ctx = TaskContext.get();
       String suffix =
           String.format(
+              Locale.ROOT,
               "stage-%d-task-%d-manifest-%s",
-              ctx.stageId(), ctx.taskAttemptId(), UUID.randomUUID());
+              ctx.stageId(),
+              ctx.taskAttemptId(),
+              UUID.randomUUID());
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);

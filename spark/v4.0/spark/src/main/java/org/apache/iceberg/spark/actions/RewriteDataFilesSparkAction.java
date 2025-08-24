@@ -22,6 +22,7 @@ import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -341,6 +342,7 @@ public class RewriteDataFilesSparkAction
     } else if (failedCommits > maxFailedCommits) {
       String errorMessage =
           String.format(
+              Locale.ROOT,
               "%s is true but %d rewrite commits failed. This is more than the maximum allowed failures of %d. "
                   + "Check the logs to determine why the individual commits failed. If this is persistent it may help to "
                   + "increase %s which will split the rewrite operation into smaller commits.",
@@ -422,6 +424,7 @@ public class RewriteDataFilesSparkAction
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(
+          Locale.ROOT,
           "Rewriting %d files (%s, file group %d/%d, %s (%d/%d)) in %s",
           group.rewrittenFiles().size(),
           runner.description(),
@@ -433,6 +436,7 @@ public class RewriteDataFilesSparkAction
           table.name());
     } else {
       return String.format(
+          Locale.ROOT,
           "Rewriting %d files (%s, file group %d/%d) in %s",
           group.rewrittenFiles().size(),
           runner.description(),
