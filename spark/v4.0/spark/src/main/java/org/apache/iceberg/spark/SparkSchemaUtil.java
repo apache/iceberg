@@ -93,19 +93,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static StructType convert(Schema schema) {
-    return convert(schema, false);
-  }
-
-  /**
-   * Convert a {@link Schema} to a {@link DataType Spark type}.
-   *
-   * @param schema a Schema
-   * @param setFieldIds If true, fieldIDs will be set in the metadata
-   * @return the equivalent Spark type
-   * @throws IllegalArgumentException if the type cannot be converted to Spark
-   */
-  public static StructType convert(Schema schema, boolean setFieldIds) {
-    return (StructType) TypeUtil.visit(schema, new TypeToSparkType(setFieldIds));
+    return convert(schema);
   }
 
   /**
@@ -116,7 +104,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static DataType convert(Type type) {
-    return TypeUtil.visit(type, new TypeToSparkType(false));
+    return TypeUtil.visit(type, new TypeToSparkType());
   }
 
   /**

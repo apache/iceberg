@@ -47,11 +47,7 @@ import org.apache.spark.sql.types.TimestampType$;
 import org.apache.spark.sql.types.VariantType$;
 
 class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
-  private final boolean setFieldIds;
-
-  TypeToSparkType(boolean setFieldIds) {
-    this.setFieldIds = setFieldIds;
-  }
+  TypeToSparkType() {}
 
   public static final String METADATA_COL_ATTR_KEY = "__metadata_col";
 
@@ -144,7 +140,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   }
 
   private Metadata fieldMetadata(int fieldId) {
-    if (setFieldIds || MetadataColumns.metadataFieldIds().contains(fieldId)) {
+    if (MetadataColumns.metadataFieldIds().contains(fieldId)) {
       return new MetadataBuilder().putBoolean(METADATA_COL_ATTR_KEY, true).build();
     }
 
