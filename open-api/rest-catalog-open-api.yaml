@@ -3136,9 +3136,10 @@ components:
           type: string
 
     AssertRefSnapshotId:
-      description:
-        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
-        if `snapshot-id` is `null` or missing, the ref must not already exist
+      description: |
+        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`.
+        The `snapshot-id` field is required in this object, but in the case of a `null`
+        the ref must not already exist.
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
@@ -3153,6 +3154,7 @@ components:
         snapshot-id:
           type: integer
           format: int64
+          nullable: true
 
     AssertLastAssignedFieldId:
       description:
@@ -3309,6 +3311,7 @@ components:
         metadata-location:
           type: string
           description: May be null if the table is staged as part of a transaction
+          nullable: true
         metadata:
           $ref: '#/components/schemas/TableMetadata'
         config:
