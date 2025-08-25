@@ -114,16 +114,25 @@ public class ManifestFiles {
     return read(manifest, io, null);
   }
 
+  public static ManifestReader<DataFile> read(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return read(manifest, io, specsById, null);
+  }
+
   /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
    * @param manifest a {@link ManifestFile}
    * @param io a {@link FileIO}
    * @param specsById a Map from spec ID to partition spec
+   * @param schemas a Map from schema ID to {@link Schema}. All schemas of the table
    * @return a {@link ManifestReader}
    */
   public static ManifestReader<DataFile> read(
-      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      Map<Integer, Schema> schemas) {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s",
@@ -136,7 +145,8 @@ public class ManifestFiles {
         specsById,
         inheritableMetadata,
         manifest.firstRowId(),
-        FileType.DATA_FILES);
+        FileType.DATA_FILES,
+        schemas);
   }
 
   /**
@@ -224,7 +234,20 @@ public class ManifestFiles {
    * @return a {@link ManifestReader}
    */
   public static ManifestReader<DeleteFile> readDeleteManifest(
-      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+          ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return readDeleteManifest(manifest, io, specsById, null);
+  }
+  /**
+   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
+   *
+   * @param manifest a {@link ManifestFile}
+   * @param io a {@link FileIO}
+   * @param specsById a Map from spec ID to partition spec
+   * @param schemas a Map from Schema ID to Schema
+   * @return a {@link ManifestReader}
+   */
+  public static ManifestReader<DeleteFile> readDeleteManifest(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById, Map<Integer, Schema> schemas) {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s",
@@ -301,16 +324,23 @@ public class ManifestFiles {
   }
 
   static ManifestReader<?> open(ManifestFile manifest, FileIO io) {
-    return open(manifest, io, null);
+    return open(manifest, io, null, null);
+  }
+
+  static ManifestReader<?> open(ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return open(manifest, io, specsById, null);
   }
 
   static ManifestReader<?> open(
-      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      Map<Integer, Schema> schemas) {
     switch (manifest.content()) {
       case DATA:
-        return ManifestFiles.read(manifest, io, specsById);
+        return ManifestFiles.read(manifest, io, specsById, schemas);
       case DELETES:
-        return ManifestFiles.readDeleteManifest(manifest, io, specsById);
+        return ManifestFiles.readDeleteManifest(manifest, io, specsById, schemas);
     }
     throw new UnsupportedOperationException(
         "Cannot read unknown manifest type: " + manifest.content());

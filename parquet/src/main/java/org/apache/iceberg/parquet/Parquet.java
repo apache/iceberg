@@ -767,6 +767,7 @@ public class Parquet {
     private StructLike partition = null;
     private EncryptionKeyMetadata keyMetadata = null;
     private SortOrder sortOrder = null;
+    private Schema schema = null;
 
     private DataWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -783,6 +784,7 @@ public class Parquet {
 
     public DataWriteBuilder schema(Schema newSchema) {
       appenderBuilder.schema(newSchema);
+      this.schema = newSchema;
       return this;
     }
 
@@ -865,7 +867,14 @@ public class Parquet {
 
       FileAppender<T> fileAppender = appenderBuilder.build();
       return new DataWriter<>(
-          fileAppender, FileFormat.PARQUET, location, spec, partition, keyMetadata, sortOrder);
+          fileAppender,
+          FileFormat.PARQUET,
+          schema.schemaId(),
+          location,
+          spec,
+          partition,
+          keyMetadata,
+          sortOrder);
     }
   }
 
