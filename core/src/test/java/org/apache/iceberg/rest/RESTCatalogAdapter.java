@@ -69,6 +69,7 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -163,7 +164,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     UPDATE_VIEW(
         HTTPMethod.POST, ResourcePaths.V1_VIEW, UpdateTableRequest.class, LoadViewResponse.class),
     RENAME_VIEW(HTTPMethod.POST, ResourcePaths.V1_VIEW_RENAME, RenameTableRequest.class, null),
-    DROP_VIEW(HTTPMethod.DELETE, ResourcePaths.V1_VIEW);
+    DROP_VIEW(HTTPMethod.DELETE, ResourcePaths.V1_VIEW),
+    LOAD_TABLE_CREDENTIALS(HTTPMethod.GET, ResourcePaths.V1_TABLE_CREDENTIALS, null, LoadCredentialsResponse.class);
 
     private final HTTPMethod method;
     private final int requiredLength;
@@ -531,6 +533,13 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             return null;
           }
           break;
+        }
+
+      case LOAD_TABLE_CREDENTIALS:
+        {
+
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          return castResponse(responseType, CatalogHandlers.loadCredentials(catalog, ident));
         }
 
       default:
