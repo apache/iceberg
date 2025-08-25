@@ -1432,7 +1432,7 @@ public class TestViews extends ExtensionsTestBase {
     String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
 
     sql(
-        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') COMMENT 'view comment' AS %s",
+        "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') COMMENT 'view comment' TBLPROPERTIES('owner' = 'view_owner') AS %s",
         viewName, sql);
     String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
     assertThat(sql("DESCRIBE EXTENDED %s", viewName))
@@ -1442,6 +1442,7 @@ public class TestViews extends ExtensionsTestBase {
             row("", "", ""),
             row("# Detailed View Information", "", ""),
             row("Comment", "view comment", ""),
+            row("Owner", "view_owner", ""),
             row("View Catalog and Namespace", String.format("%s.%s", catalogName, NAMESPACE), ""),
             row("View Query Output Columns", "[id, data]", ""),
             row(
@@ -1457,7 +1458,7 @@ public class TestViews extends ExtensionsTestBase {
     String viewName = viewName("createViewInDefaultNamespace");
     String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
 
-    sql("CREATE VIEW %s (id, data) AS %s", viewName, sql);
+    sql("CREATE VIEW %s (id, data) TBLPROPERTIES('owner' = 'view_owner') AS %s", viewName, sql);
     TableIdentifier identifier = TableIdentifier.of(NAMESPACE, viewName);
     View view = viewCatalog().loadView(identifier);
     assertThat(view.currentVersion().defaultCatalog()).isNull();
@@ -1472,6 +1473,7 @@ public class TestViews extends ExtensionsTestBase {
             row("", "", ""),
             row("# Detailed View Information", "", ""),
             row("Comment", "", ""),
+            row("Owner", "view_owner", ""),
             row("View Catalog and Namespace", String.format("%s.%s", catalogName, NAMESPACE), ""),
             row("View Query Output Columns", "[id, data]", ""),
             row(
@@ -1489,7 +1491,9 @@ public class TestViews extends ExtensionsTestBase {
     String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
 
     sql("CREATE NAMESPACE IF NOT EXISTS %s", namespace);
-    sql("CREATE VIEW %s.%s (id, data) AS %s", namespace, viewName, sql);
+    sql(
+        "CREATE VIEW %s.%s (id, data) TBLPROPERTIES('owner' = 'view_owner') AS %s",
+        namespace, viewName, sql);
     TableIdentifier identifier = TableIdentifier.of(namespace, viewName);
     View view = viewCatalog().loadView(identifier);
     assertThat(view.currentVersion().defaultCatalog()).isNull();
@@ -1504,6 +1508,7 @@ public class TestViews extends ExtensionsTestBase {
             row("", "", ""),
             row("# Detailed View Information", "", ""),
             row("Comment", "", ""),
+            row("Owner", "view_owner", ""),
             row("View Catalog and Namespace", String.format("%s.%s", catalogName, namespace), ""),
             row("View Query Output Columns", "[id, data]", ""),
             row(
