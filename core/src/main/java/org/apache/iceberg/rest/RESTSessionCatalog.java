@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -25,7 +27,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseTable;
@@ -51,6 +55,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.TableNotModifiedException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -145,6 +150,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
+  private final Cache<TableIdentifier, BaseTable> tableCache;
   private FileIOTracker fileIOTracker = null;
   private AuthSession catalogAuth = null;
   private AuthManager authManager;
@@ -184,6 +190,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Preconditions.checkNotNull(clientBuilder, "Invalid client builder: null");
     this.clientBuilder = clientBuilder;
     this.ioBuilder = ioBuilder;
+    this.tableCache = Caffeine.newBuilder().softValues().build();
   }
 
   @Override
@@ -366,7 +373,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
   }
 
-  private LoadTableResponse loadInternal(
+  private LoadTableResponse loadInternalNoCache(
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
@@ -378,6 +385,86 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             LoadTableResponse.class,
             Map.of(),
             ErrorHandlers.tableErrorHandler());
+  }
+
+  private LoadInternalResult loadInternal(
+      SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
+    // For now, we only cache Table objects with all snapshots to avoid the complexity of
+    // caching Table objects with only referenced snapshots which can then get invalidated
+    // by commits which modify [RESTTableOperations] to hold table metadata with all snapshots
+    // present.
+    if (snapshotMode != SnapshotMode.ALL) {
+      return new LoadedTableResult(loadInternalNoCache(context, identifier, mode), null);
+    }
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    BaseTable cachedTable = tableCache.getIfPresent(identifier);
+    Map<String, String> customRequestHeaders = Map.of();
+    AtomicReference<String> etag = new AtomicReference<>();
+    Consumer<Map<String, String>> responseConsumer = h -> consumeLoadTableResponseHeaders(etag, h);
+    if (cachedTable != null) {
+      RESTTableOperations ops = (RESTTableOperations) cachedTable.operations();
+      responseConsumer = ops::consumeResponseHeaders;
+      if (ops.etag() != null) {
+        customRequestHeaders = Map.of(RESTTableOperations.IF_NONE_MATCH_HEADER, ops.etag());
+      }
+    }
+    try {
+      LoadTableResponse response =
+          client
+              .withAuthSession(contextualSession)
+              .get(
+                  paths.table(identifier),
+                  mode.params(),
+                  LoadTableResponse.class,
+                  customRequestHeaders,
+                  ErrorHandlers.tableErrorHandler(),
+                  responseConsumer);
+      return new LoadedTableResult(response, etag.get());
+    } catch (TableNotModifiedException ignored) {
+      Preconditions.checkNotNull(
+          cachedTable, "expected cached table when server returned TableNotModified");
+      return new CachedTableResult(cachedTable);
+    }
+  }
+
+  void consumeLoadTableResponseHeaders(
+      AtomicReference<String> etag, Map<String, String> respHeaders) {
+    if (respHeaders.containsKey(RESTTableOperations.ETAG_HEADER)) {
+      etag.set(respHeaders.get(RESTTableOperations.ETAG_HEADER));
+    }
+  }
+
+  interface LoadInternalResult {
+    TableMetadata tableMetadata();
+  }
+
+  static class LoadedTableResult implements LoadInternalResult {
+    private final LoadTableResponse response;
+    private final String etag;
+
+    LoadedTableResult(LoadTableResponse response, String etag) {
+      this.response = response;
+      this.etag = etag;
+    }
+
+    @Override
+    public TableMetadata tableMetadata() {
+      return response.tableMetadata();
+    }
+  }
+
+  static class CachedTableResult implements LoadInternalResult {
+    private final BaseTable cachedTable;
+
+    CachedTableResult(BaseTable cachedTable) {
+      this.cachedTable = cachedTable;
+    }
+
+    @Override
+    public TableMetadata tableMetadata() {
+      return cachedTable.operations().current();
+    }
   }
 
   @Override
@@ -393,10 +480,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkIdentifierIsValid(identifier);
 
     MetadataTableType metadataType;
-    LoadTableResponse response;
+    LoadInternalResult result;
     TableIdentifier loadedIdent;
     try {
-      response = loadInternal(context, identifier, snapshotMode);
+      result = loadInternal(context, identifier, snapshotMode);
       loadedIdent = identifier;
       metadataType = null;
 
@@ -406,7 +493,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         // attempt to load a metadata table using the identifier's namespace as the base table
         TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
         try {
-          response = loadInternal(context, baseIdent, snapshotMode);
+          result = loadInternal(context, baseIdent, snapshotMode);
           loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
           // the base table does not exist
@@ -418,6 +505,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       }
     }
 
+    if (result instanceof CachedTableResult) {
+      BaseTable cachedTable = ((CachedTableResult) result).cachedTable;
+      if (metadataType != null) {
+        return MetadataTableUtils.createMetadataTableInstance(cachedTable, metadataType);
+      }
+      return cachedTable;
+    }
+    LoadedTableResult loadedTableResult = (LoadedTableResult) result;
+    LoadTableResponse response = loadedTableResult.response;
     TableIdentifier finalIdentifier = loadedIdent;
     Map<String, String> tableConf = response.config();
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
@@ -449,7 +545,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             Map::of,
             tableFileIO(context, tableConf, response.credentials()),
             tableMetadata,
-            endpoints);
+            endpoints,
+            loadedTableResult.etag);
 
     trackFileIO(ops);
 
@@ -458,6 +555,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             ops,
             fullTableName(finalIdentifier),
             metricsReporter(paths.metrics(finalIdentifier), tableClient));
+
+    if (loadedTableResult.etag != null) {
+      tableCache.put(finalIdentifier, table);
+    }
+
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
@@ -767,15 +869,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .build();
 
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
-      LoadTableResponse response =
-          client
-              .withAuthSession(contextualSession)
-              .post(
-                  paths.tables(ident.namespace()),
-                  request,
-                  LoadTableResponse.class,
-                  Map.of(),
-                  ErrorHandlers.tableErrorHandler());
+      LoadedTableResult result = createTableInternal(request, contextualSession);
+      LoadTableResponse response = result.response;
 
       Map<String, String> tableConf = response.config();
       AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
@@ -787,18 +882,26 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               Map::of,
               tableFileIO(context, tableConf, response.credentials()),
               response.tableMetadata(),
-              endpoints);
+              endpoints,
+              result.etag);
 
       trackFileIO(ops);
 
-      return new BaseTable(
-          ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
+      BaseTable table =
+          new BaseTable(
+              ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
+
+      if (result.etag != null) {
+        tableCache.put(ident, table);
+      }
+      return table;
     }
 
     @Override
     public Transaction createTransaction() {
       Endpoint.check(endpoints, Endpoint.V1_CREATE_TABLE);
-      LoadTableResponse response = stageCreate();
+      LoadedTableResult result = stageCreate();
+      LoadTableResponse response = result.response;
       String fullName = fullTableName(ident);
 
       Map<String, String> tableConf = response.config();
@@ -816,7 +919,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
-              endpoints);
+              endpoints,
+              result.etag);
 
       trackFileIO(ops);
 
@@ -831,7 +935,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         throw new AlreadyExistsException("View with same name already exists: %s", ident);
       }
 
-      LoadTableResponse response = loadInternal(context, ident, snapshotMode);
+      LoadTableResponse response = loadInternalNoCache(context, ident, snapshotMode);
       String fullName = fullTableName(ident);
 
       Map<String, String> tableConf = response.config();
@@ -879,7 +983,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,
-              endpoints);
+              endpoints,
+              null /* etag */);
 
       trackFileIO(ops);
 
@@ -902,7 +1007,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       }
     }
 
-    private LoadTableResponse stageCreate() {
+    private LoadedTableResult stageCreate() {
       propertiesBuilder.putAll(tableOverrideProperties());
       Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
 
@@ -918,14 +1023,25 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .build();
 
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
-      return client
-          .withAuthSession(contextualSession)
-          .post(
-              paths.tables(ident.namespace()),
-              request,
-              LoadTableResponse.class,
-              Map.of(),
-              ErrorHandlers.tableErrorHandler());
+      return createTableInternal(request, contextualSession);
+    }
+
+    private LoadedTableResult createTableInternal(
+        CreateTableRequest request, AuthSession contextualSession) {
+      AtomicReference<String> etag = new AtomicReference<>();
+      Consumer<Map<String, String>> responseConsumer =
+          h -> consumeLoadTableResponseHeaders(etag, h);
+      LoadTableResponse response =
+          client
+              .withAuthSession(contextualSession)
+              .post(
+                  paths.tables(ident.namespace()),
+                  request,
+                  LoadTableResponse.class,
+                  Map.of(),
+                  ErrorHandlers.tableErrorHandler(),
+                  responseConsumer);
+      return new LoadedTableResult(response, etag.get());
     }
   }
 
