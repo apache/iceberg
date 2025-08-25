@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
@@ -103,11 +104,8 @@ public class SparkParquetWriters {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
       }
 
-      StructField[] sFields = sStruct.fields();
-      List<DataType> types = Lists.newArrayListWithExpectedSize(sFields.length);
-      for (int i = 0; i < sFields.length; i += 1) {
-        types.add(sFields[i].dataType());
-      }
+      List<DataType> types =
+          Arrays.stream(sStruct.fields()).map(StructField::dataType).collect(Collectors.toList());
 
       return new InternalRowWriter(writers, types);
     }
