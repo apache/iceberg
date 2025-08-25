@@ -18,10 +18,15 @@
  */
 package org.apache.iceberg.azure;
 
+import com.azure.core.credential.AccessToken;
+import com.azure.core.credential.TokenCredential;
+import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
+import reactor.core.publisher.Mono;
 
 public class AzureProperties implements Serializable {
   public static final String ADLS_SAS_TOKEN_PREFIX = "adls.sas-token.";
@@ -42,6 +48,7 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
   public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
   public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
+  public static final String ADLS_TOKEN = "adls.token";
 
   /**
    * When set, the {@link VendedAdlsCredentialProvider} will be used to fetch and refresh vended
@@ -60,6 +67,7 @@ public class AzureProperties implements Serializable {
   private Long adlsWriteBlockSize;
   private String adlsRefreshCredentialsEndpoint;
   private boolean adlsRefreshCredentialsEnabled;
+  private String token;
   private Map<String, String> allProperties;
 
   public AzureProperties() {}
@@ -92,6 +100,7 @@ public class AzureProperties implements Serializable {
             properties.get(ADLS_REFRESH_CREDENTIALS_ENDPOINT));
     this.adlsRefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, ADLS_REFRESH_CREDENTIALS_ENABLED, true);
+    this.token = properties.get(ADLS_TOKEN);
     this.allProperties = SerializableMap.copyOf(properties);
   }
 
@@ -131,6 +140,18 @@ public class AzureProperties implements Serializable {
       } else if (namedKeyCreds != null) {
         builder.credential(
             new StorageSharedKeyCredential(namedKeyCreds.getKey(), namedKeyCreds.getValue()));
+      } else if (token != null && !token.isEmpty()) {
+        // Use TokenCredential with the provided token
+        TokenCredential tokenCredential =
+            new TokenCredential() {
+              @Override
+              public Mono<AccessToken> getToken(TokenRequestContext request) {
+                // Assume the token is valid for 1 hour from the current time
+                return Mono.just(
+                    new AccessToken(token, OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
+              }
+            };
+        builder.credential(tokenCredential);
       } else {
         builder.credential(new DefaultAzureCredentialBuilder().build());
       }

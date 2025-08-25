@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source.metrics;
 
 import java.text.NumberFormat;
+import java.util.Locale;
 import org.apache.spark.sql.connector.metric.CustomMetric;
 
 public class NumSplits implements CustomMetric {
@@ -40,6 +41,6 @@ public class NumSplits implements CustomMetric {
       sum += taskMetric;
     }
 
-    return NumberFormat.getIntegerInstance().format(sum);
+    return NumberFormat.getIntegerInstance(Locale.ROOT).format(sum);
   }
 }

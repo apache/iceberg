@@ -440,7 +440,10 @@ class AssertTableUUID(TableRequirement):
 
 class AssertRefSnapshotId(TableRequirement):
     """
-    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
+    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`.
+    The `snapshot-id` field is required in this object, but in the case of a `null`
+    the ref must not already exist.
+
     """
 
     type: str = Field('assert-ref-snapshot-id', const=True)
