@@ -41,11 +41,11 @@ public interface PartitionSpecVisitor<T> {
     throw new UnsupportedOperationException("Bucket transform is not supported");
   }
 
-  default T truncate(int fieldId, String sourceName, int sourceId, int width) {
+  default T truncate(int fieldId, String sourceName, int sourceId, long width) {
     return truncate(sourceName, sourceId, width);
   }
 
-  default T truncate(String sourceName, int sourceId, int width) {
+  default T truncate(String sourceName, int sourceId, long width) {
     throw new UnsupportedOperationException("Truncate transform is not supported");
   }
 
@@ -119,7 +119,7 @@ public interface PartitionSpecVisitor<T> {
       int numBuckets = ((Bucket<?>) transform).numBuckets();
       return visitor.bucket(field.fieldId(), sourceName, field.sourceId(), numBuckets);
     } else if (transform instanceof Truncate) {
-      int width = ((Truncate<?>) transform).width();
+      long width = ((Truncate<?>) transform).width();
       return visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width);
     } else if (transform == Dates.YEAR
         || transform == Timestamps.MICROS_TO_YEAR
