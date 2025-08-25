@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
@@ -104,8 +103,11 @@ public class SparkParquetWriters {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
       }
 
-      List<DataType> types =
-          Arrays.stream(sStruct.fields()).map(StructField::dataType).collect(Collectors.toList());
+      StructField[] sFields = sStruct.fields();
+      DataType[] types = new DataType[sFields.length];
+      for (int i = 0; i < sFields.length; i += 1) {
+        types[i] = sFields[i].dataType();
+      }
 
       return new InternalRowWriter(writers, types);
     }
@@ -616,9 +618,9 @@ public class SparkParquetWriters {
   private static class InternalRowWriter extends ParquetValueWriters.StructWriter<InternalRow> {
     private final DataType[] types;
 
-    private InternalRowWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
+    private InternalRowWriter(List<ParquetValueWriter<?>> writers, DataType[] types) {
       super(writerToFieldIndex(types, writers.size()), writers);
-      this.types = types.toArray(new DataType[0]);
+      this.types = types;
     }
 
     @Override
@@ -627,7 +629,7 @@ public class SparkParquetWriters {
     }
 
     /** Returns a mapping from writer index to field index, skipping Unknown columns. */
-    private static int[] writerToFieldIndex(List<DataType> types, int numWriters) {
+    private static int[] writerToFieldIndex(DataType[] types, int numWriters) {
       if (null == types) {
         return IntStream.rangeClosed(0, numWriters).toArray();
       }
@@ -635,8 +637,8 @@ public class SparkParquetWriters {
       // value writer index to record field index
       int[] indexes = new int[numWriters];
       int writerIndex = 0;
-      for (int pos = 0; pos < types.size(); pos += 1) {
-        if (!(types.get(pos) instanceof NullType)) {
+      for (int pos = 0; pos < types.length; pos += 1) {
+        if (!(types[pos] instanceof NullType)) {
           indexes[writerIndex] = pos;
           writerIndex += 1;
         }
