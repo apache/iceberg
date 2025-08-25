@@ -38,6 +38,11 @@ public class PositionDelete<R> implements StructLike {
     return this;
   }
 
+  /**
+   * @deprecated since 1.10.0; use {@link #set(CharSequence, long)}. Setting the row will not be
+   *     supported after 1.11.0.
+   */
+  @Deprecated
   public PositionDelete<R> set(CharSequence newPath, long newPos, R newRow) {
     this.path = newPath;
     this.pos = newPos;
@@ -58,6 +63,10 @@ public class PositionDelete<R> implements StructLike {
     return pos;
   }
 
+  /**
+   * @deprecated since 1.10.0. Setting the row will not be supported after 1.11.0.
+   */
+  @Deprecated
   public R row() {
     return row;
   }
