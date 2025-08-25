@@ -1,22 +1,24 @@
 ---
+
 title: "View Spec"
----
+------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Iceberg View Spec
 
@@ -53,16 +55,16 @@ Writers create view metadata files optimistically, assuming that the current met
 
 The view version metadata file has the following fields:
 
-| Requirement | Field name           | Description |
-|-------------|----------------------|-------------|
+| Requirement |      Field name      |                                                                                       Description                                                                                        |
+|-------------|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | _required_  | `view-uuid`          | A UUID that identifies the view, generated when the view is created. Implementations must throw an exception if a view's UUID does not match the expected UUID after refreshing metadata |
-| _required_  | `format-version`     | An integer version number for the view format; must be 1 |
-| _required_  | `location`           | The view's base location; used to create metadata file locations |
-| _required_  | `schemas`            | A list of known schemas |
-| _required_  | `current-version-id` | ID of the current version of the view (`version-id`) |
-| _required_  | `versions`           | A list of known [versions](#versions) of the view [1] |
-| _required_  | `version-log`        | A list of [version log](#version-log) entries with the timestamp and `version-id` for every change to `current-version-id` |
-| _optional_  | `properties`         | A string to string map of view properties [2] |
+| _required_  | `format-version`     | An integer version number for the view format; must be 1                                                                                                                                 |
+| _required_  | `location`           | The view's base location; used to create metadata file locations                                                                                                                         |
+| _required_  | `schemas`            | A list of known schemas                                                                                                                                                                  |
+| _required_  | `current-version-id` | ID of the current version of the view (`version-id`)                                                                                                                                     |
+| _required_  | `versions`           | A list of known [versions](#versions) of the view [1]                                                                                                                                    |
+| _required_  | `version-log`        | A list of [version log](#version-log) entries with the timestamp and `version-id` for every change to `current-version-id`                                                               |
+| _optional_  | `properties`         | A string to string map of view properties [2]                                                                                                                                            |
 
 Notes:
 
@@ -73,7 +75,7 @@ Notes:
 
 Each version in `versions` is a struct with the following fields:
 
-| Requirement | Field name          | Description                                                                   |
+| Requirement |     Field name      |                                  Description                                  |
 |-------------|---------------------|-------------------------------------------------------------------------------|
 | _required_  | `version-id`        | ID for the version                                                            |
 | _required_  | `schema-id`         | ID of the schema for the view version                                         |
@@ -89,9 +91,9 @@ When `default-catalog` is `null` or not set, the catalog in which the view is st
 
 Summary is a string to string map of metadata about a view version. Common metadata keys are documented here.
 
-| Requirement | Key              | Value |
-|-------------|------------------|-------|
-| _optional_  | `engine-name`    | Name of the engine that created the view version |
+| Requirement |       Key        |                        Value                        |
+|-------------|------------------|-----------------------------------------------------|
+| _optional_  | `engine-name`    | Name of the engine that created the view version    |
 | _optional_  | `engine-version` | Version of the engine that created the view version |
 
 #### Representations
@@ -114,17 +116,18 @@ The SQL representation stores the view definition as a SQL SELECT, with metadata
 
 A view version can have multiple SQL representations of different dialects, but only one SQL representation per dialect.
 
-| Requirement | Field name          | Type           | Description |
-|-------------|---------------------|----------------|-------------|
-| _required_  | `type`              | `string`       | Must be `sql` |
-| _required_  | `sql`               | `string`       | A SQL SELECT statement |
-| _required_  | `dialect`           | `string`       | The dialect of the `sql` SELECT statement (e.g., "trino" or "spark") |
+| Requirement | Field name |   Type   |                             Description                              |
+|-------------|------------|----------|----------------------------------------------------------------------|
+| _required_  | `type`     | `string` | Must be `sql`                                                        |
+| _required_  | `sql`      | `string` | A SQL SELECT statement                                               |
+| _required_  | `dialect`  | `string` | The dialect of the `sql` SELECT statement (e.g., "trino" or "spark") |
 
 For example:
 
 ```sql
 USE prod.default
 ```
+
 ```sql
 CREATE OR REPLACE VIEW event_agg (
     event_count COMMENT 'Count of events',
@@ -137,11 +140,11 @@ GROUP BY 2
 
 This create statement would produce the following `sql` representation metadata:
 
-| Field name          | Value |
-|---------------------|-------|
-| `type`              | `"sql"` |
-| `sql`               | `"SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2"` |
-| `dialect`           | `"spark"` |
+| Field name |                                   Value                                   |
+|------------|---------------------------------------------------------------------------|
+| `type`     | `"sql"`                                                                   |
+| `sql`      | `"SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2"` |
+| `dialect`  | `"spark"`                                                                 |
 
 If a create statement does not include column names or comments before `AS`, the fields should be omitted.
 
@@ -155,10 +158,10 @@ Note that this is not the version's creation time, which is stored in each versi
 
 Each entry in `version-log` is a struct with the following fields:
 
-| Requirement | Field name     | Description |
-|-------------|----------------|-------------|
+| Requirement |   Field name   |                                Description                                 |
+|-------------|----------------|----------------------------------------------------------------------------|
 | _required_  | `timestamp-ms` | Timestamp when the view's `current-version-id` was updated (ms from epoch) |
-| _required_  | `version-id`   | ID that `current-version-id` was set to |
+| _required_  | `version-id`   | ID that `current-version-id` was set to                                    |
 
 ## Appendix A: An Example
 
@@ -169,6 +172,7 @@ Imagine the following sequence of operations:
 ```sql
 USE prod.default
 ```
+
 ```sql
 CREATE OR REPLACE VIEW event_agg (
     event_count COMMENT 'Count of events',
@@ -181,7 +185,6 @@ FROM events
 GROUP BY 2
 ```
 
-
 The metadata JSON file created looks as follows.
 
 The path is intentionally similar to the path for Iceberg tables and uses a `metadata` directory.
@@ -189,6 +192,7 @@ The path is intentionally similar to the path for Iceberg tables and uses a `met
 ```
 s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
+
 ```
 {
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
@@ -258,6 +262,7 @@ Updating the view produces a new metadata file that completely replaces the old:
 ```
 s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
 ```
+
 ```
 {
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
@@ -323,3 +328,4 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
   } ]
 }
 ```
+

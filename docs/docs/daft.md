@@ -1,22 +1,24 @@
 ---
+
 title: "Daft"
----
+-------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Daft
 
@@ -59,7 +61,7 @@ catalog:
 
 Here is how the Iceberg table `demo.nyc.taxis` can be loaded into Daft:
 
-``` py
+```py
 import daft
 from pyiceberg.catalog import load_catalog
 
@@ -98,7 +100,7 @@ Note that the operation above will produce a warning from PyIceberg that "no par
 
 Let's try the above query again, but this time with a filter applied on the table's partition column `"vendor_id"` which Daft will correctly use to elide a full table scan.
 
-``` py
+```py
 df = df.where(df["vendor_id"] > 1)
 df.show()
 ```
@@ -121,25 +123,25 @@ df.show()
 
 Daft and Iceberg have compatible type systems. Here are how types are converted across the two systems.
 
+|           Iceberg           |                                                                    Daft                                                                    |
+|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| **Primitive Types**         |
+| `boolean`                   | [`daft.DataType.bool()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.bool)                                        |
+| `int`                       | [`daft.DataType.int32()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.int32)                                      |
+| `long`                      | [`daft.DataType.int64()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.int64)                                      |
+| `float`                     | [`daft.DataType.float32()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.float32)                                  |
+| `double`                    | [`daft.DataType.float64()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.float64)                                  |
+| `decimal(precision, scale)` | [`daft.DataType.decimal128(precision, scale)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.decimal128)            |
+| `date`                      | [`daft.DataType.date()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.date)                                        |
+| `time`                      | [`daft.DataType.time(timeunit="us")`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.int64)                          |
+| `timestamp`                 | [`daft.DataType.timestamp(timeunit="us", timezone=None)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.timestamp)  |
+| `timestampz`                | [`daft.DataType.timestamp(timeunit="us", timezone="UTC")`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.timestamp) |
+| `string`                    | [`daft.DataType.string()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.string)                                    |
+| `uuid`                      | [`daft.DataType.binary()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.binary)                                    |
+| `fixed(L)`                  | [`daft.DataType.binary()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.fixed_size_binary)                         |
+| `binary`                    | [`daft.DataType.binary()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.binary)                                    |
+| **Nested Types**            |
+| `struct(**fields)`          | [`daft.DataType.struct(**fields)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.struct)                            |
+| `list(child_type)`          | [`daft.DataType.list(child_type)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.list)                              |
+| `map(K, V)`                 | [`daft.DataType.map(K, V)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.map)                                      |
 
-| Iceberg | Daft |
-|---------|------|
-| **Primitive Types** |
-| `boolean` | [`daft.DataType.bool()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.bool) |
-| `int` | [`daft.DataType.int32()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.int32) |
-| `long` | [`daft.DataType.int64()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.int64) |
-| `float` | [`daft.DataType.float32()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.float32) |
-| `double` | [`daft.DataType.float64()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.float64) |
-| `decimal(precision, scale)` | [`daft.DataType.decimal128(precision, scale)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.decimal128) |
-| `date` | [`daft.DataType.date()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.date) |
-| `time` | [`daft.DataType.time(timeunit="us")`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.int64) |
-| `timestamp` | [`daft.DataType.timestamp(timeunit="us", timezone=None)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.timestamp) |
-| `timestampz` | [`daft.DataType.timestamp(timeunit="us", timezone="UTC")`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.timestamp) |
-| `string` | [`daft.DataType.string()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.string) |
-| `uuid` | [`daft.DataType.binary()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.binary) |
-| `fixed(L)` | [`daft.DataType.binary()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.fixed_size_binary) |
-| `binary` | [`daft.DataType.binary()`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.binary) |
-| **Nested Types** |
-| `struct(**fields)` | [`daft.DataType.struct(**fields)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.struct) |
-| `list(child_type)` | [`daft.DataType.list(child_type)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.list) |
-| `map(K, V)` | [`daft.DataType.map(K, V)`](https://docs.daft.ai/en/latest/api/datatypes/#daft.datatype.DataType.map) |

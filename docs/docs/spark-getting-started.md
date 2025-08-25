@@ -1,22 +1,24 @@
 ---
+
 title: "Getting Started"
----
+------------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Getting Started
 
@@ -35,9 +37,9 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceb
 ```
 
 !!! info
-    <!-- markdown-link-check-disable-next-line -->
-    If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-3.5_2.12` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) to Spark's `jars` folder.
 
+<!-- markdown-link-check-disable-next-line -->
+If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-3.5_2.12` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) to Spark's `jars` fold-->
 
 ### Adding catalogs
 
@@ -108,9 +110,11 @@ GROUP BY data;
 ```
 
 SQL is also the recommended way to [inspect tables](spark-queries.md#inspecting-tables). To view all snapshots in a table, use the `snapshots` metadata table:
+
 ```sql
 SELECT * FROM local.db.table.snapshots;
 ```
+
 ```
 +-------------------------+----------------+-----------+-----------+----------------------------------------------------+-----+
 | committed_at            | snapshot_id    | parent_id | operation | manifest_list                                      | ... |
@@ -138,62 +142,62 @@ so you may want to understand the type conversion in Iceberg in prior to design 
 
 This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
 
-| Spark           | Iceberg                    | Notes |
-|-----------------|----------------------------|-------|
-| boolean         | boolean                    |       |
-| short           | integer                    |       |
-| byte            | integer                    |       |
-| integer         | integer                    |       |
-| long            | long                       |       |
-| float           | float                      |       |
-| double          | double                     |       |
-| date            | date                       |       |
-| timestamp       | timestamp with timezone    |       |
-| timestamp_ntz    | timestamp without timezone |       |
-| char            | string                     |       |
-| varchar         | string                     |       |
-| string          | string                     |       |
-| binary          | binary                     |       |
-| decimal         | decimal                    |       |
-| struct          | struct                     |       |
-| array           | list                       |       |
-| map             | map                        |       |
+|     Spark     |          Iceberg           | Notes |
+|---------------|----------------------------|-------|
+| boolean       | boolean                    |       |
+| short         | integer                    |       |
+| byte          | integer                    |       |
+| integer       | integer                    |       |
+| long          | long                       |       |
+| float         | float                      |       |
+| double        | double                     |       |
+| date          | date                       |       |
+| timestamp     | timestamp with timezone    |       |
+| timestamp_ntz | timestamp without timezone |       |
+| char          | string                     |       |
+| varchar       | string                     |       |
+| string        | string                     |       |
+| binary        | binary                     |       |
+| decimal       | decimal                    |       |
+| struct        | struct                     |       |
+| array         | list                       |       |
+| map           | map                        |       |
 
 !!! info
-    The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
+The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
 
-    * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
-    * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
+* Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
+* You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
 
 #### Iceberg type to Spark type
 
 This type conversion table describes how Iceberg types are converted to the Spark types. The conversion applies on reading from Iceberg table via Spark.
 
-| Iceberg                    | Spark                   | Note          |
-|----------------------------|-------------------------|---------------|
-| boolean                    | boolean                 |               |
-| integer                    | integer                 |               |
-| long                       | long                    |               |
-| float                      | float                   |               |
-| double                     | double                  |               |
-| date                       | date                    |               |
-| time                       |                         | Not supported |
-| timestamp with timezone    | timestamp               |               |
-| timestamp without timezone | timestamp_ntz           |               |
-| string                     | string                  |               |
-| uuid                       | string                  |               |
-| fixed                      | binary                  |               |
-| binary                     | binary                  |               |
-| decimal                    | decimal                 |               |
-| struct                     | struct                  |               |
-| list                       | array                   |               |
-| map                        | map                     |               |
-| nanosecond timestamp       |                         | Not supported |
-| nanosecond timestamp with timezone |                 | Not supported |
-| unknown                    |                         | Not supported |
-| variant                    | variant                 | Spark 4.0+    | 
-| geometry                   |                         | Not supported |
-| geography                  |                         | Not supported |
+|              Iceberg               |     Spark     |     Note      |
+|------------------------------------|---------------|---------------|
+| boolean                            | boolean       |               |
+| integer                            | integer       |               |
+| long                               | long          |               |
+| float                              | float         |               |
+| double                             | double        |               |
+| date                               | date          |               |
+| time                               |               | Not supported |
+| timestamp with timezone            | timestamp     |               |
+| timestamp without timezone         | timestamp_ntz |               |
+| string                             | string        |               |
+| uuid                               | string        |               |
+| fixed                              | binary        |               |
+| binary                             | binary        |               |
+| decimal                            | decimal       |               |
+| struct                             | struct        |               |
+| list                               | array         |               |
+| map                                | map           |               |
+| nanosecond timestamp               |               | Not supported |
+| nanosecond timestamp with timezone |               | Not supported |
+| unknown                            |               | Not supported |
+| variant                            | variant       | Spark 4.0+    |
+| geometry                           |               | Not supported |
+| geography                          |               | Not supported |
 
 ### Next steps
 
@@ -203,3 +207,4 @@ Next, you can learn more about Iceberg tables in Spark:
 * [Querying data](spark-queries.md): `SELECT` queries and metadata tables
 * [Writing data](spark-writes.md): `INSERT INTO` and `MERGE INTO`
 * [Maintaining tables](spark-procedures.md) with stored procedures
+
