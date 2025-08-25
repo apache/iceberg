@@ -229,12 +229,13 @@ public final class ORCSchemaUtil {
       case LIST:
         {
           Types.ListType list = (Types.ListType) type;
-          TypeDescription elementType =
-              convert(list.elementId(), list.elementType(), list.isElementRequired());
 
           Preconditions.checkArgument(
               list.elementType().typeId() != Type.TypeID.UNKNOWN,
               "Cannot create ListType with unknown element type");
+
+          TypeDescription elementType =
+              convert(list.elementId(), list.elementType(), list.isElementRequired());
 
           orcType = TypeDescription.createList(elementType);
           break;
@@ -242,11 +243,14 @@ public final class ORCSchemaUtil {
       case MAP:
         {
           Types.MapType map = (Types.MapType) type;
-          TypeDescription keyType = convert(map.keyId(), map.keyType(), true);
 
+          // Only the value can be set as an unknown by definition:
+          // UnknownType requires to be optional, and the key has to be required.
           Preconditions.checkArgument(
               map.valueType().typeId() != Type.TypeID.UNKNOWN,
               "Cannot create MapType with unknown value type");
+
+          TypeDescription keyType = convert(map.keyId(), map.keyType(), true);
 
           TypeDescription valueType =
               convert(map.valueId(), map.valueType(), map.isValueRequired());

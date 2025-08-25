@@ -633,7 +633,7 @@ public class SparkParquetWriters {
   /** Returns a mapping from writer index to field index, skipping Unknown columns. */
   private static int[] writerToFieldIndex(StructType struct, int numWriters) {
     if (null == struct) {
-      return IntStream.rangeClosed(0, numWriters).toArray();
+      return IntStream.range(0, numWriters).toArray();
     }
 
     StructField[] fields = struct.fields();
