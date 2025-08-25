@@ -1243,6 +1243,24 @@ class ViewUpdate(BaseModel):
     ]
 
 
+class ReadRestrictions(BaseModel):
+    """
+    Read Restrictions for a table including projection and row filter expressions. The client MUST enforce these rules to read data from the table. If the read-restrictions section is not present or is empty, clients MUST treat it as equivalent to having no restrictions.
+
+    """
+
+    required_projection: Optional[List[Term]] = Field(
+        None,
+        alias='required-projection',
+        description='A list of projections that must be applied before query projections. If the term is a transform, it must replace the column referenced by the term. For example, if the term is mask(cc, 0, 4) i.e mask transform on column cc, it must replace the column cc in the query with the masked value, essentially projecting it as mask(cc, 0, 4) AS cc. Readers are NOT allowed to project columns that are not listed and must apply transforms. If the required-projection is not present or is empty, it means that no projection is required and all columns can be read as-is.\nNote: That each column must have only a single projection, meaning a column can be projected as-is or as a transformed value, but not both.\n',
+    )
+    required_row_filter: Optional[Expression] = Field(
+        None,
+        alias='required-row-filter',
+        description='An expression that filters rows. Rows for which the filter evaluates to false must be discarded and no information derived from the filtered rows may be included in the query result. If the catalog supports multiple row access filter against the table, it is the catalogs responsibility to combine them with the appropriate logic (e.g., AND, OR). If the required-row-filter is not present or is empty, it means that no row filtering is required and all rows can be read.\n',
+    )
+
+
 class LoadTableResult(BaseModel):
     """
     Result used when a table is successfully loaded.
@@ -1287,6 +1305,9 @@ class LoadTableResult(BaseModel):
     config: Optional[Dict[str, str]] = None
     storage_credentials: Optional[List[StorageCredential]] = Field(
         None, alias='storage-credentials'
+    )
+    read_restrictions: Optional[ReadRestrictions] = Field(
+        None, alias='read-restrictions'
     )
 
 
