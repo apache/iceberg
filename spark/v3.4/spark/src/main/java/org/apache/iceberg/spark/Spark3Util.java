@@ -88,6 +88,7 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.PartitionDirectory;
+import org.apache.spark.sql.internal.StaticSQLConf;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.StructType;
@@ -538,7 +539,7 @@ public class Spark3Util {
   }
 
   public static boolean extensionsEnabled(SparkSession spark) {
-    String extensions = spark.conf().get("spark.sql.extensions", "");
+    String extensions = spark.conf().get(StaticSQLConf.SPARK_SESSION_EXTENSIONS().key(), "");
     return extensions.contains("IcebergSparkSessionExtensions");
   }
 
