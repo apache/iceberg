@@ -55,7 +55,7 @@ nav:
       - flink-ddl.md
       - flink-queries.md
       - flink-writes.md
-      - flink-actions.md
+      - flink-maintenance.md
       - flink-configuration.md
     - Kafka Connect: kafka-connect.md
     - Apache Hive: hive.md

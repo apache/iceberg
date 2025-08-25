@@ -75,7 +75,18 @@ or any public cloud.
 
 ### [Databricks](https://www.databricks.com/)
 
-[Databricks](https://www.databricks.com/) uses an open lakehouse architecture to power its Data Intelligence Platform and provide a unified foundation for all data and governance, combined with AI models tuned to an organization’s unique characteristics. Through [Unity Catalog](https://www.databricks.com/product/unity-catalog), users can manage and govern all structured data, unstructured data, business metrics and AI models across open data formats like Delta Lake, Apache Iceberg, Hudi, Parquet and more. 
+[Databricks](https://www.databricks.com/) uses an open lakehouse architecture to power its Data Intelligence Platform and provide a unified foundation for all data and governance, combined with AI models tuned to an organization’s unique characteristics. Through [Unity Catalog](https://www.databricks.com/product/unity-catalog), users can manage and govern all structured data, unstructured data, business metrics and AI models across open data formats like Delta Lake, Apache Iceberg, Hudi, Parquet and more.
+
+### [dltHub](https://dlthub.com/)
+
+[dlt](https://dlthub.com/docs/intro) is an open-source Python library for building production-grade extract & load pipelines. It automates the tedious parts of ELT, letting you load any data source into Apache Iceberg with minimal code. dlt eliminates boilerplate and makes data ingestion robust against evolving and unpredictable data sources.
+ 
+* [Pythonic pipelines](https://dlthub.com/docs/tutorial/load-data-from-an-api): Define Iceberg ingestion with simple Python functions that are testable and CI/CD-friendly.
+* [Automated schema management](https://dlthub.com/docs/general-usage/schema-contracts): Infers and evolves Iceberg table schemas on the fly, adapting automatically to source changes.
+* [Catalog support](https://dlthub.com/docs/plus/ecosystem/iceberg#configuration): Works with SQL-based (SQLite, PostgreSQL), REST (Lakekeeper, Polaris), and cloud-native options like AWS Glue, Databricks Unity Catalog and Snowflake Open Catalog.   
+* [Flexible deployment](https://dlthub.com/docs/walkthroughs/share-a-dataset): Run Iceberg pipelines anywhere - local, Docker, Airflow, or serverless.    
+
+Go from an API to a versioned Iceberg table in minutes [here](https://dlthub.com/docs/dlt-ecosystem/destinations/iceberg).
 
 ### [Dremio](https://www.dremio.com/)
 
