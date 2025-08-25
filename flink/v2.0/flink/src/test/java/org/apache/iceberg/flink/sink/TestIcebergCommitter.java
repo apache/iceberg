@@ -157,7 +157,7 @@ class TestIcebergCommitter extends TestBase {
   protected static List<Object> parameters() {
     List<Object> parameters = Lists.newArrayList();
     for (Boolean isStreamingMode : new Boolean[] {true, false}) {
-      for (int formatVersion : new int[] {1, 2}) {
+      for (int formatVersion : org.apache.iceberg.TestHelpers.ALL_VERSIONS) {
         parameters.add(new Object[] {formatVersion, isStreamingMode, SnapshotRef.MAIN_BRANCH});
         parameters.add(new Object[] {formatVersion, isStreamingMode, "test-branch"});
       }
