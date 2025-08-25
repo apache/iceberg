@@ -20,10 +20,12 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
@@ -220,10 +222,15 @@ public class Partitioning {
    *
    * @param schema a schema specifying a set of source columns to consider (null to consider all)
    * @param specs one or many specs
-   * @return the constructed grouping key type
+   * @return the constructed grouping key type with fields ordered in ascending order by their
+   *     natural order within the most recent partition specs
    */
   public static StructType groupingKeyType(Schema schema, Collection<PartitionSpec> specs) {
-    return buildPartitionProjectionType("grouping key", specs, commonActiveFieldIds(schema, specs));
+    return buildPartitionProjectionType(
+        "grouping key",
+        specs,
+        commonActiveFieldIds(schema, specs),
+        PartitionProjectTypeOrderingMode.ORDERED_BY_FIELD_ORDER);
   }
 
   /**
@@ -235,12 +242,16 @@ public class Partitioning {
    * partition fields.
    *
    * @param table a table with one or many specs
-   * @return the constructed unified partition type
+   * @return the constructed unified partition type with fields ordered in ascending order by their
+   *     fieldIds
    */
   public static StructType partitionType(Table table) {
     Collection<PartitionSpec> specs = table.specs().values();
     return buildPartitionProjectionType(
-        "table partition", specs, allActiveFieldIds(table.schema(), specs));
+        "table partition",
+        specs,
+        allActiveFieldIds(table.schema(), specs),
+        PartitionProjectTypeOrderingMode.ORDERED_BY_FIELD_ID);
   }
 
   /**
@@ -253,8 +264,24 @@ public class Partitioning {
     return table.specs().values().stream().anyMatch(PartitionSpec::isPartitioned);
   }
 
+  private enum PartitionProjectTypeOrderingMode {
+    /**
+     * Return the partition projection type with partition fields ordered by their fieldId is
+     * ascending order
+     */
+    ORDERED_BY_FIELD_ID,
+    /**
+     * Return the partition projection type with partition fields ordered by their natural order
+     * within the most recent partition spec.
+     */
+    ORDERED_BY_FIELD_ORDER
+  }
+
   private static StructType buildPartitionProjectionType(
-      String typeName, Collection<PartitionSpec> specs, Set<Integer> projectedFieldIds) {
+      String typeName,
+      Collection<PartitionSpec> specs,
+      Set<Integer> projectedFieldIds,
+      PartitionProjectTypeOrderingMode orderingMode) {
 
     // we currently don't know the output type of unknown transforms
     List<Transform<?, ?>> unknownTransforms = collectUnknownTransforms(specs);
@@ -264,7 +291,7 @@ public class Partitioning {
         typeName,
         unknownTransforms);
 
-    Map<Integer, PartitionField> fieldMap = Maps.newHashMap();
+    Map<Integer, PartitionField> fieldMap = new LinkedHashMap<>();
     Map<Integer, Type> typeMap = Maps.newHashMap();
     Map<Integer, String> nameMap = Maps.newHashMap();
 
@@ -307,9 +334,14 @@ public class Partitioning {
       }
     }
 
+    Stream<Integer> partitionFieldIdsStream = fieldMap.keySet().stream();
+
+    if (orderingMode == PartitionProjectTypeOrderingMode.ORDERED_BY_FIELD_ID) {
+      partitionFieldIdsStream = partitionFieldIdsStream.sorted(Comparator.naturalOrder());
+    }
+
     List<NestedField> sortedStructFields =
-        fieldMap.keySet().stream()
-            .sorted(Comparator.naturalOrder())
+        partitionFieldIdsStream
             .map(
                 fieldId ->
                     NestedField.optional(fieldId, nameMap.get(fieldId), typeMap.get(fieldId)))
