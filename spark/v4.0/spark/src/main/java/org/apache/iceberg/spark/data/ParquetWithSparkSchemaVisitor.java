@@ -18,15 +18,12 @@
  */
 package org.apache.iceberg.spark.data;
 
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.parquet.io.InvalidRecordException;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -186,18 +183,15 @@ public class ParquetWithSparkSchemaVisitor<T> {
 
   private static <T> List<T> visitFields(
       StructType struct, GroupType group, ParquetWithSparkSchemaVisitor<T> visitor) {
-    Map<String, StructField> sFieldsByName =
-        Arrays.stream(struct.fields())
-            .collect(
-                Collectors.toMap(
-                    field -> AvroSchemaUtil.makeCompatibleName(field.name()), Function.identity()));
-
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
-    for (int i = 0; i < group.getFieldCount(); i += 1) {
-      Type field = group.getFields().get(i);
-      StructField sField = sFieldsByName.get(field.getName());
-      Preconditions.checkArgument(
-          sField != null, "Could not find field %s: %s", field.getName(), struct);
+    for (StructField sField : struct.fields()) {
+      final int idx;
+      try {
+        idx = group.getFieldIndex(AvroSchemaUtil.makeCompatibleName(sField.name()));
+      } catch (InvalidRecordException e) {
+        continue;
+      }
+      Type field = group.getType(idx);
       results.add(visitField(sField, field, visitor));
     }
 
