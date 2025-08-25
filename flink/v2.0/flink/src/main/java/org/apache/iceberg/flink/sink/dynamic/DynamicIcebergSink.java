@@ -90,6 +90,7 @@ public class DynamicIcebergSink
       Map<String, String> snapshotProperties,
       String uidPrefix,
       Map<String, String> writeProperties,
+      TablePropertiesUpdater tablePropertiesUpdater,
       FlinkWriteConf flinkWriteConf,
       int cacheMaximumSize) {
     this.catalogLoader = catalogLoader;
@@ -184,6 +185,7 @@ public class DynamicIcebergSink
     private String uidPrefix = null;
     private final Map<String, String> writeOptions = Maps.newHashMap();
     private final Map<String, String> snapshotSummary = Maps.newHashMap();
+    private TablePropertiesUpdater tablePropertiesUpdater;
     private ReadableConfig readableConfig = new Configuration();
     private boolean immediateUpdate = false;
     private int cacheMaximumSize = 100;
@@ -294,6 +296,16 @@ public class DynamicIcebergSink
       return this;
     }
 
+    /**
+     * Set a table properties updater function that receives the current table properties and
+     * returns the updated properties. This provides full control over table properties, allowing
+     * users to modify existing properties or add new ones based on the current state.
+     */
+    public Builder<T> tablePropertiesUpdater(TablePropertiesUpdater updater) {
+      this.tablePropertiesUpdater = updater;
+      return this;
+    }
+
     public Builder<T> toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
       return this;
@@ -352,6 +364,7 @@ public class DynamicIcebergSink
           snapshotSummary,
           uidPrefix,
           writeProperties,
+          tablePropertiesUpdater,
           flinkWriteConf,
           cacheMaximumSize);
     }
@@ -374,7 +387,8 @@ public class DynamicIcebergSink
                       immediateUpdate,
                       cacheMaximumSize,
                       cacheRefreshMs,
-                      inputSchemasPerTableCacheMaximumSize))
+                      inputSchemasPerTableCacheMaximumSize,
+                      tablePropertiesUpdater))
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
               .returns(type);
@@ -391,7 +405,8 @@ public class DynamicIcebergSink
                       catalogLoader,
                       cacheMaximumSize,
                       cacheRefreshMs,
-                      inputSchemasPerTableCacheMaximumSize))
+                      inputSchemasPerTableCacheMaximumSize,
+                      tablePropertiesUpdater))
               .uid(prefixIfNotNull(uidPrefix, "-updater"))
               .name(operatorName("Updater"))
               .returns(type)
