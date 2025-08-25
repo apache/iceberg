@@ -133,7 +133,44 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
     sql("DROP TABLE IF EXISTS %s", tableName(OTHER_TABLE_NAME));
   }
 
-  // TODO: add tests for truncate transforms once SPARK-40295 is released
+  // TODO: Truncate is not supported by SPJ yet (even after SPARK-40295).
+  // Add tests for full support once SPARK-50593 is resolved.
+  @TestTemplate
+  public void testJoinsWithIncompatibleTruncateSpecs() {
+
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (truncate(4, dep)) "
+            + "TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName);
+    sql("INSERT INTO %s VALUES (2L, 200, 'software')", tableName);
+    sql("INSERT INTO %s VALUES (3L, 300, 'software')", tableName);
+
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (truncate(4, dep)) "
+            + "TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (2L, 200, 'software')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (3L, 300, 'software')", tableName(OTHER_TABLE_NAME));
+
+    assertPartitioningAwarePlan(
+        3, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT * "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id AND t1.int_col = t2.int_col AND t1.dep = t2.dep "
+            + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
+        tableName,
+        tableName(OTHER_TABLE_NAME));
+  }
 
   @TestTemplate
   public void testJoinsWithBucketingOnByteColumn() throws NoSuchTableException {
