@@ -18,8 +18,12 @@
  */
 package org.apache.iceberg.spark.data;
 
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -182,18 +186,18 @@ public class ParquetWithSparkSchemaVisitor<T> {
 
   private static <T> List<T> visitFields(
       StructType struct, GroupType group, ParquetWithSparkSchemaVisitor<T> visitor) {
-    StructField[] sFields = struct.fields();
-    Preconditions.checkArgument(
-        sFields.length == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
+    Map<String, StructField> sFieldsByName =
+        Arrays.stream(struct.fields())
+            .collect(
+                Collectors.toMap(
+                    field -> AvroSchemaUtil.makeCompatibleName(field.name()), Function.identity()));
+
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
-    for (int i = 0; i < sFields.length; i += 1) {
+    for (int i = 0; i < group.getFieldCount(); i += 1) {
       Type field = group.getFields().get(i);
-      StructField sField = sFields[i];
+      StructField sField = sFieldsByName.get(field.getName());
       Preconditions.checkArgument(
-          field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.name())),
-          "Structs do not match: field %s != %s",
-          field.getName(),
-          sField.name());
+          sField != null, "Could not find field %s: %s", field.getName(), struct);
       results.add(visitField(sField, field, visitor));
     }
 
