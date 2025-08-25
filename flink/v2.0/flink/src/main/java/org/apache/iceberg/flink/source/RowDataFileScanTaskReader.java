@@ -34,7 +34,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkSourceFilter;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.flink.data.FlinkFormatModels;
 import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
@@ -116,9 +115,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     } else {
       ReadBuilder<RowData, RowType> builder =
           FormatModelRegistry.readBuilder(
-              task.file().format(),
-              FlinkFormatModels.MODEL_NAME,
-              inputFilesDecryptor.getInputFile(task));
+              task.file().format(), RowData.class, inputFilesDecryptor.getInputFile(task));
 
       if (nameMapping != null) {
         builder.nameMapping(NameMappingParser.fromJson(nameMapping));

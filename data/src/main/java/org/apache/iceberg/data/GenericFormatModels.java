@@ -38,8 +38,6 @@ public class GenericFormatModels {
   private static final Logger LOG = LoggerFactory.getLogger(GenericFormatModels.class);
   private static final DeleteTransformer DELETE_TRANSFORMER = new DeleteTransformer();
 
-  public static final String MODEL_NAME = "generic";
-
   public static void register() {
     // ORC, Parquet are optional dependencies. If they are not present, we should just log and
     // ignore NoClassDefFoundErrors
@@ -53,7 +51,7 @@ public class GenericFormatModels {
         () ->
             FormatModelRegistry.register(
                 new ParquetFormatModel<>(
-                    MODEL_NAME,
+                    Record.class,
                     GenericParquetReaders::buildReader,
                     (schema, messageType, inputType) ->
                         GenericParquetWriter.create(schema, messageType),
@@ -65,7 +63,7 @@ public class GenericFormatModels {
         () ->
             FormatModelRegistry.register(
                 new AvroFormatModel<>(
-                    MODEL_NAME,
+                    Record.class,
                     PlannedDataReader::create,
                     (schema, inputSchema) -> DataWriter.create(schema),
                     DELETE_TRANSFORMER)));
@@ -76,7 +74,7 @@ public class GenericFormatModels {
         () ->
             FormatModelRegistry.register(
                 new ORCFormatModel<>(
-                    MODEL_NAME,
+                    Record.class,
                     GenericOrcReader::buildReader,
                     (schema, typeDescription, unused) ->
                         GenericOrcWriter.buildWriter(schema, typeDescription),

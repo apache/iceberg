@@ -46,8 +46,8 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.data.GenericDeleteFilter;
-import org.apache.iceberg.data.GenericFormatModels;
 import org.apache.iceberg.data.InternalRecordWrapper;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Evaluator;
@@ -312,8 +312,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           encryptionManager.decrypt(
               EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
-      ReadBuilder<T, Object> readBuilder =
-          FormatModelRegistry.readBuilder(file.format(), GenericFormatModels.MODEL_NAME, inputFile);
+      ReadBuilder<Record, Object> readBuilder =
+          FormatModelRegistry.readBuilder(file.format(), Record.class, inputFile);
 
       if (reuseContainers) {
         readBuilder = readBuilder.reuseContainers();
@@ -324,12 +324,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       }
 
       return applyResidualFiltering(
-          readBuilder
-              .project(readSchema)
-              .split(currentTask.start(), currentTask.length())
-              .caseSensitive(caseSensitive)
-              .filter(currentTask.residual())
-              .build(),
+          (CloseableIterable<T>)
+              readBuilder
+                  .project(readSchema)
+                  .split(currentTask.start(), currentTask.length())
+                  .caseSensitive(caseSensitive)
+                  .filter(currentTask.residual())
+                  .build(),
           currentTask.residual(),
           readSchema);
     }

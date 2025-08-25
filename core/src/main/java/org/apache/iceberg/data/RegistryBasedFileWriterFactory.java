@@ -44,7 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriterFactory<T> {
   private final Table table;
   private final FileFormat dataFileFormat;
-  private final String inputType;
+  private final Class<T> inputType;
   private final Schema dataSchema;
   private final SortOrder dataSortOrder;
   private final FileFormat deleteFileFormat;
@@ -60,7 +60,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
   protected RegistryBasedFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
-      String inputType,
+      Class<T> inputType,
       Schema dataSchema,
       SortOrder dataSortOrder,
       FileFormat deleteFileFormat,

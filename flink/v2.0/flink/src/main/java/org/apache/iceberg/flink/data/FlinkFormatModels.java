@@ -34,26 +34,24 @@ import org.apache.iceberg.parquet.ParquetFormatModel;
 public class FlinkFormatModels {
   private static final DeleteTransformer DELETE_TRANSFORMER = new DeleteTransformer();
 
-  public static final String MODEL_NAME = "flink";
-
   public static void register() {
     FormatModelRegistry.register(
         new ParquetFormatModel<RowData, RowType, Object>(
-            MODEL_NAME,
+            RowData.class,
             FlinkParquetReaders::buildReader,
             (unused, messageType, rowType) -> FlinkParquetWriters.buildWriter(rowType, messageType),
             DELETE_TRANSFORMER));
 
     FormatModelRegistry.register(
         new AvroFormatModel<RowData, RowType>(
-            MODEL_NAME,
+            RowData.class,
             FlinkPlannedAvroReader::create,
             (unused, rowType) -> new FlinkAvroWriter(rowType),
             DELETE_TRANSFORMER));
 
     FormatModelRegistry.register(
         new ORCFormatModel<RowData, RowType>(
-            MODEL_NAME,
+            RowData.class,
             FlinkOrcReader::new,
             (schema, unused, rowType) -> FlinkOrcWriter.buildWriter(rowType, schema),
             DELETE_TRANSFORMER));

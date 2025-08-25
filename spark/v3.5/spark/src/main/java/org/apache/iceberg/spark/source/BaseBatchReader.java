@@ -64,7 +64,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       SparkDeleteFilter deleteFilter) {
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
     ReadBuilder<ColumnarBatch, StructType> readBuilder =
-        FormatModelRegistry.readBuilder(format, SparkFormatModels.VECTORIZED_MODEL_NAME, inputFile);
+        FormatModelRegistry.readBuilder(format, ColumnarBatch.class, inputFile);
     if (parquetConf != null) {
       readBuilder =
           readBuilder

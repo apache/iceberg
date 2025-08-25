@@ -51,7 +51,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Schema projection,
       Map<Integer, ?> idToConstant) {
     ReadBuilder<InternalRow, StructType> reader =
-        FormatModelRegistry.readBuilder(format, SparkFormatModels.MODEL_NAME, file);
+        FormatModelRegistry.readBuilder(format, InternalRow.class, file);
     return reader
         .project(projection)
         .constantValues(idToConstant)

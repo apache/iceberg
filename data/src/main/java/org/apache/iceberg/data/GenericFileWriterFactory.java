@@ -48,7 +48,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
     super(
         table,
         dataFileFormat,
-        GenericFormatModels.MODEL_NAME,
+        Record.class,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

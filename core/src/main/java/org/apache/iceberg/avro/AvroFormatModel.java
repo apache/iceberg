@@ -31,17 +31,17 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 
 public class AvroFormatModel<D, S> implements FormatModel<D, S> {
-  private final String objectModelName;
+  private final Class<D> type;
   private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
   private final BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction;
   private final Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter;
 
   public AvroFormatModel(
-      String objectModelName,
+      Class<D> type,
       BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
       BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction,
       Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
-    this.objectModelName = objectModelName;
+    this.type = type;
     this.readerFunction = readerFunction;
     this.writerFunction = writerFunction;
     this.positionDeleteConverter = positionDeleteConverter;
@@ -53,8 +53,8 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public String modelName() {
-    return objectModelName;
+  public Class<D> type() {
+    return type;
   }
 
   @Override

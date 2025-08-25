@@ -44,20 +44,17 @@ import org.apache.spark.unsafe.types.UTF8String;
 public class SparkFormatModels {
   private static final DeleteTransformer DELETE_TRANSFORMER = new DeleteTransformer();
 
-  public static final String MODEL_NAME = "spark";
-  public static final String VECTORIZED_MODEL_NAME = "spark-vectorized";
-
   public static void register() {
     FormatModelRegistry.register(
         new AvroFormatModel<InternalRow, StructType>(
-            MODEL_NAME,
+            InternalRow.class,
             SparkPlannedAvroReader::create,
             (avroSchema, inputSchema) -> new SparkAvroWriter(inputSchema),
             DELETE_TRANSFORMER));
 
     FormatModelRegistry.register(
         new ParquetFormatModel<InternalRow, StructType, DeleteFilter<InternalRow>>(
-            MODEL_NAME,
+            InternalRow.class,
             SparkParquetReaders::buildReader,
             (icebergSchema, messageType, inputType) ->
                 SparkParquetWriters.buildWriter(
@@ -66,17 +63,17 @@ public class SparkFormatModels {
 
     FormatModelRegistry.register(
         new ParquetFormatModel<ColumnarBatch, StructType, DeleteFilter<InternalRow>>(
-            VECTORIZED_MODEL_NAME, VectorizedSparkParquetReaders::buildReader));
+            ColumnarBatch.class, VectorizedSparkParquetReaders::buildReader));
 
     FormatModelRegistry.register(
         new ORCFormatModel<>(
-            MODEL_NAME,
+            InternalRow.class,
             SparkOrcReader::new,
             (schema, typeDescription, unused) -> new SparkOrcWriter(schema, typeDescription),
             DELETE_TRANSFORMER));
 
     FormatModelRegistry.register(
-        new ORCFormatModel<>(VECTORIZED_MODEL_NAME, VectorizedSparkOrcReaders::buildReader));
+        new ORCFormatModel<>(ColumnarBatch.class, VectorizedSparkOrcReaders::buildReader));
   }
 
   private SparkFormatModels() {}
