@@ -28,7 +28,7 @@ Iceberg provides API to rewrite small files into large files by submitting Flink
 import org.apache.iceberg.flink.actions.Actions;
 
 TableLoader tableLoader = TableLoader.fromCatalog(
-    CatalogLoader.hive("my_catalog", configuration),
+    CatalogLoader.hive("my_catalog", configuration, properties),
     TableIdentifier.of("database", "table")
 );
 
@@ -123,7 +123,7 @@ The following example demonstrates the implementation of automated maintenance f
 StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
 TableLoader tableLoader = TableLoader.fromCatalog(
-    CatalogLoader.hive("my_catalog", configuration),  
+    CatalogLoader.hive("my_catalog", configuration, properties),  
     TableIdentifier.of("database", "table")
 );
 
