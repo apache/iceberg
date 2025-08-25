@@ -119,7 +119,7 @@ public class VariantTestUtil {
   }
 
   /** Creates a random string primitive of the given length for forcing large offset sizes */
-  static SerializedPrimitive createString(String string) {
+  public static VariantPrimitive<?> createString(String string) {
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(5 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
     buffer.put(0, primitiveHeader(16));
@@ -138,6 +138,15 @@ public class VariantTestUtil {
     buffer.put(0, VariantUtil.shortStringHeader(utf8.length));
     writeBufferAbsolute(buffer, 1, ByteBuffer.wrap(utf8));
     return SerializedShortString.from(buffer, buffer.get(0));
+  }
+
+  public static VariantPrimitive<?> createSerializedPrimitive(int primitiveType, byte[] bytes) {
+    ByteBuffer buffer = ByteBuffer.allocate(1 + bytes.length).order(ByteOrder.LITTLE_ENDIAN);
+    buffer.put(0, primitiveHeader(primitiveType));
+    buffer.position(1);
+    buffer.put(bytes);
+    buffer.flip();
+    return SerializedPrimitive.from(buffer, buffer.get(0));
   }
 
   public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {
