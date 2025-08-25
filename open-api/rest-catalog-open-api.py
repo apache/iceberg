@@ -1453,19 +1453,19 @@ class ViewUpdate(BaseModel):
 
 class ReadRestrictions(BaseModel):
     """
-    Read Restrictions for a table including projection and row filter expressions. The client MUST enforce these rules to read data from the table. If the read-restrictions section is not present or is empty, clients MUST treat it as equivalent to having no restrictions.
+    Read Restrictions for a table including projection and row filter expressions. The client MUST enforce these rules to read data from the table.
 
     """
 
     required_projection: Optional[List[Term]] = Field(
         None,
         alias='required-projection',
-        description='A list of projections that must be applied before query projections. If the term is a transform, it must replace the column referenced by the term. For example, if the term is mask(cc, 0, 4) i.e mask transform on column cc, it must replace the column cc in the query with the masked value, essentially projecting it as mask(cc, 0, 4) AS cc. Readers are NOT allowed to project columns that are not listed and must apply transforms. If the required-projection is not present or is empty, it means that no projection is required and all columns can be read as-is.\nNote: That each column must have only a single projection, meaning a column can be projected as-is or as a transformed value, but not both.\n',
+        description='A list of projections that MUST be applied prior to any query-specified projections. If the required-projection property is absent or empty, no mandatory projection applies, and a reader MAY project any subset of columns of the table, including all columns.\n1. A reader MUST project only columns listed in the required-projection.\n  - If a listed column has a transform, the reader MUST apply it and replace\n    all references to the underlying column with the transformed value\n    (for example, truncate(4, cc) MUST be projected as truncate(4, cc) AS cc,\n    and all references to cc during query evaluation MUST resolve to this alias).\n  - If a listed column has no transform, the reader MUST read it as-is.\n  - Columns not listed in the required-projection MUST NOT be read.\n\n2. A column MUST appear at most once in the required-projection.\n3. A projection entry MUST reference either the column itself or exactly one\n  transformed version of the column, but not both.\n\n4. Multiple transformed versions of the same column (e.g., truncate(5, col)\n  and truncate(3, col)) MUST NOT appear in the required-projection.\n\n5. If a projection entry includes a transform that the reader cannot evaluate,\n  the reader MUST fail rather than ignore the transform.\n\n6. An identity transform is equivalent to projecting the column directly.\n  A reader MAY represent it in either form.\n',
     )
     required_row_filter: Optional[Expression] = Field(
         None,
         alias='required-row-filter',
-        description='An expression that filters rows. Rows for which the filter evaluates to false must be discarded and no information derived from the filtered rows may be included in the query result. If the catalog supports multiple row access filter against the table, it is the catalogs responsibility to combine them with the appropriate logic (e.g., AND, OR). If the required-row-filter is not present or is empty, it means that no row filtering is required and all rows can be read.\n',
+        description="An expression that filters rows in the table.\n1. A reader MUST discard any row for which the filter evaluates to false, and\n  no information derived from discarded rows MAY be included in the query result.\n\n2. If the catalog supports multiple row access filters for the table, it is\n  the catalog's responsibility to combine them using the appropriate logic (e.g., AND, OR).\n\n3. If a client cannot interpret or evaluate a provided filter expression, it\n  MUST NOT return partially filtered results and MUST fail.\n\n4. If the required-row-filter property is absent or empty, no mandatory\n  filtering is imposed, and a reader MAY return any subset of rows,\n  including all rows.\n",
     )
 
 
