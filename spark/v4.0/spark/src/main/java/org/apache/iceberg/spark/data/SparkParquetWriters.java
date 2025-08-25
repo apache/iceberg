@@ -102,7 +102,14 @@ public class SparkParquetWriters {
       for (int i = 0; i < fields.size(); i += 1) {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
       }
-      return InternalRowWriter.create(sStruct, writers);
+
+      StructField[] sFields = sStruct.fields();
+      List<DataType> types = Lists.newArrayListWithExpectedSize(sFields.length);
+      for (int i = 0; i < sFields.length; i += 1) {
+        types.add(sFields[i].dataType());
+      }
+
+      return new InternalRowWriter(writers, types);
     }
 
     @Override
@@ -609,45 +616,35 @@ public class SparkParquetWriters {
   }
 
   private static class InternalRowWriter extends ParquetValueWriters.StructWriter<InternalRow> {
-    static InternalRowWriter create(StructType struct, List<ParquetValueWriter<?>> writers) {
-      int[] fieldIndexes = writerToFieldIndex(struct, writers.size());
-      return new InternalRowWriter(struct, fieldIndexes, writers);
-    }
+    private final DataType[] types;
 
-    private final StructField[] fields;
-    private final int[] fieldIndexes;
-
-    private InternalRowWriter(
-        StructType struct, int[] fieldIndexes, List<ParquetValueWriter<?>> writers) {
-      super(fieldIndexes, writers);
-      this.fields = struct.fields();
-      this.fieldIndexes = fieldIndexes;
+    private InternalRowWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
+      super(writerToFieldIndex(types, writers.size()), writers);
+      this.types = types.toArray(new DataType[0]);
     }
 
     @Override
     protected Object get(InternalRow struct, int index) {
-      return struct.get(index, fields[fieldIndexes[index]].dataType());
-    }
-  }
-
-  /** Returns a mapping from writer index to field index, skipping Unknown columns. */
-  private static int[] writerToFieldIndex(StructType struct, int numWriters) {
-    if (null == struct) {
-      return IntStream.range(0, numWriters).toArray();
+      return struct.get(index, types[index]);
     }
 
-    StructField[] fields = struct.fields();
-
-    // value writer index to record field index
-    int[] indexes = new int[numWriters];
-    int writerIndex = 0;
-    for (int pos = 0; pos < fields.length; pos += 1) {
-      if (!(fields[pos].dataType() instanceof NullType)) {
-        indexes[writerIndex] = pos;
-        writerIndex += 1;
+    /** Returns a mapping from writer index to field index, skipping Unknown columns. */
+    private static int[] writerToFieldIndex(List<DataType> types, int numWriters) {
+      if (null == types) {
+        return IntStream.rangeClosed(0, numWriters).toArray();
       }
-    }
 
-    return indexes;
+      // value writer index to record field index
+      int[] indexes = new int[numWriters];
+      int writerIndex = 0;
+      for (int pos = 0; pos < types.size(); pos += 1) {
+        if (!(types.get(pos) instanceof NullType)) {
+          indexes[writerIndex] = pos;
+          writerIndex += 1;
+        }
+      }
+
+      return indexes;
+    }
   }
 }
