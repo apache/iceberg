@@ -613,7 +613,7 @@ A manifest file must store the partition spec and other metadata as properties i
 |------------|------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
 | _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written                                                                |
 | _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
-| _required_ | _required_ | `partition-spec`    | JSON representation of only the partition fields array of the partition spec used to write the manifest. See [Appeneix C](#partition-specs) |
+| _required_ | _required_ | `partition-spec`    | JSON representation of only the partition fields array of the partition spec used to write the manifest. See [Appendix C](#partition-specs) |
 | _optional_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string                                                                             |
 | _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
 |            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
