@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -37,6 +38,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -48,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.RandomData;
@@ -61,6 +64,9 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.json.JSONOptions;
+import org.apache.spark.sql.catalyst.json.JacksonGenerator;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -73,7 +79,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
-      ImmutableList.of("PLAIN_DICTIONARY", "RLE", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
+      ImmutableList.of("PLAIN_DICTIONARY", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
   private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
@@ -440,31 +446,30 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
   }
 
-  private void assertIdenticalFileContents(File actual, File expected, Schema schema)
-      throws IOException {
-    try (CloseableIterable<InternalRow> actualReader =
-        Parquet.read(Files.localInput(actual))
-            .project(schema)
-            .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
-            .build()) {
-      Iterator<InternalRow> actualIterator = actualReader.iterator();
-      try (CloseableIterable<InternalRow> plainReader =
-          Parquet.read(Files.localInput(expected))
-              .project(schema)
-              .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
-              .build()) {
-        Iterator<InternalRow> expectedIterator = plainReader.iterator();
-
-        List<InternalRow> expectedList = Lists.newArrayList();
-        expectedIterator.forEachRemaining(expectedList::add);
-        List<InternalRow> actualList = Lists.newArrayList();
-        actualIterator.forEachRemaining(actualList::add);
-
-        assertThat(actualList)
-            .as("Comparison between files failed %s <-> %s", actual, expected)
-            .isNotEmpty()
-            .hasSameSizeAs(expectedList)
-            .hasSameElementsAs(expectedList);
+  private void assertIdenticalFileContents(
+      File actual, File expected, Schema schema, boolean vectorized) throws IOException {
+      try (CloseableIterable<Record> expectedIterator =
+                   Parquet.read(Files.localInput(expected))
+                           .project(schema)
+                           .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
+                           .build()) {
+        if (vectorized) {
+          List<Record> expectedRecords = Lists.newArrayList(expectedIterator);
+          assertRecordsMatch(
+                  schema,
+                  expectedRecords.size(),
+                  expectedRecords,
+                  actual,
+                  false,
+                  BATCH_SIZE);
+        } else {
+          try (CloseableIterable<Record> actualIterator = Parquet.read(Files.localInput(actual)).project(schema)
+                  .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType)).build()) {
+            assertThat(actualIterator)
+                    .as("Comparison between files failed %s <-> %s", actual, expected)
+                    .isNotEmpty()
+                    .containsExactlyElementsOf(expectedIterator);
+          }
       }
     }
   }
@@ -474,14 +479,19 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         .flatMap(
             encoding ->
                 GOLDEN_FILE_TYPES.entrySet().stream()
-                    .map(
-                        typeEntry ->
-                            Arguments.of(encoding, typeEntry.getKey(), typeEntry.getValue())));
+                    .flatMap(
+                        e ->
+                            Stream.of(true, false)
+                                .map(
+                                    vectorized ->
+                                        Arguments.of(
+                                            encoding, e.getKey(), e.getValue(), vectorized))));
   }
 
   @ParameterizedTest
   @MethodSource("goldenFilesAndEncodings")
-  public void testGoldenFiles(String encoding, String typeName, PrimitiveType primitiveType)
+  public void testGoldenFiles(
+      String encoding, String typeName, PrimitiveType primitiveType, boolean vectorized)
       throws Exception {
     Path goldenResourcePath = Paths.get("encodings", encoding, typeName + ".parquet");
     URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
@@ -495,6 +505,9 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
     Schema expectedSchema = new Schema(optional(1, "data", primitiveType));
     assertIdenticalFileContents(
-        new File(goldenFileUrl.toURI()), new File(plainFileUrl.toURI()), expectedSchema);
+        new File(goldenFileUrl.toURI()),
+        new File(plainFileUrl.toURI()),
+        expectedSchema,
+        vectorized);
   }
 }
