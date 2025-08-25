@@ -50,6 +50,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
@@ -252,6 +253,12 @@ public class SparkWriteConf {
   public Map<String, String> extraSnapshotMetadata() {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
 
+    // Add session configuration properties with SNAPSHOT_PROPERTY_PREFIX if necessary
+    extraSnapshotMetadata.putAll(
+        PropertyUtil.propertiesWithPrefix(
+            sessionConf.getAll(), SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX));
+
+    // Add write options, overriding session configuration if necessary
     writeOptions.forEach(
         (key, value) -> {
           if (key.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX)) {
