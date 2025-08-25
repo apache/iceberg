@@ -59,6 +59,7 @@ import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -370,11 +371,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+
+    // inject this to query params
+    Map<String, String> queryParams = Maps.newHashMap(mode.params());
+    TableIdentifier cleanedIdent = identifier;
+    if (identifier.name().contains("__#")) {
+      List<String> parts = Splitter.on("__#").splitToList(identifier.name());
+      cleanedIdent = TableIdentifier.of(cleanedIdent.namespace(), parts.get(0));
+      queryParams.put("referenced-by", parts.get(1));
+    }
+
     return client
         .withAuthSession(contextualSession)
         .get(
-            paths.table(identifier),
-            mode.params(),
+            paths.table(cleanedIdent),
+            queryParams,
             LoadTableResponse.class,
             Map.of(),
             ErrorHandlers.tableErrorHandler());
@@ -394,17 +405,23 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     MetadataTableType metadataType;
     LoadTableResponse response;
-    TableIdentifier loadedIdent;
+    TableIdentifier loadedIdent = identifier;
+
+    // FIXME: This should not be handled here but rather propagated from SparkCatalog, maybe via
+    // sessionContext ?
+    if (identifier.name().contains("__#")) {
+      List<String> parts = Splitter.on("__#").splitToList(identifier.name());
+      loadedIdent = TableIdentifier.of(loadedIdent.namespace(), parts.get(0));
+    }
+
     try {
       response = loadInternal(context, identifier, snapshotMode);
-      loadedIdent = identifier;
       metadataType = null;
-
     } catch (NoSuchTableException original) {
-      metadataType = MetadataTableType.from(identifier.name());
+      metadataType = MetadataTableType.from(loadedIdent.name());
       if (metadataType != null) {
         // attempt to load a metadata table using the identifier's namespace as the base table
-        TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
+        TableIdentifier baseIdent = TableIdentifier.of(loadedIdent.namespace().levels());
         try {
           response = loadInternal(context, baseIdent, snapshotMode);
           loadedIdent = baseIdent;

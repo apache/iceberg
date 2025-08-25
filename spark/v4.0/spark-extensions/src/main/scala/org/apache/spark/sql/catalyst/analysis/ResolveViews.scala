@@ -89,10 +89,13 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   private def createViewRelation(nameParts: Seq[String], view: View): LogicalPlan = {
     val parsed = parseViewText(nameParts.quoted, view.query)
+    // TODO: should this be named property that all engines agree on?
+    val isSecurityView: Boolean = view.properties().containsKey("security")
+
 
     // Apply any necessary rewrites to preserve correct resolution
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
-    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace);
+    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, nameParts.quoted, isSecurityView);
 
     // Apply the field aliases and column comments
     // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
@@ -123,13 +126,17 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   private def rewriteIdentifiers(
     plan: LogicalPlan,
-    catalogAndNamespace: Seq[String]): LogicalPlan = {
+    catalogAndNamespace: Seq[String],
+    viewName: String,
+    isSecurity: Boolean): LogicalPlan = {
     // Substitute CTEs and Unresolved Ordinals within the view, then rewrite unresolved functions and relations
     qualifyTableIdentifiers(
       qualifyFunctionIdentifiers(
         SubstituteUnresolvedOrdinals.apply(CTESubstitution.apply(plan)),
         catalogAndNamespace),
-      catalogAndNamespace)
+      catalogAndNamespace,
+      viewName,
+      isSecurity)
   }
 
   private def qualifyFunctionIdentifiers(
@@ -150,18 +157,28 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
    */
   private def qualifyTableIdentifiers(
     child: LogicalPlan,
-    catalogAndNamespace: Seq[String]): LogicalPlan =
+    catalogAndNamespace: Seq[String],
+    viewName: String,
+    isSecurity: Boolean): LogicalPlan = {
+    // FIXME: This is a workaround for Spark's sending over referenced-by to the catalog plugin.
+    // As view context is not propagated to the catalog plugin.
+    // FIXME: fix view references a view, may be add a new rule and make sure its only done
+    // for security enabled views.
+    val loadedVia: String = if (isSecurity) s"__#$viewName" else ""
     child transform {
       case u@UnresolvedRelation(Seq(table), _, _) =>
-        u.copy(multipartIdentifier = catalogAndNamespace :+ table)
+        // 1 part identifier, qualify with catalog and namespace
+        u.copy(multipartIdentifier = catalogAndNamespace :+ (table + loadedVia))
       case u@UnresolvedRelation(parts, _, _) if !isCatalog(parts.head) =>
-        u.copy(multipartIdentifier = catalogAndNamespace.head +: parts)
+        // 2 part identifier, qualify with catalog
+        u.copy(multipartIdentifier = catalogAndNamespace.head +: (parts.init :+ (parts.last + loadedVia)))
       case other =>
         other.transformExpressions {
           case subquery: SubqueryExpression =>
-            subquery.withNewPlan(qualifyTableIdentifiers(subquery.plan, catalogAndNamespace))
+            subquery.withNewPlan(qualifyTableIdentifiers(subquery.plan, catalogAndNamespace, viewName, isSecurity))
         }
     }
+  }
 
   private def isCatalog(name: String): Boolean = {
     catalogManager.isCatalogRegistered(name)
