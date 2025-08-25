@@ -129,8 +129,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       WriteBuilder<Record, Types.StructType> builder =
-          FormatModelRegistry.writeBuilder(
-              fileFormat, GenericFormatModels.MODEL_NAME, encryptedOutputFile);
+          FormatModelRegistry.writeBuilder(fileFormat, Record.class, encryptedOutputFile);
       return builder.schema(schema).set(config).metricsConfig(metricsConfig).overwrite().build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -144,7 +143,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
     try {
       DataWriteBuilder<Record, Types.StructType> builder =
-          FormatModelRegistry.dataWriteBuilder(format, GenericFormatModels.MODEL_NAME, file);
+          FormatModelRegistry.dataWriteBuilder(format, Record.class, file);
       return builder
           .schema(schema)
           .set(config)
@@ -173,8 +172,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       EqualityDeleteWriteBuilder<Record, Types.StructType> builder =
-          FormatModelRegistry.equalityDeleteWriteBuilder(
-              format, GenericFormatModels.MODEL_NAME, file);
+          FormatModelRegistry.equalityDeleteWriteBuilder(format, Record.class, file);
       return builder
           .schema(schema)
           .partition(partition)
@@ -201,8 +199,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       PositionDeleteWriteBuilder<Record, Types.StructType> builder =
-          FormatModelRegistry.positionDeleteWriteBuilder(
-              format, GenericFormatModels.MODEL_NAME, file);
+          FormatModelRegistry.positionDeleteWriteBuilder(format, Record.class, file);
       return builder
           .schema(schema)
           .partition(partition)

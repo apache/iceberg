@@ -110,7 +110,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, Class, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -119,7 +119,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, Class, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
@@ -130,7 +130,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, Class, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class WriteBuilder {
@@ -505,7 +505,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, Class, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
@@ -514,7 +514,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, Class, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
@@ -525,7 +525,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#writeBuilder(FileFormat, String, EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#writeBuilder(FileFormat, Class, EncryptedOutputFile)} instead.
    */
   @Deprecated
   public static class DataWriteBuilder {
@@ -628,8 +628,8 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
-   *     and {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
+   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
    *     EncryptedOutputFile)} instead.
    */
   @Deprecated
@@ -639,8 +639,8 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
-   *     and {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
+   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
    *     EncryptedOutputFile)} instead.
    */
   @Deprecated
@@ -652,8 +652,8 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, String, EncryptedOutputFile)}
-   *     and {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, String,
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
+   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
    *     EncryptedOutputFile)} instead.
    */
   @Deprecated
@@ -836,7 +836,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
-   *     FormatModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
+   *     FormatModelRegistry#readBuilder(FileFormat, Class, InputFile)} instead.
    */
   @Deprecated
   public static ReadBuilder read(InputFile file) {
@@ -848,7 +848,7 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the {@link
-   *     FormatModelRegistry#readBuilder(FileFormat, String, InputFile)} instead.
+   *     FormatModelRegistry#readBuilder(FileFormat, Class, InputFile)} instead.
    */
   @Deprecated
   public static class ReadBuilder {

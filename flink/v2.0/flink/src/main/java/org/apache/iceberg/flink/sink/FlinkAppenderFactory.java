@@ -39,7 +39,6 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.data.FlinkFormatModels;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -103,9 +102,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     try {
       WriteBuilder<RowData, RowType> builder =
           FormatModelRegistry.writeBuilder(
-              format,
-              FlinkFormatModels.MODEL_NAME,
-              EncryptedFiles.plainAsEncryptedOutput(outputFile));
+              format, RowData.class, EncryptedFiles.plainAsEncryptedOutput(outputFile));
       return builder
           .set(props)
           .schema(schema)
@@ -124,7 +121,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
       DataWriteBuilder<RowData, RowType> builder =
-          FormatModelRegistry.dataWriteBuilder(format, FlinkFormatModels.MODEL_NAME, file);
+          FormatModelRegistry.dataWriteBuilder(format, RowData.class, file);
       return builder
           .set(props)
           .schema(schema)
@@ -153,8 +150,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
       EqualityDeleteWriteBuilder<RowData, RowType> builder =
-          FormatModelRegistry.equalityDeleteWriteBuilder(
-              format, FlinkFormatModels.MODEL_NAME, outputFile);
+          FormatModelRegistry.equalityDeleteWriteBuilder(format, RowData.class, outputFile);
       return builder
           .overwrite()
           .set(props)
@@ -177,8 +173,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
     try {
       PositionDeleteWriteBuilder<RowData, RowType> builder =
-          FormatModelRegistry.positionDeleteWriteBuilder(
-              format, FlinkFormatModels.MODEL_NAME, outputFile);
+          FormatModelRegistry.positionDeleteWriteBuilder(format, RowData.class, outputFile);
       return builder
           .overwrite()
           .set(props)

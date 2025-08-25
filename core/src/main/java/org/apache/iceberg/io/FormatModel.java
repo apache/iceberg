@@ -60,7 +60,7 @@ public interface FormatModel<D, S> {
    *
    * @return string identifier for this model implementation
    */
-  String modelName();
+  Class<D> type();
 
   /**
    * Creates a writer builder for standard data files.

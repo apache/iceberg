@@ -223,7 +223,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
     ReadBuilder<Record, Types.StructType> builder =
-        FormatModelRegistry.readBuilder(format, GenericFormatModels.MODEL_NAME, inputFile);
+        FormatModelRegistry.readBuilder(format, Record.class, inputFile);
     return builder.project(projection).reuseContainers().filter(filter).build();
   }
 

@@ -123,12 +123,11 @@ public class ArrowReader extends CloseableGroup {
   private final EncryptionManager encryption;
   private final int batchSize;
   private final boolean reuseContainers;
-  private static final String MODEL_NAME = "arrow";
 
   public static void register() {
     FormatModelRegistry.register(
         new ParquetFormatModel<>(
-            MODEL_NAME,
+            ColumnarBatch.class,
             (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
                 VectorizedCombinedScanIterator.buildReader(
                     schema,
@@ -337,7 +336,7 @@ public class ArrowReader extends CloseableGroup {
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
         ReadBuilder<ColumnarBatch, Object> builder =
-            FormatModelRegistry.readBuilder(FileFormat.PARQUET, MODEL_NAME, location);
+            FormatModelRegistry.readBuilder(FileFormat.PARQUET, ColumnarBatch.class, location);
 
         if (reuseContainers) {
           builder.reuseContainers();

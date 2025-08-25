@@ -29,19 +29,19 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.TypeDescription;
 
 public class ORCFormatModel<D, S> implements FormatModel<D, S> {
-  private final String objectModelName;
+  private final Class<D> type;
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D> batchReaderFunction;
   private final WriterFunction<S> writerFunction;
   private final Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter;
 
   private ORCFormatModel(
-      String objectModelName,
+      Class<D> type,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D> batchReaderFunction,
       WriterFunction<S> writerFunction,
       Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
-    this.objectModelName = objectModelName;
+    this.type = type;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.writerFunction = writerFunction;
@@ -49,15 +49,15 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   public ORCFormatModel(
-      String objectModelName,
+      Class<D> type,
       ReaderFunction<D> readerFunction,
       WriterFunction<S> writerFunction,
       Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
-    this(objectModelName, readerFunction, null, writerFunction, positionDeleteConverter);
+    this(type, readerFunction, null, writerFunction, positionDeleteConverter);
   }
 
-  public ORCFormatModel(String objectModelName, BatchReaderFunction<D> batchReaderFunction) {
-    this(objectModelName, null, batchReaderFunction, null, null);
+  public ORCFormatModel(Class<D> type, BatchReaderFunction<D> batchReaderFunction) {
+    this(type, null, batchReaderFunction, null, null);
   }
 
   @Override
@@ -66,8 +66,8 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public String modelName() {
-    return objectModelName;
+  public Class<D> type() {
+    return type;
   }
 
   @Override

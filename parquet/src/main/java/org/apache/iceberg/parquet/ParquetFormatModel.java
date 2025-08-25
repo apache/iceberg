@@ -29,19 +29,19 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 
 public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
-  private final String objectModelName;
+  private final Class<D> type;
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D, F> batchReaderFunction;
   private final WriterFunction<D, S> writerFunction;
   private final Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter;
 
   private ParquetFormatModel(
-      String objectModelName,
+      Class<D> type,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D, F> batchReaderFunction,
       WriterFunction<D, S> writerFunction,
       Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
-    this.objectModelName = objectModelName;
+    this.type = type;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.writerFunction = writerFunction;
@@ -49,15 +49,15 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
   }
 
   public ParquetFormatModel(
-      String objectModelName,
+      Class<D> type,
       ReaderFunction<D> readerFunction,
       WriterFunction<D, S> writerFunction,
       Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
-    this(objectModelName, readerFunction, null, writerFunction, positionDeleteConverter);
+    this(type, readerFunction, null, writerFunction, positionDeleteConverter);
   }
 
-  public ParquetFormatModel(String objectModelName, BatchReaderFunction<D, F> batchReaderFunction) {
-    this(objectModelName, null, batchReaderFunction, null, null);
+  public ParquetFormatModel(Class<D> type, BatchReaderFunction<D, F> batchReaderFunction) {
+    this(type, null, batchReaderFunction, null, null);
   }
 
   @Override
@@ -66,8 +66,8 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
   }
 
   @Override
-  public String modelName() {
-    return objectModelName;
+  public Class<D> type() {
+    return type;
   }
 
   @Override

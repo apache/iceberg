@@ -49,7 +49,6 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.actions.ImmutableRewriteTablePath;
 import org.apache.iceberg.actions.RewriteTablePath;
 import org.apache.iceberg.data.FormatModelRegistry;
-import org.apache.iceberg.data.GenericFormatModels;
 import org.apache.iceberg.data.PositionDeleteWriteBuilder;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -677,7 +676,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
     ReadBuilder<Record, Types.StructType> builder =
-        FormatModelRegistry.readBuilder(format, GenericFormatModels.MODEL_NAME, inputFile);
+        FormatModelRegistry.readBuilder(format, Record.class, inputFile);
     return builder.project(deleteSchema).reuseContainers().build();
   }
 
@@ -690,9 +689,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       throws IOException {
     PositionDeleteWriteBuilder<Record, Types.StructType> builder =
         FormatModelRegistry.positionDeleteWriteBuilder(
-            format,
-            GenericFormatModels.MODEL_NAME,
-            EncryptedFiles.plainAsEncryptedOutput(outputFile));
+            format, Record.class, EncryptedFiles.plainAsEncryptedOutput(outputFile));
     return builder.partition(partition).rowSchema(rowSchema).spec(spec).build();
   }
 
