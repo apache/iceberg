@@ -27,7 +27,11 @@ Iceberg provides API to rewrite small files into large files by submitting Flink
 ```java
 import org.apache.iceberg.flink.actions.Actions;
 
-TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
+TableLoader tableLoader = TableLoader.fromCatalog(
+    CatalogLoader.hive("my_catalog", configuration),
+    TableIdentifier.of("database", "table")
+);
+
 Table table = tableLoader.loadTable();
 RewriteDataFilesActionResult result = Actions.forTable(table)
         .rewriteDataFiles()
@@ -117,7 +121,11 @@ The following example demonstrates the implementation of automated maintenance f
 
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-TableLoader tableLoader = TableLoader.fromHadoopTable("path/to/table");
+
+TableLoader tableLoader = TableLoader.fromCatalog(
+    CatalogLoader.hive("my_catalog", configuration),  
+    TableIdentifier.of("database", "table")
+);
 
 Map<String, String> jdbcProps = new HashMap<>();
 jdbcProps.put("jdbc.user", "flink");
