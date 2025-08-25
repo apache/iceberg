@@ -69,7 +69,7 @@ public final class FormatModelRegistry {
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
 
-  private static final Map<Pair<FileFormat, String>, FormatModel<?>> FORMAT_MODELS =
+  private static final Map<Pair<FileFormat, Class<?>>, FormatModel<?, ?>> FORMAT_MODELS =
       Maps.newConcurrentMap();
 
   private FormatModelRegistry() {}
@@ -88,10 +88,10 @@ public final class FormatModelRegistry {
    *
    * @param formatModel the factory implementation to register
    * @throws IllegalArgumentException if a factory is already registered for the combination of
-   *     {@link FormatModel#format()} and {@link FormatModel#modelName()}
+   *     {@link FormatModel#format()} and {@link FormatModel#type()} ()}
    */
-  public static void register(FormatModel<?> formatModel) {
-    Pair<FileFormat, String> key = Pair.of(formatModel.format(), formatModel.modelName());
+  public static void register(FormatModel<?, ?> formatModel) {
+    Pair<FileFormat, Class<?>> key = Pair.of(formatModel.format(), formatModel.type());
     Preconditions.checkArgument(
         !FORMAT_MODELS.containsKey(key),
         "Cannot register %s: %s is registered for format=%s model=%s",
@@ -128,15 +128,14 @@ public final class FormatModelRegistry {
    * configuration options like schema projection, predicate pushdown, batch size and encryption.
    *
    * @param format the file format (Parquet, Avro, ORC) that determines the parsing implementation
-   * @param modelName identifier for the expected output data representation (generic, spark, flink,
-   *     etc.)
+   * @param type the output type
    * @param inputFile source file to read data from
    * @param <D> the type of data records the reader will produce
    * @return a configured reader builder for the specified format and object model
    */
-  public static <D> ReadBuilder<D> readBuilder(
-      FileFormat format, String modelName, InputFile inputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
+  public static <D, S> ReadBuilder<D, S> readBuilder(
+      FileFormat format, Class<D> type, InputFile inputFile) {
+    FormatModel<D, S> factory = factoryFor(format, type);
     return factory.readBuilder(inputFile);
   }
 
@@ -148,14 +147,14 @@ public final class FormatModelRegistry {
    * output file, but this basic writer does not collect or return {@link ContentFile} metadata.
    *
    * @param format the file format used for writing
-   * @param modelName name of the object model defining the input format
+   * @param type the input type
    * @param outputFile destination for the written data
    * @param <D> the type of data records the writer will accept
    * @return a configured writer builder for creating the appender
    */
-  public static <D> WriteBuilder<D> writeBuilder(
-      FileFormat format, String modelName, EncryptedOutputFile outputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
+  public static <D, S> WriteBuilder<D, S> writeBuilder(
+      FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
+    FormatModel<D, S> factory = factoryFor(format, type);
     return factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
   }
 
@@ -168,15 +167,15 @@ public final class FormatModelRegistry {
    * used for table operations.
    *
    * @param format the file format used for writing
-   * @param modelName name of the object model defining the input format
+   * @param type the input type
    * @param outputFile destination for the written data
    * @param <D> the type of data records the writer will accept
    * @return a configured data write builder for creating a {@link DataWriter}
    */
-  public static <D> DataWriteBuilder<D> dataWriteBuilder(
-      FileFormat format, String modelName, EncryptedOutputFile outputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<D> writeBuilder =
+  public static <D, S> DataWriteBuilder<D, S> dataWriteBuilder(
+      FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
+    FormatModel<D, S> factory = factoryFor(format, type);
+    WriteBuilder<D, S> writeBuilder =
         factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
     return ContentFileWriteBuilderImpl.forDataFile(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
@@ -191,15 +190,15 @@ public final class FormatModelRegistry {
    * {@link DeleteFile} that can be used for table operations.
    *
    * @param format the file format used for writing
-   * @param modelName name of the object model defining the input format
+   * @param type the input type
    * @param outputFile destination for the written data
    * @param <D> the type of data records the writer will accept
    * @return a configured delete write builder for creating an {@link EqualityDeleteWriter}
    */
-  public static <D> EqualityDeleteWriteBuilder<D> equalityDeleteWriteBuilder(
-      FileFormat format, String modelName, EncryptedOutputFile outputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<D> writeBuilder =
+  public static <D, S> EqualityDeleteWriteBuilder<D, S> equalityDeleteWriteBuilder(
+      FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
+    FormatModel<D, S> factory = factoryFor(format, type);
+    WriteBuilder<D, S> writeBuilder =
         factory
             .writeBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.EQUALITY_DELETES);
@@ -216,16 +215,16 @@ public final class FormatModelRegistry {
    * DeleteFile} that can be used for table operations.
    *
    * @param format the file format used for writing
-   * @param modelName name of the object model defining the input format
+   * @param type the input type
    * @param outputFile destination for the written data
    * @param <D> the type of data records contained in the {@link PositionDelete} that the writer
    *     will accept
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  public static <D> PositionDeleteWriteBuilder<D> positionDeleteWriteBuilder(
-      FileFormat format, String modelName, EncryptedOutputFile outputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<D> writeBuilder =
+  public static <D, S> PositionDeleteWriteBuilder<D, S> positionDeleteWriteBuilder(
+      FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
+    FormatModel<D, S> factory = factoryFor(format, type);
+    WriteBuilder<D, S> writeBuilder =
         factory
             .writeBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.POSITION_DELETES);
@@ -237,7 +236,7 @@ public final class FormatModelRegistry {
   }
 
   @SuppressWarnings("unchecked")
-  private static <D> FormatModel<D> factoryFor(FileFormat format, String modelName) {
-    return ((FormatModel<D>) FORMAT_MODELS.get(Pair.of(format, modelName)));
+  private static <D, S> FormatModel<D, S> factoryFor(FileFormat format, Class<D> type) {
+    return ((FormatModel<D, S>) FORMAT_MODELS.get(Pair.of(format, type)));
   }
 }

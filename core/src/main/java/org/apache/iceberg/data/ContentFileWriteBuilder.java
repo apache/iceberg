@@ -47,10 +47,16 @@ import org.apache.iceberg.io.DataWriter;
  *
  * @param <B> the concrete builder type for method chaining
  */
-interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
+interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, S>, S> {
 
   /** Set the file schema. */
   B schema(Schema schema);
+
+  /**
+   * Sets the input schema accepted by the writer. If not provided derived from the {@link
+   * #schema(Schema)}.
+   */
+  B inputSchema(S schema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.

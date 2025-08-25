@@ -36,8 +36,8 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
  *
  * @param <D> the type of data records the writer will accept
  */
-public interface PositionDeleteWriteBuilder<D>
-    extends ContentFileWriteBuilder<PositionDeleteWriteBuilder<D>> {
+public interface PositionDeleteWriteBuilder<D, S>
+    extends ContentFileWriteBuilder<PositionDeleteWriteBuilder<D, S>, S> {
   /**
    * Configures the schema for deleted row data to be stored in position delete files.
    *
@@ -54,7 +54,7 @@ public interface PositionDeleteWriteBuilder<D>
    * @param rowSchema the Iceberg schema defining the structure for deleted row content
    * @return this builder for method chaining
    */
-  PositionDeleteWriteBuilder<D> rowSchema(Schema rowSchema);
+  PositionDeleteWriteBuilder<D, S> rowSchema(Schema rowSchema);
 
   /**
    * Creates a position-based delete file writer configured with the current builder settings.

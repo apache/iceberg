@@ -39,8 +39,9 @@ import org.apache.iceberg.deletes.PositionDelete;
  * object models to integrate with Iceberg's file reading and writing capabilities.
  *
  * @param <D> output type used for reading data, and input type for writing data and deletes
+ * @param <S> the type of the schema for the input/output data
  */
-public interface FormatModel<D> {
+public interface FormatModel<D, S> {
   /** The file format which is read/written by the object model. */
   FileFormat format();
 
@@ -59,7 +60,7 @@ public interface FormatModel<D> {
    *
    * @return string identifier for this model implementation
    */
-  String modelName();
+  Class<D> type();
 
   /**
    * Creates a writer builder for standard data files.
@@ -74,7 +75,7 @@ public interface FormatModel<D> {
    * @param outputFile destination for the written data
    * @return configured writer builder
    */
-  WriteBuilder<D> writeBuilder(OutputFile outputFile);
+  WriteBuilder<D, S> writeBuilder(OutputFile outputFile);
 
   /**
    * Creates a function that converts {@link PositionDelete} objects into the format-specific
@@ -100,5 +101,5 @@ public interface FormatModel<D> {
    * @param inputFile source file to read from
    * @return configured reader builder for the specified input
    */
-  ReadBuilder<D> readBuilder(InputFile inputFile);
+  ReadBuilder<D, S> readBuilder(InputFile inputFile);
 }
