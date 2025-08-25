@@ -149,7 +149,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     TableScan scanNoFilter = partitionsTable.newScan().select("partition");
     assertThat(scanNoFilter.schema().asStruct()).isEqualTo(idPartition);
     CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
+        PartitionsTable.planEntries((BaseMetadataTableScan) scanNoFilter);
     assertThat(entries).hasSize(4);
     validatePartition(entries, 0, 0);
     validatePartition(entries, 0, 1);
@@ -231,7 +231,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     assertThat(partitionsTable.schema().findField("partition")).isNotNull();
 
     try (CloseableIterable<ManifestEntry<?>> entries =
-        PartitionsTable.planEntries((StaticTableScan) partitionsTable.newScan())) {
+        PartitionsTable.planEntries((BaseMetadataTableScan) partitionsTable.newScan())) {
       // four partitioned data files and one non-partitioned data file.
       assertThat(entries).hasSize(5);
 
