@@ -98,14 +98,11 @@ public class SparkParquetWriters {
     public ParquetValueWriter<?> struct(
         StructType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
+      StructField[] sFields = sStruct.fields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
+      List<DataType> types = Lists.newArrayListWithExpectedSize(sFields.length);
       for (int i = 0; i < fields.size(); i += 1) {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-      }
-
-      StructField[] sFields = sStruct.fields();
-      List<DataType> types = Lists.newArrayListWithExpectedSize(sFields.length);
-      for (int i = 0; i < sFields.length; i += 1) {
         types.add(sFields[i].dataType());
       }
 
