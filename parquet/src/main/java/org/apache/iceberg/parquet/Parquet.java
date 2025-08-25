@@ -177,7 +177,7 @@ public class Parquet {
    */
   @Deprecated
   public static class WriteBuilder implements InternalData.WriteBuilder {
-    private final WriteBuilderImpl<?> impl;
+    private final WriteBuilderImpl<?, ?> impl;
 
     private WriteBuilder(OutputFile file) {
       this.impl = new WriteBuilderImpl<>(file);
@@ -311,18 +311,19 @@ public class Parquet {
   }
 
   @SuppressWarnings("unchecked")
-  static class WriteBuilderImpl<D> implements org.apache.iceberg.io.WriteBuilder<D> {
+  static class WriteBuilderImpl<D, S> implements org.apache.iceberg.io.WriteBuilder<D, S> {
     private final OutputFile file;
     private FileContent content;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
+    private S inputSchema = null;
     private VariantShreddingFunction variantShreddingFunc = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
-    private BiFunction<Schema, MessageType, ParquetValueWriter<D>> writerFunction = null;
+    private ParquetFormatModel.WriterFunction<D, S> writerFunction = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -338,8 +339,8 @@ public class Parquet {
       }
     }
 
-    WriteBuilderImpl<D> writerFunction(
-        BiFunction<Schema, MessageType, ParquetValueWriter<D>> newWriterFunction) {
+    WriteBuilderImpl<D, S> writerFunction(
+        ParquetFormatModel.WriterFunction<D, S> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -347,14 +348,20 @@ public class Parquet {
     }
 
     @Override
-    public WriteBuilderImpl<D> content(FileContent newContent) {
+    public WriteBuilderImpl<D, S> content(FileContent newContent) {
       this.content = newContent;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> schema(Schema newSchema) {
+    public WriteBuilderImpl<D, S> schema(Schema newSchema) {
       this.schema = newSchema;
+      return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<D, S> inputSchema(S newInputSchema) {
+      this.inputSchema = newInputSchema;
       return this;
     }
 
@@ -366,43 +373,43 @@ public class Parquet {
      * @param func {@link VariantShreddingFunction} that produces a shredded {@code typed_value}
      * @return this for method chaining
      */
-    public WriteBuilderImpl<D> variantShreddingFunc(VariantShreddingFunction func) {
+    public WriteBuilderImpl<D, S> variantShreddingFunc(VariantShreddingFunction func) {
       this.variantShreddingFunc = func;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> set(String property, String value) {
+    public WriteBuilderImpl<D, S> set(String property, String value) {
       config.put(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> meta(String property, String value) {
+    public WriteBuilderImpl<D, S> meta(String property, String value) {
       metadata.put(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> metricsConfig(MetricsConfig newMetricsConfig) {
+    public WriteBuilderImpl<D, S> metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> overwrite() {
+    public WriteBuilderImpl<D, S> overwrite() {
       this.writeMode = ParquetFileWriter.Mode.OVERWRITE;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> fileEncryptionKey(ByteBuffer encryptionKey) {
+    public WriteBuilderImpl<D, S> fileEncryptionKey(ByteBuffer encryptionKey) {
       this.fileEncryptionKey = encryptionKey;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> fileAADPrefix(ByteBuffer aadPrefix) {
+    public WriteBuilderImpl<D, S> fileAADPrefix(ByteBuffer aadPrefix) {
       this.fileAADPrefix = aadPrefix;
       return this;
     }
@@ -470,7 +477,8 @@ public class Parquet {
       if (content != null) {
         Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
         this.createWriterFunc =
-            (icebergSchema, messageType) -> writerFunction.apply(icebergSchema, messageType);
+            (icebergSchema, messageType) ->
+                writerFunction.write(icebergSchema, messageType, inputSchema);
         switch (content) {
           case DATA:
             this.createContextFunc = Context::dataContext;
@@ -1329,7 +1337,7 @@ public class Parquet {
    */
   @Deprecated
   public static class ReadBuilder implements InternalData.ReadBuilder {
-    private final ReadBuilderImpl<Object, ?> impl;
+    private final ReadBuilderImpl<Object, Object, ?> impl;
 
     private ReadBuilder(InputFile file) {
       this.impl = new ReadBuilderImpl<>(file);
@@ -1491,9 +1499,9 @@ public class Parquet {
     }
   }
 
-  static class ReadBuilderImpl<D, F>
+  static class ReadBuilderImpl<D, S, F>
       implements InternalData.ReadBuilder,
-          org.apache.iceberg.io.ReadBuilder<D>,
+          org.apache.iceberg.io.ReadBuilder<D, S>,
           ParquetFormatModel.SupportsDeleteFilter<F> {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();
@@ -1522,7 +1530,8 @@ public class Parquet {
       this.file = file;
     }
 
-    ReadBuilderImpl<D, F> readerFunction(ParquetFormatModel.ReaderFunction<D> newReaderFunction) {
+    ReadBuilderImpl<D, S, F> readerFunction(
+        ParquetFormatModel.ReaderFunction<D> newReaderFunction) {
       Preconditions.checkState(
           readerFunc == null
               && readerFuncWithSchema == null
@@ -1533,7 +1542,8 @@ public class Parquet {
       return this;
     }
 
-    ReadBuilderImpl<D, F> batchReaderFunction(ParquetFormatModel.BatchReaderFunction<D, F> func) {
+    ReadBuilderImpl<D, S, F> batchReaderFunction(
+        ParquetFormatModel.BatchReaderFunction<D, F> func) {
       Preconditions.checkState(
           readerFunc == null
               && readerFuncWithSchema == null
@@ -1552,79 +1562,79 @@ public class Parquet {
      * @return this builder for method chaining
      */
     @Override
-    public ReadBuilderImpl<D, F> split(long newStart, long newLength) {
+    public ReadBuilderImpl<D, S, F> split(long newStart, long newLength) {
       this.start = newStart;
       this.length = newLength;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> project(Schema newSchema) {
+    public ReadBuilderImpl<D, S, F> project(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> caseSensitive(boolean newFilterCaseSensitive) {
+    public ReadBuilderImpl<D, S, F> caseSensitive(boolean newFilterCaseSensitive) {
       this.filterCaseSensitive = newFilterCaseSensitive;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> filter(Expression newFilter) {
+    public ReadBuilderImpl<D, S, F> filter(Expression newFilter) {
       this.filter = newFilter;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> set(String key, String value) {
+    public ReadBuilderImpl<D, S, F> set(String key, String value) {
       properties.put(key, value);
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> reuseContainers() {
+    public ReadBuilderImpl<D, S, F> reuseContainers() {
       this.reuseContainers = true;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> recordsPerBatch(int numRowsPerBatch) {
+    public ReadBuilderImpl<D, S, F> recordsPerBatch(int numRowsPerBatch) {
       this.maxRecordsPerBatch = numRowsPerBatch;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> nameMapping(NameMapping newNameMapping) {
+    public ReadBuilderImpl<D, S, F> nameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> setRootType(Class<? extends StructLike> rootClass) {
+    public ReadBuilderImpl<D, S, F> setRootType(Class<? extends StructLike> rootClass) {
       throw new UnsupportedOperationException("Custom types are not yet supported");
     }
 
     @Override
-    public ReadBuilderImpl<D, F> setCustomType(
+    public ReadBuilderImpl<D, S, F> setCustomType(
         int fieldId, Class<? extends StructLike> structClass) {
       throw new UnsupportedOperationException("Custom types are not yet supported");
     }
 
     @Override
-    public ReadBuilderImpl<D, F> fileEncryptionKey(ByteBuffer encryptionKey) {
+    public ReadBuilderImpl<D, S, F> fileEncryptionKey(ByteBuffer encryptionKey) {
       this.fileEncryptionKey = encryptionKey;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> fileAADPrefix(ByteBuffer aadPrefix) {
+    public ReadBuilderImpl<D, S, F> fileAADPrefix(ByteBuffer aadPrefix) {
       this.fileAADPrefix = aadPrefix;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D, F> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
+    public ReadBuilderImpl<D, S, F> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
       this.constantFieldAccessors = newConstantFieldAccessors;
       return this;
     }

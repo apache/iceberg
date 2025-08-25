@@ -33,6 +33,7 @@ import org.apache.iceberg.parquet.ParquetFormatModel;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
@@ -62,7 +63,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Map<Integer, ?> idToConstant,
       SparkDeleteFilter deleteFilter) {
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
-    ReadBuilder<ColumnarBatch> readBuilder =
+    ReadBuilder<ColumnarBatch, StructType> readBuilder =
         FormatModelRegistry.readBuilder(format, SparkFormatModels.VECTORIZED_MODEL_NAME, inputFile);
     if (parquetConf != null) {
       readBuilder =

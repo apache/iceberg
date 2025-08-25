@@ -37,18 +37,18 @@ import org.apache.iceberg.util.ArrayUtil;
  *
  * @param <D> the type of data records the writer will accept
  */
-public interface EqualityDeleteWriteBuilder<D>
-    extends ContentFileWriteBuilder<EqualityDeleteWriteBuilder<D>> {
+public interface EqualityDeleteWriteBuilder<D, S>
+    extends ContentFileWriteBuilder<EqualityDeleteWriteBuilder<D, S>, S> {
   /** Sets the row schema for the delete writers. */
-  EqualityDeleteWriteBuilder<D> rowSchema(Schema rowSchema);
+  EqualityDeleteWriteBuilder<D, S> rowSchema(Schema rowSchema);
 
   /** Sets the equality field ids for the equality delete writer. */
-  default EqualityDeleteWriteBuilder<D> equalityFieldIds(List<Integer> fieldIds) {
+  default EqualityDeleteWriteBuilder<D, S> equalityFieldIds(List<Integer> fieldIds) {
     return equalityFieldIds(ArrayUtil.toIntArray(fieldIds));
   }
 
   /** Sets the equality field ids for the equality delete writer. */
-  EqualityDeleteWriteBuilder<D> equalityFieldIds(int... fieldIds);
+  EqualityDeleteWriteBuilder<D, S> equalityFieldIds(int... fieldIds);
 
   /**
    * Creates an equality-based delete file writer configured with the current builder settings.

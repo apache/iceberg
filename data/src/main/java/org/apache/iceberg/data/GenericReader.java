@@ -34,6 +34,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionUtil;
 
 class GenericReader implements Serializable {
@@ -88,7 +89,7 @@ class GenericReader implements Serializable {
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
-    ReadBuilder<Record> builder =
+    ReadBuilder<Record, Types.StructType> builder =
         FormatModelRegistry.readBuilder(
             task.file().format(), GenericFormatModels.MODEL_NAME, input);
     if (reuseContainers) {

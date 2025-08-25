@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
@@ -221,7 +222,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     LOG.trace("Opening delete file {}", deleteFile.location());
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
-    ReadBuilder<Record> builder =
+    ReadBuilder<Record, Types.StructType> builder =
         FormatModelRegistry.readBuilder(format, GenericFormatModels.MODEL_NAME, inputFile);
     return builder.project(projection).reuseContainers().filter(filter).build();
   }

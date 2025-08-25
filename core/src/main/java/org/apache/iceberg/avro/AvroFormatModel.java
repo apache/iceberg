@@ -21,7 +21,6 @@ package org.apache.iceberg.avro;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.FileFormat;
@@ -31,17 +30,17 @@ import org.apache.iceberg.io.FormatModel;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 
-public class AvroFormatModel<D> implements FormatModel<D> {
+public class AvroFormatModel<D, S> implements FormatModel<D, S> {
   private final String objectModelName;
   private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
-  private final BiFunction<Schema, org.apache.avro.Schema, DatumWriter<D>> writerFunction;
-  private final Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter;
+  private final BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction;
+  private final Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter;
 
   public AvroFormatModel(
       String objectModelName,
       BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
-      BiFunction<Schema, org.apache.avro.Schema, DatumWriter<D>> writerFunction,
-      Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter) {
+      BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction,
+      Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.writerFunction = writerFunction;
@@ -59,17 +58,17 @@ public class AvroFormatModel<D> implements FormatModel<D> {
   }
 
   @Override
-  public org.apache.iceberg.io.WriteBuilder<D> writeBuilder(OutputFile outputFile) {
-    return new Avro.WriteBuilderImpl<D>(outputFile).writerFunction(writerFunction);
+  public org.apache.iceberg.io.WriteBuilder<D, S> writeBuilder(OutputFile outputFile) {
+    return new Avro.WriteBuilderImpl<D, S>(outputFile).writerFunction(writerFunction);
   }
 
   @Override
   public Function<PositionDelete<D>, D> positionDeleteConverter(Schema schema) {
-    return positionDeleteConverter.get();
+    return positionDeleteConverter.apply(schema);
   }
 
   @Override
-  public org.apache.iceberg.io.ReadBuilder<D> readBuilder(InputFile inputFile) {
+  public org.apache.iceberg.io.ReadBuilder<D, S> readBuilder(InputFile inputFile) {
     return new Avro.ReadBuilderImpl(inputFile).readerFunction(readerFunction);
   }
 }

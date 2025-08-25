@@ -30,6 +30,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
   BaseRowReader(
@@ -49,7 +50,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Expression residual,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    ReadBuilder<InternalRow> reader =
+    ReadBuilder<InternalRow, StructType> reader =
         FormatModelRegistry.readBuilder(format, SparkFormatModels.MODEL_NAME, file);
     return reader
         .project(projection)

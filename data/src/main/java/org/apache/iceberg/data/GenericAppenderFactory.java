@@ -38,6 +38,7 @@ import org.apache.iceberg.io.WriteBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 
 /** Factory to create a new {@link FileAppender} to write {@link Record}s. */
 public class GenericAppenderFactory implements FileAppenderFactory<Record> {
@@ -127,7 +128,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      WriteBuilder<Record> builder =
+      WriteBuilder<Record, Types.StructType> builder =
           FormatModelRegistry.writeBuilder(
               fileFormat, GenericFormatModels.MODEL_NAME, encryptedOutputFile);
       return builder.schema(schema).set(config).metricsConfig(metricsConfig).overwrite().build();
@@ -142,7 +143,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig =
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
     try {
-      DataWriteBuilder<Record> builder =
+      DataWriteBuilder<Record, Types.StructType> builder =
           FormatModelRegistry.dataWriteBuilder(format, GenericFormatModels.MODEL_NAME, file);
       return builder
           .schema(schema)
@@ -171,7 +172,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      EqualityDeleteWriteBuilder<Record> builder =
+      EqualityDeleteWriteBuilder<Record, Types.StructType> builder =
           FormatModelRegistry.equalityDeleteWriteBuilder(
               format, GenericFormatModels.MODEL_NAME, file);
       return builder
@@ -199,7 +200,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
             : MetricsConfig.fromProperties(config);
 
     try {
-      PositionDeleteWriteBuilder<Record> builder =
+      PositionDeleteWriteBuilder<Record, Types.StructType> builder =
           FormatModelRegistry.positionDeleteWriteBuilder(
               format, GenericFormatModels.MODEL_NAME, file);
       return builder

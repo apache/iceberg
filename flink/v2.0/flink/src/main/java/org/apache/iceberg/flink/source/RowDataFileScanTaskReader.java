@@ -114,7 +114,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     if (task.isDataTask()) {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
-      ReadBuilder<RowData> builder =
+      ReadBuilder<RowData, RowType> builder =
           FormatModelRegistry.readBuilder(
               task.file().format(),
               FlinkFormatModels.MODEL_NAME,

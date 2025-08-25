@@ -19,9 +19,7 @@
 package org.apache.iceberg.orc;
 
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -30,19 +28,19 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.orc.TypeDescription;
 
-public class ORCFormatModel<D> implements FormatModel<D> {
+public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   private final String objectModelName;
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D> batchReaderFunction;
-  private final BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction;
-  private final Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter;
+  private final WriterFunction<S> writerFunction;
+  private final Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter;
 
   private ORCFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D> batchReaderFunction,
-      BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction,
-      Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter) {
+      WriterFunction<S> writerFunction,
+      Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
     this.objectModelName = objectModelName;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
@@ -53,8 +51,8 @@ public class ORCFormatModel<D> implements FormatModel<D> {
   public ORCFormatModel(
       String objectModelName,
       ReaderFunction<D> readerFunction,
-      BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction,
-      Supplier<Function<PositionDelete<D>, D>> positionDeleteConverter) {
+      WriterFunction<S> writerFunction,
+      Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
     this(objectModelName, readerFunction, null, writerFunction, positionDeleteConverter);
   }
 
@@ -73,21 +71,21 @@ public class ORCFormatModel<D> implements FormatModel<D> {
   }
 
   @Override
-  public org.apache.iceberg.io.WriteBuilder<D> writeBuilder(OutputFile outputFile) {
-    return new ORC.WriteBuilderImpl<D>(outputFile).writerFunction(writerFunction);
+  public org.apache.iceberg.io.WriteBuilder<D, S> writeBuilder(OutputFile outputFile) {
+    return new ORC.WriteBuilderImpl<D, S>(outputFile).writerFunction(writerFunction);
   }
 
   @Override
   public Function<PositionDelete<D>, D> positionDeleteConverter(Schema schema) {
-    return positionDeleteConverter.get();
+    return positionDeleteConverter.apply(schema);
   }
 
   @Override
-  public org.apache.iceberg.io.ReadBuilder<D> readBuilder(InputFile inputFile) {
+  public org.apache.iceberg.io.ReadBuilder<D, S> readBuilder(InputFile inputFile) {
     if (batchReaderFunction != null) {
-      return new ORC.ReadBuilderImpl<D>(inputFile).batchReaderFunction(batchReaderFunction);
+      return new ORC.ReadBuilderImpl<D, S>(inputFile).batchReaderFunction(batchReaderFunction);
     } else {
-      return new ORC.ReadBuilderImpl<D>(inputFile).readerFunction(readerFunction);
+      return new ORC.ReadBuilderImpl<D, S>(inputFile).readerFunction(readerFunction);
     }
   }
 
@@ -99,5 +97,9 @@ public class ORCFormatModel<D> implements FormatModel<D> {
   public interface BatchReaderFunction<D> {
     OrcBatchReader<D> read(
         Schema schema, TypeDescription messageType, Map<Integer, ?> constantFieldAccessors);
+  }
+
+  public interface WriterFunction<E> {
+    OrcRowWriter<?> write(Schema schema, TypeDescription messageType, E nativeSchema);
   }
 }

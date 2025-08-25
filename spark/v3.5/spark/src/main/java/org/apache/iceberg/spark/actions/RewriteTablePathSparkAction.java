@@ -67,6 +67,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.api.java.function.MapFunction;
@@ -675,7 +676,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private static CloseableIterable<Record> positionDeletesReader(
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
-    ReadBuilder<Record> builder =
+    ReadBuilder<Record, Types.StructType> builder =
         FormatModelRegistry.readBuilder(format, GenericFormatModels.MODEL_NAME, inputFile);
     return builder.project(deleteSchema).reuseContainers().build();
   }
@@ -687,7 +688,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       StructLike partition,
       Schema rowSchema)
       throws IOException {
-    PositionDeleteWriteBuilder<Record> builder =
+    PositionDeleteWriteBuilder<Record, Types.StructType> builder =
         FormatModelRegistry.positionDeleteWriteBuilder(
             format,
             GenericFormatModels.MODEL_NAME,

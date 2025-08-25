@@ -74,7 +74,7 @@ public final class FormatModelRegistry {
           "org.apache.iceberg.flink.data.FlinkFormatModels",
           "org.apache.iceberg.spark.source.SparkFormatModels");
 
-  private static final Map<Pair<FileFormat, String>, FormatModel<?>> FORMAT_MODELS =
+  private static final Map<Pair<FileFormat, String>, FormatModel<?, ?>> FORMAT_MODELS =
       Maps.newConcurrentMap();
 
   private FormatModelRegistry() {}
@@ -95,7 +95,7 @@ public final class FormatModelRegistry {
    * @throws IllegalArgumentException if a factory is already registered for the combination of
    *     {@link FormatModel#format()} and {@link FormatModel#modelName()}
    */
-  public static void register(FormatModel<?> formatModel) {
+  public static void register(FormatModel<?, ?> formatModel) {
     Pair<FileFormat, String> key = Pair.of(formatModel.format(), formatModel.modelName());
     Preconditions.checkArgument(
         !FORMAT_MODELS.containsKey(key),
@@ -139,9 +139,9 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the reader will produce
    * @return a configured reader builder for the specified format and object model
    */
-  public static <D> ReadBuilder<D> readBuilder(
+  public static <D, S> ReadBuilder<D, S> readBuilder(
       FileFormat format, String modelName, InputFile inputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
+    FormatModel<D, S> factory = factoryFor(format, modelName);
     return factory.readBuilder(inputFile);
   }
 
@@ -158,9 +158,9 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the writer will accept
    * @return a configured writer builder for creating the appender
    */
-  public static <D> WriteBuilder<D> writeBuilder(
+  public static <D, S> WriteBuilder<D, S> writeBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
+    FormatModel<D, S> factory = factoryFor(format, modelName);
     return factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
   }
 
@@ -178,10 +178,10 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the writer will accept
    * @return a configured data write builder for creating a {@link DataWriter}
    */
-  public static <D> DataWriteBuilder<D> dataWriteBuilder(
+  public static <D, S> DataWriteBuilder<D, S> dataWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<D> writeBuilder =
+    FormatModel<D, S> factory = factoryFor(format, modelName);
+    WriteBuilder<D, S> writeBuilder =
         factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
     return ContentFileWriteBuilderImpl.forDataFile(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
@@ -201,10 +201,10 @@ public final class FormatModelRegistry {
    * @param <D> the type of data records the writer will accept
    * @return a configured delete write builder for creating an {@link EqualityDeleteWriter}
    */
-  public static <D> EqualityDeleteWriteBuilder<D> equalityDeleteWriteBuilder(
+  public static <D, S> EqualityDeleteWriteBuilder<D, S> equalityDeleteWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<D> writeBuilder =
+    FormatModel<D, S> factory = factoryFor(format, modelName);
+    WriteBuilder<D, S> writeBuilder =
         factory
             .writeBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.EQUALITY_DELETES);
@@ -227,10 +227,10 @@ public final class FormatModelRegistry {
    *     will accept
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  public static <D> PositionDeleteWriteBuilder<D> positionDeleteWriteBuilder(
+  public static <D, S> PositionDeleteWriteBuilder<D, S> positionDeleteWriteBuilder(
       FileFormat format, String modelName, EncryptedOutputFile outputFile) {
-    FormatModel<D> factory = factoryFor(format, modelName);
-    WriteBuilder<D> writeBuilder =
+    FormatModel<D, S> factory = factoryFor(format, modelName);
+    WriteBuilder<D, S> writeBuilder =
         factory
             .writeBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.POSITION_DELETES);
@@ -242,7 +242,7 @@ public final class FormatModelRegistry {
   }
 
   @SuppressWarnings("unchecked")
-  private static <D> FormatModel<D> factoryFor(FileFormat format, String modelName) {
-    return ((FormatModel<D>) FORMAT_MODELS.get(Pair.of(format, modelName)));
+  private static <D, S> FormatModel<D, S> factoryFor(FileFormat format, String modelName) {
+    return ((FormatModel<D, S>) FORMAT_MODELS.get(Pair.of(format, modelName)));
   }
 }

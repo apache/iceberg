@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -35,13 +34,14 @@ import org.apache.iceberg.data.DataWriteBuilder;
 import org.apache.iceberg.data.EqualityDeleteWriteBuilder;
 import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.data.PositionDeleteWriteBuilder;
-import org.apache.iceberg.data.TransformingWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.data.FlinkFormatModels;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
@@ -58,7 +58,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private final Schema posDeleteRowSchema;
   private final Table table;
 
-  private Function<RowData, RowData> rowTransformer = null;
+  private RowType eqDeleteFlinkSchema = null;
+  private RowType posDeleteFlinkSchema = null;
 
   public FlinkAppenderFactory(
       Table table,
@@ -80,26 +81,38 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     this.posDeleteRowSchema = posDeleteRowSchema;
   }
 
-  private Function<RowData, RowData> lazyRowTransformer() {
-    if (rowTransformer == null) {
-      this.rowTransformer = RowDataTransformerUtil.transformer(flinkSchema, schema.asStruct());
+  private RowType lazyEqDeleteFlinkSchema() {
+    if (eqDeleteFlinkSchema == null) {
+      Preconditions.checkNotNull(eqDeleteRowSchema, "Equality delete row schema shouldn't be null");
+      this.eqDeleteFlinkSchema = FlinkSchemaUtil.convert(eqDeleteRowSchema);
     }
+    return eqDeleteFlinkSchema;
+  }
 
-    return rowTransformer;
+  private RowType lazyPosDeleteFlinkSchema() {
+    if (posDeleteFlinkSchema == null) {
+      this.posDeleteFlinkSchema =
+          FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
+    }
+    return this.posDeleteFlinkSchema;
   }
 
   @Override
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      WriteBuilder<RowData> builder =
+      WriteBuilder<RowData, RowType> builder =
           FormatModelRegistry.writeBuilder(
               format,
               FlinkFormatModels.MODEL_NAME,
               EncryptedFiles.plainAsEncryptedOutput(outputFile));
-      return TransformingWriters.of(
-          builder.set(props).schema(schema).metricsConfig(metricsConfig).overwrite().build(),
-          lazyRowTransformer());
+      return builder
+          .set(props)
+          .schema(schema)
+          .inputSchema(flinkSchema)
+          .metricsConfig(metricsConfig)
+          .overwrite()
+          .build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -110,19 +123,18 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      DataWriteBuilder<RowData> builder =
+      DataWriteBuilder<RowData, RowType> builder =
           FormatModelRegistry.dataWriteBuilder(format, FlinkFormatModels.MODEL_NAME, file);
-      return TransformingWriters.of(
-          builder
-              .set(props)
-              .schema(schema)
-              .metricsConfig(metricsConfig)
-              .overwrite()
-              .spec(spec)
-              .partition(partition)
-              .keyMetadata(file.keyMetadata())
-              .build(),
-          lazyRowTransformer());
+      return builder
+          .set(props)
+          .schema(schema)
+          .inputSchema(flinkSchema)
+          .metricsConfig(metricsConfig)
+          .overwrite()
+          .spec(spec)
+          .partition(partition)
+          .keyMetadata(file.keyMetadata())
+          .build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -140,21 +152,20 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      EqualityDeleteWriteBuilder<RowData> builder =
+      EqualityDeleteWriteBuilder<RowData, RowType> builder =
           FormatModelRegistry.equalityDeleteWriteBuilder(
               format, FlinkFormatModels.MODEL_NAME, outputFile);
-      return TransformingWriters.of(
-          builder
-              .overwrite()
-              .set(props)
-              .metricsConfig(metricsConfig)
-              .partition(partition)
-              .rowSchema(eqDeleteRowSchema)
-              .spec(spec)
-              .keyMetadata(outputFile.keyMetadata())
-              .equalityFieldIds(equalityFieldIds)
-              .build(),
-          row -> row);
+      return builder
+          .overwrite()
+          .set(props)
+          .metricsConfig(metricsConfig)
+          .partition(partition)
+          .rowSchema(eqDeleteRowSchema)
+          .inputSchema(lazyEqDeleteFlinkSchema())
+          .spec(spec)
+          .keyMetadata(outputFile.keyMetadata())
+          .equalityFieldIds(equalityFieldIds)
+          .build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -165,20 +176,19 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       EncryptedOutputFile outputFile, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
     try {
-      PositionDeleteWriteBuilder<RowData> builder =
+      PositionDeleteWriteBuilder<RowData, RowType> builder =
           FormatModelRegistry.positionDeleteWriteBuilder(
               format, FlinkFormatModels.MODEL_NAME, outputFile);
-      return TransformingWriters.of(
-          builder
-              .overwrite()
-              .set(props)
-              .metricsConfig(metricsConfig)
-              .partition(partition)
-              .rowSchema(posDeleteRowSchema)
-              .spec(spec)
-              .keyMetadata(outputFile.keyMetadata())
-              .build(),
-          row -> row);
+      return builder
+          .overwrite()
+          .set(props)
+          .metricsConfig(metricsConfig)
+          .partition(partition)
+          .rowSchema(posDeleteRowSchema)
+          .inputSchema(lazyPosDeleteFlinkSchema())
+          .spec(spec)
+          .keyMetadata(outputFile.keyMetadata())
+          .build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

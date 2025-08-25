@@ -134,7 +134,7 @@ public class ORC {
    */
   @Deprecated
   public static class WriteBuilder {
-    private final WriteBuilderImpl<?> impl;
+    private final WriteBuilderImpl<?, ?> impl;
 
     private WriteBuilder(OutputFile file) {
       this.impl = new WriteBuilderImpl<>(file);
@@ -198,13 +198,14 @@ public class ORC {
     }
   }
 
-  static class WriteBuilderImpl<D> implements org.apache.iceberg.io.WriteBuilder<D> {
+  static class WriteBuilderImpl<D, S> implements org.apache.iceberg.io.WriteBuilder<D, S> {
     private final OutputFile file;
     private FileContent content;
     private final Configuration conf;
     private Schema schema = null;
+    private S inputSchema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
-    private BiFunction<Schema, TypeDescription, OrcRowWriter<D>> writerFunction;
+    private ORCFormatModel.WriterFunction<S> writerFunction;
     private final Map<String, byte[]> metadata = Maps.newHashMap();
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
@@ -220,8 +221,7 @@ public class ORC {
       }
     }
 
-    WriteBuilderImpl<D> writerFunction(
-        BiFunction<Schema, TypeDescription, OrcRowWriter<D>> newWriterFunction) {
+    WriteBuilderImpl<D, S> writerFunction(ORCFormatModel.WriterFunction<S> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -229,48 +229,54 @@ public class ORC {
     }
 
     @Override
-    public WriteBuilderImpl<D> set(String property, String value) {
+    public WriteBuilderImpl<D, S> set(String property, String value) {
       config.put(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> meta(String property, String value) {
+    public WriteBuilderImpl<D, S> meta(String property, String value) {
       metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> content(FileContent newContent) {
+    public WriteBuilderImpl<D, S> content(FileContent newContent) {
       this.content = newContent;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> schema(Schema newSchema) {
+    public WriteBuilderImpl<D, S> schema(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> overwrite() {
+    public WriteBuilderImpl<D, S> inputSchema(S newSchema) {
+      this.inputSchema = newSchema;
+      return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<D, S> overwrite() {
       this.overwrite = true;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> metricsConfig(MetricsConfig newMetricsConfig) {
+    public WriteBuilderImpl<D, S> metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
     }
 
     @Override
-    public WriteBuilderImpl<D> fileEncryptionKey(ByteBuffer encryptionKey) {
+    public WriteBuilderImpl<D, S> fileEncryptionKey(ByteBuffer encryptionKey) {
       throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
-    public WriteBuilderImpl<D> fileAADPrefix(ByteBuffer aadPrefix) {
+    public WriteBuilderImpl<D, S> fileAADPrefix(ByteBuffer aadPrefix) {
       throw new UnsupportedOperationException("Not supported");
     }
 
@@ -282,7 +288,7 @@ public class ORC {
         Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
         this.createWriterFunc =
             (icebergSchema, typeDescription) ->
-                writerFunction.apply(icebergSchema, typeDescription);
+                writerFunction.write(icebergSchema, typeDescription, inputSchema);
         switch (content) {
           case DATA:
             this.createContextFunc = Context::dataContext;
@@ -846,7 +852,7 @@ public class ORC {
    */
   @Deprecated
   public static class ReadBuilder {
-    private final ReadBuilderImpl<Object> impl;
+    private final ReadBuilderImpl<Object, Object> impl;
 
     private ReadBuilder(InputFile file) {
       this.impl = new ReadBuilderImpl<>(file);
@@ -931,7 +937,7 @@ public class ORC {
     }
   }
 
-  public static class ReadBuilderImpl<D> implements org.apache.iceberg.io.ReadBuilder<D> {
+  public static class ReadBuilderImpl<D, S> implements org.apache.iceberg.io.ReadBuilder<D, S> {
     private final InputFile file;
     private final Configuration conf;
     private Schema schema = null;
@@ -963,7 +969,7 @@ public class ORC {
       this.conf.setBoolean(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), false);
     }
 
-    ReadBuilderImpl<D> readerFunction(ORCFormatModel.ReaderFunction<D> newReaderFunction) {
+    ReadBuilderImpl<D, S> readerFunction(ORCFormatModel.ReaderFunction<D> newReaderFunction) {
       Preconditions.checkState(
           readerFunc == null && batchedReaderFunc == null && batchReaderFunction == null,
           "Cannot set multiple read builder functions");
@@ -971,7 +977,7 @@ public class ORC {
       return this;
     }
 
-    ReadBuilderImpl<D> batchReaderFunction(
+    ReadBuilderImpl<D, S> batchReaderFunction(
         ORCFormatModel.BatchReaderFunction<D> newReaderFunction) {
       Preconditions.checkState(
           readerFunc == null && batchedReaderFunc == null && readerFunction == null,
@@ -988,68 +994,68 @@ public class ORC {
      * @return this builder for method chaining
      */
     @Override
-    public ReadBuilderImpl<D> split(long newStart, long newLength) {
+    public ReadBuilderImpl<D, S> split(long newStart, long newLength) {
       this.start = newStart;
       this.length = newLength;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D> project(Schema newSchema) {
+    public ReadBuilderImpl<D, S> project(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D> set(String property, String value) {
+    public ReadBuilderImpl<D, S> set(String property, String value) {
       conf.set(property, value);
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D> reuseContainers() {
+    public ReadBuilderImpl<D, S> reuseContainers() {
       this.reuseContainers = true;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D> caseSensitive(boolean newFilterCaseSensitive) {
+    public ReadBuilderImpl<D, S> caseSensitive(boolean newFilterCaseSensitive) {
       OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newFilterCaseSensitive);
       this.filterCaseSensitive = newFilterCaseSensitive;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D> filter(Expression newFilter) {
+    public ReadBuilderImpl<D, S> filter(Expression newFilter) {
       this.filter = newFilter;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
+    public ReadBuilderImpl<D, S> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
       this.constantFieldAccessors = newConstantFieldAccessors;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D> recordsPerBatch(int numRowsPerBatch) {
+    public ReadBuilderImpl<D, S> recordsPerBatch(int numRowsPerBatch) {
       this.recordsPerBatch = numRowsPerBatch;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D> nameMapping(NameMapping newNameMapping) {
+    public ReadBuilderImpl<D, S> nameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
     }
 
     @Override
-    public ReadBuilderImpl<D> fileEncryptionKey(ByteBuffer encryptionKey) {
+    public ReadBuilderImpl<D, S> fileEncryptionKey(ByteBuffer encryptionKey) {
       throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
-    public ReadBuilderImpl<D> fileAADPrefix(ByteBuffer aadPrefix) {
+    public ReadBuilderImpl<D, S> fileAADPrefix(ByteBuffer aadPrefix) {
       throw new UnsupportedOperationException("Not supported");
     }
 

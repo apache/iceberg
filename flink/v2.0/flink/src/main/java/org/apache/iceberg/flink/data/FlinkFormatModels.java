@@ -18,40 +18,60 @@
  */
 package org.apache.iceberg.flink.data;
 
+import java.util.function.Function;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.types.RowKind;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.FormatModelRegistry;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.sink.RowDataTransformerUtil;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
 
 public class FlinkFormatModels {
+  private static final DeleteTransformer DELETE_TRANSFORMER = new DeleteTransformer();
+
   public static final String MODEL_NAME = "flink";
 
   public static void register() {
     FormatModelRegistry.register(
-        new ParquetFormatModel<>(
+        new ParquetFormatModel<RowData, RowType, Object>(
             MODEL_NAME,
             FlinkParquetReaders::buildReader,
-            (schema, messageType) ->
-                FlinkParquetWriters.buildWriter(FlinkSchemaUtil.convert(schema), messageType),
-            RowDataTransformerUtil::deleteTransformer));
+            (unused, messageType, rowType) -> FlinkParquetWriters.buildWriter(rowType, messageType),
+            DELETE_TRANSFORMER));
 
     FormatModelRegistry.register(
-        new AvroFormatModel<>(
+        new AvroFormatModel<RowData, RowType>(
             MODEL_NAME,
             FlinkPlannedAvroReader::create,
-            (schema, avroSchema) -> new FlinkAvroWriter(FlinkSchemaUtil.convert(schema)),
-            RowDataTransformerUtil::deleteTransformer));
+            (unused, rowType) -> new FlinkAvroWriter(rowType),
+            DELETE_TRANSFORMER));
 
     FormatModelRegistry.register(
-        new ORCFormatModel<>(
+        new ORCFormatModel<RowData, RowType>(
             MODEL_NAME,
             FlinkOrcReader::new,
-            (schema, messageType) ->
-                FlinkOrcWriter.buildWriter(FlinkSchemaUtil.convert(schema), schema),
-            RowDataTransformerUtil::deleteTransformer));
+            (schema, unused, rowType) -> FlinkOrcWriter.buildWriter(rowType, schema),
+            DELETE_TRANSFORMER));
   }
 
   private FlinkFormatModels() {}
+
+  private static class DeleteTransformer
+      implements Function<Schema, Function<PositionDelete<RowData>, RowData>> {
+    @Override
+    public Function<PositionDelete<RowData>, RowData> apply(Schema schema) {
+      GenericRowData deleteRecord = new GenericRowData(RowKind.INSERT, 3);
+      return delete -> {
+        deleteRecord.setField(0, StringData.fromString(delete.path().toString()));
+        deleteRecord.setField(1, delete.pos());
+        deleteRecord.setField(2, delete.row());
+        return deleteRecord;
+      };
+    }
+  }
 }

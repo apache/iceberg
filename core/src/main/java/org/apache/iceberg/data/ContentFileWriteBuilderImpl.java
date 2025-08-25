@@ -62,9 +62,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * @param <D> the type of data records the writer will accept
  */
 @SuppressWarnings("unchecked")
-abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>, D>
-    implements ContentFileWriteBuilder<B> {
-  private final WriteBuilder<D> writeBuilder;
+abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, S>, D, S>
+    implements ContentFileWriteBuilder<B, S> {
+  private final WriteBuilder<D, S> writeBuilder;
   private final String location;
   private final FileFormat format;
   private PartitionSpec spec = null;
@@ -72,18 +72,18 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
   private EncryptionKeyMetadata keyMetadata = null;
   private SortOrder sortOrder = null;
 
-  static <D> DataWriteBuilder<D> forDataFile(
-      WriteBuilder<D> writeBuilder, String location, FileFormat format) {
+  static <D, S> DataWriteBuilder<D, S> forDataFile(
+      WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
     return new DataFileWriteBuilder<>(writeBuilder, location, format);
   }
 
-  static <D> EqualityDeleteWriteBuilder<D> forEqualityDelete(
-      WriteBuilder<D> writeBuilder, String location, FileFormat format) {
+  static <D, S> EqualityDeleteWriteBuilder<D, S> forEqualityDelete(
+      WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
     return new EqualityDeleteFileWriteBuilder<>(writeBuilder, location, format);
   }
 
-  static <D> PositionDeleteWriteBuilder<D> forPositionDelete(
-      WriteBuilder<D> writeBuilder,
+  static <D, S> PositionDeleteWriteBuilder<D, S> forPositionDelete(
+      WriteBuilder<D, S> writeBuilder,
       String location,
       FileFormat format,
       Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
@@ -92,15 +92,21 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
   }
 
   private ContentFileWriteBuilderImpl(
-      WriteBuilder<D> writeBuilder, String location, FileFormat format) {
+      WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
     this.writeBuilder = writeBuilder;
     this.location = location;
     this.format = format;
   }
 
   @Override
-  public B schema(Schema fileSchema) {
-    writeBuilder.schema(fileSchema);
+  public B schema(Schema schema) {
+    writeBuilder.schema(schema);
+    return self();
+  }
+
+  @Override
+  public B inputSchema(S schema) {
+    writeBuilder.inputSchema(schema);
     return self();
   }
 
@@ -164,14 +170,16 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
     return self();
   }
 
-  private static class DataFileWriteBuilder<D>
-      extends ContentFileWriteBuilderImpl<DataWriteBuilder<D>, D> implements DataWriteBuilder<D> {
-    private DataFileWriteBuilder(WriteBuilder<D> writeBuilder, String location, FileFormat format) {
+  private static class DataFileWriteBuilder<D, S>
+      extends ContentFileWriteBuilderImpl<DataWriteBuilder<D, S>, D, S>
+      implements DataWriteBuilder<D, S> {
+    private DataFileWriteBuilder(
+        WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
     }
 
     @Override
-    public DataFileWriteBuilder<D> self() {
+    public DataFileWriteBuilder<D, S> self() {
       return this;
     }
 
@@ -193,30 +201,30 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
     }
   }
 
-  private static class EqualityDeleteFileWriteBuilder<D>
-      extends ContentFileWriteBuilderImpl<EqualityDeleteWriteBuilder<D>, D>
-      implements EqualityDeleteWriteBuilder<D> {
+  private static class EqualityDeleteFileWriteBuilder<D, S>
+      extends ContentFileWriteBuilderImpl<EqualityDeleteWriteBuilder<D, S>, D, S>
+      implements EqualityDeleteWriteBuilder<D, S> {
     private Schema rowSchema = null;
     private int[] equalityFieldIds = null;
 
     private EqualityDeleteFileWriteBuilder(
-        WriteBuilder<D> writeBuilder, String location, FileFormat format) {
+        WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
     }
 
     @Override
-    public EqualityDeleteFileWriteBuilder<D> self() {
+    public EqualityDeleteFileWriteBuilder<D, S> self() {
       return this;
     }
 
     @Override
-    public EqualityDeleteFileWriteBuilder<D> rowSchema(Schema schema) {
+    public EqualityDeleteFileWriteBuilder<D, S> rowSchema(Schema schema) {
       this.rowSchema = schema;
       return this;
     }
 
     @Override
-    public EqualityDeleteFileWriteBuilder<D> equalityFieldIds(int... fieldIds) {
+    public EqualityDeleteFileWriteBuilder<D, S> equalityFieldIds(int... fieldIds) {
       this.equalityFieldIds = fieldIds;
       return this;
     }
@@ -253,14 +261,14 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
     }
   }
 
-  private static class PositionDeleteFileWriteBuilder<D>
-      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder<D>, D>
-      implements PositionDeleteWriteBuilder<D> {
+  private static class PositionDeleteFileWriteBuilder<D, S>
+      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder<D, S>, D, S>
+      implements PositionDeleteWriteBuilder<D, S> {
     private final Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter;
     private Schema rowSchema = null;
 
     private PositionDeleteFileWriteBuilder(
-        WriteBuilder<D> writeBuilder,
+        WriteBuilder<D, S> writeBuilder,
         String location,
         FileFormat format,
         Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
@@ -269,12 +277,12 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
     }
 
     @Override
-    public PositionDeleteFileWriteBuilder<D> self() {
+    public PositionDeleteFileWriteBuilder<D, S> self() {
       return this;
     }
 
     @Override
-    public PositionDeleteFileWriteBuilder<D> rowSchema(Schema schema) {
+    public PositionDeleteFileWriteBuilder<D, S> rowSchema(Schema schema) {
       this.rowSchema = schema;
       return this;
     }

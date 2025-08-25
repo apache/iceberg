@@ -41,7 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  *
  * @param <T> type of the engine specific records
  */
-public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFactory<T> {
+public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriterFactory<T> {
   private final Table table;
   private final FileFormat dataFileFormat;
   private final String inputType;
@@ -53,6 +53,9 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
   private final SortOrder equalityDeleteSortOrder;
   private final Schema positionDeleteRowSchema;
   private final Map<String, String> writeProperties;
+  private final S inputSchema;
+  private final S equalityDeleteInputSchema;
+  private final S positionDeleteInputSchema;
 
   protected RegistryBasedFileWriterFactory(
       Table table,
@@ -65,7 +68,10 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
       Schema equalityDeleteRowSchema,
       SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema,
-      Map<String, String> writeProperties) {
+      Map<String, String> writeProperties,
+      S inputSchema,
+      S equalityDeleteInputSchema,
+      S positionDeleteInputSchema) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
     this.inputType = inputType;
@@ -77,6 +83,21 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
+    this.inputSchema = inputSchema;
+    this.equalityDeleteInputSchema = equalityDeleteInputSchema;
+    this.positionDeleteInputSchema = positionDeleteInputSchema;
+  }
+
+  protected S inputSchema() {
+    return inputSchema;
+  }
+
+  protected S equalityDeleteInputSchema() {
+    return equalityDeleteInputSchema;
+  }
+
+  protected S positionDeleteInputSchema() {
+    return positionDeleteInputSchema;
   }
 
   @Override
@@ -87,10 +108,11 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      DataWriteBuilder<T> builder =
+      DataWriteBuilder<T, S> builder =
           FormatModelRegistry.dataWriteBuilder(dataFileFormat, inputType, file);
       return builder
           .schema(dataSchema)
+          .inputSchema(inputSchema())
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
@@ -113,13 +135,14 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      EqualityDeleteWriteBuilder<T> builder =
+      EqualityDeleteWriteBuilder<T, S> builder =
           FormatModelRegistry.equalityDeleteWriteBuilder(deleteFileFormat, inputType, file);
       return builder
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
           .rowSchema(equalityDeleteRowSchema)
+          .inputSchema(equalityDeleteInputSchema())
           .equalityFieldIds(equalityFieldIds)
           .spec(spec)
           .partition(partition)
@@ -140,13 +163,14 @@ public abstract class RegistryBasedFileWriterFactory<T> implements FileWriterFac
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      PositionDeleteWriteBuilder<T> builder =
+      PositionDeleteWriteBuilder<T, S> builder =
           FormatModelRegistry.positionDeleteWriteBuilder(deleteFileFormat, inputType, file);
       return builder
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
           .rowSchema(positionDeleteRowSchema)
+          .inputSchema(positionDeleteInputSchema())
           .spec(spec)
           .partition(partition)
           .keyMetadata(keyMetadata)

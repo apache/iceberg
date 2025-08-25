@@ -312,7 +312,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           encryptionManager.decrypt(
               EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
-      ReadBuilder<T> readBuilder =
+      ReadBuilder<T, Object> readBuilder =
           FormatModelRegistry.readBuilder(file.format(), GenericFormatModels.MODEL_NAME, inputFile);
 
       if (reuseContainers) {

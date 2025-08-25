@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.function.Function;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.FormatModelRegistry;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
-import org.apache.iceberg.spark.InternalRowTransformerUtil;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcReader;
@@ -34,43 +36,62 @@ import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkFormatModels {
+  private static final DeleteTransformer DELETE_TRANSFORMER = new DeleteTransformer();
+
   public static final String MODEL_NAME = "spark";
   public static final String VECTORIZED_MODEL_NAME = "spark-vectorized";
 
   public static void register() {
     FormatModelRegistry.register(
-        new AvroFormatModel<>(
+        new AvroFormatModel<InternalRow, StructType>(
             MODEL_NAME,
             SparkPlannedAvroReader::create,
-            (schema, avroSchema) -> new SparkAvroWriter(SparkSchemaUtil.convert(schema)),
-            InternalRowTransformerUtil::deleteTransformer));
+            (avroSchema, inputSchema) -> new SparkAvroWriter(inputSchema),
+            DELETE_TRANSFORMER));
 
     FormatModelRegistry.register(
-        new ParquetFormatModel<InternalRow, DeleteFilter<InternalRow>>(
+        new ParquetFormatModel<InternalRow, StructType, DeleteFilter<InternalRow>>(
             MODEL_NAME,
             SparkParquetReaders::buildReader,
-            (icebergSchema, messageType) ->
+            (icebergSchema, messageType, inputType) ->
                 SparkParquetWriters.buildWriter(
                     SparkSchemaUtil.convert(icebergSchema), messageType),
-            InternalRowTransformerUtil::deleteTransformer));
+            DELETE_TRANSFORMER));
 
     FormatModelRegistry.register(
-        new ParquetFormatModel<ColumnarBatch, DeleteFilter<InternalRow>>(
+        new ParquetFormatModel<ColumnarBatch, StructType, DeleteFilter<InternalRow>>(
             VECTORIZED_MODEL_NAME, VectorizedSparkParquetReaders::buildReader));
 
     FormatModelRegistry.register(
         new ORCFormatModel<>(
             MODEL_NAME,
             SparkOrcReader::new,
-            SparkOrcWriter::new,
-            InternalRowTransformerUtil::deleteTransformer));
+            (schema, typeDescription, unused) -> new SparkOrcWriter(schema, typeDescription),
+            DELETE_TRANSFORMER));
 
     FormatModelRegistry.register(
         new ORCFormatModel<>(VECTORIZED_MODEL_NAME, VectorizedSparkOrcReaders::buildReader));
   }
 
   private SparkFormatModels() {}
+
+  private static class DeleteTransformer
+      implements Function<Schema, Function<PositionDelete<InternalRow>, InternalRow>> {
+    @Override
+    public Function<PositionDelete<InternalRow>, InternalRow> apply(Schema schema) {
+      GenericInternalRow deleteRecord = new GenericInternalRow(3);
+      return delete -> {
+        deleteRecord.update(0, UTF8String.fromString(delete.path().toString()));
+        deleteRecord.update(1, delete.pos());
+        deleteRecord.update(2, delete.row());
+        return deleteRecord;
+      };
+    }
+  }
 }

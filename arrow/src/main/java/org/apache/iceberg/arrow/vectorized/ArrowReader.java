@@ -336,7 +336,7 @@ public class ArrowReader extends CloseableGroup {
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
-        ReadBuilder<ColumnarBatch> builder =
+        ReadBuilder<ColumnarBatch, Object> builder =
             FormatModelRegistry.readBuilder(FileFormat.PARQUET, MODEL_NAME, location);
 
         if (reuseContainers) {
