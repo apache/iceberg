@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -82,7 +83,6 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       new ProcedureParameter[] {
         TABLE_PARAM,
         OLDER_THAN_PARAM,
-        LOCATION_PARAM,
         DRY_RUN_PARAM,
         MAX_CONCURRENT_DELETES_PARAM,
         FILE_LIST_VIEW_PARAM,
@@ -127,6 +127,9 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = toIdentifier(input.asString(TABLE_PARAM), TABLE_PARAM.name());
     Long olderThanMillis = input.asLong(OLDER_THAN_PARAM, null);
+    if (olderThanMillis != null) {
+      olderThanMillis = DateTimeUtil.microsToMillis(olderThanMillis);
+    }
     String location = input.asString(LOCATION_PARAM, null);
     boolean dryRun = input.asBoolean(DRY_RUN_PARAM, false);
     Integer maxConcurrentDeletes = input.asInt(MAX_CONCURRENT_DELETES_PARAM, null);
@@ -147,17 +150,18 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
     boolean prefixListing = input.asBoolean(PREFIX_LISTING_PARAM, false);
 
+    Long finalOlderThanMillis = olderThanMillis;
     return withIcebergTable(
         tableIdent,
         table -> {
           DeleteOrphanFilesSparkAction action = actions().deleteOrphanFiles(table);
 
-          if (olderThanMillis != null) {
+          if (finalOlderThanMillis != null) {
             boolean isTesting = Boolean.parseBoolean(spark().conf().get("spark.testing", "false"));
             if (!isTesting) {
-              validateInterval(olderThanMillis);
+              validateInterval(finalOlderThanMillis);
             }
-            action.olderThan(olderThanMillis);
+            action.olderThan(finalOlderThanMillis);
           }
 
           if (location != null) {
