@@ -1,23 +1,24 @@
 ---
-title: "Dell"
----
-<!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
 
+title: "Dell"
+-------------
+
+<!--
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Iceberg Dell Integration
 
@@ -31,8 +32,8 @@ See [Dell ECS](https://www.dell.com/en-us/dt/storage/ecs/index.htm) for more inf
 
 When using Dell ECS with Iceberg, these configuration parameters are required:
 
-| Name                     | Description                       |
-| ------------------------ | --------------------------------- |
+|           Name           |            Description            |
+|--------------------------|-----------------------------------|
 | ecs.s3.endpoint          | ECS S3 service endpoint           |
 | ecs.s3.access-key-id     | ECS Username                      |
 | ecs.s3.secret-access-key | S3 Secret Key                     |
@@ -40,8 +41,8 @@ When using Dell ECS with Iceberg, these configuration parameters are required:
 
 The warehouse should use the following formats:
 
-| Example                    | Description                                                     |
-| -------------------------- | --------------------------------------------------------------- |
+|          Example           |                           Description                           |
+|----------------------------|-----------------------------------------------------------------|
 | ecs://bucket-a             | Use the whole bucket as the data                                |
 | ecs://bucket-a/            | Use the whole bucket as the data. The last `/` is ignored.      |
 | ecs://bucket-a/namespace-a | Use a prefix to access the data only in this specific namespace |
@@ -78,7 +79,6 @@ Then, use `my_catalog` to access the data in ECS. You can use `SHOW NAMESPACES I
 The related problems of catalog usage:
 
 1. The `SparkSession.catalog` won't access the 3rd-party catalog of Spark in both Python and Scala, so please use DDL SQL to list all tables and namespaces.
-
 
 ### Flink
 
@@ -128,3 +128,4 @@ When you use the catalog with Dell ECS only, you should care about these limitat
 1. `RENAME` statements are supported without other protections. When you try to rename a table, you need to guarantee all commits are finished in the original table.
 2. `RENAME` statements only rename the table without moving any data files. This can lead to a table's data being stored in a path outside of the configured warehouse path.
 3. The CAS operations used by table commits are based on the checksum of the object. There is a very small probability of a checksum conflict.
+

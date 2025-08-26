@@ -1,22 +1,24 @@
 ---
+
 title: "Metrics Reporting"
----
+--------------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Metrics Reporting
 
@@ -25,6 +27,7 @@ As of 1.1.0 Iceberg supports the [`MetricsReporter`](https://github.com/apache/i
 ## Type of Reports
 
 ### ScanReport
+
 A [`ScanReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/ScanReport.java) carries metrics being collected during scan planning against a given table. Amongst some general information about the involved table, such as the snapshot id or the table name, it includes metrics like:
 
 * total scan planning duration
@@ -33,8 +36,8 @@ A [`ScanReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/
 * number of data/delete files scanned/skipped
 * number of equality/positional delete files scanned
 
-
 ### CommitReport
+
 A [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/CommitReport.java) carries metrics being collected after committing changes to a table (aka producing a snapshot). Amongst some general information about the involved table, such as the snapshot id or the table name, it includes metrics like:
 
 * total duration
@@ -42,7 +45,6 @@ A [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/jav
 * number of added/removed data/delete files
 * number of added/removed equality/positional delete files
 * number of added/removed equality/positional deletes
-
 
 ## Available Metrics Reporters
 
@@ -116,19 +118,18 @@ CommitReport{
         iceberg-version=Apache Iceberg 1.4.0-SNAPSHOT (commit 4868d2823004c8c256a50ea7c25cff94314cc135)}}
 ```
 
-
 ### [`RESTMetricsReporter`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/rest/RESTMetricsReporter.java)
 
 This is the default when using the [`RESTCatalog`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/rest/RESTCatalog.java) and its purpose is to send metrics to a REST server at the `/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics` endpoint as defined in the [REST OpenAPI spec](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml).
 
 Sending metrics via REST can be controlled with the `rest-metrics-reporting-enabled` (defaults to `true`) property.
 
-
 ## Implementing a custom Metrics Reporter
 
 Implementing the [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) API gives full flexibility in dealing with incoming [`MetricsReport`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReport.java) instances. For example, it would be possible to send results to a Prometheus endpoint or any other observability framework/system.
 
 Below is a short example illustrating an `InMemoryMetricsReporter` that stores reports in a list and makes them available:
+
 ```java
 public class InMemoryMetricsReporter implements MetricsReporter {
 
@@ -166,3 +167,4 @@ try (CloseableIterable<FileScanTask> fileScanTasks = tableScan.planFiles()) {
   // ...
 }
 ```
+

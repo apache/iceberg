@@ -1,21 +1,21 @@
 <!--
-  - Licensed to the Apache Software Foundation (ASF) under one
-  - or more contributor license agreements.  See the NOTICE file
-  - distributed with this work for additional information
-  - regarding copyright ownership.  The ASF licenses this file
-  - to you under the Apache License, Version 2.0 (the
-  - "License"); you may not use this file except in compliance
-  - with the License.  You may obtain a copy of the License at
-  -
-  -   http://www.apache.org/licenses/LICENSE-2.0
-  -
-  - Unless required by applicable law or agreed to in writing,
-  - software distributed under the License is distributed on an
-  - "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-  - KIND, either express or implied.  See the License for the
-  - specific language governing permissions and limitations
-  - under the License.
-  -->
+- Licensed to the Apache Software Foundation (ASF) under one
+- or more contributor license agreements.  See the NOTICE file
+- distributed with this work for additional information
+- regarding copyright ownership.  The ASF licenses this file
+- to you under the Apache License, Version 2.0 (the
+- "License"); you may not use this file except in compliance
+- with the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing,
+- software distributed under the License is distributed on an
+- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+- KIND, either express or implied.  See the License for the
+- specific language governing permissions and limitations
+- under the License.
+-->
 
 # Open API spec
 
@@ -43,7 +43,7 @@ The generated code is not being used in the project, but helps to see what the c
 
 # REST Compatibility Kit (RCK)
 
-The REST Compatibility Kit (RCK) is a Technology Compatibility Kit (TCK) implementation for the 
+The REST Compatibility Kit (RCK) is a Technology Compatibility Kit (TCK) implementation for the
 Iceberg REST Specification.  This includes a series of tests based on the Java reference
 implementation of the REST Catalog that can be executed against any REST server that implements the
 spec.
@@ -72,6 +72,7 @@ Java properties passed to the test must be prefixed with `rck.`, which can be us
 test configurations described below and any catalog client properties.
 
 An example of the same configuration using java system properties would look like the following:
+
 ```shell
 rck.uri=https://my_rest_server.io/                    ## -> uri=https://my_rest_server.io/
 rck.warehouse=test_warehouse                          ## -> warehouse=test_warehouse
@@ -82,11 +83,10 @@ rck.credential=<oauth_key>:<oauth_secret>             ## -> credential=<oauth_ke
 Some test behaviors are configurable depending on the catalog implementations.  Not all behaviors
 are strictly defined by the REST Specification.  The following are currently configurable:
 
-| config                        | default |
+|            config             | default |
 |-------------------------------|---------|
 | rck.requires-namespace-create | true    |
 | rck.supports-serverside-retry | true    |
-
 
 ## Running Compatibility Tests
 
@@ -103,3 +103,4 @@ so `-Drck.local=false` must be set to point to an external REST server.
  -Drck.warehouse=test_warehouse \
  -Drck.credential=<oauth_key>:<oauth_secret>
 ```
+

@@ -71,6 +71,10 @@ subprojects {
         removeUnusedImports()
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
+      flexmark {
+        target '**/*.md'
+        flexmark()
+      }
     }
   }
 

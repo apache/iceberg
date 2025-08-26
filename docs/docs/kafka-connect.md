@@ -1,22 +1,24 @@
 ---
+
 title: "Kafka Connect"
----
+----------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Kafka Connect
 
@@ -44,9 +46,11 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 ## Installation
 
 The connector zip archive is created as part of the Iceberg build. You can run the build via:
+
 ```bash
 ./gradlew -x test -x integrationTest clean build
 ```
+
 The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build/distributions`. There is
 one distribution that bundles the Hive Metastore client and related dependencies, and one that does not.
 Copy the distribution archive into the Kafka Connect plugins directory on all nodes.
@@ -58,7 +62,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 
 ## Configuration
 
-| Property                                   | Description                                                                                                      |
+|                  Property                  |                                                   Description                                                    |
 |--------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | iceberg.tables                             | Comma-separated list of destination tables                                                                       |
 | iceberg.tables.dynamic-enabled             | Set to `true` to route to a table specified in `routeField` instead of using `routeRegex`, default is `false`    |
@@ -126,6 +130,7 @@ catalog types, you need to instead set `iceberg.catalog.catalog-impl` to the nam
 
 NOTE: Use the distribution that includes the HMS client (or include the HMS client yourself). Use `S3FileIO` when
 using S3 for storage and `GCSFileIO` when using GCS (the default is `HadoopFileIO` with `HiveCatalog`).
+
 ```
 "iceberg.catalog.type": "hive",
 "iceberg.catalog.uri": "thrift://hive:9083",
@@ -178,11 +183,13 @@ If you're running Kafka Connect in a container, be sure to inject those values a
 [Azure Identity Client library for Java](https://learn.microsoft.com/en-us/java/api/overview/azure/identity-readme?view=azure-java-stable) for more information.
 
 An example of these would be:
+
 ```
 AZURE_CLIENT_ID=e564f687-7b89-4b48-80b8-111111111111
 AZURE_TENANT_ID=95f2f365-f5b7-44b1-88a1-111111111111
 AZURE_CLIENT_SECRET="XXX"
 ```
+
 Where the CLIENT_ID is the Application ID of a registered application under
 [App Registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade), the TENANT_ID is
 from your [Azure Tenant Properties](https://portal.azure.com/#view/Microsoft_AAD_IAM/TenantProperties.ReactView), and
@@ -240,6 +247,7 @@ This assumes the source topic already exists and is named `events`.
 
 If your Kafka cluster has `auto.create.topics.enable` set to `true` (the default), then the control topic will be
 automatically created. If not, then you will need to create the topic first. The default topic name is `control-iceberg`:
+
 ```bash
 bin/kafka-topics.sh  \
   --command-config command-config.props \
@@ -248,6 +256,7 @@ bin/kafka-topics.sh  \
   --topic control-iceberg \
   --partitions 1
 ```
+
 *NOTE: Clusters running on Confluent Cloud have `auto.create.topics.enable` set to `false` by default.*
 
 #### Iceberg catalog configuration
@@ -274,6 +283,7 @@ PARTITIONED BY (hours(ts))
 #### Connector config
 
 This example config connects to a Iceberg REST catalog.
+
 ```json
 {
   "name": "events-sink",
@@ -370,16 +380,17 @@ This project contains some SMTs that could be useful when transforming Kafka dat
 the Iceberg sink connector.
 
 ### CopyValue
+
 _(Experimental)_
 
 The `CopyValue` SMT copies a value from one field to a new field.
 
 #### Configuration
 
-| Property         | Description       |
-|------------------|-------------------|
-| source.field     | Source field name |
-| target.field     | Target field name |
+|   Property   |    Description    |
+|--------------|-------------------|
+| source.field | Source field name |
+| target.field | Target field name |
 
 #### Example
 
@@ -391,6 +402,7 @@ The `CopyValue` SMT copies a value from one field to a new field.
 ```
 
 ### DmsTransform
+
 _(Experimental)_
 
 The `DmsTransform` SMT transforms an AWS DMS formatted message for use by the sink's CDC feature.
@@ -402,6 +414,7 @@ It will promote the `data` element fields to top level and add the following met
 The SMT currently has no configuration.
 
 ### DebeziumTransform
+
 _(Experimental)_
 
 The `DebeziumTransform` SMT transforms a Debezium formatted message for use by the sink's CDC feature.
@@ -410,11 +423,12 @@ It will promote the `before` or `after` element fields to top level and add the 
 
 ##### Configuration
 
-| Property            | Description                                                                       |
-|---------------------|-----------------------------------------------------------------------------------|
-| cdc.target.pattern  | Pattern to use for setting the CDC target field value, default is `{db}.{table}`  |
+|      Property      |                                   Description                                    |
+|--------------------|----------------------------------------------------------------------------------|
+| cdc.target.pattern | Pattern to use for setting the CDC target field value, default is `{db}.{table}` |
 
 ### JsonToMapTransform
+
 _(Experimental)_
 
 The `JsonToMapTransform` SMT parses Strings as Json object payloads to infer schemas.  The iceberg-kafka-connect
@@ -430,14 +444,14 @@ Map (String) columns for the JSON objects.
 Note:
 
 - You must use the `stringConverter` as the `value.converter` setting for your connector, not `jsonConverter`
-    - It expects JSON objects (`{...}`) in those strings.
+  - It expects JSON objects (`{...}`) in those strings.
 - Message keys, tombstones, and headers are not transformed and are passed along as-is by the SMT
 
 ##### Configuration
 
-| Property             | Description  (default value)             |
-|----------------------|------------------------------------------|
-| json.root | (false) Boolean value to start at root   |
+| Property  |      Description  (default value)      |
+|-----------|----------------------------------------|
+| json.root | (false) Boolean value to start at root |
 
 The `transforms.IDENTIFIER_HERE.json.root` is meant for the most inconsistent data.  It will construct a Struct with a single field
 called `payload` with a Schema of `Map<String, String>`.
@@ -489,17 +503,18 @@ SinkRecord.value (Struct):
 ```
 
 ### KafkaMetadataTransform
+
 _(Experimental)_
 
 The `KafkaMetadata` injects `topic`, `partition`, `offset`, `timestamp` which are properties are the Kafka message.
 
 #### Configuration
 
-| Property       | Description (default value)                                                       |
+|    Property    |                            Description (default value)                            |
 |----------------|-----------------------------------------------------------------------------------|
-| field_name     | (_kafka_metadata) prefix for fields                                               | 
+| field_name     | (_kafka_metadata) prefix for fields                                               |
 | nested         | (false) if true, nests data on a struct else adds to top level as prefixed fields |
-| external_field | (none) appends a constant `key,value` to the metadata (e.g. cluster name)         | 
+| external_field | (none) appends a constant `key,value` to the metadata (e.g. cluster name)         |
 
 If `nested` is on:
 
@@ -509,6 +524,7 @@ If `nested` is off:
 `_kafka_metadata_topic`, `_kafka_metadata_partition`, `_kafka_metadata_offset`, `_kafka_metadata_timestamp`
 
 ### MongoDebeziumTransform
+
 _(Experimental)_
 
 The `MongoDebeziumTransform` SMT transforms a Mongo Debezium formatted message with `before`/`after` BSON
@@ -519,9 +535,9 @@ catalog type.
 
 #### Configuration
 
-| Property            | Description                                      |
+|      Property       |                   Description                    |
 |---------------------|--------------------------------------------------|
-| array_handling_mode  | `array` or `document` to set array handling mode |
+| array_handling_mode | `array` or `document` to set array handling mode |
 
 Value array (the default) will encode arrays as the array datatype. It is user’s responsibility to ensure that
 all elements for a given array instance are of the same type. This option is a restricting one but offers

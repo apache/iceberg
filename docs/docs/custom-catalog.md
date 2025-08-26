@@ -1,22 +1,24 @@
 ---
+
 title: "Java Custom Catalog"
----
+----------------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Custom Catalog
 
@@ -29,9 +31,11 @@ It's possible to read an iceberg table either from an hdfs path or from a hive t
 - [Custom IcebergSource](#custom-icebergsource)
 
 ### Custom table operations implementation
+
 Extend `BaseMetastoreTableOperations` to provide implementation on how to read and write metadata
 
 Example:
+
 ```java
 class CustomTableOperations extends BaseMetastoreTableOperations {
   private String dbName;
@@ -85,9 +89,11 @@ A `TableOperations` instance is usually obtained by calling `Catalog.newTableOps
 See the next section about implementing and loading a custom catalog.
 
 ### Custom catalog implementation
+
 Extend `BaseMetastoreCatalog` to provide default warehouse locations and instantiate `CustomTableOperations`
 
 Example:
+
 ```java
 public class CustomCatalog extends BaseMetastoreCatalog {
 
@@ -158,6 +164,7 @@ If your catalog must read Hadoop configuration to access certain environment pro
 Extend `FileIO` and provide implementation to read and write data files
 
 Example:
+
 ```java
 public class CustomFileIO implements FileIO {
 
@@ -205,6 +212,7 @@ If your `FileIO` must read Hadoop configuration to access certain environment pr
 Extend `LocationProvider` and provide implementation to determine the file path to write data
 
 Example:
+
 ```java
 public class CustomLocationProvider implements LocationProvider {
 
@@ -233,6 +241,7 @@ If you are already implementing your own catalog, you can override `TableOperati
 To use a different custom location provider for a specific table, specify the implementation when creating the table using table property `write.location-provider.impl`
 
 Example:
+
 ```sql
 CREATE TABLE hive.default.my_table (
   id bigint,
@@ -246,9 +255,11 @@ PARTITIONED BY (category);
 ```
 
 ### Custom IcebergSource
+
 Extend `IcebergSource` and provide implementation to read from `CustomCatalog`
 
 Example:
+
 ```java
 public class CustomIcebergSource extends IcebergSource {
 

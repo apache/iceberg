@@ -1,29 +1,31 @@
 ---
+
 title: "JDBC"
----
+-------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Iceberg JDBC Integration
 
 ## JDBC Catalog
 
 Iceberg supports using a table in a relational database to manage Iceberg tables through JDBC.
-The database that JDBC connects to must support atomic transaction to allow the JDBC catalog implementation to 
+The database that JDBC connects to must support atomic transaction to allow the JDBC catalog implementation to
 properly support atomic Iceberg table commits and read serializable isolation.
 
 ### Configurations
@@ -31,13 +33,12 @@ properly support atomic Iceberg table commits and read serializable isolation.
 Because each database and database service provider might require different configurations,
 the JDBC catalog allows arbitrary configurations through:
 
-| Property             | Default                           | Description                                            |
-| -------------------- | --------------------------------- | ------------------------------------------------------ |
-| uri                  |                                   | the JDBC connection string |
-| jdbc.<property_key\> |                                   | any key value pairs to configure the JDBC connection | 
+|       Property       | Default |                     Description                      |
+|----------------------|---------|------------------------------------------------------|
+| uri                  |         | the JDBC connection string                           |
+| jdbc.<property_key\> |         | any key value pairs to configure the JDBC connection |
 
 ### Examples
-
 
 #### Spark
 
@@ -68,3 +69,4 @@ properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://warehouse/path");
 Configuration hadoopConf = new Configuration(); // configs if you use HadoopFileIO
 JdbcCatalog catalog = CatalogUtil.buildIcebergCatalog("test_jdbc_catalog", properties, hadoopConf);
 ```
+

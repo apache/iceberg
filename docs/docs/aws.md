@@ -1,26 +1,28 @@
 ---
+
 title: "AWS"
----
+------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
- 
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
+
 # Iceberg AWS Integrations
 
-Iceberg provides integration with different AWS services through the `iceberg-aws` module. 
+Iceberg provides integration with different AWS services through the `iceberg-aws` module.
 This section describes how to use Iceberg with AWS.
 
 ## Enabling AWS Integration
@@ -28,7 +30,7 @@ This section describes how to use Iceberg with AWS.
 The `iceberg-aws` module is bundled with Spark and Flink engine runtimes for all versions from `0.11.0` onwards.
 However, the AWS clients are not bundled so that you can use the same client version as your application.
 You will need to provide the AWS v2 SDK because that is what Iceberg depends on.
-You can choose to use the [AWS SDK bundle](https://mvnrepository.com/artifact/software.amazon.awssdk/bundle), 
+You can choose to use the [AWS SDK bundle](https://mvnrepository.com/artifact/software.amazon.awssdk/bundle),
 or individual AWS client packages (Glue, S3, DynamoDB, KMS, STS) if you would like to have a minimal dependency footprint.
 
 All the default AWS clients use the [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client)
@@ -133,12 +135,12 @@ There are multiple different options that users can choose to build an Iceberg c
 ### Glue Catalog
 
 Iceberg enables the use of [AWS Glue](https://aws.amazon.com/glue) as the `Catalog` implementation.
-When used, an Iceberg namespace is stored as a [Glue Database](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-databases.html), 
+When used, an Iceberg namespace is stored as a [Glue Database](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-databases.html),
 an Iceberg table is stored as a [Glue Table](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html),
-and every Iceberg table version is stored as a [Glue TableVersion](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html#aws-glue-api-catalog-tables-TableVersion). 
+and every Iceberg table version is stored as a [Glue TableVersion](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html#aws-glue-api-catalog-tables-TableVersion).
 You can start using Glue catalog by specifying the `catalog-impl` as `org.apache.iceberg.aws.glue.GlueCatalog`
 or by setting `catalog-type` as `glue`,
-just like what is shown in the [enabling AWS integration](#enabling-aws-integration) section above. 
+just like what is shown in the [enabling AWS integration](#enabling-aws-integration) section above.
 More details about loading the catalog can be found in individual engine pages, such as [Spark](spark-configuration.md#loading-a-custom-catalog) and [Flink](flink.md#creating-catalogs-and-using-catalogs).
 
 #### Glue Catalog ID
@@ -147,7 +149,7 @@ There is a unique Glue metastore in each AWS account and each AWS region.
 By default, `GlueCatalog` chooses the Glue metastore to use based on the user's default AWS client credential and region setup.
 You can specify the Glue catalog ID through `glue.id` catalog property to point to a Glue catalog in a different AWS account.
 The Glue catalog ID is your numeric AWS account ID.
-If the Glue catalog is in a different region, you should configure your AWS client to point to the correct region, 
+If the Glue catalog is in a different region, you should configure your AWS client to point to the correct region,
 see more details in [AWS client customization](#aws-client-customization).
 
 #### Skip Archive
@@ -169,19 +171,18 @@ and table name validation are skipped, there is no guarantee that downstream sys
 #### Optimistic Locking
 
 By default, Iceberg uses Glue's optimistic locking for concurrent updates to a table.
-With optimistic locking, each table has a version id. 
-If users retrieve the table metadata, Iceberg records the version id of that table. 
-Users can update the table as long as the version ID on the server side remains unchanged. 
-Version mismatch occurs if someone else modified the table before you did, causing an update failure. 
+With optimistic locking, each table has a version id.
+If users retrieve the table metadata, Iceberg records the version id of that table.
+Users can update the table as long as the version ID on the server side remains unchanged.
+Version mismatch occurs if someone else modified the table before you did, causing an update failure.
 Iceberg then refreshes metadata and checks if there is a conflict.
 If there is no commit conflict, the operation will be retried.
 Optimistic locking guarantees atomic transaction of Iceberg tables in Glue.
 It also prevents others from accidentally overwriting your changes.
 
 !!! info
-    Please use AWS SDK version >= 2.17.131 to leverage Glue's Optimistic Locking.
-    If the AWS SDK version is below 2.17.131, only in-memory lock is used. To ensure atomic transaction, you need to set up a [DynamoDb Lock Manager](#dynamodb-lock-manager).
-
+Please use AWS SDK version >= 2.17.131 to leverage Glue's Optimistic Locking.
+If the AWS SDK version is below 2.17.131, only in-memory lock is used. To ensure atomic transaction, you need to set up a [DynamoDb Lock Manager](#dynamodb-lock-manager).
 
 #### Warehouse Location
 
@@ -196,7 +197,7 @@ By default, the root location for a table `my_table` of namespace `my_ns` is at 
 This default root location can be changed at both namespace and table level.
 
 To use a different path prefix for all tables under a namespace, use AWS console or any AWS Glue client SDK you like to update the `locationUri` attribute of the corresponding Glue database.
-For example, you can update the `locationUri` of `my_ns` to `s3://my-ns-bucket`, 
+For example, you can update the `locationUri` of `my_ns` to `s3://my-ns-bucket`,
 then any newly created table will have a default root location under the new prefix.
 For instance, a new table `my_table_2` will have its root location at `s3://my-ns-bucket/my_table_2`.
 
@@ -233,23 +234,22 @@ Iceberg supports using a [DynamoDB](https://aws.amazon.com/dynamodb) table to re
 
 The DynamoDB catalog supports the following configurations:
 
-| Property                          | Default                                            | Description                                            |
-| --------------------------------- | -------------------------------------------------- | ------------------------------------------------------ |
-| dynamodb.table-name               | iceberg                                            | name of the DynamoDB table used by DynamoDbCatalog     |
-
+|      Property       | Default |                    Description                     |
+|---------------------|---------|----------------------------------------------------|
+| dynamodb.table-name | iceberg | name of the DynamoDB table used by DynamoDbCatalog |
 
 #### Internal Table Design
 
 The DynamoDB table is designed with the following columns:
 
-| Column            | Key             | Type        | Description                                                          |
-| ----------------- | --------------- | ----------- |--------------------------------------------------------------------- |
-| identifier        | partition key   | string      | table identifier such as `db1.table1`, or string `NAMESPACE` for namespaces |
-| namespace         | sort key        | string      | namespace name. A [global secondary index (GSI)](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html) is created with namespace as partition key, identifier as sort key, no other projected columns |
-| v                 |                 | string      | row version, used for optimistic locking |
-| updated_at        |                 | number      | timestamp (millis) of the last update | 
-| created_at        |                 | number      | timestamp (millis) of the table creation |
-| p.<property_key\> |                 | string      | Iceberg-defined table properties including `table_type`, `metadata_location` and `previous_metadata_location` or namespace properties
+|      Column       |      Key      |  Type  |                                                                                                        Description                                                                                                         |
+|-------------------|---------------|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| identifier        | partition key | string | table identifier such as `db1.table1`, or string `NAMESPACE` for namespaces                                                                                                                                                |
+| namespace         | sort key      | string | namespace name. A [global secondary index (GSI)](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html) is created with namespace as partition key, identifier as sort key, no other projected columns |
+| v                 |               | string | row version, used for optimistic locking                                                                                                                                                                                   |
+| updated_at        |               | number | timestamp (millis) of the last update                                                                                                                                                                                      |
+| created_at        |               | number | timestamp (millis) of the table creation                                                                                                                                                                                   |
+| p.<property_key\> |               | string | Iceberg-defined table properties including `table_type`, `metadata_location` and `previous_metadata_location` or namespace properties                                                                                      |
 
 This design has the following benefits:
 
@@ -265,7 +265,7 @@ This design has the following benefits:
 Iceberg also supports the JDBC catalog which uses a table in a relational database to manage Iceberg tables.
 You can configure to use the JDBC catalog with relational database services like [AWS RDS](https://aws.amazon.com/rds).
 Read [the JDBC integration page](jdbc.md#jdbc-catalog) for guides and examples about using the JDBC catalog.
-Read [this AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Connecting.Java.html) for more details about configuring the JDBC catalog with IAM authentication. 
+Read [this AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Connecting.Java.html) for more details about configuring the JDBC catalog with IAM authentication.
 
 ### Which catalog to choose?
 
@@ -275,7 +275,7 @@ With all the available options, we offer the following guidelines when choosing 
 2. if your application requires frequent updates to table or high read and write throughput (e.g. streaming write), Glue and DynamoDB catalog provides the best performance through optimistic locking.
 3. if you would like to enforce access control for tables in a catalog, Glue tables can be managed as an [IAM resource](https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsglue.html), whereas DynamoDB catalog tables can only be managed through [item-level permission](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html) which is much more complicated.
 4. if you would like to query tables based on table property information without the need to scan the entire catalog, DynamoDB catalog allows you to build secondary indexes for any arbitrary property field and provide efficient query performance.
-5. if you would like to have the benefit of DynamoDB catalog while also connect to Glue, you can enable [DynamoDB stream with Lambda trigger](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.Lambda.Tutorial.html) to asynchronously update your Glue metastore with table information in the DynamoDB catalog. 
+5. if you would like to have the benefit of DynamoDB catalog while also connect to Glue, you can enable [DynamoDB stream with Lambda trigger](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.Lambda.Tutorial.html) to asynchronously update your Glue metastore with table information in the DynamoDB catalog.
 6. if your organization already maintains an existing relational database in RDS or uses [serverless Aurora](https://aws.amazon.com/rds/aurora/serverless/) to manage tables, the JDBC catalog provides the easiest integration.
 
 ## DynamoDb Lock Manager
@@ -292,7 +292,6 @@ This feature requires the following lock related catalog properties:
 Other lock related catalog properties can also be used to adjust locking behaviors such as heartbeat interval.
 For more details, please refer to [Lock catalog properties](configuration.md#lock-catalog-properties).
 
-
 ## S3 FileIO
 
 Iceberg allows users to write data to S3 through `S3FileIO`.
@@ -306,12 +305,12 @@ and each file part is deleted as soon as its upload process completes.
 This provides maximized upload speed and minimized local disk usage during uploads.
 Here are the configurations that users can tune related to this feature:
 
-| Property                          | Default                                            | Description                                            |
-| --------------------------------- | -------------------------------------------------- | ------------------------------------------------------ |
-| s3.multipart.num-threads          | the available number of processors in the system   | number of threads to use for uploading parts to S3 (shared across all output streams)  |
-| s3.multipart.part-size-bytes      | 32MB                                               | the size of a single part for multipart upload requests  |
-| s3.multipart.threshold            | 1.5                                                | the threshold expressed as a factor times the multipart size at which to switch from uploading using a single put object request to uploading using multipart upload  |
-| s3.staging-dir                    | `java.io.tmpdir` property value                    | the directory to hold temporary files  |
+|           Property           |                     Default                      |                                                                             Description                                                                              |
+|------------------------------|--------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| s3.multipart.num-threads     | the available number of processors in the system | number of threads to use for uploading parts to S3 (shared across all output streams)                                                                                |
+| s3.multipart.part-size-bytes | 32MB                                             | the size of a single part for multipart upload requests                                                                                                              |
+| s3.multipart.threshold       | 1.5                                              | the threshold expressed as a factor times the multipart size at which to switch from uploading using a single put object request to uploading using multipart upload |
+| s3.staging-dir               | `java.io.tmpdir` property value                  | the directory to hold temporary files                                                                                                                                |
 
 ### S3 Server Side Encryption
 
@@ -324,15 +323,15 @@ Here are the configurations that users can tune related to this feature:
 
 To enable server side encryption, use the following configuration properties:
 
-| Property                          | Default                                  | Description                                            |
-| --------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
-| s3.sse.type                       | `none`                                   | `none`, `s3`, `kms`, `dsse-kms` or `custom`            |
-| s3.sse.key                        | `aws/s3` for `kms` and `dsse-kms` types, null otherwise | A KMS Key ID or ARN for `kms` and `dsse-kms` types, or a custom base-64 AES256 symmetric key for `custom` type.  |
-| s3.sse.md5                        | null                                     | If SSE type is `custom`, this value must be set as the base-64 MD5 digest of the symmetric key to ensure integrity. |
+|  Property   |                         Default                         |                                                     Description                                                     |
+|-------------|---------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| s3.sse.type | `none`                                                  | `none`, `s3`, `kms`, `dsse-kms` or `custom`                                                                         |
+| s3.sse.key  | `aws/s3` for `kms` and `dsse-kms` types, null otherwise | A KMS Key ID or ARN for `kms` and `dsse-kms` types, or a custom base-64 AES256 symmetric key for `custom` type.     |
+| s3.sse.md5  | null                                                    | If SSE type is `custom`, this value must be set as the base-64 MD5 digest of the symmetric key to ensure integrity. |
 
 ### S3 Access Control List
 
-`S3FileIO` supports S3 access control list (ACL) for detailed access control. 
+`S3FileIO` supports S3 access control list (ACL) for detailed access control.
 User can choose the ACL level by setting the `s3.acl` property.
 For more details, please read [S3 ACL Documentation](https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html).
 
@@ -341,8 +340,8 @@ For more details, please read [S3 ACL Documentation](https://docs.aws.amazon.com
 S3 and many other cloud storage services [throttle requests based on object prefix](https://aws.amazon.com/premiumsupport/knowledge-center/s3-request-limit-avoid-throttling/).
 Data stored in S3 with a traditional Hive storage layout can face S3 request throttling as objects are stored under the same file path prefix.
 
-Iceberg by default uses the Hive storage layout but can be switched to use the `ObjectStoreLocationProvider`. 
-With `ObjectStoreLocationProvider`, a deterministic hash is generated for each stored file, with the hash appended 
+Iceberg by default uses the Hive storage layout but can be switched to use the `ObjectStoreLocationProvider`.
+With `ObjectStoreLocationProvider`, a deterministic hash is generated for each stored file, with the hash appended
 directly after the `write.data.path`. This ensures files written to S3 are equally distributed across multiple
 [prefixes](https://aws.amazon.com/premiumsupport/knowledge-center/s3-object-key-naming-pattern/) in the S3 bucket;
 resulting in minimized throttling and maximized throughput for S3-related IO operations. When using `ObjectStoreLocationProvider`
@@ -350,8 +349,9 @@ having a shared `write.data.path` across your Iceberg tables will improve perfor
 
 For more information on how S3 scales API QPS, check out the 2018 re:Invent session on [Best Practices for Amazon S3 and Amazon S3 Glacier](https://youtu.be/rHeTn9pHNKo?t=3219). At [53:39](https://youtu.be/rHeTn9pHNKo?t=3219) it covers how S3 scales/partitions & at [54:50](https://youtu.be/rHeTn9pHNKo?t=3290) it discusses the 30-60 minute wait time before new partitions are created.
 
-To use the `ObjectStorageLocationProvider` add `'write.object-storage.enabled'=true` in the table's properties. 
+To use the `ObjectStorageLocationProvider` add `'write.object-storage.enabled'=true` in the table's properties.
 Below is an example Spark SQL command to create a table using the `ObjectStorageLocationProvider`:
+
 ```sql
 CREATE TABLE my_catalog.my_ns.my_table (
     id bigint,
@@ -365,11 +365,12 @@ PARTITIONED BY (category);
 ```
 
 We can then insert a single row into this new table
+
 ```SQL
 INSERT INTO my_catalog.my_ns.my_table VALUES (1, "Pizza", "orders");
 ```
 
-Which will write the data to S3 with a 20-bit base2 hash (`01010110100110110010`) appended directly after the `write.object-storage.path`, 
+Which will write the data to S3 with a 20-bit base2 hash (`01010110100110110010`) appended directly after the `write.object-storage.path`,
 ensuring reads to the table are spread evenly across [S3 bucket prefixes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance.html), and improving performance.
 Previously provided base64 hash was updated to base2 in order to provide an improved auto-scaling behavior on S3 General Purpose Buckets.
 
@@ -377,6 +378,7 @@ As part of this update, we have also divided the entropy into multiple directori
 orphan clean up process for Iceberg since directories are used as a mean to divide the work across workers for faster traversal. You
 can see from the example below that we divide the hash to create 4-bit directories with a depth of 3 and attach the final part of the hash to
 the end.
+
 ```
 s3://my-table-data-bucket/my_ns.db/my_table/0101/0110/1001/10110010/category=orders/00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
 ```
@@ -389,12 +391,13 @@ However, for the older versions up to 0.12.0, the logic is as follows:
 - at 0.12.0, `write.object-storage.path` then `write.folder-storage.path` then `<tableLocation>/data`.
 - at 2.0.0 `write.object-storage.path` and `write.folder-storage.path` will be removed
 
-For more details, please refer to the [LocationProvider Configuration](custom-catalog.md#custom-location-provider-implementation) section.  
+For more details, please refer to the [LocationProvider Configuration](custom-catalog.md#custom-location-provider-implementation) section.
 
 We have also added a new table property `write.object-storage.partitioned-paths` that if set to false(default=true), this will
 omit the partition values from the file path. Iceberg does not need these values in the file path and setting this value to false
 can further reduce the key size. In this case, we also append the final 8 bit of entropy directly to the file name.
 Inserted key would look like the following with this config set, note that `category=orders` is removed:
+
 ```
 s3://my-table-data-bucket/my_ns.db/my_table/1101/0100/1011/00111010-00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
 ```
@@ -406,8 +409,7 @@ automatically scales. We provide the configurations below to adjust S3 retries f
 throttling and fail due to retry exhaustion, we recommend retry count to set 32 in order allow S3 to auto-scale. Note that
 workloads with exceptionally high throughput against tables that S3 has not yet scaled, it may be necessary to increase the retry count further.
 
-
-| Property             | Default | Description                                                                           |
+|       Property       | Default |                                      Description                                      |
 |----------------------|---------|---------------------------------------------------------------------------------------|
 | s3.retry.num-retries | 5       | Number of times to retry S3 operations. Recommended 32 for high-throughput workloads. |
 | s3.retry.min-wait-ms | 2s      | Minimum wait time to retry a S3 operation.                                            |
@@ -422,7 +424,7 @@ There is no redundant consistency wait and check which might negatively impact p
 
 Before `S3FileIO` was introduced, many Iceberg users choose to use `HadoopFileIO` to write data to S3 through the [S3A FileSystem](https://github.com/apache/hadoop/blob/trunk/hadoop-tools/hadoop-aws/src/main/java/org/apache/hadoop/fs/s3a/S3AFileSystem.java).
 As introduced in the previous sections, `S3FileIO` adopts the latest AWS clients and S3 features for optimized security and performance
- and is thus recommended for S3 use cases rather than the S3A FileSystem.
+and is thus recommended for S3 use cases rather than the S3A FileSystem.
 
 `S3FileIO` writes data with `s3://` URI scheme, but it is also compatible with schemes written by the S3A FileSystem.
 This means for any table manifests containing `s3a://` or `s3n://` file paths, `S3FileIO` is still able to read them.
@@ -430,20 +432,21 @@ This feature allows people to easily switch from S3A to `S3FileIO`.
 
 If for any reason you have to use S3A, here are the instructions:
 
-1. To store data using S3A, specify the `warehouse` catalog property to be an S3A path, e.g. `s3a://my-bucket/my-warehouse` 
+1. To store data using S3A, specify the `warehouse` catalog property to be an S3A path, e.g. `s3a://my-bucket/my-warehouse`
 2. For `HiveCatalog`, to also store metadata using S3A, specify the Hadoop config property `hive.metastore.warehouse.dir` to be an S3A path.
 3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine.
-4. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html) (make sure you check the version, S3A configuration varies a lot based on the version you use).   
+4. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html) (make sure you check the version, S3A configuration varies a lot based on the version you use).
 
 ### S3 Write Checksum Verification
 
-To ensure integrity of uploaded objects, checksum validations for S3 writes can be turned on by setting catalog property `s3.checksum-enabled` to `true`. 
+To ensure integrity of uploaded objects, checksum validations for S3 writes can be turned on by setting catalog property `s3.checksum-enabled` to `true`.
 This is turned off by default.
 
 ### S3 Tags
 
 Custom [tags](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) can be added to S3 objects while writing and deleting.
 For example, to write S3 tags with Spark 3.5, you can start the Spark SQL shell with:
+
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
@@ -452,6 +455,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key1=my_val1 \
     --conf spark.sql.catalog.my_catalog.s3.write.tags.my_key2=my_val2
 ```
+
 For the above example, the objects in S3 will be saved with tags: `my_key1=my_val1` and `my_key2=my_val2`. Do note that the specified write tags will be saved only while object creation.
 
 When the catalog property `s3.delete-enabled` is set to `false`, the objects are not hard-deleted from S3.
@@ -460,7 +464,7 @@ The property is set to `true` by default.
 
 With the `s3.delete.tags` config, objects are tagged with the configured key-value pairs before deletion.
 Users can configure tag-based object lifecycle policy at bucket level to transition objects to different tiers.
-For example, to add S3 delete tags with Spark 3.5, you can start the Spark SQL shell with: 
+For example, to add S3 delete tags with Spark 3.5, you can start the Spark SQL shell with:
 
 ```
 sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
@@ -477,6 +481,7 @@ Users can also use the catalog property `s3.delete.num-threads` to mention the n
 When the catalog property `s3.write.table-tag-enabled` and `s3.write.namespace-tag-enabled` is set to `true` then the objects in S3 will be saved with tags: `iceberg.table=<table-name>` and `iceberg.namespace=<namespace-name>`.
 Users can define access and data retention policy per namespace or table based on these tags.
 For example, to write table and namespace name as S3 tags with Spark 3.5, you can start the Spark SQL shell with:
+
 ```
 sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://iceberg-warehouse/s3-tagging \
@@ -485,11 +490,12 @@ sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkC
     --conf spark.sql.catalog.my_catalog.s3.write.table-tag-enabled=true \
     --conf spark.sql.catalog.my_catalog.s3.write.namespace-tag-enabled=true
 ```
+
 For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/tagging-managing.html).
 
 ### S3 Access Points
 
-[Access Points](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-access-points.html) can be used to perform 
+[Access Points](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-access-points.html) can be used to perform
 S3 operations by specifying a mapping of bucket to access points. This is useful for multi-region access, cross-region access,
 disaster recovery, etc.
 
@@ -497,6 +503,7 @@ For using cross-region access points, we need to additionally set `use-arn-regio
 `true` to enable `S3FileIO` to make cross-region calls, it's not required for same / multi-region access points.
 
 For example, to use S3 access-point with Spark 3.5, you can start the Spark SQL shell with:
+
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -506,6 +513,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.s3.access-points.my-bucket1=arn:aws:s3::<ACCOUNT_ID>:accesspoint/<MRAP_ALIAS> \
     --conf spark.sql.catalog.my_catalog.s3.access-points.my-bucket2=arn:aws:s3::<ACCOUNT_ID>:accesspoint/<MRAP_ALIAS>
 ```
+
 For the above example, the objects in S3 on `my-bucket1` and `my-bucket2` buckets will use `arn:aws:s3::<ACCOUNT_ID>:accesspoint/<MRAP_ALIAS>`
 access-point for all S3 operations.
 
@@ -524,6 +532,7 @@ is unable to authorize your S3 call. This can be done using the `s3.access-grant
 this property is set to `false`.
 
 For example, to add the S3 Access Grants Integration with Spark 3.5, you can start the Spark SQL shell with:
+
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -537,10 +546,11 @@ For more details on using S3 Access Grants, please refer to [Managing access wit
 
 ### S3 Cross-Region Access
 
-S3 Cross-Region bucket access can be turned on by setting catalog property `s3.cross-region-access-enabled` to `true`. 
+S3 Cross-Region bucket access can be turned on by setting catalog property `s3.cross-region-access-enabled` to `true`.
 This is turned off by default to avoid first S3 API call increased latency.
 
 For example, to enable S3 Cross-Region bucket access with Spark 3.5, you can start the Spark SQL shell with:
+
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -558,6 +568,7 @@ For more details, please refer to [Cross-Region access for Amazon S3](https://do
 To use S3 Acceleration, we need to set `s3.acceleration-enabled` catalog property to `true` to enable `S3FileIO` to make accelerated S3 calls.
 
 For example, to use S3 Acceleration with Spark 3.5, you can start the Spark SQL shell with:
+
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -575,6 +586,7 @@ The [Analytics Accelerator Library for Amazon S3](https://github.com/awslabs/ana
 In order to enable S3 Analytics Accelerator Library to work in Iceberg, you can set the `s3.analytics-accelerator.enabled` catalog property to `true`. By default, this property is set to `false`.
 
 For example, to use S3 Analytics Accelerator with Spark, you can start the Spark SQL shell with:
+
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -587,7 +599,7 @@ The Analytics Accelerator Library can work with either the [S3 CRT client](https
 
 #### Client Configuration
 
-| Property               | Default | Description                                                  |
+|        Property        | Default |                         Description                          |
 |------------------------|---------|--------------------------------------------------------------|
 | s3.crt.enabled         | `true`  | Controls if the S3 Async clients should be created using CRT |
 | s3.crt.max-concurrency | `500`   | Max concurrency for S3 CRT clients                           |
@@ -596,7 +608,7 @@ Additional library specific configurations are organized into the following sect
 
 #### Logical IO Configuration
 
-| Property                                                               | Default               | Description                                                                |
+|                                Property                                |        Default        |                                Description                                 |
 |------------------------------------------------------------------------|-----------------------|----------------------------------------------------------------------------|
 | s3.analytics-accelerator.logicalio.prefetch.footer.enabled             | `true`                | Controls whether footer prefetching is enabled                             |
 | s3.analytics-accelerator.logicalio.prefetch.page.index.enabled         | `true`                | Controls whether page index prefetching is enabled                         |
@@ -614,7 +626,7 @@ Additional library specific configurations are organized into the following sect
 
 #### Physical IO Configuration
 
-| Property                                                     | Default | Description                                 |
+|                           Property                           | Default |                 Description                 |
 |--------------------------------------------------------------|---------|---------------------------------------------|
 | s3.analytics-accelerator.physicalio.metadatastore.capacity   | `50`    | Capacity of the metadata store              |
 | s3.analytics-accelerator.physicalio.blocksizebytes           | `8MB`   | Size of blocks for data transfer            |
@@ -626,7 +638,7 @@ Additional library specific configurations are organized into the following sect
 
 #### Telemetry Configuration
 
-| Property                                                               | Default                             | Description                                                              |
+|                                Property                                |               Default               |                               Description                                |
 |------------------------------------------------------------------------|-------------------------------------|--------------------------------------------------------------------------|
 | s3.analytics-accelerator.telemetry.level                               | `STANDARD`                          | Telemetry detail level (valid values: `CRITICAL`, `STANDARD`, `VERBOSE`) |
 | s3.analytics-accelerator.telemetry.std.out.enabled                     | `false`                             | Enable stdout telemetry output                                           |
@@ -639,18 +651,19 @@ Additional library specific configurations are organized into the following sect
 
 #### Object Client Configuration
 
-| Property                                 | Default | Description                                                    |
+|                 Property                 | Default |                          Description                           |
 |------------------------------------------|---------|----------------------------------------------------------------|
 | s3.analytics-accelerator.useragentprefix | `null`  | Custom prefix to add to the `User-Agent` string in S3 requests |
 
 ### S3 Dual-stack
 
-[S3 Dual-stack](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html) allows a client to access an S3 bucket through a dual-stack endpoint. 
+[S3 Dual-stack](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html) allows a client to access an S3 bucket through a dual-stack endpoint.
 When clients request a dual-stack endpoint, the bucket URL resolves to an IPv6 address if possible, otherwise fallback to IPv4.
 
 To use S3 Dual-stack, we need to set `s3.dualstack-enabled` catalog property to `true` to enable `S3FileIO` to make dual-stack S3 calls.
 
 For example, to use S3 Dual-stack with Spark 3.5, you can start the Spark SQL shell with:
+
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -675,12 +688,12 @@ This also serves as an example for users who would like to implement their own A
 
 This client factory has the following configurable catalog properties:
 
-| Property                          | Default                                  | Description                                            |
-| --------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
-| client.assume-role.arn            | null, requires user input                | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume  |
-| client.assume-role.region         | null, requires user input                | All AWS clients except the STS client will use the given region instead of the default region chain  |
-| client.assume-role.external-id    | null                                     | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)  |
-| client.assume-role.timeout-sec    | 1 hour                                   | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through an STS client.  |
+|            Property            |          Default          |                                                                 Description                                                                  |
+|--------------------------------|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| client.assume-role.arn         | null, requires user input | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume                                                                   |
+| client.assume-role.region      | null, requires user input | All AWS clients except the STS client will use the given region instead of the default region chain                                          |
+| client.assume-role.external-id | null                      | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)                         |
+| client.assume-role.timeout-sec | 1 hour                    | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through an STS client. |
 
 By using this client factory, an STS client is initialized with the default credential and region to assume the specified role.
 The Glue, S3 and DynamoDB clients are then initialized with the assume-role credential and region to access resources.
@@ -697,9 +710,10 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ iceber
 ```
 
 ### HTTP Client Configurations
-AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client) 
+
+AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client)
 and [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client).
-By default, AWS clients use **Apache** HTTP Client to communicate with the service. 
+By default, AWS clients use **Apache** HTTP Client to communicate with the service.
 This HTTP client supports various functionalities and customized settings, such as expect-continue handshake and TCP KeepAlive, at the cost of extra dependency and additional startup latency.
 In contrast, URL Connection HTTP Client optimizes for minimum dependencies and startup latency but supports less functionality than other implementations.
 
@@ -707,7 +721,7 @@ For more details of configuration, see sections [URL Connection HTTP Client Conf
 
 Configurations for the HTTP client can be set via catalog properties. Below is an overview of available configurations:
 
-| Property                   | Default | Description                                                                                                |
+|          Property          | Default |                                                Description                                                 |
 |----------------------------|---------|------------------------------------------------------------------------------------------------------------|
 | http-client.type           | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
 | http-client.proxy-endpoint | null    | An optional proxy endpoint to use for the HTTP client.                                                     |
@@ -716,12 +730,13 @@ Configurations for the HTTP client can be set via catalog properties. Below is a
 
 URL Connection HTTP Client has the following configurable properties:
 
-| Property                                        | Default | Description                                                                                                                                                                                                      |
+|                    Property                     | Default |                                                                                                   Description                                                                                                    |
 |-------------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | http-client.urlconnection.socket-timeout-ms     | null    | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds         |
 | http-client.urlconnection.connection-timeout-ms | null    | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/UrlConnectionHttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds |
 
 Users can use catalog properties to override the defaults. For example, to configure the socket timeout for URL Connection HTTP Client when starting a spark shell, one can add:
+
 ```shell
 --conf spark.sql.catalog.my_catalog.http-client.urlconnection.socket-timeout-ms=80
 ```
@@ -730,19 +745,20 @@ Users can use catalog properties to override the defaults. For example, to confi
 
 Apache HTTP Client has the following configurable properties:
 
-| Property                                              | Default                   | Description                                                                                                                                                                                                                                 |
-|-------------------------------------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| http-client.apache.socket-timeout-ms                  | null                      | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds |
-| http-client.apache.connection-timeout-ms              | null                      | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds |
-| http-client.apache.connection-acquisition-timeout-ms  | null                      | An optional [connection acquisition timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionAcquisitionTimeout(java.time.Duration)) in milliseconds |
-| http-client.apache.connection-max-idle-time-ms        | null                      | An optional [connection max idle timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionMaxIdleTime(java.time.Duration)) in milliseconds |
-| http-client.apache.connection-time-to-live-ms         | null                      | An optional [connection time to live](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeToLive(java.time.Duration)) in milliseconds |
-| http-client.apache.expect-continue-enabled            | null, disabled by default | An optional `true/false` setting that controls whether [expect continue](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#expectContinueEnabled(java.lang.Boolean)) is enabled |
-| http-client.apache.max-connections                    | null                      | An optional [max connections](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#maxConnections(java.lang.Integer))  in integer       |
-| http-client.apache.tcp-keep-alive-enabled             | null, disabled by default | An optional `true/false` setting that controls whether [tcp keep alive](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#tcpKeepAlive(java.lang.Boolean)) is enabled |
+|                       Property                        |          Default          |                                                                                                                    Description                                                                                                                     |
+|-------------------------------------------------------|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| http-client.apache.socket-timeout-ms                  | null                      | An optional [socket timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#socketTimeout(java.time.Duration)) in milliseconds                                                         |
+| http-client.apache.connection-timeout-ms              | null                      | An optional [connection timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeout(java.time.Duration)) in milliseconds                                                 |
+| http-client.apache.connection-acquisition-timeout-ms  | null                      | An optional [connection acquisition timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionAcquisitionTimeout(java.time.Duration)) in milliseconds                          |
+| http-client.apache.connection-max-idle-time-ms        | null                      | An optional [connection max idle timeout](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionMaxIdleTime(java.time.Duration)) in milliseconds                                    |
+| http-client.apache.connection-time-to-live-ms         | null                      | An optional [connection time to live](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#connectionTimeToLive(java.time.Duration)) in milliseconds                                         |
+| http-client.apache.expect-continue-enabled            | null, disabled by default | An optional `true/false` setting that controls whether [expect continue](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#expectContinueEnabled(java.lang.Boolean)) is enabled           |
+| http-client.apache.max-connections                    | null                      | An optional [max connections](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#maxConnections(java.lang.Integer))  in integer                                                            |
+| http-client.apache.tcp-keep-alive-enabled             | null, disabled by default | An optional `true/false` setting that controls whether [tcp keep alive](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#tcpKeepAlive(java.lang.Boolean)) is enabled                     |
 | http-client.apache.use-idle-connection-reaper-enabled | null, enabled by default  | An optional `true/false` setting that controls whether [use idle connection reaper](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html#useIdleConnectionReaper(java.lang.Boolean)) is used |
 
 Users can use catalog properties to override the defaults. For example, to configure the max connections for Apache HTTP Client when starting a spark shell, one can add:
+
 ```shell
 --conf spark.sql.catalog.my_catalog.http-client.apache.max-connections=5
 ```
@@ -760,10 +776,11 @@ More details could be found [here](https://docs.aws.amazon.com/athena/latest/ug/
 [Hive](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-hive.html), [Flink](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-flink.html),
 [Trino](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-presto.html) that can run Iceberg.
 
-Starting with EMR version 6.5.0, EMR clusters can be configured to have the necessary Apache Iceberg dependencies installed without requiring bootstrap actions. 
+Starting with EMR version 6.5.0, EMR clusters can be configured to have the necessary Apache Iceberg dependencies installed without requiring bootstrap actions.
 Please refer to the [official documentation](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html) on how to create a cluster with Iceberg installed.
 
 For versions before 6.5.0, you can use a [bootstrap action](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-bootstrap.html) similar to the following to pre-install all necessary dependencies:
+
 ```sh
 #!/bin/bash
 
@@ -801,7 +818,6 @@ install_dependencies $LIB_PATH $ICEBERG_MAVEN_URL $ICEBERG_VERSION "${ICEBERG_PA
 that could be used to perform read, write and update tasks against Iceberg tables.
 More details could be found [here](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-format-iceberg.html).
 
-
 ### AWS EKS
 
 [AWS Elastic Kubernetes Service (EKS)](https://aws.amazon.com/eks/) can be used to start any Spark, Flink, Hive, Presto or Trino clusters to work with Iceberg.
@@ -809,11 +825,13 @@ Search the [Iceberg blogs](../../blogs.md) page for tutorials around running Ice
 
 ### Amazon Kinesis
 
-[Amazon Kinesis Data Analytics](https://aws.amazon.com/about-aws/whats-new/2019/11/you-can-now-run-fully-managed-apache-flink-applications-with-apache-kafka/) provides a platform 
+[Amazon Kinesis Data Analytics](https://aws.amazon.com/about-aws/whats-new/2019/11/you-can-now-run-fully-managed-apache-flink-applications-with-apache-kafka/) provides a platform
 to run fully managed Apache Flink applications. You can include Iceberg in your application Jar and run it in the platform.
 
 ### AWS Redshift
+
 [AWS Redshift Spectrum or Redshift Serverless](https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg.html) supports querying Apache Iceberg tables cataloged in the AWS Glue Data Catalog.
 
 ### Amazon Data Firehose
+
 You can use [Firehose](https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html) to directly deliver streaming data to Apache Iceberg Tables in Amazon S3. With this feature, you can route records from a single stream into different Apache Iceberg Tables, and automatically apply insert, update, and delete operations to records in the Apache Iceberg Tables. This feature requires using the AWS Glue Data Catalog.

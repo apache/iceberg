@@ -1,22 +1,24 @@
 ---
+
 title: Partitioning
----
+-------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Partitioning
 
@@ -34,7 +36,6 @@ WHERE event_time BETWEEN '2018-12-01 10:00:00' AND '2018-12-01 12:00:00';
 Configuring the `logs` table to partition by the date of `event_time` will group log events into files with the same event date. Iceberg keeps track of that date and will use it to skip files for other dates that don't have useful data.
 
 Iceberg can partition timestamps by year, month, day, and hour granularity. It can also use a categorical column, like `level` in this logs example, to store rows together and speed up queries.
-
 
 ## What does Iceberg do differently?
 
@@ -73,11 +74,11 @@ Hive must be given partition values. In the logs example, it doesn't know the re
 This leads to several problems:
 
 * Hive can't validate partition values -- it is up to the writer to produce the correct value
-    - Using the wrong format, `2018-12-01` instead of `20181201`, produces silently incorrect results, not query failures
-    - Using the wrong source column, like `processing_time`, or time zone also causes incorrect results, not failures
+  - Using the wrong format, `2018-12-01` instead of `20181201`, produces silently incorrect results, not query failures
+  - Using the wrong source column, like `processing_time`, or time zone also causes incorrect results, not failures
 * It is up to the user to write queries correctly
-    - Using the wrong format also leads to silently incorrect results
-    - Users that don't understand a table's physical layout get needlessly slow queries -- Hive can't translate filters automatically
+  - Using the wrong format also leads to silently incorrect results
+  - Users that don't understand a table's physical layout get needlessly slow queries -- Hive can't translate filters automatically
 * Working queries are tied to the table's partitioning scheme, so partitioning configuration cannot be changed without breaking queries
 
 ### Iceberg's hidden partitioning

@@ -1,22 +1,24 @@
 ---
+
 title: "Hive"
----
+-------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 # Hive
 
@@ -63,8 +65,7 @@ Hive supports the following features with Hive version 4.0.0 and above:
 * Support of showing partition information for Iceberg tables (SHOW PARTITIONS).
 
 !!! warning
-    DML operations work only with Tez execution engine.
-
+DML operations work only with Tez execution engine.
 
 ## Enabling Iceberg support in Hive
 
@@ -133,11 +134,11 @@ and [CREATE TABLE](#create-table) for more details.
 
 To globally register different catalogs, set the following Hadoop configurations:
 
-| Config Key                                    | Description                                            |
-| --------------------------------------------- | ------------------------------------------------------ |
-| iceberg.catalog.<catalog_name\>.type          | type of catalog: `hive`, `hadoop`, or left unset if using a custom catalog  |
-| iceberg.catalog.<catalog_name\>.catalog-impl  | catalog implementation, must not be null if type is empty |
-| iceberg.catalog.<catalog_name\>.<key\>        | any config key and value pairs for the catalog         |
+|                  Config Key                  |                                Description                                 |
+|----------------------------------------------|----------------------------------------------------------------------------|
+| iceberg.catalog.<catalog_name\>.type         | type of catalog: `hive`, `hadoop`, or left unset if using a custom catalog |
+| iceberg.catalog.<catalog_name\>.catalog-impl | catalog implementation, must not be null if type is empty                  |
+| iceberg.catalog.<catalog_name\>.<key\>       | any config key and value pairs for the catalog                             |
 
 Here are some examples using Hive CLI:
 
@@ -192,6 +193,7 @@ CREATE TABLE x (i int) STORED BY ICEBERG STORED AS ORC;
 ```
 
 #### Partitioned tables
+
 You can create Iceberg partitioned tables using a command familiar to those who create non-Iceberg tables:
 
 ```sql
@@ -199,23 +201,24 @@ CREATE TABLE x (i int) PARTITIONED BY (j int) STORED BY ICEBERG;
 ```
 
 !!! info
-    The resulting table does not create partitions in HMS, but instead, converts partition data into Iceberg identity partitions.
+The resulting table does not create partitions in HMS, but instead, converts partition data into Iceberg identity partitions.
 
 Use the DESCRIBE command to get information about the Iceberg identity partitions:
 
 ```sql
 DESCRIBE x;
 ```
+
 The result is:
 
-| col_name                           | data_type      | comment
-| ---------------------------------- | -------------- | -------
-| i                                  | int            |
-| j                                  | int            |
-|                                    | NULL           | NULL
-| # Partition Transform Information  | NULL           | NULL
-| # col_name                         | transform_type | NULL
-| j                                  | IDENTITY       | NULL
+|             col_name              |   data_type    | comment |
+|-----------------------------------|----------------|---------|
+| i                                 | int            |
+| j                                 | int            |
+|                                   | NULL           | NULL    |
+| # Partition Transform Information | NULL           | NULL    |
+| # col_name                        | transform_type | NULL    |
+| j                                 | IDENTITY       | NULL    |
 
 You can create Iceberg partitions using the following Iceberg partition specification syntax
 (supported only from Hive 4.0.0):
@@ -224,17 +227,18 @@ You can create Iceberg partitions using the following Iceberg partition specific
 CREATE TABLE x (i int, ts timestamp) PARTITIONED BY SPEC (month(ts), bucket(2, i)) STORED BY ICEBERG;
 DESCRIBE x;
 ```
+
 The result is:
 
-| col_name                           | data_type      | comment
-| ---------------------------------- | -------------- | -------
-| i                                  | int            |
-| ts                                 | timestamp      |
-|                                    | NULL           | NULL
-| # Partition Transform Information  | NULL           | NULL
-| # col_name                         | transform_type | NULL
-| ts                                 | MONTH          | NULL
-| i                                  | BUCKET\[2\]    | NULL
+|             col_name              |   data_type    | comment |
+|-----------------------------------|----------------|---------|
+| i                                 | int            |
+| ts                                | timestamp      |
+|                                   | NULL           | NULL    |
+| # Partition Transform Information | NULL           | NULL    |
+| # col_name                        | transform_type | NULL    |
+| ts                                | MONTH          | NULL    |
+| i                                 | BUCKET\[2\]    | NULL    |
 
 The supported transformations for Hive are the same as for Spark:
 
@@ -244,12 +248,11 @@ The supported transformations for Hive are the same as for Spark:
 * hours(ts) or date_hour(ts): equivalent to dateint and hour partitioning
 * bucket(N, col): partition by hashed value mod N buckets
 * truncate(L, col): partition by value truncated to L
-     - Strings are truncated to the given length
-     - Integers and longs truncate to bins: truncate(10, i) produces partitions 0, 10, 20, 30,
+  - Strings are truncated to the given length
+  - Integers and longs truncate to bins: truncate(10, i) produces partitions 0, 10, 20, 30,
 
 !!! info
-    The resulting table does not create partitions in HMS, but instead, converts partition data into Iceberg partitions.
-
+The resulting table does not create partitions in HMS, but instead, converts partition data into Iceberg partitions.
 
 ### CREATE TABLE AS SELECT
 
@@ -267,7 +270,7 @@ CREATE TABLE target PARTITIONED BY SPEC (year(year_field), identity_field) STORE
 ```sql
 CREATE TABLE target LIKE source STORED BY ICEBERG;
 ```
- 
+
 ### CREATE EXTERNAL TABLE overlaying an existing Iceberg table
 
 The `CREATE EXTERNAL TABLE` command is used to overlay a Hive table "on top of" an existing Iceberg table. Iceberg
@@ -334,81 +337,104 @@ TBLPROPERTIES ('iceberg.catalog'='hadoop_cat');
 ```
 
 !!! danger
-    If the table to create already exists in the custom catalog, this will create a managed overlay
-    table. This means technically you can omit the `EXTERNAL` keyword when creating an overlay table. However, this is **not
-    recommended** because creating managed overlay tables could pose a risk to the shared data files in case of accidental
-    drop table commands from the Hive side, which would unintentionally remove all the data in the table.
+If the table to create already exists in the custom catalog, this will create a managed overlay
+table. This means technically you can omit the `EXTERNAL` keyword when creating an overlay table. However, this is **not
+recommended** because creating managed overlay tables could pose a risk to the shared data files in case of accidental
+drop table commands from the Hive side, which would unintentionally remove all the data in the table.
 
 ### ALTER TABLE
+
 #### Table properties
+
 For HiveCatalog tables the Iceberg table properties and the Hive table properties stored in HMS are kept in sync.
-    
+
 !!! info
-    IMPORTANT: This feature is not available for other Catalog implementations.
+IMPORTANT: This feature is not available for other Catalog implementations.
 
 ```sql
 ALTER TABLE t SET TBLPROPERTIES('...'='...');
 ```
 
 #### Schema evolution
+
 The Hive table schema is kept in sync with the Iceberg table. If an outside source (Impala/Spark/Java API/etc)
 changes the schema, the Hive table immediately reflects the changes. You alter the table schema using Hive commands:
 
 * Rename a table
+
 ```sql
 ALTER TABLE orders RENAME TO renamed_orders;
 ```
 
 * Add a column
+
 ```sql
 ALTER TABLE orders ADD COLUMNS (nickname string);
 ```
+
 * Rename a column
+
 ```sql
 ALTER TABLE orders CHANGE COLUMN item fruit string;
 ```
+
 * Reorder columns
+
 ```sql
 ALTER TABLE orders CHANGE COLUMN quantity quantity int AFTER price;
 ```
+
 * Change a column type - only if the Iceberg defined the column type change as safe
+
 ```sql
 ALTER TABLE orders CHANGE COLUMN price price long;
 ```
+
 * Drop column by using REPLACE COLUMN to remove the old column
+
 ```sql
 ALTER TABLE orders REPLACE COLUMNS (remaining string);
 ```
-!!! info
-    Note, that dropping columns is only thing REPLACE COLUMNS can be used for
-    i.e. if columns are specified out-of-order an error will be thrown signalling this limitation.
 
+!!! info
+Note, that dropping columns is only thing REPLACE COLUMNS can be used for
+i.e. if columns are specified out-of-order an error will be thrown signalling this limitation.
 
 #### Partition evolution
+
 You change the partitioning schema using the following commands:
 
 * Change the partitioning schema to new identity partitions:
+
 ```sql
 ALTER TABLE default.customers SET PARTITION SPEC (last_name);
 ```
+
 * Alternatively, provide a partition specification:
+
 ```sql
 ALTER TABLE order SET PARTITION SPEC (month(ts));
 ```
 
 #### Table migration
+
 You can migrate Avro / Parquet / ORC external tables to Iceberg tables using the following command:
+
 ```sql
 ALTER TABLE t SET TBLPROPERTIES ('storage_handler'='org.apache.iceberg.mr.hive.HiveIcebergStorageHandler');
 ```
+
 During the migration the data files are not changed, only the appropriate Iceberg metadata files are created.
 After the migration, handle the table as a normal Iceberg table.
 
 #### Drop partitions
+
 You can drop partitions based on a single / multiple partition specification using the following commands:
+
 ```sql
 ALTER TABLE orders DROP PARTITION (buy_date == '2023-01-01', market_price > 1000), PARTITION (buy_date == '2024-01-01', market_price <= 2000);
 ```
+
 The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
 
 #### Branches and tags
@@ -504,20 +530,25 @@ ALTER table test EXECUTE FAST-FORWARD 'branch1' 'branch2';
 Cherry-pick of a snapshot requires the ID of the snapshot. Cherry-pick of snapshots as of now is supported only on the main branch of an Iceberg table.
 
 ```sql
- ALTER table test EXECUTE CHERRY-PICK 8602659039622823857;
+ALTER table test EXECUTE CHERRY-PICK 8602659039622823857;
 ```
 
 ### TRUNCATE TABLE
+
 The following command truncates the Iceberg table:
+
 ```sql
 TRUNCATE TABLE t;
 ```
 
 #### TRUNCATE TABLE ... PARTITION
+
 The following command truncates the partition in an Iceberg table:
+
 ```sql
 TRUNCATE TABLE orders PARTITION (customer_id = 1, first_name = 'John');
 ```
+
 The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
 
 ### DROP TABLE
@@ -530,8 +561,8 @@ DROP TABLE [IF EXISTS] table_name [PURGE];
 
 ### METADATA LOCATION
 
-The metadata location (snapshot location) only can be changed if the new path contains the exact same metadata json. 
-It can be done only after migrating the table to Iceberg, the two operation cannot be done in one step. 
+The metadata location (snapshot location) only can be changed if the new path contains the exact same metadata json.
+It can be done only after migrating the table to Iceberg, the two operation cannot be done in one step.
 
 ```sql
 ALTER TABLE t set TBLPROPERTIES ('metadata_location'='<path>/hivemetadata/00003-a1ada2b8-fc86-4b5b-8c91-400b6b46d0f2.metadata.json');
@@ -540,6 +571,7 @@ ALTER TABLE t set TBLPROPERTIES ('metadata_location'='<path>/hivemetadata/00003-
 ## DML Commands
 
 ### SELECT
+
 Select statements work the same on Iceberg tables in Hive. You will see the Iceberg benefits over Hive in compilation and execution:
 
 * **No file system listings** - especially important on blob stores, like S3
@@ -556,7 +588,8 @@ Here are the features highlights for Iceberg Hive read support:
 Some of the advanced / little used optimizations are not yet implemented for Iceberg tables, so you should check your individual queries.
 Also currently the statistics stored in the MetaStore are used for query planning. This is something we are planning to improve in the future.
 
-Hive 4 supports select operations on branches which also work similar to the table level select operations. However, the branch must be provided as follows - 
+Hive 4 supports select operations on branches which also work similar to the table level select operations. However, the branch must be provided as follows -
+
 ```sql
 -- Branches should be specified as <database_name>.<table_name>.branch_<branch_name>
 SELECT * FROM default.test.branch_branch1;
@@ -578,6 +611,7 @@ Partial changes will be visible during the commit process and failures can leave
 Changes within a single table will remain atomic.
 
 Insert-into operations on branches also work similar to the table level select operations. However, the branch must be provided as follows -
+
 ```sql
 -- Branches should be specified as <database_name>.<table_name>.branch_<branch_name>
 INSERT INTO default.test.branch_branch1
@@ -604,12 +638,15 @@ VALUES (1,2);
 INSERT INTO table_a PARTITION (customer_id = 1, first_name = 'John')
 SELECT...;
 ```
+
 The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
 
 ### INSERT OVERWRITE
+
 INSERT OVERWRITE can replace data in the table with the result of a query. Overwrites are atomic operations for Iceberg tables.
 For nonpartitioned tables the content of the table is always removed. For partitioned tables the partitions
 that have rows produced by the SELECT query will be replaced.
+
 ```sql
 INSERT OVERWRITE TABLE target SELECT * FROM source;
 ```
@@ -621,6 +658,7 @@ Hive 4 supports partition-level INSERT OVERWRITE operation:
 ```sql
 INSERT OVERWRITE TABLE target PARTITION (customer_id = 1, first_name = 'John') SELECT * FROM source;
 ```
+
 The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
 
 ### DELETE FROM
@@ -636,6 +674,7 @@ DELETE FROM target WHERE id IN (SELECT id FROM source);
 
 DELETE FROM target WHERE id IN (SELECT min(customer_id) FROM source);
 ```
+
 If the delete filter matches entire partitions of the table, Iceberg will perform a metadata-only delete. If the filter matches individual rows of a table, then Iceberg will rewrite only the affected data files.
 
 ### UPDATE
@@ -649,6 +688,7 @@ UPDATE target SET first_name = 'Raj' WHERE id IN (SELECT id FROM source);
 
 UPDATE target SET first_name = 'Raj' WHERE id IN (SELECT min(customer_id) FROM source);
 ```
+
 For more complex row-level updates based on incoming data, see the section on MERGE INTO.
 
 ### MERGE INTO
@@ -665,6 +705,7 @@ WHEN ...                      -- updates
 ```
 
 Updates to rows in the target table are listed using WHEN MATCHED ... THEN .... Multiple MATCHED clauses can be added with conditions that determine when each match should be applied. The first matching expression is used.
+
 ```sql
 WHEN MATCHED AND s.op = 'delete' THEN DELETE
 WHEN MATCHED AND t.count IS NULL AND s.op = 'increment' THEN UPDATE SET t.count = 0
@@ -672,12 +713,15 @@ WHEN MATCHED AND s.op = 'increment' THEN UPDATE SET t.count = t.count + 1
 ```
 
 Source rows (updates) that do not match can be inserted:
+
 ```sql
 WHEN NOT MATCHED THEN INSERT VALUES (s.a, s.b, s.c)
 ```
+
 Only one record in the source data can update any given row of the target table, or else an error will be thrown.
 
 ### QUERYING METADATA TABLES
+
 Hive supports querying of the Iceberg Metadata tables. The tables could be used as normal
 Hive tables, so it is possible to use projections / joins / filters / etc.
 To reference a metadata table the full name of the table should be used, like:
@@ -706,9 +750,11 @@ SELECT * FROM default.table_a.files;
 ```
 
 ### TIMETRAVEL
+
 Hive supports snapshot id based and time base timetravel queries.
 For these views it is possible to use projections / joins / filters / etc.
 The function is available with the following syntax:
+
 ```sql
 SELECT * FROM table_a FOR SYSTEM_TIME AS OF '2021-08-09 10:35:57';
 SELECT * FROM table_a FOR SYSTEM_VERSION AS OF 1234567;
@@ -718,6 +764,7 @@ You can expire snapshots of an Iceberg table using an ALTER TABLE query from Hiv
 
 Each write to an Iceberg table from Hive creates a new snapshot, or version, of a table. Snapshots can be used for time-travel queries, or the table can be rolled back to any valid snapshot. Snapshots accumulate until they are expired by the expire_snapshots operation.
 Enter a query to expire snapshots having the following timestamp: `2021-12-09 05:39:18.689000000`
+
 ```sql
 ALTER TABLE test_table EXECUTE expire_snapshots('2021-12-09 05:39:18.689000000');
 ```
@@ -726,6 +773,7 @@ ALTER TABLE test_table EXECUTE expire_snapshots('2021-12-09 05:39:18.689000000')
 
 Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".
 The function is available with the following syntax:
+
 ```sql
 ALTER TABLE table_a EXECUTE DELETE ORPHAN-FILES;
 ALTER TABLE table_a EXECUTE DELETE ORPHAN-FILES OLDER THAN ('2021-12-09 05:39:18.689000000');
@@ -737,38 +785,38 @@ Hive and Iceberg support different set of types. Iceberg can perform type conver
 combinations, so you may want to understand the type conversion in Iceberg in prior to design the types of columns in
 your tables. You can enable auto-conversion through Hadoop configuration (not enabled by default):
 
-| Config key                               | Default                     | Description                                         |
-| -----------------------------------------| --------------------------- | --------------------------------------------------- |
-| iceberg.mr.schema.auto.conversion        | false                       | if Hive should perform type auto-conversion         |
+|            Config key             | Default |                 Description                 |
+|-----------------------------------|---------|---------------------------------------------|
+| iceberg.mr.schema.auto.conversion | false   | if Hive should perform type auto-conversion |
 
 ### Hive type to Iceberg type
 
 This type conversion table describes how Hive types are converted to the Iceberg types. The conversion applies on both
 creating Iceberg table and writing to Iceberg table via Hive.
 
-| Hive             | Iceberg                 | Notes |
-|------------------|-------------------------|-------|
-| boolean          | boolean                 |       |
-| short            | integer                 | auto-conversion |
-| byte             | integer                 | auto-conversion |
-| integer          | integer                 |       |
-| long             | long                    |       |
-| float            | float                   |       |
-| double           | double                  |       |
-| date             | date                    |       |
-| timestamp        | timestamp without timezone |    |
-| timestamplocaltz | timestamp with timezone | Hive 3 only |
-| interval_year_month |                      | not supported |
-| interval_day_time |                        | not supported |
-| char             | string                  | auto-conversion |
-| varchar          | string                  | auto-conversion |
-| string           | string                  |       |
-| binary           | binary                  |       |
-| decimal          | decimal                 |       |
-| struct           | struct                  |       |
-| list             | list                    |       |
-| map              | map                     |       |
-| union            |                         | not supported |
+|        Hive         |          Iceberg           |      Notes      |
+|---------------------|----------------------------|-----------------|
+| boolean             | boolean                    |                 |
+| short               | integer                    | auto-conversion |
+| byte                | integer                    | auto-conversion |
+| integer             | integer                    |                 |
+| long                | long                       |                 |
+| float               | float                      |                 |
+| double              | double                     |                 |
+| date                | date                       |                 |
+| timestamp           | timestamp without timezone |                 |
+| timestamplocaltz    | timestamp with timezone    | Hive 3 only     |
+| interval_year_month |                            | not supported   |
+| interval_day_time   |                            | not supported   |
+| char                | string                     | auto-conversion |
+| varchar             | string                     | auto-conversion |
+| string              | string                     |                 |
+| binary              | binary                     |                 |
+| decimal             | decimal                    |                 |
+| struct              | struct                     |                 |
+| list                | list                       |                 |
+| map                 | map                        |                 |
+| union               |                            | not supported   |
 
 ### Table rollback
 
@@ -781,6 +829,7 @@ ALTER TABLE ice_t EXECUTE ROLLBACK('2022-05-12 00:00:00')
 ```
 
 Rollback to a specific snapshot ID
+
 ```sql
 ALTER TABLE ice_t EXECUTE ROLLBACK(1111);
 ```
@@ -788,6 +837,7 @@ ALTER TABLE ice_t EXECUTE ROLLBACK(1111);
 ### Compaction
 
 Hive 4 supports full table compaction of Iceberg tables using the following commands:
+
 ```sql
 -- Using the ALTER TABLE ... COMPACT syntax
 ALTER TABLE t COMPACT 'major';
@@ -795,4 +845,5 @@ ALTER TABLE t COMPACT 'major';
 -- Using the OPTIMIZE TABLE ... REWRITE DATA syntax
 OPTIMIZE TABLE t REWRITE DATA;
 ```
+
 Both these syntax have the same effect of performing full table compaction on an Iceberg table.

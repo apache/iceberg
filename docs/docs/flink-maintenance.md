@@ -1,22 +1,24 @@
 ---
+
 title: "Flink TableMaintenance"
----
+-------------------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 ## Flink Table Maintenance BatchMode
 
@@ -53,6 +55,7 @@ The `TableMaintenance` API in **Apache Iceberg** empowers **Flink jobs** to exec
 ### Supported Features (Flink)
 
 #### ExpireSnapshots
+
 Removes old snapshots and their files. Internally uses `cleanExpiredFiles(true)` when committing, so expired metadata/files are cleaned up automatically.
 
 ```java
@@ -63,6 +66,7 @@ Removes old snapshots and their files. Internally uses `cleanExpiredFiles(true)`
 ```
 
 #### RewriteDataFiles
+
 Compacts small files to optimize file sizes. Supports partial progress commits and limiting maximum rewritten bytes per run.
 
 ```java
@@ -78,6 +82,7 @@ Compacts small files to optimize file sizes. Supports partial progress commits a
 The `TriggerLockFactory` is essential for coordinating maintenance tasks. It prevents concurrent maintenance operations on the same table, which could lead to conflicts or data corruption. This locking mechanism is necessary even for a single job, as multiple instances of the same task could otherwise conflict.
 
 #### Why Locks Are Needed
+
 - **Concurrent Access**: Multiple Flink jobs may attempt maintenance simultaneously
 - **Data Consistency**: Ensures only one maintenance operation runs per table at a time
 - **Resource Management**: Prevents resource conflicts and scheduling issues
@@ -86,6 +91,7 @@ The `TriggerLockFactory` is essential for coordinating maintenance tasks. It pre
 #### Supported Lock Types
 
 ##### JDBC Lock Factory
+
 Uses a database table to manage distributed locks:
 
 ```java
@@ -102,6 +108,7 @@ TriggerLockFactory lockFactory = new JdbcLockFactory(
 ```
 
 ##### ZooKeeper Lock Factory
+
 Uses Apache ZooKeeper for distributed locks:
 
 ```java
@@ -162,53 +169,53 @@ env.execute("Table Maintenance Job");
 
 #### TableMaintenance Builder
 
-| Method | Description | Default |
-|--------|-------------|---------|
-| `uidSuffix(String)` | Unique identifier suffix for the job | Random UUID |
-| `rateLimit(Duration)` | Minimum interval between task executions | 60 seconds |
-| `lockCheckDelay(Duration)` | Delay for checking lock availability | 30 seconds |
-| `parallelism(int)` | Default parallelism for maintenance tasks | System default |
-| `maxReadBack(int)` | Max snapshots to check during initialization | 100 |
+|           Method           |                 Description                  |    Default     |
+|----------------------------|----------------------------------------------|----------------|
+| `uidSuffix(String)`        | Unique identifier suffix for the job         | Random UUID    |
+| `rateLimit(Duration)`      | Minimum interval between task executions     | 60 seconds     |
+| `lockCheckDelay(Duration)` | Delay for checking lock availability         | 30 seconds     |
+| `parallelism(int)`         | Default parallelism for maintenance tasks    | System default |
+| `maxReadBack(int)`         | Max snapshots to check during initialization | 100            |
 
 #### Maintenance Task Common Options
 
-| Method | Description | Default Value | Type |
-|--------|-------------|---------------|------|
-| `scheduleOnCommitCount(int)` | Trigger after N commits | No automatic scheduling | int |
-| `scheduleOnDataFileCount(int)` | Trigger after N data files | No automatic scheduling | int |
-| `scheduleOnDataFileSize(long)` | Trigger after total data file size (bytes) | No automatic scheduling | long |
-| `scheduleOnPosDeleteFileCount(int)` | Trigger after N positional delete files | No automatic scheduling | int |
-| `scheduleOnPosDeleteRecordCount(long)` | Trigger after N positional delete records | No automatic scheduling | long |
-| `scheduleOnEqDeleteFileCount(int)` | Trigger after N equality delete files | No automatic scheduling | int |
-| `scheduleOnEqDeleteRecordCount(long)` | Trigger after N equality delete records | No automatic scheduling | long |
-| `scheduleOnInterval(Duration)` | Trigger after time interval | No automatic scheduling | Duration |
+|                 Method                 |                Description                 |      Default Value      |   Type   |
+|----------------------------------------|--------------------------------------------|-------------------------|----------|
+| `scheduleOnCommitCount(int)`           | Trigger after N commits                    | No automatic scheduling | int      |
+| `scheduleOnDataFileCount(int)`         | Trigger after N data files                 | No automatic scheduling | int      |
+| `scheduleOnDataFileSize(long)`         | Trigger after total data file size (bytes) | No automatic scheduling | long     |
+| `scheduleOnPosDeleteFileCount(int)`    | Trigger after N positional delete files    | No automatic scheduling | int      |
+| `scheduleOnPosDeleteRecordCount(long)` | Trigger after N positional delete records  | No automatic scheduling | long     |
+| `scheduleOnEqDeleteFileCount(int)`     | Trigger after N equality delete files      | No automatic scheduling | int      |
+| `scheduleOnEqDeleteRecordCount(long)`  | Trigger after N equality delete records    | No automatic scheduling | long     |
+| `scheduleOnInterval(Duration)`         | Trigger after time interval                | No automatic scheduling | Duration |
 
 #### ExpireSnapshots Configuration
 
-| Method | Description | Default Value | Type |
-|--------|-------------|---------------|------|
-| `maxSnapshotAge(Duration)` | Maximum age of snapshots to retain | 5 days | Duration |
-| `retainLast(int)` | Minimum number of snapshots to retain | 1 | int |
-| `deleteBatchSize(int)` | Number of files to delete in each batch | 1000 | int |
-| `planningWorkerPoolSize(int)` | Number of worker threads for planning snapshot expiration | Shared worker pool | int |
-| `cleanExpiredMetadata(boolean)` | Remove expired metadata files when expiring snapshots | false | boolean |
+|             Method              |                        Description                        |   Default Value    |   Type   |
+|---------------------------------|-----------------------------------------------------------|--------------------|----------|
+| `maxSnapshotAge(Duration)`      | Maximum age of snapshots to retain                        | 5 days             | Duration |
+| `retainLast(int)`               | Minimum number of snapshots to retain                     | 1                  | int      |
+| `deleteBatchSize(int)`          | Number of files to delete in each batch                   | 1000               | int      |
+| `planningWorkerPoolSize(int)`   | Number of worker threads for planning snapshot expiration | Shared worker pool | int      |
+| `cleanExpiredMetadata(boolean)` | Remove expired metadata files when expiring snapshots     | false              | boolean  |
 
 #### RewriteDataFiles Configuration
 
-| Method | Description | Default Value | Type |
-|--------|-------------|---------------|------|
-| `targetFileSizeBytes(long)` | Target size for rewritten files | Table property or 512MB | long |
-| `minFileSizeBytes(long)` | Minimum size of files eligible for compaction | 75% of target file size | long |
-| `maxFileSizeBytes(long)` | Maximum size of files eligible for compaction | 180% of target file size | long |
-| `minInputFiles(int)` | Minimum number of files to trigger rewrite | 5 | int |
-| `deleteFileThreshold(int)` | Minimum delete-file count per data file to force rewrite | Integer.MAX_VALUE | int |
-| `rewriteAll(boolean)` | Rewrite all data files regardless of thresholds | false | boolean |
-| `maxFileGroupSizeBytes(long)` | Maximum total size of a file group | 107374182400 (100GB) | long |
-| `maxFilesToRewrite(int)` | If this option is not specified, all eligible files will be rewritten | null | int |
-| `partialProgressEnabled(boolean)` | Enable partial progress commits | false | boolean |
-| `partialProgressMaxCommits(int)` | Maximum commits allowed for partial progress when partialProgressEnabled is true | 10 | int |
-| `maxRewriteBytes(long)` | Maximum bytes to rewrite per execution | Long.MAX_VALUE | long |
-| `filter(Expression)` | Filter expression for selecting files to rewrite | Expressions.alwaysTrue() | Expression |
+|              Method               |                                   Description                                    |      Default Value       |    Type    |
+|-----------------------------------|----------------------------------------------------------------------------------|--------------------------|------------|
+| `targetFileSizeBytes(long)`       | Target size for rewritten files                                                  | Table property or 512MB  | long       |
+| `minFileSizeBytes(long)`          | Minimum size of files eligible for compaction                                    | 75% of target file size  | long       |
+| `maxFileSizeBytes(long)`          | Maximum size of files eligible for compaction                                    | 180% of target file size | long       |
+| `minInputFiles(int)`              | Minimum number of files to trigger rewrite                                       | 5                        | int        |
+| `deleteFileThreshold(int)`        | Minimum delete-file count per data file to force rewrite                         | Integer.MAX_VALUE        | int        |
+| `rewriteAll(boolean)`             | Rewrite all data files regardless of thresholds                                  | false                    | boolean    |
+| `maxFileGroupSizeBytes(long)`     | Maximum total size of a file group                                               | 107374182400 (100GB)     | long       |
+| `maxFilesToRewrite(int)`          | If this option is not specified, all eligible files will be rewritten            | null                     | int        |
+| `partialProgressEnabled(boolean)` | Enable partial progress commits                                                  | false                    | boolean    |
+| `partialProgressMaxCommits(int)`  | Maximum commits allowed for partial progress when partialProgressEnabled is true | 10                       | int        |
+| `maxRewriteBytes(long)`           | Maximum bytes to rewrite per execution                                           | Long.MAX_VALUE           | long       |
+| `filter(Expression)`              | Filter expression for selecting files to rewrite                                 | Expressions.alwaysTrue() | Expression |
 
 ### Complete Example
 
@@ -334,38 +341,41 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 
 - JDBC
 
-| Key | Description | Default |
-|-----|-------------|---------|
-| `flink-maintenance.lock.type` | Set to `jdbc` |  |
-| `flink-maintenance.lock.lock-id` | Unique lock ID per table |  |
-| `flink-maintenance.lock.jdbc.uri` | JDBC URI |  |
-| `flink-maintenance.lock.jdbc.init-lock-tables` | Auto-create lock table | `false` |
+|                      Key                       |       Description        | Default |
+|------------------------------------------------|--------------------------|---------|
+| `flink-maintenance.lock.type`                  | Set to `jdbc`            |         |
+| `flink-maintenance.lock.lock-id`               | Unique lock ID per table |         |
+| `flink-maintenance.lock.jdbc.uri`              | JDBC URI                 |         |
+| `flink-maintenance.lock.jdbc.init-lock-tables` | Auto-create lock table   | `false` |
 
 - ZooKeeper
 
-| Key | Description | Default |
-|-----|-------------|---------|
-| `flink-maintenance.lock.type` | Set to `zookeeper` |  |
-| `flink-maintenance.lock.lock-id` | Unique lock ID per table |  |
-| `flink-maintenance.lock.zookeeper.uri` | ZK connection URI |  |
-| `flink-maintenance.lock.zookeeper.session-timeout-ms` | Session timeout (ms) | `60000` |
-| `flink-maintenance.lock.zookeeper.connection-timeout-ms` | Connection timeout (ms) | `15000` |
-| `flink-maintenance.lock.zookeeper.max-retries` | Max retries | `3` |
-| `flink-maintenance.lock.zookeeper.base-sleep-ms` | Base sleep between retries (ms) | `3000` |
+|                           Key                            |           Description           | Default |
+|----------------------------------------------------------|---------------------------------|---------|
+| `flink-maintenance.lock.type`                            | Set to `zookeeper`              |         |
+| `flink-maintenance.lock.lock-id`                         | Unique lock ID per table        |         |
+| `flink-maintenance.lock.zookeeper.uri`                   | ZK connection URI               |         |
+| `flink-maintenance.lock.zookeeper.session-timeout-ms`    | Session timeout (ms)            | `60000` |
+| `flink-maintenance.lock.zookeeper.connection-timeout-ms` | Connection timeout (ms)         | `15000` |
+| `flink-maintenance.lock.zookeeper.max-retries`           | Max retries                     | `3`     |
+| `flink-maintenance.lock.zookeeper.base-sleep-ms`         | Base sleep between retries (ms) | `3000`  |
 
 ### Best Practices
 
 #### Resource Management
+
 - Use dedicated slot sharing groups for maintenance tasks
 - Set appropriate parallelism based on cluster resources
 - Enable checkpointing for fault tolerance
 
 #### Scheduling Strategy
+
 - Avoid too frequent executions with `rateLimit`
 - Use `scheduleOnCommitCount` for write-heavy tables
 - Use `scheduleOnDataFileCount` for fine-grained control
 
 #### Performance Tuning
+
 - Adjust `deleteBatchSize` based on storage performance
 - Enable `partialProgressEnabled` for large rewrite operations
 - Set reasonable `maxRewriteBytes` limits
@@ -374,28 +384,35 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 ### Troubleshooting
 
 #### OutOfMemoryError during file deletion
+
 **Scenario:** This can occur when the maintenance task attempts to delete a very large number of files in a single batch, especially in tables with long retention histories or after bulk deletions.
 **Cause:** Each file deletion involves metadata and object store operations, which together can consume significant memory. Large batches magnify this effect and may exhaust the JVM heap.
 **Recommendation:** Reduce the batch size to limit memory usage during deletion.
+
 ```java
 .deleteBatchSize(500) // Example: 500 files per batch
 ```
 
 #### Lock conflicts
+
 **Scenario:** In multi-job or high-availability environments, two or more Flink jobs may attempt maintenance on the same table simultaneously.
 **Cause:** Concurrent jobs compete for the same distributed lock, causing retries and possible delays.
 **Recommendation:** Increase lock check delay and rate limit so that failed attempts back off and reduce contention.
+
 ```java
 .lockCheckDelay(Duration.ofMinutes(1)) // Wait longer before re-checking lock
 .rateLimit(Duration.ofMinutes(10))     // Reduce frequency of task execution
 ```
 
 #### Slow rewrite operations
+
 **Scenario:** Large tables with many small files can require rewriting terabytes of data in a single run, which may overwhelm available resources.
 **Cause:** Without limits, rewrite tasks attempt to process all eligible files at once, leading to long execution times and possible job failures.
 **Recommendation:** Enable partial progress so that rewritten files can be committed in smaller batches, and cap the maximum data rewritten in each execution.
+
 ```java
 .partialProgressEnabled(true) // Commit progress incrementally
 .partialProgressMaxCommits(3) // Allow up to 3 commits per run
 .maxRewriteBytes(1L * 1024 * 1024 * 1024) // Limit to ~1GB per run
 ```
+

@@ -1,22 +1,24 @@
 ---
+
 title: "How To Release"
----
+-----------------------
+
 <!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
+- Licensed to the Apache Software Foundation (ASF) under one or more
+- contributor license agreements.  See the NOTICE file distributed with
+- this work for additional information regarding copyright ownership.
+- The ASF licenses this file to You under the Apache License, Version 2.0
+- (the "License"); you may not use this file except in compliance with
+- the License.  You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+- Unless required by applicable law or agreed to in writing, software
+- distributed under the License is distributed on an "AS IS" BASIS,
+- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- See the License for the specific language governing permissions and
+- limitations under the License.
+-->
 
 ## Introduction
 
@@ -242,7 +244,6 @@ The vote result is:
 Therefore, the release candidate is passed/rejected.
 ```
 
-
 ### Finishing the release
 
 After the release vote has passed, you need to release the last candidate's artifacts.
@@ -260,7 +261,7 @@ svn mv https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-<VERSION>-r
 ```
 
 !!! Note
-    The above step requires PMC privileges to execute.
+The above step requires PMC privileges to execute.
 
 Next, add a release tag to the git repository based on the passing candidate tag:
 
@@ -279,6 +280,7 @@ To announce the release, wait until Maven central has mirrored the Apache binari
 ```text
 [ANNOUNCE] Apache Iceberg release <VERSION>
 ```
+
 ```text
 I'm pleased to announce the release of Apache Iceberg <VERSION>!
 
@@ -310,13 +312,13 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 - Create a PR to update the release version in [doap.rdf](https://github.com/apache/iceberg/blob/main/doap.rdf) file, in the `<release/>` section:
 
 ```xml
-    <release>
-      <Version>
-        <name>x.y.z</name>
-        <created>yyyy-mm-dd</created>
-        <revision>x.y.z</revision>
-      </Version>
-    </release>
+<release>
+  <Version>
+    <name>x.y.z</name>
+    <created>yyyy-mm-dd</created>
+    <revision>x.y.z</revision>
+  </Version>
+</release>
 ```
 
 ### Documentation Release
@@ -325,7 +327,7 @@ Please follow the instructions on the GitHub repository in the [`README.md` in t
 
 #### Versioned Docs
 
-The versioned docs is located in the `docs` directory within the source of the released tag (e.g. https://github.com/apache/iceberg/tree/apache-iceberg-1.8.0/docs). 
+The versioned docs is located in the `docs` directory within the source of the released tag (e.g. https://github.com/apache/iceberg/tree/apache-iceberg-1.8.0/docs).
 Check out the `docs` branch in the `iceberg` repo and copy the versioned docs over:
 
 ```
@@ -359,7 +361,7 @@ Once this is done, create a PR against the `javadoc` branch, similar to https://
 
 #### Site update
 
-Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12242, 
+Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12242,
 to update the Iceberg version, the links to the new version's documentation, and the release notes.
 
 # How to Verify a Release
@@ -389,12 +391,14 @@ verify signatures, checksums, and documentation.
 ### Verifying Signatures
 
 First, import the keys.
+
 ```bash
 curl https://downloads.apache.org/iceberg/KEYS -o KEYS
 gpg --import KEYS
 ```
 
 Next, verify the `.asc` file.
+
 ```bash
 gpg --verify apache-iceberg-{{ icebergVersion }}.tar.gz.asc
 ```
@@ -408,12 +412,14 @@ shasum -a 512 --check apache-iceberg-{{ icebergVersion }}.tar.gz.sha512
 ### Verifying License Documentation
 
 Untar the archive and change into the source directory.
+
 ```bash
 tar xzf apache-iceberg-{{ icebergVersion }}.tar.gz
 cd apache-iceberg-{{ icebergVersion }}
 ```
 
 Run RAT checks to validate license headers.
+
 ```bash
 dev/check-license
 ```
@@ -421,6 +427,7 @@ dev/check-license
 ### Verifying Build and Test
 
 To verify that the release candidate builds properly, run the following command.
+
 ```bash
 ./gradlew build
 ```
@@ -431,6 +438,7 @@ Release announcements will also include a maven repository location. You can use
 location to test downstream dependencies by adding it to your maven or gradle build.
 
 To use the release in your maven build, add the following to your `POM` or `settings.xml`:
+
 ```xml
 ...
   <repositories>
@@ -444,6 +452,7 @@ To use the release in your maven build, add the following to your `POM` or `sett
 ```
 
 To use the release in your gradle build, add the following to your `build.gradle`:
+
 ```groovy
 repositories {
     mavenCentral()
@@ -454,12 +463,13 @@ repositories {
 ```
 
 !!! Note
-    Replace `${MAVEN_URL}` with the URL provided in the release announcement
+Replace `${MAVEN_URL}` with the URL provided in the release announcement
 
 ### Verifying with Spark
 
 To verify using spark, start a `spark-shell` with a command like the following command (use the appropriate
 spark-runtime jar for the Spark installation):
+
 ```bash
 spark-shell \
     --conf spark.jars.repositories=${MAVEN_URL} \
@@ -475,6 +485,7 @@ spark-shell \
 ### Verifying with Flink
 
 To verify using Flink, start a Flink SQL Client with the following command:
+
 ```bash
 wget ${MAVEN_URL}/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar
 
@@ -483,7 +494,6 @@ sql-client.sh embedded \
     -j flink-connector-hive_2.12-1.20.jar \
     shell
 ```
-
 
 ## Voting
 
