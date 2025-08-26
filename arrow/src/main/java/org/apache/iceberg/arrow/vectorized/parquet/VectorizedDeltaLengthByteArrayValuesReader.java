@@ -62,7 +62,7 @@ public class VectorizedDeltaLengthByteArrayValuesReader
   }
 
   @Override
-  public void readBinary(int total, FieldVector vec, int rowId) {
+  public void readBinary(int total, FieldVector vec, int rowId, boolean setArrowValidityVector) {
     readValues(
         total,
         vec,
@@ -71,6 +71,7 @@ public class VectorizedDeltaLengthByteArrayValuesReader
         (f, i, v) -> f.getDataBuffer().setBytes(i, v));
   }
 
+  @SuppressWarnings("UnusedVariable")
   private void readValues(
       int total,
       FieldVector vec,
@@ -78,7 +79,6 @@ public class VectorizedDeltaLengthByteArrayValuesReader
       IntUnaryOperator getLength,
       BinaryOutputWriter outputWriter) {
     ByteBuffer buffer;
-    long offset = rowId;
     for (int i = 0; i < total; i++) {
       int length = getLength.applyAsInt(rowId + i);
       try {
@@ -89,8 +89,7 @@ public class VectorizedDeltaLengthByteArrayValuesReader
       } catch (EOFException e) {
         throw new ParquetDecodingException("Failed to read " + length + " bytes");
       }
-      outputWriter.write(vec, offset, buffer);
-      offset += length;
+      outputWriter.write(vec, rowId + i, buffer);
     }
   }
 

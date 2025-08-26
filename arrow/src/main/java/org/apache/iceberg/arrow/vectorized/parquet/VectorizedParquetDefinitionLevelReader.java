@@ -584,20 +584,7 @@ public final class VectorizedParquetDefinitionLevelReader
         VectorizedValuesReader valuesReader,
         int typeWidth,
         byte[] byteArray) {
-      int len = valuesReader.readInteger();
-      ByteBuffer buffer = valuesReader.readBinary(len).toByteBuffer();
-      // Calling setValueLengthSafe takes care of allocating a larger buffer if
-      // running out of space.
-      ((BaseVariableWidthVector) vector).setValueLengthSafe(idx, len);
-      int startOffset = ((BaseVariableWidthVector) vector).getStartOffset(idx);
-      // It is possible that the data buffer was reallocated. So it is important to
-      // not cache the data buffer reference but instead use vector.getDataBuffer().
-      vector.getDataBuffer().setBytes(startOffset, buffer);
-      // Similarly, we need to get the latest reference to the validity buffer as well
-      // since reallocation changes reference of the validity buffers as well.
-      if (setArrowValidityVector) {
-        BitVectorHelper.setBit(vector.getValidityBuffer(), idx);
-      }
+      valuesReader.readBinary(1, vector, idx, setArrowValidityVector);
     }
 
     @Override

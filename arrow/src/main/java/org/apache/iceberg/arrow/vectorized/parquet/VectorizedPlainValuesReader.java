@@ -19,6 +19,8 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.nio.ByteBuffer;
+import org.apache.arrow.vector.BaseVariableWidthVector;
+import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
 import org.apache.parquet.io.api.Binary;
@@ -76,9 +78,24 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
   }
 
   @Override
-  public void readBinary(int total, FieldVector vec, int rowId) {
-    for (int i = 0; i < total; i++) {
-      readBinary(1, vec, rowId + i);
+  public void readBinary(
+          int total,
+          FieldVector vec,
+          int rowId,
+          boolean setArrowValidityVector) {
+    int len = readInteger();
+    ByteBuffer buffer = readBinary(len).toByteBuffer();
+    // Calling setValueLengthSafe takes care of allocating a larger buffer if
+    // running out of space.
+    ((BaseVariableWidthVector) vec).setValueLengthSafe(rowId, len);
+    int startOffset = ((BaseVariableWidthVector) vec).getStartOffset(rowId);
+    // It is possible that the data buffer was reallocated. So it is important to
+    // not cache the data buffer reference but instead use vector.getDataBuffer().
+    vec.getDataBuffer().setBytes(startOffset, buffer);
+    // Similarly, we need to get the latest reference to the validity buffer as well
+    // since reallocation changes reference of the validity buffers as well.
+    if (setArrowValidityVector) {
+      BitVectorHelper.setBit(vec.getValidityBuffer(), rowId);
     }
   }
 }

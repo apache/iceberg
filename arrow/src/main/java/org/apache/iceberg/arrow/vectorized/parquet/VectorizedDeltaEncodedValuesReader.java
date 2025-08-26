@@ -156,7 +156,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
   @Override
-  public void readBinary(int total, FieldVector vec, int rowId) {
+  public void readBinary(int total, FieldVector vec, int rowId, boolean setArrowValidityVector) {
     throw new UnsupportedOperationException("readBinary is not supported");
   }
 
