@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -80,6 +83,22 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]", wapId, BRANCH);
+  }
+
+  @TestTemplate
+  public void testWapPropertiesSet() {
+    assertThatCode(
+            () -> {
+              sql("INSERT INTO %s VALUES (4, 'd')", tableName);
+              Table table = validationCatalog.loadTable(tableIdent);
+              assertThat(
+                      table
+                          .snapshot(table.refs().get(BRANCH).snapshotId())
+                          .summary()
+                          .get(SnapshotSummary.WAP_BRANCH_PROP))
+                  .isEqualTo(BRANCH);
+            })
+        .doesNotThrowAnyException();
   }
 
   @Override

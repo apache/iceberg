@@ -114,6 +114,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final SparkWriteRequirements writeRequirements;
   private final Context context;
   private final Map<String, String> writeProperties;
+  private final boolean isWapBranch;
 
   private boolean cleanupOnAbort = false;
 
@@ -135,6 +136,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
     this.branch = writeConf.branch();
+    this.isWapBranch = writeConf.isWapBranch(branch);
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
     this.context = new Context(dataSchema, writeConf, info, writeRequirements);
@@ -326,11 +328,15 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
       CommitMetadata.commitProperties().forEach(operation::set);
 
-      if (wapEnabled && wapId != null) {
+      if (wapEnabled) {
         // write-audit-publish is enabled for this table and job
         // stage the changes without changing the current snapshot
-        operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
-        operation.stageOnly();
+        if (wapId != null) {
+          operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
+          operation.stageOnly();
+        } else if (isWapBranch) {
+          operation.set(SnapshotSummary.WAP_BRANCH_PROP, branch);
+        }
       }
 
       if (branch != null) {
