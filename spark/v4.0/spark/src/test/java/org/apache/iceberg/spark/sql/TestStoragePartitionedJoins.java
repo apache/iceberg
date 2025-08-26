@@ -133,10 +133,12 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
     sql("DROP TABLE IF EXISTS %s", tableName(OTHER_TABLE_NAME));
   }
 
-  // TODO: Truncate is not supported by SPJ yet (even after SPARK-40295).
-  // Add tests for full support once SPARK-50593 is resolved.
+  // TODO: SPJ does not currently leverage truncate(...) partition transforms for partition
+  // alignment.
+  // SPARK-40295 improved related areas, but full truncate support is tracked in SPARK-50593.
+  // This test documents current behavior; update/extend once SPARK-50593 lands.
   @TestTemplate
-  public void testJoinsWithIncompatibleTruncateSpecs() {
+  public void testJoinWithTruncatePartitioning() {
 
     sql(
         "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING) "
@@ -160,6 +162,8 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
     sql("INSERT INTO %s VALUES (2L, 200, 'software')", tableName(OTHER_TABLE_NAME));
     sql("INSERT INTO %s VALUES (3L, 300, 'software')", tableName(OTHER_TABLE_NAME));
 
+    // TODO(SPARK-50593): Once truncate transforms are leveraged by SPJ, expected shuffles with SPJ
+    // should drop to 1. Update expectedNumShufflesWithSPJ accordingly.
     assertPartitioningAwarePlan(
         3, /* expected num of shuffles with SPJ */
         3, /* expected num of shuffles without SPJ */
