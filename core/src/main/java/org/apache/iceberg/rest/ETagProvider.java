@@ -30,6 +30,7 @@ class ETagProvider {
 
   public static String of(String metadataLocation) {
     Preconditions.checkArgument(null != metadataLocation, "Invalid metadata location: null");
+    Preconditions.checkArgument(!metadataLocation.isEmpty(), "Invalid metadata location: empty");
 
     return MURMUR3.hashString(metadataLocation, StandardCharsets.UTF_8).toString();
   }
