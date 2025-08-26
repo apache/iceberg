@@ -78,11 +78,7 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
   }
 
   @Override
-  public void readBinary(
-          int total,
-          FieldVector vec,
-          int rowId,
-          boolean setArrowValidityVector) {
+  public void readBinary(int total, FieldVector vec, int rowId, boolean setArrowValidityVector) {
     int len = readInteger();
     ByteBuffer buffer = readBinary(len).toByteBuffer();
     // Calling setValueLengthSafe takes care of allocating a larger buffer if

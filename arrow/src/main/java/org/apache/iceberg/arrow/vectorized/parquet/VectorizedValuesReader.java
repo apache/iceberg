@@ -77,7 +77,7 @@ interface VectorizedValuesReader {
   void readDoubles(int total, FieldVector vec, int rowId);
 
   /** Read `total` binary values into `vec` starting at `vec[rowId]` */
-  void readBinary(int total, FieldVector vec, int rowId,  boolean setArrowValidityVector);
+  void readBinary(int total, FieldVector vec, int rowId, boolean setArrowValidityVector);
 
   /**
    * Initialize the reader from a page. See {@link ValuesReader#initFromPage(int,
