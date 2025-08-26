@@ -137,6 +137,7 @@ public class DataDistributionUtil {
       totalWeight += weights.get(keys.get(i));
       weightsCDF[i] = totalWeight;
     }
+
     return weightsCDF;
   }
 
