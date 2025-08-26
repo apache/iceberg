@@ -100,6 +100,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     refreshFromMetadataLocation(newMetadataLocation);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
@@ -138,7 +139,9 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       throw new UncheckedSQLException(e, "Database warning");
     } catch (SQLException e) {
       // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-      if (e.getMessage() != null && e.getMessage().contains("constraint failed")) {
+      // Postgres doesn't throw SQLIntegrityConstraintViolationException
+      if (e.getMessage() != null
+          && (e.getMessage().contains("constraint failed") || "23505".equals(e.getSQLState()))) {
         throw new AlreadyExistsException("Table already exists: %s", tableIdentifier);
       }
 
