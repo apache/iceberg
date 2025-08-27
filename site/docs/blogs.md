@@ -23,11 +23,6 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
-### [All about Iceberg Partitioning and Partitioning Writing Strategies](https://olake.io/iceberg/iceberg-partitioning-and-writing-strategies)
-**Date:** June 24, 2025, **Company**: OLake by Datazip
-**Author**: [Badal Prasad Singh](https://www.linkedin.com/in/badalprasadsingh/)
-
-<!-- markdown-link-check-disable-next-line -->
 ### [How to Load Data from MySQL to Iceberg in Real Time](https://doc.bladepipe.com/blog/tech_share/mysql_iceberg_sync)
 **Date:** July 10, 2025, **Company**: BladePipe
 **Author**: [BladePipe](https://www.bladepipe.com)
@@ -46,6 +41,11 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 ### [Writing to Apache Iceberg on S3 using Flink SQL with Glue catalog](https://rmoff.net/2025/06/24/writing-to-apache-iceberg-on-s3-using-flink-sql-with-glue-catalog/)
 **Date**: June 24th, 2025, **Company**: Confluent
 **Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
+
+<!-- markdown-link-check-disable-next-line -->
+### [All about Iceberg Partitioning and Partitioning Writing Strategies](https://olake.io/iceberg/iceberg-partitioning-and-writing-strategies)
+**Date:** June 24, 2025, **Company**: OLake by Datazip
+**Author**: [Badal Prasad Singh](https://www.linkedin.com/in/badalprasadsingh/)
 
 <!-- markdown-link-check-disable-next-line -->
 ### [Querying Apache Iceberg with Sub-Second Performance](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance)
