@@ -302,6 +302,63 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testTriggerAvailableNowDoesNotProcessNewDataWhileRunning() throws Exception {
+    List<List<SimpleRecord>> expectedData = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expectedData);
+
+    long expectedRecordCount = expectedData.stream().mapToLong(List::size).sum();
+
+    table.refresh();
+    long expectedSnapshotId = table.currentSnapshot().snapshotId();
+
+    String sinkTable = "availablenow_sink";
+    StreamingQuery query =
+        spark
+            .readStream()
+            .option(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1")
+            .format("iceberg")
+            .load(tableName)
+            .writeStream()
+            .format("memory")
+            .queryName(sinkTable)
+            .trigger(Trigger.AvailableNow())
+            .start();
+
+    Thread.sleep(500);
+    assertThat(query.isActive()).isTrue();
+
+    // Add new data while the stream is running
+    List<SimpleRecord> newDataDuringStreamSnap1 =
+        Lists.newArrayList(
+            new SimpleRecord(100, "hundred"),
+            new SimpleRecord(101, "hundred-one"),
+            new SimpleRecord(102, "hundred-two"));
+    List<SimpleRecord> newDataDuringStreamSnap2 =
+        Lists.newArrayList(
+            new SimpleRecord(200, "two-hundred"), new SimpleRecord(201, "two-hundred-one"));
+    appendData(newDataDuringStreamSnap1);
+    appendData(newDataDuringStreamSnap2);
+
+    // Query should terminate on its own after processing all available data
+    assertThat(query.awaitTermination(60000)).isTrue();
+
+    List<SimpleRecord> actualResults =
+        spark
+            .sql("SELECT * FROM " + sinkTable)
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    long endOffsetSnapshotId =
+        StreamingOffset.fromJson(query.lastProgress().sources()[0].endOffset()).snapshotId();
+
+    // Verify the stream processed only up to the snapshot present when started
+    assertThat(expectedSnapshotId).isEqualTo(endOffsetSnapshotId);
+
+    // Verify only the initial data was processed
+    assertThat(actualResults.size()).isEqualTo(expectedRecordCount);
+    assertThat(actualResults).containsExactlyInAnyOrderElementsOf(Iterables.concat(expectedData));
+  }
+
+  @TestTemplate
   public void testReadStreamOnIcebergThenAddData() throws Exception {
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
 
