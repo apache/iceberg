@@ -506,6 +506,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Set<Long> deltaSnapshotIds =
         deltaSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
 
+    // TODO: This implementation uses toLocalIterator to collect manifest rewrite results on
+    // the driver, which can be a bottleneck for tables with many manifests. This should be
+    // refactored to use a reducible result class with a more scalable aggregation pattern.
+    // See issue: https://github.com/apache/iceberg/issues/13932
     Iterator<Tuple2<String, RewriteContentFileResult>> resultIterator =
         manifestDS
             .repartition(toRewrite.size())
