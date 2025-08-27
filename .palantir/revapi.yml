@@ -1267,7 +1267,7 @@ acceptedBreaks:
         \ java.lang.Object>"
       new: "class org.apache.iceberg.RewriteTablePathUtil.RewriteResult<T extends\
         \ java.lang.Object>"
-      justification: "Adding an optional field"
+      justification: "Serialization across versions is not supported"
     - code: "java.class.removed"
       old: "class org.apache.iceberg.MetadataUpdate.EnableRowLineage"
       justification: "Removing deprecations for 1.10.0"
