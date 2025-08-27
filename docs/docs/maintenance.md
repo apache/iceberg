@@ -81,8 +81,9 @@ Untracked metadata files are also deleted as part of [orphan file deletion](#del
 | write.metadata.previous-versions-max                 | 100        | The max number of previous version metadata files to track                                       |
 
 Examples: 
-- With `write.metadata.delete-after-commit.enabled=false` and `write.metadata.previous-versions-max=10`, after 100 commits, one will have 10 tracked metadata files and 90 orphaned metadata files. These 90 orphaned metadata files cannot be deleted by setting `write.metadata.delete-after-commit.enabled=true` because they are already untracked. They can only be cleaned with an orphan file deletion procedure.
-- With `write.metadata.delete-after-commit.enabled=true` and `write.metadata.previous-versions-max=20`, after 21 commits, one will have 20 tracked metadata files, with the oldest metadata file being deleted by the writer after committing. With each additional commit, the oldest metadata file will be deleted. 
+
+ * With `write.metadata.delete-after-commit.enabled=false` and `write.metadata.previous-versions-max=10`, after 100 commits, one will have 10 tracked metadata files and 90 orphaned metadata files. These 90 orphaned metadata files cannot be deleted by setting `write.metadata.delete-after-commit.enabled=true` because they are already untracked. They can only be cleaned with an orphan file deletion procedure.
+ * With `write.metadata.delete-after-commit.enabled=true` and `write.metadata.previous-versions-max=20`, after 21 commits, one will have 20 tracked metadata files, with the oldest metadata file being deleted by the writer after committing. With each additional commit, the oldest metadata file will be deleted. 
 
 See [table write properties](configuration.md#write-properties) for more details.
 
