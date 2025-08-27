@@ -142,6 +142,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     if (reuse == null
         || (!dictEncoded && readType == ReadType.DICTIONARY)
         || (dictEncoded && readType != ReadType.DICTIONARY)) {
+      // There is a possibility that a vector of a different type was in use earlier, so close it if so.
       if (vec != null) {
         vec.close();
       }
@@ -252,9 +253,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateDictEncodedVector() {
-    if (vec != null) {
-      vec.close();
-    }
     Field field =
         new Field(
             icebergField.name(),
@@ -268,9 +266,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateVectorBasedOnLogicalType(PrimitiveType primitive, Field arrowField) {
-    if (vec != null) {
-      vec.close();
-    }
     LogicalTypeVisitorResult logicalTypeVisitorResult =
         primitive
             .getLogicalTypeAnnotation()
@@ -285,9 +280,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateVectorBasedOnTypeName(PrimitiveType primitive, Field arrowField) {
-    if (vec != null) {
-      vec.close();
-    }
     switch (primitive.getPrimitiveTypeName()) {
       case FIXED_LEN_BYTE_ARRAY:
         int len;
