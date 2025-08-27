@@ -89,6 +89,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
   private final boolean cacheDeleteFilesOnExecutors;
+  private StreamingOffset lastOffsetForTriggerAvailableNow;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -384,6 +385,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
     validateCurrentSnapshotExists(curSnapshot, startingOffset);
 
+    // Use the pre-fetched snapshotId when Trigger.AvailableNow is enabled.
+    long latestSnapshotId =
+        lastOffsetForTriggerAvailableNow != null
+            ? lastOffsetForTriggerAvailableNow.snapshotId()
+            : table.currentSnapshot().snapshotId();
+
     int startPosOfSnapOffset = (int) startingOffset.position();
 
     boolean scanAllFiles = startingOffset.shouldScanAllFiles();
@@ -439,8 +446,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
           LOG.warn("Failed to close task iterable", ioe);
         }
       }
-      // if the currentSnapShot was also the mostRecentSnapshot then break
-      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
+      // if the currentSnapShot was also the latestSnapshot then break
+      if (curSnapshot.snapshotId() == latestSnapshotId) {
         break;
       }
 
@@ -527,6 +534,11 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   @Override
   public void prepareForTriggerAvailableNow() {
     LOG.info("The streaming query reports to use Trigger.AvailableNow");
+
+    lastOffsetForTriggerAvailableNow =
+        (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+
+    LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
   }
 
   private static class InitialOffsetStore {
