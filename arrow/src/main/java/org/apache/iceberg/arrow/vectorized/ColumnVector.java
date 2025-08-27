@@ -58,13 +58,22 @@ public class ColumnVector implements AutoCloseable {
     this.accessor = getVectorAccessor(vectorHolder);
   }
 
+  /** ColumnVector that delegates to an ArrowVectorAccessor with a NullabilityHolder. */
+  public ColumnVector(
+      Types.NestedField field, ArrowVectorAccessor<?, String, ?, ?> accessor, NullabilityHolder nullabilityHolder) {
+    this.vectorHolder = null; // Not used in this constructor
+    this.accessor = accessor;
+    // Be defensive: some edge cases (e.g., entirely-null projected columns) may pass null here.
+    this.nullabilityHolder = (nullabilityHolder != null) ? nullabilityHolder : NullabilityHolder.ALL_NULLS;
+  }
+
   /**
    * Returns the potentially dict-encoded {@link FieldVector}.
    *
    * @return instance of {@link FieldVector}
    */
   public FieldVector getFieldVector() {
-    return vectorHolder.vector();
+    return vectorHolder != null ? vectorHolder.vector() : null;
   }
 
   /**
@@ -73,7 +82,7 @@ public class ColumnVector implements AutoCloseable {
    * @return instance of {@link FieldVector}
    */
   public FieldVector getArrowVector() {
-    return DictEncodedArrowConverter.toArrowVector(vectorHolder, accessor);
+    return vectorHolder != null ? DictEncodedArrowConverter.toArrowVector(vectorHolder, accessor) : null;
   }
 
   public boolean hasNull() {
@@ -132,6 +141,10 @@ public class ColumnVector implements AutoCloseable {
       return null;
     }
     return (BigDecimal) accessor.getDecimal(rowId, precision, scale);
+  }
+
+  public ArrowVectorAccessor<?, String, ?, ?> accessor() {
+    return accessor;
   }
 
   private static ArrowVectorAccessor<?, String, ?, ?> getVectorAccessor(VectorHolder holder) {
