@@ -23,6 +23,16 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [Step-by-Step Guide - Replicating PostgreSQL to Iceberg with OLake & AWS Glue](https://olake.io/iceberg/postgres-to-iceberg-using-glue)
+**Date:** April 11, 2025, **Company**: OLake by Datazip
+**Author**: [Rohan Khameshra](https://www.linkedin.com/in/rohan-khameshra/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [All about Iceberg Partitioning and Partitioning Writing Strategies](https://olake.io/iceberg/iceberg-partitioning-and-writing-strategies)
+**Date:** June 24, 2025, **Company**: OLake by Datazip
+**Author**: [Badal Prasad Singh](https://www.linkedin.com/in/badalprasadsingh/)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [How to Load Data from MySQL to Iceberg in Real Time](https://doc.bladepipe.com/blog/tech_share/mysql_iceberg_sync)
 **Date:** July 10, 2025, **Company**: BladePipe
 **Author**: [BladePipe](https://www.bladepipe.com)
