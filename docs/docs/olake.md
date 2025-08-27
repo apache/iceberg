@@ -22,7 +22,18 @@ title: "OLake"
 
 [OLake](https://olake.io/) is an open-source ELT tool specialised for replicating databases to Apache Iceberg™ data lakehouses. It integrates natively with PostgreSQL, MySQL, MongoDB, Oracle, and Kafka, facilitating real-time data ingestion without the need for intermediary layers like Debezium, Kafka or Spark. The platform features a modular architecture that supports full-load operations, continuous Change Data Capture (CDC), and incremental synchronization with bookmark/cursor column support with resumable syncs and schema evolution handling. By leveraging a parallelized & resumable chunking strategy for faster historical snapshot, and CDC cursor preservation guarantees that incremental updates capture all events.
 
-OLake supports key Apache Iceberg™ features including partitioning, equality deletes, all catalog types (with respective documentation), and the V2 specification (V3 coming soon). It ensures exactly-once delivery semantics and produces optimal file sizes (256 MB–512 MB) for historical snapshots. Upcoming enhancements include Apache Arrow based fast writes, automatic equality-to-positional deletes, lightweight compaction, and fully managed compaction.
+OLake supports key **Apache Iceberg™ features**:
+
+- Partitioning
+- Equality deletes
+- All catalog types (with respective documentation)
+- V2 specification (V3 coming soon)
+- Exactly-once delivery semantics
+- Optimal file sizes (256 MB–512 MB) for historical snapshots
+- Apache Arrow–based fast writes (coming soon)
+- Automatic equality-to-positional deletes (coming soon)
+- Lightweight compaction (coming soon)
+- Fully managed compaction (coming soon)
 
 ## Supported Connectors
 
