@@ -38,7 +38,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
   private String uidSuffix = null;
   private String slotSharingGroup = null;
   private Integer parallelism = null;
-  private boolean collectResults = false;
+  private boolean collectResults;
   private final TriggerEvaluator.Builder triggerEvaluator = new TriggerEvaluator.Builder();
 
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);

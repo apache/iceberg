@@ -36,9 +36,8 @@ import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 @ExtendWith(ParameterizedTestExtension.class)
 class TestExpireSnapshotsProcessor extends OperatorTestBase {
@@ -49,17 +48,19 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
   @Parameter(index = 1)
   private boolean collectResults;
 
-  @Parameters(name = "success = {0},collectResults = {1}")
+  @Parameter(index = 2)
+  private boolean cleanExpiredMetadata;
+
+  @Parameters(name = "success = {0},collectResults = {1},cleanExpiredMetadata = {2}")
   protected static List<Object> parameters() {
     return Arrays.asList(
-        new Object[] {true, true},
-        new Object[] {true, false},
-        new Object[] {false, true},
-        new Object[] {false, false});
+        new Object[] {true, true, true},
+        new Object[] {true, false, true},
+        new Object[] {false, true, false},
+        new Object[] {false, false, false});
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
+  @TestTemplate
   void testExpire() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
@@ -69,7 +70,8 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     Queue<StreamRecord<String>> deletes;
     try (OneInputStreamOperatorTestHarness<Trigger, TaskResult> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10, false,collectResults))) {
+            new ExpireSnapshotsProcessor(
+                tableLoader(), 0L, 1, 10, cleanExpiredMetadata, collectResults))) {
       testHarness.open();
 
       if (!success) {
@@ -101,9 +103,8 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void testCleanExpiredMetadata(boolean cleanExpiredMetadata) throws Exception {
+  @TestTemplate
+  void testCleanExpiredMetadata() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
@@ -115,7 +116,8 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     Queue<StreamRecord<String>> deletes;
     try (OneInputStreamOperatorTestHarness<Trigger, TaskResult> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10, cleanExpiredMetadata))) {
+            new ExpireSnapshotsProcessor(
+                tableLoader(), 0L, 1, 10, cleanExpiredMetadata, collectResults))) {
       testHarness.open();
 
       testHarness.processElement(Trigger.create(10, 11), System.currentTimeMillis());

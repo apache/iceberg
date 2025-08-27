@@ -128,7 +128,8 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
     } catch (Exception e) {
       LOG.error("Failed to expiring snapshots for {} at {}", table, ctx.timestamp(), e);
       out.collect(
-          new TaskResult(trigger.taskId(), trigger.timestamp(), false, Lists.newArrayList(e)));
+          new TaskResult(
+              trigger.taskId(), trigger.timestamp(), false, Lists.newArrayList(e), null));
     }
   }
 

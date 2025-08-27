@@ -89,7 +89,7 @@ class TestLockRemover extends OperatorTestBase {
       assertThat(LOCK.isHeld()).isTrue();
 
       // Start a successful trigger for task1 and assert the return value is correct
-      processAndCheck(source, new TaskResult(0, 0L, true, Lists.newArrayList()));
+      processAndCheck(source, new TaskResult(0, 0L, true, Lists.newArrayList(), null));
 
       // Assert that the lock is removed
       assertThat(LOCK.isHeld()).isFalse();
@@ -117,7 +117,8 @@ class TestLockRemover extends OperatorTestBase {
       assertThat(LOCK.isHeld()).isTrue();
 
       // Start a successful trigger for task1 and assert the return value is correct
-      processAndCheck(source, new TaskResult(0, 0L, true, Lists.newArrayList()), sinkName + ": ");
+      processAndCheck(
+          source, new TaskResult(0, 0L, true, Lists.newArrayList(), null), sinkName + ": ");
 
       // Assert that the lock is removed
       assertThat(LOCK.isHeld()).isFalse();
@@ -143,12 +144,12 @@ class TestLockRemover extends OperatorTestBase {
     try {
       jobClient = env.executeAsync();
       // Start the 2 successful and one failed result trigger for task1, and 3 successful for task2
-      processAndCheck(source, new TaskResult(0, time, true, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(1, 0L, true, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(1, 0L, true, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(0, time, false, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(0, time, true, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(1, 0L, true, Lists.newArrayList()));
+      processAndCheck(source, new TaskResult(0, time, true, Lists.newArrayList(), null));
+      processAndCheck(source, new TaskResult(1, 0L, true, Lists.newArrayList(), null));
+      processAndCheck(source, new TaskResult(1, 0L, true, Lists.newArrayList(), null));
+      processAndCheck(source, new TaskResult(0, time, false, Lists.newArrayList(), null));
+      processAndCheck(source, new TaskResult(0, time, true, Lists.newArrayList(), null));
+      processAndCheck(source, new TaskResult(1, 0L, true, Lists.newArrayList(), null));
 
       Awaitility.await()
           .until(
@@ -240,9 +241,9 @@ class TestLockRemover extends OperatorTestBase {
       RECOVERY_LOCK.tryLock();
       assertThat(RECOVERY_LOCK.isHeld()).isTrue();
 
-      processAndCheck(source1, new TaskResult(0, 0L, true, Lists.newArrayList()));
+      processAndCheck(source1, new TaskResult(0, 0L, true, Lists.newArrayList(), null));
 
-      source1.sendRecord(new TaskResult(0, 1L, true, Lists.newArrayList()));
+      source1.sendRecord(new TaskResult(0, 1L, true, Lists.newArrayList(), null));
       // we receive the second result - this will not happen in real use cases, but with this we can
       // be sure that the previous watermark is processed
       Awaitility.await()

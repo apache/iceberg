@@ -451,7 +451,8 @@ class TestTableMaintenance extends OperatorTestBase {
           trigger.taskId(),
           trigger.timestamp(),
           success,
-          success ? Collections.emptyList() : Lists.newArrayList(new Exception("Testing error")));
+          success ? Collections.emptyList() : Lists.newArrayList(new Exception("Testing error")),
+          null);
     }
 
     @Override

@@ -31,10 +31,6 @@ public class TaskResult implements Serializable {
   private final List<Exception> exceptions;
   private final ActionResult actionResult;
 
-  public TaskResult(int taskIndex, long startEpoch, boolean success, List<Exception> exceptions) {
-    this(taskIndex, startEpoch, success, exceptions, null);
-  }
-
   public TaskResult(
       int taskIndex,
       long startEpoch,

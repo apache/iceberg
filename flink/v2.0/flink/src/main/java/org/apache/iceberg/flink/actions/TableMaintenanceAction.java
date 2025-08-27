@@ -68,6 +68,7 @@ public class TableMaintenanceAction {
       if (taskResultList.isEmpty()) {
         return null;
       }
+
       return taskResultList.get(0);
     } catch (Exception e) {
       throw new RuntimeException("TableMaintenance error.", e);
