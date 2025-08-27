@@ -249,6 +249,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateDictEncodedVector() {
+    if (vec != null) {
+      vec.close();
+    }
     Field field =
         new Field(
             icebergField.name(),
@@ -262,6 +265,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateVectorBasedOnLogicalType(PrimitiveType primitive, Field arrowField) {
+    if (vec != null) {
+      vec.close();
+    }
     LogicalTypeVisitorResult logicalTypeVisitorResult =
         primitive
             .getLogicalTypeAnnotation()
@@ -276,6 +282,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateVectorBasedOnTypeName(PrimitiveType primitive, Field arrowField) {
+    if (vec != null) {
+      vec.close();
+    }
     switch (primitive.getPrimitiveTypeName()) {
       case FIXED_LEN_BYTE_ARRAY:
         int len;

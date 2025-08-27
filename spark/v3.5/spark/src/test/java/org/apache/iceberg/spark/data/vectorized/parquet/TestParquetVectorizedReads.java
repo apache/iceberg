@@ -29,7 +29,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -236,28 +239,35 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       int batchSize,
       Map<Integer, Object> idToConstant)
       throws IOException {
-    Parquet.ReadBuilder readBuilder =
-        Parquet.read(Files.localInput(testFile))
-            .project(schema)
-            .recordsPerBatch(batchSize)
-            .createBatchedReaderFunc(
-                type ->
-                    VectorizedSparkParquetReaders.buildReader(schema, type, idToConstant, null));
-    if (reuseContainers) {
-      readBuilder.reuseContainers();
-    }
-    try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
-      Iterator<Record> expectedIter = expected.iterator();
-      Iterator<ColumnarBatch> batches = batchReader.iterator();
-      int numRowsRead = 0;
-      while (batches.hasNext()) {
-        ColumnarBatch batch = batches.next();
-        GenericsHelpers.assertEqualsBatch(
-            schema.asStruct(), expectedIter, batch, idToConstant, numRowsRead);
-        numRowsRead += batch.numRows();
-      }
-      assertThat(numRowsRead).isEqualTo(expectedSize);
-    }
+    assertNoLeak(
+        testFile.getName(),
+        allocator -> {
+          Parquet.ReadBuilder readBuilder =
+              Parquet.read(Files.localInput(testFile))
+                  .project(schema)
+                  .recordsPerBatch(batchSize)
+                  .createBatchedReaderFunc(
+                      type ->
+                          VectorizedSparkParquetReaders.buildReader(
+                              schema, type, idToConstant, null, allocator));
+          if (reuseContainers) {
+            readBuilder.reuseContainers();
+          }
+          try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
+            Iterator<Record> expectedIter = expected.iterator();
+            Iterator<ColumnarBatch> batches = batchReader.iterator();
+            int numRowsRead = 0;
+            while (batches.hasNext()) {
+              ColumnarBatch batch = batches.next();
+              GenericsHelpers.assertEqualsBatch(
+                  schema.asStruct(), expectedIter, batch, idToConstant, numRowsRead);
+              numRowsRead += batch.numRows();
+            }
+            assertThat(numRowsRead).isEqualTo(expectedSize);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
   }
 
   @Test
@@ -414,5 +424,16 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       writer.addAll(data);
     }
     assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
+  }
+
+  protected void assertNoLeak(String testName, Consumer<BufferAllocator> testFunction) {
+    try (BufferAllocator allocator =
+        ArrowAllocation.rootAllocator().newChildAllocator(testName, 0, Long.MAX_VALUE)) {
+      testFunction.accept(allocator);
+      assertThat(allocator.getAllocatedMemory())
+          .as(
+              "Should have released all memory prior to closing. Expected to find 0 bytes of memory in use.")
+          .isEqualTo(0L);
+    }
   }
 }
