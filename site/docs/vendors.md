@@ -175,3 +175,9 @@ Learn more in the [Tinybird documentation](https://www.tinybird.co/docs/forward/
 ### [VeloDB](https://velodb.io)
 
 [VeloDB](https://www.velodb.io/) is a commercial data warehouse powered by [Apache Doris](https://doris.apache.org/), an open-source, real-time data warehouse. It also provides powerful [query acceleration for Iceberg tables and efficient data writeback](https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog). VeloDB offers [enterprise version](https://www.velodb.io/enterprise) and [cloud service](https://www.velodb.io/cloud), which are fully compatible with open-source Apache Doris. Quick start with Apache Doris and Apache Iceberg [here](https://doris.apache.org/docs/lakehouse/lakehouse-best-practices/doris-iceberg).
+
+### [OLake](https://olake.io/)
+
+[OLake](https://olake.io/) is an open-source ELT tool to facilitate the replication of databases into Apache Iceberg™ data lakehouses. It offers native integration with PostgreSQL, MySQL, MongoDB, Oracle, and Kafka, enabling real-time data ingestion without the need for intermediary layers like Debezium, Kafka or Spark. The platform's modular architecture supports full-load operations, continuous Change Data Capture (CDC), and incremental synchronization with bookmark/cursor column support, with resumable syncs and schema evolution handling. By employing a parallelized chunking strategy, OLake accelerates initial syncs, while CDC cursor preservation ensures that incremental updates capture all events.
+
+Learn more in the [OLake documentation](https://olake.io/docs) and explore the [Github repository](https://github.com/datazip-inc/olake).
