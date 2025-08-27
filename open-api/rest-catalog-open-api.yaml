@@ -3398,6 +3398,9 @@ components:
       
             1. A reader MUST discard any row for which the filter evaluates to false, and
               no information derived from discarded rows MAY be included in the query result.
+            
+            2. Row filters MUST be evaluated against the original, untransformed column values.
+              Required projections MUST be applied only after row filters are applied.
       
             2. If the catalog supports multiple row access filters for the table, it is
               the catalog's responsibility to combine them using the appropriate logic (e.g., AND, OR).
