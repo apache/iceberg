@@ -160,6 +160,11 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     assertMicroBatchRecordSizes(
         ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
         List.of(1L, 2L, 1L, 1L, 1L, 1L));
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L),
+        Trigger.AvailableNow());
   }
 
   @TestTemplate
@@ -168,6 +173,11 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     assertMicroBatchRecordSizes(
         ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2"),
         List.of(3L, 2L, 2L));
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2"),
+        List.of(3L, 2L, 2L),
+        Trigger.AvailableNow());
   }
 
   @TestTemplate
@@ -176,6 +186,11 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     assertMicroBatchRecordSizes(
         ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1"),
         List.of(1L, 2L, 1L, 1L, 1L, 1L));
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1"),
+        List.of(1L, 2L, 1L, 1L, 1L, 1L),
+        Trigger.AvailableNow());
 
     // soft limit of 1 is being enforced, the stream is not blocked.
     StreamingQuery query = startStream(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "1");
@@ -192,6 +207,11 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"),
         List.of(3L, 2L, 2L));
 
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"),
+        List.of(3L, 2L, 2L),
+        Trigger.AvailableNow());
+
     StreamingQuery query =
         startStream(ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"));
 
@@ -205,6 +225,11 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
     assertMicroBatchRecordSizes(
         ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"), List.of(4L, 3L));
+
+    assertMicroBatchRecordSizes(
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"),
+        List.of(4L, 3L),
+        Trigger.AvailableNow());
   }
 
   @TestTemplate
@@ -215,29 +240,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
             SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
             SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "2"),
         List.of(1L, 2L, 1L, 1L, 1L, 1L));
-  }
 
-  @TestTemplate
-  public void testAvailableNowReadStreamWithMaxFiles2() throws Exception {
-    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
-    assertMicroBatchRecordSizes(
-        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2"),
-        List.of(3L, 2L, 2L),
-        Trigger.AvailableNow());
-  }
-
-  @TestTemplate
-  public void testAvailableNowReadStreamWithMaxRows4() throws Exception {
-    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
-    assertMicroBatchRecordSizes(
-        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH, "4"),
-        List.of(4L, 3L),
-        Trigger.AvailableNow());
-  }
-
-  @TestTemplate
-  public void testAvailableNowReadStreamWithCompositeReadLimit() throws Exception {
-    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
     assertMicroBatchRecordSizes(
         ImmutableMap.of(
             SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
@@ -267,7 +270,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     for (List<List<SimpleRecord>> expectedCheckpoint :
         TEST_DATA_MULTIPLE_WRITES_MULTIPLE_SNAPSHOTS) {
 
-      // New data was added while the stream was down
+      // New data was added while the stream was not running
       appendDataAsMultipleSnapshots(expectedCheckpoint);
       expected.addAll(Lists.newArrayList(Iterables.concat(Iterables.concat(expectedCheckpoint))));
 
