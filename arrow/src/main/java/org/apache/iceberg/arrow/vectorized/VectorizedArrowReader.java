@@ -142,6 +142,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     if (reuse == null
         || (!dictEncoded && readType == ReadType.DICTIONARY)
         || (dictEncoded && readType != ReadType.DICTIONARY)) {
+      if (vec != null) {
+        vec.close();
+      }
       allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
     } else {
