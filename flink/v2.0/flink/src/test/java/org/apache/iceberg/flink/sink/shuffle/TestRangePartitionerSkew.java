@@ -56,10 +56,10 @@ public class TestRangePartitionerSkew {
    * @param maxSkewUpperBound the upper bound of max skew. maxSkewUpperBound is set to a loose bound
    *     (~5x of the max value) to avoid flakiness.
    *     <p>
-   *     <li>parallelism 8: max skew statistics over 100 iterations: mean = 0.0130, stddev = 0.0041,
-   *         min = 0.0058, max = 0.0236
-   *     <li>parallelism 32: max skew statistics over 100 iterations: mean = 0.0188, stddev =
-   *         0.0046, min = 0.0106, max = 0.0312
+   *     <li>Map parallelism 8: max skew statistics over 100 iterations: mean = 0.0124, min =
+   *         0.0046, max = 0.0213
+   *     <li>Map parallelism 32: max skew statistics over 100 iterations: mean = 0.0183, min =
+   *         0.0100, max = 0.0261
    */
   @ParameterizedTest
   @CsvSource({"8, 100_000, 0.1", "32, 400_000, 0.15"})
@@ -122,10 +122,10 @@ public class TestRangePartitionerSkew {
    * @param maxSkewUpperBound the upper bound of max skew. maxSkewUpperBound is set to a loose bound
    *     (~5x of the max value) to avoid flakiness.
    *     <p>
-   *     <li>parallelism 8: max skew statistics over 100 iterations: mean = 0.0215, stddev = 0.0068,
-   *         min = 0.0078, max = 0.0423
-   *     <li>parallelism 32: max skew statistics over 100 iterations: mean = 0.0311, stddev =
-   *         0.0056, min = 0.0200, max = 0.0498
+   *     <li>pMap parallelism 8: max skew statistics over 100 iterations: mean = 0.0192, min =
+   *         0.0073, max = 0.0437
+   *     <li>Map parallelism 32: max skew statistics over 100 iterations: mean = 0.0426, min =
+   *         0.0262, max = 0.0613
    */
   @ParameterizedTest
   @CsvSource({"8, 100_000, 0.20", "32, 400_000, 0.25"})
