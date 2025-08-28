@@ -184,17 +184,25 @@ public class ParquetWithSparkSchemaVisitor<T> {
   private static <T> List<T> visitFields(
       StructType struct, GroupType group, ParquetWithSparkSchemaVisitor<T> visitor) {
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
+
+    int fieldsVisited = 0;
     for (StructField sField : struct.fields()) {
-      String fieldName = AvroSchemaUtil.makeCompatibleName(sField.name());
       if (sField.dataType() != DataTypes.NullType) {
-        Type field = group.getType(fieldName);
-        results.add(visitField(sField, field, visitor));
-      } else {
-        // skip null types since they don't exist in Parquet
+        Type field = group.getFields().get(i);
         Preconditions.checkArgument(
-            !group.containsField(fieldName), "Null Spark type should not exist in Parquet");
+            field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.name())),
+            "Structs do not match: field %s != %s",
+            field.getName(),
+            sField.name());
+        results.add(visitField(sField, field, visitor));
+
+        fieldsVisited += 1;
       }
     }
+
+    // All the group fields should have been visited
+    Preconditions.checkArgument(
+        fieldsVisited == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
 
     return results;
   }
