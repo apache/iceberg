@@ -165,7 +165,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       int batchSize)
       throws IOException {
     assertNoLeak(
-        "testRecordsMatch",
+        inputFile.getName(),
         allocator -> {
           Parquet.ReadBuilder readBuilder =
               Parquet.read(inputFile)

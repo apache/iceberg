@@ -29,6 +29,7 @@ import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.ConstantVectorReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -80,6 +81,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         ArrowAllocation.rootAllocator());
   }
 
+  @VisibleForTesting
   protected VectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,

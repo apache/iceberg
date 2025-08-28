@@ -142,10 +142,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     if (reuse == null
         || (!dictEncoded && readType == ReadType.DICTIONARY)
         || (dictEncoded && readType != ReadType.DICTIONARY)) {
-      // There is a possibility that a vector of a different type was in use earlier, so close it if so.
+      // The vector may already exist but be of a different type, clear it
       if (vec != null) {
         vec.close();
       }
+
       allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
     } else {
