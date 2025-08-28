@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.DoubleSummaryStatistics;
+import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -95,27 +97,24 @@ public class TestRangePartitionerSkew {
         recordsPerTask[subtaskId] += 1;
       }
 
-      org.apache.flink.calcite.shaded.com.google.common.math.Stats recordsPerTaskStats =
-          org.apache.flink.calcite.shaded.com.google.common.math.Stats.of(recordsPerTask);
+      IntSummaryStatistics recordsPerTaskStats = Arrays.stream(recordsPerTask).summaryStatistics();
       LOG.debug("Map parallelism {}: records per task stats: {}", parallelism, recordsPerTaskStats);
-
       double maxSkew =
-          (recordsPerTaskStats.max() - recordsPerTaskStats.mean()) / recordsPerTaskStats.mean();
+          (recordsPerTaskStats.getMax() - recordsPerTaskStats.getAverage())
+              / recordsPerTaskStats.getAverage();
       LOG.debug("Map parallelism {}: max skew: {}", parallelism, format("%.03f", maxSkew));
       assertThat(maxSkew).isLessThan(maxSkewUpperBound);
       maxSkews[iteration] = maxSkew;
     }
 
-    org.apache.flink.calcite.shaded.com.google.common.math.Stats stats =
-        org.apache.flink.calcite.shaded.com.google.common.math.Stats.of(maxSkews);
+    DoubleSummaryStatistics maxSkewStats = Arrays.stream(maxSkews).summaryStatistics();
     LOG.info(
-        "Map parallelism {}: max skew statistics over {} iterations: mean = {}, stddev = {}, min = {}, max = {}",
+        "Map parallelism {}: max skew statistics over {} iterations: mean = {}, min = {}, max = {}",
         parallelism,
         ITERATIONS,
-        format("%.4f", stats.mean()),
-        format("%.4f", stats.populationStandardDeviation()),
-        format("%.4f", stats.min()),
-        format("%.4f", stats.max()));
+        format("%.4f", maxSkewStats.getAverage()),
+        format("%.4f", maxSkewStats.getMin()),
+        format("%.4f", maxSkewStats.getMax()));
   }
 
   /**
@@ -162,27 +161,23 @@ public class TestRangePartitionerSkew {
         recordsPerTask[subtaskId] += 1;
       }
 
-      org.apache.flink.calcite.shaded.com.google.common.math.Stats recordsPerTaskStats =
-          org.apache.flink.calcite.shaded.com.google.common.math.Stats.of(recordsPerTask);
-      LOG.debug(
-          "Sketch parallelism {}: records per task stats: {}", parallelism, recordsPerTaskStats);
-
+      IntSummaryStatistics recordsPerTaskStats = Arrays.stream(recordsPerTask).summaryStatistics();
+      LOG.debug("Map parallelism {}: records per task stats: {}", parallelism, recordsPerTaskStats);
       double maxSkew =
-          (recordsPerTaskStats.max() - recordsPerTaskStats.mean()) / recordsPerTaskStats.mean();
-      LOG.debug("Sketch parallelism {}: max skew is {}", parallelism, format("%.03f", maxSkew));
+          (recordsPerTaskStats.getMax() - recordsPerTaskStats.getAverage())
+              / recordsPerTaskStats.getAverage();
+      LOG.debug("Map parallelism {}: max skew: {}", parallelism, format("%.03f", maxSkew));
       assertThat(maxSkew).isLessThan(maxSkewUpperBound);
       maxSkews[iteration] = maxSkew;
     }
 
-    org.apache.flink.calcite.shaded.com.google.common.math.Stats stats =
-        org.apache.flink.calcite.shaded.com.google.common.math.Stats.of(maxSkews);
+    DoubleSummaryStatistics maxSkewStats = Arrays.stream(maxSkews).summaryStatistics();
     LOG.info(
-        "Sketch parallelism {}: max skew statistics over {} iterations: mean = {}, stddev = {}, min = {}, max = {}",
+        "Map parallelism {}: max skew statistics over {} iterations: mean = {}, min = {}, max = {}",
         parallelism,
         ITERATIONS,
-        format("%.4f", stats.mean()),
-        format("%.4f", stats.populationStandardDeviation()),
-        format("%.4f", stats.min()),
-        format("%.4f", stats.max()));
+        format("%.4f", maxSkewStats.getAverage()),
+        format("%.4f", maxSkewStats.getMin()),
+        format("%.4f", maxSkewStats.getMax()));
   }
 }
