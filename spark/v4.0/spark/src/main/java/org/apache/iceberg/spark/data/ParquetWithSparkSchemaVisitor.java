@@ -185,10 +185,10 @@ public class ParquetWithSparkSchemaVisitor<T> {
       StructType struct, GroupType group, ParquetWithSparkSchemaVisitor<T> visitor) {
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
 
-    int i = 0;
+    int fieldIndex = 0;
     for (StructField sField : struct.fields()) {
       if (sField.dataType() != DataTypes.NullType) {
-        Type field = group.getFields().get(i);
+        Type field = group.getFields().get(fieldIndex);
         Preconditions.checkArgument(
             field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.name())),
             "Structs do not match: field %s != %s",
@@ -196,13 +196,13 @@ public class ParquetWithSparkSchemaVisitor<T> {
             sField.name());
         results.add(visitField(sField, field, visitor));
 
-        i += 1;
+        fieldIndex += 1;
       }
     }
 
     // All the group fields should have been visited
     Preconditions.checkArgument(
-        i == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
+        fieldIndex == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
 
     return results;
   }
