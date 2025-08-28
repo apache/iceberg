@@ -174,7 +174,7 @@ update_version () {
   # Ensure ICEBERG_VERSION is not empty
   assert_not_empty "${ICEBERG_VERSION}"  
 
-    # Update version information within the mkdocs.yml file using sed commands
+  # Update version information within the mkdocs.yml file using sed commands
   if [ "$(uname)" = "Darwin" ]; 
   then
     /usr/bin/sed -i '' -E "s/(^site_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
