@@ -58,6 +58,7 @@ public class SnapshotSummary {
   public static final String CHANGED_PARTITION_PREFIX = "partitions.";
   public static final String PARTITION_SUMMARY_PROP = "partition-summaries-included";
   public static final String STAGED_WAP_ID_PROP = "wap.id";
+  public static final String WAP_BRANCH_PROP = "wap.branch";
   public static final String PUBLISHED_WAP_ID_PROP = "published-wap-id";
   public static final String SOURCE_SNAPSHOT_ID_PROP = "source-snapshot-id";
   public static final String REPLACE_PARTITIONS_PROP = "replace-partitions";
@@ -66,7 +67,6 @@ public class SnapshotSummary {
   public static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   public static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
   public static final String PROCESSED_MANIFEST_ENTRY_COUNT = "entries-processed";
-  public static final String WAP_BRANCH_PROP = "wap.branch";
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 
