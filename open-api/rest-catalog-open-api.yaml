@@ -3388,6 +3388,8 @@ components:
       
             6. An identity transform is equivalent to projecting the column directly.
               A reader MAY represent it in either form.
+            
+            7. The data type of the projected column MUST match the data type defined for the transform result.
 
           type: array
           items:
