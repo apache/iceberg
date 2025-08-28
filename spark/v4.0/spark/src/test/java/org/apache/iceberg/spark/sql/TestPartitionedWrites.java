@@ -32,8 +32,8 @@ public class TestPartitionedWrites extends PartitionedWritesTestBase {
             () -> {
               sql("INSERT INTO %s VALUES (4, 'd')", tableName);
               Table table = validationCatalog.loadTable(tableIdent);
-                assertThat(table.snapshot(table.refs().get("main").snapshotId()).summary())
-                        .doesNotContainKey(SnapshotSummary.WAP_BRANCH_PROP);
+              assertThat(table.snapshot(table.refs().get("main").snapshotId()).summary())
+                  .doesNotContainKey(SnapshotSummary.WAP_BRANCH_PROP);
             })
         .doesNotThrowAnyException();
   }

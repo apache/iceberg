@@ -92,7 +92,7 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
               sql("INSERT INTO %s VALUES (4, 'd')", tableName);
               Table table = validationCatalog.loadTable(tableIdent);
               assertThat(table.snapshot(table.refs().get(BRANCH).snapshotId()).summary())
-                      .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, BRANCH);
+                  .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, BRANCH);
             })
         .doesNotThrowAnyException();
   }
