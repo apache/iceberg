@@ -347,13 +347,16 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   }
 
   protected void assertNoLeak(String testName, Consumer<BufferAllocator> testFunction) {
-    try (BufferAllocator allocator =
-        ArrowAllocation.rootAllocator().newChildAllocator(testName, 0, Long.MAX_VALUE)) {
+    BufferAllocator allocator =
+        ArrowAllocation.rootAllocator().newChildAllocator(testName, 0, Long.MAX_VALUE);
+    try {
       testFunction.accept(allocator);
       assertThat(allocator.getAllocatedMemory())
           .as(
               "Should have released all memory prior to closing. Expected to find 0 bytes of memory in use.")
           .isEqualTo(0L);
+    } finally {
+      allocator.close();
     }
   }
 }
