@@ -139,7 +139,6 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   // This test documents current behavior; update/extend once SPARK-50593 lands.
   @TestTemplate
   public void testJoinWithTruncatePartitioning() {
-
     sql(
         "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING) "
             + "USING iceberg "
