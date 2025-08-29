@@ -29,5 +29,17 @@ import org.immutables.value.Value;
 interface BaseRewriteTablePath extends RewriteTablePath {
 
   @Value.Immutable
-  interface Result extends RewriteTablePath.Result {}
+  interface Result extends RewriteTablePath.Result {
+    @Override
+    @Value.Default
+    default int deleteFilesPathRewrittenCount() {
+      return RewriteTablePath.Result.super.deleteFilesPathRewrittenCount();
+    }
+
+    @Override
+    @Value.Default
+    default int manifestFilesPathRewrittenCount() {
+      return RewriteTablePath.Result.super.manifestFilesPathRewrittenCount();
+    }
+  }
 }
