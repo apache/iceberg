@@ -116,15 +116,15 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     File mixedFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(mixedFile.delete()).as("Delete should succeed").isTrue();
     Parquet.concat(
-        ImmutableList.of(dictionaryEncodedFile, plainEncodingFile, dictionaryEncodedFile),
+        ImmutableList.of(dictionaryEncodedFile, plainEncodingFile, dictionaryEncodedFile, plainEncodingFile),
         mixedFile,
         rowGroupSize,
         schema,
         ImmutableMap.of());
     assertRecordsMatch(
         schema,
-        30000,
-        FluentIterable.concat(dictionaryEncodableData, nonDictionaryData, dictionaryEncodableData),
+        40000,
+        FluentIterable.concat(dictionaryEncodableData, nonDictionaryData, dictionaryEncodableData, nonDictionaryData),
         mixedFile,
         true,
         BATCH_SIZE);

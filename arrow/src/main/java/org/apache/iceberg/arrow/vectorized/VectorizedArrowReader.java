@@ -77,6 +77,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private ReadType readType;
   private NullabilityHolder nullabilityHolder;
 
+  // Reuse containers to avoid reallocations when encoding switches between
+  // dictionary and non-dictionary for the same column.
+  private FieldVector dictReuseVec;
+  private FieldVector plainReuseVec;
+  private ReadType plainReuseReadType;
+  private Integer plainReuseTypeWidth;
+
   // In cases when Parquet employs fall back to plain encoding, we eagerly decode the dictionary
   // encoded pages
   // before storing the values in the Arrow vector. This means even if the dictionary is present,
@@ -142,10 +149,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     if (reuse == null
         || (!dictEncoded && readType == ReadType.DICTIONARY)
         || (dictEncoded && readType != ReadType.DICTIONARY)) {
-      // The vector may already exist but be of a different type, clear it
-      if (vec != null) {
-        vec.close();
-      }
+      // We are about to (re)allocate or switch encoding; clear the active vector reference.
+      // The actual buffers are owned by the cached reuse vectors and will be closed in close().
+      this.vec = null;
 
       allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
@@ -222,13 +228,32 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vec == null,
         "allocateFieldVector must be called only when no active vector is in use (vec == null)");
     if (dictionaryEncodedVector) {
-      allocateDictEncodedVector();
-    } else {
-      Field arrowField = ArrowSchemaUtil.convert(getPhysicalType(columnDescriptor, icebergField));
-      if (columnDescriptor.getPrimitiveType().getLogicalTypeAnnotation() != null) {
-        allocateVectorBasedOnLogicalType(columnDescriptor.getPrimitiveType(), arrowField);
+      // Try to reuse the cached dictionary vector if present
+      if (dictReuseVec != null) {
+        this.vec = dictReuseVec;
+        this.readType = ReadType.DICTIONARY;
+        this.typeWidth = (int) IntVector.TYPE_WIDTH;
       } else {
-        allocateVectorBasedOnTypeName(columnDescriptor.getPrimitiveType(), arrowField);
+        allocateDictEncodedVector();
+        this.dictReuseVec = this.vec;
+      }
+    } else {
+      // Try to reuse the cached plain vector if present
+      if (plainReuseVec != null) {
+        this.vec = plainReuseVec;
+        this.readType = plainReuseReadType;
+        this.typeWidth = plainReuseTypeWidth;
+      } else {
+        Field arrowField = ArrowSchemaUtil.convert(getPhysicalType(columnDescriptor, icebergField));
+        if (columnDescriptor.getPrimitiveType().getLogicalTypeAnnotation() != null) {
+          allocateVectorBasedOnLogicalType(columnDescriptor.getPrimitiveType(), arrowField);
+        } else {
+          allocateVectorBasedOnTypeName(columnDescriptor.getPrimitiveType(), arrowField);
+        }
+        // Cache for reuse next time we switch back to plain
+        this.plainReuseVec = this.vec;
+        this.plainReuseReadType = this.readType;
+        this.plainReuseTypeWidth = this.typeWidth;
       }
     }
   }
@@ -382,6 +407,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public void close() {
     if (vec != null) {
       vec.close();
+    }
+
+    if (dictReuseVec != null && dictReuseVec != vec) {
+      dictReuseVec.close();
+    }
+
+    if (plainReuseVec != null && plainReuseVec != vec) {
+      plainReuseVec.close();
     }
   }
 
