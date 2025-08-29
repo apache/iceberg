@@ -73,6 +73,12 @@ public class Expressions {
   }
 
   @SuppressWarnings("unchecked")
+  public static <T> UnboundTerm<T> identity(String name) {
+    Transform<?, T> transform = (Transform<?, T>) Transforms.identity();
+    return new UnboundTransform<>(ref(name), transform);
+  }
+
+  @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> bucket(String name, int numBuckets) {
     Transform<?, T> transform = (Transform<?, T>) Transforms.bucket(numBuckets);
     return new UnboundTransform<>(ref(name), transform);
