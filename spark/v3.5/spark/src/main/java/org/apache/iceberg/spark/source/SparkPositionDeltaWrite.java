@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.ContentFile;
@@ -258,6 +259,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
         String commitMsg =
             String.format(
+                Locale.ROOT,
                 "position delta with %d data files, %d delete files and %d rewritten delete files"
                     + "(scanSnapshotId: %d, conflictDetectionFilter: %s, isolationLevel: %s)",
                 addedDataFilesCount,
@@ -271,8 +273,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       } else {
         String commitMsg =
             String.format(
+                Locale.ROOT,
                 "position delta with %d data files and %d delete files (no validation required)",
-                addedDataFilesCount, addedDeleteFilesCount);
+                addedDataFilesCount,
+                addedDeleteFilesCount);
         commitOperation(rowDelta, commitMsg);
       }
     }

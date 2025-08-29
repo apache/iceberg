@@ -55,7 +55,7 @@ nav:
       - flink-ddl.md
       - flink-queries.md
       - flink-writes.md
-      - flink-actions.md
+      - flink-maintenance.md
       - flink-configuration.md
     - Kafka Connect: kafka-connect.md
     - Apache Hive: hive.md
@@ -78,6 +78,7 @@ nav:
       - Firebolt: https://docs.firebolt.io/reference-sql/functions-reference/table-valued/read_iceberg
       - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
       - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
+      - Memiiso Debezium: https://memiiso.github.io/debezium-server-iceberg/
       - Presto: https://prestodb.io/docs/current/connector/iceberg.html
       - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
       - RisingWave: risingwave.md
