@@ -18,6 +18,6 @@
 
 set -e
 
-./dev/setup_env.sh
+./dev/setup_env.sh "$1"
 
 mkdocs serve --dirty --watch .
