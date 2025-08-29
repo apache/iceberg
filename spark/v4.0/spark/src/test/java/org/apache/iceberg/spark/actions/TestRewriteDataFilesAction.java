@@ -39,7 +39,6 @@ import static org.mockito.Mockito.spy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -153,8 +152,8 @@ public class TestRewriteDataFilesAction extends TestBase {
   @Parameter private int formatVersion;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> parameters() {
+    return org.apache.iceberg.TestHelpers.V2_AND_ABOVE;
   }
 
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
@@ -1832,8 +1831,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTypeTestTable();
     shouldHaveFiles(table, 10);
 
-    List<Row> originalRaw =
-        spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+    List<Row> originalRaw = spark.read().format("iceberg").load(tableLocation).collectAsList();
+    originalRaw.sort(Comparator.comparing(row -> row.getAs("longCol")));
     List<Object[]> originalData = rowsToJava(originalRaw);
     long dataSizeBefore = testDataSize(table);
 
@@ -1862,8 +1861,8 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     table.refresh();
 
-    List<Row> postRaw =
-        spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+    List<Row> postRaw = spark.read().format("iceberg").load(tableLocation).collectAsList();
+    postRaw.sort(Comparator.comparing(row -> row.getAs("longCol")));
     List<Object[]> postRewriteData = rowsToJava(postRaw);
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -2111,19 +2110,28 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   protected List<Object[]> currentData() {
-    return rowsToJava(
-        spark.read().format("iceberg").load(tableLocation).sort("c1", "c2", "c3").collectAsList());
+    List<Row> rows = spark.read().format("iceberg").load(tableLocation).collectAsList();
+
+    // Sort by c1, c2, c3 columns
+    rows.sort(
+        Comparator.<Row, Integer>comparing(row -> row.getAs("c1"))
+            .thenComparing(row -> row.getAs("c2"))
+            .thenComparing(row -> row.getAs("c3")));
+
+    return rowsToJava(rows);
   }
 
   protected List<Object[]> currentDataWithLineage() {
-    return rowsToJava(
+    List<Row> rows =
         spark
             .read()
             .format("iceberg")
             .load(tableLocation)
-            .sort("_row_id")
             .selectExpr("_row_id", "_last_updated_sequence_number", "*")
-            .collectAsList());
+            .collectAsList();
+    rows.sort(Comparator.comparing(row -> row.getAs("_row_id")));
+
+    return rowsToJava(rows);
   }
 
   protected long testDataSize(Table table) {
