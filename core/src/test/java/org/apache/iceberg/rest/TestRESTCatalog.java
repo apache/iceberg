@@ -153,11 +153,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             if (!ResourcePaths.tokens().equals(request.path())) {
               if (ResourcePaths.config().equals(request.path())) {
                 assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
+              } else {
+                assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
               }
-              //              else {
-              //
-              // assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
-              //              }
             }
             Object body = roundTripSerialize(request.body(), "request");
             HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
