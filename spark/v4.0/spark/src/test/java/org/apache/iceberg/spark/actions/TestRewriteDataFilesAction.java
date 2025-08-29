@@ -2131,7 +2131,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     return rowsToJava(
         spark
             .read()
-            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 32)
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
             .option(SparkReadOptions.FILE_OPEN_COST, 0)
             .format("iceberg")
             .load(tableLocation)
@@ -2145,7 +2145,7 @@ public class TestRewriteDataFilesAction extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 32)
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
             .option(SparkReadOptions.FILE_OPEN_COST, 0)
             .load(tableLocation)
             .coalesce(1)
