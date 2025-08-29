@@ -280,7 +280,7 @@ public class TableMaintenanceJob {
                 .maxRewriteBytes(2L * 1024 * 1024 * 1024)
                 .parallelism(6))
 
-            // Delete orphans files more than five days ago
+            // Delete orphans files created more than five days ago
             .add(DeleteOrphanFiles.builder()
                         .minAge(Duration.ofDays(5)))    
                 
