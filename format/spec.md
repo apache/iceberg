@@ -1863,9 +1863,13 @@ Some implementations require that GZIP compressed files have the suffix `.gz.met
 
 ### Schema evolution and writing with old schemas
 
-Writers should write out all fields with the types specified from the table schema. Writers may use an outdated schema for insert and upsert (replace an entire row) operations. Writers may not use a outdated schema for an update where some cells of a new row come from an existing row (e.g. `update table set col_y = 'xyz'`). For these types of updates old schemas would potentially allow for dropping data for new columns added to the schema. Allowing writes with stale schemas implies that changes to `write-default` values may not be reflected immediately after the change is committed to the table.
+Writers must write out all fields with the types specified from the table schema. Writers should use the latest schema for writing. Not writing out all columns or not using the latest schema can change the semantics data written. The following are possible inconsistencies that can be introduced:
 
-Column projection rules are designed so that the table will remain readable even if writers use an outdated schema in these cases.
+* For all null columns, not writing out the column would cause `initial-default` value would be applied on reading instead of `null`.
+* If `write-default` has been changed then using an out-of-date schema would result in the incorrect value being populated.
+* If a `write` is the result of a partial row update (e.g. `update table set col_y = 'xyz'`) an out-of-date schema would silently drop values.
+
+Column projection rules are designed so that the table will remain readable even if writers use an outdated schema.
 
 ## Appendix G: Geospatial Notes
 
