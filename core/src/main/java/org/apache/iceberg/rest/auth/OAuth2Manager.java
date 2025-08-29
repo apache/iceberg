@@ -70,7 +70,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   @Override
   public OAuth2Util.AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
-    warnIfDeprecatedTokenEndpointUsed(properties);
+    warnIfOAuthServerUriNotSet(properties);
     AuthConfig config =
         ImmutableAuthConfig.builder()
             .from(AuthConfig.fromProperties(properties))
@@ -272,7 +272,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
         refreshClient, refreshExecutor(), response, System.currentTimeMillis(), parent);
   }
 
-  private static void warnIfDeprecatedTokenEndpointUsed(Map<String, String> properties) {
+  private static void warnIfOAuthServerUriNotSet(Map<String, String> properties) {
     if (!properties.containsKey(OAuth2Properties.OAUTH2_SERVER_URI)) {
       String credential = properties.get(OAuth2Properties.CREDENTIAL);
       String initToken = properties.get(OAuth2Properties.TOKEN);
