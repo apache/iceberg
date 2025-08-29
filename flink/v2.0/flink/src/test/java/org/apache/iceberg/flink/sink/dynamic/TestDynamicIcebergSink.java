@@ -30,6 +30,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.flink.api.common.typeinfo.TypeHint;
@@ -846,5 +848,66 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     return TestHelpers.convertRecordToRow(
             RandomGenericData.generate(schema, 1, seedOverride), schema)
         .get(0);
+  }
+
+  @Test
+  void testSideOutputForErroneousRecordsImmediateUpdatePath() {
+    runTestSideOutputForErroneousRecords(true);
+  }
+
+  @Test
+  void testSideOutputForErroneousRecordsNonImmediateUpdatePath() {
+    runTestSideOutputForErroneousRecords(false);
+  }
+
+  private void runTestSideOutputForErroneousRecords(boolean immediateUpdate) {
+    // Converting int -> bool will fail
+    Schema incompatibleSchemaChange =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.BooleanType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, "t1", "main", PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                // Converting int -> bool will fail
+                incompatibleSchemaChange, "t1", "main", PartitionSpec.unpartitioned()));
+
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.addSource(createBoundedSource(rows), TypeInformation.of(new TypeHint<>() {}));
+    env.setParallelism(1);
+
+    AtomicInteger errorCount = new AtomicInteger();
+    AtomicReference<Tuple2<DynamicRecord, Exception>> rejectedRecord = new AtomicReference<>();
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new Generator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .errorStreamConsumer(
+            errorStream -> {
+              // This code runs at the end of the append() call to execute the Flink job and
+              // retrieve the error stream.
+              // The try/catch is only required due to the checked exception of executeAndCollect().
+              try {
+                errorStream
+                    .executeAndCollect()
+                    .forEachRemaining(
+                        record -> {
+                          errorCount.incrementAndGet();
+                          rejectedRecord.set(record);
+                        });
+              } catch (Exception e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .immediateTableUpdate(immediateUpdate)
+        .append();
+
+    assertThat(errorCount.get()).isEqualTo(1);
+    Tuple2<DynamicRecord, Exception> actual = rejectedRecord.get();
+    assertThat(actual.f0.schema().asStruct()).isEqualTo(incompatibleSchemaChange.asStruct());
+    assertThat(actual.f1).hasMessage("Cannot change column type: id: int -> boolean");
   }
 }

@@ -21,7 +21,9 @@ package org.apache.iceberg.flink.sink.dynamic;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Collector;
@@ -37,17 +39,21 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   @VisibleForTesting
   static final String DYNAMIC_TABLE_UPDATE_STREAM = "dynamic-table-update-stream";
 
+  @VisibleForTesting static final String ERROR_STREAM = "error-stream";
+
   private final DynamicRecordGenerator<T> generator;
   private final CatalogLoader catalogLoader;
   private final boolean immediateUpdate;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
+  private final boolean errorStreamEnabled;
 
   private transient TableMetadataCache tableCache;
   private transient HashKeyGenerator hashKeyGenerator;
   private transient TableUpdater updater;
   private transient OutputTag<DynamicRecordInternal> updateStream;
+  private transient OutputTag<Tuple2<DynamicRecordInternal, Exception>> errorStream;
   private transient Collector<DynamicRecordInternal> collector;
   private transient Context context;
 
@@ -57,13 +63,15 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       boolean immediateUpdate,
       int cacheMaximumSize,
       long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize) {
+      int inputSchemasPerTableCacheMaximumSize,
+      boolean errorStreamEnabled) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.immediateUpdate = immediateUpdate;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
+    this.errorStreamEnabled = errorStreamEnabled;
   }
 
   @Override
@@ -76,13 +84,21 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     this.hashKeyGenerator =
         new HashKeyGenerator(
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());
+    // Make sure to write schema and spec for writes to the upstream stream and for the error stream
+    // Schema and spec aren't known for these paths.
+    DynamicRecordInternalType dynamicRecordInternalType =
+        new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize);
     if (immediateUpdate) {
       updater = new TableUpdater(tableCache, catalog);
     } else {
-      updateStream =
+      updateStream = new OutputTag<>(DYNAMIC_TABLE_UPDATE_STREAM, dynamicRecordInternalType);
+    }
+
+    if (errorStreamEnabled) {
+      errorStream =
           new OutputTag<>(
-              DYNAMIC_TABLE_UPDATE_STREAM,
-              new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
+              ERROR_STREAM,
+              new TupleTypeInfo<>(dynamicRecordInternalType, TypeInformation.of(Exception.class)));
     }
 
     generator.open(openContext);
@@ -98,6 +114,33 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
   @Override
   public void collect(DynamicRecord data) {
+    try {
+      processRecord(data);
+    } catch (Exception e) {
+      if (errorStreamEnabled) {
+        // Send erroneous record to side output
+        context.output(
+            errorStream,
+            Tuple2.of(
+                new DynamicRecordInternal(
+                    data.tableIdentifier().toString(),
+                    data.branch(),
+                    data.schema(),
+                    data.rowData(),
+                    data.spec(),
+                    -1,
+                    data.upsertMode(),
+                    DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), data.schema())),
+                e));
+      } else {
+        throw new RuntimeException(
+            "Error processing DynamicRecord. You can setup an error stream on the DynamicSink builder to process these records.",
+            e);
+      }
+    }
+  }
+
+  private void processRecord(DynamicRecord data) {
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
 
