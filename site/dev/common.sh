@@ -179,12 +179,11 @@ update_version () {
   then
     /usr/bin/sed -i '' -E "s/(^site_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
     /usr/bin/sed -i '' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
-  elif [ "$(expr substr "$(uname -s)" 1 5)" = "Linux" ]; 
+  elif [ "$(expr substr "$(uname -s)" 1 5)" == "Linux" ] 
   then
-    sed -i'' -E "s/(^site_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
+    sed -i'' -E "s/(^site_name:[[:space:]]+docs\/)[^[:space:]]+/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
     sed -i'' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
   fi
-
 
 }
 
