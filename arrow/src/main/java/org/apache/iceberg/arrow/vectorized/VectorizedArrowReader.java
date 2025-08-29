@@ -217,6 +217,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
+    // Allocate-only: caller must ensure there is no active vector in use.
+    Preconditions.checkState(
+        vec == null,
+        "allocateFieldVector must be called only when no active vector is in use (vec == null)");
     if (dictionaryEncodedVector) {
       allocateDictEncodedVector();
     } else {
