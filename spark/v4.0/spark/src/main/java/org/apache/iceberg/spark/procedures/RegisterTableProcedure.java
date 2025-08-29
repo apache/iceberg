@@ -150,7 +150,7 @@ class RegisterTableProcedure extends BaseProcedure {
     }
   }
 
-  public static String resolveLatestMetadataLocation(FileSystem fileSystem, Path metadataPath) {
+  private static String resolveLatestMetadataLocation(FileSystem fileSystem, Path metadataPath) {
     int maxVersion = -1;
     long lastModifiedTime = -1;
     Path metadataFile = null;
@@ -196,7 +196,7 @@ class RegisterTableProcedure extends BaseProcedure {
     return metadataFile.toString();
   }
 
-  static int parseMetadataVersionFromFileName(String fileName) {
+  private static int parseMetadataVersionFromFileName(String fileName) {
     Matcher matcher = METADATA_VERSION_PATTERN.matcher(fileName);
     if (matcher.matches()) {
       return Integer.parseInt(matcher.group("version"));
