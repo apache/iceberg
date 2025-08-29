@@ -18,19 +18,13 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.Arrays;
+import java.util.UUID;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.SortOrderComparators;
-import org.apache.iceberg.StructLike;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -50,12 +44,12 @@ import org.openjdk.jmh.infra.Blackhole;
 @Warmup(iterations = 3)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
-public class MapRangePartitionerBenchmark {
+public class SketchRangePartitionerBenchmark {
 
   private static final int SAMPLE_SIZE = 100_000;
   private static final Schema SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(1, "id", Types.UUIDType.get()),
           Types.NestedField.required(2, "name2", Types.StringType.get()),
           Types.NestedField.required(3, "name3", Types.StringType.get()),
           Types.NestedField.required(4, "name4", Types.StringType.get()),
@@ -66,37 +60,36 @@ public class MapRangePartitionerBenchmark {
           Types.NestedField.required(9, "name9", Types.StringType.get()));
 
   private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
-  private static final Comparator<StructLike> SORT_ORDER_COMPARTOR =
-      SortOrderComparators.forSchema(SCHEMA, SORT_ORDER);
   private static final SortKey SORT_KEY = new SortKey(SCHEMA, SORT_ORDER);
   private static final int PARALLELISM = 100;
 
-  private MapRangePartitioner partitioner;
+  private SketchRangePartitioner partitioner;
   private RowData[] rows;
 
   @Setup
   public void setupBenchmark() {
-    NavigableMap<Integer, Long> weights =
-        DataDistributionUtil.longTailDistribution(100_000, 24, 240, 100, 2.0, 0.7);
-    Map<SortKey, Long> mapStatistics =
-        DataDistributionUtil.mapStatisticsWithLongTailDistribution(weights, SORT_KEY);
+    UUID[] reservoir = DataDistributionUtil.reservoirSampleUUIDs(1_000_000, 100_000);
+    UUID[] rangeBound = DataDistributionUtil.rangeBoundSampleUUIDs(reservoir, PARALLELISM);
+    SortKey[] rangeBoundSortKeys =
+        Arrays.stream(rangeBound)
+            .map(
+                uuid -> {
+                  SortKey sortKeyCopy = SORT_KEY.copy();
+                  sortKeyCopy.set(0, uuid);
+                  return sortKeyCopy;
+                })
+            .toArray(SortKey[]::new);
 
-    MapAssignment mapAssignment =
-        MapAssignment.fromKeyFrequency(PARALLELISM, mapStatistics, 0.0, SORT_ORDER_COMPARTOR);
-    this.partitioner = new MapRangePartitioner(SCHEMA, SORT_ORDER, mapAssignment);
-
-    List<Integer> keys = Lists.newArrayList(weights.keySet().iterator());
-    long[] weightsCDF = DataDistributionUtil.computeCumulativeWeights(keys, weights);
-    long totalWeight = weightsCDF[weightsCDF.length - 1];
+    this.partitioner = new SketchRangePartitioner(SCHEMA, SORT_ORDER, rangeBoundSortKeys);
 
     // pre-calculate the samples for benchmark run
     this.rows = new GenericRowData[SAMPLE_SIZE];
     for (int i = 0; i < SAMPLE_SIZE; ++i) {
-      long weight = ThreadLocalRandom.current().nextLong(totalWeight);
-      int index = DataDistributionUtil.binarySearchIndex(weightsCDF, weight);
+      UUID uuid = UUID.randomUUID();
+      Object uuidBytes = DataDistributionUtil.uuidBytes(uuid);
       rows[i] =
           GenericRowData.of(
-              keys.get(index),
+              uuidBytes,
               DataDistributionUtil.randomString("name2-", 200),
               DataDistributionUtil.randomString("name3-", 200),
               DataDistributionUtil.randomString("name4-", 200),
