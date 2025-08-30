@@ -1,0 +1,215 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.stats;
+
+import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.StringJoiner;
+import java.util.stream.Collectors;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+
+// TODO: Add an API that projects only single stats fields
+// e.g. project only lowerBound for columnX
+public class BaseContentStats implements ContentStats, StructLike, Serializable {
+
+  private final List<FieldStats> fieldStats;
+  private final Map<Integer, FieldStats> fieldStatsById;
+  private long recordCount = -1L;
+
+  public BaseContentStats(Types.StructType projection) {
+    this.fieldStats = Lists.newArrayListWithCapacity(projection.fields().size());
+    this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(projection.fields().size());
+    for (int i = 0; i < projection.fields().size(); i++) {
+      Types.NestedField field = projection.fields().get(i);
+      Preconditions.checkArgument(
+          field.type().isStructType(), "ColumnStats must contain structs: %s", field.type());
+      Types.StructType structType = field.type().asStructType();
+      Type type =
+          null != structType.field("lower_bound")
+              ? structType.field("lower_bound").type()
+              : null != structType.field("upper_bound")
+                  ? structType.field("upper_bound").type()
+                  : null;
+      fieldStats.add(
+          BaseFieldStats.builder()
+              .fieldId(StatsUtil.fieldIdFor(field.fieldId()))
+              .type(type)
+              .build());
+    }
+  }
+
+  private BaseContentStats(long recordCount, List<FieldStats> fieldStats) {
+    this.recordCount = recordCount;
+    this.fieldStats = Lists.newArrayList(fieldStats);
+    this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(fieldStats.size());
+  }
+
+  @Override
+  public List<FieldStats> fieldStats() {
+    return fieldStats;
+  }
+
+  @Override
+  public long recordCount() {
+    return recordCount;
+  }
+
+  @Override
+  public FieldStats statsFor(int columnId) {
+    if (fieldStatsById.isEmpty() && !fieldStats.isEmpty()) {
+      fieldStats.stream()
+          .filter(Objects::nonNull)
+          .forEach(stat -> fieldStatsById.put(stat.fieldId(), stat));
+    }
+
+    return fieldStatsById.get(columnId);
+  }
+
+  @Override
+  public int size() {
+    return fieldStats.size();
+  }
+
+  @Override
+  public <T> T get(int pos, Class<T> javaClass) {
+    if (pos > fieldStats().size() - 1) {
+      return null;
+    }
+
+    return javaClass.cast(fieldStats.get(pos));
+  }
+
+  @Override
+  public <T> void set(int pos, T value) {
+    if (value instanceof GenericRecord) {
+      GenericRecord record = (GenericRecord) value;
+      BaseFieldStats stat = (BaseFieldStats) fieldStats.get(pos);
+      BaseFieldStats.Builder builder = BaseFieldStats.buildFrom(stat);
+      Type type = stat.type();
+      if (null != record.getField("column_size")) {
+        builder.columnSize((Long) record.getField("column_size"));
+      }
+      if (null != record.getField("value_count")) {
+        builder.valueCount((Long) record.getField("value_count"));
+      }
+      if (null != record.getField("nan_value_count")) {
+        builder.nanValueCount((Long) record.getField("nan_value_count"));
+      }
+      if (null != record.getField("null_value_count")) {
+        builder.nullValueCount((Long) record.getField("null_value_count"));
+      }
+      if (null != record.getField("lower_bound")) {
+        Object lowerBound = record.getField("lower_bound");
+        if (null != type) {
+          builder.lowerBound(type.typeId().javaClass().cast(lowerBound));
+        }
+      }
+      if (null != record.getField("upper_bound")) {
+        Object upperBound = record.getField("upper_bound");
+        if (null != type) {
+          builder.upperBound(type.typeId().javaClass().cast(upperBound));
+        }
+      }
+
+      BaseFieldStats newStat = builder.build();
+      fieldStats.set(pos, newStat);
+      fieldStatsById.put(newStat.fieldId(), newStat);
+    } else {
+      fieldStats.set(pos, (FieldStats) value);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return new StringJoiner(", ", BaseContentStats.class.getSimpleName() + "[", "]")
+        .add("recordCount=" + recordCount)
+        .add("statistics=" + fieldStats)
+        .toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof BaseContentStats)) {
+      return false;
+    }
+    BaseContentStats that = (BaseContentStats) o;
+    return recordCount == that.recordCount && Objects.equals(fieldStats, that.fieldStats);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(fieldStats, recordCount);
+  }
+
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  public static Builder buildFrom(ContentStats stats) {
+    return builder().withFieldStats(stats.fieldStats()).recordCount(stats.recordCount());
+  }
+
+  public static Builder buildFrom(ContentStats stats, Set<Integer> requestedColumnIds) {
+    if (null == requestedColumnIds) {
+      return buildFrom(stats);
+    }
+
+    return builder()
+        .withFieldStats(
+            stats.fieldStats().stream()
+                .filter(stat -> requestedColumnIds.contains(stat.fieldId()))
+                .collect(Collectors.toList()))
+        .recordCount(stats.recordCount());
+  }
+
+  public static class Builder {
+    private final List<FieldStats> stats = Lists.newArrayList();
+    private long recordCount = -1L;
+
+    private Builder() {}
+
+    public Builder withFieldStats(FieldStats fieldStats) {
+      stats.add(fieldStats);
+      return this;
+    }
+
+    public Builder withFieldStats(List<FieldStats> fieldStats) {
+      stats.addAll(fieldStats);
+      return this;
+    }
+
+    public Builder recordCount(long newRecordCount) {
+      this.recordCount = newRecordCount;
+      return this;
+    }
+
+    public BaseContentStats build() {
+      return new BaseContentStats(recordCount, stats);
+    }
+  }
+}

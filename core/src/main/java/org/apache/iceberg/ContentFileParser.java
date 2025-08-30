@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ContentFileParser {
@@ -168,6 +169,11 @@ public class ContentFileParser {
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
     Metrics metrics = metricsFromJson(jsonNode);
+    ContentStats stats = contentStatsFromJson(jsonNode);
+    //    if (null == columnStats) {
+    //      columnStats = ColumnStatsUtil.fromMetrics(metrics);
+    //    }
+
     ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
     List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
     int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
@@ -185,6 +191,7 @@ public class ContentFileParser {
           partitionData,
           fileSizeInBytes,
           metrics,
+          stats,
           keyMetadata,
           splitOffsets,
           sortOrderId,
@@ -198,6 +205,7 @@ public class ContentFileParser {
           partitionData,
           fileSizeInBytes,
           metrics,
+          stats,
           equalityFieldIds,
           sortOrderId,
           splitOffsets,
@@ -300,5 +308,65 @@ public class ContentFileParser {
         nanValueCounts,
         lowerBounds,
         upperBounds);
+  }
+
+  private static ContentStats contentStatsFromJson(JsonNode jsonNode) {
+    if (null == jsonNode) {
+      return null;
+    }
+    return null;
+    //    long recordCount = JsonUtil.getLong(RECORD_COUNT, jsonNode);
+    //
+    //    Map<Integer, Long> columnSizes = null;
+    //    if (jsonNode.has(COLUMN_SIZES)) {
+    //      columnSizes =
+    //              (Map<Integer, Long>)
+    //                      SingleValueParser.fromJson(DataFile.COLUMN_SIZES.type(),
+    // jsonNode.get(COLUMN_SIZES));
+    //    }
+    //
+    //    Map<Integer, Long> valueCounts = null;
+    //    if (jsonNode.has(VALUE_COUNTS)) {
+    //      valueCounts =
+    //              (Map<Integer, Long>)
+    //                      SingleValueParser.fromJson(DataFile.VALUE_COUNTS.type(),
+    // jsonNode.get(VALUE_COUNTS));
+    //    }
+    //
+    //    Map<Integer, Long> nullValueCounts = null;
+    //    if (jsonNode.has(NULL_VALUE_COUNTS)) {
+    //      nullValueCounts =
+    //              (Map<Integer, Long>)
+    //                      SingleValueParser.fromJson(
+    //                              DataFile.NULL_VALUE_COUNTS.type(),
+    // jsonNode.get(NULL_VALUE_COUNTS));
+    //    }
+    //
+    //    Map<Integer, Long> nanValueCounts = null;
+    //    if (jsonNode.has(NAN_VALUE_COUNTS)) {
+    //      nanValueCounts =
+    //              (Map<Integer, Long>)
+    //                      SingleValueParser.fromJson(
+    //                              DataFile.NAN_VALUE_COUNTS.type(),
+    // jsonNode.get(NAN_VALUE_COUNTS));
+    //    }
+    //
+    //    Map<Integer, ByteBuffer> lowerBounds = null;
+    //    if (jsonNode.has(LOWER_BOUNDS)) {
+    //      lowerBounds =
+    //              (Map<Integer, ByteBuffer>)
+    //                      SingleValueParser.fromJson(DataFile.LOWER_BOUNDS.type(),
+    // jsonNode.get(LOWER_BOUNDS));
+    //    }
+    //
+    //    Map<Integer, ByteBuffer> upperBounds = null;
+    //    if (jsonNode.has(UPPER_BOUNDS)) {
+    //      upperBounds =
+    //              (Map<Integer, ByteBuffer>)
+    //                      SingleValueParser.fromJson(DataFile.UPPER_BOUNDS.type(),
+    // jsonNode.get(UPPER_BOUNDS));
+    //    }
+
+    // return ColumnStatsParser.fromJson;
   }
 }
