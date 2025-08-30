@@ -20,6 +20,7 @@ package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
 import java.io.Serializable;
+import java.util.List;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
@@ -73,8 +74,21 @@ class VoidTransform<S> implements Transform<S, Void> {
   }
 
   @Override
+  public boolean canTransform(List<Type> types) {
+    return true;
+  }
+
+  @Override
   public Type getResultType(Type sourceType) {
     return sourceType;
+  }
+
+  @Override
+  public Type getResultType(List<Type> sourceTypes) {
+    if (!sourceTypes.isEmpty()) {
+      return sourceTypes.get(0);
+    }
+    return null;
   }
 
   @Override
