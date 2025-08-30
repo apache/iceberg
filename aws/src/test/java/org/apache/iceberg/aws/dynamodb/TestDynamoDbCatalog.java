@@ -106,7 +106,7 @@ public class TestDynamoDbCatalog {
   }
 
   @Test
-  public void testDefaultWarehouseLocationUniqueNoDbUri() throws Exception {
+  public void testDefaultWarehouseLocationUniqueWithoutDbUri() throws Exception {
     try (DynamoDbCatalog catalog = new DynamoDbCatalog()) {
       catalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), dynamo, null, true);
       Mockito.doReturn(GetItemResponse.builder().item(Maps.newHashMap()).build())
