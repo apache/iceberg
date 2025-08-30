@@ -100,6 +100,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     refreshFromMetadataLocation(newMetadataLocation);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
@@ -137,8 +138,12 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (SQLWarning e) {
       throw new UncheckedSQLException(e, "Database warning");
     } catch (SQLException e) {
-      // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-      if (e.getMessage() != null && e.getMessage().contains("constraint failed")) {
+      // SQLite/Postgres doesn't set SQLState or throw SQLIntegrityConstraintViolationException
+      if (e.getMessage() != null
+          && (e.getMessage().contains("constraint failed")
+              || e.getMessage()
+                  .contains(
+                      "duplicate key value violates unique constraint \"iceberg_tables_pkey\""))) {
         throw new AlreadyExistsException("Table already exists: %s", tableIdentifier);
       }
 
