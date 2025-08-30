@@ -28,7 +28,6 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
@@ -49,11 +48,27 @@ public class MetadataTablePlanner extends ProcessFunction<Trigger, MetadataTable
   private final TableLoader tableLoader;
   private final int workerPoolSize;
   private final ScanContext scanContext;
-  private transient ExecutorService workerPool;
-  private transient Counter errorCounter;
-  private transient Table table;
-  private transient IcebergSourceSplitSerializer splitSerializer;
   private final MetadataTableType metadataTableType;
+
+  private transient Table table;
+  private transient ExecutorService workerPool;
+  private transient IcebergSourceSplitSerializer splitSerializer;
+  private transient Counter errorCounter;
+
+  public MetadataTablePlanner(
+      String taskName,
+      int taskIndex,
+      TableLoader tableLoader,
+      MetadataTableType metadataTableType,
+      int workerPoolSize) {
+    this(
+        taskName,
+        taskIndex,
+        tableLoader,
+        ScanContext.builder().streaming(true).build(),
+        metadataTableType,
+        workerPoolSize);
+  }
 
   public MetadataTablePlanner(
       String taskName,
@@ -98,8 +113,8 @@ public class MetadataTablePlanner extends ProcessFunction<Trigger, MetadataTable
         out.collect(new SplitInfo(splitSerializer.getVersion(), splitSerializer.serialize(split)));
       }
     } catch (Exception e) {
-      LOG.warn("Exception planning scan for {} at {}", table, ctx.timestamp(), e);
-      ctx.output(DeleteOrphanFiles.ERROR_STREAM, e);
+      LOG.error("Exception planning scan for {} at {}", table, ctx.timestamp(), e);
+      ctx.output(TaskResultAggregator.ERROR_STREAM, e);
       errorCounter.inc();
     }
   }

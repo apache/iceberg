@@ -31,7 +31,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -62,7 +61,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processWatermark2(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEmpty();
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -79,7 +78,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processWatermark2(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEmpty();
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -94,7 +93,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEqualTo(ImmutableList.of(SCHEME_FILE_1));
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -108,7 +107,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEmpty();
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -123,7 +122,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEmpty();
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -138,7 +137,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       ConcurrentLinkedQueue<StreamRecord<Exception>> errorList =
-          testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM);
+          testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM);
       assertThat(errorList).hasSize(1);
       assertThat(errorList.stream().findFirst().get().getValue())
           .isInstanceOf(ValidationException.class);
@@ -158,7 +157,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEmpty();
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -173,7 +172,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       ConcurrentLinkedQueue<StreamRecord<Exception>> errorList =
-          testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM);
+          testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM);
       assertThat(errorList).hasSize(1);
       assertThat(errorList.stream().findFirst().get().getValue())
           .isInstanceOf(ValidationException.class);
@@ -193,7 +192,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEqualTo(ImmutableList.of(SCHEME_FILE_1));
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -208,7 +207,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEmpty();
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
@@ -224,7 +223,7 @@ public class TestOrphanFilesDetector extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).isEmpty();
       testHarness.processBothWatermarks(WATERMARK);
       assertThat(testHarness.extractOutputValues()).isEmpty();
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
 
