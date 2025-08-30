@@ -119,7 +119,7 @@ public class TestDynamoDbCatalog {
   }
 
   @Test
-  public void testDefaultWarehouseLocationUniqueDbUri() throws Exception {
+  public void testDefaultWarehouseLocationUniqueWithDbUri() throws Exception {
     try (DynamoDbCatalog catalog = new DynamoDbCatalog()) {
       catalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), dynamo, null, true);
       String dbUri = "s3://bucket2/db";
