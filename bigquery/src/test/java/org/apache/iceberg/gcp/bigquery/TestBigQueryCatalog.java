@@ -171,4 +171,10 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   public void testRenameTableMissingSourceTable() {
     super.testRenameTableMissingSourceTable();
   }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void testCreateTableInUniqueLocation() {
+    super.testCreateTableInUniqueLocation();
+  }
 }

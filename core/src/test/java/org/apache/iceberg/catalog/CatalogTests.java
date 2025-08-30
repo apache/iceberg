@@ -987,6 +987,31 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testCreateTableInUniqueLocation() {
+    ImmutableMap<String, String> additionalProperties =
+        ImmutableMap.of(CatalogProperties.UNIQUE_TABLE_LOCATION, "true");
+    C catalog = initCatalog("uniq_path_catalog", additionalProperties);
+
+    TableIdentifier tableIdent = TableIdentifier.of("db", "table1");
+    TableIdentifier renamedIdent = TableIdentifier.of("db", "table2");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(tableIdent.namespace());
+    }
+
+    catalog.createTable(tableIdent, SCHEMA, PartitionSpec.unpartitioned());
+    catalog.renameTable(tableIdent, renamedIdent);
+    catalog.createTable(tableIdent, SCHEMA, PartitionSpec.unpartitioned());
+
+    Table table = catalog.loadTable(tableIdent);
+    Table renamedTable = catalog.loadTable(renamedIdent);
+
+    assertThat(table.location())
+        .as("Should have a different table location")
+        .isNotEqualTo(renamedTable.location());
+  }
+
+  @Test
   public void testRenameTableMissingSourceTable() {
     C catalog = catalog();
 
