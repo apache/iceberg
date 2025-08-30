@@ -18,13 +18,15 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.util.Map;
+import java.util.Objects;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdatePartitionSpec;
+import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -33,31 +35,41 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Updates the Iceberg tables in case of schema, branch, or partition changes. */
+/** Updates the Iceberg tables in case of schema, branch, partition, or properties changes. */
 @Internal
 class TableUpdater {
 
   private static final Logger LOG = LoggerFactory.getLogger(TableUpdater.class);
   private final TableMetadataCache cache;
   private final Catalog catalog;
+  private final TablePropertiesUpdater tablePropertiesUpdater;
 
   TableUpdater(TableMetadataCache cache, Catalog catalog) {
+    this(cache, catalog, null);
+  }
+
+  TableUpdater(
+      TableMetadataCache cache, Catalog catalog, TablePropertiesUpdater tablePropertiesUpdater) {
     this.cache = cache;
     this.catalog = catalog;
+    this.tablePropertiesUpdater = tablePropertiesUpdater;
   }
 
   /**
-   * Creates or updates a table to make sure that the given branch, schema, spec exists.
+   * Creates or updates a table to make sure that the given branch, schema, spec, and properties
+   * exist.
    *
-   * @return a {@link Tuple3} of the new {@link Schema}, the status of the schema compared to the
-   *     requested one, and the new {@link PartitionSpec#specId()}.
+   * @return a {@link Tuple2} of the new {@link ResolvedSchemaInfo} and the new {@link
+   *     PartitionSpec}.
    */
   Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> update(
       TableIdentifier tableIdentifier, String branch, Schema schema, PartitionSpec spec) {
     findOrCreateTable(tableIdentifier, schema, spec);
+    updateTablePropertiesIfNeeded(tableIdentifier);
     findOrCreateBranch(tableIdentifier, branch);
     TableMetadataCache.ResolvedSchemaInfo newSchemaInfo =
         findOrCreateSchema(tableIdentifier, schema);
@@ -80,13 +92,67 @@ class TableUpdater {
 
       LOG.info("Table {} not found during table search. Creating table.", identifier);
       try {
-        Table table = catalog.createTable(identifier, schema, spec);
+        // Apply table properties during table creation if updater is provided
+        Map<String, String> properties = Maps.newHashMap();
+        if (tablePropertiesUpdater != null) {
+          properties = tablePropertiesUpdater.apply(identifier.toString(), properties);
+          LOG.info("Creating table {} with properties: {}", identifier, properties);
+        }
+
+        Table table = catalog.createTable(identifier, schema, spec, properties);
         cache.update(identifier, table);
       } catch (AlreadyExistsException e) {
         LOG.debug("Table {} created concurrently. Skipping creation.", identifier, e);
         cache.invalidate(identifier);
         findOrCreateTable(identifier, schema, spec);
       }
+    }
+  }
+
+  private void updateTablePropertiesIfNeeded(TableIdentifier identifier) {
+    if (tablePropertiesUpdater == null) {
+      return;
+    }
+
+    Map<String, String> currentProperties = cache.properties(identifier);
+    Map<String, String> updatedProperties =
+        tablePropertiesUpdater.apply(identifier.toString(), currentProperties);
+
+    if (updatedProperties == null || Objects.equals(currentProperties, updatedProperties)) {
+      return;
+    }
+
+    LOG.info(
+        "Updating table {} properties from {} to {}",
+        identifier,
+        currentProperties,
+        updatedProperties);
+    Table table = catalog.loadTable(identifier);
+    try {
+      UpdateProperties updateApi = table.updateProperties();
+
+      // Remove properties that are no longer present
+      for (String key : currentProperties.keySet()) {
+        if (!updatedProperties.containsKey(key)) {
+          updateApi.remove(key);
+        }
+      }
+
+      // Set new or updated properties
+      for (Map.Entry<String, String> entry : updatedProperties.entrySet()) {
+        String currentValue = currentProperties.get(entry.getKey());
+        if (!entry.getValue().equals(currentValue)) {
+          updateApi.set(entry.getKey(), entry.getValue());
+        }
+      }
+
+      updateApi.commit();
+      cache.update(identifier, table);
+      LOG.info("Table {} properties updated successfully", identifier);
+    } catch (CommitFailedException e) {
+      LOG.warn(
+          "Failed to update properties for table {}, will retry on next update", identifier, e);
+      cache.invalidate(identifier);
     }
   }
 
