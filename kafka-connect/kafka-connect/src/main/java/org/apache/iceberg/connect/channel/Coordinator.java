@@ -57,7 +57,6 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 import org.apache.iceberg.util.Tasks;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,15 +76,14 @@ class Coordinator extends Channel {
   private final CommitState commitState;
 
   Coordinator(
-      Catalog catalog,
       IcebergSinkConfig config,
       Collection<MemberDescription> members,
-      KafkaClientFactory clientFactory,
-      SinkTaskContext context) {
+      KafkaClientFactory clientFactory) {
     // pass consumer group ID to which we commit low watermark offsets
-    super("coordinator", config.connectGroupId() + "-coord", config, clientFactory, context);
+    super(
+        "coordinator", config.connectGroupId() + "-coord", config, clientFactory, config.context());
 
-    this.catalog = catalog;
+    this.catalog = config.loadCatalog();
     this.config = config;
     this.totalPartitionCount =
         members.stream().mapToInt(desc -> desc.assignment().topicPartitions().size()).sum();
