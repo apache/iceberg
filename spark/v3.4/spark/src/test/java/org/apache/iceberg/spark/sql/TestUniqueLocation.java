@@ -40,7 +40,7 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestUniqueLocation extends CatalogTestBase {
+public class TestUniqueTableLocation extends CatalogTestBase {
 
   private String renamedTableName;
   private TableIdentifier renamedIdent;
