@@ -88,8 +88,9 @@ public class DeleteOrphanFiles {
     private final Map<String, String> equalAuthorities = Maps.newHashMap();
     private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
 
+    @Internal
     @Override
-    String maintenanceTaskName() {
+    public String maintenanceTaskName() {
       return "DeleteOrphanFiles";
     }
 
