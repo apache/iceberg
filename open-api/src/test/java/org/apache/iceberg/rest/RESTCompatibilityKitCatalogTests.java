@@ -21,18 +21,22 @@ package org.apache.iceberg.rest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@ExtendWith(RESTServerExtension.class)
 public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> {
   private static final Logger LOG = LoggerFactory.getLogger(RESTCompatibilityKitCatalogTests.class);
+
+  @RegisterExtension
+  private static final RESTServerExtension REST_SERVER_EXTENSION =
+      new RESTServerExtension(Map.of(CatalogProperties.UNIQUE_TABLE_LOCATION, "true"));
 
   private static RESTCatalog restCatalog;
 
