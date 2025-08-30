@@ -222,11 +222,15 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       CommitMetadata.commitProperties().forEach(operation::set);
     }
 
-    if (wapEnabled && wapId != null) {
+    if (wapEnabled) {
       // write-audit-publish is enabled for this table and job
       // stage the changes without changing the current snapshot
-      operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
-      operation.stageOnly();
+      if (wapId != null) {
+        operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
+        operation.stageOnly();
+      } else if (writeConf.isWapBranch(branch)) {
+        operation.set(SnapshotSummary.WAP_BRANCH_PROP, branch);
+      }
     }
 
     if (branch != null) {
