@@ -48,7 +48,7 @@ public class LocationUtil {
    * @return a string representing the table name component for a location URI
    */
   public static String tableLocation(TableIdentifier tableIdentifier, boolean useUniqueLocation) {
-    Preconditions.checkNotNull(tableIdentifier, "tableIdentifier must not be null");
+    Preconditions.checkArgument(null != tableIdentifier, "Invalid identifier: null");
 
     if (unique) {
       return String.format(
