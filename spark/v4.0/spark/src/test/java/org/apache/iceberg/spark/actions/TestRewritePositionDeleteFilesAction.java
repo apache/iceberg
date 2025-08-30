@@ -74,6 +74,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.FourColumnRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -746,8 +747,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .snapshotProperty("key", "value")
             .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
-    assertThat(table.currentSnapshot().summary())
-        .containsAllEntriesOf(ImmutableMap.of("key", "value"));
+    Map<String, String> summary = table.currentSnapshot().summary();
+    assertThat(summary).containsAllEntriesOf(ImmutableMap.of("key", "value"));
 
     // make sure internal produced properties are not lost
     String[] commitMetricsKeys =
@@ -759,8 +760,9 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
           SnapshotSummary.REMOVED_POS_DELETES_PROP,
           SnapshotSummary.TOTAL_DATA_FILES_PROP,
           SnapshotSummary.TOTAL_DELETE_FILES_PROP,
+          SparkWriteUtil.SPARK_APP_ID
         };
-    assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
+    assertThat(summary).containsKeys(commitMetricsKeys);
   }
 
   @TestTemplate
