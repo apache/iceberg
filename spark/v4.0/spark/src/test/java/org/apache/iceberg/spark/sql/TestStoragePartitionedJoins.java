@@ -133,7 +133,47 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
     sql("DROP TABLE IF EXISTS %s", tableName(OTHER_TABLE_NAME));
   }
 
-  // TODO: add tests for truncate transforms once SPARK-40295 is released
+  // TODO: SPJ does not currently leverage truncate(...) partition transforms for partition
+  // alignment.
+  // SPARK-40295 improved related areas, but full truncate support is tracked in SPARK-50593.
+  // This test documents current behavior; update/extend once SPARK-50593 lands.
+  @TestTemplate
+  public void testJoinWithTruncatePartitioning() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (truncate(4, dep)) "
+            + "TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+
+    sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName);
+    sql("INSERT INTO %s VALUES (2L, 200, 'software')", tableName);
+    sql("INSERT INTO %s VALUES (3L, 300, 'software')", tableName);
+
+    sql(
+        "CREATE TABLE %s (id BIGINT, int_col INT, dep STRING) "
+            + "USING iceberg "
+            + "PARTITIONED BY (truncate(4, dep)) "
+            + "TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql("INSERT INTO %s VALUES (1L, 100, 'software')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (2L, 200, 'software')", tableName(OTHER_TABLE_NAME));
+    sql("INSERT INTO %s VALUES (3L, 300, 'software')", tableName(OTHER_TABLE_NAME));
+
+    // TODO(SPARK-50593): Once truncate transforms are leveraged by SPJ, expected shuffles with SPJ
+    // should drop to 1. Update expectedNumShufflesWithSPJ accordingly.
+    assertPartitioningAwarePlan(
+        3, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT * "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id AND t1.int_col = t2.int_col AND t1.dep = t2.dep "
+            + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
+        tableName,
+        tableName(OTHER_TABLE_NAME));
+  }
 
   @TestTemplate
   public void testJoinsWithBucketingOnByteColumn() throws NoSuchTableException {
