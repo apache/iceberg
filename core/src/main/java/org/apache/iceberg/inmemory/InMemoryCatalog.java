@@ -112,7 +112,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
-    String tableNameComponent =
+    String tableLocation =
         LocationUtil.getTableNameComponent(tableIdentifier, uniqueTableLocation);
     return SLASH.join(defaultNamespaceLocation(tableIdentifier.namespace()), tableNameComponent);
   }
