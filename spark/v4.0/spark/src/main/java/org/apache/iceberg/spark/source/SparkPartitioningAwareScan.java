@@ -69,6 +69,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   private List<ScanTaskGroup<T>> taskGroups = null; // lazy cache of task groups
   private StructType groupingKeyType = null; // lazy cache of the grouping key type
   private Transform[] groupingKeyTransforms = null; // lazy cache of grouping key transforms
+  private int pushedLimit;
 
   SparkPartitioningAwareScan(
       SparkSession spark,
@@ -82,6 +83,29 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
+
+    if (scan == null) {
+      this.specs = Collections.emptySet();
+      this.tasks = Collections.emptyList();
+      this.taskGroups = Collections.emptyList();
+    }
+  }
+
+  SparkPartitioningAwareScan(
+      SparkSession spark,
+      Table table,
+      Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters,
+      Supplier<ScanReport> scanReportSupplier,
+      int pushedLimit) {
+    super(spark, table, readConf, expectedSchema, filters, scanReportSupplier, pushedLimit);
+
+    this.scan = scan;
+    this.preserveDataGrouping = readConf.preserveDataGrouping();
+    // disable limit push down when preserve-data-grouping is enabled
+    this.pushedLimit = preserveDataGrouping ? setPushedLimit(0) : pushedLimit;
 
     if (scan == null) {
       this.specs = Collections.emptySet();
@@ -202,7 +226,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
                 CloseableIterable.withNoopClose(tasks()),
                 adjustSplitSize(tasks(), scan.targetSplitSize()),
                 scan.splitLookback(),
-                scan.splitOpenFileCost());
+                scan.splitOpenFileCost(),
+                pushedLimit);
         this.taskGroups = Lists.newArrayList(plannedTaskGroups);
 
         LOG.debug(
