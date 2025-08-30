@@ -139,12 +139,23 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   @Override
   public void setBatchSize(int batchSize) {
-    this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+    int newBatchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+    this.batchSize = newBatchSize;
     this.vectorizedColumnIterator.setBatchSize(batchSize);
+    if (this.batchSize != newBatchSize) {
+      clearReuseCaches();
+    }
   }
 
   @Override
   public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+    // When container reuse is disabled, higher-level readers close vectors between batches
+    // and pass reuse == null for a new batch. Any cached vectors retained here would then
+    // reference closed ArrowBufs. Clear caches at the start of such batches.
+    if (reuse == null) {
+      clearReuseCaches();
+    }
+
     boolean dictEncoded = vectorizedColumnIterator.producesDictionaryEncodedVector();
     if (reuse == null
         || (!dictEncoded && readType == ReadType.DICTIONARY)
@@ -256,6 +267,21 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         this.plainReuseTypeWidth = this.typeWidth;
       }
     }
+  }
+
+  private void clearReuseCaches() {
+    if (this.dictReuseVec != null && this.dictReuseVec != this.vec) {
+      this.dictReuseVec.close();
+    }
+
+    if (this.plainReuseVec != null && this.plainReuseVec != this.vec) {
+      this.plainReuseVec.close();
+    }
+
+    this.dictReuseVec = null;
+    this.plainReuseVec = null;
+    this.plainReuseReadType = null;
+    this.plainReuseTypeWidth = null;
   }
 
   private static Types.NestedField getPhysicalType(
