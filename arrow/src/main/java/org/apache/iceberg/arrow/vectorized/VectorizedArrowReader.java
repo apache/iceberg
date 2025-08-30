@@ -140,10 +140,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   @Override
   public void setBatchSize(int batchSize) {
     int newBatchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
-    this.batchSize = newBatchSize;
-    this.vectorizedColumnIterator.setBatchSize(batchSize);
-    if (this.batchSize != newBatchSize) {
+    if (newBatchSize != this.batchSize) {
+      this.batchSize = newBatchSize;
       clearReuseCaches();
+      this.vectorizedColumnIterator.setBatchSize(this.batchSize);
     }
   }
 
