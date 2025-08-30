@@ -87,7 +87,7 @@ final class BucketPartitionerUtil {
 
     @Override
     public Tuple2<Integer, Integer> truncate(
-        int fieldId, String sourceName, int sourceId, int width) {
+        int fieldId, String sourceName, int sourceId, long width) {
       return null;
     }
 

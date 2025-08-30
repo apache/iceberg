@@ -42,11 +42,10 @@ public class Transforms {
     Matcher widthMatcher = HAS_WIDTH.matcher(transform);
     if (widthMatcher.matches()) {
       String name = widthMatcher.group(1);
-      int parsedWidth = Integer.parseInt(widthMatcher.group(2));
       if (name.equalsIgnoreCase("truncate")) {
-        return Truncate.get(parsedWidth);
+        return Truncate.get(Long.parseLong(widthMatcher.group(2)));
       } else if (name.equalsIgnoreCase("bucket")) {
-        return Bucket.get(parsedWidth);
+        return Bucket.get(Integer.parseInt(widthMatcher.group(2)));
       }
     }
 
@@ -75,10 +74,11 @@ public class Transforms {
     Matcher widthMatcher = HAS_WIDTH.matcher(transform);
     if (widthMatcher.matches()) {
       String name = widthMatcher.group(1);
-      int parsedWidth = Integer.parseInt(widthMatcher.group(2));
       if (name.equalsIgnoreCase("truncate")) {
+        long parsedWidth = Long.parseLong(widthMatcher.group(2));
         return (Transform<?, ?>) Truncate.get(type, parsedWidth);
       } else if (name.equalsIgnoreCase("bucket")) {
+        int parsedWidth = Integer.parseInt(widthMatcher.group(2));
         return (Transform<?, ?>) Bucket.get(type, parsedWidth);
       }
     }
@@ -192,10 +192,10 @@ public class Transforms {
    * @param width the width to truncate data values
    * @param <T> Java type passed to this transform
    * @return a transform that truncates the given type to width
-   * @deprecated use {@link #truncate(int)} instead; will be removed in 2.0.0
+   * @deprecated use {@link #truncate(long)} instead; will be removed in 2.0.0
    */
   @Deprecated
-  public static <T> Transform<T, T> truncate(Type type, int width) {
+  public static <T> Transform<T, T> truncate(Type type, long width) {
     return (Transform<T, T>) Truncate.get(type, width);
   }
 
@@ -267,7 +267,7 @@ public class Transforms {
    * @param <T> Java type passed to this transform
    * @return a transform that truncates the given type to width
    */
-  public static <T> Transform<T, T> truncate(int width) {
+  public static <T> Transform<T, T> truncate(long width) {
     return Truncate.get(width);
   }
 
