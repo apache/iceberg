@@ -39,7 +39,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -62,6 +61,7 @@ import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.DeleteFileSet;
+import org.apache.iceberg.util.WapUtil;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -222,16 +222,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       CommitMetadata.commitProperties().forEach(operation::set);
     }
 
-    if (wapEnabled) {
-      // write-audit-publish is enabled for this table and job
-      // stage the changes without changing the current snapshot
-      if (wapId != null) {
-        operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
-        operation.stageOnly();
-      } else if (writeConf.isWapBranch(branch)) {
-        operation.set(SnapshotSummary.WAP_BRANCH_PROP, branch);
-      }
-    }
+    WapUtil.setWapProperties(operation, wapEnabled, wapId, branch, writeConf::isWapBranch);
 
     if (branch != null) {
       operation.toBranch(branch);

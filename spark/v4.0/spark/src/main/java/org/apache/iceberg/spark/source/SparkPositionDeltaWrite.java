@@ -41,7 +41,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.BaseDeleteLoader;
@@ -76,6 +75,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.StructProjection;
+import org.apache.iceberg.util.WapUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
@@ -102,6 +102,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private static final Logger LOG = LoggerFactory.getLogger(SparkPositionDeltaWrite.class);
 
   private final JavaSparkContext sparkContext;
+  private final SparkWriteConf writeConf;
   private final Table table;
   private final Command command;
   private final SparkBatchQueryScan scan;
@@ -114,7 +115,6 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final SparkWriteRequirements writeRequirements;
   private final Context context;
   private final Map<String, String> writeProperties;
-  private final boolean isWapBranch;
 
   private boolean cleanupOnAbort = false;
 
@@ -129,6 +129,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       Schema dataSchema) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.writeConf = writeConf;
     this.command = command;
     this.scan = scan;
     this.isolationLevel = isolationLevel;
@@ -136,7 +137,6 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
     this.branch = writeConf.branch();
-    this.isWapBranch = writeConf.isWapBranch(branch);
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
     this.context = new Context(dataSchema, writeConf, info, writeRequirements);
@@ -328,16 +328,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
       CommitMetadata.commitProperties().forEach(operation::set);
 
-      if (wapEnabled) {
-        // write-audit-publish is enabled for this table and job
-        // stage the changes without changing the current snapshot
-        if (wapId != null) {
-          operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
-          operation.stageOnly();
-        } else if (isWapBranch) {
-          operation.set(SnapshotSummary.WAP_BRANCH_PROP, branch);
-        }
-      }
+      WapUtil.setWapProperties(operation, wapEnabled, wapId, branch, writeConf::isWapBranch);
 
       if (branch != null) {
         operation.toBranch(branch);
