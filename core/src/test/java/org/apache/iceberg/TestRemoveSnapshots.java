@@ -1823,6 +1823,60 @@ public class TestRemoveSnapshots extends TestBase {
                 meta ->
                     meta.changes().stream()
                         .anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas)));
+    Mockito.verify(ops, Mockito.never())
+        .commit(
+            any(),
+            argThat(
+                meta ->
+                    meta.changes().stream()
+                        .anyMatch(u -> u instanceof MetadataUpdate.RemoveSortOrders)));
+  }
+
+  @TestTemplate
+  public void testRemoveSortOrders() {
+    SortOrder idSortOrder = SortOrder.builderFor(table.schema()).asc("id").build();
+    ;
+    DataFile initialFile =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+            .withRecordCount(1)
+            .withSortOrder(idSortOrder)
+            .build();
+    table.newAppend().appendFile(initialFile).commit();
+
+    Set<String> expectedDeletedFiles = Sets.newHashSet();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.replaceSortOrder().asc("data").commit();
+
+    DataFile dataFile =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+            .withRecordCount(1)
+            .withSortOrder(table.sortOrder())
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.newDelete().deleteFile(initialFile).commit();
+
+    assertThat(table.sortOrders()).hasSize(2);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expire all snapshots and sort-orders except the current ones.
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    // other manifest files can be present, as there is delete file
+    assertThat(deletedFiles).containsAll(expectedDeletedFiles);
+    assertThat(table.sortOrders().values()).containsExactly(table.sortOrder());
   }
 
   @TestTemplate

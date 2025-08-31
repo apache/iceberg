@@ -181,6 +181,23 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
+  class RemoveSortOrders implements MetadataUpdate {
+    private final Set<Integer> sortOrderIds;
+
+    public RemoveSortOrders(Set<Integer> sortOrderIds) {
+      this.sortOrderIds = sortOrderIds;
+    }
+
+    public Set<Integer> sortOrderIds() {
+      return sortOrderIds;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.removeSortOrders(sortOrderIds);
+    }
+  }
+
   class RemoveSchemas implements MetadataUpdate {
     private final Set<Integer> schemaIds;
 

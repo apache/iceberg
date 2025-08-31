@@ -59,6 +59,7 @@ public class MetadataUpdateParser {
   static final String REMOVE_PARTITION_STATISTICS = "remove-partition-statistics";
   static final String REMOVE_PARTITION_SPECS = "remove-partition-specs";
   static final String REMOVE_SCHEMAS = "remove-schemas";
+  static final String REMOVE_SORT_ORDERS = "remove-sort-orders";
   static final String ADD_ENCRYPTION_KEY = "add-encryption-key";
   static final String REMOVE_ENCRYPTION_KEY = "remove-encryption-key";
 
@@ -134,6 +135,9 @@ public class MetadataUpdateParser {
   // RemoveSchemas
   private static final String SCHEMA_IDS = "schema-ids";
 
+  // RemoveSortOrders
+  private static final String SORT_ORDER_IDS = "sort-order-ids";
+
   // AddEncryptionKey
   private static final String ENCRYPTION_KEY = "encryption-key";
 
@@ -165,6 +169,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
           .put(MetadataUpdate.RemovePartitionSpecs.class, REMOVE_PARTITION_SPECS)
           .put(MetadataUpdate.RemoveSchemas.class, REMOVE_SCHEMAS)
+          .put(MetadataUpdate.RemoveSortOrders.class, REMOVE_SORT_ORDERS)
           .put(MetadataUpdate.AddEncryptionKey.class, ADD_ENCRYPTION_KEY)
           .put(MetadataUpdate.RemoveEncryptionKey.class, REMOVE_ENCRYPTION_KEY)
           .buildOrThrow();
@@ -271,6 +276,9 @@ public class MetadataUpdateParser {
       case REMOVE_ENCRYPTION_KEY:
         writeRemoveEncryptionKey((MetadataUpdate.RemoveEncryptionKey) metadataUpdate, generator);
         break;
+      case REMOVE_SORT_ORDERS:
+        writeRemoveSortOrders((MetadataUpdate.RemoveSortOrders) metadataUpdate, generator);
+        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -350,6 +358,8 @@ public class MetadataUpdateParser {
         return readAddEncryptionKey(jsonNode);
       case REMOVE_ENCRYPTION_KEY:
         return readRemoveEncryptionKey(jsonNode);
+      case REMOVE_SORT_ORDERS:
+        return readSortOrders(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
@@ -491,6 +501,11 @@ public class MetadataUpdateParser {
   private static void writeRemoveSchemas(
       MetadataUpdate.RemoveSchemas metadataUpdate, JsonGenerator gen) throws IOException {
     JsonUtil.writeIntegerArray(SCHEMA_IDS, metadataUpdate.schemaIds(), gen);
+  }
+
+  private static void writeRemoveSortOrders(
+      MetadataUpdate.RemoveSortOrders metadataUpdate, JsonGenerator gen) throws IOException {
+    JsonUtil.writeIntegerArray(SORT_ORDER_IDS, metadataUpdate.sortOrderIds(), gen);
   }
 
   private static void writeAddEncryptionKey(
@@ -652,6 +667,10 @@ public class MetadataUpdateParser {
 
   private static MetadataUpdate readRemoveSchemas(JsonNode node) {
     return new MetadataUpdate.RemoveSchemas(JsonUtil.getIntegerSet(SCHEMA_IDS, node));
+  }
+
+  private static MetadataUpdate readSortOrders(JsonNode node) {
+    return new MetadataUpdate.RemoveSortOrders(JsonUtil.getIntegerSet(SORT_ORDER_IDS, node));
   }
 
   private static MetadataUpdate readAddEncryptionKey(JsonNode node) {

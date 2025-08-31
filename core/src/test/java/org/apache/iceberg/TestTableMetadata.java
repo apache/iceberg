@@ -1960,4 +1960,22 @@ public class TestTableMetadata {
 
     assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
   }
+
+  @Test
+  public void testMetadataWithRemoveSortOrders() {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TestBase.SCHEMA, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    TableMetadata meta =
+        TableMetadata.buildFrom(base)
+            .addSortOrder(SortOrder.builderFor(base.schema()).asc("id").build())
+            .addSortOrder(SortOrder.builderFor(base.schema()).asc("data").build())
+            .removeSortOrders(Sets.newHashSet())
+            .build();
+
+    assertThat(meta.changes()).noneMatch(u -> u instanceof MetadataUpdate.RemoveSortOrders);
+
+    meta = TableMetadata.buildFrom(meta).removeSortOrders(Sets.newHashSet(1)).build();
+    assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemoveSortOrders);
+  }
 }

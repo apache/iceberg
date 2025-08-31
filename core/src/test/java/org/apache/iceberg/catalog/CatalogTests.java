@@ -1722,6 +1722,89 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testRemoveUnusedSortOrders(boolean withBranch) {
+    String branch = "test";
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withPartitionSpec(SPEC)
+            .withProperty(TableProperties.GC_ENABLED, "true")
+            .create();
+
+    table.replaceSortOrder().asc("id").commit();
+    SortOrder idSortOrder = table.sortOrder();
+
+    DataFile initialFile =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withSortOrder(table.sortOrder())
+            .withPartitionPath("id_bucket=0")
+            .withRecordCount(2)
+            .build();
+    table.newFastAppend().appendFile(initialFile).commit();
+    table.replaceSortOrder().asc(Expressions.bucket("id", 16)).commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    if (withBranch) {
+      table.manageSnapshots().createBranch(branch).commit();
+    }
+
+    table.replaceSortOrder().asc("data").commit();
+    SortOrder dataSortOrder = table.sortOrder();
+
+    // including the initial default sort
+    assertThat(table.sortOrders().values()).as("Should have 4 total sort-orders").hasSize(4);
+
+    table.expireSnapshots().cleanExpiredMetadata(true).commit();
+
+    Table loaded = catalog.loadTable(TABLE);
+    assertThat(loaded.snapshot(firstSnapshot.snapshotId())).isNotNull();
+    assertThat(loaded.sortOrders()).as("Should have 2 total sort-order").hasSize(2);
+    assertThat(loaded.sortOrders().values()).containsExactlyInAnyOrder(idSortOrder, dataSortOrder);
+
+    DataFile secondFile =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-b.parquet")
+            .withFileSizeInBytes(10)
+            .withSortOrder(table.sortOrder())
+            .withPartitionPath("id_bucket=0")
+            .withRecordCount(2)
+            .build();
+    table.newDelete().deleteFile(initialFile).commit();
+    table.newFastAppend().appendFile(secondFile).commit();
+
+    table.replaceSortOrder().asc(Expressions.bucket("data", 8)).commit();
+    table.replaceSortOrder().asc(Expressions.bucket("id", 8)).commit();
+    SortOrder newSortOrder = table.sortOrder();
+
+    table
+        .expireSnapshots()
+        .expireOlderThan(table.currentSnapshot().timestampMillis())
+        .cleanExpiredMetadata(true)
+        .commit();
+
+    loaded = catalog.loadTable(TABLE);
+    if (withBranch) {
+      assertThat(loaded.snapshots())
+          .containsExactlyInAnyOrder(firstSnapshot, loaded.currentSnapshot());
+      assertThat(loaded.sortOrders().values())
+          .containsExactlyInAnyOrder(idSortOrder, newSortOrder, dataSortOrder);
+    } else {
+      assertThat(loaded.snapshot(firstSnapshot.snapshotId())).isNull();
+      assertThat(loaded.sortOrders().values())
+          .containsExactlyInAnyOrder(newSortOrder, dataSortOrder);
+    }
+  }
+
   @Test
   public void testUpdateTableSortOrder() {
     C catalog = catalog();
