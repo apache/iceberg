@@ -902,7 +902,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
-  public void testPartitionStatisticFile() throws IOException {
+  public void testTableWithPartitionStatisticFile() throws IOException {
     String sourceTableLocation = newTableLocation();
     Map<String, String> properties = Maps.newHashMap();
     properties.put("format-version", "2");
@@ -910,28 +910,29 @@ public class TestRewriteTablePathsAction extends TestBase {
     Table sourceTable =
         createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
 
+    sql("insert into hive.default.%s values (%s, 'AAAAAAAAAA', 'AAAA')", tableName, 0);
+    sourceTable.refresh();
+
     TableMetadata metadata = currentMetadata(sourceTable);
+    File statFile = new File(removePrefix(sourceTableLocation + "/stats/file.parquet"));
     TableMetadata withPartStatistics =
         TableMetadata.buildFrom(metadata)
             .setPartitionStatistics(
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(11L)
-                    .path("/some/partition/stats/file.parquet")
+                    .path(statFile.toURI().toString())
                     .fileSizeInBytes(42L)
                     .build())
             .build();
-
     OutputFile file = sourceTable.io().newOutputFile(metadata.metadataFileLocation());
     TableMetadataParser.overwrite(withPartStatistics, file);
 
-    assertThatThrownBy(
-            () ->
-                actions()
-                    .rewriteTablePath(sourceTable)
-                    .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
-                    .execute())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Partition statistics files are not supported yet");
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+            .execute();
+    checkFileNum(2, 1, 1, 6, result);
   }
 
   @Test
