@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
@@ -130,15 +131,18 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
     }
   }
 
-  protected Counter failedCounter() {
+  @VisibleForTesting
+  Counter failedCounter() {
     return failedCounter;
   }
 
-  protected Counter succeededCounter() {
+  @VisibleForTesting
+  Counter succeededCounter() {
     return succeededCounter;
   }
 
-  protected Histogram deleteFileTimeMsHistogram() {
+  @VisibleForTesting
+  Histogram deleteFileTimeMsHistogram() {
     return deleteFileTimeMsHistogram;
   }
 }
