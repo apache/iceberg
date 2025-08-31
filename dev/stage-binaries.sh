@@ -25,7 +25,7 @@ KAFKA_VERSIONS=3
 
 ./gradlew -Prelease -DscalaVersion=$SCALA_VERSION -DflinkVersions=$FLINK_VERSIONS -DsparkVersions=$SPARK_VERSIONS -DkafkaVersions=$KAFKA_VERSIONS publishApachePublicationToMavenRepository --no-parallel --no-configuration-cache
 
-# Also publish Scala 2.13 Artifacts for versions that support it.`
+# Also publish Scala 2.13 Artifacts for versions that support it.
 # Flink does not yet support 2.13 (and is largely dropping a user-facing dependency on Scala). Hive doesn't need a Scala specification.
 ./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-3.4_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.4_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.4_2.13:publishApachePublicationToMavenRepository --no-parallel --no-configuration-cache
 ./gradlew -Prelease -DscalaVersion=2.13 -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-3.5_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-extensions-3.5_2.13:publishApachePublicationToMavenRepository :iceberg-spark:iceberg-spark-runtime-3.5_2.13:publishApachePublicationToMavenRepository --no-parallel --no-configuration-cache
