@@ -218,15 +218,14 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
 
     File file = new File(removePrefix(table.location()) + "/data/deletes.parquet");
     String filePath = file.toURI().toString();
-    if(SparkCatalogConfig.REST.catalogName().equals(catalogName)) {
-       // We applied this special handling because the base path for
-       // matching the RESTCATALOG's Hive BaseLocation is represented
-       // in the form of an AbsolutePath.
-       filePath = file.getAbsolutePath().toString();
+    if (SparkCatalogConfig.REST.catalogName().equals(catalogName)) {
+      // We applied this special handling because the base path for
+      // matching the RESTCATALOG's Hive BaseLocation is represented
+      // in the form of an AbsolutePath.
+      filePath = file.getAbsolutePath().toString();
     }
     DeleteFile positionDeletes =
-        FileHelpers.writeDeleteFile(
-            table, table.io().newOutputFile(filePath), rowsToDelete)
+        FileHelpers.writeDeleteFile(table, table.io().newOutputFile(filePath), rowsToDelete)
             .first();
 
     table.newRowDelta().addDeletes(positionDeletes).commit();
