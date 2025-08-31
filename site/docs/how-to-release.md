@@ -162,7 +162,6 @@ cd apache-iceberg-1.8.0
 
 To build and publish the convenience binaries, run the `dev/stage-binaries.sh` script. This will push to a release staging repository.
 
-Disable gradle parallelism by setting `org.gradle.parallel=false` in `gradle.properties`.
 
 ```
 dev/stage-binaries.sh
