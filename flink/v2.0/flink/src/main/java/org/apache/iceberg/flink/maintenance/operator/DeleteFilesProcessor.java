@@ -130,15 +130,15 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
     }
   }
 
-  public Counter getFailedCounter() {
+  protected Counter failedCounter() {
     return failedCounter;
   }
 
-  public Counter getSucceededCounter() {
+  protected Counter succeededCounter() {
     return succeededCounter;
   }
 
-  public Histogram getDeleteFileTimeMsHistogram() {
+  protected Histogram deleteFileTimeMsHistogram() {
     return deleteFileTimeMsHistogram;
   }
 }

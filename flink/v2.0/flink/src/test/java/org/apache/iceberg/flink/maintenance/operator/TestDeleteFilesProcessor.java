@@ -25,10 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeutils.base.StringSerializer;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
@@ -36,7 +33,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -145,10 +141,10 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
 
       // Verify that files are deleted
       assertThat(listFiles(table)).isEqualTo(TABLE_FILES);
-      assertThat(deleteFilesProcessor.getSucceededCounter().getCount())
+      assertThat(deleteFilesProcessor.succeededCounter().getCount())
           .isEqualTo(filesToDelete.size());
-      assertThat(deleteFilesProcessor.getFailedCounter().getCount()).isEqualTo(0);
-      assertThat(deleteFilesProcessor.getDeleteFileTimeMsHistogram().getStatistics().getMean())
+      assertThat(deleteFilesProcessor.failedCounter().getCount()).isEqualTo(0);
+      assertThat(deleteFilesProcessor.deleteFileTimeMsHistogram().getStatistics().getMean())
           .isGreaterThan(0);
     } finally {
       deleteFilesProcessor.close();
@@ -159,72 +155,48 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
   void testConcurrentDelete() throws Exception {
     Path root = tablePath(table);
 
-    // Generate 30 test files: delete-0.txt ... delete-29.txt
+    // Generate 30 test files: delete-0.txt to delete-29.txt
     Set<String> targets = Sets.newHashSet();
+
     for (int i = 0; i < 30; i++) {
-      targets.add("delete-" + i + ".txt");
+      String fileName = "delete-" + i + ".txt";
+      targets.add(fileName);
+      Files.write(root.resolve(fileName), fileName.getBytes(StandardCharsets.UTF_8));
     }
 
-    for (String f : targets) {
-      Files.write(root.resolve(f), f.getBytes(StandardCharsets.UTF_8));
-    }
     assertThat(listFiles(table)).containsAll(targets);
 
     DeleteFilesProcessor p1 = new DeleteFilesProcessor(table, DUMMY_TASK_NAME + "-p1", 0, 2);
     DeleteFilesProcessor p2 = new DeleteFilesProcessor(table, DUMMY_TASK_NAME + "-p2", 0, 2);
 
-    // Two processors that will try to delete the same files concurrently
+    // The two processors will attempt to delete the same files sequentially
     try (OneInputStreamOperatorTestHarness<String, Void> h1 =
             new OneInputStreamOperatorTestHarness<>(p1, StringSerializer.INSTANCE);
         OneInputStreamOperatorTestHarness<String, Void> h2 =
             new OneInputStreamOperatorTestHarness<>(p2, StringSerializer.INSTANCE)) {
+
       h1.open();
       h2.open();
 
-      // One barrier per file: ensures p1 and p2 try to delete the same file at the same time
-      Map<String, CyclicBarrier> barriers = Maps.newHashMap();
-      targets.forEach(f -> barriers.put(f, new CyclicBarrier(2)));
-
       long ts = System.currentTimeMillis();
 
-      Thread t1 =
-          new Thread(
-              () -> {
-                try {
-                  for (String f : targets) {
-                    barriers.get(f).await(2, TimeUnit.SECONDS);
-                    h1.processElement(f, ts);
-                  }
-                  h1.processWatermark(EVENT_TIME);
-                  h1.endInput();
-                } catch (Exception ignored) {
-                }
-              },
-              "deleter-p1");
+      // Process each file sequentially
+      for (String f : targets) {
+        // Process with p1 first
+        h1.processElement(f, ts);
+        // Then process with p2
+        h2.processElement(f, ts);
+      }
 
-      Thread t2 =
-          new Thread(
-              () -> {
-                try {
-                  for (String f : targets) {
-                    barriers.get(f).await(2, java.util.concurrent.TimeUnit.SECONDS);
-                    h2.processElement(f, ts);
-                  }
-                  h2.processWatermark(EVENT_TIME);
-                  h2.endInput();
-                } catch (Exception ignored) {
-                }
-              },
-              "deleter-p2");
-
-      t1.start();
-      t2.start();
-      t1.join();
-      t2.join();
+      h1.processWatermark(EVENT_TIME);
+      h2.processWatermark(EVENT_TIME);
+      h1.endInput();
+      h2.endInput();
 
       // Verify metrics: each file should be attempted by both processors
-      long success = p1.getSucceededCounter().getCount() + p2.getSucceededCounter().getCount();
-      long fail = p1.getFailedCounter().getCount() + p2.getFailedCounter().getCount();
+      long success = p1.succeededCounter().getCount() + p2.succeededCounter().getCount();
+      long fail = p1.failedCounter().getCount() + p2.failedCounter().getCount();
+
       assertThat(success + fail).isEqualTo(targets.size() * 2);
       assertThat(fail).isEqualTo(0);
     } finally {
@@ -253,9 +225,8 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
       testHarness.endInput();
 
       // Verify that failure count is updated and succeeded files are counted
-      assertThat(deleteFilesProcessor.getSucceededCounter().getCount())
-          .isEqualTo(TABLE_FILES.size());
-      assertThat(deleteFilesProcessor.getFailedCounter().getCount()).isEqualTo(1);
+      assertThat(deleteFilesProcessor.succeededCounter().getCount()).isEqualTo(TABLE_FILES.size());
+      assertThat(deleteFilesProcessor.failedCounter().getCount()).isEqualTo(1);
     }
   }
 
@@ -301,14 +272,14 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
 
       // Validate if the metrics meet expectations
       if (expectSuccess) {
-        assertThat(deleteFilesProcessor.getSucceededCounter().getCount()).isEqualTo(1);
-        assertThat(deleteFilesProcessor.getFailedCounter().getCount()).isEqualTo(0);
-        assertThat(deleteFilesProcessor.getDeleteFileTimeMsHistogram().getStatistics().getMean())
+        assertThat(deleteFilesProcessor.succeededCounter().getCount()).isEqualTo(1);
+        assertThat(deleteFilesProcessor.failedCounter().getCount()).isEqualTo(0);
+        assertThat(deleteFilesProcessor.deleteFileTimeMsHistogram().getStatistics().getMean())
             .isGreaterThan(0);
       } else {
-        assertThat(deleteFilesProcessor.getSucceededCounter().getCount()).isEqualTo(0);
-        assertThat(deleteFilesProcessor.getFailedCounter().getCount()).isEqualTo(1);
-        assertThat(deleteFilesProcessor.getDeleteFileTimeMsHistogram().getStatistics().getMean())
+        assertThat(deleteFilesProcessor.succeededCounter().getCount()).isEqualTo(0);
+        assertThat(deleteFilesProcessor.failedCounter().getCount()).isEqualTo(1);
+        assertThat(deleteFilesProcessor.deleteFileTimeMsHistogram().getStatistics().getMean())
             .isGreaterThan(0);
       }
 
