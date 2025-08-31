@@ -73,6 +73,16 @@ Compacts small files to optimize file sizes. Supports partial progress commits a
     .partialProgressMaxCommits(5))
 ```
 
+
+#### DeleteOrphanFiles
+Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".The table location is checked for such files.
+
+```java
+.add(DeleteOrphanFiles.builder()
+    .minAge(Duration.ofDays(3))
+    .deleteBatchSize(1000))
+```
+
 ### Lock Management
 
 The `TriggerLockFactory` is essential for coordinating maintenance tasks. It prevents concurrent maintenance operations on the same table, which could lead to conflicts or data corruption. This locking mechanism is necessary even for a single job, as multiple instances of the same task could otherwise conflict.
@@ -210,6 +220,18 @@ env.execute("Table Maintenance Job");
 | `maxRewriteBytes(long)` | Maximum bytes to rewrite per execution | Long.MAX_VALUE | long |
 | `filter(Expression)` | Filter expression for selecting files to rewrite | Expressions.alwaysTrue() | Expression |
 
+#### DeleteOrphanFiles Configuration
+
+| Method                                   | Description                                                                                                                                                                                                                                                                                                                                                             | Default Value           | Type               |
+|------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|--------------------|
+| `location(string)`                       | The location to start the recursive listing the candidate files for removal.                                                                                                                                                                                                                                                                                            | Table's location        | String             |
+| `usePrefixListing(boolean)`              | When true, use prefix-based file listing via the SupportsPrefixOperations interface. The Table FileIO implementation must support SupportsPrefixOperations when this flag is enabled.(Note: Setting it to False will use a recursive method to obtain file information. If the underlying storage is object storage, it will repeatedly call the API to get the path.)  | False                   | boolean            |
+| `prefixMismatchMode(PrefixMismatchMode)` | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul>                                                                                                                                                                                        | ERROR                   | PrefixMismatchMode |
+| `equalSchemes(Map<String, String>)`      | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme                                                                                                                                                                                                                                                   | "s3n"=>"s3","s3a"=>"s3" | Map<String,String> |                     
+| `equalAuthorities(Map<String, String>)`  | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority.                                                                                                                                                                                                                                      | Empty map               | Map<String,String> |       
+| `minAge(Duration)`                       | Remove orphan files created before this timestamp                                                                                                                                                                                                                                                                                                                       | 3 days ago              | Duration           |
+| `planningWorkerPoolSize(int)`            | Number of worker threads for planning snapshot expiration                                                                                                                                                                                                                                                                                                               | Shared worker pool      | int                |
+
 ### Complete Example
 
 ```java
@@ -257,6 +279,10 @@ public class TableMaintenanceJob {
                 .partialProgressMaxCommits(5)
                 .maxRewriteBytes(2L * 1024 * 1024 * 1024)
                 .parallelism(6))
+
+            // Delete orphans files created more than five days ago
+            .add(DeleteOrphanFiles.builder()
+                        .minAge(Duration.ofDays(5)))    
                 
             .append();
         
