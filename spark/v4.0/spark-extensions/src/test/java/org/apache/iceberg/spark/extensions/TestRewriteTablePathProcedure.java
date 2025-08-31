@@ -34,6 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
@@ -216,9 +217,16 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
                 0L));
 
     File file = new File(removePrefix(table.location()) + "/data/deletes.parquet");
+    String filePath = file.toURI().toString();
+    if(SparkCatalogConfig.REST.catalogName().equals(catalogName)) {
+       // We applied this special handling because the base path for
+       // matching the RESTCATALOG's Hive BaseLocation is represented
+       // in the form of an AbsolutePath.
+       filePath = file.getAbsolutePath().toString();
+    }
     DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(
-                table, table.io().newOutputFile(file.toURI().toString()), rowsToDelete)
+            table, table.io().newOutputFile(filePath), rowsToDelete)
             .first();
 
     table.newRowDelta().addDeletes(positionDeletes).commit();
