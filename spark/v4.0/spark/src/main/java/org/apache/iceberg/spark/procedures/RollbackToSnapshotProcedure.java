@@ -86,7 +86,7 @@ class RollbackToSnapshotProcedure extends BaseProcedure {
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = toIdentifier(input.asString(TABLE_PARAM), TABLE_PARAM.name());
-    long snapshotId = input.asInt(SNAPSHOT_ID_PARAM);
+    long snapshotId = input.asLong(SNAPSHOT_ID_PARAM);
 
     return modifyIcebergTable(
         tableIdent,
