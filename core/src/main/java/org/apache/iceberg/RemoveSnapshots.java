@@ -234,21 +234,21 @@ class RemoveSnapshots implements ExpireSnapshots {
           .run(
               snapshotId -> {
                 Snapshot snapshot = base.snapshot(snapshotId);
-                snapshot.allManifests(ops.io()).stream()
-                    .map(ManifestFile::partitionSpecId)
-                    .forEach(reachableSpecs::add);
+                List<ManifestFile> manifests = snapshot.allManifests(ops.io());
+
+                // Collect partition spec IDs
+                manifests.stream().map(ManifestFile::partitionSpecId).forEach(reachableSpecs::add);
+
                 reachableSchemas.add(snapshot.schemaId());
 
-                snapshot.allManifests(ops.io()).stream()
-                    .map(manifestFile -> ManifestFiles.read(manifestFile, ops.io()))
+                // Collect sort order IDs from live entries
+                manifests.stream()
+                    .map(manifestFile -> ManifestFiles.open(manifestFile, ops.io()))
                     .map(ManifestReader::entries)
                     .flatMap(entries -> StreamSupport.stream(entries.spliterator(), false))
-                    .filter(
-                        entry ->
-                            entry.status() == ManifestEntry.Status.ADDED
-                                || entry.status() == ManifestEntry.Status.EXISTING)
+                    .filter(ManifestEntry::isLive)
                     .map(ManifestEntry::file)
-                    .map(DataFile::sortOrderId)
+                    .map(ContentFile::sortOrderId)
                     .filter(Objects::nonNull)
                     .forEach(reachableSortOrders::add);
               });
