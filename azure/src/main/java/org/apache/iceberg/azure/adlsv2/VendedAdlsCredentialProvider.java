@@ -81,8 +81,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   }
 
   private AccessToken sasTokenForAccount(String storageAccount) {
-    return sasTokenFromProperties(storageAccount)
-        .orElseGet(() -> refreshSasToken(storageAccount));
+    return sasTokenFromProperties(storageAccount).orElseGet(() -> refreshSasToken(storageAccount));
   }
 
   private Optional<AccessToken> sasTokenFromProperties(String storageAccount) {
