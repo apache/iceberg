@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -28,13 +27,9 @@ import org.junit.jupiter.api.TestTemplate;
 public class TestPartitionedWrites extends PartitionedWritesTestBase {
   @TestTemplate
   public void testWapPropertiesNotSet() {
-    assertThatCode(
-            () -> {
-              sql("INSERT INTO %s VALUES (4, 'd')", tableName);
-              Table table = validationCatalog.loadTable(tableIdent);
-              assertThat(table.snapshot(table.refs().get("main").snapshotId()).summary())
-                  .doesNotContainKey(SnapshotSummary.WAP_BRANCH_PROP);
-            })
-        .doesNotThrowAnyException();
+    sql("INSERT INTO %s VALUES (4, 'd')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshot(table.refs().get("main").snapshotId()).summary())
+        .doesNotContainKey(SnapshotSummary.WAP_BRANCH_PROP);
   }
 }

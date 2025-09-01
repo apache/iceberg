@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
@@ -87,14 +86,10 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
 
   @TestTemplate
   public void testWapPropertiesSet() {
-    assertThatCode(
-            () -> {
-              sql("INSERT INTO %s VALUES (4, 'd')", tableName);
-              Table table = validationCatalog.loadTable(tableIdent);
-              assertThat(table.snapshot(table.refs().get(BRANCH).snapshotId()).summary())
-                  .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, BRANCH);
-            })
-        .doesNotThrowAnyException();
+    sql("INSERT INTO %s VALUES (4, 'd')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshot(table.refs().get(BRANCH).snapshotId()).summary())
+        .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, BRANCH);
   }
 
   @Override
