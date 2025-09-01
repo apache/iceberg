@@ -59,7 +59,13 @@ nav:
     - Kafka Connect: kafka-connect.md
     - Apache Hive: hive.md
   - Catalogs:
+    - AWS Glue: aws/#glue-catalog
+    - AWS DynamoDB: aws/#dynamodb-catalog
     - HadoopCatalog: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hadoop/HadoopCatalog.html
     - HiveCatalog: hive/#global-hive-catalog
     - jdbc.md
     - custom-catalog.md
+    - nessie.md
+  - Storage:
+    - AWS S3: aws/#s3-fileio
+    - Dell ECS: dell.md

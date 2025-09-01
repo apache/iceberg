@@ -56,11 +56,8 @@ plugins:
   - redirects:
       redirect_maps:
         'docs/nightly/amoro.md': 'integrations/amoro.md'
-        'docs/nightly/aws.md': 'integrations/aws.md'
         'docs/nightly/bladepipe.md': 'integrations/bladepipe.md'
         'docs/nightly/daft.md': 'integrations/daft.md'
-        'docs/nightly/dell.md': 'integrations/dell.md'
-        'docs/nightly/nessie.md': 'integrations/nessie.md'
         'docs/nightly/risingwave.md': 'integrations/risingwave.md'
 
 markdown_extensions:
