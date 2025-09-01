@@ -95,7 +95,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkReaderDeletes extends DeleteReadTests {
-
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
@@ -323,7 +322,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     for (CombinedScanTask task : tasks) {
       try (EqualityDeleteRowReader reader =
-          new EqualityDeleteRowReader(task, table, null, table.schema(), false)) {
+          new EqualityDeleteRowReader(task, table, null, table.schema(), false, true)) {
         while (reader.next()) {
           actualRowSet.add(
               new InternalRowWrapper(

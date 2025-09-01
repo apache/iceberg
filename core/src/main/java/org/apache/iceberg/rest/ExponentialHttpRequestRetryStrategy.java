@@ -61,7 +61,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *
  * <ul>
  *   <li>SC_TOO_MANY_REQUESTS (429)
- *   <li>SC_SERVICE_UNAVAILABLE (503)
  * </ul>
  *
  * The following retriable HTTP status codes are defined for idempotent requests:
@@ -73,7 +72,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *   <li>SC_BAD_GATEWAY (502)
  *   <li>SC_GATEWAY_TIMEOUT (504)
  *   <li>SC_REQUEST_TIMEOUT (408)
- *   <li>SC_SERVICE_UNAVAILABLE (503)
  * </ul>
  *
  * Most code and behavior is taken from {@link
@@ -90,14 +88,12 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     Preconditions.checkArgument(
         maximumRetries > 0, "Cannot set retries to %s, the value must be positive", maximumRetries);
     this.maxRetries = maximumRetries;
-    this.retriableCodes =
-        ImmutableSet.of(HttpStatus.SC_TOO_MANY_REQUESTS, HttpStatus.SC_SERVICE_UNAVAILABLE);
+    this.retriableCodes = ImmutableSet.of(HttpStatus.SC_TOO_MANY_REQUESTS);
     this.idempotentRetriableCodes =
         ImmutableSet.of(
             HttpStatus.SC_TOO_MANY_REQUESTS,
             HttpStatus.SC_SERVICE_UNAVAILABLE,
             HttpStatus.SC_INTERNAL_SERVER_ERROR,
-            HttpStatus.SC_SERVICE_UNAVAILABLE,
             HttpStatus.SC_BAD_GATEWAY,
             HttpStatus.SC_GATEWAY_TIMEOUT,
             HttpStatus.SC_REQUEST_TIMEOUT);
@@ -143,12 +139,20 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
     HttpRequest request =
         context instanceof HttpCoreContext ? ((HttpCoreContext) context).getRequest() : null;
 
-    boolean shouldRetry =
-        execCount <= maxRetries
-            && (retriableCodes.contains(response.getCode())
-                || shouldRetryIdempotent(request, response.getCode()));
+    boolean is503Retryable =
+        response.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE
+            && response.getFirstHeader(HttpHeaders.RETRY_AFTER) != null;
 
-    return shouldRetry;
+    // A retry is permitted if all the following conditions are met:
+    // 1. The maximum retry count has not been exceeded.
+    // 2. The response code is considered retryable, for one of the following reasons:
+    //    - It's in a predefined list of retriable codes.
+    //    - The request is idempotent, and the response code indicates a retry is safe.
+    //    - The response code is '503 Service Unavailable' and includes a 'Retry-After' header.
+    return execCount <= maxRetries
+        && (retriableCodes.contains(response.getCode())
+            || shouldRetryIdempotent(request, response.getCode())
+            || is503Retryable);
   }
 
   @Override

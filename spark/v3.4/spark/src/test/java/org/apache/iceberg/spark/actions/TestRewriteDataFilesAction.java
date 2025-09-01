@@ -110,6 +110,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
@@ -2572,6 +2573,18 @@ public class TestRewriteDataFilesAction extends TestBase {
         .addAll(manager.fetchSetIds(table))
         .addAll(coordinator.fetchSetIds(table))
         .build();
+  }
+
+  @TestTemplate
+  public void testExecutorCacheForDeleteFilesDisabled() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
+
+    // The constructor should have set the configuration to false
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
+    assertThat(readConf.cacheDeleteFilesOnExecutors())
+        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
+        .isFalse();
   }
 
   private double percentFilesRequired(Table table, String col, String value) {

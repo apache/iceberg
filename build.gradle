@@ -26,7 +26,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.8'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.9'
     classpath 'com.palantir.baseline:gradle-baseline-java:5.72.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
@@ -515,6 +515,7 @@ project(':iceberg-aws') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
     testImplementation libs.jetty.servlet
+    testImplementation libs.mockito.junit.jupiter
   }
 
   sourceSets {
@@ -567,6 +568,7 @@ project(':iceberg-azure') {
     testImplementation libs.testcontainers
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+    testImplementation libs.mockito.junit.jupiter
   }
 
   sourceSets {
@@ -712,6 +714,7 @@ project(':iceberg-gcp') {
 
     compileOnly platform(libs.google.libraries.bom)
     compileOnly "com.google.cloud:google-cloud-storage"
+    compileOnly "com.google.cloud:google-cloud-kms"
 
     testImplementation "com.google.cloud:google-cloud-nio"
 
@@ -728,6 +731,27 @@ project(':iceberg-gcp') {
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.mockito.junit.jupiter
+  }
+
+  sourceSets {
+    integration {
+      java.srcDir "$projectDir/src/integration/java"
+      resources.srcDir "$projectDir/src/integration/resources"
+      compileClasspath += main.output + test.output
+      runtimeClasspath += main.output + test.output
+    }
+  }
+
+  configurations {
+    integrationImplementation.extendsFrom testImplementation
+    integrationRuntime.extendsFrom testRuntimeOnly
+  }
+
+  task integrationTest(type: Test) {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath
+    jvmArgs += project.property('extraJvmArgs')
   }
 }
 
