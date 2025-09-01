@@ -124,10 +124,12 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
     StagedSparkTable stagedTable = stageDestTable();
     Table icebergTable = stagedTable.table();
 
-    // TODO: Check the dest table location does not overlap with the source table location
-
     boolean threw = true;
     try {
+      Preconditions.checkArgument(
+          !sourceTableLocation().equals(icebergTable.location()),
+          "The destination table location overlaps with the source table location");
+
       LOG.info("Ensuring {} has a valid name mapping", destTableIdent());
       ensureNameMappingPresent(icebergTable);
 
