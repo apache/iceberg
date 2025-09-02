@@ -113,14 +113,16 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Parameters(name = "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}")
   public static Object[][] parameters() {
-    return new Object[][] {
-      new Object[] {FileFormat.PARQUET, 2, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.PARQUET, 2, true, PlanningMode.LOCAL},
-      new Object[] {FileFormat.ORC, 2, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.AVRO, 2, false, PlanningMode.LOCAL},
-      new Object[] {FileFormat.PARQUET, 3, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL},
-    };
+    List<Object[]> parameters = Lists.newArrayList();
+    for (int version : TestHelpers.V2_AND_ABOVE) {
+      parameters.add(new Object[] {FileFormat.PARQUET, version, false, PlanningMode.DISTRIBUTED});
+      parameters.add(new Object[] {FileFormat.PARQUET, version, true, PlanningMode.LOCAL});
+      if (version == 2) {
+        parameters.add(new Object[] {FileFormat.ORC, version, false, PlanningMode.DISTRIBUTED});
+        parameters.add(new Object[] {FileFormat.AVRO, version, false, PlanningMode.LOCAL});
+      }
+    }
+    return parameters.toArray(new Object[0][]);
   }
 
   @BeforeAll
