@@ -36,7 +36,7 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,7 +64,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
     assertThat(rewritten).hasSize(1);
 
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, TaskResult>
         testHarness = harness()) {
       testHarness.open();
 
@@ -73,9 +73,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
       testHarness.processWatermark(EVENT_TIME);
       if (collectResults) {
-        List<Trigger> triggers = testHarness.extractOutputValues();
-        assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
-        assertThat(triggers.get(0).taskId()).isNull();
+        List<TaskResult> taskResults = testHarness.extractOutputValues();
+        assertThat(taskResults.get(0).startEpoch()).isEqualTo(-1);
+        assertThat(taskResults.get(0).taskIndex()).isEqualTo(-1);
       } else {
         assertThat(testHarness.extractOutputValues()).isEmpty();
       }
@@ -101,7 +101,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     assertThat(rewritten.get(1).groupsPerCommit()).isEqualTo(1);
     ensureDifferentGroups(rewritten);
 
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, TaskResult>
         testHarness = harness()) {
       testHarness.open();
 
@@ -123,9 +123,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
       testHarness.processWatermark(EVENT_TIME);
       if (collectResults) {
-        List<Trigger> triggers = testHarness.extractOutputValues();
-        assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
-        assertThat(triggers.get(0).taskId()).isNull();
+        List<TaskResult> taskResults = testHarness.extractOutputValues();
+        assertThat(taskResults.get(0).startEpoch()).isEqualTo(-1);
+        assertThat(taskResults.get(0).taskIndex()).isEqualTo(-1);
       } else {
         assertThat(testHarness.extractOutputValues()).isEmpty();
       }
@@ -137,7 +137,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     Table table = createTable();
     List<DataFileRewriteRunner.ExecutedGroup> rewritten;
 
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, TaskResult>
         testHarness = harness()) {
       testHarness.open();
 
@@ -155,9 +155,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
       testHarness.processWatermark(EVENT_TIME);
       if (collectResults) {
-        List<Trigger> triggers = testHarness.extractOutputValues();
-        assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
-        assertThat(triggers.get(0).taskId()).isNull();
+        List<TaskResult> taskResults = testHarness.extractOutputValues();
+        assertThat(taskResults.get(0).startEpoch()).isEqualTo(-1);
+        assertThat(taskResults.get(0).taskIndex()).isEqualTo(-1);
       } else {
         assertThat(testHarness.extractOutputValues()).isEmpty();
       }
@@ -183,7 +183,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     assertThat(rewritten).hasSize(3);
     ensureDifferentGroups(rewritten);
 
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, TaskResult>
         testHarness = harness()) {
       testHarness.open();
 
@@ -204,9 +204,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
       testHarness.processWatermark(EVENT_TIME);
       if (collectResults) {
-        List<Trigger> triggers = testHarness.extractOutputValues();
-        assertThat(triggers.get(0).timestamp()).isEqualTo(-1);
-        assertThat(triggers.get(0).taskId()).isNull();
+        List<TaskResult> taskResults = testHarness.extractOutputValues();
+        assertThat(taskResults.get(0).startEpoch()).isEqualTo(-1);
+        assertThat(taskResults.get(0).taskIndex()).isEqualTo(-1);
       } else {
         assertThat(testHarness.extractOutputValues()).isEmpty();
       }
@@ -234,7 +234,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
     assertThat(rewritten).hasSize(4);
 
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, TaskResult>
         testHarness = harness()) {
       testHarness.open();
 
@@ -257,8 +257,8 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     }
   }
 
-  private OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger> harness()
-      throws Exception {
+  private OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, TaskResult>
+      harness() throws Exception {
     return new OneInputStreamOperatorTestHarness<>(
         new DataFileRewriteCommitter(
             OperatorTestBase.DUMMY_TABLE_NAME,

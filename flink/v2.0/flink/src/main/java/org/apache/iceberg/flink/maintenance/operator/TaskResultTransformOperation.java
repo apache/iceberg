@@ -16,16 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.actions;
+package org.apache.iceberg.flink.maintenance.operator;
 
-/** Represents the result of a table maintenance action in Flink. */
-public interface ActionResult {
+import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.iceberg.flink.maintenance.api.TaskResult;
+import org.apache.iceberg.flink.maintenance.api.Trigger;
 
-  /**
-   * Merges this action result with another result of the same type.
-   *
-   * @param other other the other action result to merge with this result; must not be null
-   * @return a new action result that represents the merged state of both results
-   */
-  ActionResult merge(ActionResult other);
+@Internal
+public class TaskResultTransformOperation implements MapFunction<Trigger, TaskResult> {
+
+  @Override
+  public TaskResult map(Trigger trigger) throws Exception {
+    return new TaskResult(
+        trigger.taskId(),
+        trigger.timestamp(),
+        true,
+        null /* exceptions */,
+        null /* actionResult */);
+  }
 }

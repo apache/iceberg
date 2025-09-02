@@ -25,7 +25,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.TwoInputStreamOperatorTestHarness;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
-import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.junit.jupiter.api.Test;
 
 class TestTaskResultAggregator extends OperatorTestBase {
@@ -34,7 +33,7 @@ class TestTaskResultAggregator extends OperatorTestBase {
   void testPassWatermark() throws Exception {
     TaskResultAggregator taskResultAggregator =
         new TaskResultAggregator("table-name", "task-name", 0);
-    try (TwoInputStreamOperatorTestHarness<Trigger, Exception, TaskResult> testHarness =
+    try (TwoInputStreamOperatorTestHarness<TaskResult, Exception, TaskResult> testHarness =
         new TwoInputStreamOperatorTestHarness<>(taskResultAggregator)) {
       testHarness.open();
       testHarness.processBothWatermarks(WATERMARK);
@@ -47,7 +46,7 @@ class TestTaskResultAggregator extends OperatorTestBase {
   void testProcessWatermarkWithoutElement() throws Exception {
     TaskResultAggregator taskResultAggregator =
         new TaskResultAggregator("table-name", "task-name", 0);
-    try (TwoInputStreamOperatorTestHarness<Trigger, Exception, TaskResult> testHarness =
+    try (TwoInputStreamOperatorTestHarness<TaskResult, Exception, TaskResult> testHarness =
         new TwoInputStreamOperatorTestHarness<>(taskResultAggregator)) {
       testHarness.open();
       testHarness.processBothWatermarks(WATERMARK);
@@ -60,11 +59,13 @@ class TestTaskResultAggregator extends OperatorTestBase {
   void testProcessWatermark() throws Exception {
     TaskResultAggregator taskResultAggregator =
         new TaskResultAggregator("table-name", "task-name", 0);
-    try (TwoInputStreamOperatorTestHarness<Trigger, Exception, TaskResult> testHarness =
+    try (TwoInputStreamOperatorTestHarness<TaskResult, Exception, TaskResult> testHarness =
         new TwoInputStreamOperatorTestHarness<>(taskResultAggregator)) {
       testHarness.open();
 
-      testHarness.processElement1(new StreamRecord<>(Trigger.create(EVENT_TIME, 0)));
+      testHarness.processElement1(
+          new StreamRecord<>(
+              new TaskResult(0, EVENT_TIME, true, null /* exceptions */, null /* actionResult */)));
       testHarness.processBothWatermarks(WATERMARK);
       List<TaskResult> taskResults = testHarness.extractOutputValues();
       assertThat(taskResults).hasSize(1);

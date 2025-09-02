@@ -22,7 +22,7 @@ public class ExpireSnapshotsActionResult implements ActionResult {
 
   private static final ExpireSnapshotsActionResult EMPTY = new ExpireSnapshotsActionResult(0L);
 
-  private final long deletedFiles;
+  private long deletedFiles;
 
   public ExpireSnapshotsActionResult(long deletedFiles) {
     this.deletedFiles = deletedFiles;
@@ -34,5 +34,18 @@ public class ExpireSnapshotsActionResult implements ActionResult {
 
   public long deletedFiles() {
     return deletedFiles;
+  }
+
+  @Override
+  public ActionResult merge(ActionResult other) {
+    if (other == null) {
+      return this;
+    }
+
+    if (other instanceof ExpireSnapshotsActionResult) {
+      this.deletedFiles += ((ExpireSnapshotsActionResult) other).deletedFiles();
+    }
+
+    return this;
   }
 }

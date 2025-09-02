@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.actions;
+package org.apache.iceberg.flink.maintenance.api;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,10 +26,6 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.MaintenanceTaskBuilder;
-import org.apache.iceberg.flink.maintenance.api.TableMaintenance;
-import org.apache.iceberg.flink.maintenance.api.TaskResult;
-import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 

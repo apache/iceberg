@@ -47,4 +47,20 @@ public class RewriteDataFilesActionResult implements ActionResult {
   public List<DataFile> addedDataFiles() {
     return addedDataFiles;
   }
+
+  @Override
+  public ActionResult merge(ActionResult other) {
+    if (other == null) {
+      return this;
+    }
+
+    if (other instanceof RewriteDataFilesActionResult) {
+      RewriteDataFilesActionResult otherRewriteDataFileActionResult =
+          (RewriteDataFilesActionResult) other;
+      this.deletedDataFiles.addAll(otherRewriteDataFileActionResult.deletedDataFiles());
+      this.addedDataFiles.addAll(otherRewriteDataFileActionResult.addedDataFiles());
+    }
+
+    return this;
+  }
 }

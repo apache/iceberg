@@ -25,6 +25,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
+import org.apache.iceberg.flink.maintenance.api.TableMaintenanceAction;
 
 public class Actions {
 

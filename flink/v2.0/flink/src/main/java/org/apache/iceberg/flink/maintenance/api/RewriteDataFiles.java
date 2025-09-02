@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -33,6 +32,7 @@ import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteCommitter;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewritePlanner;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteRunner;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
+import org.apache.iceberg.flink.maintenance.operator.TaskResultTransformOperation;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -44,6 +44,7 @@ public class RewriteDataFiles {
   static final String REWRITE_TASK_NAME = "Rewrite";
   static final String COMMIT_TASK_NAME = "Rewrite commit";
   static final String AGGREGATOR_TASK_NAME = "Rewrite aggregator";
+  static final String RESULT_TASK_TRANSFORM_TASK_NAME = "Task Result Transform aggregator";
 
   private RewriteDataFiles() {}
 
@@ -61,9 +62,8 @@ public class RewriteDataFiles {
     private long maxRewriteBytes = Long.MAX_VALUE;
     private Expression filter = Expressions.alwaysTrue();
 
-    @Internal
     @Override
-    public String maintenanceTaskName() {
+    String maintenanceTaskName() {
       return "RewriteDataFiles";
     }
 
@@ -266,11 +266,11 @@ public class RewriteDataFiles {
               .slotSharingGroup(slotSharingGroup())
               .setParallelism(parallelism());
 
-      SingleOutputStreamOperator<Trigger> updated =
+      SingleOutputStreamOperator<TaskResult> updated =
           rewritten
               .transform(
                   operatorName(COMMIT_TASK_NAME),
-                  TypeInformation.of(Trigger.class),
+                  TypeInformation.of(TaskResult.class),
                   new DataFileRewriteCommitter(
                       tableName(), taskName(), index(), tableLoader(), collectResults()))
               .uid(COMMIT_TASK_NAME + uidSuffix())
@@ -278,6 +278,9 @@ public class RewriteDataFiles {
               .forceNonParallel();
 
       return trigger
+          .map(new TaskResultTransformOperation())
+          .uid(RESULT_TASK_TRANSFORM_TASK_NAME + uidSuffix())
+          .slotSharingGroup(slotSharingGroup())
           .union(updated)
           .connect(
               planned

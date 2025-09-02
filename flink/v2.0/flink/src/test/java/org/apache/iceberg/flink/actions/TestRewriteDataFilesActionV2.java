@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.maintenance.api.MaintenanceTaskTestBase;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
+import org.apache.iceberg.flink.maintenance.api.TableMaintenanceAction;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;

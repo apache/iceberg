@@ -43,8 +43,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
 
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
 
-  @Internal
-  public abstract String maintenanceTaskName();
+  abstract String maintenanceTaskName();
 
   /**
    * After a given number of Iceberg table commits since the last run, starts the downstream job.

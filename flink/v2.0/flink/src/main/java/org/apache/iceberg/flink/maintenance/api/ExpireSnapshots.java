@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -49,9 +48,8 @@ public class ExpireSnapshots {
     private int deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
     private Boolean cleanExpiredMetadata = null;
 
-    @Internal
     @Override
-    public String maintenanceTaskName() {
+    String maintenanceTaskName() {
       return "ExpireSnapshots";
     }
 

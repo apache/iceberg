@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
@@ -35,7 +36,7 @@ import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager.CommitService;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -47,8 +48,8 @@ import org.slf4j.LoggerFactory;
  * {@link TaskResultAggregator} input 1.
  */
 @Internal
-public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
-    implements OneInputStreamOperator<DataFileRewriteRunner.ExecutedGroup, Trigger> {
+public class DataFileRewriteCommitter extends AbstractStreamOperator<TaskResult>
+    implements OneInputStreamOperator<DataFileRewriteRunner.ExecutedGroup, TaskResult> {
   private static final Logger LOG = LoggerFactory.getLogger(DataFileRewriteCommitter.class);
 
   private final String tableName;
@@ -144,11 +145,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         commitService.close();
 
         if (collectResults) {
-          RewriteDataFilesActionResult actionRes =
-              new RewriteDataFilesActionResult(
-                  Lists.newArrayList(removedDataFiles.iterator()),
-                  Lists.newArrayList(addedDataFiles.iterator()));
-          output.collect(new StreamRecord<>(Trigger.create(actionRes)));
+          outputActionResult();
         }
       }
 
@@ -183,11 +180,25 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     if (commitService != null) {
       commitService.close();
       if (collectResults) {
-        RewriteDataFilesActionResult actionRes =
-            new RewriteDataFilesActionResult(addedDataFiles, removedDataFiles);
-        output.collect(new StreamRecord<>(Trigger.create(actionRes)));
+        outputActionResult();
+        this.addedDataFiles.clear();
+        this.removedDataFiles.clear();
       }
     }
+  }
+
+  private void outputActionResult() {
+    List<DataFile> removedDataFileList =
+        Lists.newArrayListWithExpectedSize(removedDataFiles.size());
+    removedDataFileList.addAll(removedDataFiles);
+    List<DataFile> addedDataFileList = Lists.newArrayListWithExpectedSize(addedDataFiles.size());
+    addedDataFileList.addAll(addedDataFiles);
+
+    RewriteDataFilesActionResult actionResult =
+        new RewriteDataFilesActionResult(removedDataFileList, addedDataFileList);
+
+    output.collect(
+        new StreamRecord<>(new TaskResult(-1, -1, true, Collections.emptyList(), actionResult)));
   }
 
   private class FlinkRewriteDataFilesCommitManager extends RewriteDataFilesCommitManager {

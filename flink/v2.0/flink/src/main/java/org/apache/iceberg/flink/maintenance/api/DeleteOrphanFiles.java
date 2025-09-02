@@ -39,6 +39,7 @@ import org.apache.iceberg.flink.maintenance.operator.MetadataTablePlanner;
 import org.apache.iceberg.flink.maintenance.operator.OrphanFilesDetector;
 import org.apache.iceberg.flink.maintenance.operator.SkipOnError;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
+import org.apache.iceberg.flink.maintenance.operator.TaskResultTransformOperation;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -65,6 +66,7 @@ public class DeleteOrphanFiles {
   static final String AGGREGATOR_TASK_NAME = "Orphan Files Aggregator";
   static final String FILTER_FILES_TASK_NAME = "Filter File";
   static final String SKIP_ON_ERROR_TASK_NAME = "Skip On Error";
+  static final String RESULT_TASK_TRANSFORM_TASK_NAME = "Task Result Transform aggregator";
 
   public static DeleteOrphanFiles.Builder builder() {
     return new DeleteOrphanFiles.Builder();
@@ -88,9 +90,8 @@ public class DeleteOrphanFiles {
     private final Map<String, String> equalAuthorities = Maps.newHashMap();
     private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
 
-    @Internal
     @Override
-    public String maintenanceTaskName() {
+    String maintenanceTaskName() {
       return "DeleteOrphanFiles";
     }
 
@@ -298,6 +299,9 @@ public class DeleteOrphanFiles {
 
       // Ignore the file deletion result and return the DataStream<TaskResult> directly
       return trigger
+          .map(new TaskResultTransformOperation())
+          .uid(RESULT_TASK_TRANSFORM_TASK_NAME + uidSuffix())
+          .slotSharingGroup(slotSharingGroup())
           .connect(errorStream)
           .transform(
               operatorName(AGGREGATOR_TASK_NAME),
