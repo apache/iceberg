@@ -26,4 +26,6 @@ install_deps
 
 pull_versioned_docs
 
+check_markdown_files
+
 git show "${REMOTE}/main:../.asf.yaml" > docs/.asf.yaml

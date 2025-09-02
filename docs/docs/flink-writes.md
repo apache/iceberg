@@ -77,12 +77,11 @@ Iceberg supports `UPSERT` based on the primary key when writing data into v2 tab
     ```
 
 !!! info
-    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields. 
+    OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
 
 ## Writing with DataStream
 
 Iceberg support writing to iceberg table from different DataStream input.
-
 
 ### Appending data
 
@@ -142,8 +141,6 @@ env.execute("Test Iceberg DataStream");
 
 !!! info
     OVERWRITE and UPSERT modes are mutually exclusive and cannot be enabled at the same time. When using UPSERT mode with a partitioned table, source columns of corresponding partition fields must be included in the equality fields. For example, if the partition field is `days(ts)`, then `ts` must be part of the equality fields.
-
-
 
 ### Write with Avro GenericRecord
 
@@ -237,8 +234,6 @@ to detect failed or missing Iceberg commits.
 
 If the checkpoint interval (and expected Iceberg commit interval) is 5 minutes, set up alert with rule like `elapsedSecondsSinceLastSuccessfulCommit > 60 minutes` to detect failed or missing Iceberg commits in the past hour.
 
-
-
 ## Options
 
 ### Write options
@@ -260,7 +255,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
 
-Check out all the options here: [write-options](flink-configuration.md#write-options) 
+Check out all the options here: [write-options](flink-configuration.md#write-options)
 
 ## Distribution mode
 
@@ -354,7 +349,7 @@ FlinkSink.forRowData(input)
 
 ### Overhead
 
-Data shuffling (hash or range) has computational overhead of serialization/deserialization 
+Data shuffling (hash or range) has computational overhead of serialization/deserialization
 and network I/O. Expect some increase of CPU utilization.
 
 Range distribution also collect and aggregate data distribution statistics.
@@ -375,7 +370,7 @@ orphan files that are old enough.
 ## Sink V2 based implementation
 
 At the time when the current default, `FlinkSink` implementation was created, Flink Sink's interface had some
-limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based 
+limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based
 on a custom chain of `StreamOperator`s  terminated by `DiscardingSink`.
 
 In the 1.15 version of Flink [SinkV2 interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction)
@@ -398,7 +393,6 @@ To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in th
 
      - The `RANGE` distribution mode is not yet available for the `IcebergSink`
      - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
-
 
 ## Flink Dynamic Iceberg Sink
 
@@ -516,7 +510,6 @@ Unsupported schema updates:
 
 Dropping columns is avoided to prevent issues with late or out-of-order data, as removed fields cannot be easily restored without data loss. Renaming is unsupported because schema comparison is name-based, and renames would require additional metadata or hints to resolve.
 
-
 ### Caching
 
 There are two distinct caches involved: the table metadata cache and the input schema cache.
@@ -543,7 +536,6 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                                                                                                                   |
 | `set(String property, String value)`                 | Set any Iceberg write property (e.g., `"write.format"`, `"write.upsert.enabled"`).Check out all the options here: [write-options](flink-configuration.md#write-options) |
 | `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
-
 
 ### Notes
 
