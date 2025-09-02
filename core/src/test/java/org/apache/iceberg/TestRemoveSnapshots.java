@@ -1835,7 +1835,6 @@ public class TestRemoveSnapshots extends TestBase {
   @TestTemplate
   public void testRemoveSortOrders() {
     SortOrder idSortOrder = SortOrder.builderFor(table.schema()).asc("id").build();
-    ;
     DataFile initialFile =
         DataFiles.builder(SPEC)
             .withPath("/path/to/data-a.parquet")
