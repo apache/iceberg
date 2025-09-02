@@ -152,8 +152,6 @@ public class TestViews extends ExtensionsTestBase {
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
         .withSchema(schema(sql))
-        // for testing wiring E2E, it works :) !
-        // .withProperties(ImmutableMap.of("security", "definer"))
         .create();
 
     List<Object[]> expected =

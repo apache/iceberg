@@ -121,7 +121,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -167,16 +167,23 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
+    return loadTableViaView(ident, Map.of());
+  }
+
+  @Override
+  public Table loadTableViaView(Identifier ident, Map<String, Object> context)
+      throws NoSuchTableException {
     try {
-      return load(ident);
+      return load(ident, context);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
   }
 
   @Override
-  public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    Table table = loadTable(ident);
+  public Table loadTableViaView(Identifier ident, String version, Map<String, Object> context)
+      throws NoSuchTableException {
+    Table table = load(ident, context);
 
     if (table instanceof SparkTable) {
       SparkTable sparkTable = (SparkTable) table;
@@ -209,8 +216,19 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    return loadTableViaView(ident, version, Map.of());
+  }
+
+  @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
-    Table table = loadTable(ident);
+    return loadTableViaView(ident, timestamp, Map.of());
+  }
+
+  @Override
+  public Table loadTableViaView(Identifier ident, long timestamp, Map<String, Object> context)
+      throws NoSuchTableException {
+    Table table = load(ident, context);
 
     if (table instanceof SparkTable) {
       SparkTable sparkTable = (SparkTable) table;
@@ -836,13 +854,14 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Table load(Identifier ident) {
+  private Table load(Identifier ident, Map<String, Object> context) {
     if (isPathIdentifier(ident)) {
       return loadFromPathIdentifier((PathIdentifier) ident);
     }
 
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      org.apache.iceberg.Table table = load(buildIdentifier(ident), context);
+
       return new SparkTable(table, !cacheEnabled);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -855,7 +874,7 @@ public class SparkCatalog extends BaseCatalog {
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       org.apache.iceberg.Table table;
       try {
-        table = icebergCatalog.loadTable(namespaceAsIdent);
+        table = load(namespaceAsIdent, context);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw the original exception
@@ -902,6 +921,16 @@ public class SparkCatalog extends BaseCatalog {
       // the name wasn't a valid snapshot selector and did not point to the changelog
       // throw the original exception
       throw e;
+    }
+  }
+
+  private org.apache.iceberg.Table load(TableIdentifier ident, Map<String, Object> context) {
+    if (icebergCatalog instanceof org.apache.iceberg.catalog.ContextAwareTableCatalog
+        && !context.isEmpty()) {
+      return ((org.apache.iceberg.catalog.ContextAwareTableCatalog) icebergCatalog)
+          .loadTableViaView(ident, context);
+    } else {
+      return icebergCatalog.loadTable(ident);
     }
   }
 

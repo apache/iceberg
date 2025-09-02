@@ -44,6 +44,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.ContextAwareTableCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -59,7 +60,6 @@ import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -368,23 +368,35 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private LoadTableResponse loadInternal(
-      SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
+      SessionContext context,
+      TableIdentifier identifier,
+      SnapshotMode mode,
+      Map<String, Object> viewContext) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
 
-    // inject this to query params
+    // inject the context to query params
     Map<String, String> queryParams = Maps.newHashMap(mode.params());
-    TableIdentifier cleanedIdent = identifier;
-    if (identifier.name().contains("__#")) {
-      List<String> parts = Splitter.on("__#").splitToList(identifier.name());
-      cleanedIdent = TableIdentifier.of(cleanedIdent.namespace(), parts.get(0));
-      queryParams.put("referenced-by", parts.get(1));
+
+    Object viewIdentifierObj = viewContext.get(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+    if (viewIdentifierObj instanceof String) {
+      String viewIdentifierString = (String) viewIdentifierObj;
+      String[] parts = viewIdentifierString.split("\\.");
+      if (parts.length >= 2) {
+        String[] namespaceParts = new String[parts.length - 1];
+        System.arraycopy(parts, 0, namespaceParts, 0, parts.length - 1);
+        String viewName = parts[parts.length - 1];
+        queryParams.put(
+            "referenced-by",
+            RESTUtil.encodeNamespace(Namespace.of(namespaceParts))
+                .concat(RESTUtil.encodeString("." + viewName)));
+      }
     }
 
     return client
         .withAuthSession(contextualSession)
         .get(
-            paths.table(cleanedIdent),
+            paths.table(identifier),
             queryParams,
             LoadTableResponse.class,
             Map.of(),
@@ -392,7 +404,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
-  public Table loadTable(SessionContext context, TableIdentifier identifier) {
+  public Table loadTableViaView(
+      SessionContext context, TableIdentifier identifier, Map<String, Object> viewContext) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_TABLE,
@@ -400,22 +413,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             new NoSuchTableException(
                 "Unable to load table %s.%s: Server does not support endpoint %s",
                 name(), identifier, Endpoint.V1_LOAD_TABLE));
-
     checkIdentifierIsValid(identifier);
 
     MetadataTableType metadataType;
     LoadTableResponse response;
     TableIdentifier loadedIdent = identifier;
 
-    // FIXME: This should not be handled here but rather propagated from SparkCatalog, maybe via
-    // sessionContext ?
-    if (identifier.name().contains("__#")) {
-      List<String> parts = Splitter.on("__#").splitToList(identifier.name());
-      loadedIdent = TableIdentifier.of(loadedIdent.namespace(), parts.get(0));
-    }
-
     try {
-      response = loadInternal(context, identifier, snapshotMode);
+      response = loadInternal(context, identifier, snapshotMode, viewContext);
       metadataType = null;
     } catch (NoSuchTableException original) {
       metadataType = MetadataTableType.from(loadedIdent.name());
@@ -423,7 +428,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         // attempt to load a metadata table using the identifier's namespace as the base table
         TableIdentifier baseIdent = TableIdentifier.of(loadedIdent.namespace().levels());
         try {
-          response = loadInternal(context, baseIdent, snapshotMode);
+          response = loadInternal(context, baseIdent, snapshotMode, viewContext);
           loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
           // the base table does not exist
@@ -449,7 +454,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .setPreviousFileLocation(null)
               .setSnapshotsSupplier(
                   () ->
-                      loadInternal(context, finalIdentifier, SnapshotMode.ALL)
+                      loadInternal(context, finalIdentifier, SnapshotMode.ALL, viewContext)
                           .tableMetadata()
                           .snapshots())
               .discardChanges()
@@ -480,6 +485,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     return table;
+  }
+
+  @Override
+  public Table loadTable(SessionContext context, TableIdentifier identifier) {
+    return loadTableViaView(context, identifier, Map.of());
   }
 
   private void trackFileIO(RESTTableOperations ops) {
@@ -848,7 +858,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         throw new AlreadyExistsException("View with same name already exists: %s", ident);
       }
 
-      LoadTableResponse response = loadInternal(context, ident, snapshotMode);
+      LoadTableResponse response = loadInternal(context, ident, snapshotMode, Map.of());
       String fullName = fullTableName(ident);
 
       Map<String, String> tableConf = response.config();
