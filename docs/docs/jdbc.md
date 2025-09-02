@@ -23,7 +23,7 @@ title: "JDBC"
 ## JDBC Catalog
 
 Iceberg supports using a table in a relational database to manage Iceberg tables through JDBC.
-The database that JDBC connects to must support atomic transaction to allow the JDBC catalog implementation to 
+The database that JDBC connects to must support atomic transaction to allow the JDBC catalog implementation to
 properly support atomic Iceberg table commits and read serializable isolation.
 
 ### Configurations
@@ -34,10 +34,9 @@ the JDBC catalog allows arbitrary configurations through:
 | Property             | Default                           | Description                                            |
 | -------------------- | --------------------------------- | ------------------------------------------------------ |
 | uri                  |                                   | the JDBC connection string |
-| jdbc.<property_key\> |                                   | any key value pairs to configure the JDBC connection | 
+| jdbc.<property_key\> |                                   | any key value pairs to configure the JDBC connection |
 
 ### Examples
-
 
 #### Spark
 

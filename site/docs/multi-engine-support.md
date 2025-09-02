@@ -31,7 +31,7 @@ Processing engine connectors maintained in the iceberg repository are built for 
 For Spark and Flink, each new version that introduces backwards incompatible upgrade has its dedicated integration codebase and release artifacts.
 For example, the code for Iceberg Spark 3.4 integration is under `/spark/v3.4` and the code for Iceberg Spark 3.5 integration is under `/spark/v3.5`.
 Different artifacts (`iceberg-spark-3.4_2.12` and `iceberg-spark-3.5_2.12`) are released for users to consume.
-By doing this, changes across versions are isolated. 
+By doing this, changes across versions are isolated.
 New features in Iceberg could be developed against the latest features of an engine without breaking support of old APIs in past engine versions.
 
 For Hive, Hive 2 uses the `iceberg-mr` package for Iceberg integration, and Hive 3 requires an additional dependency of the `iceberg-hive3` package.

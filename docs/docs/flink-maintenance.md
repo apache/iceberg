@@ -73,7 +73,6 @@ Compacts small files to optimize file sizes. Supports partial progress commits a
     .partialProgressMaxCommits(5))
 ```
 
-
 #### DeleteOrphanFiles
 Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".The table location is checked for such files.
 
@@ -227,8 +226,8 @@ env.execute("Table Maintenance Job");
 | `location(string)`                       | The location to start the recursive listing the candidate files for removal.                                                                                                                                                                                                                                                                                            | Table's location        | String             |
 | `usePrefixListing(boolean)`              | When true, use prefix-based file listing via the SupportsPrefixOperations interface. The Table FileIO implementation must support SupportsPrefixOperations when this flag is enabled.(Note: Setting it to False will use a recursive method to obtain file information. If the underlying storage is object storage, it will repeatedly call the API to get the path.)  | False                   | boolean            |
 | `prefixMismatchMode(PrefixMismatchMode)` | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul>                                                                                                                                                                                        | ERROR                   | PrefixMismatchMode |
-| `equalSchemes(Map<String, String>)`      | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme                                                                                                                                                                                                                                                   | "s3n"=>"s3","s3a"=>"s3" | Map<String,String> |                     
-| `equalAuthorities(Map<String, String>)`  | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority.                                                                                                                                                                                                                                      | Empty map               | Map<String,String> |       
+| `equalSchemes(Map<String, String>)`      | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme                                                                                                                                                                                                                                                   | "s3n"=>"s3","s3a"=>"s3" | Map<String,String> |  
+| `equalAuthorities(Map<String, String>)`  | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority.                                                                                                                                                                                                                                      | Empty map               | Map<String,String> |  
 | `minAge(Duration)`                       | Remove orphan files created before this timestamp                                                                                                                                                                                                                                                                                                                       | 3 days ago              | Duration           |
 | `planningWorkerPoolSize(int)`            | Number of worker threads for planning snapshot expiration                                                                                                                                                                                                                                                                                                               | Shared worker pool      | int                |
 
@@ -239,37 +238,37 @@ public class TableMaintenanceJob {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.enableCheckpointing(60000); // Enable checkpointing
-        
+  
         // Configure table loader
         TableLoader tableLoader = TableLoader.fromCatalog(
             CatalogLoader.hive("my_catalog", configuration),
             TableIdentifier.of("database", "table")
         );
-		
-		// Set up JDBC lock factory
+  
+        // Set up JDBC lock factory
         Map<String, String> jdbcProps = new HashMap<>();
         jdbcProps.put("jdbc.user", "flink");
         jdbcProps.put("jdbc.password", "flinkpw");
         jdbcProps.put("flink-maintenance.lock.jdbc.init-lock-tables", "true");
-        
+  
         TriggerLockFactory lockFactory = new JdbcLockFactory(
             "jdbc:postgresql://localhost:5432/iceberg",
             "catalog.db.table",
             jdbcProps
         );
-        
+  
         // Set up maintenance with comprehensive configuration
         TableMaintenance.forTable(env, tableLoader, lockFactory)
             .uidSuffix("production-maintenance")
             .rateLimit(Duration.ofMinutes(15))
             .lockCheckDelay(Duration.ofSeconds(30))
             .parallelism(4)
-            
+  
             // Daily snapshot cleanup
             .add(ExpireSnapshots.builder()
                 .maxSnapshotAge(Duration.ofDays(7))
                 .retainLast(10))
-            
+  
             // Continuous file optimization
             .add(RewriteDataFiles.builder()
                 .targetFileSizeBytes(256 * 1024 * 1024)
@@ -282,10 +281,10 @@ public class TableMaintenanceJob {
 
             // Delete orphans files created more than five days ago
             .add(DeleteOrphanFiles.builder()
-                        .minAge(Duration.ofDays(5)))    
-                
+                        .minAge(Duration.ofDays(5)))  
+  
             .append();
-        
+  
         env.execute("Iceberg Table Maintenance");
     }
 }

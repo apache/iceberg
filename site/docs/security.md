@@ -27,7 +27,6 @@ responded.
 
 To report a possible security vulnerability, please email <a href="mailto:security@iceberg.apache.org">security@iceberg.apache.org</a>.
 
-
 # Verifying Signed Releases
 
 Please refer to the instructions on the [Release Verification](https://www.apache.org/info/verification.html) page.

@@ -80,11 +80,11 @@ or any public cloud.
 ### [dltHub](https://dlthub.com/)
 
 [dlt](https://dlthub.com/docs/intro) is an open-source Python library for building production-grade extract & load pipelines. It automates the tedious parts of ELT, letting you load any data source into Apache Iceberg with minimal code. dlt eliminates boilerplate and makes data ingestion robust against evolving and unpredictable data sources.
- 
+
 * [Pythonic pipelines](https://dlthub.com/docs/tutorial/load-data-from-an-api): Define Iceberg ingestion with simple Python functions that are testable and CI/CD-friendly.
 * [Automated schema management](https://dlthub.com/docs/general-usage/schema-contracts): Infers and evolves Iceberg table schemas on the fly, adapting automatically to source changes.
-* [Catalog support](https://dlthub.com/docs/plus/ecosystem/iceberg#configuration): Works with SQL-based (SQLite, PostgreSQL), REST (Lakekeeper, Polaris), and cloud-native options like AWS Glue, Databricks Unity Catalog and Snowflake Open Catalog.   
-* [Flexible deployment](https://dlthub.com/docs/walkthroughs/share-a-dataset): Run Iceberg pipelines anywhere - local, Docker, Airflow, or serverless.    
+* [Catalog support](https://dlthub.com/docs/plus/ecosystem/iceberg#configuration): Works with SQL-based (SQLite, PostgreSQL), REST (Lakekeeper, Polaris), and cloud-native options like AWS Glue, Databricks Unity Catalog and Snowflake Open Catalog.  
+* [Flexible deployment](https://dlthub.com/docs/walkthroughs/share-a-dataset): Run Iceberg pipelines anywhere - local, Docker, Airflow, or serverless.  
 
 Go from an API to a versioned Iceberg table in minutes [here](https://dlthub.com/docs/dlt-ecosystem/destinations/iceberg).
 
@@ -111,13 +111,13 @@ Learn more about querying Iceberg with Firebolt [here](https://www.firebolt.io/b
 
 ### [IBM watsonx.data](https://www.ibm.com/products/watsonx-data)
 
-[IBM watsonx.data](https://www.ibm.com/products/watsonx-data) is an open data lakehouse for AI and analytics. It uses Apache Iceberg as a core table format, providing features like schema evolution, time travel, and partitioning. This allows developers to easily work with large, complex data sets while ensuring efficient performance and flexibility. watsonx.data simplifies the integration of Iceberg tables, making it easy to manage data across different environments and query historical data without disruption. 
+[IBM watsonx.data](https://www.ibm.com/products/watsonx-data) is an open data lakehouse for AI and analytics. It uses Apache Iceberg as a core table format, providing features like schema evolution, time travel, and partitioning. This allows developers to easily work with large, complex data sets while ensuring efficient performance and flexibility. watsonx.data simplifies the integration of Iceberg tables, making it easy to manage data across different environments and query historical data without disruption.
 
 Developers can leverage the benefits of Iceberg tables and take advantage of high performance compute capabilities like [Velox](https://velox-lib.io/), [Presto](https://prestodb.io/), [Apache Gluten](https://gluten.apache.org/), which are part of the watsonx.data ecosystem.
 
 ### [IOMETE](https://iomete.com/)
 
-IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE optimizes clustering, compaction, and access control to Apache Iceberg tables. Customer data remains on customer's account to prevent vendor lock-in. The core of IOMETE platform is a serverless Lakehouse that leverages Apache Iceberg as its core table format. IOMETE platform also includes Serverless Spark, an SQL Editor, A Data Catalog, and granular data access control. IOMETE supports Hybrid-multi-cloud setups. 
+IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE optimizes clustering, compaction, and access control to Apache Iceberg tables. Customer data remains on customer's account to prevent vendor lock-in. The core of IOMETE platform is a serverless Lakehouse that leverages Apache Iceberg as its core table format. IOMETE platform also includes Serverless Spark, an SQL Editor, A Data Catalog, and granular data access control. IOMETE supports Hybrid-multi-cloud setups.
 
 ### [PuppyGraph](https://puppygraph.com)
 
@@ -134,7 +134,6 @@ Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceber
 ### [Ryft](https://ryft.io/)
 
 [Ryft](https://ryft.io/) is a fully automated Iceberg management platform. Ryft helps data teams create an open, automated and cost-effective Iceberg lakehouse, by maintaining and optimizing Iceberg tables in real time, based on actual usage patterns. The Ryft engine runs compaction intelligently, adapting to different use cases like streaming, batch jobs, CDC, and more. Ryft also automates compliance, disaster recovery and data lifecycle management for Iceberg tables, to ensure your lakehouse stays secure and compliant. It directly integrates with your existing catalog, storage and query engines, allowing for a very simple deployment.
-
 
 ### [SingleStore](https://singlestore.com/)
 
