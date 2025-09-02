@@ -96,8 +96,8 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     Instant expiresAt = Instant.ofEpochMilli(Long.parseLong(tokenExpiresAtMillis));
     Instant prefetchAt = expiresAt.minus(5, ChronoUnit.MINUTES);
 
-    // By the time we require a token, the token configured on the properties might be expired or close-to-expiration,
-    // in which case we should fetch a new token instead.
+    // By the time we require a token, the token configured on the properties might be expired or
+    // close-to-expiration, in which case we should fetch a new token instead.
     if (Instant.now().isAfter(prefetchAt)) {
       return Optional.empty();
     }
