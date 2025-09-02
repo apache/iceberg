@@ -331,13 +331,15 @@ public class TestArrowReader {
     try (VectorizedTableScanIterable itr =
         new VectorizedTableScanIterable(scan, numRowsPerRoot, false)) {
       for (ColumnarBatch batch : itr) {
-        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
-        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-        assertThat(root.getSchema()).isEqualTo(createExpectedArrowSchema(columnSet));
-        checkAllVectorTypes(root, columnSet);
-        checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
-        rowIndex += numRowsPerRoot;
-        totalRows += root.getRowCount();
+        try (VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors()) {
+          List<GenericRecord> expectedRows =
+              rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
+          assertThat(root.getSchema()).isEqualTo(createExpectedArrowSchema(columnSet));
+          checkAllVectorTypes(root, columnSet);
+          checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
+          rowIndex += numRowsPerRoot;
+          totalRows += root.getRowCount();
+        }
       }
     }
     assertThat(totalRows).isEqualTo(expectedTotalRows);
@@ -364,13 +366,15 @@ public class TestArrowReader {
         }
 
         ColumnarBatch batch = iterator.next();
-        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-        assertThat(root.getSchema()).isEqualTo(createExpectedArrowSchema(columnSet));
-        checkAllVectorTypes(root, columnSet);
-        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
-        checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
-        rowIndex += numRowsPerRoot;
-        totalRows += root.getRowCount();
+        try (VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors()) {
+          assertThat(root.getSchema()).isEqualTo(createExpectedArrowSchema(columnSet));
+          checkAllVectorTypes(root, columnSet);
+          List<GenericRecord> expectedRows =
+              rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
+          checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
+          rowIndex += numRowsPerRoot;
+          totalRows += root.getRowCount();
+        }
       }
     }
     assertThat(totalRows).isEqualTo(expectedTotalRows);

@@ -67,6 +67,7 @@ public class VectorizedTableScanIterable extends CloseableGroup
   @Override
   public void close() throws IOException {
     tasks.close(); // close manifests from scan planning
+    reader.close();
     super.close(); // close data files
   }
 }

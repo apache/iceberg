@@ -48,20 +48,20 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
   private final BiFunction<org.apache.iceberg.types.Type, Object, Object> convert;
 
-  public VectorizedReaderBuilder(
-      Schema expectedSchema,
-      MessageType parquetSchema,
-      boolean setArrowValidityVector,
-      Map<Integer, ?> idToConstant,
-      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory) {
-    this(
-        expectedSchema,
-        parquetSchema,
-        setArrowValidityVector,
-        idToConstant,
-        readerFactory,
-        (type, value) -> value);
-  }
+  //  public VectorizedReaderBuilder(
+  //      Schema expectedSchema,
+  //      MessageType parquetSchema,
+  //      boolean setArrowValidityVector,
+  //      Map<Integer, ?> idToConstant,
+  //      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory) {
+  //    this(
+  //        expectedSchema,
+  //        parquetSchema,
+  //        setArrowValidityVector,
+  //        idToConstant,
+  //        readerFactory,
+  //        (type, value) -> value);
+  //  }
 
   protected VectorizedReaderBuilder(
       Schema expectedSchema,
@@ -80,7 +80,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         ArrowAllocation.rootAllocator());
   }
 
-  protected VectorizedReaderBuilder(
+  public VectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
       boolean setArrowValidityVector,
@@ -90,8 +90,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       BufferAllocator bufferAllocator) {
     this.parquetSchema = parquetSchema;
     this.icebergSchema = expectedSchema;
-    this.rootAllocator =
-        bufferAllocator.newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+    this.rootAllocator = bufferAllocator;
     this.setArrowValidityVector = setArrowValidityVector;
     this.idToConstant = idToConstant;
     this.readerFactory = readerFactory;
