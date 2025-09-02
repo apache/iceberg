@@ -112,7 +112,6 @@ wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_V
 !!! info
     PyFlink 1.6.1 [does not work on OSX with a M1 cpu](https://issues.apache.org/jira/browse/FLINK-28786)
 
-
 Install the Apache Flink dependency using `pip`:
 
 ```python
@@ -193,12 +192,12 @@ CREATE CATALOG <catalog_name> WITH (
 
 The following properties can be set globally and are not limited to a specific catalog implementation:
 
-* `type`: Must be `iceberg`. (required)
-* `catalog-type`: `hive`, `hadoop`, `rest`, `glue`, `jdbc` or `nessie` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
-* `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. (Optional)
-* `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
-* `cache-enabled`: Whether to enable catalog cache, default value is `true`. (Optional)
-* `cache.expiration-interval-ms`: How long catalog entries are locally cached, in milliseconds; negative values like `-1` will disable expiration, value 0 is not allowed to set. default value is `-1`. (Optional)
+- `type`: Must be `iceberg`. (required)
+- `catalog-type`: `hive`, `hadoop`, `rest`, `glue`, `jdbc` or `nessie` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
+- `catalog-impl`: The fully-qualified class name of a custom catalog implementation. Must be set if `catalog-type` is unset. (Optional)
+- `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
+- `cache-enabled`: Whether to enable catalog cache, default value is `true`. (Optional)
+- `cache.expiration-interval-ms`: How long catalog entries are locally cached, in milliseconds; negative values like `-1` will disable expiration, value 0 is not allowed to set. default value is `-1`. (Optional)
 
 ### Hive catalog
 
@@ -227,7 +226,7 @@ CREATE CATALOG rest_catalog WITH (
 );
 ```
 
-##  Creating a table
+## Creating a table
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
@@ -327,9 +326,6 @@ DataStream<RowData> batch = FlinkSource.forRowData()
      .build();
 ```
 
-
-
-
 ## Type conversion
 
 Iceberg's integration for Flink automatically converts between Flink and Iceberg types. When writing to a table with types that are not supported by Flink, like UUID, Iceberg will accept and convert values from the Flink type.
@@ -404,5 +400,5 @@ Iceberg types are converted to Flink types according to the following table:
 
 There are some features that are not yet supported in the current Flink Iceberg integration:
 
-* Creation of Iceberg table with hidden partitioning. [Discussion](http://mail-archives.apache.org/mod_mbox/flink-dev/202008.mbox/%3cCABi+2jQCo3MsOa4+ywaxV5J-Z8TGKNZDX-pQLYB-dG+dVUMiMw@mail.gmail.com%3e) in flink mail list.
-* Creation of Iceberg table with computed column.
+- Creation of Iceberg table with hidden partitioning. [Discussion](http://mail-archives.apache.org/mod_mbox/flink-dev/202008.mbox/%3cCABi+2jQCo3MsOa4+ywaxV5J-Z8TGKNZDX-pQLYB-dG+dVUMiMw@mail.gmail.com%3e) in flink mail list.
+- Creation of Iceberg table with computed column.
