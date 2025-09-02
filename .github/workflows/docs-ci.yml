@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,11 +15,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+name: docs-ci 
+on:
+  pull_request:
+    paths:
+      - docs/**
+      - site/**
+      - format/**
 
-mkdocs-awesome-pages-plugin==2.10.1
-mkdocs-macros-plugin==1.3.9
-mkdocs-material==9.6.18
-mkdocs-material-extensions==1.3.1
-mkdocs-monorepo-plugin @ git+https://github.com/bitsondatadev/mkdocs-monorepo-plugin@url-fix
-mkdocs-redirects==1.2.2
-pymarkdownlnt==0.9.21
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Build Iceberg documentation
+        run: make build
+        working-directory: ./site
