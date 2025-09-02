@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.io.File;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -127,9 +128,7 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
 
     boolean threw = true;
     try {
-      Preconditions.checkArgument(
-          !normalizePath(icebergTable.location()).startsWith(normalizePath(sourceTableLocation())),
-          "The destination table location overlaps with the source table location");
+      checkLocationOverlap(sourceTableLocation(), icebergTable.location());
 
       LOG.info("Ensuring {} has a valid name mapping", destTableIdent());
       ensureNameMappingPresent(icebergTable);
@@ -224,6 +223,20 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
             + "This would mix snapshot table files with original table files.");
     this.destTableLocation = location;
     return this;
+  }
+
+  private void checkLocationOverlap(String sourceTableLocation, String icebergTableLocation) {
+    String normalizedSourceLocation = normalizePath(sourceTableLocation);
+    String normalizedIcebergLocation = normalizePath(icebergTableLocation);
+
+    Preconditions.checkArgument(
+        !normalizedIcebergLocation.startsWith(normalizedSourceLocation),
+        "The destination table location overlaps with the source table location");
+
+    String sourceParentLocation = new File(normalizedSourceLocation).getParent();
+    Preconditions.checkArgument(
+        !normalizedIcebergLocation.equals(normalizePath(sourceParentLocation)),
+        "The destination table location overlaps with the source table's parent directory");
   }
 
   private String normalizePath(String path) {

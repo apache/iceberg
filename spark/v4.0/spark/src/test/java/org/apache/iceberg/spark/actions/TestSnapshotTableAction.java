@@ -129,5 +129,20 @@ public class TestSnapshotTableAction extends CatalogTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "The destination table location overlaps with the source table location");
+
+    // Test for relative path with ".." (parent directory reference)
+    String locationWithParent = location + "/.."; // Points to the same directory as location
+    Map<String, String> tablePropertiesParent = Map.of("location", locationWithParent);
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableProperties(tablePropertiesParent)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "The destination table location overlaps with the source table's parent directory");
   }
 }
