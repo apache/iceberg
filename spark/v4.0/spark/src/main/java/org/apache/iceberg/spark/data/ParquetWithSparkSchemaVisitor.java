@@ -158,7 +158,9 @@ public class ParquetWithSparkSchemaVisitor<T> {
       } else if (LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION)
           .equals(annotation)) {
         Preconditions.checkArgument(
-            sType instanceof VariantType, "Invalid variant: %s is not a VariantType", sType);
+            sType instanceof VariantType,
+            "Invalid variant: Spark type %s is not a variant type",
+            sType);
         VariantType variant = (VariantType) sType;
 
         return visitor.variant(variant, group);
