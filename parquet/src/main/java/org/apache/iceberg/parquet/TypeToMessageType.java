@@ -182,6 +182,7 @@ public class TypeToMessageType {
           shreddedType.getRepetition());
 
       return Types.buildGroup(repetition)
+          .as(LogicalTypeAnnotation.variantType((byte) 1))
           .id(id)
           .required(BINARY)
           .named(METADATA)
@@ -192,6 +193,7 @@ public class TypeToMessageType {
 
     } else {
       return Types.buildGroup(repetition)
+          .as(LogicalTypeAnnotation.variantType((byte) 1))
           .id(id)
           .required(BINARY)
           .named(METADATA)
