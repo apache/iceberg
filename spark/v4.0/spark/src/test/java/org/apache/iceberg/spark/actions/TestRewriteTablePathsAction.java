@@ -937,11 +937,14 @@ public class TestRewriteTablePathsAction extends TestBase {
             .findFirst()
             .orElse(null);
 
-    assertThat(statsFilePathPair).as("Should find statistics file in file list").isNotNull();
+    assertThat(statsFilePathPair)
+        .as("Should find Partition statistics file in file list")
+        .isNotNull();
 
     // Verify the source path points to the actual source location, not staging
     assertThat(statsFilePathPair._1())
-        .as("Partition Statistics file source should point to source table location and NOT staging")
+        .as(
+            "Partition Statistics file source should point to source table location and NOT staging")
         .startsWith(sourceTableLocation)
         .contains("/metadata/")
         .doesNotContain("staging");
