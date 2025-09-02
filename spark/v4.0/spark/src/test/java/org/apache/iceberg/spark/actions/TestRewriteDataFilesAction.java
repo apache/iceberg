@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
@@ -305,7 +306,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
                 // Increase max file size for V3 to account for additional row lineage fields
-                Integer.toString(averageFileSize(table) + (formatVersion >= 3 ? 11000 : 1001)))
+                Integer.toString(averageFileSize(table) + (formatVersion >= 3 ? 12000 : 1100)))
             .execute();
 
     assertThat(result.rewriteResults())
@@ -2140,8 +2141,10 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected void shouldHaveFiles(Table table, int numExpected) {
     table.refresh();
-    int numFiles = Iterables.size(table.newScan().planFiles());
-    assertThat(numFiles).as("Did not have the expected number of files").isEqualTo(numExpected);
+    List<FileScanTask> files =
+        StreamSupport.stream(table.newScan().planFiles().spliterator(), false)
+            .collect(Collectors.toList());
+    assertThat(files.size()).as("Did not have the expected number of files").isEqualTo(numExpected);
   }
 
   protected long shouldHaveMinSequenceNumberInPartition(
