@@ -81,7 +81,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   }
 
   private AccessToken sasTokenForAccount(String storageAccount) {
-    return sasTokenFromProperties(storageAccount).orElseGet(() -> refreshSasToken(storageAccount));
+    return sasTokenFromProperties(storageAccount).orElseGet(() -> fetchSasToken(storageAccount));
   }
 
   private Optional<AccessToken> sasTokenFromProperties(String storageAccount) {
@@ -103,7 +103,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     return Optional.of(new AccessToken(sasToken, expiresAt.atOffset(ZoneOffset.UTC)));
   }
 
-  private AccessToken refreshSasToken(String storageAccount) {
+  private AccessToken fetchSasToken(String storageAccount) {
     LoadCredentialsResponse response = fetchCredentials();
     List<Credential> adlsCredentials =
         response.credentials().stream()
