@@ -77,7 +77,7 @@ public class TestSnapshotTableAction extends CatalogTestBase {
         .as("Cannot set a custom location for a path-based table.")
         .isNotEqualTo("testhadoop");
 
-    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toURI().toString();
 
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
@@ -87,7 +87,7 @@ public class TestSnapshotTableAction extends CatalogTestBase {
 
     // Define properties for the destination table, setting its location to the same path as the
     // source table
-    Map<String, String> tableProperties = Map.of("location", "file:" + location);
+    Map<String, String> tableProperties = Map.of("location", location);
 
     assertThatThrownBy(
             () ->
@@ -95,6 +95,36 @@ public class TestSnapshotTableAction extends CatalogTestBase {
                     .snapshotTable(SOURCE_NAME)
                     .as(tableName)
                     .tableProperties(tableProperties)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "The destination table location overlaps with the source table location");
+
+    // Test for path with and without trailing slash (should be considered the same)
+    String locationWithSlash = location.endsWith("/") ? location : location + "/";
+    Map<String, String> tablePropertiesWithSlash = Map.of("location", locationWithSlash);
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableProperties(tablePropertiesWithSlash)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "The destination table location overlaps with the source table location");
+
+    // Test for nested paths (source and destination are subdirectories of each other)
+    String nestedLocation = location + "/nested";
+    Map<String, String> tablePropertiesWithNested = Map.of("location", nestedLocation);
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableProperties(tablePropertiesWithNested)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(

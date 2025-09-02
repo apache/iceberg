@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.Snapshot;
@@ -127,7 +128,7 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
     boolean threw = true;
     try {
       Preconditions.checkArgument(
-          !sourceTableLocation().equals(icebergTable.location()),
+          !normalizePath(icebergTable.location()).startsWith(normalizePath(sourceTableLocation())),
           "The destination table location overlaps with the source table location");
 
       LOG.info("Ensuring {} has a valid name mapping", destTableIdent());
@@ -223,5 +224,9 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
             + "This would mix snapshot table files with original table files.");
     this.destTableLocation = location;
     return this;
+  }
+
+  private String normalizePath(String path) {
+    return Paths.get(path).toAbsolutePath().normalize().toString();
   }
 }
