@@ -233,6 +233,16 @@ pull_versioned_docs () {
   create_nightly  
 }
 
+scan_markdown_files () {
+  echo " --> check markdown file styles"
+  python3 -m pymarkdown --config markdownlint.yml scan docs/docs/nightly/docs/*.md docs/*.md README.md
+}
+
+fix_markdown_files () {
+  echo " --> fix markdown file styles"
+  python3 -m pymarkdown --config markdownlint.yml fix docs/docs/nightly/docs/*.md docs/*.md README.md
+}
+
 # Cleans up artifacts and temporary files generated during documentation management.
 clean () {
   echo " --> clean"

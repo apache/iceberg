@@ -35,7 +35,6 @@ Configuring the `logs` table to partition by the date of `event_time` will group
 
 Iceberg can partition timestamps by year, month, day, and hour granularity. It can also use a categorical column, like `level` in this logs example, to store rows together and speed up queries.
 
-
 ## What does Iceberg do differently?
 
 Other tables formats like Hive support partitioning, but Iceberg supports *hidden partitioning*.
@@ -73,11 +72,11 @@ Hive must be given partition values. In the logs example, it doesn't know the re
 This leads to several problems:
 
 * Hive can't validate partition values -- it is up to the writer to produce the correct value
-    - Using the wrong format, `2018-12-01` instead of `20181201`, produces silently incorrect results, not query failures
-    - Using the wrong source column, like `processing_time`, or time zone also causes incorrect results, not failures
+  - Using the wrong format, `2018-12-01` instead of `20181201`, produces silently incorrect results, not query failures
+  - Using the wrong source column, like `processing_time`, or time zone also causes incorrect results, not failures
 * It is up to the user to write queries correctly
-    - Using the wrong format also leads to silently incorrect results
-    - Users that don't understand a table's physical layout get needlessly slow queries -- Hive can't translate filters automatically
+  - Using the wrong format also leads to silently incorrect results
+  - Users that don't understand a table's physical layout get needlessly slow queries -- Hive can't translate filters automatically
 * Working queries are tied to the table's partitioning scheme, so partitioning configuration cannot be changed without breaking queries
 
 ### Iceberg's hidden partitioning

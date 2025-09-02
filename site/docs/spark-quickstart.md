@@ -146,7 +146,6 @@ You can then run any of the following commands to start a Spark session.
 To create your first Iceberg table in Spark, run a [`CREATE TABLE`](docs/latest/spark-ddl.md#create-table) command. Let's create a table
 using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database name, and `taxis` is the table name.
 
-
 === "SparkSQL"
 
     ```sql
@@ -192,7 +191,6 @@ using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database n
     df = spark.createDataFrame([], schema)
     df.writeTo("demo.nyc.taxis").create()
     ```
-
 
 Iceberg catalogs support the full range of SQL DDL commands, including:
 
@@ -245,7 +243,6 @@ Once your table is created, you can insert records.
 ### Reading Data from a Table
 
 To read a table, simply use the Iceberg table's name.
-
 
 === "SparkSQL"
 
