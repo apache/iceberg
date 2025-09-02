@@ -89,23 +89,15 @@ public class TestSparkMetadataColumns extends TestBase {
 
   @Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
   public static Object[][] parameters() {
-    return new Object[][] {
-      {FileFormat.PARQUET, false, 1},
-      {FileFormat.PARQUET, true, 1},
-      {FileFormat.PARQUET, false, 2},
-      {FileFormat.PARQUET, true, 2},
-      {FileFormat.PARQUET, false, 3},
-      {FileFormat.PARQUET, true, 3},
-      {FileFormat.AVRO, false, 1},
-      {FileFormat.AVRO, false, 2},
-      {FileFormat.AVRO, false, 3},
-      {FileFormat.ORC, false, 1},
-      {FileFormat.ORC, true, 1},
-      {FileFormat.ORC, false, 2},
-      {FileFormat.ORC, true, 2},
-      {FileFormat.ORC, false, 3},
-      {FileFormat.ORC, true, 3},
-    };
+    List<Object[]> parameters = Lists.newArrayList();
+    for (int version : TestHelpers.ALL_VERSIONS) {
+      parameters.add(new Object[] {FileFormat.PARQUET, false, version});
+      parameters.add(new Object[] {FileFormat.PARQUET, true, version});
+      parameters.add(new Object[] {FileFormat.AVRO, false, version});
+      parameters.add(new Object[] {FileFormat.ORC, false, version});
+      parameters.add(new Object[] {FileFormat.ORC, true, version});
+    }
+    return parameters.toArray(new Object[0][]);
   }
 
   @TempDir private Path temp;
