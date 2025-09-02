@@ -120,9 +120,6 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
-    maven {
-      url = uri("https://repository.apache.org/content/groups/staging/")
-    }
   }
 }
 
