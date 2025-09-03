@@ -35,8 +35,8 @@ import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -456,13 +456,13 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   protected void assertNoLeak(String testName, Consumer<BufferAllocator> testFunction) {
     BufferAllocator allocator =
-            ArrowAllocation.rootAllocator().newChildAllocator(testName, 0, Long.MAX_VALUE);
+        ArrowAllocation.rootAllocator().newChildAllocator(testName, 0, Long.MAX_VALUE);
     try {
       testFunction.accept(allocator);
       assertThat(allocator.getAllocatedMemory())
-              .as(
-                      "Should have released all memory prior to closing. Expected to find 0 bytes of memory in use.")
-              .isEqualTo(0L);
+          .as(
+              "Should have released all memory prior to closing. Expected to find 0 bytes of memory in use.")
+          .isEqualTo(0L);
     } finally {
       allocator.close();
     }
