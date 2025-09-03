@@ -305,7 +305,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
                 // Increase max file size for V3 to account for additional row lineage fields
-                Integer.toString(averageFileSize(table) + (formatVersion >= 3 ? 11000 : 1001)))
+                Integer.toString(averageFileSize(table) + (formatVersion >= 3 ? 12000 : 1100)))
             .execute();
 
     assertThat(result.rewriteResults())
