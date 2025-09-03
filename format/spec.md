@@ -609,14 +609,14 @@ A manifest stores files for a single partition spec. When a table’s partition 
 
 A manifest file must store the partition spec and other metadata as properties in the Avro file's key-value metadata:
 
-| v1         | v2         | Key                 | Value                                                                        |
-|------------|------------|---------------------|------------------------------------------------------------------------------|
-| _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written |
-| _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                      |
-| _required_ | _required_ | `partition-spec`    | JSON fields representation of the partition spec used to write the manifest  |
-| _optional_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string              |
-| _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                      |
-|            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"           |
+| v1         | v2         | Key                 | Value                                                                                                                                       |
+|------------|------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written                                                                |
+| _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
+| _required_ | _required_ | `partition-spec`    | JSON representation of only the partition fields array of the partition spec used to write the manifest. See [Appendix C](#partition-specs) |
+| _optional_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string                                                                             |
+| _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
+|            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
 
 The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
 

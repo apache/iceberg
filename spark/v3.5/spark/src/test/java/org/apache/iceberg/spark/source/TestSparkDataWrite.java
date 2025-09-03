@@ -613,7 +613,7 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
-        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
 
     List<DataFile> files = Lists.newArrayList();
