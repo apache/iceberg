@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
 import java.nio.file.Files;
 import java.sql.Timestamp;
@@ -114,7 +115,11 @@ public class TestPartitionPruning {
 
   @BeforeAll
   public static void startSpark() {
-    TestPartitionPruning.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestPartitionPruning.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
     TestPartitionPruning.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
     String optionKey = String.format("fs.%s.impl", CountOpenLocalFileSystem.scheme);
