@@ -90,7 +90,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteTablePathSparkAction.class);
   private static final String RESULT_LOCATION = "file-list";
-  public static final String NOT_APPLICABLE = "N/A";
+  static final String NOT_APPLICABLE = "N/A";
 
   private String sourcePrefix;
   private String targetPrefix;
