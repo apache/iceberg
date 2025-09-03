@@ -1863,7 +1863,7 @@ Some implementations require that GZIP compressed files have the suffix `.gz.met
 
 ### Schema evolution and writing with old schemas
 
-Writers must write out all fields with the types specified from a schema present in table metadata. Writers should use the latest schema for writing. Not writing out all columns or not using the latest schema can change the semantics data written. The following are possible inconsistencies that can be introduced:
+Writers must write out all fields with the types specified from a schema present in table metadata. Writers should use the latest schema for writing. Not writing out all columns or not using the latest schema can change the semantics of the data written. The following are possible inconsistencies that can be introduced:
 
 * For all null columns, not writing out the column would cause `initial-default` value would be applied on reading instead of `null`.
 * If `write-default` has been changed then using an out-of-date schema would result in the incorrect value being populated.
