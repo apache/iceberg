@@ -399,20 +399,24 @@ gpg --import KEYS
 
 Next, verify the `.asc` file.
 ```bash
-gpg --verify apache-iceberg-{{ icebergVersion }}.tar.gz.asc
+gpg --verify apache-iceberg-*.tar.gz.asc
 ```
 
 ### Verifying Checksums
 
 ```bash
-shasum -a 512 --check apache-iceberg-{{ icebergVersion }}.tar.gz.sha512
+shasum -a 512 --check apache-iceberg-*.tar.gz.sha512
 ```
 
 ### Verifying License Documentation
 
-Untar the archive and change into the source directory.
+Untar the archive.
 ```bash
-tar xzf apache-iceberg-{{ icebergVersion }}.tar.gz
+tar xzf apache-iceberg-*.tar.gz
+```
+
+Navigate into the source directory.
+```bash
 cd apache-iceberg-{{ icebergVersion }}
 ```
 
