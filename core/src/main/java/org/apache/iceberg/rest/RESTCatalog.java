@@ -80,11 +80,18 @@ public class RESTCatalog
       SessionCatalog.SessionContext context,
       Function<Map<String, String>, RESTClient> clientBuilder,
       BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
-    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, ioBuilder);
+    this.sessionCatalog = createSessionCatalog(clientBuilder, ioBuilder);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
     this.context = context;
     this.viewSessionCatalog = sessionCatalog.asViewCatalog(context);
+  }
+
+  @VisibleForTesting
+  RESTSessionCatalog createSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
+    return new RESTSessionCatalog(clientBuilder, ioBuilder);
   }
 
   @Override
