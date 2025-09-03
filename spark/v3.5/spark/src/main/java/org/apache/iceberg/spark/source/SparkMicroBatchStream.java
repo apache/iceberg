@@ -385,7 +385,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
     validateCurrentSnapshotExists(curSnapshot, startingOffset);
 
-    // Use the pre-fetched snapshotId when Trigger.AvailableNow is enabled.
+    // Use the pre-computed snapshotId when Trigger.AvailableNow is enabled.
     long latestSnapshotId =
         lastOffsetForTriggerAvailableNow != null
             ? lastOffsetForTriggerAvailableNow.snapshotId()
