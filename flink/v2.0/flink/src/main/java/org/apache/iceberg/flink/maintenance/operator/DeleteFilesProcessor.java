@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.MAX_DELETE_TIME_MS;
+
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.Histogram;
+import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MetricGroup;
-import org.apache.flink.runtime.metrics.DescriptiveStatisticsHistogram;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -53,7 +54,7 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
 
   private transient Counter failedCounter;
   private transient Counter succeededCounter;
-  private transient Histogram deleteFileTimeMsHistogram;
+  private transient long maxDeleteTimeMs = 0;
 
   public DeleteFilesProcessor(Table table, String taskName, int taskIndex, int batchSize) {
     Preconditions.checkNotNull(taskName, "Task name should no be null");
@@ -80,10 +81,7 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
         taskMetricGroup.counter(TableMaintenanceMetrics.DELETE_FILE_FAILED_COUNTER);
     this.succeededCounter =
         taskMetricGroup.counter(TableMaintenanceMetrics.DELETE_FILE_SUCCEEDED_COUNTER);
-    this.deleteFileTimeMsHistogram =
-        taskMetricGroup.histogram(
-            TableMaintenanceMetrics.DELETE_FILE_TIME_MS_HISTOGRAM,
-            new DescriptiveStatisticsHistogram(1000));
+    taskMetricGroup.gauge(MAX_DELETE_TIME_MS, (Gauge<Long>) () -> maxDeleteTimeMs);
   }
 
   @Override
@@ -127,7 +125,9 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
       failedCounter.inc(e.numberFailedObjects());
     } finally {
       long elapsed = System.currentTimeMillis() - startTime;
-      deleteFileTimeMsHistogram.update(elapsed);
+      if (elapsed > maxDeleteTimeMs) {
+        maxDeleteTimeMs = elapsed;
+      }
     }
   }
 
@@ -142,7 +142,7 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
   }
 
   @VisibleForTesting
-  Histogram deleteFileTimeMsHistogram() {
-    return deleteFileTimeMsHistogram;
+  long maxDeleteTimeMs() {
+    return maxDeleteTimeMs;
   }
 }

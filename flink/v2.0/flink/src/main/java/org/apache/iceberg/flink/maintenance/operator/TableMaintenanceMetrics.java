@@ -44,7 +44,7 @@ public class TableMaintenanceMetrics {
   // DeleteFiles metrics
   public static final String DELETE_FILE_FAILED_COUNTER = "deleteFailed";
   public static final String DELETE_FILE_SUCCEEDED_COUNTER = "deleteSucceeded";
-  public static final String DELETE_FILE_TIME_MS_HISTOGRAM = "deleteFileTimeMS";
+  public static final String MAX_DELETE_TIME_MS = "maxDeleteTimeMs";
 
   // DataFileUpdater metrics
   public static final String ADDED_DATA_FILE_NUM_METRIC = "addedDataFileNum";

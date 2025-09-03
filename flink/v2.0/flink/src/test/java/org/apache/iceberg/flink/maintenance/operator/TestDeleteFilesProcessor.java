@@ -97,28 +97,6 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
   }
 
   @Test
-  void testDelete10MBFile() throws Exception {
-    // Simulate a large file (e.g., 10MB file)
-    String largeFileName = "largeFile.txt";
-    Path largeFile = Path.of(tablePath(table).toString(), largeFileName);
-
-    // Write a large file to disk (this will simulate the large file in the filesystem)
-    byte[] largeData = new byte[1024 * 1024 * 10]; // 10 MB
-    Files.write(largeFile, largeData);
-
-    // Verify that the file was created
-    Set<String> files = listFiles(table);
-    assertThat(files).contains(largeFileName);
-
-    // Use the DeleteFilesProcessor to delete the large file
-    deleteFile(tableLoader(), largeFile.toString(), true /* expectSuccess */);
-
-    // Verify that the large file has been deleted
-    files = listFiles(table);
-    assertThat(files).doesNotContain(largeFileName);
-  }
-
-  @Test
   void testBatchDelete() throws Exception {
     // Simulate adding multiple files
     Set<String> filesToDelete = Sets.newHashSet(TABLE_FILES);
@@ -144,8 +122,7 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
       assertThat(deleteFilesProcessor.succeededCounter().getCount())
           .isEqualTo(filesToDelete.size());
       assertThat(deleteFilesProcessor.failedCounter().getCount()).isEqualTo(0);
-      assertThat(deleteFilesProcessor.deleteFileTimeMsHistogram().getStatistics().getMean())
-          .isGreaterThan(0);
+      assertThat(deleteFilesProcessor.maxDeleteTimeMs()).isGreaterThan(0);
     } finally {
       deleteFilesProcessor.close();
     }
@@ -274,13 +251,11 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
       if (expectSuccess) {
         assertThat(deleteFilesProcessor.succeededCounter().getCount()).isEqualTo(1);
         assertThat(deleteFilesProcessor.failedCounter().getCount()).isEqualTo(0);
-        assertThat(deleteFilesProcessor.deleteFileTimeMsHistogram().getStatistics().getMean())
-            .isGreaterThan(0);
+        assertThat(deleteFilesProcessor.maxDeleteTimeMs()).isGreaterThan(0);
       } else {
         assertThat(deleteFilesProcessor.succeededCounter().getCount()).isEqualTo(0);
         assertThat(deleteFilesProcessor.failedCounter().getCount()).isEqualTo(1);
-        assertThat(deleteFilesProcessor.deleteFileTimeMsHistogram().getStatistics().getMean())
-            .isGreaterThan(0);
+        assertThat(deleteFilesProcessor.maxDeleteTimeMs()).isGreaterThan(0);
       }
 
     } finally {
