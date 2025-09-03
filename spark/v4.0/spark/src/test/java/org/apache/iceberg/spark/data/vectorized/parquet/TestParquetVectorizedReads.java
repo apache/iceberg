@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.data.vectorized.parquet;
 
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +27,8 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -493,6 +496,20 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                                             encoding, e.getKey(), e.getValue(), vectorized))));
   }
 
+  private File resourceUrlToLocalFile(URL url) throws IOException, URISyntaxException {
+    if ("file".equals(url.getProtocol())) {
+      return Paths.get(url.toURI()).toFile();
+    }
+    String name = Paths.get(url.getPath()).getFileName().toString(); // e.g., string.parquet
+    String suffix = name.contains(".") ? name.substring(name.lastIndexOf('.')) : "";
+    Path tmp = java.nio.file.Files.createTempFile("golden-", suffix);
+    try (InputStream in = url.openStream()) {
+      java.nio.file.Files.copy(in, tmp, REPLACE_EXISTING);
+    }
+    tmp.toFile().deleteOnExit();
+    return tmp.toFile();
+  }
+
   @ParameterizedTest
   @MethodSource("goldenFilesAndEncodings")
   public void testGoldenFiles(
@@ -510,8 +527,8 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
     Schema expectedSchema = new Schema(optional(1, "data", primitiveType));
     assertIdenticalFileContents(
-        new File(goldenFileUrl.toURI()),
-        new File(plainFileUrl.toURI()),
+        resourceUrlToLocalFile(goldenFileUrl),
+        resourceUrlToLocalFile(plainFileUrl),
         expectedSchema,
         vectorized);
   }
