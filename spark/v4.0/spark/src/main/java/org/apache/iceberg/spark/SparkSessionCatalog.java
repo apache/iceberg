@@ -155,7 +155,7 @@ public class SparkSessionCatalog<
       } else {
         return icebergCatalog.loadTable(identifier);
       }
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException | NoSuchTableException e) {
       return getSessionCatalog().loadTable(identifier);
     }
   }
@@ -180,7 +180,7 @@ public class SparkSessionCatalog<
       } else {
         return icebergCatalog.loadTable(identifier, version);
       }
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException | NoSuchTableException e) {
       return getSessionCatalog().loadTable(identifier, version);
     }
   }
@@ -195,7 +195,7 @@ public class SparkSessionCatalog<
       } else {
         return icebergCatalog.loadTable(identifier, timestamp);
       }
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException | NoSuchTableException e) {
       return getSessionCatalog().loadTable(identifier, timestamp);
     }
   }
