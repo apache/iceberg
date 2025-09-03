@@ -116,26 +116,14 @@ public class SparkWriteUtil {
   public static void prepareWapCommitIfEnabled(
       SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
     if (writeConf.wapEnabled()) {
-      stageOnlyCommitForWapId(operation, writeConf);
-      wapSnapshotProperty(operation, writeConf);
-    }
-  }
-
-  private static void wapSnapshotProperty(SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
-    String wapId = writeConf.wapId();
-    String branch = writeConf.branch();
-    if (wapId != null) {
-      operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
-    } else if (branch != null && writeConf.isWapBranch()) {
-      operation.set(SnapshotSummary.WAP_BRANCH_PROP, branch);
-    }
-  }
-
-  private static void stageOnlyCommitForWapId(
-      SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
-    if (writeConf.wapId() != null) {
-      // stage the changes without changing the current snapshot
-      operation.stageOnly();
+      String wapId = writeConf.wapId();
+      String branch = writeConf.branch();
+      if (wapId != null) {
+        operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
+        operation.stageOnly();
+      } else if (branch != null && writeConf.isWapBranch()) {
+        operation.set(SnapshotSummary.WAP_BRANCH_PROP, branch);
+      }
     }
   }
 
