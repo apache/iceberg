@@ -324,7 +324,6 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
             .trigger(Trigger.AvailableNow())
             .start();
 
-    Thread.sleep(500);
     assertThat(query.isActive()).isTrue();
 
     // Add new data while the stream is running
