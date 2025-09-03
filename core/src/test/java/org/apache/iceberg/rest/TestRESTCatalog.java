@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +51,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpHeaders;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
@@ -73,8 +75,10 @@ import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
@@ -86,6 +90,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
+import org.apache.iceberg.rest.RESTSessionCatalog.SessionIdTableId;
+import org.apache.iceberg.rest.RESTSessionCatalog.TableWithETag;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
@@ -98,6 +104,7 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.FakeTicker;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
@@ -118,6 +125,16 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
   private static final ResourcePaths RESOURCE_PATHS =
       ResourcePaths.forCatalogProperties(Maps.newHashMap());
+  private static final Duration TABLE_EXPIRATION =
+      Duration.ofMillis(RESTCatalogProperties.TABLE_CACHE_EXPIRE_AFTER_WRITE_MS_DEFAULT);
+  private static final Duration HALF_OF_TABLE_EXPIRATION = TABLE_EXPIRATION.dividedBy(2);
+
+  private static final SessionCatalog.SessionContext DEFAULT_SESSION_CONTEXT =
+      new SessionCatalog.SessionContext(
+          UUID.randomUUID().toString(),
+          "user",
+          ImmutableMap.of("credential", "user:12345"),
+          ImmutableMap.of());
 
   @TempDir public Path temp;
 
@@ -192,16 +209,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Override
   protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
     Configuration conf = new Configuration();
-    SessionCatalog.SessionContext context =
-        new SessionCatalog.SessionContext(
-            UUID.randomUUID().toString(),
-            "user",
-            ImmutableMap.of("credential", "user:12345"),
-            ImmutableMap.of());
 
     RESTCatalog catalog =
         new RESTCatalog(
-            context,
+            DEFAULT_SESSION_CONTEXT,
             (config) ->
                 HTTPClient.builder(config)
                     .uri(config.get(CatalogProperties.URI))
@@ -2895,12 +2906,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(respHeaders).containsEntry(HttpHeaders.ETAG, eTag);
   }
 
-  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   @Test
   public void testNotModified() {
     catalog().createNamespace(TABLE.namespace());
 
-    Table table = catalog().createTable(TABLE, SCHEMA);
+    catalog().createTable(TABLE, SCHEMA);
+
+    Table table = catalog().loadTable(TABLE);
 
     String eTag =
         ETagProvider.of(((BaseTable) table).operations().current().metadataFileLocation());
@@ -2909,26 +2921,21 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             invocation -> {
               HTTPRequest originalRequest = invocation.getArgument(0);
 
-              HTTPHeaders extendedHeaders =
-                  ImmutableHTTPHeaders.copyOf(originalRequest.headers())
-                      .putIfAbsent(
-                          ImmutableHTTPHeader.builder()
-                              .name(HttpHeaders.IF_NONE_MATCH)
-                              .value(eTag)
-                              .build());
+              assertThat(originalRequest.headers().contains(HttpHeaders.IF_NONE_MATCH));
+              assertThat(
+                      originalRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH).get().value())
+                  .isEqualTo(eTag);
 
-              ImmutableHTTPRequest extendedRequest =
-                  ImmutableHTTPRequest.builder()
-                      .from(originalRequest)
-                      .headers(extendedHeaders)
-                      .build();
+              assertThat(
+                      adapterForRESTServer.execute(
+                          originalRequest,
+                          LoadTableResponse.class,
+                          invocation.getArgument(2),
+                          invocation.getArgument(3),
+                          ParserContext.builder().build()))
+                  .isNull();
 
-              return adapterForRESTServer.execute(
-                  extendedRequest,
-                  LoadTableResponse.class,
-                  invocation.getArgument(2),
-                  invocation.getArgument(3),
-                  ParserContext.builder().build());
+              return null;
             })
         .when(adapterForRESTServer)
         .execute(
@@ -2937,17 +2944,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any());
 
-    // TODO: This won't throw when client side of freshness-aware loading is implemented
-    assertThatThrownBy(() -> catalog().loadTable(TABLE)).isInstanceOf(NullPointerException.class);
+    catalog().loadTable(TABLE);
 
     TableIdentifier metadataTableIdentifier =
         TableIdentifier.of(TABLE.namespace().toString(), TABLE.name(), "partitions");
 
-    // TODO: This won't throw when client side of freshness-aware loading is implemented
-    assertThatThrownBy(() -> catalog().loadTable(metadataTableIdentifier))
-        .isInstanceOf(NullPointerException.class);
+    catalog().loadTable(metadataTableIdentifier);
 
-    Mockito.verify(adapterForRESTServer, times(2))
+    Mockito.verify(adapterForRESTServer, times(3))
         .execute(
             reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
             eq(LoadTableResponse.class),
@@ -3025,15 +3029,36 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testLoadTableTracksFileIOFromIOBuilder() {
-    verifyFileIOFromIOBuilderIsTracked(
-        catalog -> {
-          // Use a different catalog to create the table to avoid populating the FileIOTracker in
-          // the catalog under test.
-          RESTCatalog otherCatalog = catalog(new RESTCatalogAdapter(backendCatalog));
-          otherCatalog.createTable(TABLE, SCHEMA);
+    FileIO fileIO =
+        Mockito.spy(
+            CatalogUtil.loadFileIO("org.apache.iceberg.io.ResolvingFileIO", Map.of(), null));
 
-          return (BaseTable) catalog.loadTable(TABLE);
-        });
+    RESTCatalog catalog = catalogWithIOBuilder(fileIO);
+
+    catalog.createNamespace(TABLE.namespace());
+
+    Cache<TableOperations, FileIO> tracker =
+        FileIOTrackerTestUtil.trackerFrom(catalog.sessionCatalog().fileIOTracker());
+
+    assertThat(tracker.estimatedSize()).isZero();
+
+    // Use a different catalog to create the table to avoid populating the FileIOTracker in
+    // the catalog under test.
+    RESTCatalog otherCatalog = catalog(new RESTCatalogAdapter(backendCatalog));
+    otherCatalog.createTable(TABLE, SCHEMA);
+
+    BaseTable table = (BaseTable) catalog.loadTable(TABLE);
+
+    Cache<SessionIdTableId, TableWithETag> tableCache = catalog.sessionCatalog().tableCache();
+    BaseTable tableInCache =
+        tableCache
+            .asMap()
+            .get(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE))
+            .table();
+
+    // FileIOTracker tracks the ops and IO of the table in cache and not of the returned table.
+    assertThat(tracker.asMap()).doesNotContainKey(table.operations());
+    assertThat(tracker.asMap()).containsExactlyEntriesOf(Map.of(tableInCache.operations(), fileIO));
   }
 
   @Test
@@ -3055,21 +3080,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         Mockito.spy(
             CatalogUtil.loadFileIO("org.apache.iceberg.io.ResolvingFileIO", Map.of(), null));
 
-    BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilderMock =
-        Mockito.mock(BiFunction.class);
-
-    // Make sure the catalog IO is different from the table IO
-    when(ioBuilderMock.apply(any(), any()))
-        .thenReturn(
-            CatalogUtil.loadFileIO("org.apache.iceberg.io.ResolvingFileIO", Map.of(), null),
-            fileIO);
-
-    RESTCatalog catalog =
-        new RESTCatalog(
-            SessionCatalog.SessionContext.createEmpty(),
-            config -> new RESTCatalogAdapter(backendCatalog),
-            ioBuilderMock);
-    catalog.initialize("test", Map.of());
+    RESTCatalog catalog = catalogWithIOBuilder(fileIO);
 
     catalog.createNamespace(TABLE.namespace());
 
@@ -3088,6 +3099,29 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Awaitility.await()
         .atMost(5, TimeUnit.SECONDS)
         .untilAsserted(() -> Mockito.verify(fileIO).close());
+  }
+
+  // Returns a catalog that uses a FileIO builder that produces different FileIO for the catalog
+  // level than for the table level. The builder produces 'fileIO' for table level.
+  private RESTCatalog catalogWithIOBuilder(FileIO fileIO) {
+    BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilderMock =
+        Mockito.mock(BiFunction.class);
+
+    // Make sure the catalog IO is different from the table IO
+    when(ioBuilderMock.apply(any(), any()))
+        .thenReturn(
+            CatalogUtil.loadFileIO("org.apache.iceberg.io.ResolvingFileIO", Map.of(), null),
+            fileIO);
+
+    RESTCatalog catalog =
+        new RESTCatalog(
+            DEFAULT_SESSION_CONTEXT,
+            config -> new RESTCatalogAdapter(backendCatalog),
+            ioBuilderMock);
+
+    catalog.initialize("test", Map.of());
+
+    return catalog;
   }
 
   @Test
@@ -3247,6 +3281,488 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
   }
 
+  @Test
+  public void testInvalidTableCacheParameters() {
+    RESTCatalog catalog = new RESTCatalog(config -> new RESTCatalogAdapter(backendCatalog));
+
+    assertThatThrownBy(
+            () ->
+                catalog.initialize(
+                    "test", Map.of(RESTCatalogProperties.TABLE_CACHE_EXPIRE_AFTER_WRITE_MS, "0")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid expire after write: zero or negative");
+
+    assertThatThrownBy(
+            () ->
+                catalog.initialize(
+                    "test", Map.of(RESTCatalogProperties.TABLE_CACHE_EXPIRE_AFTER_WRITE_MS, "-1")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid expire after write: zero or negative");
+
+    assertThatThrownBy(
+            () ->
+                catalog.initialize(
+                    "test", Map.of(RESTCatalogProperties.TABLE_CACHE_MAX_ENTRIES, "-1")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid max entries: negative");
+  }
+
+  @Test
+  public void testFreshnessAwareLoading() {
+    catalog().createNamespace(TABLE.namespace());
+
+    catalog().createTable(TABLE, SCHEMA);
+
+    Cache<SessionIdTableId, TableWithETag> tableCache = restCatalog.sessionCatalog().tableCache();
+    assertThat(tableCache.estimatedSize()).isZero();
+
+    expectFullTableLoadForLoadTable(TABLE, adapterForRESTServer);
+
+    BaseTable tableAfterFirstLoad = (BaseTable) catalog().loadTable(TABLE);
+
+    assertThat(tableCache.stats().hitCount()).isZero();
+    assertThat(tableCache.asMap())
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+    expectNotModifiedResponseForLoadTable(TABLE, adapterForRESTServer);
+
+    BaseTable tableAfterSecondLoad = (BaseTable) catalog().loadTable(TABLE);
+
+    assertThat(tableAfterFirstLoad).isNotEqualTo(tableAfterSecondLoad);
+    assertThat(tableAfterFirstLoad.operations().current().location())
+        .isEqualTo(tableAfterSecondLoad.operations().current().location());
+    assertThat(
+            tableCache
+                .asMap()
+                .get(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE))
+                .table()
+                .operations()
+                .current()
+                .metadataFileLocation())
+        .isEqualTo(tableAfterFirstLoad.operations().current().metadataFileLocation());
+
+    Mockito.verify(adapterForRESTServer, times(2))
+        .execute(reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+  }
+
+  @Test
+  public void testFreshnessAwareLoadingMetadataTables() {
+    catalog().createNamespace(TABLE.namespace());
+
+    catalog().createTable(TABLE, SCHEMA);
+
+    Cache<SessionIdTableId, TableWithETag> tableCache = restCatalog.sessionCatalog().tableCache();
+    assertThat(tableCache.estimatedSize()).isZero();
+
+    BaseTable table = (BaseTable) catalog().loadTable(TABLE);
+
+    assertThat(tableCache.stats().hitCount()).isZero();
+    assertThat(tableCache.asMap())
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+    TableIdentifier metadataTableIdentifier =
+        TableIdentifier.of(TABLE.namespace().toString(), TABLE.name(), "partitions");
+
+    BaseMetadataTable metadataTable =
+        (BaseMetadataTable) catalog().loadTable(metadataTableIdentifier);
+
+    assertThat(tableCache.stats().hitCount()).isEqualTo(1);
+    assertThat(tableCache.asMap())
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+    assertThat(table).isNotEqualTo(metadataTable.table());
+    assertThat(table.operations().current().metadataFileLocation())
+        .isEqualTo(metadataTable.table().operations().current().metadataFileLocation());
+
+    Mockito.verify(adapterForRESTServer, times(2))
+        .execute(reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+
+    Mockito.verify(adapterForRESTServer)
+        .execute(
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(metadataTableIdentifier)),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testRenameTableInvalidatesTable() {
+    runTableInvalidationTest(
+        restCatalog,
+        adapterForRESTServer,
+        (catalog) ->
+            catalog.renameTable(TABLE, TableIdentifier.of(TABLE.namespace(), "other_table")),
+        0);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testDropTableInvalidatesTable(boolean purge) {
+    runTableInvalidationTest(
+        restCatalog, adapterForRESTServer, (catalog) -> catalog.dropTable(TABLE, purge), 0);
+  }
+
+  @Test
+  public void testTableExistViaHeadRequestInvalidatesTable() {
+    runTableInvalidationTest(
+        restCatalog,
+        adapterForRESTServer,
+        ((catalog) -> {
+          // Use a different catalog to drop the table
+          catalog(new RESTCatalogAdapter(backendCatalog)).dropTable(TABLE, true);
+
+          // The main catalog still has the table in cache
+          assertThat(catalog.sessionCatalog().tableCache().asMap())
+              .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+          catalog.tableExists(TABLE);
+        }),
+        0);
+  }
+
+  @Test
+  public void testTableExistViaGetRequestInvalidatesTable() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    // Configure REST server to answer tableExists query via GET
+    Mockito.doAnswer(
+            invocation ->
+                ConfigResponse.builder()
+                    .withEndpoints(
+                        ImmutableList.of(
+                            Endpoint.V1_LOAD_TABLE,
+                            Endpoint.V1_CREATE_NAMESPACE,
+                            Endpoint.V1_CREATE_TABLE))
+                    .build())
+        .when(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    RESTCatalog catalog = new RESTCatalog(DEFAULT_SESSION_CONTEXT, config -> adapter);
+    catalog.initialize(
+        "catalog",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    runTableInvalidationTest(
+        catalog,
+        adapter,
+        (cat) -> {
+          // Use a different catalog to drop the table
+          catalog(new RESTCatalogAdapter(backendCatalog)).dropTable(TABLE, true);
+
+          // The main catalog still has the table in cache
+          assertThat(cat.sessionCatalog().tableCache().asMap())
+              .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+          cat.tableExists(TABLE);
+        },
+        1);
+  }
+
+  @Test
+  public void testLoadTableInvalidatesCache() {
+    runTableInvalidationTest(
+        restCatalog,
+        adapterForRESTServer,
+        (catalog) -> {
+          // Use a different catalog to drop the table
+          catalog(new RESTCatalogAdapter(backendCatalog)).dropTable(TABLE, true);
+
+          // The main catalog still has the table in cache
+          assertThat(catalog.sessionCatalog().tableCache().asMap())
+              .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+          assertThatThrownBy(() -> catalog.loadTable(TABLE))
+              .isInstanceOf(NoSuchTableException.class)
+              .hasMessage("Table does not exist: %s", TABLE);
+        },
+        1);
+  }
+
+  @Test
+  public void testLoadTableWithMetadataTableNameInvalidatesCache() {
+    TableIdentifier metadataTableIdentifier =
+        TableIdentifier.of(TABLE.namespace().toString(), TABLE.name(), "partitions");
+
+    runTableInvalidationTest(
+        restCatalog,
+        adapterForRESTServer,
+        (catalog) -> {
+          // Use a different catalog to drop the table
+          catalog(new RESTCatalogAdapter(backendCatalog)).dropTable(TABLE, true);
+
+          // The main catalog still has the table in cache
+          assertThat(catalog.sessionCatalog().tableCache().asMap())
+              .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+          assertThatThrownBy(() -> catalog.loadTable(metadataTableIdentifier))
+              .isInstanceOf(NoSuchTableException.class)
+              .hasMessage("Table does not exist: %s", TABLE);
+        },
+        1);
+
+    Mockito.verify(adapterForRESTServer)
+        .execute(
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(metadataTableIdentifier)),
+            any(),
+            any(),
+            any());
+  }
+
+  private void runTableInvalidationTest(
+      RESTCatalog catalog,
+      RESTCatalogAdapter adapterToVerify,
+      Consumer<RESTCatalog> action,
+      int loadTableCountFromAction) {
+    catalog.createNamespace(TABLE.namespace());
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    BaseTable originalTable = (BaseTable) catalog.loadTable(TABLE);
+
+    Cache<SessionIdTableId, TableWithETag> tableCache = catalog.sessionCatalog().tableCache();
+    assertThat(tableCache.stats().hitCount()).isZero();
+    assertThat(tableCache.asMap())
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+    action.accept(catalog);
+
+    // Check that 'action' invalidates cache
+    assertThat(tableCache.estimatedSize()).isZero();
+
+    assertThatThrownBy(() -> catalog.loadTable(TABLE))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist: %s", TABLE);
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    expectFullTableLoadForLoadTable(TABLE, adapterToVerify);
+
+    BaseTable newTableWithSameName = (BaseTable) catalog.loadTable(TABLE);
+
+    assertThat(tableCache.stats().hitCount()).isEqualTo(loadTableCountFromAction);
+    assertThat(tableCache.asMap())
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+    assertThat(newTableWithSameName).isNotEqualTo(originalTable);
+    assertThat(newTableWithSameName.operations().current().metadataFileLocation())
+        .isNotEqualTo(originalTable.operations().current().metadataFileLocation());
+
+    Mockito.verify(adapterToVerify, times(3 + loadTableCountFromAction))
+        .execute(reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+  }
+
+  @Test
+  public void testTableCacheWithMultiSessions() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTSessionCatalog sessionCatalog = new RESTSessionCatalog(config -> adapter, null);
+    sessionCatalog.initialize("test_session_catalog", Map.of());
+
+    SessionCatalog.SessionContext otherSessionContext =
+        new SessionCatalog.SessionContext(
+            "session_id_2", "user", ImmutableMap.of("credential", "user:12345"), ImmutableMap.of());
+
+    sessionCatalog.createNamespace(DEFAULT_SESSION_CONTEXT, TABLE.namespace());
+
+    sessionCatalog.buildTable(DEFAULT_SESSION_CONTEXT, TABLE, SCHEMA).create();
+
+    expectFullTableLoadForLoadTable(TABLE, adapter);
+
+    sessionCatalog.loadTable(DEFAULT_SESSION_CONTEXT, TABLE);
+
+    Cache<SessionIdTableId, TableWithETag> tableCache = sessionCatalog.tableCache();
+    assertThat(tableCache.stats().hitCount()).isZero();
+    assertThat(tableCache.asMap())
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+    expectFullTableLoadForLoadTable(TABLE, adapter);
+
+    sessionCatalog.loadTable(otherSessionContext, TABLE);
+
+    assertThat(tableCache.asMap())
+        .containsOnlyKeys(
+            SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE),
+            SessionIdTableId.of(otherSessionContext.sessionId(), TABLE));
+  }
+
+  @Test
+  public void test304NotModifiedResponseWithEmptyTableCache() {
+    Mockito.doAnswer(invocation -> null)
+        .when(adapterForRESTServer)
+        .execute(
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    catalog().createNamespace(TABLE.namespace());
+
+    catalog().createTable(TABLE, SCHEMA);
+
+    catalog().invalidateTable(TABLE);
+
+    // Table is not in the cache and null LoadTableResponse is received
+    assertThatThrownBy(() -> catalog().loadTable(TABLE))
+        .isInstanceOf(RESTException.class)
+        .hasMessage(
+            "Invalid (NOT_MODIFIED) response for request: method=%s, path=%s",
+            HTTPMethod.GET, RESOURCE_PATHS.table(TABLE));
+  }
+
+  @Test
+  public void testTableCacheNotUpdatedWithoutETag() {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                // Wrap the original responseHeaders to not accept ETag.
+                Consumer<Map<String, String>> noETagConsumer =
+                    headers -> {
+                      if (!headers.containsKey(HttpHeaders.ETAG)) {
+                        responseHeaders.accept(headers);
+                      }
+                    };
+                return super.execute(request, responseType, errorHandler, noETagConsumer);
+              }
+            });
+
+    RESTCatalog catalog = new RESTCatalog(DEFAULT_SESSION_CONTEXT, config -> adapter);
+    catalog.initialize(
+        "catalog",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    catalog.createNamespace(TABLE.namespace());
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    catalog.loadTable(TABLE);
+
+    assertThat(catalog.sessionCatalog().tableCache().estimatedSize()).isZero();
+  }
+
+  @Test
+  public void testTableCacheIsDisabled() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog = new RESTCatalog(DEFAULT_SESSION_CONTEXT, config -> adapter);
+    catalog.initialize(
+        "catalog",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.TABLE_CACHE_MAX_ENTRIES,
+            "0"));
+
+    catalog.createNamespace(TABLE.namespace());
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    assertThat(catalog.sessionCatalog().tableCache().estimatedSize()).isZero();
+
+    expectFullTableLoadForLoadTable(TABLE, adapter);
+
+    catalog.loadTable(TABLE);
+
+    catalog.sessionCatalog().tableCache().cleanUp();
+
+    assertThat(catalog.sessionCatalog().tableCache().estimatedSize()).isZero();
+  }
+
+  @Test
+  public void testFullTableLoadAfterExpiryFromCache() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    FakeTicker ticker = new FakeTicker();
+
+    TestableRESTCatalog catalog =
+        new TestableRESTCatalog(DEFAULT_SESSION_CONTEXT, config -> adapter, ticker);
+    catalog.initialize("catalog", Map.of());
+
+    catalog.createNamespace(TABLE.namespace());
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    catalog.loadTable(TABLE);
+
+    Cache<SessionIdTableId, TableWithETag> tableCache = catalog.sessionCatalog().tableCache();
+    SessionIdTableId tableCacheKey =
+        SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE);
+
+    assertThat(tableCache.asMap()).containsOnlyKeys(tableCacheKey);
+    assertThat(tableCache.policy().expireAfterWrite().get().ageOf(tableCacheKey))
+        .isPresent()
+        .get()
+        .isEqualTo(Duration.ZERO);
+
+    ticker.advance(HALF_OF_TABLE_EXPIRATION);
+
+    assertThat(tableCache.asMap()).containsOnlyKeys(tableCacheKey);
+    assertThat(tableCache.policy().expireAfterWrite().get().ageOf(tableCacheKey))
+        .isPresent()
+        .get()
+        .isEqualTo(HALF_OF_TABLE_EXPIRATION);
+
+    ticker.advance(HALF_OF_TABLE_EXPIRATION.plus(Duration.ofSeconds(10)));
+
+    assertThat(tableCache.asMap()).doesNotContainKey(tableCacheKey);
+
+    expectFullTableLoadForLoadTable(TABLE, adapter);
+
+    catalog.loadTable(TABLE);
+
+    assertThat(tableCache.stats().hitCount()).isEqualTo(0);
+    assertThat(tableCache.asMap()).containsOnlyKeys(tableCacheKey);
+    assertThat(tableCache.policy().expireAfterWrite().get().ageOf(tableCacheKey))
+        .isPresent()
+        .get()
+        .isEqualTo(Duration.ZERO);
+  }
+
+  @Test
+  public void testTableCacheAgeDoesNotRefreshesAfterAccess() {
+    FakeTicker ticker = new FakeTicker();
+
+    TestableRESTCatalog catalog =
+        new TestableRESTCatalog(
+            DEFAULT_SESSION_CONTEXT, config -> new RESTCatalogAdapter(backendCatalog), ticker);
+    catalog.initialize("catalog", Map.of());
+
+    catalog.createNamespace(TABLE.namespace());
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    catalog.loadTable(TABLE);
+
+    ticker.advance(HALF_OF_TABLE_EXPIRATION);
+
+    Cache<SessionIdTableId, TableWithETag> tableCache = catalog.sessionCatalog().tableCache();
+    SessionIdTableId tableCacheKey =
+        SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE);
+
+    assertThat(tableCache.policy().expireAfterWrite().get().ageOf(tableCacheKey))
+        .isPresent()
+        .get()
+        .isEqualTo(HALF_OF_TABLE_EXPIRATION);
+
+    catalog.loadTable(TABLE);
+
+    assertThat(tableCache.policy().expireAfterWrite().get().ageOf(tableCacheKey))
+        .isPresent()
+        .get()
+        .isEqualTo(HALF_OF_TABLE_EXPIRATION);
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
@@ -3255,6 +3771,45 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
     return catalog;
+  }
+
+  private void expectFullTableLoadForLoadTable(TableIdentifier ident, RESTCatalogAdapter adapter) {
+    Answer<LoadTableResponse> invocationAssertsFullLoad =
+        invocation -> {
+          LoadTableResponse response = (LoadTableResponse) invocation.callRealMethod();
+
+          assertThat(response).isNotEqualTo(null);
+
+          return response;
+        };
+
+    Mockito.doAnswer(invocationAssertsFullLoad)
+        .when(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(ident)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  private void expectNotModifiedResponseForLoadTable(
+      TableIdentifier ident, RESTCatalogAdapter adapter) {
+    Answer<LoadTableResponse> invocationAssertsFullLoad =
+        invocation -> {
+          LoadTableResponse response = (LoadTableResponse) invocation.callRealMethod();
+
+          assertThat(response).isEqualTo(null);
+
+          return response;
+        };
+
+    Mockito.doAnswer(invocationAssertsFullLoad)
+        .when(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(ident)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
   }
 
   static HTTPRequest reqMatcher(HTTPMethod method) {

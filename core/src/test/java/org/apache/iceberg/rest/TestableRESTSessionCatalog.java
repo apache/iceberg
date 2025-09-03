@@ -16,21 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.rest;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import org.apache.iceberg.TableOperations;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Ticker;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import org.apache.iceberg.io.FileIO;
 
-public class FileIOTrackerTestUtil {
+class TestableRESTSessionCatalog extends RESTSessionCatalog {
+  private Ticker ticker;
 
-  private FileIOTrackerTestUtil() {}
-
-  public static Cache<TableOperations, FileIO> trackerFrom(FileIOTracker tracker) {
-    return tracker.tracker();
+  TestableRESTSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder) {
+    super(clientBuilder, ioBuilder);
   }
 
-  public static void invalidate(FileIOTracker tracker, TableOperations ops) {
-    tracker.tracker().invalidate(ops);
-    tracker.tracker().cleanUp();
+  public void setTicker(Ticker newTicker) {
+    this.ticker = newTicker;
+  }
+
+  @Override
+  protected Caffeine<Object, Object> tableCacheBuilder(Map<String, String> props) {
+    return super.tableCacheBuilder(props).ticker(ticker);
   }
 }
