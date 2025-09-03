@@ -980,6 +980,15 @@ paths:
           schema:
             type: string
             enum: [ all, refs ]
+        - in: query
+          name: referenced-by
+          description:
+            The fully qualified name of the view (i.e namespace name and view name) that referenced the table.
+            
+            nested namespaces are separated by a unit separator (`0x1F`) byte.
+          required: false
+          schema:
+            type: string
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
