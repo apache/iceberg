@@ -465,12 +465,8 @@ public class SparkWriteConf {
     return confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
   }
 
-  public boolean isWapBranch(String branchName) {
-    String wapBranch = wapBranch();
-    if (wapBranch != null) {
-      return wapBranch.equals(branchName);
-    }
-    return false;
+  public boolean isWapBranch() {
+    return wapBranch() != null;
   }
 
   public String branch() {

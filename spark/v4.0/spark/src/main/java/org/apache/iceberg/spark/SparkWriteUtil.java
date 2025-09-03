@@ -108,7 +108,11 @@ public class SparkWriteUtil {
     }
   }
 
-  /** Configure WAP Operation */
+  /**
+   * Configure WAP Operation during write If it's a wap id, it will set operation.stageOnly() and
+   * populate wap.id in snapshot property If it's a wap branch, it will set wap.branch and populate
+   * wap.branch in the snapshot property
+   */
   public static void prepareWapCommitIfEnabled(
       SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
     if (writeConf.wapEnabled()) {
@@ -117,20 +121,20 @@ public class SparkWriteUtil {
     }
   }
 
-  /** Set snapshot property for wap write if needed */
   private static void wapSnapshotProperty(SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
     String wapId = writeConf.wapId();
     String branch = writeConf.branch();
     if (wapId != null) {
       operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
-    } else if (branch != null && writeConf.isWapBranch(branch)) {
+    } else if (branch != null && writeConf.isWapBranch()) {
       operation.set(SnapshotSummary.WAP_BRANCH_PROP, branch);
     }
   }
 
-  /** Set stageOnly commit for wap id */
-  private static void stageOnlyCommitForWapId(SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
+  private static void stageOnlyCommitForWapId(
+      SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
     if (writeConf.wapId() != null) {
+      // stage the changes without changing the current snapshot
       operation.stageOnly();
     }
   }
