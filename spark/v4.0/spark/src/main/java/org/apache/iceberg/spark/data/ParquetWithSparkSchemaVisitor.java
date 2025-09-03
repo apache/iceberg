@@ -155,8 +155,11 @@ public class ParquetWithSparkSchemaVisitor<T> {
         } finally {
           visitor.fieldNames.pop();
         }
-      } else if (sType instanceof VariantType
-          || LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION).equals(annotation)) {
+      } else if (LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION).equals(annotation)
+          || sType instanceof VariantType) {
+        // For the Variant we both check the Parquet LogicalTypeAnnotation, and we rely on the
+        // Iceberg schema, since there are engines like Spark that produce VariantTypes without the
+        // annotation.
         Preconditions.checkArgument(
             sType instanceof VariantType,
             "Invalid variant: Spark type %s is not a variant type",
