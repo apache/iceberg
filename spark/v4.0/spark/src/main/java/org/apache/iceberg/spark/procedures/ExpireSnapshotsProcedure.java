@@ -119,7 +119,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
-    Identifier tableIdent = toIdentifier(input.asString(TABLE_PARAM), TABLE_PARAM.name());
+    Identifier tableIdent = input.ident(TABLE_PARAM);
     Long olderThanMillis = input.asTimestampLong(OLDER_THAN_PARAM, null);
     Integer retainLastNum = input.asInt(RETAIN_LAST_PARAM, null);
     Integer maxConcurrentDeletes = input.asInt(MAX_CONCURRENT_DELETES_PARAM, null);
@@ -132,14 +132,13 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
         "max_concurrent_deletes should have value > 0, value: %s",
         maxConcurrentDeletes);
 
-    Long finalOlderThanMillis = olderThanMillis;
     return modifyIcebergTable(
         tableIdent,
         table -> {
           ExpireSnapshots action = actions().expireSnapshots(table);
 
-          if (finalOlderThanMillis != null) {
-            action.expireOlderThan(finalOlderThanMillis);
+          if (olderThanMillis != null) {
+            action.expireOlderThan(olderThanMillis);
           }
 
           if (retainLastNum != null) {

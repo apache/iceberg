@@ -80,7 +80,7 @@ public class FastForwardBranchProcedure extends BaseProcedure {
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
-    Identifier tableIdent = toIdentifier(input.asString(TABLE_PARAM), TABLE_PARAM.name());
+    Identifier tableIdent = input.ident(TABLE_PARAM);
     String from = input.asString(BRANCH_PARAM);
     String to = input.asString(TO_PARAM);
 

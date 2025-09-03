@@ -93,7 +93,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
   @Override
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
-    Identifier tableIdent = toIdentifier(input.asString(TABLE_PARAM), TABLE_PARAM.name());
+    Identifier tableIdent = input.ident(TABLE_PARAM);
     Boolean useCaching = input.asBoolean(USE_CACHING_PARAM, false);
     Integer specId = input.asInt(SPEC_ID_PARAM, null);
 

@@ -91,7 +91,7 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
   @Override
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
-    Identifier tableIdent = toIdentifier(input.asString(TABLE_PARAM), TABLE_PARAM.name());
+    Identifier tableIdent = input.ident(TABLE_PARAM);
     Long snapshotId = input.asLong(SNAPSHOT_ID_PARAM, null);
     String ref = input.asString(REF_PARAM, null);
     Preconditions.checkArgument(

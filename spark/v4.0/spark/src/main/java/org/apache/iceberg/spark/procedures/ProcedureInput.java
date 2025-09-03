@@ -110,12 +110,6 @@ class ProcedureInput {
     return args.isNullAt(ordinal) ? defaultValue : (Long) args.getLong(ordinal);
   }
 
-  public Long[] asLongArray(ProcedureParameter param) {
-    Long[] value = asLongArray(param, null);
-    Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
-    return value;
-  }
-
   public Long[] asLongArray(ProcedureParameter param, Long[] defaultValue) {
     validateParamType(param, DataTypes.createArrayType(DataTypes.LongType));
     return array(param, (array, ordinal) -> array.getLong(ordinal), Long.class, defaultValue);
@@ -150,11 +144,9 @@ class ProcedureInput {
 
   public DeleteOrphanFiles.PrefixMismatchMode asPrefixMismatchMode(ProcedureParameter param) {
     String modeAsString = asString(param, null);
-    DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode =
-        (modeAsString == null)
-            ? null
-            : DeleteOrphanFiles.PrefixMismatchMode.fromString(modeAsString);
-    return prefixMismatchMode;
+    return (modeAsString == null)
+        ? null
+        : DeleteOrphanFiles.PrefixMismatchMode.fromString(modeAsString);
   }
 
   @SuppressWarnings("unchecked")

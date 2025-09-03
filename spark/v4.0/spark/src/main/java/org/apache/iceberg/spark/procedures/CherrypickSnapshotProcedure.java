@@ -87,7 +87,7 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
-    Identifier tableIdent = toIdentifier(input.asString(TABLE_PARAM), TABLE_PARAM.name());
+    Identifier tableIdent = input.ident(TABLE_PARAM);
     long snapshotId = input.asLong(SNAPSHOT_ID_PARAM);
 
     return asScanIterator(

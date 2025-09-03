@@ -125,7 +125,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
-    Identifier tableIdent = toIdentifier(input.asString(TABLE_PARAM), TABLE_PARAM.name());
+    Identifier tableIdent = input.ident(TABLE_PARAM);
     Long olderThanMillis = input.asTimestampLong(OLDER_THAN_PARAM, null);
     String location = input.asString(LOCATION_PARAM, null);
     boolean dryRun = input.asBoolean(DRY_RUN_PARAM, false);
