@@ -112,6 +112,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     }
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
+    testImplementation(testFixtures(project(':iceberg-parquet')))
     // runtime dependencies for running REST Catalog based integration test
     testRuntimeOnly libs.jetty.servlet
   }
@@ -185,6 +186,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation libs.parquet.hadoop
     testImplementation libs.awaitility
     testImplementation "org.apache.datafusion:comet-spark-spark${sparkMajorVersion}_${scalaVersion}:${libs.versions.comet.get()}"
+    testImplementation(testFixtures(project(':iceberg-parquet')))
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly libs.antlr.runtime
