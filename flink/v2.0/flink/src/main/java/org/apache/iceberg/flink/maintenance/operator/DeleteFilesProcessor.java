@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.MAX_DELETE_TIME_MS;
-
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
@@ -81,7 +79,8 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
         taskMetricGroup.counter(TableMaintenanceMetrics.DELETE_FILE_FAILED_COUNTER);
     this.succeededCounter =
         taskMetricGroup.counter(TableMaintenanceMetrics.DELETE_FILE_SUCCEEDED_COUNTER);
-    taskMetricGroup.gauge(MAX_DELETE_TIME_MS, (Gauge<Long>) () -> maxDeleteTimeMs);
+    taskMetricGroup.gauge(
+        TableMaintenanceMetrics.MAX_DELETE_TIME_MS, (Gauge<Long>) () -> maxDeleteTimeMs);
   }
 
   @Override
