@@ -173,6 +173,10 @@ Next, you need to close the staging repository:
 2. In the menu on the left, choose "Staging Repositories"
 3. Select the Iceberg repository
    * If multiple staging repositories are created after running the script, verify that gradle parallelism is disabled and try again.
+   * Multiple staging repositories can be created if the script is run in a corporate network 
+   with a proxy that has floating IPs for outbound requests. You can verify this by checking
+   the client IP address in the `Activity` tab of the staging repositories. To avoid this, you
+   can run the `dev/stage-binaries.sh` script outside the corporate network.
 4. At the top, select "Close" and follow the instructions
    * In the comment field use "Apache Iceberg &lt;version&gt; RC&lt;num&gt;"
 
