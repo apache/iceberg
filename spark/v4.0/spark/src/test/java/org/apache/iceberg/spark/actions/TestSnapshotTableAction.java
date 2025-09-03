@@ -131,7 +131,7 @@ public class TestSnapshotTableAction extends CatalogTestBase {
             "The destination table location overlaps with the source table location");
 
     // Test for relative path with ".." (parent directory reference)
-    String locationWithParent = location + "/.."; // Points to the same directory as location
+    String locationWithParent = location + "/.."; // Points to the parent directory as location
     Map<String, String> tablePropertiesParent = Map.of("location", locationWithParent);
 
     assertThatThrownBy(
@@ -143,6 +143,6 @@ public class TestSnapshotTableAction extends CatalogTestBase {
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "The destination table location overlaps with the source table's parent directory");
+            "The destination table location overlaps with the source table location");
   }
 }

@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -226,17 +226,13 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   }
 
   private void checkLocationOverlap(String sourceTableLocation, String icebergTableLocation) {
-    String normalizedSourceLocation = normalizePath(sourceTableLocation);
-    String normalizedIcebergLocation = normalizePath(icebergTableLocation);
+    Path src = Paths.get(sourceTableLocation).toAbsolutePath().normalize();
+    Path dst = Paths.get(icebergTableLocation).toAbsolutePath().normalize();
 
+    // Reject if either path is a prefix of the other (equal, ancestor, or descendant)
     Preconditions.checkArgument(
-        !normalizedIcebergLocation.startsWith(normalizedSourceLocation),
+        !(dst.startsWith(src) || src.startsWith(dst)),
         "The destination table location overlaps with the source table location");
-
-    String sourceParentLocation = new File(normalizedSourceLocation).getParent();
-    Preconditions.checkArgument(
-        !normalizedIcebergLocation.equals(normalizePath(sourceParentLocation)),
-        "The destination table location overlaps with the source table's parent directory");
   }
 
   private String normalizePath(String path) {
