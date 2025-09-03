@@ -182,5 +182,5 @@ public interface Transaction {
    * @throws ValidationException If any update cannot be applied to the current table metadata.
    * @throws CommitFailedException If the updates cannot be committed due to conflicts.
    */
-  void commitTransaction();
+  Snapshot commitTransaction();
 }

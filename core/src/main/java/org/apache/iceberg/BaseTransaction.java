@@ -251,7 +251,7 @@ public class BaseTransaction implements Transaction {
   }
 
   @Override
-  public void commitTransaction() {
+  public Snapshot commitTransaction() {
     Preconditions.checkState(
         hasLastOpCommitted, "Cannot commit transaction: last operation has not committed");
 
@@ -272,6 +272,7 @@ public class BaseTransaction implements Transaction {
         commitSimpleTransaction();
         break;
     }
+    return current.currentSnapshot();
   }
 
   private void commitCreateTransaction() {

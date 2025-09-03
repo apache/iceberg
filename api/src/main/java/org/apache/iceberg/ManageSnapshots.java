@@ -41,7 +41,7 @@ import org.apache.iceberg.exceptions.ValidationException;
  *
  * <p>
  */
-public interface ManageSnapshots extends PendingUpdate<Snapshot> {
+public interface ManageSnapshots extends PendingUpdate<Snapshot, Snapshot> {
 
   /**
    * Roll this table's data back to a specific {@link Snapshot} identified by id.

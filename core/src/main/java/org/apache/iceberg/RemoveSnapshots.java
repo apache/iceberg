@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -336,7 +337,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public void commit() {
+  public Snapshot commit() {
+    final AtomicReference<Snapshot> currentSnapshot = new AtomicReference<>();
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
@@ -348,6 +350,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .run(
             item -> {
               TableMetadata updated = internalApply();
+              currentSnapshot.set(updated.currentSnapshot());
               ops.commit(base, updated);
             });
     LOG.info("Committed snapshot changes");
@@ -355,6 +358,8 @@ class RemoveSnapshots implements ExpireSnapshots {
     if (cleanExpiredFiles && !base.snapshots().isEmpty()) {
       cleanExpiredSnapshots();
     }
+
+    return currentSnapshot.get();
   }
 
   ExpireSnapshots withIncrementalCleanup(boolean useIncrementalCleanup) {

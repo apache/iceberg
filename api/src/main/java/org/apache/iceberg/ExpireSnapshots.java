@@ -37,7 +37,7 @@ import java.util.function.Consumer;
  *
  * <p>{@link #apply()} returns a list of the snapshots that will be removed.
  */
-public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
+public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>, Snapshot> {
 
   /**
    * Expires a specific {@link Snapshot} identified by id.

@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -97,8 +98,9 @@ class PropertiesUpdate implements UpdateProperties {
   }
 
   @Override
-  public void commit() {
+  public Snapshot commit() {
     // If existing table commit properties in base are corrupted, allow rectification
+    AtomicReference<Snapshot> currentSnapshot = new AtomicReference<>();
     Tasks.foreach(ops)
         .retry(base.propertyTryAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
@@ -111,7 +113,10 @@ class PropertiesUpdate implements UpdateProperties {
             taskOps -> {
               Map<String, String> newProperties = apply();
               TableMetadata updated = base.replaceProperties(newProperties);
+              currentSnapshot.set(updated.currentSnapshot());
               taskOps.commit(base, updated);
             });
+
+    return currentSnapshot.get();
   }
 }

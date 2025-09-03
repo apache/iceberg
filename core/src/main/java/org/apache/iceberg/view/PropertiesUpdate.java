@@ -59,7 +59,7 @@ class PropertiesUpdate implements UpdateViewProperties {
   }
 
   @Override
-  public void commit() {
+  public Void commit() {
     Tasks.foreach(ops)
         .retry(
             PropertyUtil.propertyAsInt(
@@ -74,6 +74,7 @@ class PropertiesUpdate implements UpdateViewProperties {
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
         .run(taskOps -> taskOps.commit(base, internalApply()));
+    return null;
   }
 
   @Override

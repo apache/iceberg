@@ -335,7 +335,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   }
 
   @Override
-  public void commit() {
+  public Snapshot commit() {
     TableMetadata update;
     if (setAsDefault) {
       update = base.updatePartitionSpec(apply());
@@ -343,6 +343,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
       update = base.addPartitionSpec(apply());
     }
     ops.commit(base, update);
+    return update.currentSnapshot();
   }
 
   private Pair<Integer, Transform<?, ?>> resolve(Term term) {

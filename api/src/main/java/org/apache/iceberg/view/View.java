@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.UpdateLocation;
 
 /** Interface for view definition. */
 public interface View {
@@ -105,11 +104,11 @@ public interface View {
   }
 
   /**
-   * Create a new {@link UpdateLocation} to set the view's location.
+   * Create a new {@link UpdateViewLocation} to set the view's location.
    *
-   * @return a new {@link UpdateLocation}
+   * @return a new {@link UpdateViewLocation}
    */
-  default UpdateLocation updateLocation() {
+  default UpdateViewLocation updateLocation() {
     throw new UnsupportedOperationException("Updating a view's location is not supported");
   }
 

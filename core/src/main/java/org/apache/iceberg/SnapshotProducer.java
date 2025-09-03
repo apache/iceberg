@@ -421,7 +421,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public void commit() {
+  public Snapshot commit() {
     // this is always set to the latest commit attempt's snapshot
     AtomicReference<Snapshot> stagedSnapshot = new AtomicReference<>();
     try (Timed ignore = commitMetrics().totalDuration().start()) {
@@ -505,6 +505,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     } catch (Throwable e) {
       LOG.warn("Failed to notify event listeners", e);
     }
+    return stagedSnapshot.get();
   }
 
   private void notifyListeners() {

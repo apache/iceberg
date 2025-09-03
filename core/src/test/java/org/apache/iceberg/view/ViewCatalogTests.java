@@ -28,7 +28,6 @@ import java.nio.file.Paths;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
-import org.apache.iceberg.UpdateLocation;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -1698,7 +1697,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Invalid view location: null");
 
-    UpdateLocation updateViewLocation = view.updateLocation();
+    UpdateViewLocation updateViewLocation = view.updateLocation();
 
     catalog().dropView(identifier);
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();

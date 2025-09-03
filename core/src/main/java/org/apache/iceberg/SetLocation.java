@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.util.Tasks;
 
@@ -51,8 +52,9 @@ public class SetLocation implements UpdateLocation {
   }
 
   @Override
-  public void commit() {
+  public Snapshot commit() {
     TableMetadata base = ops.refresh();
+    final AtomicReference<Snapshot> currentSnapshot = new AtomicReference<>();
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
@@ -61,6 +63,12 @@ public class SetLocation implements UpdateLocation {
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(taskOps -> taskOps.commit(base, base.updateLocation(newLocation)));
+        .run(
+            taskOps -> {
+              TableMetadata updated = base.updateLocation(newLocation);
+              currentSnapshot.set(updated.currentSnapshot());
+              taskOps.commit(base, updated);
+            });
+    return currentSnapshot.get();
   }
 }

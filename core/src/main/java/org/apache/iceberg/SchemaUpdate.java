@@ -468,9 +468,10 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
-  public void commit() {
+  public Snapshot commit() {
     TableMetadata update = applyChangesToMetadata(base.updateSchema(apply()));
     ops.commit(base, update);
+    return update.currentSnapshot();
   }
 
   private int assignNewColumnId() {

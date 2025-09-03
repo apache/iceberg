@@ -31,7 +31,7 @@ import org.apache.iceberg.types.Type;
  * <p>When committing, these changes will be applied to the current table metadata. Commit conflicts
  * will not be resolved and will result in a {@link CommitFailedException}.
  */
-public interface UpdateSchema extends PendingUpdate<Schema> {
+public interface UpdateSchema extends PendingUpdate<Schema, Snapshot> {
 
   /**
    * Allow incompatible changes to the schema.

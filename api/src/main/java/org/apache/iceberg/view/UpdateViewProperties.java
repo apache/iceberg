@@ -29,7 +29,7 @@ import org.apache.iceberg.PendingUpdate;
  * <p>When committing, these changes will be applied to the current view metadata. Commit conflicts
  * will be resolved by applying the pending changes to the new view metadata.
  */
-public interface UpdateViewProperties extends PendingUpdate<Map<String, String>> {
+public interface UpdateViewProperties extends PendingUpdate<Map<String, String>, Void> {
 
   /**
    * Add a key/value property to the view.

@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.util.Tasks;
@@ -48,7 +49,8 @@ public class BaseReplaceSortOrder implements ReplaceSortOrder {
   }
 
   @Override
-  public void commit() {
+  public Snapshot commit() {
+    final AtomicReference<Snapshot> currentSnapshot = new AtomicReference<>();
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
@@ -62,8 +64,11 @@ public class BaseReplaceSortOrder implements ReplaceSortOrder {
               this.base = ops.refresh();
               SortOrder newOrder = apply();
               TableMetadata updated = base.replaceSortOrder(newOrder);
+              currentSnapshot.set(updated.currentSnapshot());
               taskOps.commit(base, updated);
             });
+
+    return currentSnapshot.get();
   }
 
   @Override

@@ -26,8 +26,9 @@ import org.apache.iceberg.exceptions.ValidationException;
  * API for table metadata changes.
  *
  * @param <T> Java class of changes from this update; returned by {@link #apply} for validation.
+ * @param <R> Result type of the commit operation; returned by {@link #commit()}.
  */
-public interface PendingUpdate<T> {
+public interface PendingUpdate<T, R> {
 
   /**
    * Apply the pending changes and return the uncommitted changes for validation.
@@ -47,12 +48,14 @@ public interface PendingUpdate<T> {
    *
    * <p>Once the commit is successful, the updated table will be refreshed.
    *
+   * @return the snapshot created by this commit, or the current snapshot if no new snapshot was
+   *     created
    * @throws ValidationException If the update cannot be applied to the current table metadata.
    * @throws CommitFailedException If the update cannot be committed due to conflicts.
    * @throws CommitStateUnknownException If the update success or failure is unknown, no cleanup
    *     should be done in this case.
    */
-  void commit();
+  R commit();
 
   /**
    * Generates update event to notify about metadata changes

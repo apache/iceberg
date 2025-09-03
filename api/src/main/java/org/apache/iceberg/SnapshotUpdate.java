@@ -27,7 +27,7 @@ import java.util.function.Consumer;
  *
  * @param <ThisT> the child Java API class, returned by method chaining.
  */
-public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
+public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot, Snapshot> {
   /**
    * Set a summary property in the snapshot produced by this update.
    *
