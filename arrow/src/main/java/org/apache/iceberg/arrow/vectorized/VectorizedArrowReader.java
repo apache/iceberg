@@ -644,7 +644,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
       FieldVector vec;
       if (reuse == null) {
-        vec = newVector(batchSize);
+        vec = VectorizedArrowReader.allocateBigIntVector(ROW_POSITION_ARROW_FIELD, batchSize);
       } else {
         vec = reuse.vector();
         vec.setValueCount(0);
@@ -666,13 +666,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       vec.setValueCount(numValsToRead);
 
       return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION, nulls);
-    }
-
-    private static BigIntVector newVector(int valueCount) {
-      BigIntVector vector =
-          (BigIntVector) ROW_POSITION_ARROW_FIELD.createVector(ArrowAllocation.rootAllocator());
-      vector.allocateNew(valueCount);
-      return vector;
     }
 
     @Override
