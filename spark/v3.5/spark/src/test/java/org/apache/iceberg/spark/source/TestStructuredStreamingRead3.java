@@ -338,7 +338,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     appendData(newDataDuringStreamSnap1);
     appendData(newDataDuringStreamSnap2);
 
-    // Query should terminate on its own after processing all available data
+    // Query should terminate on its own after processing all available data till expectedSnapshotId 
     assertThat(query.awaitTermination(60000)).isTrue();
 
     List<SimpleRecord> actualResults =
