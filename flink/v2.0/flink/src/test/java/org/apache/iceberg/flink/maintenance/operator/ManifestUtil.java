@@ -30,6 +30,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.flink.source.ScanContext;
 
 public class ManifestUtil {
 
@@ -41,7 +42,12 @@ public class ManifestUtil {
     try (OneInputStreamOperatorTestHarness<Trigger, MetadataTablePlanner.SplitInfo> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
             new MetadataTablePlanner(
-                DUMMY_TASK_NAME, 0, tableLoader, MetadataTableType.ENTRIES, 1))) {
+                DUMMY_TASK_NAME,
+                0,
+                tableLoader,
+                ScanContext.builder().streaming(true).build(),
+                MetadataTableType.ENTRIES,
+                1))) {
       testHarness.open();
 
       testHarness.processElement(

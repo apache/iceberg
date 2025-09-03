@@ -31,6 +31,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -53,6 +54,7 @@ public class TestFilterSplitsByFileName extends OperatorTestBase {
                 OperatorTestBase.DUMMY_TASK_NAME,
                 0,
                 tableLoader(),
+                ScanContext.builder().streaming(true).build(),
                 MetadataTableType.ALL_FILES,
                 1))) {
       testHarness.open();
@@ -118,6 +120,7 @@ public class TestFilterSplitsByFileName extends OperatorTestBase {
                 OperatorTestBase.DUMMY_TASK_NAME,
                 0,
                 tableLoader(),
+                ScanContext.builder().streaming(true).build(),
                 MetadataTableType.ALL_FILES,
                 1))) {
       testHarness.open();

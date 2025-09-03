@@ -36,6 +36,7 @@ import org.apache.iceberg.flink.maintenance.operator.ManifestEntityReader;
 import org.apache.iceberg.flink.maintenance.operator.MetadataTablePlanner;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
 import org.apache.iceberg.flink.maintenance.operator.WriteManifests;
+import org.apache.iceberg.flink.source.ScanContext;
 
 public class RewriteManifestFiles {
 
@@ -149,6 +150,7 @@ public class RewriteManifestFiles {
                       taskName(),
                       index(),
                       tableLoader(),
+                      ScanContext.builder().streaming(true).build(),
                       MetadataTableType.ENTRIES,
                       planningWorkerPoolSize))
               .name(operatorName(PLANNER_TASK_NAME))
