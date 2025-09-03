@@ -181,6 +181,11 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
   }
 
   @Override
+  public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    return loadTableViaView(ident, version, Map.of());
+  }
+
+  @Override
   public Table loadTableViaView(Identifier ident, String version, Map<String, Object> context)
       throws NoSuchTableException {
     Table table = load(ident, context);
@@ -213,11 +218,6 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
     } else {
       throw new IllegalArgumentException("Unknown Spark table type: " + table.getClass().getName());
     }
-  }
-
-  @Override
-  public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return loadTableViaView(ident, version, Map.of());
   }
 
   @Override

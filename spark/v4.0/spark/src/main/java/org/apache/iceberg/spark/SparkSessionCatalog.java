@@ -147,15 +147,10 @@ public class SparkSessionCatalog<
   }
 
   @Override
-  public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
-    return loadTableViaView(ident, timestamp, Map.of());
-  }
-
-  @Override
   public Table loadTableViaView(Identifier identifier, Map<String, Object> context)
       throws NoSuchTableException {
     try {
-      if (icebergCatalog instanceof ContextAwareTableCatalog) {
+      if (icebergCatalog instanceof ContextAwareTableCatalog && !context.isEmpty()) {
         return ((ContextAwareTableCatalog) icebergCatalog).loadTableViaView(identifier, context);
       } else {
         return icebergCatalog.loadTable(identifier);
@@ -166,14 +161,24 @@ public class SparkSessionCatalog<
   }
 
   @Override
+  public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    return loadTableViaView(ident, timestamp, Map.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    return loadTableViaView(ident, version, Map.of());
+  }
+
+  @Override
   public Table loadTableViaView(Identifier identifier, String version, Map<String, Object> context)
       throws NoSuchTableException {
     try {
-      if (icebergCatalog instanceof ContextAwareTableCatalog) {
+      if (icebergCatalog instanceof ContextAwareTableCatalog && !context.isEmpty()) {
         return ((ContextAwareTableCatalog) icebergCatalog)
             .loadTableViaView(identifier, version, context);
       } else {
-        return icebergCatalog.loadTable(identifier);
+        return icebergCatalog.loadTable(identifier, version);
       }
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return getSessionCatalog().loadTable(identifier, version);
@@ -184,11 +189,11 @@ public class SparkSessionCatalog<
   public Table loadTableViaView(Identifier identifier, long timestamp, Map<String, Object> context)
       throws NoSuchTableException {
     try {
-      if (icebergCatalog instanceof ContextAwareTableCatalog) {
+      if (icebergCatalog instanceof ContextAwareTableCatalog && !context.isEmpty()) {
         return ((ContextAwareTableCatalog) icebergCatalog)
             .loadTableViaView(identifier, timestamp, context);
       } else {
-        return icebergCatalog.loadTable(identifier);
+        return icebergCatalog.loadTable(identifier, timestamp);
       }
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return getSessionCatalog().loadTable(identifier, timestamp);
