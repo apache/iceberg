@@ -117,6 +117,7 @@ public class TestAggregateEvaluator {
         ImmutableList.of(
             Expressions.countStar(),
             Expressions.count("id"),
+            Expressions.countNull("id"),
             Expressions.max("id"),
             Expressions.min("id"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
@@ -127,7 +128,7 @@ public class TestAggregateEvaluator {
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isTrue();
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {90L, 60L, 3333, -33};
+    Object[] expected = {90L, 60L, 30L, 3333, -33};
     assertEvaluatorResult(result, expected);
   }
 
@@ -137,6 +138,7 @@ public class TestAggregateEvaluator {
         ImmutableList.of(
             Expressions.countStar(),
             Expressions.count("all_nulls"),
+            Expressions.countNull("all_nulls"),
             Expressions.max("all_nulls"),
             Expressions.min("all_nulls"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
@@ -147,7 +149,7 @@ public class TestAggregateEvaluator {
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isTrue();
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {90L, 0L, null, null};
+    Object[] expected = {90L, 0L, 90L, null, null};
     assertEvaluatorResult(result, expected);
   }
 
@@ -157,6 +159,7 @@ public class TestAggregateEvaluator {
         ImmutableList.of(
             Expressions.countStar(),
             Expressions.count("some_nulls"),
+            Expressions.countNull("some_nulls"),
             Expressions.max("some_nulls"),
             Expressions.min("some_nulls"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
@@ -166,7 +169,7 @@ public class TestAggregateEvaluator {
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {90L, null, null, null};
+    Object[] expected = {90L, null, null, null, null};
     assertEvaluatorResult(result, expected);
   }
 
@@ -176,6 +179,7 @@ public class TestAggregateEvaluator {
         ImmutableList.of(
             Expressions.countStar(),
             Expressions.count("no_stats"),
+            Expressions.countNull("no_stats"),
             Expressions.max("no_stats"),
             Expressions.min("no_stats"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
@@ -185,7 +189,7 @@ public class TestAggregateEvaluator {
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {90L, null, null, null};
+    Object[] expected = {90L, null, null, null, null};
     assertEvaluatorResult(result, expected);
   }
 
@@ -195,6 +199,7 @@ public class TestAggregateEvaluator {
         ImmutableList.of(
             Expressions.countStar(),
             Expressions.count("id"),
+            Expressions.countNull("id"),
             Expressions.max("id"),
             Expressions.min("id"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
@@ -203,7 +208,7 @@ public class TestAggregateEvaluator {
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {20L, null, null, null};
+    Object[] expected = {20L, null, null, null, null};
     assertEvaluatorResult(result, expected);
   }
 
@@ -213,6 +218,7 @@ public class TestAggregateEvaluator {
         ImmutableList.of(
             Expressions.countStar(),
             Expressions.count("no_stats"),
+            Expressions.countNull("no_stats"),
             Expressions.max("no_stats"),
             Expressions.min("no_stats"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
@@ -221,7 +227,7 @@ public class TestAggregateEvaluator {
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
     StructLike result = aggregateEvaluator.result();
-    Object[] expected = {20L, null, null, null};
+    Object[] expected = {20L, null, null, null, null};
     assertEvaluatorResult(result, expected);
   }
 

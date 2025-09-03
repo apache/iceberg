@@ -58,6 +58,17 @@ public class TestAggregateBinding {
   }
 
   @Test
+  public void testCountNullBinding() {
+    UnboundAggregate<?> unbound = Expressions.countNull("x");
+    Expression expr = unbound.bind(STRUCT, false);
+    BoundAggregate<?, Long> bound = assertAndUnwrapAggregate(expr);
+
+    assertThat(bound.op())
+        .as("Should not change the comparison operation")
+        .isEqualTo(Expression.Operation.COUNT_NULL);
+  }
+
+  @Test
   public void testBoundAggregateFails() {
     Expression unbound = Expressions.count("x");
     assertThatThrownBy(() -> Binder.bind(STRUCT, Binder.bind(STRUCT, unbound)))
