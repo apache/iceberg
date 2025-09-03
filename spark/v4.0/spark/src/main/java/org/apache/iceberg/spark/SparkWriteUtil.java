@@ -25,6 +25,8 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPD
 import java.util.Arrays;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
 import org.apache.iceberg.types.Types;
@@ -103,6 +105,33 @@ public class SparkWriteUtil {
       return new SparkWriteRequirements(distribution, ordering, advisoryPartitionSize);
     } else {
       return writeRequirements(table, mode, fanoutEnabled, advisoryPartitionSize);
+    }
+  }
+
+  /** Configure WAP Operation */
+  public static void prepareWapCommitIfEnabled(
+      SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
+    if (writeConf.wapEnabled()) {
+      stageOnlyCommitForWapId(operation, writeConf);
+      wapSnapshotProperty(operation, writeConf);
+    }
+  }
+
+  /** Set snapshot property for wap write if needed */
+  private static void wapSnapshotProperty(SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
+    String wapId = writeConf.wapId();
+    String branch = writeConf.branch();
+    if (wapId != null) {
+      operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
+    } else if (branch != null && writeConf.isWapBranch(branch)) {
+      operation.set(SnapshotSummary.WAP_BRANCH_PROP, branch);
+    }
+  }
+
+  /** Set stageOnly commit for wap id */
+  private static void stageOnlyCommitForWapId(SnapshotUpdate<?> operation, SparkWriteConf writeConf) {
+    if (writeConf.wapId() != null) {
+      operation.stageOnly();
     }
   }
 

@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.util;
 
-import java.util.function.Predicate;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
-import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 
@@ -39,33 +37,6 @@ public class WapUtil {
     return snapshot.summary() != null
         ? snapshot.summary().get(SnapshotSummary.PUBLISHED_WAP_ID_PROP)
         : null;
-  }
-
-  /**
-   * Sets Write-Audit-Publish (WAP) properties on the given {@link SnapshotUpdate} operation. This
-   * method is intended to be used by write operations that support WAP, ensuring that staged
-   * snapshot is tagged with wapId and wap branches are tag with branch name
-   *
-   * @param operation the {@link SnapshotUpdate} operation to update with WAP properties
-   * @param wapEnabled true if WAP is enabled for this operation
-   * @param wapId the WAP ID for staging the commit, or null if not applicable
-   * @param branch the branch name for WAP commit, or null if not applicable
-   * @param isWapBranch a predicate to determine if a branch is a WAP branch
-   */
-  public static void setWapProperties(
-      SnapshotUpdate<?> operation,
-      boolean wapEnabled,
-      String wapId,
-      String branch,
-      Predicate<String> isWapBranch) {
-    if (wapEnabled) {
-      if (wapId != null) {
-        operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
-        operation.stageOnly();
-      } else if (branch != null && isWapBranch != null && isWapBranch.test(branch)) {
-        operation.set(SnapshotSummary.WAP_BRANCH_PROP, branch);
-      }
-    }
   }
 
   /**

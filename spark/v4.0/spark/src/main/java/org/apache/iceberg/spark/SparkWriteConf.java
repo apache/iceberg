@@ -461,12 +461,12 @@ public class SparkWriteConf {
         .parse();
   }
 
-  private String getWapBranch() {
+  private String wapBranch() {
     return confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
   }
 
   public boolean isWapBranch(String branchName) {
-    String wapBranch = getWapBranch();
+    String wapBranch = wapBranch();
     if (wapBranch != null) {
       return wapBranch.equals(branchName);
     }
@@ -476,7 +476,7 @@ public class SparkWriteConf {
   public String branch() {
     if (wapEnabled()) {
       String wapId = wapId();
-      String wapBranch = getWapBranch();
+      String wapBranch = wapBranch();
 
       ValidationException.check(
           wapId == null || wapBranch == null,

@@ -58,10 +58,10 @@ import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.DeleteFileSet;
-import org.apache.iceberg.util.WapUtil;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -95,8 +95,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final String queryId;
   private final FileFormat format;
   private final String applicationId;
-  private final boolean wapEnabled;
-  private final String wapId;
   private final int outputSpecId;
   private final String branch;
   private final long targetFileSize;
@@ -124,8 +122,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.queryId = writeInfo.queryId();
     this.format = writeConf.dataFileFormat();
     this.applicationId = applicationId;
-    this.wapEnabled = writeConf.wapEnabled();
-    this.wapId = writeConf.wapId();
     this.branch = writeConf.branch();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
@@ -222,7 +218,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       CommitMetadata.commitProperties().forEach(operation::set);
     }
 
-    WapUtil.setWapProperties(operation, wapEnabled, wapId, branch, writeConf::isWapBranch);
+    SparkWriteUtil.prepareWapCommitIfEnabled(operation, writeConf);
 
     if (branch != null) {
       operation.toBranch(branch);

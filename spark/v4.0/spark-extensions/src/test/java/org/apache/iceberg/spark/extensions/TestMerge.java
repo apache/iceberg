@@ -2932,6 +2932,29 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void testSimpleMergeOnNonWapBranch() {
+    createAndInitTable("id INT, value STRING", "{ \"id\": 1, \"value\": \"old\" }");
+
+    createOrReplaceView("source", "id INT, value STRING", "{ \"id\": 1, \"value\": \"new\" }");
+
+    sql(
+        "MERGE INTO %s t USING source s ON t.id = s.id "
+            + "WHEN MATCHED THEN UPDATE SET value = s.value "
+            + "WHEN NOT MATCHED THEN INSERT *",
+        commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
+    assertThat(table.snapshot(table.refs().get("main").snapshotId()).summary())
+        .doesNotContainKey(SnapshotSummary.WAP_BRANCH_PROP);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "new")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
   public void testMergeToWapBranch() {
     assumeThat(branch).as("WAP branch only works for table identifier without branch").isNull();
 
@@ -2964,6 +2987,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               "Should not modify main branch",
               originalRows,
               sql("SELECT * FROM %s.branch_main ORDER BY id", tableName));
+
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.snapshot(table.refs().get("wap").snapshotId()).summary())
+              .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, "wap");
         });
 
     spark.range(3, 6).coalesce(1).createOrReplaceTempView("source2");
@@ -2989,6 +3016,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               "Should not modify main branch with multiple writes",
               originalRows,
               sql("SELECT * FROM %s.branch_main ORDER BY id", tableName));
+
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.snapshot(table.refs().get("wap").snapshotId()).summary())
+              .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, "wap");
         });
   }
 

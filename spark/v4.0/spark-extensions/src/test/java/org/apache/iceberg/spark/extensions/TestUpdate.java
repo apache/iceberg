@@ -1451,6 +1451,23 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void testUpdateOnNonWapBranch() {
+    createAndInitTable("id INT, value STRING", "{ \"id\": 1, \"value\": \"old\" }");
+
+    sql("UPDATE %s SET value = 'new' WHERE id = 1", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
+    assertThat(table.snapshot(table.refs().get("main").snapshotId()).summary())
+        .doesNotContainKey(SnapshotSummary.WAP_BRANCH_PROP);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "new")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
   public void testUpdateToWAPBranch() {
     assumeThat(branch).as("WAP branch only works for table identifier without branch").isNull();
 
@@ -1473,6 +1490,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
           assertThat(sql("SELECT * FROM %s.branch_main WHERE dep='hr'", tableName))
               .as("Should not modify main branch")
               .hasSize(1);
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.snapshot(table.refs().get("wap").snapshotId()).summary())
+              .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, "wap");
         });
 
     withSQLConf(
@@ -1488,6 +1508,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
           assertThat(sql("SELECT * FROM %s.branch_main WHERE dep='b'", tableName))
               .as("Should not modify main branch with multiple writes")
               .hasSize(0);
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.snapshot(table.refs().get("wap").snapshotId()).summary())
+              .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, "wap");
         });
   }
 

@@ -425,6 +425,27 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
+  public void testDeleteOnNonWapBranch() {
+    createAndInitUnpartitionedTable();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
+    createBranchIfNeeded();
+
+    sql("DELETE FROM %s WHERE id = 1", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
+
+    assertThat(table.snapshot(table.refs().get("main").snapshotId()).summary())
+        .doesNotContainKey(SnapshotSummary.WAP_BRANCH_PROP);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
   public void testExplain() {
     createAndInitUnpartitionedTable();
 
@@ -1346,6 +1367,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
           assertThat(spark.table(tableName + ".branch_main").count())
               .as("Should not modify main branch")
               .isEqualTo(3L);
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.snapshot(table.refs().get("wap").snapshotId()).summary())
+              .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, "wap");
         });
 
     withSQLConf(
@@ -1361,6 +1385,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
           assertThat(spark.table(tableName + ".branch_main").count())
               .as("Should not modify main branch with multiple writes")
               .isEqualTo(3L);
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.snapshot(table.refs().get("wap").snapshotId()).summary())
+              .containsEntry(SnapshotSummary.WAP_BRANCH_PROP, "wap");
         });
   }
 

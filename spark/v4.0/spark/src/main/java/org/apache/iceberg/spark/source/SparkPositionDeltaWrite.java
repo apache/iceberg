@@ -71,11 +71,11 @@ import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.StructProjection;
-import org.apache.iceberg.util.WapUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
@@ -108,8 +108,6 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final SparkBatchQueryScan scan;
   private final IsolationLevel isolationLevel;
   private final String applicationId;
-  private final boolean wapEnabled;
-  private final String wapId;
   private final String branch;
   private final Map<String, String> extraSnapshotMetadata;
   private final SparkWriteRequirements writeRequirements;
@@ -134,8 +132,6 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.scan = scan;
     this.isolationLevel = isolationLevel;
     this.applicationId = spark.sparkContext().applicationId();
-    this.wapEnabled = writeConf.wapEnabled();
-    this.wapId = writeConf.wapId();
     this.branch = writeConf.branch();
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
@@ -328,7 +324,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
       CommitMetadata.commitProperties().forEach(operation::set);
 
-      WapUtil.setWapProperties(operation, wapEnabled, wapId, branch, writeConf::isWapBranch);
+      SparkWriteUtil.prepareWapCommitIfEnabled(operation, writeConf);
 
       if (branch != null) {
         operation.toBranch(branch);
