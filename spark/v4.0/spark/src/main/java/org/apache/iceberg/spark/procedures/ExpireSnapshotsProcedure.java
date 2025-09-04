@@ -125,7 +125,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Integer maxConcurrentDeletes = input.asInt(MAX_CONCURRENT_DELETES_PARAM, null);
     Boolean streamResult = input.asBoolean(STREAM_RESULTS_PARAM, null);
     Long[] snapshotIds = input.asLongArray(SNAPSHOT_IDS_PARAM, null);
-    boolean cleanExpiredMetadata = input.asBoolean(CLEAN_EXPIRED_METADATA_PARAM, null);
+    boolean cleanExpiredMetadata = input.asBoolean(CLEAN_EXPIRED_METADATA_PARAM, false);
 
     Preconditions.checkArgument(
         maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
