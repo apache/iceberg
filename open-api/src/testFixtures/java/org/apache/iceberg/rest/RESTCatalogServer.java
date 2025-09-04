@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
@@ -29,6 +30,7 @@ import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -119,6 +121,11 @@ public class RESTCatalogServer {
         new Server(
             PropertyUtil.propertyAsInt(catalogContext.configuration, REST_PORT, REST_PORT_DEFAULT));
     httpServer.setHandler(context);
+    Arrays.stream(httpServer.getConnectors())
+        .forEach(
+            connector -> {
+              ((ServerConnector) connector).setReusePort(true);
+            });
     httpServer.start();
 
     if (join) {
