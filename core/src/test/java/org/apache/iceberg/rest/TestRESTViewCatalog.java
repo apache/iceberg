@@ -168,7 +168,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
+    catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "10"));
 
     String namespaceName = "newdb";
     String viewName = "newview";
@@ -305,7 +305,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     // client relies on the default endpoints
     verifyViewExistsFallbackToGETRequest(
         ConfigResponse.builder().build(),
-        ImmutableMap.of(RESTSessionCatalog.VIEW_ENDPOINTS_SUPPORTED, "true"));
+        ImmutableMap.of(RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED, "true"));
   }
 
   @Override
