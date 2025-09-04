@@ -99,7 +99,8 @@ class HashKeyGenerator {
                         dynamicRecord.distributionMode(), DistributionMode.NONE),
                     MoreObjects.firstNonNull(
                         dynamicRecord.equalityFields(), Collections.emptySet()),
-                    dynamicRecord.writeParallelism()));
+                    DynamicSinkUtil.firstPositive(
+                        dynamicRecord.writeParallelism(), maxWriteParallelism)));
     try {
       return keySelector.getKey(
           overrideRowData != null ? overrideRowData : dynamicRecord.rowData());

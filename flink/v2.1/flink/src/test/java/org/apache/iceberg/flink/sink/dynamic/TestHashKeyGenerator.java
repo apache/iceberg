@@ -158,6 +158,28 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void testUseMaxWriteParallelismIfWriteParallelismUnspecified() throws Exception {
+    final int maxWriteParallelism = 5;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+
+    Set<Integer> writeKeys = Sets.newHashSet();
+    for (int i = 0; i < maxWriteParallelism; i++) {
+      GenericRowData row = GenericRowData.of(i, StringData.fromString("z"));
+      writeKeys.add(
+          getWriteKey(
+              generator,
+              PartitionSpec.unpartitioned(),
+              DistributionMode.NONE,
+              // Use a writeParallelism <= 0
+              -i,
+              Collections.emptySet(),
+              row));
+    }
+
+    assertThat(writeKeys).hasSize(maxWriteParallelism);
+  }
+
+  @Test
   void testCapAtMaxWriteParallelism() throws Exception {
     int writeParallelism = 10;
     int maxWriteParallelism = 5;

@@ -62,4 +62,14 @@ class DynamicSinkUtil {
 
     return -input;
   }
+
+  static int firstPositive(int first, int second) {
+    if (first > 0) {
+      return first;
+    }
+    if (second > 0) {
+      return second;
+    }
+    throw new IllegalArgumentException("None of the supplied ints were positive!");
+  }
 }
