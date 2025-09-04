@@ -162,7 +162,6 @@ cd apache-iceberg-1.8.0
 
 To build and publish the convenience binaries, run the `dev/stage-binaries.sh` script. This will push to a release staging repository.
 
-Disable gradle parallelism by setting `org.gradle.parallel=false` in `gradle.properties`.
 
 ```
 dev/stage-binaries.sh
@@ -174,6 +173,10 @@ Next, you need to close the staging repository:
 2. In the menu on the left, choose "Staging Repositories"
 3. Select the Iceberg repository
    * If multiple staging repositories are created after running the script, verify that gradle parallelism is disabled and try again.
+   * Multiple staging repositories can be created if the script is run in a corporate network 
+   with a proxy that has floating IPs for outbound requests. You can verify this by checking
+   the client IP address in the `Activity` tab of the staging repositories. To avoid this, you
+   can run the `dev/stage-binaries.sh` script outside the corporate network.
 4. At the top, select "Close" and follow the instructions
    * In the comment field use "Apache Iceberg &lt;version&gt; RC&lt;num&gt;"
 
@@ -267,6 +270,8 @@ Next, add a release tag to the git repository based on the passing candidate tag
 ```bash
 git tag -am 'Release Apache Iceberg <VERSION>' apache-iceberg-<VERSION> apache-iceberg-<VERSION>-rcN
 ```
+
+Create a new release in the iceberg repository on GitHub, using the tag created above [Steps](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
 
 Then release the candidate repository in [Nexus](https://repository.apache.org/#stagingRepositories).
 

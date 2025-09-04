@@ -20,24 +20,35 @@ package org.apache.iceberg.spark.data;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedKeyValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedWriter;
+import org.apache.iceberg.parquet.ParquetVariantVisitor;
+import org.apache.iceberg.parquet.TripleWriter;
+import org.apache.iceberg.parquet.VariantWriterBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -53,10 +64,13 @@ import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.NullType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 public class SparkParquetWriters {
   private SparkParquetWriters() {}
@@ -84,14 +98,18 @@ public class SparkParquetWriters {
     public ParquetValueWriter<?> struct(
         StructType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
-      StructField[] sparkFields = sStruct.fields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
-      List<DataType> sparkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-        sparkTypes.add(sparkFields[i].dataType());
       }
-      return new InternalRowWriter(writers, sparkTypes);
+
+      StructField[] sFields = sStruct.fields();
+      DataType[] types = new DataType[sFields.length];
+      for (int i = 0; i < sFields.length; i += 1) {
+        types[i] = sFields[i].dataType();
+      }
+
+      return new InternalRowWriter(writers, types);
     }
 
     @Override
@@ -129,6 +147,14 @@ public class SparkParquetWriters {
           newOption(repeatedKeyValue.getType(1), valueWriter),
           sMap.keyType(),
           sMap.valueType());
+    }
+
+    @Override
+    public ParquetValueWriter<?> variant(VariantType sVariant, GroupType variant) {
+      ParquetValueWriter<?> writer =
+          ParquetVariantVisitor.visit(
+              variant, new VariantWriterBuilder(type, Arrays.asList(currentPath())));
+      return new VariantWriter(writer);
     }
 
     private ParquetValueWriter<?> newOption(Type fieldType, ParquetValueWriter<?> writer) {
@@ -261,9 +287,6 @@ public class SparkParquetWriters {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          if (LogicalTypeAnnotation.uuidType().equals(primitive.getLogicalTypeAnnotation())) {
-            return uuids(desc);
-          }
           return byteArrays(desc);
         case BOOLEAN:
           return ParquetValueWriters.booleans(desc);
@@ -555,17 +578,73 @@ public class SparkParquetWriters {
     }
   }
 
+  /** Variant writer converts from VariantVal to Variant */
+  public static class VariantWriter implements ParquetValueWriter<VariantVal> {
+    private final ParquetValueWriter<Variant> writer;
+
+    @SuppressWarnings("unchecked")
+    private VariantWriter(ParquetValueWriter<?> writer) {
+      this.writer = (ParquetValueWriter<Variant>) writer;
+    }
+
+    @Override
+    public void write(int repetitionLevel, VariantVal variantVal) {
+      VariantMetadata metadata =
+          VariantMetadata.from(
+              ByteBuffer.wrap(variantVal.getMetadata()).order(ByteOrder.LITTLE_ENDIAN));
+      VariantValue value =
+          VariantValue.from(
+              metadata, ByteBuffer.wrap(variantVal.getValue()).order(ByteOrder.LITTLE_ENDIAN));
+
+      writer.write(repetitionLevel, Variant.of(metadata, value));
+    }
+
+    @Override
+    public List<TripleWriter<?>> columns() {
+      return writer.columns();
+    }
+
+    @Override
+    public void setColumnStore(ColumnWriteStore columnStore) {
+      writer.setColumnStore(columnStore);
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return writer.metrics();
+    }
+  }
+
   private static class InternalRowWriter extends ParquetValueWriters.StructWriter<InternalRow> {
     private final DataType[] types;
 
-    private InternalRowWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
-      super(writers);
-      this.types = types.toArray(new DataType[0]);
+    private InternalRowWriter(List<ParquetValueWriter<?>> writers, DataType[] types) {
+      super(writerToFieldIndex(types, writers.size()), writers);
+      this.types = types;
     }
 
     @Override
     protected Object get(InternalRow struct, int index) {
       return struct.get(index, types[index]);
+    }
+
+    /** Returns a mapping from writer index to field index, skipping Unknown columns. */
+    private static int[] writerToFieldIndex(DataType[] types, int numWriters) {
+      if (null == types) {
+        return IntStream.rangeClosed(0, numWriters).toArray();
+      }
+
+      // value writer index to record field index
+      int[] indexes = new int[numWriters];
+      int writerIndex = 0;
+      for (int pos = 0; pos < types.length; pos += 1) {
+        if (!(types[pos] instanceof NullType)) {
+          indexes[writerIndex] = pos;
+          writerIndex += 1;
+        }
+      }
+
+      return indexes;
     }
   }
 }

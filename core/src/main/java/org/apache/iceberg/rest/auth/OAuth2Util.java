@@ -132,6 +132,11 @@ public class OAuth2Util {
   }
 
   public static Map<String, String> buildOptionalParam(Map<String, String> properties) {
+    return buildOptionalParam(properties, OAuth2Properties.CATALOG_SCOPE);
+  }
+
+  public static Map<String, String> buildOptionalParam(
+      Map<String, String> properties, String defaultScope) {
     // these are some options oauth params based on specification
     // for any new optional oauth param, define the constant and add the constant to this list
     Set<String> optionalParamKeys =
@@ -139,8 +144,7 @@ public class OAuth2Util {
     ImmutableMap.Builder<String, String> optionalParamBuilder = ImmutableMap.builder();
     // add scope too,
     optionalParamBuilder.put(
-        OAuth2Properties.SCOPE,
-        properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE));
+        OAuth2Properties.SCOPE, properties.getOrDefault(OAuth2Properties.SCOPE, defaultScope));
     // add all other parameters
     for (String key : optionalParamKeys) {
       String value = properties.get(key);
@@ -153,29 +157,37 @@ public class OAuth2Util {
 
   private static OAuthTokenResponse refreshToken(
       RESTClient client,
+      AuthConfig config,
       Map<String, String> headers,
       String subjectToken,
       String subjectTokenType,
-      String scope,
-      String oauth2ServerUri,
       Map<String, String> optionalOAuthParams) {
-    Map<String, String> request =
-        tokenExchangeRequest(
-            subjectToken,
-            subjectTokenType,
-            scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
-            optionalOAuthParams);
+    if (config.exchangeEnabled()) {
+      Map<String, String> request =
+          tokenExchangeRequest(
+              subjectToken,
+              subjectTokenType,
+              config.scope() != null ? ImmutableList.of(config.scope()) : ImmutableList.of(),
+              optionalOAuthParams);
 
-    OAuthTokenResponse response =
-        client.postForm(
-            oauth2ServerUri,
-            request,
-            OAuthTokenResponse.class,
-            headers,
-            ErrorHandlers.oauthErrorHandler());
-    response.validate();
+      OAuthTokenResponse response =
+          client.postForm(
+              config.oauth2ServerUri(),
+              request,
+              OAuthTokenResponse.class,
+              headers,
+              ErrorHandlers.oauthErrorHandler());
+      response.validate();
 
-    return response;
+      return response;
+    } else {
+      if (null == config.credential()) {
+        return null;
+      }
+
+      return fetchToken(
+          client, Map.of(), config.credential(), config.scope(), config.oauth2ServerUri());
+    }
   }
 
   public static OAuthTokenResponse exchangeToken(
@@ -209,6 +221,12 @@ public class OAuth2Util {
     return response;
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#exchangeToken(RESTClient, Map, String, String, String, String, String, String,
+   *     Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse exchangeToken(
       RESTClient client,
       Map<String, String> headers,
@@ -229,6 +247,12 @@ public class OAuth2Util {
         ImmutableMap.of());
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#exchangeToken(RESTClient, Map, String, String, String, String, String, String,
+   *     Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse exchangeToken(
       RESTClient client,
       Map<String, String> headers,
@@ -275,6 +299,11 @@ public class OAuth2Util {
     return response;
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#fetchToken(RESTClient, Map, String, String, String, Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse fetchToken(
       RESTClient client, Map<String, String> headers, String credential, String scope) {
 
@@ -282,6 +311,11 @@ public class OAuth2Util {
         client, headers, credential, scope, ResourcePaths.tokens(), ImmutableMap.of());
   }
 
+  /**
+   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+   *     OAuth2Util#fetchToken(RESTClient, Map, String, String, String, Map)} instead.
+   */
+  @Deprecated
   public static OAuthTokenResponse fetchToken(
       RESTClient client,
       Map<String, String> headers,
@@ -589,32 +623,23 @@ public class OAuth2Util {
         return refreshExpiredToken(client);
       } else {
         // attempt a normal refresh
-        return refreshToken(
-            client,
-            headers(),
-            token(),
-            tokenType(),
-            scope(),
-            oauth2ServerUri(),
-            optionalOAuthParams());
+        return refreshToken(client, config, headers(), token(), tokenType(), optionalOAuthParams());
       }
     }
 
     private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
-      if (credential() != null) {
+      if (credential() == null) {
+        return null;
+      }
+
+      if (config.exchangeEnabled()) {
         Map<String, String> basicHeaders =
             RESTUtil.merge(headers(), basicAuthHeaders(credential()));
         return refreshToken(
-            client,
-            basicHeaders,
-            token(),
-            tokenType(),
-            scope(),
-            oauth2ServerUri(),
-            optionalOAuthParams());
+            client, config, basicHeaders, token(), tokenType(), optionalOAuthParams());
+      } else {
+        return fetchToken(client, Map.of(), credential(), scope(), oauth2ServerUri());
       }
-
-      return null;
     }
 
     /**

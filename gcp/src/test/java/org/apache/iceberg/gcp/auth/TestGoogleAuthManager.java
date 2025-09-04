@@ -40,6 +40,9 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -189,5 +192,13 @@ public class TestGoogleAuthManager {
     AuthSession resultSession = spyManager.initSession(restClient, props);
     assertThat(resultSession).isSameAs(mockSession);
     verify(spyManager).catalogSession(restClient, props);
+  }
+
+  @Test
+  public void testLoadAuthManager() {
+    AuthManager manager =
+        AuthManagers.loadAuthManager(
+            "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_GOOGLE));
+    assertThat(manager).isInstanceOf(GoogleAuthManager.class);
   }
 }

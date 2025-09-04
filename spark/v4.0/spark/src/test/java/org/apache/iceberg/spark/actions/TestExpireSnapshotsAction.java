@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -130,8 +129,8 @@ public class TestExpireSnapshotsAction extends TestBase {
   @Parameter private int formatVersion;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> parameters() {
+    return org.apache.iceberg.TestHelpers.V2_AND_ABOVE;
   }
 
   @TempDir private File tableDir;
@@ -1341,5 +1340,68 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(deletedFiles)
         .contains(FILE_A.location())
         .doesNotContain(FILE_B.location(), FILE_C.location(), FILE_D.location());
+  }
+
+  @TestTemplate
+  public void testNoExpiredMetadataCleanupByDefault() {
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+
+    long after = rightAfterSnapshot();
+
+    table.updateSchema().addColumn("extra_col", Types.IntegerType.get()).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+
+    Set<Integer> schemaIds = table.schemas().keySet();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    SparkActions.get()
+        .expireSnapshots(table)
+        .expireOlderThan(after)
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    assertThat(table.schemas().keySet()).containsExactlyInAnyOrderElementsOf(schemaIds);
+    assertThat(deletedFiles).contains(FILE_A.location()).doesNotContain(FILE_B.location());
+  }
+
+  @TestTemplate
+  public void testCleanExpiredMetadata() {
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+
+    long after = rightAfterSnapshot();
+
+    table.updateSchema().addColumn("extra_col", Types.IntegerType.get()).commit();
+    table.updateSpec().addField("extra_col").commit();
+
+    DataFile fileInNewSpec =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-in-new-spec.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("c1=1/extra_col=11")
+            .withRecordCount(1)
+            .build();
+
+    table.newAppend().appendFile(fileInNewSpec).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    SparkActions.get()
+        .expireSnapshots(table)
+        .expireOlderThan(after)
+        .deleteWith(deletedFiles::add)
+        .cleanExpiredMetadata(true)
+        .execute();
+
+    assertThat(table.specs().keySet())
+        .as("Should have only the latest spec")
+        .containsExactly(table.spec().specId());
+    assertThat(table.schemas().keySet())
+        .as("Should have only the latest schema")
+        .containsExactly(table.schema().schemaId());
+    assertThat(deletedFiles)
+        .as("Should remove the file from first snapshot")
+        .contains(FILE_A.location())
+        .doesNotContain(fileInNewSpec.location());
   }
 }

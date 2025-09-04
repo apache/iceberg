@@ -76,8 +76,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
   }
 
   private void openStream() {
-    DataLakeFileOpenInputStreamResult result =
-        fileClient.openInputStream(getInputOptions(new FileRange(pos)));
+    DataLakeFileOpenInputStreamResult result = openRange(new FileRange(pos));
     this.fileSize = result.getProperties().getFileSize();
     this.stream = result.getInputStream();
   }
@@ -162,7 +161,9 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
 
     FileRange range = new FileRange(position, position + length);
 
-    IOUtil.readFully(openRange(range), buffer, offset, length);
+    try (InputStream inputStream = openRange(range).getInputStream()) {
+      IOUtil.readFully(inputStream, buffer, offset, length);
+    }
   }
 
   @Override
@@ -174,11 +175,19 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     }
     long readStart = fileSize - length;
 
-    return IOUtil.readRemaining(openRange(new FileRange(readStart)), buffer, offset, length);
+    try (InputStream inputStream = openRange(new FileRange(readStart)).getInputStream()) {
+      return IOUtil.readRemaining(inputStream, buffer, offset, length);
+    }
   }
 
-  private InputStream openRange(FileRange range) {
-    return fileClient.openInputStream(getInputOptions(range)).getInputStream();
+  private DataLakeFileOpenInputStreamResult openRange(FileRange range) {
+    try {
+      return fileClient.openInputStream(getInputOptions(range));
+    } catch (RuntimeException e) {
+      LOG.error(
+          "Failed to open input stream for file {}, range {}", fileClient.getFilePath(), range, e);
+      throw e;
+    }
   }
 
   @Override

@@ -66,7 +66,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
   }
 
-  String credentialForAccount(String storageAccount) {
+  Mono<String> credentialForAccount(String storageAccount) {
     return sasCredentialByAccount()
         .computeIfAbsent(
             storageAccount,
@@ -74,8 +74,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
                 new SimpleTokenCache(
                     () -> Mono.fromSupplier(() -> sasTokenForAccount(storageAccount))))
         .getToken()
-        .map(AccessToken::getToken)
-        .block();
+        .map(AccessToken::getToken);
   }
 
   private AccessToken sasTokenForAccount(String storageAccount) {
@@ -112,7 +111,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     if (this.sasCredentialByAccount == null) {
       synchronized (this) {
         if (this.sasCredentialByAccount == null) {
-          this.sasCredentialByAccount = Maps.newHashMap();
+          this.sasCredentialByAccount = Maps.newConcurrentMap();
         }
       }
     }

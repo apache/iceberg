@@ -122,6 +122,7 @@ public class SparkTable
   private final Long snapshotId;
   private final boolean refreshEagerly;
   private final Set<TableCapability> capabilities;
+  private final boolean isTableRewrite;
   private String branch;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
@@ -142,6 +143,11 @@ public class SparkTable
   }
 
   public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
+    this(icebergTable, snapshotId, refreshEagerly, false);
+  }
+
+  public SparkTable(
+      Table icebergTable, Long snapshotId, boolean refreshEagerly, boolean isTableRewrite) {
     this.icebergTable = icebergTable;
     this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;
@@ -152,6 +158,7 @@ public class SparkTable
             TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA,
             TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
     this.capabilities = acceptAnySchema ? CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA : CAPABILITIES;
+    this.isTableRewrite = isTableRewrite;
   }
 
   private SparkSession sparkSession() {
@@ -191,10 +198,18 @@ public class SparkTable
     if (icebergTable instanceof BaseMetadataTable) {
       return icebergTable.schema();
     } else if (branch != null) {
-      return SnapshotUtil.schemaFor(icebergTable, branch);
+      return addLineageIfRequired(SnapshotUtil.schemaFor(icebergTable, branch));
     } else {
-      return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
+      return addLineageIfRequired(SnapshotUtil.schemaFor(icebergTable, snapshotId, null));
     }
+  }
+
+  private Schema addLineageIfRequired(Schema schema) {
+    if (TableUtil.supportsRowLineage(icebergTable) && isTableRewrite) {
+      return MetadataColumns.schemaWithRowLineage(schema);
+    }
+
+    return schema;
   }
 
   @Override
@@ -260,18 +275,52 @@ public class SparkTable
     DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
     ImmutableList.Builder<SparkMetadataColumn> metadataColumns = ImmutableList.builder();
     metadataColumns.add(
-        new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, true),
-        new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
-        new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
-        new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),
-        new SparkMetadataColumn(MetadataColumns.IS_DELETED.name(), DataTypes.BooleanType, false));
+        SparkMetadataColumn.builder()
+            .name(MetadataColumns.SPEC_ID.name())
+            .dataType(DataTypes.IntegerType)
+            .withNullability(true)
+            .build(),
+        SparkMetadataColumn.builder()
+            .name(MetadataColumns.PARTITION_COLUMN_NAME)
+            .dataType(sparkPartitionType)
+            .withNullability(true)
+            .build(),
+        SparkMetadataColumn.builder()
+            .name(MetadataColumns.FILE_PATH.name())
+            .dataType(DataTypes.StringType)
+            .withNullability(false)
+            .build(),
+        SparkMetadataColumn.builder()
+            .name(MetadataColumns.ROW_POSITION.name())
+            .dataType(DataTypes.LongType)
+            .withNullability(false)
+            .build(),
+        SparkMetadataColumn.builder()
+            .name(MetadataColumns.IS_DELETED.name())
+            .dataType(DataTypes.BooleanType)
+            .withNullability(false)
+            .build());
 
-    if (TableUtil.formatVersion(table()) >= 3) {
+    if (TableUtil.supportsRowLineage(icebergTable)) {
       metadataColumns.add(
-          new SparkMetadataColumn(MetadataColumns.ROW_ID.name(), DataTypes.LongType, true));
+          SparkMetadataColumn.builder()
+              .name(MetadataColumns.ROW_ID.name())
+              .dataType(DataTypes.LongType)
+              .withNullability(true)
+              .preserveOnReinsert(true)
+              .preserveOnUpdate(true)
+              .preserveOnDelete(false)
+              .build());
+
       metadataColumns.add(
-          new SparkMetadataColumn(
-              MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), DataTypes.LongType, true));
+          SparkMetadataColumn.builder()
+              .name(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+              .dataType(DataTypes.LongType)
+              .withNullability(true)
+              .preserveOnReinsert(false)
+              .preserveOnUpdate(false)
+              .preserveOnDelete(false)
+              .build());
     }
 
     return metadataColumns.build().toArray(SparkMetadataColumn[]::new);

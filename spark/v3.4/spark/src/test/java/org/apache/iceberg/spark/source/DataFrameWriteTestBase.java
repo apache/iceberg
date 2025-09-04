@@ -97,7 +97,7 @@ public abstract class DataFrameWriteTestBase extends ScanTestBase {
     }
 
     // verify that the dataframe matches
-    assertThat(rows.size()).isEqualTo(records.size());
+    assertThat(rows).hasSameSizeAs(records);
     Iterator<GenericData.Record> recordIter = records.iterator();
     for (InternalRow row : rows) {
       assertEqualsUnsafe(schema.asStruct(), recordIter.next(), row);

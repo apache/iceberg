@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,7 +42,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.jupiter.api.Test;
 
-public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
+public class TestSparkRecordOrcReaderWriter extends AvroDataTestBase {
   private static final int NUM_RECORDS = 200;
 
   private void writeAndValidate(Schema schema, List<Record> expectedRecords) throws IOException {
@@ -149,5 +150,21 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
     }
     assertThat(expectedIter).as("Expected iterator should not have any extra rows.").isExhausted();
     assertThat(actualIter).as("Actual iterator should not have any extra rows.").isExhausted();
+  }
+
+  @Test
+  @Override
+  public void testUnknownListType() {
+    assertThatThrownBy(super::testUnknownListType)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot create ListType with unknown element type");
+  }
+
+  @Test
+  @Override
+  public void testUnknownMapType() {
+    assertThatThrownBy(super::testUnknownMapType)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot create MapType with unknown value type");
   }
 }

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.functions;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.BinaryUtil;
@@ -339,7 +340,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return String.format("iceberg.truncate(decimal(%d,%d))", precision, scale);
+      return String.format(Locale.ROOT, "iceberg.truncate(decimal(%d,%d))", precision, scale);
     }
 
     @Override

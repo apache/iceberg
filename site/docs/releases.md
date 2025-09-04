@@ -67,6 +67,17 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 </dependencies>
 ```
 
+### 1.9.2 release
+
+Apache Iceberg 1.9.2 was released on Jul 16, 2025.
+
+The 1.9.2 release contains bug fixes. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.9.2)
+
+* Core
+    - Stop retrying on 502 / 504 to avoid table corruption due to self conflicts [\#12818](https://github.com/apache/iceberg/pull/12818), [\#13352](https://github.com/apache/iceberg/pull/13352)
+
+## Past releases
+
 ### 1.9.1 release
 
 Apache Iceberg 1.9.1 was released on May 27, 2025.
@@ -80,9 +91,6 @@ The 1.9.1 release contains bug fixes. For full release notes visit [Github](http
     - Core: Ensure reactivated view version uses correct timestamp [\#12821](https://github.com/apache/iceberg/pull/12821)
 * Dependencies
     - Parquet to 1.15.2 [CVE-2025-46762](https://github.com/advisories/GHSA-53wx-pr6q-m3j5)
-
-
-## Past releases
 
 ### 1.9.0 release
 

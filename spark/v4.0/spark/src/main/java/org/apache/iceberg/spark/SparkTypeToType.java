@@ -35,6 +35,7 @@ import org.apache.spark.sql.types.FloatType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.NullType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
@@ -42,6 +43,7 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VarcharType;
+import org.apache.spark.sql.types.VariantType;
 
 class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
@@ -116,6 +118,11 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     }
   }
 
+  @Override
+  public Type variant(VariantType variant) {
+    return Types.VariantType.get();
+  }
+
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public Type atomic(DataType atomic) {
@@ -155,6 +162,8 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
           ((DecimalType) atomic).precision(), ((DecimalType) atomic).scale());
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
+    } else if (atomic instanceof NullType) {
+      return Types.UnknownType.get();
     }
 
     throw new UnsupportedOperationException("Not a supported type: " + atomic.catalogString());

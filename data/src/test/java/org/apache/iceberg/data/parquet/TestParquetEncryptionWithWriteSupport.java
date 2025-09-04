@@ -35,7 +35,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.DataTestHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
@@ -52,7 +52,7 @@ import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.Test;
 
-public class TestParquetEncryptionWithWriteSupport extends DataTest {
+public class TestParquetEncryptionWithWriteSupport extends DataTestBase {
   private static final ByteBuffer FILE_DEK = ByteBuffer.allocate(16);
   private static final ByteBuffer AAD_PREFIX = ByteBuffer.allocate(16);
 
@@ -80,8 +80,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
   @Override
   protected void writeAndValidate(Schema schema, List<Record> expected) throws IOException {
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     SecureRandom rand = new SecureRandom();
     rand.nextBytes(FILE_DEK.array());
@@ -150,8 +149,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     SecureRandom rand = new SecureRandom();
     rand.nextBytes(FILE_DEK.array());

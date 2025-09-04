@@ -53,9 +53,9 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
         1
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         2
       }
     };

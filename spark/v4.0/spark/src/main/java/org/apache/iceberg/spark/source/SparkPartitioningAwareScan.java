@@ -177,7 +177,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         for (ScanTask task : taskIterable) {
           ValidationException.check(
               taskJavaClass().isInstance(task),
-              "Unsupported task type, expected a subtype of %s: %",
+              "Unsupported task type, expected a subtype of %s: %s",
               taskJavaClass().getName(),
               task.getClass().getName());
 

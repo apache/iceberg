@@ -26,8 +26,11 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.function.Consumer;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -39,7 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
@@ -52,7 +55,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 
-public class TestParquetVectorizedReads extends AvroDataTest {
+public class TestParquetVectorizedReads extends AvroDataTestBase {
   private static final int NUM_ROWS = 200_000;
   static final int BATCH_SIZE = 10_000;
 
@@ -161,28 +164,34 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       boolean reuseContainers,
       int batchSize)
       throws IOException {
-    Parquet.ReadBuilder readBuilder =
-        Parquet.read(inputFile)
-            .project(schema)
-            .recordsPerBatch(batchSize)
-            .createBatchedReaderFunc(
-                type ->
-                    VectorizedSparkParquetReaders.buildReader(
-                        schema, type, Maps.newHashMap(), null));
-    if (reuseContainers) {
-      readBuilder.reuseContainers();
-    }
-    try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
-      Iterator<GenericData.Record> expectedIter = expected.iterator();
-      Iterator<ColumnarBatch> batches = batchReader.iterator();
-      int numRowsRead = 0;
-      while (batches.hasNext()) {
-        ColumnarBatch batch = batches.next();
-        numRowsRead += batch.numRows();
-        TestHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
-      }
-      assertThat(numRowsRead).isEqualTo(expectedSize);
-    }
+    assertNoLeak(
+        inputFile.location(),
+        allocator -> {
+          Parquet.ReadBuilder readBuilder =
+              Parquet.read(inputFile)
+                  .project(schema)
+                  .recordsPerBatch(batchSize)
+                  .createBatchedReaderFunc(
+                      type ->
+                          VectorizedSparkParquetReaders.buildReader(
+                              schema, type, Maps.newHashMap(), null, allocator));
+          if (reuseContainers) {
+            readBuilder.reuseContainers();
+          }
+          try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
+            Iterator<GenericData.Record> expectedIter = expected.iterator();
+            Iterator<ColumnarBatch> batches = batchReader.iterator();
+            int numRowsRead = 0;
+            while (batches.hasNext()) {
+              ColumnarBatch batch = batches.next();
+              numRowsRead += batch.numRows();
+              TestHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
+            }
+            assertThat(numRowsRead).isEqualTo(expectedSize);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
   }
 
   @Test
@@ -321,5 +330,33 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageStartingWith("Cannot support vectorized reads for column")
         .hasMessageEndingWith("Disable vectorized reads to read this table/file");
+  }
+
+  @Test
+  public void testUuidReads() throws Exception {
+    // Just one row to maintain dictionary encoding
+    int numRows = 1;
+    Schema schema = new Schema(optional(100, "uuid", Types.UUIDType.get()));
+
+    InMemoryOutputFile dataFile = new InMemoryOutputFile();
+    Iterable<GenericData.Record> data = generateData(schema, numRows, 0L, 0, IDENTITY);
+    try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
+      writer.addAll(data);
+    }
+    assertRecordsMatch(schema, numRows, data, dataFile.toInputFile(), false, BATCH_SIZE);
+  }
+
+  protected void assertNoLeak(String testName, Consumer<BufferAllocator> testFunction) {
+    BufferAllocator allocator =
+        ArrowAllocation.rootAllocator().newChildAllocator(testName, 0, Long.MAX_VALUE);
+    try {
+      testFunction.accept(allocator);
+      assertThat(allocator.getAllocatedMemory())
+          .as(
+              "Should have released all memory prior to closing. Expected to find 0 bytes of memory in use.")
+          .isEqualTo(0L);
+    } finally {
+      allocator.close();
+    }
   }
 }

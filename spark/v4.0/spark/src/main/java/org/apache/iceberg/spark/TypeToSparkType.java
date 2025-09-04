@@ -38,11 +38,13 @@ import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.MapType$;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.MetadataBuilder;
+import org.apache.spark.sql.types.NullType$;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType$;
 import org.apache.spark.sql.types.TimestampNTZType$;
 import org.apache.spark.sql.types.TimestampType$;
+import org.apache.spark.sql.types.VariantType$;
 
 class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   TypeToSparkType() {}
@@ -89,6 +91,11 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   }
 
   @Override
+  public DataType variant(Types.VariantType variant) {
+    return VariantType$.MODULE$;
+  }
+
+  @Override
   public DataType primitive(Type.PrimitiveType primitive) {
     switch (primitive.typeId()) {
       case BOOLEAN:
@@ -124,9 +131,11 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return DecimalType$.MODULE$.apply(decimal.precision(), decimal.scale());
+      case UNKNOWN:
+        return NullType$.MODULE$;
       default:
         throw new UnsupportedOperationException(
-            "Cannot convert unknown type to Spark: " + primitive);
+            "Cannot convert unsupported type to Spark: " + primitive);
     }
   }
 
