@@ -65,7 +65,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
@@ -135,8 +134,7 @@ public class TestArrowReader {
           "timestamp_nano",
           "timestamp_nano_nullable",
           "timestamp_nano_tz",
-          "timestamp_nano_tz_nullable",
-          MetadataColumns.ROW_ID.name());
+          "timestamp_nano_tz_nullable");
   @TempDir private File tempDir;
 
   private HadoopTables tables;
@@ -782,8 +780,7 @@ public class TestArrowReader {
                 31, "timestamp_nano_nullable", Types.TimestampNanoType.withoutZone()),
             Types.NestedField.required(32, "timestamp_nano_tz", Types.TimestampNanoType.withZone()),
             Types.NestedField.optional(
-                33, "timestamp_nano_tz_nullable", Types.TimestampNanoType.withZone()),
-            MetadataColumns.ROW_ID);
+                33, "timestamp_nano_tz_nullable", Types.TimestampNanoType.withZone()));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).month("timestamp").build();
 
@@ -901,10 +898,6 @@ public class TestArrowReader {
                     new ArrowType.Timestamp(
                         org.apache.arrow.vector.types.TimeUnit.NANOSECOND, "UTC"),
                     null),
-                null),
-            new Field(
-                MetadataColumns.ROW_ID.name(),
-                new FieldType(true, MinorType.BIGINT.getType(), null),
                 null));
     List<Field> filteredFields =
         allFields.stream()
@@ -958,7 +951,6 @@ public class TestArrowReader {
       rec.setField(
           "timestamp_nano_tz_nullable",
           datetime.plus(i, ChronoUnit.MINUTES).plusNanos(i).atOffset(ZoneOffset.UTC));
-      rec.setField(MetadataColumns.ROW_ID.name(), (long) i);
       records.add(rec);
     }
     return records;
@@ -1002,7 +994,6 @@ public class TestArrowReader {
       rec.setField("timestamp_nano_nullable", datetime);
       rec.setField("timestamp_nano_tz", datetime.atOffset(ZoneOffset.UTC));
       rec.setField("timestamp_nano_tz_nullable", datetime.atOffset(ZoneOffset.UTC));
-      rec.setField(MetadataColumns.ROW_ID.name(), (long) i);
       records.add(rec);
     }
     return records;
