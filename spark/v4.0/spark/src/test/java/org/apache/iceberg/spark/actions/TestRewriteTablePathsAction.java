@@ -927,32 +927,11 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(
         iterations * 2 + 1, iterations, iterations, 0, iterations, iterations * 6 + 1, result);
 
-    // Read the file list to verify statistics file paths
-    List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
-
-    // Find the partition statistics file entry in the file list using stream
-    Tuple2<String, String> statsFilePathPair =
-        filesToMove.stream()
-            .filter(pathPair -> pathPair._1().contains("partition-stats"))
-            .findFirst()
-            .orElse(null);
-
-    assertThat(statsFilePathPair)
-        .as("Should find Partition statistics file in file list")
-        .isNotNull();
-
-    // Verify the source path points to the actual source location, not staging
-    assertThat(statsFilePathPair._1())
-        .as(
-            "Partition Statistics file source should point to source table location and NOT staging")
-        .startsWith(sourceTableLocation)
-        .contains("/metadata/")
-        .doesNotContain("staging");
-
-    // Verify the target path is correctly rewritten
-    assertThat(statsFilePathPair._2())
-        .as("Partition Statistics file target should point to target table location")
-        .startsWith(targetTableLocation);
+    findAndAssertFileInFileList(
+        result,
+        "partition-stats",
+        sourceTableLocation,
+        targetTableLocation);
   }
 
   @Test
@@ -1009,29 +988,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     checkFileNum(3, 1, 1, 1, 7, result);
 
-    // Read the file list to verify statistics file paths
-    List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
-
-    // Find the statistics file entry in the file list using stream
-    Tuple2<String, String> statsFilePathPair =
-        filesToMove.stream()
-            .filter(pathPair -> pathPair._1().endsWith(".stats"))
-            .findFirst()
-            .orElse(null);
-
-    assertThat(statsFilePathPair).as("Should find statistics file in file list").isNotNull();
-
-    // Verify the source path points to the actual source location, not staging
-    assertThat(statsFilePathPair._1())
-        .as("Statistics file source should point to source table location and NOT staging")
-        .startsWith(sourceTableLocation)
-        .contains("/metadata/")
-        .doesNotContain("staging");
-
-    // Verify the target path is correctly rewritten
-    assertThat(statsFilePathPair._2())
-        .as("Statistics file target should point to target table location")
-        .startsWith(targetTableLocation);
+    findAndAssertFileInFileList(result, ".stats", sourceTableLocation, targetTableLocation);
   }
 
   @Test
@@ -1491,5 +1448,36 @@ public class TestRewriteTablePathsAction extends TestBase {
     blockInfoManager.lockForWriting(blockId, true);
     blockInfoManager.removeBlock(blockId);
     blockManager.memoryStore().remove(blockId);
+  }
+
+  private void findAndAssertFileInFileList(
+      RewriteTablePath.Result result,
+      String fileIdentifier,
+      String sourceTableLocation,
+      String targetTableLocation) {
+
+    List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
+
+    Tuple2<String, String> filePathPair =
+        filesToMove.stream()
+            .filter(
+                pair ->
+                    pair._1()
+                        .contains(
+                            fileIdentifier)) // Updated to check "contains" instead of "endsWith"
+            .findFirst()
+            .orElse(null);
+
+    assertThat(filePathPair).as("Should find " + fileIdentifier + " file in file list").isNotNull();
+
+    assertThat(filePathPair._1())
+        .as(fileIdentifier + " source should point to source table location and NOT staging")
+        .startsWith(sourceTableLocation)
+        .contains("/metadata/")
+        .doesNotContain("staging");
+
+    assertThat(filePathPair._2())
+        .as(fileIdentifier + " target should point to target table location")
+        .startsWith(targetTableLocation);
   }
 }
