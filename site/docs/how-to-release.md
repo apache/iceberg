@@ -410,14 +410,10 @@ shasum -a 512 --check apache-iceberg-*.tar.gz.sha512
 
 ### Verifying License Documentation
 
-Untar the archive.
+Untar the archive and change into the source directory.
 ```bash
 tar xzf apache-iceberg-*.tar.gz
-```
-
-Navigate into the source directory.
-```bash
-cd apache-iceberg-{{ icebergVersion }}
+cd apache-iceberg-*/
 ```
 
 Run RAT checks to validate license headers.
