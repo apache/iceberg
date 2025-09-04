@@ -52,6 +52,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
    * @deprecated use {@link VectorizedReaderBuilder#VectorizedReaderBuilder(Schema, MessageType,
    *     boolean, Map, Function, BiFunction, BufferAllocator)} instead; will be removed in 2.0.0
    */
+  @Deprecated
   public VectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,

@@ -68,7 +68,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private final ColumnDescriptor columnDescriptor;
   private final VectorizedColumnIterator vectorizedColumnIterator;
   private final Types.NestedField icebergField;
-  protected final BufferAllocator rootAlloc;
+  private final BufferAllocator rootAlloc;
 
   private int batchSize;
   private FieldVector vec;
@@ -127,6 +127,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   protected Types.NestedField icebergField() {
     return icebergField;
+  }
+
+  protected BufferAllocator getRootAlloc() {
+    return rootAlloc;
   }
 
   @Override
@@ -645,7 +649,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       if (reuse == null) {
         vec =
             VectorizedArrowReader.allocateBigIntVector(
-                ROW_POSITION_ARROW_FIELD, batchSize, rootAlloc);
+                ROW_POSITION_ARROW_FIELD, batchSize, getRootAlloc());
       } else {
         vec = reuse.vector();
         vec.setValueCount(0);
@@ -722,7 +726,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
               ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
 
-          BigIntVector rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead, rootAlloc);
+          BigIntVector rowIds =
+              allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead, getRootAlloc());
           ArrowBuf dataBuffer = rowIds.getDataBuffer();
           for (int i = 0; i < numValsToRead; i += 1) {
             long bufferOffset = (long) i * Long.BYTES;
@@ -787,7 +792,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             seqNumbers == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbersHolder);
 
         BigIntVector lastUpdatedSequenceNumbers =
-            allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead, rootAlloc);
+            allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead, getRootAlloc());
         ArrowBuf dataBuffer = lastUpdatedSequenceNumbers.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
