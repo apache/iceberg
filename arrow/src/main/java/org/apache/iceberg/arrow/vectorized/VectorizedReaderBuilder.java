@@ -48,20 +48,24 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
   private final BiFunction<org.apache.iceberg.types.Type, Object, Object> convert;
 
-  //  public VectorizedReaderBuilder(
-  //      Schema expectedSchema,
-  //      MessageType parquetSchema,
-  //      boolean setArrowValidityVector,
-  //      Map<Integer, ?> idToConstant,
-  //      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory) {
-  //    this(
-  //        expectedSchema,
-  //        parquetSchema,
-  //        setArrowValidityVector,
-  //        idToConstant,
-  //        readerFactory,
-  //        (type, value) -> value);
-  //  }
+  /**
+   * @deprecated use {@link VectorizedReaderBuilder#VectorizedReaderBuilder(Schema, MessageType,
+   *     boolean, Map, Function, BiFunction, BufferAllocator)} instead; will be removed in 2.0.0
+   */
+  public VectorizedReaderBuilder(
+      Schema expectedSchema,
+      MessageType parquetSchema,
+      boolean setArrowValidityVector,
+      Map<Integer, ?> idToConstant,
+      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory) {
+    this(
+        expectedSchema,
+        parquetSchema,
+        setArrowValidityVector,
+        idToConstant,
+        readerFactory,
+        (type, value) -> value);
+  }
 
   protected VectorizedReaderBuilder(
       Schema expectedSchema,
