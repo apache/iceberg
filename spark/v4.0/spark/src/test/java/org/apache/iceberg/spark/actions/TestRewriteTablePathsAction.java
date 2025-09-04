@@ -928,10 +928,7 @@ public class TestRewriteTablePathsAction extends TestBase {
         iterations * 2 + 1, iterations, iterations, 0, iterations, iterations * 6 + 1, result);
 
     findAndAssertFileInFileList(
-        result,
-        "partition-stats",
-        sourceTableLocation,
-        targetTableLocation);
+        result, "partition-stats", sourceTableLocation, targetTableLocation);
   }
 
   @Test
@@ -1460,11 +1457,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     Tuple2<String, String> filePathPair =
         filesToMove.stream()
-            .filter(
-                pair ->
-                    pair._1()
-                        .contains(
-                            fileIdentifier)) // Updated to check "contains" instead of "endsWith"
+            .filter(pair -> pair._1().contains(fileIdentifier))
             .findFirst()
             .orElse(null);
 
