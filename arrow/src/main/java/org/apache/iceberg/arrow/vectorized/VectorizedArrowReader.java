@@ -41,7 +41,6 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.ArrowSchemaUtil;
 import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
@@ -69,7 +68,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private final ColumnDescriptor columnDescriptor;
   private final VectorizedColumnIterator vectorizedColumnIterator;
   private final Types.NestedField icebergField;
-  private final BufferAllocator rootAlloc;
+  protected final BufferAllocator rootAlloc;
 
   private int batchSize;
   private FieldVector vec;
@@ -644,7 +643,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
       FieldVector vec;
       if (reuse == null) {
-        vec = VectorizedArrowReader.allocateBigIntVector(ROW_POSITION_ARROW_FIELD, batchSize);
+        vec =
+            VectorizedArrowReader.allocateBigIntVector(
+                ROW_POSITION_ARROW_FIELD, batchSize, rootAlloc);
       } else {
         vec = reuse.vector();
         vec.setValueCount(0);
@@ -725,7 +726,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
             ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
 
-        BigIntVector rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead);
+        BigIntVector rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead, rootAlloc);
         ArrowBuf dataBuffer = rowIds.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
@@ -798,7 +799,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             seqNumbers == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbersHolder);
 
         BigIntVector lastUpdatedSequenceNumbers =
-            allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead);
+            allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead, rootAlloc);
         ArrowBuf dataBuffer = lastUpdatedSequenceNumbers.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
@@ -845,8 +846,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return holder.nullabilityHolder().isNullAt(index) == 1;
   }
 
-  private static BigIntVector allocateBigIntVector(Field field, int valueCount) {
-    BigIntVector vector = (BigIntVector) field.createVector(ArrowAllocation.rootAllocator());
+  private static BigIntVector allocateBigIntVector(
+      Field field, int valueCount, BufferAllocator allocator) {
+    BigIntVector vector = (BigIntVector) field.createVector(allocator);
     vector.allocateNew(valueCount);
     return vector;
   }
