@@ -145,6 +145,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       // The vector may already exist but be of a different type, clear it
       if (vec != null) {
         vec.close();
+        vec = null;
       }
 
       allocateFieldVector(dictEncoded);
@@ -217,6 +218,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
+    // Allocate-only: caller must ensure there is no active vector in use.
+    Preconditions.checkState(
+        vec == null,
+        "Allocation must be called only when the previous vector instance was released");
     if (dictionaryEncodedVector) {
       allocateDictEncodedVector();
     } else {
