@@ -36,7 +36,7 @@ import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
 
-class RestTableScan extends DataTableScan {
+class RESTTableScan extends DataTableScan {
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
@@ -48,7 +48,7 @@ class RestTableScan extends DataTableScan {
   // TODO revisit if this property should be configurable
   private static final int FETCH_PLANNING_SLEEP_DURATION_MS = 1000;
 
-  RestTableScan(
+  RESTTableScan(
       Table table,
       Schema schema,
       TableScanContext context,
@@ -71,7 +71,7 @@ class RestTableScan extends DataTableScan {
   @Override
   protected TableScan newRefinedScan(
       Table refinedTable, Schema refinedSchema, TableScanContext refinedContext) {
-    return new RestTableScan(
+    return new RESTTableScan(
         refinedTable,
         refinedSchema,
         refinedContext,
