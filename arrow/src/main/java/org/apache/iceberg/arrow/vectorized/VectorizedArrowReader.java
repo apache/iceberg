@@ -716,38 +716,26 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      FieldVector positions = null;
-      FieldVector ids = null;
-
-      try {
-        positions = posReader.read(null, numValsToRead).vector();
+      try (FieldVector positions = posReader.read(null, numValsToRead).vector()) {
         VectorHolder idsHolder = idReader.read(null, numValsToRead);
-        ids = idsHolder.vector();
-        ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
-            ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
+        try (FieldVector ids = idsHolder.vector()) {
+          ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
+              ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
 
-        BigIntVector rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead, rootAlloc);
-        ArrowBuf dataBuffer = rowIds.getDataBuffer();
-        for (int i = 0; i < numValsToRead; i += 1) {
-          long bufferOffset = (long) i * Long.BYTES;
-          if (idsAccessor == null || isNull(idsHolder, i)) {
-            long rowId = firstRowId + (Long) positions.getObject(i);
-            dataBuffer.setLong(bufferOffset, rowId);
-          } else {
-            long materializedRowId = idsAccessor.getLong(i);
-            dataBuffer.setLong(bufferOffset, materializedRowId);
+          BigIntVector rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead, rootAlloc);
+          ArrowBuf dataBuffer = rowIds.getDataBuffer();
+          for (int i = 0; i < numValsToRead; i += 1) {
+            long bufferOffset = (long) i * Long.BYTES;
+            if (idsAccessor == null || isNull(idsHolder, i)) {
+              long rowId = firstRowId + (Long) positions.getObject(i);
+              dataBuffer.setLong(bufferOffset, rowId);
+            } else {
+              long materializedRowId = idsAccessor.getLong(i);
+              dataBuffer.setLong(bufferOffset, materializedRowId);
+            }
           }
-        }
-
-        rowIds.setValueCount(numValsToRead);
-        return VectorHolder.vectorHolder(rowIds, MetadataColumns.ROW_ID, nulls);
-      } finally {
-        if (positions != null) {
-          positions.close();
-        }
-
-        if (ids != null) {
-          ids.close();
+          rowIds.setValueCount(numValsToRead);
+          return VectorHolder.vectorHolder(rowIds, MetadataColumns.ROW_ID, nulls);
         }
       }
     }
