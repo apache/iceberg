@@ -30,7 +30,11 @@ import org.junit.jupiter.api.Test;
 
 public class TestAggregateBinding {
   private static final List<UnboundAggregate<Integer>> LIST =
-      ImmutableList.of(Expressions.count("x"), Expressions.max("x"), Expressions.min("x"));
+      ImmutableList.of(
+          Expressions.count("x"),
+          Expressions.countNull("x"),
+          Expressions.max("x"),
+          Expressions.min("x"));
   private static final StructType STRUCT =
       StructType.of(Types.NestedField.required(10, "x", Types.IntegerType.get()));
 
@@ -55,17 +59,6 @@ public class TestAggregateBinding {
     assertThat(bound.op())
         .as("Should not change the comparison operation")
         .isEqualTo(Expression.Operation.COUNT_STAR);
-  }
-
-  @Test
-  public void testCountNullBinding() {
-    UnboundAggregate<?> unbound = Expressions.countNull("x");
-    Expression expr = unbound.bind(STRUCT, false);
-    BoundAggregate<?, Long> bound = assertAndUnwrapAggregate(expr);
-
-    assertThat(bound.op())
-        .as("Should not change the comparison operation")
-        .isEqualTo(Expression.Operation.COUNT_NULL);
   }
 
   @Test
