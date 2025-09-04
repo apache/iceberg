@@ -25,7 +25,7 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
 
-public class RestTable extends BaseTable {
+public class RESTTable extends BaseTable {
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
@@ -33,7 +33,7 @@ public class RestTable extends BaseTable {
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
 
-  public RestTable(
+  public RESTTable(
       TableOperations ops,
       String name,
       MetricsReporter reporter,
@@ -57,7 +57,7 @@ public class RestTable extends BaseTable {
     // correct snapshotId to use for point in time cases. When looking at spark
     // it seems it follows similar approach, see class SparkDistributedDataScan
 
-    return new RestTableScan(
+    return new RESTTableScan(
         this,
         schema(),
         ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
