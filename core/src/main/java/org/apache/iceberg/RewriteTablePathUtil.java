@@ -129,8 +129,8 @@ public class RewriteTablePathUtil {
         metadataLogEntries,
         metadata.refs(),
         updatePathInStatisticsFiles(metadata.statisticsFiles(), sourcePrefix, targetPrefix),
-        // TODO: update partition statistics file paths
-        metadata.partitionStatisticsFiles(),
+        updatePathInPartitionStatisticsFiles(
+            metadata.partitionStatisticsFiles(), sourcePrefix, targetPrefix),
         metadata.nextRowId(),
         metadata.encryptionKeys(),
         metadata.changes());
@@ -172,6 +172,31 @@ public class RewriteTablePathUtil {
                     existing.fileSizeInBytes(),
                     existing.fileFooterSizeInBytes(),
                     existing.blobMetadata()))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * This method updates the file paths in a list of PartitionStatisticsFile. It replaces the
+   * sourcePrefix in the file paths with the targetPrefix.
+   *
+   * @param partitionStatisticsFiles The list of PartitionStatisticsFile to update.
+   * @param sourcePrefix The prefix to be replaced in the file paths.
+   * @param targetPrefix The new prefix to replace the sourcePrefix in the file paths.
+   * @return A new list of PartitionStatisticsFile with updated file paths.
+   */
+  private static List<PartitionStatisticsFile> updatePathInPartitionStatisticsFiles(
+      List<PartitionStatisticsFile> partitionStatisticsFiles,
+      String sourcePrefix,
+      String targetPrefix) {
+
+    return partitionStatisticsFiles.stream()
+        .map(
+            existing ->
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(existing.snapshotId())
+                    .path(newPath(existing.path(), sourcePrefix, targetPrefix))
+                    .fileSizeInBytes(existing.fileSizeInBytes())
+                    .build())
         .collect(Collectors.toList());
   }
 
