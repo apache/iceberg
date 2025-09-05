@@ -1366,6 +1366,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     spark.conf().set("spark.sql.catalog.hive.default-namespace", "default");
     spark.conf().set("spark.sql.catalog.hive.cache-enabled", "false");
 
+    // Generate and execute CREATE TABLE SQL
     String createTableSQL =
         generateCreateTableSQL(location, properties, namespace, tableName, partitionColumn);
     sql(createTableSQL);
@@ -1376,6 +1377,17 @@ public class TestRewriteTablePathsAction extends TestBase {
     return catalog.loadTable(TableIdentifier.of(namespace, tableName));
   }
 
+  /**
+   * Generates SQL statement for creating an Iceberg table
+   *
+   * @param location location the storage location path for the table, can be empty
+   * @param properties key-value pairs of table properties for setting table metadata
+   * @param namespace the namespace (database name)
+   * @param tableName the name of the table to be created
+   * @param partitionColumn the partition column name, must be one of c1, c2, or c3; can be null or
+   *     empty string for non-partitioned table
+   * @return CREATE TABLE SQL statement string
+   */
   private String generateCreateTableSQL(
       String location,
       Map<String, String> properties,
@@ -1459,20 +1471,25 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
 
+    // Find the file path pair that contains the specified file identifier
     Tuple2<String, String> filePathPair =
         filesToMove.stream()
             .filter(pair -> pair._1().contains(fileIdentifier))
             .findFirst()
             .orElse(null);
 
+    // Assert that the file was found in the list
     assertThat(filePathPair).as("Should find " + fileIdentifier + " file in file list").isNotNull();
 
+    // Validate source path: should point to source table location, contain metadata, and not
+    // staging
     assertThat(filePathPair._1())
         .as(fileIdentifier + " source should point to source table location and NOT staging")
         .startsWith(sourceTableLocation)
         .contains("/metadata/")
         .doesNotContain("staging");
 
+    // Validate target path: should point to target table location
     assertThat(filePathPair._2())
         .as(fileIdentifier + " target should point to target table location")
         .startsWith(targetTableLocation);
