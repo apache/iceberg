@@ -240,6 +240,11 @@ public class TestPartitionSpecValidation {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot create identity partition sourced from different field in schema: another_ts");
+
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).alwaysNull("ts", "another_ts"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot create void partition sourced from different field in schema: another_ts");
   }
 
   @Test
