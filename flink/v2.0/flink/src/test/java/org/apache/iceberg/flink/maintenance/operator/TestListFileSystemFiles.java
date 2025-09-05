@@ -20,6 +20,8 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
+import java.util.List;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.Parameter;
@@ -36,9 +38,21 @@ class TestListFileSystemFiles extends OperatorTestBase {
   @Parameter(index = 0)
   private boolean usePrefixListing;
 
-  @Parameters(name = "usePrefixListing = {0}")
-  private static Object[][] parameters() {
-    return new Object[][] {{true}, {false}};
+  @Parameter(index = 1)
+  private int maxListingDepth;
+
+  @Parameter(index = 2)
+  private int maxListingDirectSubDirs;
+
+  @Parameters(name = "usePrefixListing={0},maxListingDepth={1},maxListingDirectSubDirs={2}")
+  public static List<Object[]> parameters() {
+    return Arrays.asList(
+        new Object[] {true, Integer.MAX_VALUE, Integer.MAX_VALUE},
+        new Object[] {false, Integer.MAX_VALUE, Integer.MAX_VALUE},
+        new Object[] {true, 1, 5},
+        new Object[] {false, 1, 5},
+        new Object[] {true, 2, 5},
+        new Object[] {false, 2, 5});
   }
 
   @TestTemplate
@@ -55,12 +69,27 @@ class TestListFileSystemFiles extends OperatorTestBase {
                 tableLoader(),
                 table.location(),
                 0,
-                usePrefixListing))) {
+                usePrefixListing,
+                maxListingDepth,
+                maxListingDirectSubDirs))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
 
-      assertThat(testHarness.extractOutputValues()).hasSize(11);
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      if (usePrefixListing) {
+        assertThat(testHarness.extractOutputValues()).hasSize(11);
+        assertThat(testHarness.getSideOutput(DeleteOrphanFiles.DIR_TASK_STREAM)).isNull();
+        assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      } else {
+        if (maxListingDepth > 1 && maxListingDirectSubDirs > 1) {
+          assertThat(testHarness.extractOutputValues()).hasSize(11);
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.DIR_TASK_STREAM)).isNull();
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+        } else {
+          assertThat(testHarness.extractOutputValues()).isEmpty();
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.DIR_TASK_STREAM)).hasSize(1);
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+        }
+      }
     }
   }
 
@@ -79,12 +108,27 @@ class TestListFileSystemFiles extends OperatorTestBase {
                 tableLoader(),
                 table.location(),
                 0,
-                usePrefixListing))) {
+                usePrefixListing,
+                maxListingDepth,
+                maxListingDirectSubDirs))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
 
-      assertThat(testHarness.extractOutputValues()).hasSize(14);
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      if (usePrefixListing) {
+        assertThat(testHarness.extractOutputValues()).hasSize(14);
+        assertThat(testHarness.getSideOutput(DeleteOrphanFiles.DIR_TASK_STREAM)).isNull();
+        assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      } else {
+        if (maxListingDepth > 1 && maxListingDirectSubDirs > 1) {
+          assertThat(testHarness.extractOutputValues()).hasSize(14);
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.DIR_TASK_STREAM)).isNull();
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+        } else {
+          assertThat(testHarness.extractOutputValues()).isEmpty();
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.DIR_TASK_STREAM)).hasSize(1);
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+        }
+      }
     }
   }
 
@@ -99,12 +143,27 @@ class TestListFileSystemFiles extends OperatorTestBase {
                 tableLoader(),
                 table.location(),
                 0,
-                usePrefixListing))) {
+                usePrefixListing,
+                maxListingDepth,
+                maxListingDirectSubDirs))) {
       testHarness.open();
       OperatorTestBase.trigger(testHarness);
 
-      assertThat(testHarness.extractOutputValues()).hasSize(2);
-      assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      if (usePrefixListing) {
+        assertThat(testHarness.extractOutputValues()).hasSize(2);
+        assertThat(testHarness.getSideOutput(DeleteOrphanFiles.DIR_TASK_STREAM)).isNull();
+        assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+      } else {
+        if (maxListingDepth > 1 && maxListingDirectSubDirs > 1) {
+          assertThat(testHarness.extractOutputValues()).hasSize(2);
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.DIR_TASK_STREAM)).isNull();
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+        } else {
+          assertThat(testHarness.extractOutputValues()).isEmpty();
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.DIR_TASK_STREAM)).hasSize(1);
+          assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
+        }
+      }
     }
   }
 }

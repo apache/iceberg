@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.DELETE_FILES_TASK_NAME;
+import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.DIR_FILESYSTEM_FILES_TASK_NAME;
 import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.FILESYSTEM_FILES_TASK_NAME;
 import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.METADATA_FILES_TASK_NAME;
 import static org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.PLANNER_TASK_NAME;
@@ -126,6 +127,14 @@ class TestDeleteOrphanFiles extends MaintenanceTaskTestBase {
                     "0",
                     DELETE_FILE_SUCCEEDED_COUNTER),
                 2L)
+            .put(
+                ImmutableList.of(
+                    DIR_FILESYSTEM_FILES_TASK_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    ERROR_COUNTER),
+                0L)
             .build());
   }
 
@@ -199,6 +208,14 @@ class TestDeleteOrphanFiles extends MaintenanceTaskTestBase {
                     "0",
                     DELETE_FILE_SUCCEEDED_COUNTER),
                 2L)
+            .put(
+                ImmutableList.of(
+                    DIR_FILESYSTEM_FILES_TASK_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    ERROR_COUNTER),
+                0L)
             .build());
   }
 
@@ -283,11 +300,109 @@ class TestDeleteOrphanFiles extends MaintenanceTaskTestBase {
                     "0",
                     DELETE_FILE_SUCCEEDED_COUNTER),
                 0L)
+            .put(
+                ImmutableList.of(
+                    DIR_FILESYSTEM_FILES_TASK_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    ERROR_COUNTER),
+                0L)
+            .build());
+  }
+
+  @Test
+  void testDeleteOrphanFilesListSystemFilesParallel() throws Exception {
+    Table table = createPartitionedTable();
+    insertPartitioned(table, 1, "p1");
+    insertPartitioned(table, 2, "p1");
+    insertPartitioned(table, 3, "p2");
+    insertPartitioned(table, 4, "p2");
+
+    assertFileNum(table, 4, 0);
+
+    Path inMetadata = relative(table, "metadata/in_metadata");
+    Path inData = relative(table, "metadata/in_data");
+
+    createFiles(inMetadata);
+    createFiles(inData);
+    assertThat(inMetadata).exists();
+    assertThat(inData).exists();
+
+    appendDeleteOrphanFilesListSystemFilesParallel();
+
+    runAndWaitForSuccess(
+        infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(table.name(), 2L));
+    assertThat(inMetadata).doesNotExist();
+    assertThat(inData).doesNotExist();
+
+    assertFileNum(table, 4, 0);
+
+    // Check the metrics
+    MetricsReporterFactoryForTests.assertCounters(
+        new ImmutableMap.Builder<List<String>, Long>()
+            .put(
+                ImmutableList.of(
+                    PLANNER_TASK_NAME + "[0]", table.name(), DUMMY_TASK_NAME, "0", ERROR_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
+                    READER_TASK_NAME + "[0]", table.name(), DUMMY_TASK_NAME, "0", ERROR_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
+                    FILESYSTEM_FILES_TASK_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    ERROR_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
+                    METADATA_FILES_TASK_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    ERROR_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
+                    DELETE_FILES_TASK_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    DELETE_FILE_FAILED_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
+                    DELETE_FILES_TASK_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    DELETE_FILE_SUCCEEDED_COUNTER),
+                2L)
+            .put(
+                ImmutableList.of(
+                    DIR_FILESYSTEM_FILES_TASK_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    ERROR_COUNTER),
+                0L)
             .build());
   }
 
   private void appendDeleteOrphanFiles() {
     appendDeleteOrphanFiles(DeleteOrphanFiles.builder().minAge(Duration.ZERO));
+  }
+
+  private void appendDeleteOrphanFilesListSystemFilesParallel() {
+    appendDeleteOrphanFiles(
+        DeleteOrphanFiles.builder()
+            .usePrefixListing(false)
+            .maxListingDepth(0)
+            .maxListingDirectSubDirs(5)
+            .minAge(Duration.ZERO));
   }
 
   private void appendDeleteOrphanFiles(DeleteOrphanFiles.Builder builder) {
