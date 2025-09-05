@@ -1366,42 +1366,46 @@ public class TestRewriteTablePathsAction extends TestBase {
     spark.conf().set("spark.sql.catalog.hive.default-namespace", "default");
     spark.conf().set("spark.sql.catalog.hive.cache-enabled", "false");
 
+    String createTableSQL =
+        generateCreateTableSQL(location, properties, namespace, tableName, partitionColumn);
+    sql(createTableSQL);
+
+    for (int i = 0; i < snapshotNumber; i++) {
+      sql("insert into hive.%s.%s values (%s, 'AAAAAAAAAA', 'AAAA')", namespace, tableName, i);
+    }
+    return catalog.loadTable(TableIdentifier.of(namespace, tableName));
+  }
+
+  private String generateCreateTableSQL(
+      String location,
+      Map<String, String> properties,
+      String namespace,
+      String tableName,
+      String partitionColumn) {
     StringBuilder propertiesStr = new StringBuilder();
     properties.forEach((k, v) -> propertiesStr.append("'" + k + "'='" + v + "',"));
     String tblProperties =
         propertiesStr.substring(0, propertiesStr.length() > 0 ? propertiesStr.length() - 1 : 0);
 
     sql("DROP TABLE IF EXISTS hive.%s.%s", namespace, tableName);
-    if (tblProperties.isEmpty()) {
-      String sqlStr =
-          String.format(
-              "CREATE TABLE hive.%s.%s (c1 bigint, c2 string, c3 string)", namespace, tableName);
-      if (partitionColumn != null && !partitionColumn.isEmpty()) {
-        sqlStr = String.format("%s USING iceberg PARTITIONED BY (%s)", sqlStr, partitionColumn);
-      }
-      if (!location.isEmpty()) {
-        sqlStr = String.format("%s LOCATION '%s'", sqlStr, location);
-      }
-      sql(sqlStr);
-    } else {
-      String sqlStr =
-          String.format(
-              "CREATE TABLE hive.%s.%s (c1 bigint, c2 string, c3 string)", namespace, tableName);
-      if (partitionColumn != null && !partitionColumn.isEmpty()) {
-        sqlStr = String.format("%s USING iceberg PARTITIONED BY (%s)", sqlStr, partitionColumn);
-      }
-      if (!location.isEmpty()) {
-        sqlStr = String.format("%s LOCATION '%s'", sqlStr, location);
-      }
 
+    String sqlStr =
+        String.format(
+            "CREATE TABLE hive.%s.%s (c1 bigint, c2 string, c3 string)", namespace, tableName);
+
+    if (partitionColumn != null && !partitionColumn.isEmpty()) {
+      sqlStr = String.format("%s USING iceberg PARTITIONED BY (%s)", sqlStr, partitionColumn);
+    }
+
+    if (!location.isEmpty()) {
+      sqlStr = String.format("%s LOCATION '%s'", sqlStr, location);
+    }
+
+    if (!tblProperties.isEmpty()) {
       sqlStr = String.format("%s TBLPROPERTIES (%s)", sqlStr, tblProperties);
-      sql(sqlStr);
     }
 
-    for (int i = 0; i < snapshotNumber; i++) {
-      sql("insert into hive.%s.%s values (%s, 'AAAAAAAAAA', 'AAAA')", namespace, tableName, i);
-    }
-    return catalog.loadTable(TableIdentifier.of(namespace, tableName));
+    return sqlStr;
   }
 
   private static String fileName(String path) {
