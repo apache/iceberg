@@ -86,7 +86,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
   }
 
   @Override
-  public void commit() {
+  public Void commit() {
     Tasks.foreach(ops)
         .retry(
             PropertyUtil.propertyAsInt(
@@ -101,6 +101,7 @@ class ViewVersionReplace implements ReplaceViewVersion {
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
         .run(taskOps -> taskOps.commit(base, internalApply()));
+    return null;
   }
 
   @Override
