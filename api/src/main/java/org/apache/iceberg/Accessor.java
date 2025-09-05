@@ -25,4 +25,9 @@ public interface Accessor<T> extends Serializable {
   Object get(T container);
 
   Type type();
+
+  /** Returns true if the current field or any ancestor in the access path is optional. */
+  default boolean hasOptionalFieldInPath() {
+    return false;
+  }
 }
