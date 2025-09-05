@@ -1158,6 +1158,7 @@ public class Parquet {
     private boolean callInit = false;
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
+    private boolean isReadVectoredEnabled = false;
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
@@ -1274,6 +1275,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder useReadVectored(boolean readVectoredEnabled) {
+      this.isReadVectoredEnabled = readVectoredEnabled;
+      return this;
+    }
+
     public ReadBuilder withNameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
@@ -1340,6 +1346,7 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
+        optionsBuilder.withUseHadoopVectoredIo(this.isReadVectoredEnabled);
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;

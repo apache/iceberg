@@ -139,6 +139,7 @@ class SparkBatch implements Batch {
   private ParquetBatchReadConf parquetBatchReadConf(ParquetReaderType readerType) {
     return ImmutableParquetBatchReadConf.builder()
         .batchSize(readConf.parquetBatchSize())
+        .shouldUseHadoopReadVectored(readConf.parquetReadVectorEnabled())
         .readerType(readerType)
         .build();
   }

@@ -27,6 +27,8 @@ public class SparkSQLProperties {
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
+  public static final String READ_VECTOR_ENABLED = "spark.sql.iceberg.read.vector.enabled";
+
   // Controls which Parquet reader implementation to use
   public static final String PARQUET_READER_TYPE = "spark.sql.iceberg.parquet.reader-type";
   public static final ParquetReaderType PARQUET_READER_TYPE_DEFAULT = ParquetReaderType.ICEBERG;

@@ -16,16 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark;
+package org.apache.iceberg.io;
 
-import java.io.Serializable;
-import org.immutables.value.Value;
+import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 
-@Value.Immutable
-public interface ParquetBatchReadConf extends Serializable {
-  int batchSize();
+public class ParquetObjectRange {
+  private final CompletableFuture<ByteBuffer> byteBuffer;
+  private final long offset;
+  private final int length;
 
-  ParquetReaderType readerType();
+  public ParquetObjectRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length) {
+    this.byteBuffer = byteBuffer;
+    this.offset = offset;
+    this.length = length;
+  }
 
-  boolean shouldUseHadoopReadVectored();
+  public CompletableFuture<ByteBuffer> byteBuffer() {
+    return byteBuffer;
+  }
+
+  public long offset() {
+    return offset;
+  }
+
+  public int length() {
+    return length;
+  }
 }

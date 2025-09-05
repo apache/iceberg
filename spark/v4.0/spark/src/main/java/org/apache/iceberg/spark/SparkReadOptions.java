@@ -59,6 +59,12 @@ public class SparkReadOptions {
   // Overrides table's vectorization enabled properties
   public static final String VECTORIZATION_ENABLED = "vectorization-enabled";
 
+  // Use parquet's read vector property
+  public static final String READ_VECTOR_ENABLED = "read.vector.enabled";
+
+  // Default value for read.vector.enabled
+  public static final boolean READ_VECTOR_ENABLED_DEFAULT = false;
+
   // Overrides the table's read.parquet.vectorization.batch-size
   public static final String VECTORIZATION_BATCH_SIZE = "batch-size";
 

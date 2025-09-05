@@ -103,6 +103,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
                     requiredSchema, fileSchema, idToConstant, deleteFilter);
               }
             })
+        .useReadVectored(parquetConf.shouldUseHadoopReadVectored())
         .recordsPerBatch(parquetConf.batchSize())
         .filter(residual)
         .caseSensitive(caseSensitive())
