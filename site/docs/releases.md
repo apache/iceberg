@@ -88,7 +88,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
   - Table: Avoid struct field conflicts in default values ([\#12841](https://github.com/apache/iceberg/pull/12841))
   - REST: Add row lineage fields ([\#13010](https://github.com/apache/iceberg/pull/13010))
   - REST: Add encryption keys ([\#12987](https://github.com/apache/iceberg/pull/12987))
-  - REST: remove update to enable row lineage as it is always on for V3 table Support multiple storage credential prefixes ([\#12986](https://github.com/apache/iceberg/pull/12986))
+  - REST: remove update to enable row lineage as it is always on for V3 table ([\#12986](https://github.com/apache/iceberg/pull/12986))
   - REST: mark 503 as non retryable ([\#13619](https://github.com/apache/iceberg/pull/13619))
 * API
   - Add table metadata keys for encryption ([\#12927](https://github.com/apache/iceberg/pull/12927))
@@ -98,7 +98,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
   - Fix timestamp(9) with identity partitioning ([\#13746](https://github.com/apache/iceberg/pull/13746))
   - Add expression factory methods for timestamp literals ([\#13747](https://github.com/apache/iceberg/pull/13747))
 * Core
-  - Fix JDBC catalog race condition with creating table if not exist ([\#13345](https://github.com/apache/iceberg/pull/13345))
+  - Fix a race condition in the JDBC catalog initialization with creating system tables ([\#13345](https://github.com/apache/iceberg/pull/13345))
   - Properly close resources when catalog initialization fails ([\#13384](https://github.com/apache/iceberg/pull/13384))
   - Fix spec non-confirming field ids for partition stats files ([\#13329](https://github.com/apache/iceberg/pull/13329))
   - Partitions metadata returns incomplete list in case of partition evolution and null partition value ([\#12528](https://github.com/apache/iceberg/pull/12528))
@@ -113,10 +113,9 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
   - Use zero copy wrapper for equalityFieldIds in BaseFile ([\#13212](https://github.com/apache/iceberg/pull/13212))
   - Prevent empty Puffin file creation in DV writer ([\#13666](https://github.com/apache/iceberg/pull/13666))
   - Fix incorrect selection of incremental cleanup in ExpireSnapshots ([\#13614](https://github.com/apache/iceberg/pull/13614))
-  - Fix metrics column limit with nested column  ([\#13039](https://github.com/apache/iceberg/pull/13039))
-  - Support timestamp(9) in single value parser  ([\#13487](https://github.com/apache/iceberg/pull/13487))
-  - Refactor DeleteOrphanFiles to support code sharing between Flink and Spark  ([\#13429](https://github.com/apache/iceberg/pull/13429))
-  - Batch load new files when validating replaced partitions ([\#13556](https://github.com/apache/iceberg/pull/13556))
+  - Fix metrics column limit with nested column ([\#13039](https://github.com/apache/iceberg/pull/13039))
+  - Support timestamp(9) in single value parser ([\#13487](https://github.com/apache/iceberg/pull/13487))
+  - Batch load new files for validation of cherry-pick replace partition ([\#13556](https://github.com/apache/iceberg/pull/13556))
   - Add planWith to FindFiles to leverage ParallelIterable ([\#13836](https://github.com/apache/iceberg/pull/13836))
   - REST: Add context aware response parsing ([\#13191](https://github.com/apache/iceberg/pull/13191))
   - REST: Add property to configure user agent in http client ([\#13234](https://github.com/apache/iceberg/pull/13234))
@@ -126,8 +125,8 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
   - REST: make metrics reporting async ([\#13507](https://github.com/apache/iceberg/pull/13507))
   - REST: allow retries for idempotent requests with some status codes ([\#13449](https://github.com/apache/iceberg/pull/13449))
   - REST: introduce shared auth refresh executor ([\#12563](https://github.com/apache/iceberg/pull/12563))
-  - REST: allow disabling token exchange as refresh  ([\#13809](https://github.com/apache/iceberg/pull/13809))
-  - REST: request/response models and parsers for scan planning  ([\#13004](https://github.com/apache/iceberg/pull/13004))
+  - REST: allow disabling token exchange as refresh ([\#13809](https://github.com/apache/iceberg/pull/13809))
+  - REST: request/response models and parsers for scan planning ([\#13004](https://github.com/apache/iceberg/pull/13004))
 * Arrow
   - Refactor Parquet readers for v2 support ([\#13290](https://github.com/apache/iceberg/pull/13290))
   - Add support for DELTA_BINARY_PACKED Parquet encoding ([\#13391](https://github.com/apache/iceberg/pull/13391))
@@ -152,6 +151,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
   - 4.0: Add row lineage support using conditional nullification mechanism introduced in Spark 4.0 ([\#13310](https://github.com/apache/iceberg/pull/13310))
   - Use bulk deletion operation for deleting manifests when importing files from partitions ([\#13620](https://github.com/apache/iceberg/pull/13620))
   - Preserve row lineage on compaction ([\#13555](https://github.com/apache/iceberg/pull/13555))
+  - Refactor DeleteOrphanFilesSparkAction to to use common code from core ([\#13429](https://github.com/apache/iceberg/pull/13429))
   - Add variant read support ([\#13219](https://github.com/apache/iceberg/pull/13219))
   - Add config to disable executor cache for deleting files  ([\#12893](https://github.com/apache/iceberg/pull/12893))
   - Accept custom partition order in RewriteManifest  ([\#12840](https://github.com/apache/iceberg/pull/12840))
@@ -187,7 +187,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
   - GCP: Add BigQuery metastore catalog support ([\#12808](https://github.com/apache/iceberg/pull/12808))
   - GCP: Support multiple storage credential prefixes ([\#12881](https://github.com/apache/iceberg/pull/12881))
   - GCP: Add Google authentication support ([\#13212](https://github.com/apache/iceberg/pull/13212))
-  - GCP: KeyManagementClient implementation  ([\#13334](https://github.com/apache/iceberg/pull/13334))
+  - GCP: KeyManagementClient implementation ([\#13334](https://github.com/apache/iceberg/pull/13334))
 * Dependencies
   - Parquet: 1.15.1 -> 1.16.0
   - Jackson: 2.19.0 -> 2.19.1
