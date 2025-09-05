@@ -1861,16 +1861,6 @@ Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers t
 
 Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
 
-### Schema evolution and writing with old schemas
-
-Writers must write out all fields with the types specified from a schema present in table metadata. Writers should use the latest schema for writing. Not writing out all columns or not using the latest schema can change the semantics of the data written. The following are possible inconsistencies that can be introduced:
-
-* For all null columns, not writing out the column would cause `initial-default` value would be applied on reading instead of `null`.
-* If `write-default` has been changed then using an out-of-date schema would result in the incorrect value being populated.
-* If a `write` is the result of a partial row update (e.g. `update table set col_y = 'xyz'`) an out-of-date schema would silently drop values.
-
-Column projection rules are designed so that the table will remain readable even if writers use an outdated schema.
-
 ## Appendix G: Geospatial Notes
 
 The Geometry and Geography class hierarchy and its Well-known text (WKT) and Well-known binary (WKB) serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
