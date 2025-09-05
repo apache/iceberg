@@ -615,7 +615,6 @@ project(':iceberg-delta-lake') {
     integrationImplementation.extendsFrom testImplementation
     integrationRuntime.extendsFrom testRuntimeOnly
   }
-
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -659,6 +658,12 @@ project(':iceberg-delta-lake') {
         exclude group: 'org.roaringbitmap'
       }
     }
+
+    // Avoid duplicate annotation APIs
+    configurations.all {
+      exclude group: "javax.annotation", module: "javax.annotation-api"
+    }
+
   }
 
   // The newest version of delta-core uses Spark 3.5.*. The integration test should only be built
