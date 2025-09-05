@@ -22,8 +22,16 @@ public final class RESTCatalogProperties {
 
   private RESTCatalogProperties() {}
 
+  /** The name of the REST catalog startup parameter to configure default snapshot loading mode. */
   public static final String SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
+
   public static final String SNAPSHOT_LOADING_MODE_DEFAULT = SnapshotMode.ALL.name();
+
+  /**
+   * The name of the query parameter to be used in the load table endpoint of the REST catalog
+   * server to set the snapshot loading mode.
+   */
+  public static final String SNAPSHOT_MODE_PARAM_NAME = "snapshots";
 
   public static final String METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   public static final boolean METRICS_REPORTING_ENABLED_DEFAULT = true;

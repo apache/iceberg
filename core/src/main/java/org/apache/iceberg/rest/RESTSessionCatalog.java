@@ -370,7 +370,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private static Map<String, String> snapshotModeToParam(SnapshotMode mode) {
-    return ImmutableMap.of("snapshots", mode.name().toLowerCase(Locale.US));
+    return ImmutableMap.of(
+        RESTCatalogProperties.SNAPSHOT_MODE_PARAM_NAME, mode.name().toLowerCase(Locale.US));
   }
 
   private LoadTableResponse loadInternal(
