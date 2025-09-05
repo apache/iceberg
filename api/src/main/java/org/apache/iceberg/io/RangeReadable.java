@@ -20,6 +20,10 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.function.IntFunction;
+import org.apache.iceberg.util.VectoredReadUtils;
 
 /**
  * {@code RangeReadable} is an interface that allows for implementations of {@link InputFile}
@@ -76,5 +80,42 @@ public interface RangeReadable extends Closeable {
    */
   default int readTail(byte[] buffer) throws IOException {
     return readTail(buffer, 0, buffer.length);
+  }
+
+  /**
+   * Is the {@link #readVectored(List, IntFunction)} method available?
+   *
+   * @param allocate the allocator to use for allocating ByteBuffers
+   * @return True if the operation is considered available for this allocator.
+   */
+  default boolean readVectoredAvailable(IntFunction<ByteBuffer> allocate) {
+    return true;
+  }
+
+  /**
+   * Read fully a list of file ranges asynchronously from this file. As a result of the call, each
+   * range will have FileRange.setData(CompletableFuture) called with a future that when complete
+   * will have a ByteBuffer with the data from the file's range.
+   *
+   * <p>The position returned by getPos() after readVectored() is undefined.
+   *
+   * <p>If a file is changed while the readVectored() operation is in progress, the output is
+   * undefined. Some ranges may have old data, some may have new and some may have both.
+   *
+   * <p>While a readVectored() operation is in progress, normal read api calls may block.
+   *
+   * @param ranges the byte ranges to read
+   * @param allocate the function to allocate ByteBuffer
+   * @throws IOException any IOE.
+   * @throws IllegalArgumentException if the any of ranges are invalid, or they overlap.
+   */
+  default void readVectored(List<FileRange> ranges, IntFunction<ByteBuffer> allocate)
+      throws IOException {
+    List<FileRange> validatedRanges = VectoredReadUtils.validateAndSortRanges(ranges);
+    for (FileRange range : validatedRanges) {
+      ByteBuffer buffer = allocate.apply(range.length());
+      readFully(range.offset(), buffer.array());
+      range.byteBuffer().complete(buffer);
+    }
   }
 }

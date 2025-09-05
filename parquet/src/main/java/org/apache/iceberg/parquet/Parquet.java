@@ -1340,6 +1340,7 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
+        optionsBuilder.withUseHadoopVectoredIo(true);
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;
