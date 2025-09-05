@@ -1401,23 +1401,29 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     sql("DROP TABLE IF EXISTS hive.%s.%s", namespace, tableName);
 
-    String sqlStr =
-        String.format(
-            "CREATE TABLE hive.%s.%s (c1 bigint, c2 string, c3 string)", namespace, tableName);
+    StringBuilder createTableSql = new StringBuilder();
+    createTableSql
+        .append("CREATE TABLE hive.")
+        .append(namespace)
+        .append(".")
+        .append(tableName)
+        .append(" (c1 bigint, c2 string, c3 string)");
 
     if (partitionColumn != null && !partitionColumn.isEmpty()) {
-      sqlStr = String.format("%s USING iceberg PARTITIONED BY (%s)", sqlStr, partitionColumn);
+      createTableSql.append(" USING iceberg PARTITIONED BY (").append(partitionColumn).append(")");
+    } else {
+      createTableSql.append(" USING iceberg");
     }
 
     if (!location.isEmpty()) {
-      sqlStr = String.format("%s LOCATION '%s'", sqlStr, location);
+      createTableSql.append(" LOCATION '").append(location).append("'");
     }
 
     if (!tblProperties.isEmpty()) {
-      sqlStr = String.format("%s TBLPROPERTIES (%s)", sqlStr, tblProperties);
+      createTableSql.append(" TBLPROPERTIES (").append(tblProperties).append(")");
     }
 
-    return sqlStr;
+    return createTableSql.toString();
   }
 
   private static String fileName(String path) {
