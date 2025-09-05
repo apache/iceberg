@@ -1,0 +1,6 @@
+# Danger! Multiple jars contain identically named classes. This may cause different behaviour depending on classpath ordering.
+# Run ./gradlew checkClassUniqueness --fix to update this file
+
+## runtimeClasspath
+[jakarta.annotation:jakarta.annotation-api, javax.annotation:javax.annotation-api]
+  - javax.annotation.Resource$AuthenticationType

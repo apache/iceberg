@@ -714,6 +714,11 @@ project(':iceberg-bigquery') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
+
+    configurations.all {
+    exclude group: 'javax.annotation', module: 'javax.annotation-api'
+}
+
   }
 }
 
@@ -948,6 +953,11 @@ project(':iceberg-arrow') {
     testImplementation libs.arrow.memory.netty
     testImplementation libs.hadoop3.common
     testImplementation libs.hadoop3.mapreduce.client.core
+
+    configurations.all {
+     exclude group: 'javax.annotation', module: 'javax.annotation-api'
+    }
+
   }
 }
 
