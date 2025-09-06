@@ -609,7 +609,7 @@ A manifest stores files for a single partition spec. When a table’s partition 
 
 A manifest file must store the partition spec and other metadata as properties in the Avro file's key-value metadata:
 
-| v1         | v2         | Key                 | Value                                                                                                                                       |
+| v1         | v2+        | Key                 | Value                                                                                                                                       |
 |------------|------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
 | _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written                                                                |
 | _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
@@ -625,7 +625,7 @@ The schema of a manifest file is defined by the `manifest_entry` struct, describ
 
 The `manifest_entry` struct consists of the following fields:
 
-| v1         | v2         | Field id, name                | Type                                                      | Description |
+| v1         | v2+        | Field id, name                | Type                                                      | Description |
 | ---------- | ---------- |-------------------------------|-----------------------------------------------------------|-------------|
 | _required_ | _required_ | **`0  status`**               | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions. Deletes are informational only and not used in scans. |
 | _required_ | _optional_ | **`1  snapshot_id`**          | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2. Inherited when null. |
@@ -816,7 +816,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 
 `field_summary` is a struct with the following fields:
 
-| v1         | v2         | Field id, name          | Type          | Description |
+| v1         | v2+        | Field id, name          | Type          | Description |
 | ---------- | ---------- |-------------------------|---------------|-------------|
 | _required_ | _required_ | **`509 contains_null`** | `boolean`     | Whether the manifest contains at least one partition with a null value for the field |
 | _optional_ | _optional_ | **`518 contains_nan`**  | `boolean`     | Whether the manifest contains at least one partition with a NaN value for the field |
@@ -892,7 +892,7 @@ Tags are labels for individual snapshots. Branches are mutable named references 
 
 The snapshot reference object records all the information of a reference including snapshot ID, reference type and [Snapshot Retention Policy](#snapshot-retention-policy).
 
-| v1         | v2         | Field name                   | Type      | Description |
+| v1         | v2+        | Field name                   | Type      | Description |
 | ---------- | ---------- | ---------------------------- | --------- | ----------- |
 | _required_ | _required_ | **`snapshot-id`**            | `long`    | A reference's snapshot ID. The tagged snapshot or latest snapshot of a branch. |
 | _required_ | _required_ | **`type`**                   | `string`  | Type of the reference, `tag` or `branch` |
@@ -970,8 +970,8 @@ many statistics files associated with different table snapshots.
 
 Statistics files metadata within `statistics` table metadata field is a struct with the following fields:
 
-| v1 | v2 | Field name | Type | Description |
-|----|----|------------|------|-------------|
+| v1 | v2+ | Field name | Type | Description |
+|----|-----|------------|------|-------------|
 | _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the statistics file is associated with. |
 | _required_ | _required_ | **`statistics-path`** | `string` | Path of the statistics file. See [Puffin file format](puffin-spec.md). |
 | _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the statistics file. |
@@ -981,8 +981,8 @@ Statistics files metadata within `statistics` table metadata field is a struct w
 
 Blob metadata is a struct with the following fields:
 
-| v1 | v2 | Field name | Type | Description |
-|----|----|------------|------|-------------|
+| v1 | v2+ | Field name | Type | Description |
+|----|-----|------------|------|-------------|
 | _required_ | _required_ | **`type`** | `string` | Type of the blob. Matches Blob type in the Puffin file. |
 | _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the blob was computed from. |
 | _required_ | _required_ | **`sequence-number`** | `long` | Sequence number of the Iceberg table's snapshot the blob was computed from. |
@@ -1429,7 +1429,7 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 
 Schemas are serialized as a JSON object with the same fields as a struct in the table below, and the following additional fields:
 
-| v1         | v2         |Field|JSON representation|Example|
+| v1         | v2+        |Field|JSON representation|Example|
 | ---------- | ---------- |--- |--- |--- |
 | _optional_ | _required_ |**`schema-id`**|`JSON int`|`0`|
 | _optional_ | _optional_ |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
