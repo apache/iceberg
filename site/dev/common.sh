@@ -177,9 +177,9 @@ update_version () {
   # Update version information within the mkdocs.yml file using sed commands
   if [ "$(uname)" == "Darwin" ]
   then
-    /usr/bin/sed -i '' -E "s/(^site\_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
-    /usr/bin/sed -i '' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
-  elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]
+    /usr/bin/sed -i '' -E "s/(^site_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
+    /usr/bin/sed -i '' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
+  elif [ "$(expr substr "$(uname -s)" 1 5)" == "Linux" ] 
   then
     sed -i'' -E "s/(^site_name:[[:space:]]+docs\/)[^[:space:]]+/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
     sed -i'' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
@@ -231,6 +231,21 @@ pull_versioned_docs () {
 
   # Create the 'nightly' version of documentation
   create_nightly  
+}
+
+# Sets up local worktrees for the documentation and performs operations related to different versions.
+pull_local_docs () {
+  echo " --> pull local docs (fast local mode)"
+
+  mkdir -p docs/docs
+  mkdir -p docs/javadoc
+
+  # Retrieve the latest version of documentation for processing
+  local latest_version=$(get_latest_version)
+  echo "Latest version is: ${latest_version}"
+
+  # Only create the 'nightly' version in local mode, skip 'latest' for speed
+  create_nightly
 }
 
 # Cleans up artifacts and temporary files generated during documentation management.

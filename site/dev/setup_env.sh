@@ -24,6 +24,10 @@ clean
 
 install_deps
 
-pull_versioned_docs
+if [ "$1" == "--local" ]; then
+  pull_local_docs
+else
+  pull_versioned_docs
+fi
 
 git show "${REMOTE}/main:../.asf.yaml" > docs/.asf.yaml
