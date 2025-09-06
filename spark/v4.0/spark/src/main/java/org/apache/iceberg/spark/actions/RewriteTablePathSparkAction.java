@@ -90,12 +90,14 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteTablePathSparkAction.class);
   private static final String RESULT_LOCATION = "file-list";
+  static final String NOT_APPLICABLE = "N/A";
 
   private String sourcePrefix;
   private String targetPrefix;
   private String startVersionName;
   private String endVersionName;
   private String stagingDir;
+  private boolean createFileList = true;
 
   private final Table table;
   private Broadcast<Table> tableBroadcast = null;
@@ -150,6 +152,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   @Override
+  public RewriteTablePath createFileList(boolean createFileListFlag) {
+    this.createFileList = createFileListFlag;
+    return this;
+  }
+
+  @Override
   public Result execute() {
     validateInputs();
     JobGroupInfo info = newJobGroupInfo("REWRITE-TABLE-PATH", jobDesc());
@@ -157,12 +165,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private Result doExecute() {
-    String resultLocation = rebuildMetadata();
-    return ImmutableRewriteTablePath.Result.builder()
-        .stagingLocation(stagingDir)
-        .fileListLocation(resultLocation)
-        .latestVersion(RewriteTablePathUtil.fileName(endVersionName))
-        .build();
+    return rebuildMetadata();
   }
 
   private void validateInputs() {
@@ -263,7 +266,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    *   <li>Get all files needed to move
    * </ul>
    */
-  private String rebuildMetadata() {
+  private Result rebuildMetadata() {
     TableMetadata startMetadata =
         startVersionName != null
             ? ((HasTableOperations) newStaticTable(startVersionName, table.io()))
@@ -293,6 +296,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .reduce(new RewriteResult<>(), RewriteResult::append);
 
     // rebuild manifest files
+    Set<ManifestFile> metaFiles = rewriteManifestListResult.toRewrite();
     RewriteContentFileResult rewriteManifestResult =
         rewriteManifests(deltaSnapshots, endMetadata, rewriteManifestListResult.toRewrite());
 
@@ -304,12 +308,29 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .collect(Collectors.toSet());
     rewritePositionDeletes(deleteFiles);
 
+    ImmutableRewriteTablePath.Result.Builder builder =
+        ImmutableRewriteTablePath.Result.builder()
+            .stagingLocation(stagingDir)
+            .deleteFilesPathRewrittenCount(deleteFiles.size())
+            .manifestFilesPathRewrittenCount(metaFiles.size())
+            .latestVersion(RewriteTablePathUtil.fileName(endVersionName));
+
+    // file list generation disabled
+    if (!createFileList) {
+      return builder.fileListLocation(NOT_APPLICABLE).build();
+    }
+
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();
     copyPlan.addAll(rewriteVersionResult.copyPlan());
     copyPlan.addAll(rewriteManifestListResult.copyPlan());
     copyPlan.addAll(rewriteManifestResult.copyPlan());
+    String fileListLocation = saveFileList(copyPlan);
 
-    return saveFileList(copyPlan);
+    return builder
+        .stagingLocation(stagingDir)
+        .fileListLocation(fileListLocation)
+        .latestVersion(RewriteTablePathUtil.fileName(endVersionName))
+        .build();
   }
 
   private String saveFileList(Set<Pair<String, String>> filesToMove) {
