@@ -21,24 +21,20 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
 import static org.apache.spark.sql.functions.col;
 
-import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.BaseManifestWriterFactory;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
@@ -52,7 +48,7 @@ import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -549,12 +545,9 @@ public class RewriteManifestsSparkAction
     }
   }
 
-  private static class ManifestWriterFactory implements Serializable {
+  private static class ManifestWriterFactory extends BaseManifestWriterFactory {
     private final Broadcast<Table> tableBroadcast;
-    private final int formatVersion;
     private final int specId;
-    private final String outputLocation;
-    private final long maxManifestSizeBytes;
 
     ManifestWriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -562,41 +555,19 @@ public class RewriteManifestsSparkAction
         int specId,
         String outputLocation,
         long maxManifestSizeBytes) {
+      super(formatVersion, outputLocation, maxManifestSizeBytes);
       this.tableBroadcast = tableBroadcast;
-      this.formatVersion = formatVersion;
       this.specId = specId;
-      this.outputLocation = outputLocation;
-      this.maxManifestSizeBytes = maxManifestSizeBytes;
     }
 
-    public RollingManifestWriter<DataFile> newRollingManifestWriter() {
-      return new RollingManifestWriter<>(this::newManifestWriter, maxManifestSizeBytes);
-    }
-
-    private ManifestWriter<DataFile> newManifestWriter() {
-      return ManifestFiles.write(formatVersion, spec(), newOutputFile(), null);
-    }
-
-    public RollingManifestWriter<DeleteFile> newRollingDeleteManifestWriter() {
-      return new RollingManifestWriter<>(this::newDeleteManifestWriter, maxManifestSizeBytes);
-    }
-
-    private ManifestWriter<DeleteFile> newDeleteManifestWriter() {
-      return ManifestFiles.writeDeleteManifest(formatVersion, spec(), newOutputFile(), null);
-    }
-
-    private PartitionSpec spec() {
+    @Override
+    protected PartitionSpec spec() {
       return table().specs().get(specId);
     }
 
-    private OutputFile newOutputFile() {
-      return table().io().newOutputFile(newManifestLocation());
-    }
-
-    private String newManifestLocation() {
-      String fileName = FileFormat.AVRO.addExtension("optimized-m-" + UUID.randomUUID());
-      Path filePath = new Path(outputLocation, fileName);
-      return filePath.toString();
+    @Override
+    protected FileIO fileIO() {
+      return table().io();
     }
 
     private Table table() {
