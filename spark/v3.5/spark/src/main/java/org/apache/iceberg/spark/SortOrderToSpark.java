@@ -50,7 +50,7 @@ class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
 
   @Override
   public SortOrder truncate(
-      String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
+      String sourceName, int id, long width, SortDirection direction, NullOrder nullOrder) {
     return Expressions.sort(
         Expressions.apply(
             "truncate", Expressions.literal(width), Expressions.column(quotedName(id))),

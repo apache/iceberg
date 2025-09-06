@@ -301,18 +301,18 @@ public class TestSparkTruncateFunction extends TestBaseWithCatalog {
             () -> scalarSql("SELECT system.truncate(CAST('12.34' as DECIMAL(9, 2)), 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "Function 'truncate' cannot process input: (decimal(9,2), int): Expected truncation width to be tinyint, shortint or int");
+            "Function 'truncate' cannot process input: (decimal(9,2), int): Expected truncation width to be tinyint, shortint, int or long");
 
     assertThatThrownBy(() -> scalarSql("SELECT system.truncate('5', 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "Function 'truncate' cannot process input: (string, int): Expected truncation width to be tinyint, shortint or int");
+            "Function 'truncate' cannot process input: (string, int): Expected truncation width to be tinyint, shortint, int or long");
 
     assertThatThrownBy(
             () -> scalarSql("SELECT system.truncate(INTERVAL '100-00' YEAR TO MONTH, 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "Function 'truncate' cannot process input: (interval year to month, int): Expected truncation width to be tinyint, shortint or int");
+            "Function 'truncate' cannot process input: (interval year to month, int): Expected truncation width to be tinyint, shortint, int or long");
 
     assertThatThrownBy(
             () ->
@@ -320,7 +320,7 @@ public class TestSparkTruncateFunction extends TestBaseWithCatalog {
                     "SELECT system.truncate(CAST('11 23:4:0' AS INTERVAL DAY TO SECOND), 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "Function 'truncate' cannot process input: (interval day to second, int): Expected truncation width to be tinyint, shortint or int");
+            "Function 'truncate' cannot process input: (interval day to second, int): Expected truncation width to be tinyint, shortint, int or long");
   }
 
   @TestTemplate
@@ -378,7 +378,7 @@ public class TestSparkTruncateFunction extends TestBaseWithCatalog {
 
     String smallIntWidth = (String) scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5S, 6L)");
     assertThat(smallIntWidth)
-        .contains("cast(5 as int)")
+        .contains("cast(5 as bigint)")
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateBigInt");
   }
