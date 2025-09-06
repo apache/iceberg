@@ -43,6 +43,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
+  private final TablePropertiesUpdater tablePropertiesUpdater;
 
   private transient TableMetadataCache tableCache;
   private transient HashKeyGenerator hashKeyGenerator;
@@ -57,13 +58,15 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       boolean immediateUpdate,
       int cacheMaximumSize,
       long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize) {
+      int inputSchemasPerTableCacheMaximumSize,
+      TablePropertiesUpdater tablePropertiesUpdater) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.immediateUpdate = immediateUpdate;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
+    this.tablePropertiesUpdater = tablePropertiesUpdater;
   }
 
   @Override
@@ -77,7 +80,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
         new HashKeyGenerator(
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());
     if (immediateUpdate) {
-      updater = new TableUpdater(tableCache, catalog);
+      updater = new TableUpdater(tableCache, catalog, tablePropertiesUpdater);
     } else {
       updateStream =
           new OutputTag<>(
