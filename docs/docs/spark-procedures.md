@@ -731,10 +731,13 @@ Creates a catalog entry for a metadata.json file which already exists but does n
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Table which is to be registered |
-| `metadata_file`| ✔️  | string | Metadata file which is to be registered as a new catalog identifier |
+| Argument Name | Required? | Type | Description                                                                                                                                 |
+|---------------|-----------|------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `table`       | ✔️  | string | Table which is to be registered                                                                                                             |
+| `metadata_file`| ✔️  | string | Metadata file which is to be registered as a new catalog identifier. If metadata folder is provided, the latest metadata file will be used. |
+
+When a metadata folder is provided as input, the procedure finds the latest metadata file by selecting the one with the highest version number.
+If multiple files share the same version, the file with the latest modification timestamp is chosen.
 
 !!! warning
     Having the same metadata.json registered in more than one catalog can lead to missing updates, loss of data, and table corruption.
