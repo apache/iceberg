@@ -85,6 +85,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
+  private final Map<Integer, Schema> schemas;
 
   // updated by configuration methods
   private PartitionSet partitionSet = null;
@@ -115,6 +116,17 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       InheritableMetadata inheritableMetadata,
       Long firstRowId,
       FileType content) {
+    this(file, specId, specsById, inheritableMetadata, firstRowId, content, null);
+  }
+
+  protected ManifestReader(
+      InputFile file,
+      int specId,
+      Map<Integer, PartitionSpec> specsById,
+      InheritableMetadata inheritableMetadata,
+      Long firstRowId,
+      FileType content,
+      Map<Integer, Schema> schemas) {
     Preconditions.checkArgument(
         firstRowId == null || content == FileType.DATA_FILES,
         "First row ID is not valid for delete manifests");
@@ -130,6 +142,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     }
 
     this.fileSchema = new Schema(DataFile.getType(spec.rawPartitionType()).fields());
+    this.schemas = schemas;
   }
 
   private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(InputFile inputFile) {
@@ -243,11 +256,15 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
               ? scanMetrics.skippedDataFiles()
               : scanMetrics.skippedDeleteFiles(),
           onlyLive ? filterLiveEntries(entries) : entries,
-          entry ->
-              entry != null
-                  && evaluator.eval(entry.file().partition())
-                  && metricsEvaluator.eval(entry.file())
-                  && inPartitionSet(entry.file()));
+                  entry -> {
+                    Schema schema = null;
+                    if (schemas != null) {
+                      schema = schemas.get(entry.file().schemaId());
+                    }
+                    return (entry != null && evaluator.eval(entry.file().partition())
+                            && metricsEvaluator.eval(entry.file(), schema)
+                            && inPartitionSet(entry.file()));
+                  });
     } else {
       CloseableIterable<ManifestEntry<F>> entries =
           open(projection(fileSchema, fileProjection, columns, caseSensitive));

@@ -144,6 +144,7 @@ public class DataFiles {
     private FileFormat format = null;
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
+    private int schemaId;
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
@@ -190,6 +191,7 @@ public class DataFiles {
             specId == toCopy.specId(), "Cannot copy a DataFile with a different spec");
         this.partitionData = copyPartitionData(spec, toCopy.partition(), partitionData);
       }
+      this.schemaId = toCopy.schemaId();
       this.filePath = toCopy.location();
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
@@ -260,6 +262,11 @@ public class DataFiles {
 
     public Builder withFileSizeInBytes(long newFileSizeInBytes) {
       this.fileSizeInBytes = newFileSizeInBytes;
+      return this;
+    }
+
+    public Builder withSchemaId(int newSchemaId) {
+      this.schemaId = newSchemaId;
       return this;
     }
 
@@ -341,6 +348,7 @@ public class DataFiles {
           format,
           isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes,
+          schemaId,
           new Metrics(
               recordCount,
               columnSizes,
