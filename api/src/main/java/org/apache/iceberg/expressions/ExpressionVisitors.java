@@ -126,6 +126,16 @@ public class ExpressionVisitors {
           "notStartsWith expression is not supported by the visitor");
     }
 
+    public <T> R contains(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "contains expression is not supported by the visitor");
+    }
+
+    public <T> R notContains(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "notContains expression is not supported by the visitor");
+    }
+
     /**
      * Handle a non-reference value in this visitor.
      *
@@ -166,6 +176,10 @@ public class ExpressionVisitors {
             return startsWith((BoundReference<T>) pred.term(), literalPred.literal());
           case NOT_STARTS_WITH:
             return notStartsWith((BoundReference<T>) pred.term(), literalPred.literal());
+          case CONTAINS:
+            return contains((BoundReference<T>) pred.term(), literalPred.literal());
+          case NOT_CONTAINS:
+            return notContains((BoundReference<T>) pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -266,6 +280,14 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
+    public <T> R contains(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
+    public <T> R notContains(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
       if (pred.isLiteralPredicate()) {
@@ -287,6 +309,10 @@ public class ExpressionVisitors {
             return startsWith(pred.term(), literalPred.literal());
           case NOT_STARTS_WITH:
             return notStartsWith(pred.term(), literalPred.literal());
+          case CONTAINS:
+            return contains(pred.term(), literalPred.literal());
+          case NOT_CONTAINS:
+            return notContains(pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
