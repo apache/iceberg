@@ -79,6 +79,7 @@ import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BaseScanTaskResponse;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -158,6 +159,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             Object body = roundTripSerialize(request.body(), "request");
             HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
             T response = super.execute(req, responseType, errorHandler, responseHeaders);
+            if (response instanceof BaseScanTaskResponse) {
+              // This is for the case where the response does not roundTrip
+              // the plan table related responses follow this case
+              return response;
+            }
+
             T responseAfterSerialization = roundTripSerialize(response, "response");
             return responseAfterSerialization;
           }
@@ -2791,6 +2798,51 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // what older REST servers would send back too
     verifyTableExistsFallbackToGETRequest(
         ConfigResponse.builder().withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_TABLE)).build());
+  }
+
+  @Test
+  public void testPlanTableScanWithCompletedStatusAndFileScanTask() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
+    assertBoundFileScanTasks(table, SPEC);
+  }
+
+  @Test
+  public void testPlanTableScanAndFetchPlanningResultWithSubmittedStatusAndFileScanTask()
+      throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_SUBMITTED_WITH_FILE_SCAN_TASK);
+    assertBoundFileScanTasks(table, SPEC);
+  }
+
+  @Test
+  public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndPlanTask()
+      throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_PLAN_TASK);
+    assertBoundFileScanTasks(table, SPEC);
+  }
+
+  @Test
+  public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndNestedPlanTasks() {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
+    assertBoundFileScanTasks(table, SPEC);
+  }
+
+  public Table createRESTTableAndInsertData(TableIdentifier tableIdentifier) {
+    RESTCatalog catalog =
+        initCatalog(
+            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(tableIdentifier.namespace());
+    }
+
+    Table table =
+        catalog
+            .buildTable(tableIdentifier, SCHEMA)
+            .withProperty("table.rest-scan-planning", "true")
+            .withPartitionSpec(SPEC)
+            .create();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    return table;
   }
 
   private void verifyTableExistsFallbackToGETRequest(ConfigResponse configResponse) {
