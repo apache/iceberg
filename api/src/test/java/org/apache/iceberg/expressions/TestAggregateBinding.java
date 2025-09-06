@@ -30,7 +30,11 @@ import org.junit.jupiter.api.Test;
 
 public class TestAggregateBinding {
   private static final List<UnboundAggregate<Integer>> LIST =
-      ImmutableList.of(Expressions.count("x"), Expressions.max("x"), Expressions.min("x"));
+      ImmutableList.of(
+          Expressions.count("x"),
+          Expressions.countNull("x"),
+          Expressions.max("x"),
+          Expressions.min("x"));
   private static final StructType STRUCT =
       StructType.of(Types.NestedField.required(10, "x", Types.IntegerType.get()));
 
