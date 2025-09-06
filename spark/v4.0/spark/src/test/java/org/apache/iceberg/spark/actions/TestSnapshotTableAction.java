@@ -19,9 +19,12 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -64,5 +67,82 @@ public class TestSnapshotTableAction extends CatalogTestBase {
                 }))
         .execute();
     assertThat(snapshotThreadsIndex.get()).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testTableLocationOverlapThrowsException() throws IOException {
+    // Ensure the test runs only for non-Hadoop-based catalogs,
+    // because path-based tables cannot have a custom location set.
+    assumeThat(catalogName)
+        .as("Cannot set a custom location for a path-based table.")
+        .isNotEqualTo("testhadoop");
+
+    String location = Files.createTempDirectory(temp, "junit").toFile().toURI().toString();
+
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+
+    // Define properties for the destination table, setting its location to the same path as the
+    // source table
+    Map<String, String> tableProperties = Map.of("location", location);
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableProperties(tableProperties)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "The destination table location overlaps with the source table location");
+
+    // Test for path with and without trailing slash (should be considered the same)
+    String locationWithSlash = location.endsWith("/") ? location : location + "/";
+    Map<String, String> tablePropertiesWithSlash = Map.of("location", locationWithSlash);
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableProperties(tablePropertiesWithSlash)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "The destination table location overlaps with the source table location");
+
+    // Test for nested paths (source and destination are subdirectories of each other)
+    String nestedLocation = location + "/nested";
+    Map<String, String> tablePropertiesWithNested = Map.of("location", nestedLocation);
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableProperties(tablePropertiesWithNested)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "The destination table location overlaps with the source table location");
+
+    // Test for relative path with ".." (parent directory reference)
+    String locationWithParent = location + "/.."; // Points to the parent directory as location
+    Map<String, String> tablePropertiesParent = Map.of("location", locationWithParent);
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableProperties(tablePropertiesParent)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "The destination table location overlaps with the source table location");
   }
 }
