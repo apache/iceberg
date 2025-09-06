@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SideOutputDataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.DataFile;
@@ -34,9 +35,11 @@ import org.apache.iceberg.flink.maintenance.operator.DeleteFilesProcessor;
 import org.apache.iceberg.flink.maintenance.operator.FileNameReader;
 import org.apache.iceberg.flink.maintenance.operator.FileUriKeySelector;
 import org.apache.iceberg.flink.maintenance.operator.ListFileSystemFiles;
+import org.apache.iceberg.flink.maintenance.operator.ListFileSystemFilesForDir;
 import org.apache.iceberg.flink.maintenance.operator.ListMetadataFiles;
 import org.apache.iceberg.flink.maintenance.operator.MetadataTablePlanner;
 import org.apache.iceberg.flink.maintenance.operator.OrphanFilesDetector;
+import org.apache.iceberg.flink.maintenance.operator.OrphanFilesDirTask;
 import org.apache.iceberg.flink.maintenance.operator.SkipOnError;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
 import org.apache.iceberg.flink.source.ScanContext;
@@ -57,9 +60,14 @@ public class DeleteOrphanFiles {
   public static final OutputTag<Exception> ERROR_STREAM =
       new OutputTag<>("error-stream", TypeInformation.of(Exception.class));
 
+  @Internal
+  public static final OutputTag<OrphanFilesDirTask> DIR_TASK_STREAM =
+      new OutputTag<>("dir-task-stream", TypeInformation.of(OrphanFilesDirTask.class));
+
   static final String PLANNER_TASK_NAME = "Table Planner";
   static final String READER_TASK_NAME = "Files Reader";
   static final String FILESYSTEM_FILES_TASK_NAME = "Filesystem Files";
+  static final String DIR_FILESYSTEM_FILES_TASK_NAME = "Dir List Filesystem Files";
   static final String METADATA_FILES_TASK_NAME = "List metadata Files";
   static final String DELETE_FILES_TASK_NAME = "Delete File";
   static final String AGGREGATOR_TASK_NAME = "Orphan Files Aggregator";
@@ -80,6 +88,8 @@ public class DeleteOrphanFiles {
     private int planningWorkerPoolSize = ThreadPools.WORKER_THREAD_POOL_SIZE;
     private int deleteBatchSize = 1000;
     private boolean usePrefixListing = false;
+    private int maxListingDepth = 3;
+    private int maxListingDirectSubDirs = 10;
     private Map<String, String> equalSchemes =
         Maps.newHashMap(
             ImmutableMap.of(
@@ -124,6 +134,34 @@ public class DeleteOrphanFiles {
      */
     public Builder prefixMismatchMode(PrefixMismatchMode newPrefixMismatchMode) {
       this.prefixMismatchMode = newPrefixMismatchMode;
+      return this;
+    }
+
+    /**
+     * When Flink lists the filesystem, it uses a two-layer progressive approach for parallel
+     * searching. The first layer is non-concurrent, while the second layer is concurrent. This
+     * configuration specifies the maximum number of direct subdirectories to list in a single
+     * directory. This parameter is not used when {@link #usePrefixListing(boolean)} is set to true.
+     *
+     * @param newMaxListingDirectSubDirs the maximum number of direct sub-directories to list
+     * @return for chained calls
+     */
+    public Builder maxListingDirectSubDirs(int newMaxListingDirectSubDirs) {
+      this.maxListingDirectSubDirs = newMaxListingDirectSubDirs;
+      return this;
+    }
+
+    /**
+     * When Flink lists the filesystem, it uses a two-layer progressive approach for parallel
+     * searching. The first layer is non-concurrent, while the second layer is concurrent. This
+     * configuration specifies the maximum depth to recurse when listing files from the file system.
+     * This parameter is not used when {@link #usePrefixListing(boolean)} is set to true.
+     *
+     * @param newMaxListingDepth the maximum depth to recurse
+     * @return for chained calls
+     */
+    public Builder maxListingDepth(int newMaxListingDepth) {
+      this.maxListingDepth = newMaxListingDepth;
       return this;
     }
 
@@ -236,7 +274,7 @@ public class DeleteOrphanFiles {
               .forceNonParallel();
 
       // List the all file system files
-      SingleOutputStreamOperator<String> allFsFiles =
+      SingleOutputStreamOperator<String> firstFsFiles =
           trigger
               .process(
                   new ListFileSystemFiles(
@@ -245,11 +283,36 @@ public class DeleteOrphanFiles {
                       tableLoader(),
                       location,
                       minAge.toMillis(),
-                      usePrefixListing))
+                      usePrefixListing,
+                      maxListingDepth,
+                      maxListingDirectSubDirs))
               .name(operatorName(FILESYSTEM_FILES_TASK_NAME))
               .uid(FILESYSTEM_FILES_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
               .forceNonParallel();
+
+      DataStream<Exception> errorStream =
+          tableMetadataFiles
+              .getSideOutput(ERROR_STREAM)
+              .union(
+                  firstFsFiles.getSideOutput(ERROR_STREAM),
+                  tableDataFiles.getSideOutput(ERROR_STREAM),
+                  splits.getSideOutput(ERROR_STREAM));
+
+      DataStream<String> allFsFiles = firstFsFiles;
+      if (!usePrefixListing) {
+        SideOutputDataStream<OrphanFilesDirTask> subDirs =
+            firstFsFiles.getSideOutput(DIR_TASK_STREAM);
+        SingleOutputStreamOperator<String> restFsFiles =
+            subDirs
+                .process(new ListFileSystemFilesForDir(taskName(), index(), tableLoader()))
+                .name(operatorName(DIR_FILESYSTEM_FILES_TASK_NAME))
+                .uid(DIR_FILESYSTEM_FILES_TASK_NAME + uidSuffix())
+                .slotSharingGroup(slotSharingGroup())
+                .setParallelism(parallelism());
+        allFsFiles = firstFsFiles.union(restFsFiles);
+        errorStream = errorStream.union(restFsFiles.getSideOutput(ERROR_STREAM));
+      }
 
       SingleOutputStreamOperator<String> filesToDelete =
           tableMetadataFiles
@@ -262,14 +325,7 @@ public class DeleteOrphanFiles {
               .uid(FILTER_FILES_TASK_NAME + uidSuffix())
               .setParallelism(parallelism());
 
-      DataStream<Exception> errorStream =
-          tableMetadataFiles
-              .getSideOutput(ERROR_STREAM)
-              .union(
-                  allFsFiles.getSideOutput(ERROR_STREAM),
-                  tableDataFiles.getSideOutput(ERROR_STREAM),
-                  splits.getSideOutput(ERROR_STREAM),
-                  filesToDelete.getSideOutput(ERROR_STREAM));
+      errorStream = errorStream.union(filesToDelete.getSideOutput(ERROR_STREAM));
 
       // Stop deleting the files if there is an error
       SingleOutputStreamOperator<String> filesOrSkip =
