@@ -173,7 +173,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     if (PropertyUtil.propertyAsBoolean(catalogProperties, JdbcUtil.STRICT_MODE_PROPERTY, false)
         && !JdbcUtil.namespaceExists(catalogName, connections, namespace)) {
       throw new NoSuchNamespaceException(
-          "Cannot create table %s in catalog %s. Namespace %s does not exist",
+          "Cannot create table %s in catalog %s. Namespace does not exist: %s",
           tableIdentifier, catalogName, namespace);
     }
 
