@@ -27,6 +27,14 @@ import java.util.Arrays;
  * with monotonically increasing values for the index parameter.
  */
 public class NullabilityHolder {
+  /** Sentinel instance that reports every position as null. */
+  public static final NullabilityHolder ALL_NULLS = new NullabilityHolder() {
+    @Override public byte isNullAt(int index) { return (byte) 1; }
+    @Override public boolean hasNulls() { return true; }
+    @Override public int numNulls() { return Integer.MAX_VALUE; }
+    @Override public int size() { return Integer.MAX_VALUE; }
+  };
+
   private final byte[] isNull;
   private int numNulls;
   private final byte[] nonNulls;
@@ -38,6 +46,13 @@ public class NullabilityHolder {
     Arrays.fill(nonNulls, (byte) 0);
     this.nulls = new byte[size];
     Arrays.fill(nulls, (byte) 1);
+  }
+
+  private NullabilityHolder() {
+    // Private constructor for ALL_NULLS sentinel
+    this.isNull = null;
+    this.nonNulls = null;
+    this.nulls = null;
   }
 
   public int size() {
