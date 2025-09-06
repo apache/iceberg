@@ -382,7 +382,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
               return Expressions.notEqual(name, pred.literal().value());
             }
 
-            return ProjectionUtil.truncateArrayStrict(name, pred, this);
+            return Expressions.predicate(pred.op(), name, apply(pred.literal().value()).toString());
 
           default:
             return ProjectionUtil.truncateArrayStrict(name, pred, this);
