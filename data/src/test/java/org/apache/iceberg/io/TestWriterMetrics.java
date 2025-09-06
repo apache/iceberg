@@ -152,9 +152,8 @@ public abstract class TestWriterMetrics<T> {
         writerFactory.newPositionDeleteWriter(outputFile, table.spec(), null);
 
     try {
-      T deletedRow = toRow(3, "3", true, 3L);
       PositionDelete<T> positionDelete = PositionDelete.create();
-      positionDelete.set("File A", 1, deletedRow);
+      positionDelete.set("File A", 1);
       deleteWriter.write(positionDelete);
     } finally {
       deleteWriter.close();
@@ -175,28 +174,12 @@ public abstract class TestWriterMetrics<T> {
     assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(posFieldId)))
         .isEqualTo(1L);
 
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)))
-        .isEqualTo(3);
-    assertThat(lowerBounds).doesNotContainKey(2);
-    assertThat(lowerBounds).doesNotContainKey(3);
-    assertThat(lowerBounds).doesNotContainKey(4);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)))
-        .isEqualTo(3L);
-
     Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
 
     assertThat(Conversions.<T>fromByteBuffer(Types.StringType.get(), upperBounds.get(pathFieldId)))
         .isEqualTo(CharBuffer.wrap("File A"));
     assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(posFieldId)))
         .isEqualTo(1L);
-
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)))
-        .isEqualTo(3);
-    assertThat(upperBounds).doesNotContainKey(2);
-    assertThat(upperBounds).doesNotContainKey(3);
-    assertThat(upperBounds).doesNotContainKey(4);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)))
-        .isEqualTo(3L);
   }
 
   @TestTemplate
@@ -209,10 +192,10 @@ public abstract class TestWriterMetrics<T> {
     try {
       PositionDelete<T> positionDelete = PositionDelete.create();
 
-      positionDelete.set("File A", 1, toRow(3, "3", true, 3L));
+      positionDelete.set("File A", 1);
       deleteWriter.write(positionDelete);
 
-      positionDelete.set("File B", 1, toRow(3, "3", true, 3L));
+      positionDelete.set("File B", 1);
       deleteWriter.write(positionDelete);
 
     } finally {
@@ -223,18 +206,10 @@ public abstract class TestWriterMetrics<T> {
 
     // should have NO bounds for path and position as the file covers multiple data paths
     Map<Integer, ByteBuffer> lowerBounds = deleteFile.lowerBounds();
-    assertThat(lowerBounds).hasSize(2);
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)))
-        .isEqualTo(3);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)))
-        .isEqualTo(3L);
+    assertThat(lowerBounds).isNull();
 
     Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
-    assertThat(upperBounds).hasSize(2);
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)))
-        .isEqualTo(3);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)))
-        .isEqualTo(3L);
+    assertThat(upperBounds).isNull();
   }
 
   @TestTemplate

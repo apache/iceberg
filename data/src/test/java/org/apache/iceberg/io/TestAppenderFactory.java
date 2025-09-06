@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -260,6 +261,7 @@ public abstract class TestAppenderFactory<T> extends TestBase {
   }
 
   @TestTemplate
+  @Disabled("Position delete writer does not support row data")
   public void testPosDeleteWriterWithRowSchema() throws IOException {
     FileAppenderFactory<T> appenderFactory = createAppenderFactory(null, null, table.schema());
 

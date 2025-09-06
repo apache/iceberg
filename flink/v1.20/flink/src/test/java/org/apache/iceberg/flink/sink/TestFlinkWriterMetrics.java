@@ -38,7 +38,6 @@ public class TestFlinkWriterMetrics extends TestWriterMetrics<RowData> {
         .dataSchema(sourceTable.schema())
         .dataFileFormat(fileFormat)
         .deleteFileFormat(fileFormat)
-        .positionDeleteRowSchema(sourceTable.schema())
         .build();
   }
 

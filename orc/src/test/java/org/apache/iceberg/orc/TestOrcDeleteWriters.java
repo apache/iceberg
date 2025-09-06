@@ -124,7 +124,6 @@ public class TestOrcDeleteWriters {
         ORC.writeDeletes(out)
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .overwrite()
-            .rowSchema(SCHEMA)
             .withSpec(PartitionSpec.unpartitioned())
             .buildPositionWriter();
 
@@ -135,9 +134,7 @@ public class TestOrcDeleteWriters {
         positionDelete.set(deletePath, pos, records.get(i));
         writer.write(positionDelete);
         expectedDeleteRecords.add(
-            posDelete.copy(
-                ImmutableMap.of(
-                    "file_path", deletePath, "pos", (long) pos, "row", records.get(i))));
+            posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));
       }
     }
 

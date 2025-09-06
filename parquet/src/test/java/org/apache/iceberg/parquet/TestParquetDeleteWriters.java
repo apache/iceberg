@@ -129,7 +129,6 @@ public class TestParquetDeleteWriters {
         Parquet.writeDeletes(out)
             .createWriterFunc(GenericParquetWriter::create)
             .overwrite()
-            .rowSchema(SCHEMA)
             .withSpec(PartitionSpec.unpartitioned())
             .buildPositionWriter();
 
@@ -139,9 +138,7 @@ public class TestParquetDeleteWriters {
         int pos = i * 3 + 2;
         writer.write(positionDelete.set(deletePath, pos, records.get(i)));
         expectedDeleteRecords.add(
-            posDelete.copy(
-                ImmutableMap.of(
-                    "file_path", deletePath, "pos", (long) pos, "row", records.get(i))));
+            posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));
       }
     }
 
