@@ -192,18 +192,19 @@ public class TestUpdatePartitionSpec extends TestBase {
   @TestTemplate
   public void testAddHourToDay() {
     // multiple partitions for the same source with different time granularity is not allowed by the
-    // builder, but is
-    // allowed when updating a spec so that existing columns in metadata continue to work.
+    // builder, nor is it allowed when updating a spec.
     PartitionSpec byDay =
         new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED).addField(day("ts")).apply();
 
-    PartitionSpec byHour =
-        new BaseUpdatePartitionSpec(formatVersion, byDay).addField(hour("ts")).apply();
+    assertThatThrownBy(
+            () ->
+                new BaseUpdatePartitionSpec(formatVersion, byDay)
+                    .addField(hour("ts"))) // conflicts with hour
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add redundant partition field");
 
-    assertThat(byHour.fields())
-        .containsExactly(
-            new PartitionField(2, 1000, "ts_day", Transforms.day()),
-            new PartitionField(2, 1001, "ts_hour", Transforms.hour()));
+    assertThat(byDay.fields())
+        .containsExactly(new PartitionField(2, 1000, "ts_day", Transforms.day()));
   }
 
   @TestTemplate
@@ -450,7 +451,7 @@ public class TestUpdatePartitionSpec extends TestBase {
   }
 
   @TestTemplate
-  public void testAddRedundantTimePartition() {
+  public void testAddRedundantTimePartitionWithEachOther() {
     assertThatThrownBy(
             () ->
                 new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
@@ -469,6 +470,29 @@ public class TestUpdatePartitionSpec extends TestBase {
   }
 
   @TestTemplate
+  public void testAddRedundantTimePartitionWithExisting() {
+    assertThatThrownBy(
+            () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField(year("ts")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add redundant partition field");
+
+    assertThatThrownBy(
+            () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField(month("ts")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add redundant partition field");
+
+    assertThatThrownBy(
+            () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField(day("ts")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add duplicate partition field");
+
+    assertThatThrownBy(
+            () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).addField(hour("ts")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add redundant partition field");
+  }
+
+  @TestTemplate
   public void testNoEffectAddDeletedSameFieldWithSameName() {
     PartitionSpec updated =
         new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
@@ -482,6 +506,29 @@ public class TestUpdatePartitionSpec extends TestBase {
             .addField(bucket("id", 16))
             .apply();
     assertThat(updated).isEqualTo(PARTITIONED);
+  }
+
+  @TestTemplate
+  public void testGenerateNewSpecAddDeletedRedundantTimePartitionField() {
+    PartitionSpec byDay =
+        new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED).addField(day("ts")).apply();
+    PartitionSpec updated =
+        new BaseUpdatePartitionSpec(formatVersion, byDay)
+            .removeField("ts_day")
+            .addField(month("ts"))
+            .apply();
+    if (formatVersion == 1) {
+      assertThat(updated.fields()).hasSize(2);
+      assertThat(updated.fields().get(0).name()).isEqualTo("ts_day");
+      assertThat(updated.fields().get(1).name()).isEqualTo("ts_month");
+
+      assertThat(updated.fields().get(0).transform()).asString().isEqualTo("void");
+      assertThat(updated.fields().get(1).transform()).asString().isEqualTo("month");
+    } else {
+      assertThat(updated.fields()).hasSize(1);
+      assertThat(updated.fields().get(0).name()).isEqualTo("ts_month");
+      assertThat(updated.fields().get(0).transform()).asString().isEqualTo("month");
+    }
   }
 
   @TestTemplate

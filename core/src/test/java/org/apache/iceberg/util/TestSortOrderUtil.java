@@ -227,38 +227,6 @@ public class TestSortOrderUtil {
   }
 
   @Test
-  public void testSortOrderClusteringWithRedundantPartitionFields() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("ts").identity("category").build();
-
-    // Specs with redundant time fields can't be constructed directly and have to use
-    // UpdatePartitionSpec
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", SCHEMA, spec, SortOrder.unsorted(), 2);
-    table.updateSpec().addField(Expressions.hour("ts")).commit();
-    PartitionSpec updatedSpec = table.spec();
-
-    SortOrder order =
-        SortOrder.builderFor(table.schema())
-            .withOrderId(1)
-            .asc("category")
-            .asc("ts") // satisfies the ordering of days(ts) and hours(ts)
-            .desc("id")
-            .build();
-
-    SortOrder expected =
-        SortOrder.builderFor(table.schema())
-            .withOrderId(1)
-            .asc("category")
-            .asc("ts")
-            .desc("id")
-            .build();
-
-    assertThat(SortOrderUtil.buildSortOrder(table.schema(), updatedSpec, order))
-        .as("Should add spec fields as prefix")
-        .isEqualTo(expected);
-  }
-
-  @Test
   public void testSortOrderClusteringWithRedundantPartitionFieldsMissing() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("ts").identity("category").build();
 
