@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -60,6 +61,16 @@ public abstract class DeleteFileIndexTestBase<
           .withRecordCount(1)
           .build();
 
+  private static final Metrics METRICS =
+      new Metrics(
+          1L,
+          ImmutableMap.of(1, 1L),
+          ImmutableMap.of(1, 1L),
+          ImmutableMap.of(1, 1L),
+          ImmutableMap.of(1, 1L),
+          ImmutableMap.of(1, ByteBuffer.wrap(new byte[10])),
+          ImmutableMap.of(1, ByteBuffer.wrap(new byte[10])));
+
   private static DataFile unpartitionedFile(PartitionSpec spec) {
     return DataFiles.builder(spec)
         .withPath("/path/to/data-unpartitioned.parquet")
@@ -84,6 +95,26 @@ public abstract class DeleteFileIndexTestBase<
         .withPath(UUID.randomUUID() + "/path/to/data-partitioned-pos-deletes.parquet")
         .withFileSizeInBytes(10)
         .withRecordCount(1)
+        .build();
+  }
+
+  private static DeleteFile posDeletesWithMetrics(PartitionSpec spec) {
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath(UUID.randomUUID() + "/path/to/data-unpartitioned-pos-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withMetrics(METRICS)
+        .build();
+  }
+
+  private static DeleteFile eqDeletesWithMetrics(PartitionSpec spec) {
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofEqualityDeletes()
+        .withPath(UUID.randomUUID() + "/path/to/data-unpartitioned-eq-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withMetrics(METRICS)
         .build();
   }
 
@@ -551,6 +582,66 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::location)))
         .as("Should have expected delete files")
         .isEqualTo(Sets.newHashSet(FILE_A_EQ_1.location(), fileADeletes().location()));
+  }
+
+  @TestTemplate
+  public void testPositionDeleteDiscardMetrics() {
+    Table table =
+        TestTables.create(tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
+
+    DataFile dataFile = unpartitionedFile(table.spec());
+    table.newAppend().appendFile(dataFile).commit();
+
+    // add a delete file
+    DeleteFile posDeletesWithMetrics = posDeletesWithMetrics(table.spec());
+    table.newRowDelta().addDeletes(posDeletesWithMetrics).commit();
+
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
+    assertThat(tasks).as("Should have one task").hasSize(1);
+
+    FileScanTask task = (FileScanTask) tasks.get(0);
+    assertThat(task.file().location())
+        .as("Should have the correct data file path")
+        .isEqualTo(dataFile.location());
+    assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
+
+    DeleteFile deleteFile = task.deletes().get(0);
+    assertThat(deleteFile.columnSizes()).isEmpty();
+    assertThat(deleteFile.valueCounts()).isEmpty();
+    assertThat(deleteFile.nullValueCounts()).isEmpty();
+    assertThat(deleteFile.nanValueCounts()).isEmpty();
+    assertThat(deleteFile.lowerBounds()).isEmpty();
+    assertThat(deleteFile.upperBounds()).isEmpty();
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteDiscardMetrics() {
+    Table table =
+        TestTables.create(tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
+
+    DataFile dataFile = unpartitionedFile(table.spec());
+    table.newAppend().appendFile(dataFile).commit();
+
+    // add a delete file
+    DeleteFile posDeletesWithMetrics = eqDeletesWithMetrics(table.spec());
+    table.newRowDelta().addDeletes(posDeletesWithMetrics).commit();
+
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
+    assertThat(tasks).as("Should have one task").hasSize(1);
+
+    FileScanTask task = (FileScanTask) tasks.get(0);
+    assertThat(task.file().location())
+        .as("Should have the correct data file path")
+        .isEqualTo(dataFile.location());
+    assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
+
+    DeleteFile deleteFile = task.deletes().get(0);
+    assertThat(deleteFile.columnSizes()).isEmpty();
+    assertThat(deleteFile.valueCounts()).isEmpty();
+    assertThat(deleteFile.nullValueCounts()).isEmpty();
+    assertThat(deleteFile.nanValueCounts()).isEmpty();
+    assertThat(deleteFile.lowerBounds()).isEmpty();
+    assertThat(deleteFile.upperBounds()).isEmpty();
   }
 
   @TestTemplate
