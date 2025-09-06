@@ -233,6 +233,11 @@ pull_versioned_docs () {
   create_nightly  
 }
 
+lint_markdown_files () {
+  echo " --> lint markdown files"
+  pymarkdown scan docs/docs/nightly/docs/*.md docs/*.md README.md
+}
+
 # Cleans up artifacts and temporary files generated during documentation management.
 clean () {
   echo " --> clean"
