@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.connect.channel.CommitterImpl;
+import org.apache.iceberg.connect.channel.MockCommitterImpl;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.common.config.ConfigException;
 import org.junit.jupiter.api.Test;
@@ -43,7 +45,7 @@ public class TestIcebergSinkConfig {
             "iceberg.catalog.type", "rest",
             "iceberg.tables", "db.landing",
             "iceberg.tables.dynamic-enabled", "true");
-    assertThatThrownBy(() -> new IcebergSinkConfig(props))
+    assertThatThrownBy(() -> new IcebergSinkConfig(props, null))
         .isInstanceOf(ConfigException.class)
         .hasMessage("Cannot specify both static and dynamic table names");
   }
@@ -55,7 +57,7 @@ public class TestIcebergSinkConfig {
             "iceberg.catalog.type", "rest",
             "topics", "source-topic",
             "iceberg.tables", "db.landing");
-    IcebergSinkConfig config = new IcebergSinkConfig(props);
+    IcebergSinkConfig config = new IcebergSinkConfig(props, null);
     assertThat(config.commitIntervalMs()).isEqualTo(300_000);
   }
 
@@ -109,5 +111,33 @@ public class TestIcebergSinkConfig {
 
     result = IcebergSinkConfig.checkClassName("org.apache.kafka.clients.producer.KafkaProducer");
     assertThat(result).isFalse();
+  }
+
+  @Test
+  public void testDynamicCommitterImplLoading() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "topics", "source-topic",
+            "iceberg.catalog.type", "rest",
+            "iceberg.tables", "db.landing",
+            "iceberg.committer.impl", "org.apache.iceberg.connect.channel.MockCommitterImpl");
+    IcebergSinkConfig config = new IcebergSinkConfig(props, null);
+    Committer committer = CommitterFactory.createCommitter(config);
+    assertThat(committer).isInstanceOf(MockCommitterImpl.class);
+  }
+
+  @Test
+  public void testDynamicCommitterImplLoadingWhenCommitterConfigIsAbsent() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "topics",
+            "source-topic",
+            "iceberg.catalog.catalog-impl",
+            CatalogUtilsTest.TestCatalog.class.getName(),
+            "iceberg.tables",
+            "db.landing");
+    IcebergSinkConfig config = new IcebergSinkConfig(props, null);
+    Committer committer = CommitterFactory.createCommitter(config);
+    assertThat(committer).isInstanceOf(CommitterImpl.class);
   }
 }
