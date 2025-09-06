@@ -123,7 +123,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Long olderThanMillis = input.asTimestampLong(OLDER_THAN_PARAM, null);
     Integer retainLastNum = input.asInt(RETAIN_LAST_PARAM, null);
     Integer maxConcurrentDeletes = input.asInt(MAX_CONCURRENT_DELETES_PARAM, null);
-    Boolean streamResult = input.asBoolean(STREAM_RESULTS_PARAM, null);
+    boolean streamResult = input.asBoolean(STREAM_RESULTS_PARAM, false);
     Long[] snapshotIds = input.asLongArray(SNAPSHOT_IDS_PARAM, null);
     boolean cleanExpiredMetadata = input.asBoolean(CLEAN_EXPIRED_METADATA_PARAM, false);
 
@@ -165,10 +165,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
             }
           }
 
-          if (streamResult != null) {
-            action.option(
-                ExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
-          }
+          action.option(ExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
 
           action.cleanExpiredMetadata(cleanExpiredMetadata);
 
