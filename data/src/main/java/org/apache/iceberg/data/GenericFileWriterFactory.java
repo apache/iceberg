@@ -28,14 +28,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
+class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Schema> {
 
   GenericFileWriterFactory(
       Table table,
@@ -50,12 +48,17 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
     super(
         table,
         dataFileFormat,
+        GenericObjectModels.GENERIC_OBJECT_MODEL,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
         equalityFieldIds,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
+        positionDeleteRowSchema,
+        ImmutableMap.of(),
+        dataSchema,
+        equalityDeleteRowSchema,
         positionDeleteRowSchema);
   }
 
@@ -63,49 +66,91 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
     return new Builder(table);
   }
 
-  @Override
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   */
+  @Deprecated
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
+    throwUnsupportedOperationException();
   }
 
-  @Override
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   */
+  @Deprecated
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
+    throwUnsupportedOperationException();
   }
 
-  @Override
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   */
+  @Deprecated
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
+    throwUnsupportedOperationException();
   }
 
-  @Override
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   */
+  @Deprecated
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::create);
+    throwUnsupportedOperationException();
   }
 
-  @Override
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   */
+  @Deprecated
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::create);
+    throwUnsupportedOperationException();
   }
 
-  @Override
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   */
+  @Deprecated
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::create);
+    throwUnsupportedOperationException();
   }
 
-  @Override
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   */
+  @Deprecated
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
+    throwUnsupportedOperationException();
   }
 
-  @Override
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   */
+  @Deprecated
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
+    throwUnsupportedOperationException();
   }
 
-  @Override
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link FileAccessFactoryRegistry}.
+   */
+  @Deprecated
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
+    throwUnsupportedOperationException();
+  }
+
+  private void throwUnsupportedOperationException() {
+    throw new UnsupportedOperationException(
+        "Method is deprecated and should not be called. "
+            + "Configuration is already done by the ObjectModelRegistry.");
   }
 
   static class Builder {
