@@ -109,6 +109,8 @@ public class UpdateRequirements {
         update((MetadataUpdate.RemovePartitionSpecs) update);
       } else if (update instanceof MetadataUpdate.RemoveSchemas) {
         update((MetadataUpdate.RemoveSchemas) update);
+      } else if (update instanceof MetadataUpdate.RemoveSortOrders) {
+        update((MetadataUpdate.RemoveSortOrders) update);
       }
 
       return this;
@@ -156,13 +158,7 @@ public class UpdateRequirements {
     }
 
     private void update(MetadataUpdate.SetDefaultSortOrder unused) {
-      if (!setOrderId) {
-        if (base != null && !isReplace) {
-          // require that the default write order has not changed
-          require(new UpdateRequirement.AssertDefaultSortOrderID(base.defaultSortOrderId()));
-        }
-        this.setOrderId = true;
-      }
+      requireDefaultSortOrderNotChanged();
     }
 
     private void update(MetadataUpdate.RemovePartitionSpecs unused) {
@@ -176,6 +172,12 @@ public class UpdateRequirements {
       requireCurrentSchemaNotChanged();
 
       // require that no branches have changed, so that old schemas won't be written.
+      requireNoBranchesChanged();
+    }
+
+    private void update(MetadataUpdate.RemoveSortOrders unused) {
+      requireDefaultSortOrderNotChanged();
+
       requireNoBranchesChanged();
     }
 
@@ -194,6 +196,16 @@ public class UpdateRequirements {
           require(new UpdateRequirement.AssertCurrentSchemaID(base.currentSchemaId()));
         }
         this.setSchemaId = true;
+      }
+    }
+
+    private void requireDefaultSortOrderNotChanged() {
+      if (!setOrderId) {
+        if (base != null && !isReplace) {
+          // require that the default write order has not changed
+          require(new UpdateRequirement.AssertDefaultSortOrderID(base.defaultSortOrderId()));
+        }
+        this.setOrderId = true;
       }
     }
 
