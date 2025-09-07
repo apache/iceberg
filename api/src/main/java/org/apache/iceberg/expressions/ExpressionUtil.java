@@ -333,6 +333,8 @@ public class ExpressionUtil {
         case NOT_EQ:
         case STARTS_WITH:
         case NOT_STARTS_WITH:
+        case ENDS_WITH:
+        case NOT_ENDS_WITH:
           return new UnboundPredicate<>(
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case IN:
@@ -433,6 +435,10 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
+        case ENDS_WITH:
+          return term + " ENDS WITH " + value((BoundLiteralPredicate<?>) pred);
+        case NOT_ENDS_WITH:
+          return term + " NOT ENDS WITH " + value((BoundLiteralPredicate<?>) pred);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -485,6 +491,10 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
+        case ENDS_WITH:
+          return term + " ENDS WITH " + sanitize(pred.literal(), nowMicros, today);
+        case NOT_ENDS_WITH:
+          return term + " NOT ENDS WITH " + sanitize(pred.literal(), nowMicros, today);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
