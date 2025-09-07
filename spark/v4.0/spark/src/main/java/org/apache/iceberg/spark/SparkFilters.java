@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -31,7 +32,6 @@ import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 import java.sql.Date;
