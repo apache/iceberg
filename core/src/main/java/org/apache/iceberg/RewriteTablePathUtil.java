@@ -316,42 +316,6 @@ public class RewriteTablePathUtil {
    * Rewrite a data manifest, replacing path references.
    *
    * @param manifestFile source manifest file to rewrite
-   * @param outputFile output file to rewrite manifest file to
-   * @param io file io
-   * @param format format of the manifest file
-   * @param specsById map of partition specs by id
-   * @param sourcePrefix source prefix that will be replaced
-   * @param targetPrefix target prefix that will replace it
-   * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.10.0, will be removed in 1.11.0
-   */
-  @Deprecated
-  public static RewriteResult<DataFile> rewriteDataManifest(
-      ManifestFile manifestFile,
-      OutputFile outputFile,
-      FileIO io,
-      int format,
-      Map<Integer, PartitionSpec> specsById,
-      String sourcePrefix,
-      String targetPrefix)
-      throws IOException {
-    PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
-    try (ManifestWriter<DataFile> writer =
-            ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
-        ManifestReader<DataFile> reader =
-            ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.entries().spliterator(), false)
-          .map(
-              entry ->
-                  writeDataFileEntry(entry, Set.of(), spec, sourcePrefix, targetPrefix, writer))
-          .reduce(new RewriteResult<>(), RewriteResult::append);
-    }
-  }
-
-  /**
-   * Rewrite a data manifest, replacing path references.
-   *
-   * @param manifestFile source manifest file to rewrite
    * @param snapshotIds snapshot ids for filtering returned data manifest entries
    * @param outputFile output file to rewrite manifest file to
    * @param io file io
@@ -380,47 +344,6 @@ public class RewriteTablePathUtil {
           .map(
               entry ->
                   writeDataFileEntry(entry, snapshotIds, spec, sourcePrefix, targetPrefix, writer))
-          .reduce(new RewriteResult<>(), RewriteResult::append);
-    }
-  }
-
-  /**
-   * Rewrite a delete manifest, replacing path references.
-   *
-   * @param manifestFile source delete manifest to rewrite
-   * @param outputFile output file to rewrite manifest file to
-   * @param io file io
-   * @param format format of the manifest file
-   * @param specsById map of partition specs by id
-   * @param sourcePrefix source prefix that will be replaced
-   * @param targetPrefix target prefix that will replace it
-   * @param stagingLocation staging location for rewritten files (referred delete file will be
-   *     rewritten here)
-   * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.10.0, will be removed in 1.11.0
-   */
-  @Deprecated
-  public static RewriteResult<DeleteFile> rewriteDeleteManifest(
-      ManifestFile manifestFile,
-      OutputFile outputFile,
-      FileIO io,
-      int format,
-      Map<Integer, PartitionSpec> specsById,
-      String sourcePrefix,
-      String targetPrefix,
-      String stagingLocation)
-      throws IOException {
-    PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
-    try (ManifestWriter<DeleteFile> writer =
-            ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
-        ManifestReader<DeleteFile> reader =
-            ManifestFiles.readDeleteManifest(manifestFile, io, specsById)
-                .select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.entries().spliterator(), false)
-          .map(
-              entry ->
-                  writeDeleteFileEntry(
-                      entry, Set.of(), spec, sourcePrefix, targetPrefix, stagingLocation, writer))
           .reduce(new RewriteResult<>(), RewriteResult::append);
     }
   }
@@ -715,20 +638,6 @@ public class RewriteTablePathUtil {
 
   public static String maybeAppendFileSeparator(String path) {
     return path.endsWith(FILE_SEPARATOR) ? path : path + FILE_SEPARATOR;
-  }
-
-  /**
-   * Construct a staging path under a given staging directory
-   *
-   * @param originalPath source path
-   * @param stagingDir staging directory
-   * @return a staging path under the staging directory, based on the original path
-   * @deprecated since 1.10.0, will be removed in 1.11.0. Use {@link #stagingPath(String, String,
-   *     String)} instead to avoid filename conflicts
-   */
-  @Deprecated
-  public static String stagingPath(String originalPath, String stagingDir) {
-    return stagingDir + fileName(originalPath);
   }
 
   /**

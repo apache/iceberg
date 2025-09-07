@@ -120,7 +120,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
     assertThat(table.partitionStatisticsFiles()).containsExactly(statisticsFile);
 
     Types.StructType partitionType = Partitioning.partitionType(table);
-    Schema dataSchema = PartitionStatsHandler.schema(partitionType);
+    Schema dataSchema = PartitionStatsHandler.schema(partitionType, 2);
     validatePartitionStats(
         statisticsFile,
         dataSchema,
@@ -209,7 +209,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
     assertThat(table.partitionStatisticsFiles()).containsExactly(statisticsFile);
 
     Types.StructType partitionType = Partitioning.partitionType(table);
-    Schema dataSchema = PartitionStatsHandler.schema(partitionType);
+    Schema dataSchema = PartitionStatsHandler.schema(partitionType, 2);
     // should contain stats for only partitions of snapshot1 (no entry for partition bar, A)
     validatePartitionStats(
         statisticsFile,

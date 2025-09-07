@@ -294,14 +294,6 @@ public class TableMetadataParser {
     return read(io.newInputFile(path));
   }
 
-  /**
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link #read(InputFile)} instead.
-   */
-  @Deprecated
-  public static TableMetadata read(FileIO io, InputFile file) {
-    return read(file);
-  }
-
   public static TableMetadata read(InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =

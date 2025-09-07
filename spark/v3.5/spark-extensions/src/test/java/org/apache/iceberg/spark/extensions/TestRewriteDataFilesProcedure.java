@@ -158,7 +158,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     PartitionStatisticsFile statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table);
     table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
 
-    Schema dataSchema = PartitionStatsHandler.schema(Partitioning.partitionType(table));
+    Schema dataSchema = PartitionStatsHandler.schema(Partitioning.partitionType(table), 2);
     List<PartitionStats> statsBeforeCompaction;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
