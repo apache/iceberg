@@ -462,18 +462,22 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: Handle cases that definitely match, such as startsWith("x") when the bounds are
+      // ["xa", "xz"]
       return ROWS_MIGHT_NOT_MATCH;
     }
 
     @Override
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: Handle cases that definitely cannot match, such as notStartsWith("x") when the bounds
-      // are ["a", "b"].
+      // TODO: Handle cases that definitely match, such as notStartsWith("x") when the bounds are
+      // ["a", "b"].
       return ROWS_MIGHT_NOT_MATCH;
     }
 
     @Override
     public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: Efficiently handle cases that definitely match, such as contains("ab") when bounds
+      // are ["xabc", "xabyz"]
       return ROWS_MIGHT_NOT_MATCH;
     }
 

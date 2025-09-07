@@ -408,40 +408,14 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
-      int id = ref.fieldId();
-
-      Boolean hasNonDictPage = isFallback.get(id);
-      if (hasNonDictPage == null || hasNonDictPage) {
-        return ROWS_MIGHT_MATCH;
-      }
-
-      Set<T> dictionary = dict(id, lit.comparator());
-      for (T item : dictionary) {
-        if (item.toString().contains(lit.value().toString())) {
-          return ROWS_MIGHT_MATCH;
-        }
-      }
-
-      return ROWS_CANNOT_MATCH;
+      // TODO: Efficiently determine whether some dictionary value contains the literal
+      return ROWS_MIGHT_MATCH;
     }
 
     @Override
     public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
-      int id = ref.fieldId();
-
-      Boolean hasNonDictPage = isFallback.get(id);
-      if (hasNonDictPage == null || hasNonDictPage) {
-        return ROWS_MIGHT_MATCH;
-      }
-
-      Set<T> dictionary = dict(id, lit.comparator());
-      for (T item : dictionary) {
-        if (!item.toString().contains(lit.value().toString())) {
-          return ROWS_MIGHT_MATCH;
-        }
-      }
-
-      return ROWS_CANNOT_MATCH;
+      // TODO: Efficiently determine whether some dictionary value does not contain the literal
+      return ROWS_MIGHT_MATCH;
     }
 
     @SuppressWarnings("unchecked")

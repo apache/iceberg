@@ -413,6 +413,8 @@ public class ManifestEvaluator {
 
     @Override
     public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: Efficiently handle cases that definitely cannot match, such as notContains("ab") when
+      // bounds are ["xabc", "xabyz"]
       return ROWS_MIGHT_MATCH;
     }
 
