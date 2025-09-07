@@ -333,6 +333,8 @@ public class ExpressionUtil {
         case NOT_EQ:
         case STARTS_WITH:
         case NOT_STARTS_WITH:
+        case CONTAINS:
+        case NOT_CONTAINS:
           return new UnboundPredicate<>(
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case IN:
@@ -492,7 +494,7 @@ public class ExpressionUtil {
         case CONTAINS:
           return term + " CONTAINS " + sanitize(pred.literal(), nowMicros, today);
         case NOT_CONTAINS:
-            return term + " NOT CONTAINS " + sanitize(pred.literal(), nowMicros, today);
+          return term + " NOT CONTAINS " + sanitize(pred.literal(), nowMicros, today);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());

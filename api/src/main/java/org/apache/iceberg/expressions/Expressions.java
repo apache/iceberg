@@ -207,15 +207,15 @@ public class Expressions {
   }
 
   public static UnboundPredicate<String> contains(UnboundTerm<String> expr, String value) {
-      return new UnboundPredicate<>(Expression.Operation.CONTAINS, expr, value);
+    return new UnboundPredicate<>(Expression.Operation.CONTAINS, expr, value);
   }
 
   public static UnboundPredicate<String> notContains(String name, String value) {
-      return new UnboundPredicate<>(Expression.Operation.NOT_CONTAINS, ref(name), value);
+    return new UnboundPredicate<>(Expression.Operation.NOT_CONTAINS, ref(name), value);
   }
 
   public static UnboundPredicate<String> notContains(UnboundTerm<String> expr, String value) {
-      return new UnboundPredicate<>(Expression.Operation.NOT_CONTAINS, expr, value);
+    return new UnboundPredicate<>(Expression.Operation.NOT_CONTAINS, expr, value);
   }
 
   public static <T> UnboundPredicate<T> in(String name, T... values) {
