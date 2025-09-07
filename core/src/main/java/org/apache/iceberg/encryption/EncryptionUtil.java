@@ -71,18 +71,6 @@ public class EncryptionUtil {
     return kmsClient;
   }
 
-  /**
-   * Create a standard encryption manager.
-   *
-   * @deprecated will be removed in 1.11.0; use {@link #createEncryptionManager(List, Map,
-   *     KeyManagementClient)} instead.
-   */
-  @Deprecated
-  public static EncryptionManager createEncryptionManager(
-      Map<String, String> tableProperties, KeyManagementClient kmsClient) {
-    return createEncryptionManager(List.of(), tableProperties, kmsClient);
-  }
-
   static EncryptionManager createEncryptionManager(
       List<EncryptedKey> keys, Map<String, String> tableProperties, KeyManagementClient kmsClient) {
     Preconditions.checkArgument(kmsClient != null, "Invalid KMS client: null");

@@ -1363,6 +1363,63 @@ acceptedBreaks:
       old: "method org.apache.iceberg.parquet.ParquetValueWriters.StructWriter<org.apache.iceberg.data.Record>\
         \ org.apache.iceberg.data.parquet.GenericParquetWriter::createStructWriter(java.util.List<org.apache.iceberg.parquet.ParquetValueWriter<?>>)"
       justification: "Removing deprecations for 1.10.0"
+  "1.10.0":
+    org.apache.iceberg:iceberg-core:
+      - code: "java.class.removed"
+        old: "class org.apache.iceberg.PartitionStatsUtil"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method java.lang.String org.apache.iceberg.RewriteTablePathUtil::stagingPath(java.lang.String,\
+        \ java.lang.String)"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DataFile>\
+        \ org.apache.iceberg.RewriteTablePathUtil::rewriteDataManifest(org.apache.iceberg.ManifestFile,\
+        \ org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, int, java.util.Map<java.lang.Integer,\
+        \ org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String) throws\
+        \ java.io.IOException"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile>\
+        \ org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile,\
+        \ org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, int, java.util.Map<java.lang.Integer,\
+        \ org.apache.iceberg.PartitionSpec>, java.lang.String, java.lang.String, java.lang.String)\
+        \ throws java.io.IOException"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.Schema org.apache.iceberg.PartitionStatsHandler::schema(org.apache.iceberg.types.Types.StructType)"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadataParser::read(org.apache.iceberg.io.FileIO,\
+        \ org.apache.iceberg.io.InputFile)"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.encryption.EncryptionManager org.apache.iceberg.encryption.EncryptionUtil::createEncryptionManager(java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.encryption.KeyManagementClient)"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.rest.responses.OAuthTokenResponse org.apache.iceberg.rest.auth.OAuth2Util::exchangeToken(org.apache.iceberg.rest.RESTClient,\
+        \ java.util.Map<java.lang.String, java.lang.String>, java.lang.String, java.lang.String,\
+        \ java.lang.String, java.lang.String, java.lang.String)"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.rest.responses.OAuthTokenResponse org.apache.iceberg.rest.auth.OAuth2Util::exchangeToken(org.apache.iceberg.rest.RESTClient,\
+        \ java.util.Map<java.lang.String, java.lang.String>, java.lang.String, java.lang.String,\
+        \ java.lang.String, java.lang.String, java.lang.String, java.lang.String)"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.rest.responses.OAuthTokenResponse org.apache.iceberg.rest.auth.OAuth2Util::fetchToken(org.apache.iceberg.rest.RESTClient,\
+        \ java.util.Map<java.lang.String, java.lang.String>, java.lang.String, java.lang.String)"
+        justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.rest.responses.OAuthTokenResponse org.apache.iceberg.rest.auth.OAuth2Util::fetchToken(org.apache.iceberg.rest.RESTClient,\
+        \ java.util.Map<java.lang.String, java.lang.String>, java.lang.String, java.lang.String,\
+        \ java.lang.String)"
+        justification: "Removing deprecated code for 1.11.0"
+    org.apache.iceberg:iceberg-data:
+      - code: "java.class.removed"
+        old: "class org.apache.iceberg.data.PartitionStatsHandler"
+        justification: "Removing deprecated code for 1.11.0"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
