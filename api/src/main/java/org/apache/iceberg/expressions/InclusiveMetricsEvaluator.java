@@ -484,43 +484,6 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean notContains(Bound<T> term, Literal<T> lit) {
-      // the only transforms that produce strings are truncate and identity, which work with this
-      int id = term.ref().fieldId();
-      if (mayContainNull(id)) {
-        return ROWS_MIGHT_MATCH;
-      }
-
-      String substring = (String) lit.value();
-      CharSequence lower = (CharSequence) lowerBound(term);
-      CharSequence upper = (CharSequence) upperBound(term);
-      if (null == lower
-          || null == upper
-          || lower.length() < substring.length()
-          || upper.length() < substring.length()) {
-        return ROWS_MIGHT_MATCH;
-      }
-
-      String lowerStr = lower.toString();
-      String upperStr = upper.toString();
-
-      int lowerFirstOccurrence = lowerStr.indexOf(substring);
-      int upperFirstOccurrence = upperStr.indexOf(substring);
-
-      if (lowerFirstOccurrence < 0 || lowerFirstOccurrence != upperFirstOccurrence) {
-        return ROWS_MIGHT_MATCH;
-      }
-
-      if (lowerStr
-          .substring(0, lowerFirstOccurrence)
-          .equals(upperStr.substring(0, upperFirstOccurrence))) {
-        // both bounds contain the substring at the same position and have the same prefix
-        // until then, so all rows must contain the substring and therefore do not satisfy
-        // the predicate. note that we test this condition with the first occurrence of the
-        // substring only, which is fine because it's impossible that a later occurrence
-        // would have satisfied this condition but an earlier one would not have
-        return ROWS_CANNOT_MATCH;
-      }
-
       return ROWS_MIGHT_MATCH;
     }
 
