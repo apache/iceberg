@@ -344,6 +344,7 @@ public class TestFlinkFilters {
     actual = FlinkFilters.convert(expr);
     assertThat(actual).isNotPresent();
 
+    expected = org.apache.iceberg.expressions.Expressions.contains("field5", "abc");
     expr =
         resolve(
             ApiExpressionUtils.unresolvedCall(
@@ -351,7 +352,8 @@ public class TestFlinkFilters {
                 Expressions.$("field5"),
                 Expressions.lit("%abc%")));
     actual = FlinkFilters.convert(expr);
-    assertThat(actual).isNotPresent();
+    assertThat(actual).isPresent();
+    assertPredicatesMatch(expected, actual.get());
 
     expr =
         resolve(
