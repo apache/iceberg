@@ -1453,7 +1453,7 @@ class ViewUpdate(BaseModel):
 
 class ReadRestrictions(BaseModel):
     """
-    Read restrictions for a table, including projection and row filter expressions.
+    Read restrictions for a table, including projection and row filter expressions, according to the current schema.
     A client MUST enforce the restrictions defined in this object when reading data from the table.
     These restrictions apply only to the authenticated principal, user, or account associated with the client. They MUST NOT be interpreted as global policy and MUST NOT be applied beyond the entity identified by the Authentication header (or other applicable authentication mechanism).
 
