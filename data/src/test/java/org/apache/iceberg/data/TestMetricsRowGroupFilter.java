@@ -119,7 +119,8 @@ public class TestMetricsRowGroupFilter {
           optional(14, "all_nans", DoubleType.get()),
           optional(15, "some_nans", FloatType.get()),
           optional(16, "no_nans", DoubleType.get()),
-          optional(17, "some_double_nans", DoubleType.get()));
+          optional(17, "some_double_nans", DoubleType.get()),
+          optional(18, "uuid_col", Types.UUIDType.get()));
 
   private static final Types.StructType UNDERSCORE_STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(8, "_int_field", IntegerType.get()));
@@ -137,7 +138,8 @@ public class TestMetricsRowGroupFilter {
           optional(14, "_all_nans", Types.DoubleType.get()),
           optional(15, "_some_nans", FloatType.get()),
           optional(16, "_no_nans", Types.DoubleType.get()),
-          optional(17, "_some_double_nans", Types.DoubleType.get()));
+          optional(17, "_some_double_nans", Types.DoubleType.get()),
+          optional(18, "_uuid_col", Types.UUIDType.get()));
 
   private static final Schema VARIANT_SCHEMA =
       new Schema(
@@ -156,6 +158,11 @@ public class TestMetricsRowGroupFilter {
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
+
+  private static final UUID UUID_WITH_ZEROS =
+      UUID.fromString("00000000-0000-0000-0000-000000000000");
+  private static final UUID UUID_WITH_ONES =
+      UUID.fromString("11111111-1111-1111-1111-111111111111");
 
   private File orcFile = null;
   private MessageType parquetSchema = null;
@@ -211,6 +218,9 @@ public class TestMetricsRowGroupFilter {
         structNotNull.setField("_int_field", INT_MIN_VALUE + i);
         record.setField("_struct_not_null", structNotNull); // struct with int
 
+        record.setField(
+            "_uuid_col", (i % 3 == 0) ? UUID_WITH_ZEROS : (i % 3 == 1) ? UUID_WITH_ONES : null);
+
         appender.add(record);
       }
     }
@@ -248,6 +258,10 @@ public class TestMetricsRowGroupFilter {
       GenericRecord structNotNull = GenericRecord.create(UNDERSCORE_STRUCT_FIELD_TYPE);
       structNotNull.setField("_int_field", INT_MIN_VALUE + i);
       builder.setField("_struct_not_null", structNotNull); // struct with int
+
+      builder.setField(
+          "_uuid_col", (i % 3 == 0) ? UUID_WITH_ZEROS : (i % 3 == 1) ? UUID_WITH_ONES : null);
+
       records.add(builder);
     }
 
@@ -1061,6 +1075,18 @@ public class TestMetricsRowGroupFilter {
           .as("Should read: variant notNull filters must be evaluated post scan even for all nulls")
           .isTrue();
     }
+  }
+
+  @TestTemplate
+  public void testUUIDEq() {
+    assumeThat(format).as("Only valid for Parquet").isEqualTo(FileFormat.PARQUET);
+
+    boolean shouldRead = shouldRead(equal("uuid_col", UUID_WITH_ZEROS));
+    assertThat(shouldRead).as("Should read: UUID value exists in row group").isTrue();
+
+    UUID nonExistentUuid = UUID.fromString("99999999-9999-9999-9999-999999999999");
+    boolean shouldSkip = shouldRead(equal("uuid_col", nonExistentUuid));
+    assertThat(shouldSkip).as("Should skip: UUID value does not exist in row group").isFalse();
   }
 
   private boolean shouldRead(Expression expression) {
