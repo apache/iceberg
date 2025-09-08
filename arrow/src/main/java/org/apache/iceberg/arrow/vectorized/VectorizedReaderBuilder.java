@@ -122,7 +122,11 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     for (Types.NestedField field : icebergFields) {
       VectorizedReader<?> reader =
           VectorizedArrowReader.replaceWithMetadataReader(
-              field, readersById.get(field.fieldId()), idToConstant, setArrowValidityVector);
+              field,
+              readersById.get(field.fieldId()),
+              idToConstant,
+              setArrowValidityVector,
+              rootAllocator);
       reorderedFields.add(defaultReader(field, reader));
     }
     return vectorizedReader(reorderedFields);

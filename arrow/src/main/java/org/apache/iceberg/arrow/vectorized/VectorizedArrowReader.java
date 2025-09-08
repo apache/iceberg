@@ -95,14 +95,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private VectorizedArrowReader() {
-    this(null);
+    this(null, null);
   }
 
-  private VectorizedArrowReader(Types.NestedField icebergField) {
+  private VectorizedArrowReader(Types.NestedField icebergField, BufferAllocator allocator) {
     this.icebergField = icebergField;
     this.batchSize = DEFAULT_BATCH_SIZE;
     this.columnDescriptor = null;
-    this.rootAlloc = null;
+    this.rootAlloc = allocator;
     this.vectorizedColumnIterator = null;
   }
 
@@ -393,53 +393,109 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return NullVectorReader.INSTANCE;
   }
 
+  public static VectorizedArrowReader positions(BufferAllocator allocator) {
+    return new PositionVectorReader(false, allocator);
+  }
+
+  /**
+   * @deprecated use {@link #positions(BufferAllocator)} instead; will be removed in 2.0.0
+   */
+  @Deprecated
   public static VectorizedArrowReader positions() {
-    return new PositionVectorReader(false);
+    return positions(null);
   }
 
+  public static VectorizedArrowReader positionsWithSetArrowValidityVector(
+      BufferAllocator allocator) {
+    return new PositionVectorReader(true, allocator);
+  }
+
+  /**
+   * @deprecated use {@link #positionsWithSetArrowValidityVector(BufferAllocator)} instead; will be
+   *     removed in 2.0.0
+   */
+  @Deprecated
   public static VectorizedArrowReader positionsWithSetArrowValidityVector() {
-    return new PositionVectorReader(true);
+    return positionsWithSetArrowValidityVector(null);
   }
 
-  public static VectorizedArrowReader rowIds(Long baseRowId, VectorizedArrowReader idReader) {
+  public static VectorizedArrowReader rowIds(
+      Long baseRowId, VectorizedArrowReader idReader, BufferAllocator allocator) {
     if (baseRowId != null) {
-      return new RowIdVectorReader(baseRowId, idReader);
+      return new RowIdVectorReader(baseRowId, idReader, allocator);
     } else {
       return nulls();
     }
+  }
+
+  /**
+   * @deprecated use {@link #rowIds(Long, VectorizedArrowReader, BufferAllocator)} instead; will be
+   *     removed in 2.0.0
+   */
+  @Deprecated
+  public static VectorizedArrowReader rowIds(Long baseRowId, VectorizedArrowReader idReader) {
+    return rowIds(baseRowId, idReader, null);
   }
 
   public static VectorizedArrowReader lastUpdated(
-      Long baseRowId, Long fileLastUpdated, VectorizedArrowReader seqReader) {
+      Long baseRowId,
+      Long fileLastUpdated,
+      VectorizedArrowReader seqReader,
+      BufferAllocator allocator) {
     if (fileLastUpdated != null && baseRowId != null) {
-      return new LastUpdatedSeqVectorReader(fileLastUpdated, seqReader);
+      return new LastUpdatedSeqVectorReader(fileLastUpdated, seqReader, allocator);
     } else {
       return nulls();
     }
+  }
+
+  /**
+   * @deprecated use {@link #lastUpdated(Long, Long, VectorizedArrowReader, BufferAllocator)}
+   *     instead; will be removed in 2.0.0
+   */
+  @Deprecated
+  public static VectorizedArrowReader lastUpdated(
+      Long baseRowId, Long fileLastUpdated, VectorizedArrowReader seqReader) {
+    return lastUpdated(baseRowId, fileLastUpdated, seqReader, null);
+  }
+
+  /**
+   * @deprecated use {@link #replaceWithMetadataReader(Types.NestedField, VectorizedReader, Map,
+   *     boolean, BufferAllocator)} instead; will be removed in 2.0.0
+   */
+  @Deprecated
+  public static VectorizedReader<?> replaceWithMetadataReader(
+      Types.NestedField icebergField,
+      VectorizedReader<?> reader,
+      Map<Integer, ?> idToConstant,
+      boolean setArrowValidityVector) {
+    return replaceWithMetadataReader(
+        icebergField, reader, idToConstant, setArrowValidityVector, null);
   }
 
   public static VectorizedReader<?> replaceWithMetadataReader(
       Types.NestedField icebergField,
       VectorizedReader<?> reader,
       Map<Integer, ?> idToConstant,
-      boolean setArrowValidityVector) {
+      boolean setArrowValidityVector,
+      BufferAllocator allocator) {
     int id = icebergField.fieldId();
     if (id == MetadataColumns.ROW_ID.fieldId()) {
       Long baseRowId = (Long) idToConstant.get(id);
-      return rowIds(baseRowId, (VectorizedArrowReader) reader);
+      return rowIds(baseRowId, (VectorizedArrowReader) reader, allocator);
     } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
       Long baseRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
       Long fileSeqNumber = (Long) idToConstant.get(id);
       return VectorizedArrowReader.lastUpdated(
-          baseRowId, fileSeqNumber, (VectorizedArrowReader) reader);
+          baseRowId, fileSeqNumber, (VectorizedArrowReader) reader, allocator);
     } else if (idToConstant.containsKey(id)) {
       // containsKey is used because the constant may be null
       return new ConstantVectorReader<>(icebergField, idToConstant.get(id));
     } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
       if (setArrowValidityVector) {
-        return positionsWithSetArrowValidityVector();
+        return positionsWithSetArrowValidityVector(allocator);
       } else {
-        return VectorizedArrowReader.positions();
+        return VectorizedArrowReader.positions(allocator);
       }
     } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
       return new DeletedVectorReader();
@@ -638,8 +694,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private int batchSize;
     private NullabilityHolder nulls;
 
-    PositionVectorReader(boolean setArrowValidityVector) {
-      super(MetadataColumns.ROW_POSITION);
+    PositionVectorReader(boolean setArrowValidityVector, BufferAllocator allocator) {
+      super(MetadataColumns.ROW_POSITION, allocator);
       this.setArrowValidityVector = setArrowValidityVector;
     }
 
@@ -712,10 +768,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private final VectorizedReader<VectorHolder> posReader;
     private NullabilityHolder nulls;
 
-    private RowIdVectorReader(long firstRowId, VectorizedArrowReader idReader) {
+    private RowIdVectorReader(
+        long firstRowId, VectorizedArrowReader idReader, BufferAllocator allocator) {
+      super(null, allocator);
       this.firstRowId = firstRowId;
       this.idReader = idReader != null ? idReader : nulls();
-      this.posReader = new PositionVectorReader(true);
+      this.posReader = new PositionVectorReader(true, allocator);
     }
 
     @Override
@@ -777,7 +835,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private NullabilityHolder nulls;
 
     private LastUpdatedSeqVectorReader(
-        long lastUpdatedSeq, VectorizedReader<VectorHolder> seqReader) {
+        long lastUpdatedSeq, VectorizedReader<VectorHolder> seqReader, BufferAllocator allocator) {
+      super(null, allocator);
       this.lastUpdatedSeq = lastUpdatedSeq;
       this.seqReader = seqReader == null ? nulls() : seqReader;
     }
@@ -862,7 +921,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private final T value;
 
     public ConstantVectorReader(Types.NestedField icebergField, T value) {
-      super(icebergField);
+      super(icebergField, null);
       this.value = value;
     }
 
@@ -890,7 +949,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
    */
   public static class DeletedVectorReader extends VectorizedArrowReader {
     public DeletedVectorReader() {
-      super(MetadataColumns.IS_DELETED);
+      super(MetadataColumns.IS_DELETED, null);
     }
 
     @Override
