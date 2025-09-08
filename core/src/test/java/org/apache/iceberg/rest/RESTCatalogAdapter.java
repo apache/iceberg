@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.Table;
@@ -287,7 +288,12 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   @SuppressWarnings({"MethodLength", "checkstyle:CyclomaticComplexity"})
   public <T extends RESTResponse> T handleRequest(
-      Route route, Map<String, String> vars, Object body, Class<T> responseType) {
+      Route route,
+      Map<String, String> vars,
+      HTTPRequest httpRequest,
+      Class<T> responseType,
+      Consumer<Map<String, String>> responseHeaders) {
+    Object body = httpRequest.body();
     switch (route) {
       case TOKENS:
         return castResponse(responseType, handleOAuthRequest(body));
@@ -388,12 +394,15 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           Namespace namespace = namespaceFromPathVars(vars);
           CreateTableRequest request = castRequest(CreateTableRequest.class, body);
           request.validate();
+
           if (request.stageCreate()) {
             return castResponse(
                 responseType, CatalogHandlers.stageTableCreate(catalog, namespace, request));
           } else {
-            return castResponse(
-                responseType, CatalogHandlers.createTable(catalog, namespace, request));
+            LoadTableResponse resp = CatalogHandlers.createTable(catalog, namespace, request);
+            responseHeaders.accept(
+                ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(resp.metadataLocation())));
+            return castResponse(responseType, resp);
           }
         }
 
@@ -416,23 +425,40 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
       case LOAD_TABLE:
         {
-          TableIdentifier ident = tableIdentFromPathVars(vars);
-          return castResponse(responseType, CatalogHandlers.loadTable(catalog, ident));
+          LoadTableResponse resp = CatalogHandlers.loadTable(catalog, tableIdentFromPathVars(vars));
+
+          responseHeaders.accept(
+              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(resp.metadataLocation())));
+
+          return castResponse(responseType, resp);
         }
 
       case REGISTER_TABLE:
         {
-          Namespace namespace = namespaceFromPathVars(vars);
-          RegisterTableRequest request = castRequest(RegisterTableRequest.class, body);
-          return castResponse(
-              responseType, CatalogHandlers.registerTable(catalog, namespace, request));
+          LoadTableResponse resp =
+              CatalogHandlers.registerTable(
+                  catalog,
+                  namespaceFromPathVars(vars),
+                  castRequest(RegisterTableRequest.class, body));
+
+          responseHeaders.accept(
+              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(resp.metadataLocation())));
+
+          return castResponse(responseType, resp);
         }
 
       case UPDATE_TABLE:
         {
-          TableIdentifier ident = tableIdentFromPathVars(vars);
-          UpdateTableRequest request = castRequest(UpdateTableRequest.class, body);
-          return castResponse(responseType, CatalogHandlers.updateTable(catalog, ident, request));
+          LoadTableResponse resp =
+              CatalogHandlers.updateTable(
+                  catalog,
+                  tableIdentFromPathVars(vars),
+                  castRequest(UpdateTableRequest.class, body));
+
+          responseHeaders.accept(
+              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(resp.metadataLocation())));
+
+          return castResponse(responseType, resp);
         }
 
       case RENAME_TABLE:
@@ -625,8 +651,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         vars.putAll(request.queryParameters());
         vars.putAll(routeAndVars.second());
 
-        return handleRequest(routeAndVars.first(), vars.build(), request.body(), responseType);
-
+        return handleRequest(
+            routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
       } catch (RuntimeException e) {
         configureResponseFromException(e, errorBuilder);
       }

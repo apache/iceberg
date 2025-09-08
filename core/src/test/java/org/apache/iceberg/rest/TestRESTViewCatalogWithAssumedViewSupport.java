@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
@@ -52,13 +53,17 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
 
           @Override
           public <T extends RESTResponse> T handleRequest(
-              Route route, Map<String, String> vars, Object body, Class<T> responseType) {
+              Route route,
+              Map<String, String> vars,
+              HTTPRequest httpRequest,
+              Class<T> responseType,
+              Consumer<Map<String, String>> responseHeaders) {
             if (CONFIG == route) {
               // simulate a legacy server that doesn't send back supported endpoints
               return castResponse(responseType, ConfigResponse.builder().build());
             }
 
-            return super.handleRequest(route, vars, body, responseType);
+            return super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
           }
         };
 
