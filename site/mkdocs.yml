@@ -30,7 +30,7 @@ theme:
   font:
     text: Nunito Sans
   palette:
-    scheme: iceberg  
+    scheme: iceberg
   features:
     - navigation.tabs
     - navigation.tabs.sticky
@@ -53,6 +53,12 @@ plugins:
   - privacy
   - offline:
       enabled: !ENV [OFFLINE, false]
+  - redirects:
+      redirect_maps:
+        'docs/nightly/amoro.md': 'integrations/amoro.md'
+        'docs/nightly/bladepipe.md': 'integrations/bladepipe.md'
+        'docs/nightly/daft.md': 'integrations/daft.md'
+        'docs/nightly/risingwave.md': 'integrations/risingwave.md'
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -66,7 +72,7 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.tabbed:
-      alternate_style: true 
+      alternate_style: true
   - pymdownx.mark
   - pymdownx.tilde
   - attr_list
@@ -105,7 +111,7 @@ extra_css:
   - assets/stylesheets/bootstrap-grid.css
   - assets/stylesheets/bootstrap-buttons.css
   - assets/stylesheets/home.css
-  
+
 extra_javascript:
   - assets/javascript/extra.js
 
