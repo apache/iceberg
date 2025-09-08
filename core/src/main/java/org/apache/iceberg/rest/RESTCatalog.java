@@ -113,10 +113,10 @@ public class RESTCatalog
   }
 
   @Override
-  public Table loadTableViaView(TableIdentifier identifier, Map<String, Object> viewContext) {
+  public Table loadTableWithContext(TableIdentifier identifier, Map<String, Object> viewContext) {
     if (delegate instanceof ContextAwareTableCatalog) {
       ContextAwareTableCatalog catalog = (ContextAwareTableCatalog) delegate;
-      return catalog.loadTableViaView(identifier, viewContext);
+      return catalog.loadTableWithContext(identifier, viewContext);
     }
     return loadTable(identifier);
   }

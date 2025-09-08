@@ -161,8 +161,8 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     }
 
     @Override
-    public Table loadTableViaView(TableIdentifier identifier, Map<String, Object> viewContext) {
-      return BaseSessionCatalog.this.loadTableViaView(context, identifier, viewContext);
+    public Table loadTableWithContext(TableIdentifier identifier, Map<String, Object> viewContext) {
+      return BaseSessionCatalog.this.loadTableWithContext(context, identifier, viewContext);
     }
   }
 }

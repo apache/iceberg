@@ -25,12 +25,12 @@ import org.apache.spark.sql.connector.catalog.Table;
 
 public interface ContextAwareTableCatalog {
 
-  Table loadTableViaView(Identifier identifier, Map<String, Object> context)
+  Table loadTableWithContext(Identifier identifier, Map<String, Object> context)
       throws NoSuchTableException;
 
-  Table loadTableViaView(Identifier identifier, String version, Map<String, Object> context)
+  Table loadTableWithContext(Identifier identifier, String version, Map<String, Object> context)
       throws NoSuchTableException;
 
-  Table loadTableViaView(Identifier identifier, long timestamp, Map<String, Object> context)
+  Table loadTableWithContext(Identifier identifier, long timestamp, Map<String, Object> context)
       throws NoSuchTableException;
 }

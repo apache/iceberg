@@ -143,15 +143,16 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return loadTableViaView(ident, Map.of());
+    return loadTableWithContext(ident, Map.of());
   }
 
   @Override
-  public Table loadTableViaView(Identifier identifier, Map<String, Object> context)
+  public Table loadTableWithContext(Identifier identifier, Map<String, Object> context)
       throws NoSuchTableException {
     try {
       if (icebergCatalog instanceof ContextAwareTableCatalog && !context.isEmpty()) {
-        return ((ContextAwareTableCatalog) icebergCatalog).loadTableViaView(identifier, context);
+        return ((ContextAwareTableCatalog) icebergCatalog)
+            .loadTableWithContext(identifier, context);
       } else {
         return icebergCatalog.loadTable(identifier);
       }
@@ -162,21 +163,22 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
-    return loadTableViaView(ident, timestamp, Map.of());
+    return loadTableWithContext(ident, timestamp, Map.of());
   }
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return loadTableViaView(ident, version, Map.of());
+    return loadTableWithContext(ident, version, Map.of());
   }
 
   @Override
-  public Table loadTableViaView(Identifier identifier, String version, Map<String, Object> context)
+  public Table loadTableWithContext(
+      Identifier identifier, String version, Map<String, Object> context)
       throws NoSuchTableException {
     try {
       if (icebergCatalog instanceof ContextAwareTableCatalog && !context.isEmpty()) {
         return ((ContextAwareTableCatalog) icebergCatalog)
-            .loadTableViaView(identifier, version, context);
+            .loadTableWithContext(identifier, version, context);
       } else {
         return icebergCatalog.loadTable(identifier, version);
       }
@@ -186,12 +188,13 @@ public class SparkSessionCatalog<
   }
 
   @Override
-  public Table loadTableViaView(Identifier identifier, long timestamp, Map<String, Object> context)
+  public Table loadTableWithContext(
+      Identifier identifier, long timestamp, Map<String, Object> context)
       throws NoSuchTableException {
     try {
       if (icebergCatalog instanceof ContextAwareTableCatalog && !context.isEmpty()) {
         return ((ContextAwareTableCatalog) icebergCatalog)
-            .loadTableViaView(identifier, timestamp, context);
+            .loadTableWithContext(identifier, timestamp, context);
       } else {
         return icebergCatalog.loadTable(identifier, timestamp);
       }

@@ -29,7 +29,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 public interface ContextAwareTableCatalog {
 
   /** Context key for the view identifier that references a table */
-  String VIEW_IDENTIFIER_KEY = "view.identifier";
+  String VIEW_IDENTIFIER_KEY = "view.referenced-by";
 
   /**
    * Load a table with additional context information.
@@ -46,6 +46,6 @@ public interface ContextAwareTableCatalog {
    * @return the loaded table
    * @throws NoSuchTableException if the table does not exist
    */
-  Table loadTableViaView(TableIdentifier identifier, Map<String, Object> context)
+  Table loadTableWithContext(TableIdentifier identifier, Map<String, Object> context)
       throws NoSuchTableException;
 }

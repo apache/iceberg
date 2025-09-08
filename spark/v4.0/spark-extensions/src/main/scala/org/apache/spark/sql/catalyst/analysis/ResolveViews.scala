@@ -72,11 +72,11 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       try {
         catalog match {
           case contextAwareCatalog: ContextAwareTableCatalog =>
-            val table = contextAwareCatalog.loadTableViaView(tableIdent, context)
+            val table = contextAwareCatalog.loadTableWithContext(tableIdent, context)
             DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
           case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareTableCatalog] =>
             val table =
-              catalog.asTableCatalog.asInstanceOf[ContextAwareTableCatalog].loadTableViaView(tableIdent, context)
+              catalog.asTableCatalog.asInstanceOf[ContextAwareTableCatalog].loadTableWithContext(tableIdent, context)
             DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
           case _ =>
             val table = catalog.asTableCatalog.loadTable(tableIdent)

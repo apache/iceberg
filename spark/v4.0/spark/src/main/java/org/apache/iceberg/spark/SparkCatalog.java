@@ -167,11 +167,11 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return loadTableViaView(ident, Map.of());
+    return loadTableWithContext(ident, Map.of());
   }
 
   @Override
-  public Table loadTableViaView(Identifier ident, Map<String, Object> context)
+  public Table loadTableWithContext(Identifier ident, Map<String, Object> context)
       throws NoSuchTableException {
     try {
       return load(ident, context);
@@ -182,11 +182,11 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return loadTableViaView(ident, version, Map.of());
+    return loadTableWithContext(ident, version, Map.of());
   }
 
   @Override
-  public Table loadTableViaView(Identifier ident, String version, Map<String, Object> context)
+  public Table loadTableWithContext(Identifier ident, String version, Map<String, Object> context)
       throws NoSuchTableException {
     Table table = load(ident, context);
 
@@ -222,11 +222,11 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
 
   @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
-    return loadTableViaView(ident, timestamp, Map.of());
+    return loadTableWithContext(ident, timestamp, Map.of());
   }
 
   @Override
-  public Table loadTableViaView(Identifier ident, long timestamp, Map<String, Object> context)
+  public Table loadTableWithContext(Identifier ident, long timestamp, Map<String, Object> context)
       throws NoSuchTableException {
     Table table = load(ident, context);
 
@@ -928,7 +928,7 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
     if (icebergCatalog instanceof org.apache.iceberg.catalog.ContextAwareTableCatalog
         && !context.isEmpty()) {
       return ((org.apache.iceberg.catalog.ContextAwareTableCatalog) icebergCatalog)
-          .loadTableViaView(ident, context);
+          .loadTableWithContext(ident, context);
     } else {
       return icebergCatalog.loadTable(ident);
     }
