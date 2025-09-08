@@ -3350,7 +3350,7 @@ components:
     ReadRestrictions:
       type: object
       description: >
-          Read restrictions for a table, including projection and row filter expressions.
+          Read restrictions for a table, including projection and row filter expressions, according to the current schema.
 
           A client MUST enforce the restrictions defined in this object when reading data
           from the table.
