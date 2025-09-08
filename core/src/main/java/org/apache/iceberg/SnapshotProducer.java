@@ -117,6 +117,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private TableMetadata base;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
+  private final List<Consumer<ReadonlyTableMetadata>> commitValidators = Lists.newArrayList();
 
   private ExecutorService workerPool;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
@@ -195,6 +196,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return targetBranch;
   }
 
+  @Override
+  public ThisT addCommitValidator(Consumer<ReadonlyTableMetadata> validator) {
+    commitValidators.add(validator);
+    return self();
+  }
+
   protected ExecutorService workerPool() {
     if (workerPool == null) {
       this.workerPool = ThreadPools.getWorkerPool();
@@ -257,6 +264,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     long sequenceNumber = base.nextSequenceNumber();
     Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();
 
+    validateBaseMetadata();
     validate(base, parentSnapshot);
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
@@ -324,6 +332,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         nextRowId,
         assignedRows,
         null);
+  }
+
+  private void validateBaseMetadata() {
+    for (Consumer<ReadonlyTableMetadata> validator : commitValidators) {
+      validator.accept(base);
+    }
   }
 
   protected abstract Map<String, String> summary();
