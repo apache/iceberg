@@ -83,20 +83,12 @@ public interface ExtendedParser extends ParserInterface {
 
   static Object getDelegate(Object parser) {
     try {
-      for (String methodName : new String[] {"delegate", "getDelegate"}) {
-        try {
-          java.lang.reflect.Method delegateMethod = parser.getClass().getMethod(methodName);
-          return delegateMethod.invoke(parser);
-        } catch (NoSuchMethodException ignore) {
-          // pass
+      for (java.lang.reflect.Field field : parser.getClass().getDeclaredFields()) {
+        field.setAccessible(true);
+        Object value = field.get(parser);
+        if (value instanceof ParserInterface && value != parser) {
+          return value;
         }
-      }
-      try {
-        java.lang.reflect.Field delegateField = parser.getClass().getDeclaredField("delegate");
-        delegateField.setAccessible(true);
-        return delegateField.get(parser);
-      } catch (NoSuchFieldException ignore) {
-        // pass
       }
     } catch (Exception e) {
       // pass
