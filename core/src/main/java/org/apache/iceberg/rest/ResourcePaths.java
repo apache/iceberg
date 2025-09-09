@@ -164,4 +164,16 @@ public class ResourcePaths {
         RESTUtil.encodeString(ident.name()),
         "tasks");
   }
+
+  public String cancelPlanning(TableIdentifier ident, String planId) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "plan",
+        planId);
+  }
 }
