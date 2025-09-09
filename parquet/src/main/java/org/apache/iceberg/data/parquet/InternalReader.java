@@ -20,15 +20,21 @@ package org.apache.iceberg.data.parquet;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
 
 public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> {
+
+  private final Map<Integer, Class<? extends StructLike>> typesById = Maps.newHashMap();
 
   private static final InternalReader<?> INSTANCE = new InternalReader<>();
 
@@ -46,11 +52,48 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
     return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
+  public static Parquet.ReadBuilder.ReaderFunction readerFunction() {
+    InternalReader<?> reader = new InternalReader<>();
+
+    return new Parquet.ReadBuilder.ReaderFunction() {
+      private Schema schema;
+
+      @Override
+      public Function<MessageType, ParquetValueReader<?>> apply() {
+        return messageType -> reader.createReader(schema, messageType);
+      }
+
+      @Override
+      public Parquet.ReadBuilder.ReaderFunction withSchema(Schema schema) {
+        this.schema = schema;
+        return this;
+      }
+
+      @Override
+      public Parquet.ReadBuilder.ReaderFunction withCustomTypes(
+          Map<Integer, Class<? extends StructLike>> customTypes) {
+        reader.typesById.putAll(customTypes);
+        return this;
+      }
+
+      @Override
+      public Parquet.ReadBuilder.ReaderFunction withRootType(Class<? extends StructLike> rootType) {
+        if (rootType != null) {
+          reader.typesById.put(ROOT_ID, rootType);
+        }
+
+        return this;
+      }
+    };
+  }
+
   @Override
   @SuppressWarnings("unchecked")
   protected ParquetValueReader<T> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return (ParquetValueReader<T>) ParquetValueReaders.recordReader(fieldReaders, structType);
+      List<ParquetValueReader<?>> fieldReaders, StructType structType, Integer fieldId) {
+    return (ParquetValueReader<T>)
+        ParquetValueReaders.structLikeReader(
+            fieldReaders, structType, typesById.getOrDefault(fieldId, Record.class));
   }
 
   @Override
