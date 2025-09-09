@@ -253,7 +253,7 @@ public class TestMetricsRowGroupFilter {
 
         Record structNotNull = new Record(structSchema);
         structNotNull.put("_int_field", INT_MIN_VALUE + i);
-        builder.set("_struct_not_null", structNotNull);
+        builder.set("_struct_not_null", structNotNull); // struct with int
 
         builder.set("_uuid_col", (i % 2 == 0) ? TARGET_UUID : OTHER_UUID);
 
