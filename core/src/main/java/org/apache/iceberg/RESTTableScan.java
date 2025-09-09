@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,8 +37,12 @@ import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class RESTTableScan extends DataTableScan implements AutoCloseable {
+  private static final Logger LOG = LoggerFactory.getLogger(RESTTableScan.class);
+
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
@@ -50,7 +53,6 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
 
   // Plan ID lifecycle management
   private final AtomicReference<String> activePlanId = new AtomicReference<>();
-  private final Duration maxPlanningTimeout = Duration.ofMinutes(10); // Configurable timeout
 
   // TODO revisit if this property should be configurable
   private static final int FETCH_PLANNING_SLEEP_DURATION_MS = 1000;
@@ -133,12 +135,6 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
   }
 
   private CloseableIterable<FileScanTask> planTableScan(PlanTableScanRequest planTableScanRequest) {
-    ParserContext context =
-        ParserContext.builder()
-            .add("specsById", table.specs())
-            .add("caseSensitive", context().caseSensitive())
-            .build();
-
     PlanTableScanResponse response =
         client.post(
             resourcePaths.planTableScan(tableIdentifier),
@@ -147,50 +143,16 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
             headers.get(),
             ErrorHandlers.defaultErrorHandler(),
             stringStringMap -> {},
-            context);
+            createParserContext());
 
-    PlanStatus planStatus = response.planStatus();
-    switch (planStatus) {
-      case COMPLETED:
-        return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
-      case SUBMITTED:
-        return fetchPlanningResult(response.planId());
-      case FAILED:
-        throw new IllegalStateException(
-            "Received \"failed\" status from service when planning a table scan");
-      case CANCELLED:
-        throw new IllegalStateException(
-            "Received \"cancelled\" status from service when planning a table scan");
-      default:
-        throw new RuntimeException(
-            String.format(Locale.ROOT, "Invalid planStatus during planTableScan: %s", planStatus));
-    }
+    return handleInitialPlanStatus(response.planStatus(), response);
   }
 
   private CloseableIterable<FileScanTask> fetchPlanningResult(String planId) {
-    // Track the active plan ID for cleanup
     activePlanId.set(planId);
 
-    long startTime = System.currentTimeMillis();
-    long timeoutMs = maxPlanningTimeout.toMillis();
-
     try {
-      // we need to inject specById map here and also the caseSensitive
-      ParserContext context =
-          ParserContext.builder()
-              .add("specsById", table.specs())
-              .add("caseSensitive", context().caseSensitive())
-              .build();
-
       while (true) {
-        // Check timeout
-        long elapsed = System.currentTimeMillis() - startTime;
-        if (elapsed > timeoutMs) {
-          cancelPlanningWithId(planId);
-          throw new RuntimeException(
-              String.format(Locale.ROOT, "Plan %s timed out after %d ms", planId, elapsed));
-        }
-
         FetchPlanningResultResponse response =
             client.get(
                 resourcePaths.fetchPlanningResult(tableIdentifier, planId),
@@ -198,41 +160,12 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
                 FetchPlanningResultResponse.class,
                 headers.get(),
                 ErrorHandlers.defaultErrorHandler(),
-                context);
+                createParserContext());
 
-        PlanStatus planStatus = response.planStatus();
-        switch (planStatus) {
-          case COMPLETED:
-            // Clear plan ID on successful completion
-            activePlanId.compareAndSet(planId, null);
-            return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
-          case SUBMITTED:
-            try {
-              Thread.sleep(FETCH_PLANNING_SLEEP_DURATION_MS);
-            } catch (InterruptedException e) {
-              Thread.currentThread().interrupt();
-              // Cancel plan on interruption
-              cancelPlanningWithId(planId);
-              throw new RuntimeException("Interrupted while fetching plan status", e);
-            }
-            break;
-          case FAILED:
-            // Clear plan ID on failure (server handles cleanup)
-            activePlanId.compareAndSet(planId, null);
-            throw new RuntimeException(
-                "Received \"failed\" status from service when fetching a table scan");
-          case CANCELLED:
-            // Clear plan ID on cancellation
-            activePlanId.compareAndSet(planId, null);
-            throw new RuntimeException(
-                String.format(
-                    Locale.ROOT,
-                    "Received \"cancelled\" status from service when fetching a table scan, planId: %s is invalid",
-                    planId));
-          default:
-            throw new RuntimeException(
-                String.format(
-                    Locale.ROOT, "Invalid planStatus during fetchPlanningResult: %s", planStatus));
+        CloseableIterable<FileScanTask> result =
+            handlePlanningStatus(response.planStatus(), planId, response);
+        if (result != null) {
+          return result;
         }
       }
     } catch (Exception e) {
@@ -242,51 +175,162 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
     }
   }
 
+  private CloseableIterable<FileScanTask> handlePlanningStatus(
+      PlanStatus planStatus, String planId, FetchPlanningResultResponse response) {
+
+    switch (planStatus) {
+      case COMPLETED:
+        activePlanId.compareAndSet(planId, null);
+        return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
+
+      case SUBMITTED:
+        handleSubmittedStatus(planId);
+        return null; // Continue polling
+
+      case FAILED:
+        activePlanId.compareAndSet(planId, null);
+        throw new RuntimeException(
+            "Received \"failed\" status from service when fetching a table scan");
+
+      case CANCELLED:
+        activePlanId.compareAndSet(planId, null);
+        throw new RuntimeException(
+            String.format(
+                Locale.ROOT,
+                "Received \"cancelled\" status from service when fetching a table scan, planId: %s is invalid",
+                planId));
+
+      default:
+        throw new RuntimeException(
+            String.format(
+                Locale.ROOT, "Invalid planStatus during fetchPlanningResult: %s", planStatus));
+    }
+  }
+
+  private void handleSubmittedStatus(String planId) {
+    try {
+      Thread.sleep(FETCH_PLANNING_SLEEP_DURATION_MS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      cancelPlanningWithId(planId);
+      throw new RuntimeException("Interrupted while fetching plan status", e);
+    }
+  }
+
+  private CloseableIterable<FileScanTask> handleInitialPlanStatus(
+      PlanStatus planStatus, PlanTableScanResponse response) {
+
+    switch (planStatus) {
+      case COMPLETED:
+        return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
+
+      case SUBMITTED:
+        return fetchPlanningResult(response.planId());
+
+      case FAILED:
+        throw new IllegalStateException(
+            "Received \"failed\" status from service when planning a table scan");
+
+      case CANCELLED:
+        throw new IllegalStateException(
+            "Received \"cancelled\" status from service when planning a table scan");
+
+      default:
+        throw new RuntimeException(
+            String.format(Locale.ROOT, "Invalid planStatus during planTableScan: %s", planStatus));
+    }
+  }
+
   public CloseableIterable<FileScanTask> getScanTasksIterable(
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
-    List<ScanTasksIterable> iterableOfScanTaskIterables = Lists.newArrayList();
-    if (fileScanTasks != null) {
-      // add this to the list for below if planTasks will also be present
-      ScanTasksIterable scanTasksIterable =
-          new ScanTasksIterable(
-              fileScanTasks,
-              client,
-              resourcePaths,
-              tableIdentifier,
-              headers,
-              planExecutor(),
-              table.specs(),
-              isCaseSensitive());
-      iterableOfScanTaskIterables.add(scanTasksIterable);
+
+    if (isInputEmpty(planTasks, fileScanTasks)) {
+      return CloseableIterable.empty();
     }
-    if (planTasks != null) {
-      // Use parallel iterable since planTasks are present
-      for (String planTask : planTasks) {
-        ScanTasksIterable iterable =
-            new ScanTasksIterable(
-                planTask,
-                client,
-                resourcePaths,
-                tableIdentifier,
-                headers,
-                planExecutor(),
-                table.specs(),
-                isCaseSensitive());
-        iterableOfScanTaskIterables.add(iterable);
+
+    validateDependencies();
+
+    try {
+      List<ScanTasksIterable> iterables = Lists.newArrayList();
+
+      addFileScanTaskIterables(fileScanTasks, iterables);
+      addPlanTaskIterables(planTasks, iterables);
+
+      return combineIterables(iterables);
+
+    } catch (Exception e) {
+      LOG.error("Failed to create scan tasks iterable", e);
+      throw new RuntimeException("Failed to create scan tasks iterable", e);
+    }
+  }
+
+  private boolean isInputEmpty(List<String> planTasks, List<FileScanTask> fileScanTasks) {
+    boolean isEmpty =
+        (planTasks == null || planTasks.isEmpty())
+            && (fileScanTasks == null || fileScanTasks.isEmpty());
+    if (isEmpty) {
+      LOG.debug("Both planTasks and fileScanTasks are null or empty, returning empty iterable");
+    }
+    return isEmpty;
+  }
+
+  private void validateDependencies() {
+    if (client == null) {
+      throw new IllegalStateException("RESTClient is null");
+    }
+    if (resourcePaths == null) {
+      throw new IllegalStateException("ResourcePaths is null");
+    }
+    if (tableIdentifier == null) {
+      throw new IllegalStateException("TableIdentifier is null");
+    }
+  }
+
+  private void addFileScanTaskIterables(
+      List<FileScanTask> fileScanTasks, List<ScanTasksIterable> iterables) {
+    if (fileScanTasks != null && !fileScanTasks.isEmpty()) {
+      LOG.debug("Creating ScanTasksIterable for {} file scan tasks", fileScanTasks.size());
+      ScanTasksIterable scanTasksIterable = createScanTasksIterable(fileScanTasks);
+      iterables.add(scanTasksIterable);
+    }
+  }
+
+  private void addPlanTaskIterables(List<String> planTasks, List<ScanTasksIterable> iterables) {
+    if (planTasks == null || planTasks.isEmpty()) {
+      return;
+    }
+
+    LOG.debug("Creating ScanTasksIterables for {} plan tasks", planTasks.size());
+
+    for (String planTask : planTasks) {
+      if (planTask == null || planTask.trim().isEmpty()) {
+        LOG.warn("Skipping null or empty plan task");
+        continue;
       }
-      return new ParallelIterable<>(iterableOfScanTaskIterables, planExecutor());
-      // another idea is to keep concatenating to the original parallel iterable???
+
+      try {
+        ScanTasksIterable iterable = createScanTasksIterable(planTask);
+        iterables.add(iterable);
+      } catch (Exception e) {
+        LOG.error("Failed to create ScanTasksIterable for plan task: {}", planTask, e);
+        throw new RuntimeException(
+            "Failed to create ScanTasksIterable for plan task: " + planTask, e);
+      }
     }
-    // use a single scanTasks iterable since no need to parallelize since no planTasks
-    return new ScanTasksIterable(
-        fileScanTasks,
-        client,
-        resourcePaths,
-        tableIdentifier,
-        headers,
-        planExecutor(),
-        table.specs(),
-        isCaseSensitive());
+  }
+
+  private CloseableIterable<FileScanTask> combineIterables(List<ScanTasksIterable> iterables) {
+
+    if (iterables.isEmpty()) {
+      LOG.warn("No valid iterables found, returning empty iterable");
+      return CloseableIterable.empty();
+    }
+
+    if (iterables.size() == 1) {
+      return iterables.get(0);
+    }
+
+    return new ParallelIterable<>(iterables, planExecutor());
   }
 
   /**
@@ -310,7 +354,6 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
     }
 
     try {
-      // Call the cancel endpoint - this is a DELETE request that returns 204 (no content)
       client.delete(
           resourcePaths.cancelPlanning(tableIdentifier, planId),
           null, // 204 response has no content
@@ -322,7 +365,7 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
     } catch (Exception e) {
       // Log but don't throw - cancel is best effort for cleanup
       // The server will eventually clean up abandoned plans
-      System.err.println("Warning: Failed to cancel plan " + planId + ": " + e.getMessage());
+      LOG.warn("Failed to cancel plan {}: {}", planId, e.getMessage(), e);
     }
   }
 
@@ -333,5 +376,36 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
   @Override
   public void close() {
     cancelPlanning();
+  }
+
+  private ParserContext createParserContext() {
+    return ParserContext.builder()
+        .add("specsById", table.specs())
+        .add("caseSensitive", context().caseSensitive())
+        .build();
+  }
+
+  private ScanTasksIterable createScanTasksIterable(List<FileScanTask> fileScanTasks) {
+    return new ScanTasksIterable(
+        fileScanTasks,
+        client,
+        resourcePaths,
+        tableIdentifier,
+        headers,
+        planExecutor(),
+        table.specs(),
+        isCaseSensitive());
+  }
+
+  private ScanTasksIterable createScanTasksIterable(String planTask) {
+    return new ScanTasksIterable(
+        planTask,
+        client,
+        resourcePaths,
+        tableIdentifier,
+        headers,
+        planExecutor(),
+        table.specs(),
+        isCaseSensitive());
   }
 }
