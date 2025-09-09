@@ -404,10 +404,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Preconditions.checkArgument(
           before.fileSizeInBytes() == after.fileSizeInBytes(),
           "Before and after path rewrite, statistic file size should be same");
-      result.add(
-          Pair.of(
-              RewriteTablePathUtil.stagingPath(before.path(), sourcePrefix, stagingDir),
-              after.path()));
+      result.add(Pair.of(before.path(), after.path()));
     }
     return result;
   }
@@ -475,6 +472,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   public static class RewriteContentFileResult extends RewriteResult<ContentFile<?>> {
+    @Override
     public RewriteContentFileResult append(RewriteResult<ContentFile<?>> r1) {
       this.copyPlan().addAll(r1.copyPlan());
       this.toRewrite().addAll(r1.toRewrite());

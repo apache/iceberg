@@ -32,11 +32,15 @@ import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -73,7 +77,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
-      ImmutableList.of("PLAIN_DICTIONARY", "RLE", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
+      ImmutableList.of("PLAIN_DICTIONARY", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
   private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
@@ -259,28 +263,35 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       int batchSize,
       Map<Integer, Object> idToConstant)
       throws IOException {
-    Parquet.ReadBuilder readBuilder =
-        Parquet.read(Files.localInput(testFile))
-            .project(schema)
-            .recordsPerBatch(batchSize)
-            .createBatchedReaderFunc(
-                type ->
-                    VectorizedSparkParquetReaders.buildReader(schema, type, idToConstant, null));
-    if (reuseContainers) {
-      readBuilder.reuseContainers();
-    }
-    try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
-      Iterator<Record> expectedIter = expected.iterator();
-      Iterator<ColumnarBatch> batches = batchReader.iterator();
-      int numRowsRead = 0;
-      while (batches.hasNext()) {
-        ColumnarBatch batch = batches.next();
-        GenericsHelpers.assertEqualsBatch(
-            schema.asStruct(), expectedIter, batch, idToConstant, numRowsRead);
-        numRowsRead += batch.numRows();
-      }
-      assertThat(numRowsRead).isEqualTo(expectedSize);
-    }
+    assertNoLeak(
+        testFile.getName(),
+        allocator -> {
+          Parquet.ReadBuilder readBuilder =
+              Parquet.read(Files.localInput(testFile))
+                  .project(schema)
+                  .recordsPerBatch(batchSize)
+                  .createBatchedReaderFunc(
+                      type ->
+                          VectorizedSparkParquetReaders.buildReader(
+                              schema, type, idToConstant, null, allocator));
+          if (reuseContainers) {
+            readBuilder.reuseContainers();
+          }
+          try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
+            Iterator<Record> expectedIter = expected.iterator();
+            Iterator<ColumnarBatch> batches = batchReader.iterator();
+            int numRowsRead = 0;
+            while (batches.hasNext()) {
+              ColumnarBatch batch = batches.next();
+              GenericsHelpers.assertEqualsBatch(
+                  schema.asStruct(), expectedIter, batch, idToConstant, numRowsRead);
+              numRowsRead += batch.numRows();
+            }
+            assertThat(numRowsRead).isEqualTo(expectedSize);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
   }
 
   @Test
@@ -440,31 +451,30 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
   }
 
-  private void assertIdenticalFileContents(File actual, File expected, Schema schema)
-      throws IOException {
-    try (CloseableIterable<InternalRow> actualReader =
-        Parquet.read(Files.localInput(actual))
+  private void assertIdenticalFileContents(
+      File actual, File expected, Schema schema, boolean vectorized) throws IOException {
+    try (CloseableIterable<Record> expectedIterator =
+        Parquet.read(Files.localInput(expected))
             .project(schema)
-            .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
+            .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
             .build()) {
-      Iterator<InternalRow> actualIterator = actualReader.iterator();
-      try (CloseableIterable<InternalRow> plainReader =
-          Parquet.read(Files.localInput(expected))
-              .project(schema)
-              .createReaderFunc(t -> SparkParquetReaders.buildReader(schema, t, ID_TO_CONSTANT))
-              .build()) {
-        Iterator<InternalRow> expectedIterator = plainReader.iterator();
-
-        List<InternalRow> expectedList = Lists.newArrayList();
-        expectedIterator.forEachRemaining(expectedList::add);
-        List<InternalRow> actualList = Lists.newArrayList();
-        actualIterator.forEachRemaining(actualList::add);
-
-        assertThat(actualList)
-            .as("Comparison between files failed %s <-> %s", actual, expected)
-            .isNotEmpty()
-            .hasSameSizeAs(expectedList)
-            .hasSameElementsAs(expectedList);
+      List<Record> expectedRecords = Lists.newArrayList(expectedIterator);
+      if (vectorized) {
+        assertRecordsMatch(
+            schema, expectedRecords.size(), expectedRecords, actual, false, BATCH_SIZE);
+      } else {
+        try (CloseableIterable<InternalRow> actualIterator =
+            Parquet.read(Files.localInput(actual))
+                .project(schema)
+                .createReaderFunc(msgType -> SparkParquetReaders.buildReader(schema, msgType))
+                .build()) {
+          List<InternalRow> actualRecords = Lists.newArrayList(actualIterator);
+          assertThat(actualRecords).hasSameSizeAs(expectedRecords);
+          for (int i = 0; i < actualRecords.size(); i++) {
+            GenericsHelpers.assertEqualsUnsafe(
+                schema.asStruct(), expectedRecords.get(i), actualRecords.get(i));
+          }
+        }
       }
     }
   }
@@ -474,14 +484,19 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         .flatMap(
             encoding ->
                 GOLDEN_FILE_TYPES.entrySet().stream()
-                    .map(
-                        typeEntry ->
-                            Arguments.of(encoding, typeEntry.getKey(), typeEntry.getValue())));
+                    .flatMap(
+                        e ->
+                            Stream.of(true, false)
+                                .map(
+                                    vectorized ->
+                                        Arguments.of(
+                                            encoding, e.getKey(), e.getValue(), vectorized))));
   }
 
   @ParameterizedTest
   @MethodSource("goldenFilesAndEncodings")
-  public void testGoldenFiles(String encoding, String typeName, PrimitiveType primitiveType)
+  public void testGoldenFiles(
+      String encoding, String typeName, PrimitiveType primitiveType, boolean vectorized)
       throws Exception {
     Path goldenResourcePath = Paths.get("encodings", encoding, typeName + ".parquet");
     URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
@@ -495,6 +510,23 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
     Schema expectedSchema = new Schema(optional(1, "data", primitiveType));
     assertIdenticalFileContents(
-        new File(goldenFileUrl.toURI()), new File(plainFileUrl.toURI()), expectedSchema);
+        new File(goldenFileUrl.toURI()),
+        new File(plainFileUrl.toURI()),
+        expectedSchema,
+        vectorized);
+  }
+
+  protected void assertNoLeak(String testName, Consumer<BufferAllocator> testFunction) {
+    BufferAllocator allocator =
+        ArrowAllocation.rootAllocator().newChildAllocator(testName, 0, Long.MAX_VALUE);
+    try {
+      testFunction.accept(allocator);
+      assertThat(allocator.getAllocatedMemory())
+          .as(
+              "Should have released all memory prior to closing. Expected to find 0 bytes of memory in use.")
+          .isEqualTo(0L);
+    } finally {
+      allocator.close();
+    }
   }
 }

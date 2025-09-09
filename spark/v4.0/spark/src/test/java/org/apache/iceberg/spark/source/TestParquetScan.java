@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -38,6 +39,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
 
 public class TestParquetScan extends ScanTestBase {
   protected boolean vectorized() {
@@ -91,5 +93,21 @@ public class TestParquetScan extends ScanTestBase {
         .isNull();
 
     super.writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  @Test
+  @Override
+  public void testUnknownListType() {
+    assertThatThrownBy(super::testUnknownListType)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot convert element Parquet: unknown");
+  }
+
+  @Test
+  @Override
+  public void testUnknownMapType() {
+    assertThatThrownBy(super::testUnknownMapType)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot convert value Parquet: unknown");
   }
 }

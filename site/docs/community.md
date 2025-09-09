@@ -68,6 +68,13 @@ Looking to contribute to Apache Iceberg? See [Contributing](contribute.md) for m
 
 The Apache Iceberg community regularly meets for technical discussion both in-person and virtually.
 
+### Apache Iceberg Community Calendar
+
+The community maintains two calendar feeds:
+
+* [Iceberg Dev Events](https://calendar.google.com/calendar/u/0?cid=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: A shared calendar for all Iceberg development syncs, including the triweekly community sync, subproject syncs for Python, Rust, and Go, the Iceberg Catalog Community Sync, and other ad hoc syncs the community may want to schedule or discuss.
+* [Iceberg Community Events](https://calendar.google.com/calendar/u/0?cid=NTkzYmIwMGJmZTQ1N2QzMTkxNDEzNTBkZDI0Yzk2NGYzOWJkYmQ5ZmQyNDMyODFhODYzMmEwMDk2M2EyMWQ4NkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: Events such as conferences and meetups, aimed to educate and inspire Iceberg users.
+
 ### Hosting an Apache Iceberg Meetup
 
 Meetups related to the Apache Iceberg project are held around the globe thanks to community volunteers. Interested individuals are encouraged to host community meetups using the name **Apache Iceberg Meetup <geographical location\>** in
@@ -80,13 +87,6 @@ Hosts are required to ensure that:
 3. Each meetup should have at least two talks with speakers representing different companies/organizations
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
 5. All [Community Guidelines](#community-guidelines) must be respected
-
-### Apache Iceberg Community Calendar
-
-The community maintains two calendar feeds:
-
-* [Iceberg Dev Events](https://calendar.google.com/calendar/u/0?cid=MzkwNWQ0OTJmMWI0NTBiYTA3MTJmMmFlNmFmYTc2ZWI3NTdmMTNkODUyMjBjYzAzYWE0NTI3ODg1YWRjNTYyOUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: A shared calendar for all Iceberg development syncs, including the triweekly community sync, subproject syncs for Python, Rust, and Go, the Iceberg Catalog Community Sync, and other ad hoc syncs the community may want to schedule or discuss.
-* [Iceberg Community Events](https://calendar.google.com/calendar/u/0?cid=NTkzYmIwMGJmZTQ1N2QzMTkxNDEzNTBkZDI0Yzk2NGYzOWJkYmQ5ZmQyNDMyODFhODYzMmEwMDk2M2EyMWQ4NkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t){:target="_blank"}: Events such as conferences and meetups, aimed to educate and inspire Iceberg users.
 
 ## Community Guidelines
 

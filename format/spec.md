@@ -190,10 +190,12 @@ A **`variant`** is a value that stores semi-structured data. The structure and d
 Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary, and decimals.
 
 Variant values may contain nested types:
+
 1. An array is an ordered collection of variant values.
 2. An object is a collection of fields that are a string key and a variant value.
 
 As a semi-structured type, there are important differences between variant and Iceberg's other types:
+
 1. Variant arrays are similar to lists, but may contain any variant value rather than a fixed element type.
 2. Variant objects are similar to structs, but may contain variable fields identified by name and field values may be any variant value rather than a fixed field type.
 
@@ -607,14 +609,14 @@ A manifest stores files for a single partition spec. When a table’s partition 
 
 A manifest file must store the partition spec and other metadata as properties in the Avro file's key-value metadata:
 
-| v1         | v2         | Key                 | Value                                                                        |
-|------------|------------|---------------------|------------------------------------------------------------------------------|
-| _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written |
-| _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                      |
-| _required_ | _required_ | `partition-spec`    | JSON fields representation of the partition spec used to write the manifest  |
-| _optional_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string              |
-| _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                      |
-|            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"           |
+| v1         | v2         | Key                 | Value                                                                                                                                       |
+|------------|------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written                                                                |
+| _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
+| _required_ | _required_ | `partition-spec`    | JSON representation of only the partition fields array of the partition spec used to write the manifest. See [Appendix C](#partition-specs) |
+| _optional_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string                                                                             |
+| _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
+|            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
 
 The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
 
@@ -695,7 +697,7 @@ Notes:
 
 For Variant, values in the `lower_bounds` and `upper_bounds` maps store serialized Variant objects that contain lower or upper bounds respectively. The object keys for the bound-variants are normalized JSON path expressions that uniquely identify a field. The object values are primitive Variant representations of the lower or upper bound for that field. Including bounds for any field is optional and upper and lower bounds must have the same Variant type.
 
-Bounds for a field must be accurate for all non-null values of the field in a data file. Bounds for values within arrays must be accurate all values in the array. Bounds must not be written to describe values with mixed Variant types (other than null). For example, a "measurement" field that contains int64 and null values may have bounds, but if the field also contained a string value such as "n/a" or "0" then the field may not have bounds.
+Bounds for a field must be accurate for all non-null values of the field in a data file. Bounds for values within arrays must be accurate for all values in the array. Bounds must not be written to describe values with mixed Variant types (other than null). For example, a **measurement** field that contains int64 and null values may have bounds, but if the field also contained a string value such as **n/a** or **0** then the field may not have bounds.
 
 The Variant bounds objects are serialized by concatenating the [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) of the metadata (containing the normalized field paths) and the bounds object.
 Field paths follow the JSON path format to use normalized path, such as `$['location']['latitude']` or `$['user.name']`. The special path `$` represents bounds for the variant root, indicating that the variant data consists of uniform primitive types, such as strings.
