@@ -31,7 +31,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -48,20 +47,6 @@ public class TestInternalData {
   public static Object[][] parameters() {
     return new Object[][] {{"avro"}, {"parquet"}};
   }
-
-  private static final Schema TEST_SCHEMA =
-      new Schema(
-          Types.NestedField.required(1, "id", Types.LongType.get()),
-          Types.NestedField.optional(2, "name", Types.StringType.get()),
-          Types.NestedField.optional(3, "age", Types.IntegerType.get()),
-          Types.NestedField.optional(
-              4,
-              "address",
-              Types.StructType.of(
-                  Types.NestedField.optional(5, "street", Types.StringType.get()),
-                  Types.NestedField.optional(6, "city", Types.StringType.get()))),
-          Types.NestedField.optional(
-              7, "scores", Types.ListType.ofOptional(8, Types.IntegerType.get())));
 
   private static final Schema NESTED_SCHEMA =
       new Schema(
@@ -168,44 +153,6 @@ public class TestInternalData {
     }
   }
 
-  private List<Record> createTestRecords() {
-    List<Record> records = Lists.newArrayList();
-
-    Record record1 = GenericRecord.create(TEST_SCHEMA);
-    record1.set(0, 1L);
-    record1.set(1, "Alice");
-    record1.set(2, 25);
-
-    Record address1 = GenericRecord.create(TEST_SCHEMA.findType("address").asStructType());
-    address1.set(0, "123 Main St");
-    address1.set(1, "New York");
-    record1.set(3, address1);
-    record1.set(4, ImmutableList.of(95, 87, 92));
-
-    Record record2 = GenericRecord.create(TEST_SCHEMA);
-    record2.set(0, 2L);
-    record2.set(1, "Bob");
-    record2.set(2, 30);
-    record2.set(3, null); // null address
-    record2.set(4, ImmutableList.of(88, 76));
-
-    Record record3 = GenericRecord.create(TEST_SCHEMA);
-    record3.set(0, 3L);
-    record3.set(1, null); // null name
-    record3.set(2, 22);
-
-    Record address3 = GenericRecord.create(TEST_SCHEMA.findType("address").asStructType());
-    address3.set(0, "456 Oak Ave");
-    address3.set(1, "Los Angeles");
-    record3.set(3, address3);
-    record3.set(4, null); // null scores
-
-    records.add(record1);
-    records.add(record2);
-    records.add(record3);
-
-    return records;
-  }
 
   private List<Record> createSimpleTestRecords() {
     Schema schema = simpleSchema();
@@ -264,11 +211,6 @@ public class TestInternalData {
       this.values = new Object[structType.fields().size()];
     }
 
-    public static TestCustomRow of(Object... values) {
-      TestCustomRow row = new TestCustomRow();
-      row.values = Arrays.copyOf(values, values.length);
-      return row;
-    }
 
     @Override
     public int size() {
