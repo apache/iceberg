@@ -63,7 +63,6 @@ nav:
         - Apache Amoro: integrations/amoro.md
         - Apache Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
         - Apache Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
-        - BladePipe: integrations/bladepipe.md
         - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
         - Daft: integrations/daft.md
         - Databend: https://docs.databend.com/guides/access-data-lake/iceberg
