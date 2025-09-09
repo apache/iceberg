@@ -259,6 +259,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testUnpartitionedTableScan() throws IOException {
+    assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
     Table unpartitioned =
         TestTables.create(tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
@@ -450,6 +451,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testUnpartitionedTableSequenceNumbers() throws IOException {
+    assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
     Table unpartitioned =
         TestTables.create(tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
