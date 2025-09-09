@@ -1225,6 +1225,8 @@ public class Parquet {
       Preconditions.checkArgument(
           this.readerFuncWithSchema == null,
           "Cannot set reader function: 2-argument reader function already set");
+      Preconditions.checkArgument(
+          this.internalReader == null, "Cannot set reader function: internal reader already set");
       this.readerFunc = newReaderFunction;
       return this;
     }
@@ -1237,6 +1239,8 @@ public class Parquet {
       Preconditions.checkArgument(
           this.batchedReaderFunc == null,
           "Cannot set 2-argument reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.internalReader == null, "Cannot set reader function: internal reader already set");
       this.readerFuncWithSchema = newReaderFunction;
       return this;
     }
@@ -1248,11 +1252,22 @@ public class Parquet {
       Preconditions.checkArgument(
           this.readerFuncWithSchema == null,
           "Cannot set batched reader function: 2-argument reader function already set");
+      Preconditions.checkArgument(
+          this.internalReader == null,
+          "Cannot set batched reader function: internal reader already set");
       this.batchedReaderFunc = func;
       return this;
     }
 
     public ReadBuilder useInternalReader(InternalReader<?> reader) {
+      Preconditions.checkArgument(
+          this.readerFunc == null, "Cannot set internal reader: reader function already set");
+      Preconditions.checkArgument(
+          this.readerFuncWithSchema == null,
+          "Cannot set internal reader: 2-argument reader function already set");
+      Preconditions.checkArgument(
+          this.internalReader == null, "Cannot set internal reader: internal reader already set");
+
       this.internalReader = reader;
       return this;
     }

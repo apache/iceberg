@@ -153,7 +153,6 @@ public class TestInternalData {
     }
   }
 
-
   private List<Record> createSimpleTestRecords() {
     Schema schema = simpleSchema();
     List<Record> records = Lists.newArrayList();
@@ -210,7 +209,6 @@ public class TestInternalData {
     public TestCustomRow(Types.StructType structType) {
       this.values = new Object[structType.fields().size()];
     }
-
 
     @Override
     public int size() {
