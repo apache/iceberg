@@ -29,6 +29,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
 class ParquetConversions {
@@ -90,6 +91,10 @@ class ParquetConversions {
   }
 
   static Function<Object, Object> converterFromParquet(PrimitiveType type) {
+    if (type.getLogicalTypeAnnotation() instanceof UUIDLogicalTypeAnnotation) {
+      return binary -> UUIDUtil.convert(((Binary) binary).toByteBuffer());
+    }
+
     if (type.getOriginalType() != null) {
       switch (type.getOriginalType()) {
         case UTF8:

@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
@@ -40,7 +39,6 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
-import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -224,8 +222,7 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         T lower = min(colStats, id);
-        T normalizedLower = normalizeUUIDValue(schema.findType(id), lower);
-        int cmp = lit.comparator().compare(normalizedLower, lit.value());
+        int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp >= 0) {
           return ROWS_CANNOT_MATCH;
         }
@@ -255,8 +252,7 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         T lower = min(colStats, id);
-        T normalizedLower = normalizeUUIDValue(schema.findType(id), lower);
-        int cmp = lit.comparator().compare(normalizedLower, lit.value());
+        int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
           return ROWS_CANNOT_MATCH;
         }
@@ -286,8 +282,7 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         T upper = max(colStats, id);
-        T normalizedUpper = normalizeUUIDValue(schema.findType(id), upper);
-        int cmp = lit.comparator().compare(normalizedUpper, lit.value());
+        int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp <= 0) {
           return ROWS_CANNOT_MATCH;
         }
@@ -317,8 +312,7 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         T upper = max(colStats, id);
-        T normalizedUpper = normalizeUUIDValue(schema.findType(id), upper);
-        int cmp = lit.comparator().compare(normalizedUpper, lit.value());
+        int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
           return ROWS_CANNOT_MATCH;
         }
@@ -355,15 +349,13 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         T lower = min(colStats, id);
-        T normalizedLower = normalizeUUIDValue(schema.findType(id), lower);
-        int cmp = lit.comparator().compare(normalizedLower, lit.value());
+        int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
           return ROWS_CANNOT_MATCH;
         }
 
         T upper = max(colStats, id);
-        T normalizedUpper = normalizeUUIDValue(schema.findType(id), upper);
-        cmp = lit.comparator().compare(normalizedUpper, lit.value());
+        cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
           return ROWS_CANNOT_MATCH;
         }
@@ -414,20 +406,18 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         T lower = min(colStats, id);
-        T normalizedLower = normalizeUUIDValue(schema.findType(id), lower);
         literals =
             literals.stream()
-                .filter(v -> ref.comparator().compare(normalizedLower, v) <= 0)
+                .filter(v -> ref.comparator().compare(lower, v) <= 0)
                 .collect(Collectors.toList());
         if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
 
         T upper = max(colStats, id);
-        T normalizedUpper = normalizeUUIDValue(schema.findType(id), upper);
         literals =
             literals.stream()
-                .filter(v -> ref.comparator().compare(normalizedUpper, v) >= 0)
+                .filter(v -> ref.comparator().compare(upper, v) >= 0)
                 .collect(Collectors.toList());
         if (literals
             .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot
@@ -604,17 +594,5 @@ public class ParquetMetricsRowGroupFilter {
 
   private static boolean mayContainNull(Statistics statistics) {
     return !statistics.isNumNullsSet() || statistics.getNumNulls() > 0;
-  }
-
-  @SuppressWarnings("unchecked")
-  private static <T> T normalizeUUIDValue(Type fieldType, T value) {
-    if (fieldType.typeId() == Type.TypeID.UUID) {
-      if (value instanceof UUID) {
-        return value;
-      } else if (value instanceof ByteBuffer) {
-        return (T) UUIDUtil.convert((ByteBuffer) value);
-      }
-    }
-    return value;
   }
 }
