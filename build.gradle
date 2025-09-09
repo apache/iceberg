@@ -348,6 +348,7 @@ project(':iceberg-core') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    testRuntimeOnly project(':iceberg-parquet')
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
 

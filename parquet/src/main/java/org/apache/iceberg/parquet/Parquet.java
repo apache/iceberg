@@ -75,6 +75,7 @@ import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -1162,6 +1163,8 @@ public class Parquet {
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
 
+    private InternalReader<?> internalReader;
+
     private ReadBuilder(InputFile file) {
       this.file = file;
     }
@@ -1249,6 +1252,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder useInternalReader(InternalReader<?> reader) {
+      this.internalReader = reader;
+      return this;
+    }
+
     public ReadBuilder set(String key, String value) {
       properties.put(key, value);
       return this;
@@ -1281,12 +1289,24 @@ public class Parquet {
 
     @Override
     public ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
-      throw new UnsupportedOperationException("Custom types are not yet supported");
+      Preconditions.checkArgument(
+          this.internalReader != null, "Cannot set root type without using an Internal Reader");
+      Preconditions.checkArgument(
+          this.readerFunc == null && this.readerFuncWithSchema == null,
+          "Setting root type is not compatible with setting a reader function");
+      internalReader.setRootType(rootClass);
+      return this;
     }
 
     @Override
     public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
-      throw new UnsupportedOperationException("Custom types are not yet supported");
+      Preconditions.checkArgument(
+          this.internalReader != null, "Cannot set a custom type without using an Internal Reader");
+      Preconditions.checkArgument(
+          this.readerFunc == null && this.readerFuncWithSchema == null,
+          "Setting root type is not compatible with setting a reader function");
+      internalReader.setCustomType(fieldId, structClass);
+      return this;
     }
 
     public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
@@ -1315,7 +1335,10 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (readerFunc != null || readerFuncWithSchema != null || batchedReaderFunc != null) {
+      if (readerFunc != null
+          || readerFuncWithSchema != null
+          || batchedReaderFunc != null
+          || internalReader != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -1363,10 +1386,15 @@ public class Parquet {
               caseSensitive,
               maxRecordsPerBatch);
         } else {
-          Function<MessageType, ParquetValueReader<?>> readBuilder =
-              readerFuncWithSchema != null
-                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
-                  : readerFunc;
+          Function<MessageType, ParquetValueReader<?>> readBuilder;
+          if (internalReader != null) {
+            readBuilder = fileType -> internalReader.reader(schema, fileType);
+          } else {
+            readBuilder =
+                readerFuncWithSchema != null
+                    ? fileType -> readerFuncWithSchema.apply(schema, fileType)
+                    : readerFunc;
+          }
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
         }
