@@ -164,7 +164,7 @@ subprojects {
     }
   }
 
-  def testParallelism = project.findProperty('testParallelism')
+  def testParallelism = System.getProperty('testParallelism')
   if (testParallelism != null) {
     def numTestWorkers
     if (testParallelism.equals('auto')) {
