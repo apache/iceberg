@@ -784,8 +784,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
               ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
 
-          BigIntVector rowIds =
-              allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead, getRootAlloc());
+          FieldVector rowIds;
+          if (reuse == null) {
+            rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead, getRootAlloc());
+          } else {
+            rowIds = reuse.vector();
+            rowIds.setValueCount(0);
+          }
+
           ArrowBuf dataBuffer = rowIds.getDataBuffer();
           for (int i = 0; i < numValsToRead; i += 1) {
             long bufferOffset = (long) i * Long.BYTES;
@@ -850,8 +856,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowVectorAccessor<?, String, ?, ?> seqAccessor =
             seqNumbers == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbersHolder);
 
-        BigIntVector lastUpdatedSequenceNumbers =
-            allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead, getRootAlloc());
+        FieldVector lastUpdatedSequenceNumbers;
+        if (reuse == null) {
+          lastUpdatedSequenceNumbers =
+              allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead, getRootAlloc());
+        } else {
+          lastUpdatedSequenceNumbers = reuse.vector();
+          lastUpdatedSequenceNumbers.setValueCount(0);
+        }
+
         ArrowBuf dataBuffer = lastUpdatedSequenceNumbers.getDataBuffer();
         for (int i = 0; i < numValsToRead; i += 1) {
           long bufferOffset = (long) i * Long.BYTES;
