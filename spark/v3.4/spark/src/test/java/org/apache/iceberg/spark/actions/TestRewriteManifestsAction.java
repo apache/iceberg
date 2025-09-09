@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.hadoop.conf.Configuration;
@@ -69,6 +70,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -528,6 +530,115 @@ public class TestRewriteManifestsAction extends TestBase {
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     assertThat(newManifests).hasSizeGreaterThanOrEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPartitionedTableWithInvalidSortingColumns() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").bucket("c3", 10).build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    SparkActions actions = org.apache.iceberg.spark.actions.SparkActions.get();
+
+    List<String> nonexistentFields = ImmutableList.of("c1", "c2");
+    assertThatThrownBy(
+            () ->
+                actions
+                    .rewriteManifests(table)
+                    .rewriteIf(manifest -> true)
+                    .sortBy(nonexistentFields)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set manifest sorting because specified field(s) [c2] were not found in "
+                + "current partition spec [\n"
+                + "  1000: c1: identity(1)\n"
+                + "  1001: c3_bucket: bucket[10](3)\n"
+                + "]. Spec ID 0");
+
+    // c3_bucket is the correct internal partition name to use, c3 is the untransformed column name,
+    // sortBy() expects the hidden partition column names
+    List<String> hasIncorrectPartitionFieldNames = ImmutableList.of("c1", "c3");
+    assertThatThrownBy(
+            () ->
+                actions
+                    .rewriteManifests(table)
+                    .rewriteIf(manifest -> true)
+                    .sortBy(hasIncorrectPartitionFieldNames)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set manifest sorting because specified field(s) [c3] were not found in "
+                + "current partition spec [\n"
+                + "  1000: c1: identity(1)\n"
+                + "  1001: c3_bucket: bucket[10](3)\n"
+                + "]. Spec ID 0");
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPartitionedTableWithCustomSorting() throws IOException {
+    Random random = new Random(4141912);
+
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 3).bucket("c3", 10).build();
+    Table table = TABLES.create(SCHEMA, spec, tableLocation);
+
+    // write a large number of random records so the rewrite will split into multiple manifests
+    List<DataFile> dataFiles = Lists.newArrayList();
+    for (int i = 0; i < 1000; i++) {
+      dataFiles.add(
+          newDataFile(
+              table,
+              TestHelpers.Row.of(i, String.valueOf(random.nextInt() * 100), random.nextInt(10))));
+    }
+    ManifestFile appendManifest = writeManifest(table, dataFiles);
+    table.newFastAppend().appendManifest(appendManifest).commit();
+
+    // force manifest splitting
+    table
+        .updateProperties()
+        .set(
+            TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(appendManifest.length() / 2))
+        .commit();
+
+    List<String> clusterKeys = ImmutableList.of("c3_bucket", "c2_trunc", "c1");
+    SparkActions actions = SparkActions.get();
+    actions
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .sortBy(clusterKeys)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    table.refresh();
+
+    // Read the manifests metadata table. The partition_summaries column contains
+    // an array of structs with lower_bound and upper_bound as strings
+    Dataset<Row> manifestsDf = spark.read().format("iceberg").load(tableLocation + "#manifests");
+
+    List<Integer> bounds = Lists.newArrayList();
+    for (Row row : manifestsDf.select("partition_summaries").collectAsList()) {
+      // partition_summaries is an array of structs;
+      // index 2 corresponds to c3_bucket since it is the third ordinal field in the table
+      List<Row> summaries = row.getList(0);
+      Row c3Summary = summaries.get(2);
+      // lower_bound and upper_bound are at positions 2 and 3 of the summary struct
+      String lower = c3Summary.getString(2);
+      String upper = c3Summary.getString(3);
+      bounds.add(Integer.valueOf(lower));
+      bounds.add(Integer.valueOf(upper));
+    }
+
+    // Ensure that the list of bounds is sorted; if custom sorting is working,
+    // the lower/upper bounds should form a non‑decreasing sequence. AKA [0, 4, 4, 9]
+    assertThat(bounds)
+        .as("Manifest boundaries should be sorted")
+        .isSortedAccordingTo(Integer::compareTo);
+
+    // Make sure we have at least two manifests, otherwise the test misses the point
+    assertThat(manifestsDf.count()).as("There should be at least 2 manifests").isGreaterThan(1L);
   }
 
   @TestTemplate

@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -109,7 +110,11 @@ public class TestFilteredScan {
 
   @BeforeAll
   public static void startSpark() {
-    TestFilteredScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestFilteredScan.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
   }
 
   @AfterAll

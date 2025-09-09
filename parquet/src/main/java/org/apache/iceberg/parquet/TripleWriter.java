@@ -45,7 +45,7 @@ public interface TripleWriter<T> {
    * Write a triple.
    *
    * @param rl repetition level
-   * @param value the boolean value
+   * @param value the integer value
    */
   default void writeInteger(int rl, int value) {
     throw new UnsupportedOperationException("Not an integer column");
@@ -55,7 +55,7 @@ public interface TripleWriter<T> {
    * Write a triple.
    *
    * @param rl repetition level
-   * @param value the boolean value
+   * @param value the long value
    */
   default void writeLong(int rl, long value) {
     throw new UnsupportedOperationException("Not an long column");
@@ -65,7 +65,7 @@ public interface TripleWriter<T> {
    * Write a triple.
    *
    * @param rl repetition level
-   * @param value the boolean value
+   * @param value the float value
    */
   default void writeFloat(int rl, float value) {
     throw new UnsupportedOperationException("Not an float column");
@@ -75,7 +75,7 @@ public interface TripleWriter<T> {
    * Write a triple.
    *
    * @param rl repetition level
-   * @param value the boolean value
+   * @param value the double value
    */
   default void writeDouble(int rl, double value) {
     throw new UnsupportedOperationException("Not an double column");
@@ -85,7 +85,7 @@ public interface TripleWriter<T> {
    * Write a triple.
    *
    * @param rl repetition level
-   * @param value the boolean value
+   * @param value the binary value
    */
   default void writeBinary(int rl, Binary value) {
     throw new UnsupportedOperationException("Not an binary column");

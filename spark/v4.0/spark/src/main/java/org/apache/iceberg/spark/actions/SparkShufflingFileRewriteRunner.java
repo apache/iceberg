@@ -134,7 +134,7 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
       List<FileScanTask> group, PartitionSpec outputSpec, int expectedOutputFiles) {
     SortOrder[] ordering = Spark3Util.toOrdering(outputSortOrder(group, outputSpec));
     int numShufflePartitions = Math.max(1, expectedOutputFiles * numShufflePartitionsPerFile);
-    return (df) -> transformPlan(df, plan -> sortPlan(plan, ordering, numShufflePartitions));
+    return df -> transformPlan(df, plan -> sortPlan(plan, ordering, numShufflePartitions));
   }
 
   private LogicalPlan sortPlan(LogicalPlan plan, SortOrder[] ordering, int numShufflePartitions) {

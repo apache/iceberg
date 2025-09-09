@@ -103,14 +103,15 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
     // find manifests to clean up that are still referenced by a valid snapshot, but written by an
     // expired snapshot
-    Set<String> validManifests = Sets.newHashSet();
-    Set<ManifestFile> manifestsToScan = Sets.newHashSet();
+    Set<String> validManifests = ConcurrentHashMap.newKeySet();
+    Set<ManifestFile> manifestsToScan = ConcurrentHashMap.newKeySet();
 
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
     Tasks.foreach(snapshots)
         .retry(3)
         .suppressFailureWhenFinished()
+        .executeWith(planExecutorService)
         .onFailure(
             (snapshot, exc) ->
                 LOG.warn(
@@ -152,12 +153,13 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     // find manifests to clean up that were only referenced by snapshots that have expired
-    Set<String> manifestListsToDelete = Sets.newHashSet();
-    Set<String> manifestsToDelete = Sets.newHashSet();
-    Set<ManifestFile> manifestsToRevert = Sets.newHashSet();
+    Set<String> manifestListsToDelete = ConcurrentHashMap.newKeySet();
+    Set<String> manifestsToDelete = ConcurrentHashMap.newKeySet();
+    Set<ManifestFile> manifestsToRevert = ConcurrentHashMap.newKeySet();
     Tasks.foreach(beforeExpiration.snapshots())
         .retry(3)
         .suppressFailureWhenFinished()
+        .executeWith(planExecutorService)
         .onFailure(
             (snapshot, exc) ->
                 LOG.warn(

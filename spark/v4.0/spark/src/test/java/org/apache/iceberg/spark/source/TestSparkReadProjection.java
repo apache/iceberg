@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -83,7 +84,11 @@ public class TestSparkReadProjection extends TestReadProjection {
 
   @BeforeAll
   public static void startSpark() {
-    TestSparkReadProjection.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestSparkReadProjection.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
     ImmutableMap<String, String> config =
         ImmutableMap.of(
             "type", "hive",

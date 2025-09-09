@@ -28,6 +28,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -95,7 +96,11 @@ public class TestSparkDataWrite {
 
   @BeforeAll
   public static void startSpark() {
-    TestSparkDataWrite.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestSparkDataWrite.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
   }
 
   @AfterEach
@@ -613,7 +618,7 @@ public class TestSparkDataWrite {
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
 
     List<SimpleRecord> actual =
-        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+        result.orderBy("id", "data").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
 
     List<DataFile> files = Lists.newArrayList();

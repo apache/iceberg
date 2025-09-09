@@ -67,8 +67,7 @@ public class TestTableMetadataParser {
     TableMetadata metadata = newTableMetadata(SCHEMA, unpartitioned(), location, properties);
     TableMetadataParser.write(metadata, outputFile);
     assertThat(isCompressed(fileName)).isEqualTo(codec == Codec.GZIP);
-    TableMetadata actualMetadata =
-        TableMetadataParser.read(null, Files.localInput(new File(fileName)));
+    TableMetadata actualMetadata = TableMetadataParser.read(Files.localInput(new File(fileName)));
     verifyMetadata(metadata, actualMetadata);
   }
 

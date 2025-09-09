@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
+import reactor.core.publisher.Mono;
 
 public class TestVendedAzureSasCredentialPolicy extends VendedCredentialsTestBase {
 
@@ -78,12 +79,12 @@ public class TestVendedAzureSasCredentialPolicy extends VendedCredentialsTestBas
         .respond(HttpResponse.response().withStatusCode(403));
 
     when(vendedAdlsCredentialProvider.credentialForAccount(STORAGE_ACCOUNT))
-        .thenReturn(validSasToken);
+        .thenReturn(Mono.just(validSasToken));
     assertThat(client.getFileClient(filePath).exists()).isTrue();
     mockServer.verify(mockRequestWithValidSasToken, VerificationTimes.exactly(1));
 
     when(vendedAdlsCredentialProvider.credentialForAccount(STORAGE_ACCOUNT))
-        .thenReturn(expiredSasToken);
+        .thenReturn(Mono.just(expiredSasToken));
 
     // Every new request of the same client fetches latest SasToken credentials from
     // VendedAdlsCredentialProvider to build http request query parameters.

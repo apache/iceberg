@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
@@ -63,6 +64,7 @@ import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.NullType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -96,14 +98,18 @@ public class SparkParquetWriters {
     public ParquetValueWriter<?> struct(
         StructType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
-      StructField[] sparkFields = sStruct.fields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
-      List<DataType> sparkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-        sparkTypes.add(sparkFields[i].dataType());
       }
-      return new InternalRowWriter(writers, sparkTypes);
+
+      StructField[] sFields = sStruct.fields();
+      DataType[] types = new DataType[sFields.length];
+      for (int i = 0; i < sFields.length; i += 1) {
+        types[i] = sFields[i].dataType();
+      }
+
+      return new InternalRowWriter(writers, types);
     }
 
     @Override
@@ -281,9 +287,6 @@ public class SparkParquetWriters {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          if (LogicalTypeAnnotation.uuidType().equals(primitive.getLogicalTypeAnnotation())) {
-            return uuids(desc);
-          }
           return byteArrays(desc);
         case BOOLEAN:
           return ParquetValueWriters.booleans(desc);
@@ -615,14 +618,33 @@ public class SparkParquetWriters {
   private static class InternalRowWriter extends ParquetValueWriters.StructWriter<InternalRow> {
     private final DataType[] types;
 
-    private InternalRowWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
-      super(writers);
-      this.types = types.toArray(new DataType[0]);
+    private InternalRowWriter(List<ParquetValueWriter<?>> writers, DataType[] types) {
+      super(writerToFieldIndex(types, writers.size()), writers);
+      this.types = types;
     }
 
     @Override
     protected Object get(InternalRow struct, int index) {
       return struct.get(index, types[index]);
+    }
+
+    /** Returns a mapping from writer index to field index, skipping Unknown columns. */
+    private static int[] writerToFieldIndex(DataType[] types, int numWriters) {
+      if (null == types) {
+        return IntStream.rangeClosed(0, numWriters).toArray();
+      }
+
+      // value writer index to record field index
+      int[] indexes = new int[numWriters];
+      int writerIndex = 0;
+      for (int pos = 0; pos < types.length; pos += 1) {
+        if (!(types[pos] instanceof NullType)) {
+          indexes[writerIndex] = pos;
+          writerIndex += 1;
+        }
+      }
+
+      return indexes;
     }
   }
 }

@@ -237,7 +237,7 @@ License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: api-common  Version: 2.46.1
+Group: com.google.api  Name: api-common  Version: 2.52.0
 License: BSD-3-Clause
 Copyright 2016, Google Inc.
 Redistribution and use in source and binary forms, with or without
@@ -268,7 +268,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax  Version: 2.63.1
+Group: com.google.api  Name: gax  Version: 2.69.0
 Project URL: https://github.com/googleapis/gax-java
 License: BSD-3-Clause
 Copyright 2016, Google Inc. All rights reserved.
@@ -301,7 +301,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-grpc  Version: 2.63.1
+Group: com.google.api  Name: gax-grpc  Version: 2.69.0
 Project URL: https://github.com/googleapis/gax-java
 License: BSD-3-Clause
 Copyright 2016, Google Inc. All rights reserved.
@@ -334,7 +334,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-httpjson  Version: 2.63.1
+Group: com.google.api  Name: gax-httpjson  Version: 2.69.0
 Project URL: https://github.com/googleapis/gax-java
 License: BSD-3-Clause
 Copyright 2016, Google Inc. All rights reserved.
@@ -373,103 +373,103 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.50.0
+Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.55.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.50.0
+Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.55.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.50.0
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.55.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.54.1
+Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.60.0
 Project URL: https://github.com/googleapis/sdk-platform-java
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.49.1
+Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.55.0
 Project URL: https://github.com/googleapis/sdk-platform-java
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1  Version: 3.14.0
+Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1  Version: 3.16.2
 Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta1  Version: 0.186.0
+Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta1  Version: 0.188.2
 Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta2  Version: 0.186.0
+Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta2  Version: 0.188.2
 Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1  Version: 3.14.0
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1  Version: 3.16.2
 Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1alpha  Version: 3.14.0
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1alpha  Version: 3.16.2
 Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta  Version: 3.14.0
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta  Version: 3.16.2
 Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta1  Version: 0.186.0
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta1  Version: 0.188.2
 Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta2  Version: 0.186.0
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta2  Version: 0.188.2
 Project URL: https://github.com/googleapis/java-bigquerystorage/
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-monitoring-v3  Version: 3.63.0
+Group: com.google.api.grpc  Name: proto-google-cloud-monitoring-v3  Version: 3.73.0
 Project URL: https://github.com/googleapis/google-cloud-java
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.52.2
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.55.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt 
 
 --------------------------------------------------------------------------------
 
-Group: com.google.apis  Name: google-api-services-storage  Version: v1-rev20250224-2.0.0
+Group: com.google.apis  Name: google-api-services-storage  Version: v1-rev20250718-2.0.0
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.apis  Name: google-api-services-bigquery  Version: v2-rev20250427-2.0.0
+Group: com.google.apis  Name: google-api-services-bigquery  Version: v2-rev20250706-2.0.0
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.33.1
+Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.37.1
 License: BSD New license
 Copyright 2014, Google Inc. All rights reserved.
 
@@ -502,7 +502,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.33.1
+Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.37.1
 License: BSD New license
 Copyright 2014, Google Inc. All rights reserved.
 
@@ -553,12 +553,6 @@ License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: net.ltgt.gradle.incapture Name: net.ltgt.gradle.incapture.processor Version: 0.2
-Project URL: https://github.com/tbroyer/gradle-incap-helper
-License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
-
---------------------------------------------------------------------------------
-
 Group: com.squareup Name: javapoet Version: 1.13.0
 Project URL: https://github.com/square/javapoet
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -601,43 +595,43 @@ THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core  Version: 2.53.1
+Group: com.google.cloud  Name: google-cloud-core  Version: 2.59.0
 Project URL: https://github.com/googleapis/java-core
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.53.1
+Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.59.0
 Project URL: https://github.com/googleapis/java-core
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.53.1
+Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.59.0
 Project URL: https://github.com/googleapis/java-core
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-storage  Version: 2.50.0
+Group: com.google.cloud  Name: google-cloud-storage  Version: 2.55.0
 Project URL: https://github.com/googleapis/java-storage
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-bigquery  Version: 2.50.0
+Group: com.google.cloud  Name: google-cloud-bigquery  Version: 2.54.1
 Project URL: https://github.com/googleapis/java-bigquery
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-bigquerystorage  Version: 3.14.0
+Group: com.google.cloud  Name: google-cloud-bigquerystorage  Version: 3.16.2
 Project URL: https://github.com/googleapis/java-bigquerystorage
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-monitoring  Version: 3.63.0
+Group: com.google.cloud  Name: google-cloud-monitoring  Version: 3.73.0
 Project URL: https://github.com/googleapis/google-cloud-java
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -673,13 +667,13 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 
 --------------------------------------------------------------------------------
 
-Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.36.0
+Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.38.0
 Project URL: https://github.com/google/error-prone
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.flatbuffers  Name: flatbuffers-java  Version: 23.5.26
+Group: com.google.flatbuffers  Name: flatbuffers-java  Version: 24.3.25
 Project URL: https://github.com/google/flatbuffers
 License: Apache License V2.0 - https://raw.githubusercontent.com/google/flatbuffers/master/LICENSE
 
@@ -702,31 +696,31 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client  Version: 1.47.1
 Project URL: https://www.google.com/
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-apache-v2  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client-apache-v2  Version: 1.47.1
 Project URL: https://www.google.com/
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-appengine  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client-appengine  Version: 1.47.1
 Project URL: https://github.com/googleapis/google-http-java-client
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-gson  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client-gson  Version: 1.47.1
 Project URL: https://github.com/googleapis/google-http-java-client
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-jackson2  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client-jackson2  Version: 1.47.1
 Project URL: https://github.com/googleapis/google-http-java-client
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -738,7 +732,7 @@ License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.oauth-client  Name: google-oauth-client  Version: 1.37.0
+Group: com.google.oauth-client  Name: google-oauth-client  Version: 1.39.0
 Project URL: https://www.google.com/
 License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -820,7 +814,7 @@ support library is itself covered by the above license.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.re2j  Name: re2j  Version: 1.7
+Group: com.google.re2j  Name: re2j  Version: 1.8
 Project URL: http://github.com/google/re2j
 License: Go License
 This is a work derived from Russ Cox's RE2 in Go, whose license
@@ -864,115 +858,115 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-alts  Version: 1.70.0
+Group: io.grpc  Name: grpc-alts  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-api  Version: 1.70.0
+Group: io.grpc  Name: grpc-api  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-auth  Version: 1.70.0
+Group: io.grpc  Name: grpc-auth  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-context  Version: 1.70.0
+Group: io.grpc  Name: grpc-context  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-core  Version: 1.70.0
+Group: io.grpc  Name: grpc-core  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-googleapis  Version: 1.70.0
+Group: io.grpc  Name: grpc-googleapis  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-grpclb  Version: 1.70.0
+Group: io.grpc  Name: grpc-grpclb  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-netty-shaded  Version: 1.70.0
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-protobuf  Version: 1.70.0
+Group: io.grpc  Name: grpc-protobuf  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-protobuf-lite  Version: 1.70.0
+Group: io.grpc  Name: grpc-protobuf-lite  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-rls  Version: 1.70.0
+Group: io.grpc  Name: grpc-rls  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-services  Version: 1.70.0
+Group: io.grpc  Name: grpc-services  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-stub  Version: 1.70.0
+Group: io.grpc  Name: grpc-stub  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-xds  Version: 1.70.0
+Group: io.grpc  Name: grpc-xds  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-inprocess  Version: 1.70.0
+Group: io.grpc  Name: grpc-inprocess  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java 
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-opentelemetry  Version: 1.70.0
+Group: io.grpc  Name: grpc-opentelemetry  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-util  Version: 1.70.0
+Group: io.grpc  Name: grpc-util  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-buffer  Version: 4.2.0.Final
+Group: io.netty  Name: netty-buffer  Version: 4.1.110.Final
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-common  Version: 4.2.0.Final
+Group: io.netty  Name: netty-common  Version: 4.1.110.Final
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0 
 
@@ -1136,25 +1130,25 @@ License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENS
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.arrow  Name: arrow-format  Version: 15.0.2
+Group: org.apache.arrow  Name: arrow-format  Version: 17.0.0
 Project URL: https://github.com/apache/arrow
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.arrow  Name: arrow-memory-core  Version: 15.0.2
+Group: org.apache.arrow  Name: arrow-memory-core  Version: 17.0.0
 Project URL: https://github.com/apache/arrow
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt 
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.arrow  Name: arrow-memory-netty  Version: 15.0.2
+Group: org.apache.arrow  Name: arrow-memory-netty  Version: 17.0.0
 Project URL: https://github.com/apache/arrow
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.arrow  Name: arrow-vector  Version: 15.0.2
+Group: org.apache.arrow  Name: arrow-vector  Version: 17.0.0
 Project URL: https://github.com/apache/arrow
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -1215,18 +1209,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
---------------------------------------------------------------------------------
-
-Group: org.eclipse.collections  Name: eclipse-collections  Version: 11.1.0
-Project URL: https://github.com/eclipse/eclipse-collections/eclipse-collections
-License: Eclipse Distribution License - v 1.0 - https://www.eclipse.org/licenses/edl-v10.html
-
---------------------------------------------------------------------------------
-
-Group: org.eclipse.collections  Name: eclipse-collections-api  Version: 11.1.0
-Project URL: https://github.com/eclipse/eclipse-collections/eclipse-collections-api
-License: Eclipse Distribution License - v 1.0 - https://www.eclipse.org/licenses/edl-v10.html
 
 --------------------------------------------------------------------------------
 

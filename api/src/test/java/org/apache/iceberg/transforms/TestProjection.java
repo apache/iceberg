@@ -40,6 +40,7 @@ import java.util.List;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -88,6 +89,28 @@ public class TestProjection {
         assertThat(projected.literal()).isNull();
       }
     }
+  }
+
+  @Test
+  public void testTimestampNanosIdentityProjection() {
+    org.apache.iceberg.Schema schema =
+        new org.apache.iceberg.Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "ts", Types.TimestampNanoType.withoutZone()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("ts").build();
+
+    Expression expr = Expressions.equal("ts", "2022-07-26T12:13:14.123456789");
+    Expression projected = Projections.inclusive(spec).project(expr);
+
+    Expression bound = Binder.bind(schema.asStruct(), projected, false);
+
+    assertThat(bound).isInstanceOf(BoundPredicate.class);
+    BoundPredicate<?> boundPredicate = (BoundPredicate<?>) bound;
+    assertThat(boundPredicate.isLiteralPredicate()).isTrue();
+    assertThat(boundPredicate.asLiteralPredicate().literal().value())
+        .as("Should bind to the correct value")
+        .isEqualTo(1658837594123456789L);
   }
 
   @Test

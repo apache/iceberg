@@ -67,16 +67,23 @@ Iceberg keeps track of table metadata using JSON files. Each change to a table p
 
 Old metadata files are kept for history by default. Tables with frequent commits, like those written by streaming jobs, may need to regularly clean metadata files.
 
-To automatically clean metadata files, set `write.metadata.delete-after-commit.enabled=true` in table properties. This will keep some metadata files (up to `write.metadata.previous-versions-max`) and will delete the oldest metadata file after each new one is created.
+Each metadata file tracks the older metadata files in the `metadata-log` field.  The number of metadata files being tracked is defined by `write.metadata.previous-versions-max`.
 
-| Property                                     | Description                                                              |
-| -------------------------------------------- |--------------------------------------------------------------------------|
-| `write.metadata.delete-after-commit.enabled` | Whether to delete old **tracked** metadata files after each table commit |
-| `write.metadata.previous-versions-max`       | The number of old metadata files to keep                                 |
-
+To automatically delete older metadata files, set `write.metadata.delete-after-commit.enabled=true` in table properties. This will keep some metadata files as tracked (up to `write.metadata.previous-versions-max`), and will delete the oldest metadata file every time a new one is created. 
 Note that this will only delete metadata files that are **tracked** in the metadata log and will not delete orphaned metadata files.
-Example: With `write.metadata.delete-after-commit.enabled=false` and `write.metadata.previous-versions-max=10`, one will have 10 tracked metadata files and 90 orphaned metadata files after 100 commits.
-Configuring `write.metadata.delete-after-commit.enabled=true` and `write.metadata.previous-versions-max=20` will not automatically delete metadata files. Tracked metadata files would be deleted again when reaching `write.metadata.previous-versions-max=20`.
+
+Untracked metadata files are also deleted as part of [orphan file deletion](#delete-orphan-files).
+
+
+| Property                                             | Default    | Description                                                                                      |
+|------------------------------------------------------|------------|--------------------------------------------------------------------------------------------------|
+| write.metadata.delete-after-commit.enabled           | false      | Controls whether to delete the oldest **tracked** version metadata files after each table commit |
+| write.metadata.previous-versions-max                 | 100        | The max number of previous version metadata files to track                                       |
+
+Examples: 
+
+ * With `write.metadata.delete-after-commit.enabled=false` and `write.metadata.previous-versions-max=10`, after 100 commits, one will have 10 tracked metadata files and 90 orphaned metadata files. These 90 orphaned metadata files cannot be deleted by setting `write.metadata.delete-after-commit.enabled=true` because they are already untracked. They can only be cleaned with an orphan file deletion procedure.
+ * With `write.metadata.delete-after-commit.enabled=true` and `write.metadata.previous-versions-max=20`, after 21 commits, one will have 20 tracked metadata files, with the oldest metadata file being deleted by the writer after committing. With each additional commit, the oldest metadata file will be deleted. 
 
 See [table write properties](configuration.md#write-properties) for more details.
 

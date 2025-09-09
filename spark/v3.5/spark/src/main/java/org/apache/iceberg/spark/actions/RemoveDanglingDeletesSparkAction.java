@@ -75,6 +75,7 @@ class RemoveDanglingDeletesSparkAction
     return this;
   }
 
+  @Override
   public Result execute() {
     if (table.specs().size() == 1 && table.spec().isUnpartitioned()) {
       // ManifestFilterManager already performs this table-wide delete on each commit

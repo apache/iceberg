@@ -42,6 +42,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
@@ -182,6 +183,7 @@ public class TypeToMessageType {
           shreddedType.getRepetition());
 
       return Types.buildGroup(repetition)
+          .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
           .id(id)
           .required(BINARY)
           .named(METADATA)
@@ -192,6 +194,7 @@ public class TypeToMessageType {
 
     } else {
       return Types.buildGroup(repetition)
+          .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
           .id(id)
           .required(BINARY)
           .named(METADATA)

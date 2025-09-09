@@ -60,7 +60,9 @@ class Literals {
     Preconditions.checkNotNull(value, "Cannot create expression literal from null");
     Preconditions.checkArgument(!NaNUtil.isNaN(value), "Cannot create expression literal from NaN");
 
-    if (value instanceof Boolean) {
+    if (value instanceof Literal) {
+      return (Literal<T>) value;
+    } else if (value instanceof Boolean) {
       return (Literal<T>) new Literals.BooleanLiteral((Boolean) value);
     } else if (value instanceof Integer) {
       return (Literal<T>) new Literals.IntegerLiteral((Integer) value);

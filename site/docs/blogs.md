@@ -23,6 +23,11 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [Kafka to Iceberg - Exploring the Options](https://rmoff.net/2025/08/18/kafka-to-iceberg-exploring-the-options/)
+**Date:** August 18, 2025, **Company**: Confluent
+**Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [How to Load Data from MySQL to Iceberg in Real Time](https://doc.bladepipe.com/blog/tech_share/mysql_iceberg_sync)
 **Date:** July 10, 2025, **Company**: BladePipe
 **Author**: [BladePipe](https://www.bladepipe.com)

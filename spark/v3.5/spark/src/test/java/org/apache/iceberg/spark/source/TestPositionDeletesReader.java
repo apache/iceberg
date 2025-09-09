@@ -81,8 +81,8 @@ public class TestPositionDeletesReader extends TestBase {
   private int formatVersion;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return ImmutableList.of(2, 3);
+  protected static List<Integer> parameters() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   @BeforeEach
@@ -183,7 +183,8 @@ public class TestPositionDeletesReader extends TestBase {
             new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask1)),
             positionDeletesTable.schema(),
             projectedSchema,
-            false)) {
+            false,
+            true)) {
       List<InternalRow> actualRows = Lists.newArrayList();
       while (reader.next()) {
         actualRows.add(reader.get().copy());
@@ -222,7 +223,8 @@ public class TestPositionDeletesReader extends TestBase {
             new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask2)),
             positionDeletesTable.schema(),
             projectedSchema,
-            false)) {
+            false,
+            true)) {
       List<InternalRow> actualRows = Lists.newArrayList();
       while (reader.next()) {
         actualRows.add(reader.get().copy());
@@ -293,7 +295,8 @@ public class TestPositionDeletesReader extends TestBase {
             new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask1)),
             positionDeletesTable.schema(),
             projectedSchema,
-            false)) {
+            false,
+            true)) {
       List<InternalRow> actualRows = Lists.newArrayList();
       while (reader.next()) {
         actualRows.add(reader.get().copy());

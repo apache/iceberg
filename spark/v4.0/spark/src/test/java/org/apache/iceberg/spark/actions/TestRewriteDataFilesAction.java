@@ -39,7 +39,6 @@ import static org.mockito.Mockito.spy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -51,6 +50,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
@@ -110,6 +110,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
+import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
@@ -152,8 +154,8 @@ public class TestRewriteDataFilesAction extends TestBase {
   @Parameter private int formatVersion;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> parameters() {
+    return org.apache.iceberg.TestHelpers.V2_AND_ABOVE;
   }
 
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
@@ -304,7 +306,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
                 // Increase max file size for V3 to account for additional row lineage fields
-                Integer.toString(averageFileSize(table) + (formatVersion >= 3 ? 11000 : 1001)))
+                Integer.toString(averageFileSize(table) + (formatVersion >= 3 ? 12000 : 1100)))
             .execute();
 
     assertThat(result.rewriteResults())
@@ -1832,7 +1834,15 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveFiles(table, 10);
 
     List<Row> originalRaw =
-        spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
+            .load(tableLocation)
+            .coalesce(1)
+            .sort("longCol")
+            .collectAsList();
     List<Object[]> originalData = rowsToJava(originalRaw);
     long dataSizeBefore = testDataSize(table);
 
@@ -1862,7 +1872,15 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.refresh();
 
     List<Row> postRaw =
-        spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
+            .load(tableLocation)
+            .coalesce(1)
+            .sort("longCol")
+            .collectAsList();
     List<Object[]> postRewriteData = rowsToJava(postRaw);
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -2080,6 +2098,18 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertEquals("Rows must match", expectedRecords, actualRecordsWithLineage);
   }
 
+  @TestTemplate
+  public void testExecutorCacheForDeleteFilesDisabled() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
+
+    // The constructor should have set the configuration to false
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
+    assertThat(readConf.cacheDeleteFilesOnExecutors())
+        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
+        .isFalse();
+  }
+
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
     assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
@@ -2099,7 +2129,15 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected List<Object[]> currentData() {
     return rowsToJava(
-        spark.read().format("iceberg").load(tableLocation).sort("c1", "c2", "c3").collectAsList());
+        spark
+            .read()
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
+            .format("iceberg")
+            .load(tableLocation)
+            .coalesce(1)
+            .sort("c1", "c2", "c3")
+            .collectAsList());
   }
 
   protected List<Object[]> currentDataWithLineage() {
@@ -2107,7 +2145,10 @@ public class TestRewriteDataFilesAction extends TestBase {
         spark
             .read()
             .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
             .load(tableLocation)
+            .coalesce(1)
             .sort("_row_id")
             .selectExpr("_row_id", "_last_updated_sequence_number", "*")
             .collectAsList());
@@ -2127,8 +2168,10 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected void shouldHaveFiles(Table table, int numExpected) {
     table.refresh();
-    int numFiles = Iterables.size(table.newScan().planFiles());
-    assertThat(numFiles).as("Did not have the expected number of files").isEqualTo(numExpected);
+    List<FileScanTask> files =
+        StreamSupport.stream(table.newScan().planFiles().spliterator(), false)
+            .collect(Collectors.toList());
+    assertThat(files.size()).as("Did not have the expected number of files").isEqualTo(numExpected);
   }
 
   protected long shouldHaveMinSequenceNumberInPartition(

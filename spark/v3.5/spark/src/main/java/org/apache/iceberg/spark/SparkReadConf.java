@@ -332,6 +332,18 @@ public class SparkReadConf {
     return executorCacheEnabled() && executorCacheLocalityEnabledInternal();
   }
 
+  public boolean cacheDeleteFilesOnExecutors() {
+    return executorCacheEnabled() && cacheDeleteFilesOnExecutorsInternal();
+  }
+
+  private boolean cacheDeleteFilesOnExecutorsInternal() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED)
+        .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT)
+        .parse();
+  }
+
   private boolean executorCacheEnabled() {
     return confParser
         .booleanConf()

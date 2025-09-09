@@ -16,14 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.rest.requests;
 
-import java.util.Arrays;
-import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.RESTRequest;
 
-public class V2TableTestBase extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(2);
+public class FetchScanTasksRequest implements RESTRequest {
+
+  private final String planTask;
+
+  public FetchScanTasksRequest(String planTask) {
+    this.planTask = planTask;
+    validate();
+  }
+
+  public String planTask() {
+    return planTask;
+  }
+
+  @Override
+  public void validate() {
+    Preconditions.checkArgument(planTask != null, "Invalid planTask: null");
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this).add("planTask", planTask).toString();
   }
 }

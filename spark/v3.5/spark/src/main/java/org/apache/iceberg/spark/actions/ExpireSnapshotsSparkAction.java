@@ -79,7 +79,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private Dataset<FileInfo> expiredFileDS = null;
-  private boolean cleanExpiredMetadata = false;
+  private Boolean cleanExpiredMetadata = null;
 
   ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -165,7 +165,11 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         expireSnapshots = expireSnapshots.retainLast(retainLastValue);
       }
 
-      expireSnapshots.cleanExpiredMetadata(cleanExpiredMetadata).cleanExpiredFiles(false).commit();
+      if (cleanExpiredMetadata != null) {
+        expireSnapshots.cleanExpiredMetadata(cleanExpiredMetadata);
+      }
+
+      expireSnapshots.cleanExpiredFiles(false).commit();
 
       // fetch valid files after expiration
       TableMetadata updatedMetadata = ops.refresh();
@@ -209,7 +213,9 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       }
     }
 
-    options.add("clean_expired_metadata=" + cleanExpiredMetadata);
+    if (cleanExpiredMetadata != null) {
+      options.add("clean_expired_metadata=" + cleanExpiredMetadata);
+    }
 
     return String.format("Expiring snapshots (%s) in %s", COMMA_JOINER.join(options), table.name());
   }

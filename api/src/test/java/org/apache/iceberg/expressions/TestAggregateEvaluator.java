@@ -91,6 +91,22 @@ public class TestAggregateEvaluator {
           // upper bounds
           ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 3333)));
 
+  private static final DataFile MISSING_SOME_STATS =
+      new TestDataFile(
+          "file_missing_stats.avro",
+          Row.of(),
+          20,
+          // any value counts, including nulls
+          ImmutableMap.of(1, 20L, 4, 10L),
+          // null value counts
+          null,
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), -3)),
+          // upper bounds
+          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 1333)));
+
   private static final DataFile[] DATA_FILES = {
     FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2
   };
@@ -218,6 +234,24 @@ public class TestAggregateEvaluator {
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
 
     aggregateEvaluator.update(MISSING_ALL_OPTIONAL_STATS);
+
+    assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
+    StructLike result = aggregateEvaluator.result();
+    Object[] expected = {20L, null, null, null};
+    assertEvaluatorResult(result, expected);
+  }
+
+  @Test
+  public void testMissingSomeStats() {
+    List<Expression> list =
+        ImmutableList.of(
+            Expressions.countStar(),
+            Expressions.count("some_nulls"),
+            Expressions.max("some_nulls"),
+            Expressions.min("some_nulls"));
+    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
+
+    aggregateEvaluator.update(MISSING_SOME_STATS);
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
     StructLike result = aggregateEvaluator.result();

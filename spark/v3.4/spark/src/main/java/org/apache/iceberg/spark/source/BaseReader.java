@@ -76,6 +76,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final ScanTaskGroup<TaskT> taskGroup;
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
+  private final boolean cacheDeleteFilesOnExecutors;
 
   private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
@@ -87,7 +88,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       ScanTaskGroup<TaskT> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
     this.table = table;
     this.taskGroup = taskGroup;
     this.tasks = taskGroup.tasks().iterator();
@@ -99,6 +101,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     this.nameMapping =
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
+    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
@@ -111,6 +114,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   protected boolean caseSensitive() {
     return caseSensitive;
+  }
+
+  protected boolean cacheDeleteFilesOnExecutors() {
+    return cacheDeleteFilesOnExecutors;
   }
 
   protected NameMapping nameMapping() {
@@ -234,7 +241,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
     @Override
     protected DeleteLoader newDeleteLoader() {
-      return new CachingDeleteLoader(this::loadInputFile);
+      if (cacheDeleteFilesOnExecutors) {
+        return new CachingDeleteLoader(this::loadInputFile);
+      }
+      return new BaseDeleteLoader(this::loadInputFile);
     }
 
     private class CachingDeleteLoader extends BaseDeleteLoader {

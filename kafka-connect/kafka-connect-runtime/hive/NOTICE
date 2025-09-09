@@ -30,7 +30,7 @@ This binary artifact contains code from the following projects:
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-netty-shaded  Version: 1.70.0
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.71.0
 
 Notice: 
 |                             The Netty Project
@@ -126,7 +126,7 @@ Notice: # Notices for Jakarta Activation
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.18.3
+Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.19.2
 
 Notice: # Jackson JSON processor
 
@@ -195,43 +195,43 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: annotations  Version: 2.29.52
-Group: software.amazon.awssdk  Name: apache-client  Version: 2.29.52
-Group: software.amazon.awssdk  Name: arns  Version: 2.29.52
-Group: software.amazon.awssdk  Name: auth  Version: 2.29.52
-Group: software.amazon.awssdk  Name: aws-core  Version: 2.29.52
-Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.29.52
-Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.29.52
-Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.29.52
-Group: software.amazon.awssdk  Name: checksums  Version: 2.29.52
-Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.29.52
-Group: software.amazon.awssdk  Name: crt-core  Version: 2.29.52
-Group: software.amazon.awssdk  Name: dynamodb  Version: 2.29.52
-Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.29.52
-Group: software.amazon.awssdk  Name: glue  Version: 2.29.52
-Group: software.amazon.awssdk  Name: http-auth  Version: 2.29.52
-Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.29.52
-Group: software.amazon.awssdk  Name: http-auth-aws-crt  Version: 2.29.52
-Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.29.52
-Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.29.52
-Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.29.52
-Group: software.amazon.awssdk  Name: iam  Version: 2.29.52
-Group: software.amazon.awssdk  Name: identity-spi  Version: 2.29.52
-Group: software.amazon.awssdk  Name: json-utils  Version: 2.29.52
-Group: software.amazon.awssdk  Name: kms  Version: 2.29.52
-Group: software.amazon.awssdk  Name: lakeformation  Version: 2.29.52
-Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.29.52
-Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.29.52
-Group: software.amazon.awssdk  Name: profiles  Version: 2.29.52
-Group: software.amazon.awssdk  Name: protocol-core  Version: 2.29.52
-Group: software.amazon.awssdk  Name: regions  Version: 2.29.52
-Group: software.amazon.awssdk  Name: retries  Version: 2.29.52
-Group: software.amazon.awssdk  Name: retries-spi  Version: 2.29.52
-Group: software.amazon.awssdk  Name: s3  Version: 2.29.52
-Group: software.amazon.awssdk  Name: sdk-core  Version: 2.29.52
-Group: software.amazon.awssdk  Name: sso  Version: 2.29.52
-Group: software.amazon.awssdk  Name: sts  Version: 2.29.52
-Group: software.amazon.awssdk  Name: utils  Version: 2.29.52
+Group: software.amazon.awssdk  Name: annotations  Version: 2.33.0
+Group: software.amazon.awssdk  Name: apache-client  Version: 2.33.0
+Group: software.amazon.awssdk  Name: arns  Version: 2.33.0
+Group: software.amazon.awssdk  Name: auth  Version: 2.33.0
+Group: software.amazon.awssdk  Name: aws-core  Version: 2.33.0
+Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.33.0
+Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.33.0
+Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.33.0
+Group: software.amazon.awssdk  Name: checksums  Version: 2.33.0
+Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: crt-core  Version: 2.33.0
+Group: software.amazon.awssdk  Name: dynamodb  Version: 2.33.0
+Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: glue  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth-aws-crt  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: iam  Version: 2.33.0
+Group: software.amazon.awssdk  Name: identity-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: json-utils  Version: 2.33.0
+Group: software.amazon.awssdk  Name: kms  Version: 2.33.0
+Group: software.amazon.awssdk  Name: lakeformation  Version: 2.33.0
+Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.33.0
+Group: software.amazon.awssdk  Name: profiles  Version: 2.33.0
+Group: software.amazon.awssdk  Name: protocol-core  Version: 2.33.0
+Group: software.amazon.awssdk  Name: regions  Version: 2.33.0
+Group: software.amazon.awssdk  Name: retries  Version: 2.33.0
+Group: software.amazon.awssdk  Name: retries-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: s3  Version: 2.33.0
+Group: software.amazon.awssdk  Name: sdk-core  Version: 2.33.0
+Group: software.amazon.awssdk  Name: sso  Version: 2.33.0
+Group: software.amazon.awssdk  Name: sts  Version: 2.33.0
+Group: software.amazon.awssdk  Name: utils  Version: 2.33.0
 Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
 
 Notice: 
@@ -315,7 +315,6 @@ Notice:
 --------------------------------------------------------------------------------
 
 Group: ch.qos.reload4j  Name: reload4j  Version: 1.2.22
-Group: log4j  Name: log4j  Version: 1.2.17
 
 Notice: 
 | Apache log4j
@@ -337,8 +336,8 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.3
-Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.29.52
+Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.19.2
+Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.33.0
 
 Notice: 
 | # Jackson JSON processor
@@ -376,7 +375,7 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.18.3
+Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.19.2
 
 Notice: 
 | # Jackson JSON processor
@@ -478,8 +477,8 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.18.3
-Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.18.3
+Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.19.2
+Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.19.2
 
 Notice: 
 | # Jackson JSON processor
@@ -506,7 +505,7 @@ Notice:
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.18.3
+Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.19.2
 
 Notice: 
 | # Jackson JSON processor

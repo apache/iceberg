@@ -329,6 +329,36 @@ public class Expressions {
     return Literals.from(value);
   }
 
+  /**
+   * Create a {@link Literal} from a microsecond value.
+   *
+   * @param micros a timestamp in microseconds from the unix epoch
+   * @return a literal representing the timestamp
+   */
+  public static Literal<Long> micros(long micros) {
+    return new Literals.TimestampLiteral(micros);
+  }
+
+  /**
+   * Create a {@link Literal} from a millisecond value.
+   *
+   * @param millis a timestamp in milliseconds from the unix epoch
+   * @return a literal representing the timestamp
+   */
+  public static Literal<Long> millis(long millis) {
+    return new Literals.TimestampLiteral(millis * 1000);
+  }
+
+  /**
+   * Create a {@link Literal} from a nanosecond value.
+   *
+   * @param nanos a timestamp in nanoseconds from the unix epoch
+   * @return a literal representing the timestamp
+   */
+  public static Literal<Long> nanos(long nanos) {
+    return new Literals.TimestampNanoLiteral(nanos);
+  }
+
   public static <T> UnboundAggregate<T> count(String name) {
     return new UnboundAggregate<>(Operation.COUNT, ref(name));
   }

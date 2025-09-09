@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -66,6 +67,7 @@ public class TestStructuredStreaming {
     TestStructuredStreaming.spark =
         SparkSession.builder()
             .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
             .config("spark.sql.shuffle.partitions", 4)
             .getOrCreate();
   }

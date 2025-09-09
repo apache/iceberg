@@ -93,6 +93,10 @@
         <property name="message" value="assertThatThrownBy() should be statically imported from org.assertj.core.api.Assertions"/>
     </module>
     <module name="RegexpMultiline">
+        <property name="format" value="^\s*import\s+static\s+org\.junit\.jupiter\.api\.Assertions\.\w+;"/>
+        <property name="message" value="Prefer using org.assertj.core.api.Assertions instead."/>
+    </module>
+    <module name="RegexpMultiline">
         <property name="id" value="AssertThatThrownByWithMessageCheck"/>
         <property name="fileExtensions" value="java"/>
         <property name="matchAcrossLines" value="true"/>

@@ -74,6 +74,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.FourColumnRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -865,9 +866,12 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     return spark
         .read()
         .format("iceberg")
+        .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+        .option(SparkReadOptions.FILE_OPEN_COST, 0)
         .load(name(table) + ".position_deletes")
         .select("file_path", "delete_file_path")
         .where(col("delete_file_path").endsWith(".puffin"))
+        .coalesce(1)
         .distinct()
         .collectAsList();
   }
@@ -988,7 +992,15 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
   private List<Object[]> records(Table table) {
     return rowsToJava(
-        spark.read().format("iceberg").load(name(table)).sort("c1", "c2", "c3").collectAsList());
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
+            .load(name(table))
+            .coalesce(1)
+            .sort("c1", "c2", "c3")
+            .collectAsList());
   }
 
   private List<Object[]> deleteRecords(Table table) {
@@ -1004,8 +1016,11 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         spark
             .read()
             .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
             .load(name(table) + ".position_deletes")
             .select("file_path", additionalFields)
+            .coalesce(1)
             .sort("file_path", "pos")
             .collectAsList());
   }
@@ -1104,7 +1119,12 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
   private void assertLocallySorted(List<DeleteFile> deleteFiles) {
     for (DeleteFile deleteFile : deleteFiles) {
       Dataset<Row> deletes =
-          spark.read().format("iceberg").load("default." + TABLE_NAME + ".position_deletes");
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.FILE_OPEN_COST, 0)
+              .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+              .load("default." + TABLE_NAME + ".position_deletes");
       deletes.filter(deletes.col("delete_file_path").equalTo(deleteFile.location()));
       List<Row> rows = deletes.collectAsList();
       assertThat(rows).as("Empty delete file found").isNotEmpty();

@@ -126,6 +126,7 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
       return SparkValueReaders.map(SparkValueReaders.strings(), valueReader);
     }
 
+    @Override
     public ValueReader<?> variant(
         Type partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
       return SparkValueReaders.variants();

@@ -24,6 +24,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
@@ -80,7 +81,11 @@ public class TestWriteMetricsConfig {
 
   @BeforeAll
   public static void startSpark() {
-    TestWriteMetricsConfig.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestWriteMetricsConfig.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
     TestWriteMetricsConfig.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 

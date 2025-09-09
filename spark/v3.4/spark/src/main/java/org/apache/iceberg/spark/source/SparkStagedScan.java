@@ -78,9 +78,9 @@ class SparkStagedScan extends SparkScan {
     return table().name().equals(that.table().name())
         && Objects.equals(taskSetId, that.taskSetId)
         && readSchema().equals(that.readSchema())
-        && Objects.equals(splitSize, that.splitSize)
-        && Objects.equals(splitLookback, that.splitLookback)
-        && Objects.equals(openFileCost, that.openFileCost);
+        && splitSize == that.splitSize
+        && splitLookback == that.splitLookback
+        && openFileCost == that.openFileCost;
   }
 
   @Override

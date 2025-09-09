@@ -28,6 +28,7 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class FileMetadata {
@@ -56,6 +57,7 @@ public class FileMetadata {
     private Map<Integer, Long> nanValueCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private Map<Integer, Type> originalTypes = null;
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
     private List<Long> splitOffsets = null;
@@ -195,6 +197,7 @@ public class FileMetadata {
       this.nanValueCounts = metrics.nanValueCounts();
       this.lowerBounds = metrics.lowerBounds();
       this.upperBounds = metrics.upperBounds();
+      this.originalTypes = metrics.originalTypes();
       return this;
     }
 
@@ -291,7 +294,8 @@ public class FileMetadata {
               nullValueCounts,
               nanValueCounts,
               lowerBounds,
-              upperBounds),
+              upperBounds,
+              originalTypes),
           equalityFieldIds,
           sortOrderId,
           splitOffsets,

@@ -76,7 +76,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
    * same uri.
    *
    * @param uri of the jdbc connection
-   * @param lockId which should indentify the job and the table
+   * @param lockId which should identify the job and the table
    * @param properties used for creating the jdbc connection pool
    */
   public JdbcLockFactory(String uri, String lockId, Map<String, String> properties) {
@@ -127,21 +127,24 @@ public class JdbcLockFactory implements TriggerLockFactory {
       pool.run(
           conn -> {
             DatabaseMetaData dbMeta = conn.getMetaData();
-            ResultSet tableExists =
+            try (ResultSet rs =
                 dbMeta.getTables(
                     null /* catalog name */,
                     null /* schemaPattern */,
                     LOCK_TABLE_NAME /* tableNamePattern */,
-                    null /* types */);
-            if (tableExists.next()) {
-              LOG.debug("Flink maintenance lock table already exists");
-              return true;
+                    null /* types */)) {
+              if (rs.next()) {
+                LOG.debug("Flink maintenance lock table already exists");
+                return true;
+              }
+            }
+            LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
+            try (PreparedStatement ps = conn.prepareStatement(CREATE_LOCK_TABLE_SQL)) {
+              ps.execute();
             }
 
-            LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
-            return conn.prepareStatement(CREATE_LOCK_TABLE_SQL).execute();
+            return true;
           });
-
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(
           e, "Cannot initialize JDBC table maintenance lock: Query timed out");

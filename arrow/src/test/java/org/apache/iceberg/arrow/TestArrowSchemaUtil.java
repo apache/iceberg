@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.Schema;
@@ -34,6 +35,7 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.junit.jupiter.api.Test;
@@ -46,6 +48,7 @@ public class TestArrowSchemaUtil {
   private static final String STRING_FIELD = "s";
   private static final String DATE_FIELD = "d2";
   private static final String TIMESTAMP_FIELD = "ts";
+  private static final String TIMESTAMP_NANO_FIELD = "tsn";
   private static final String LONG_FIELD = "l";
   private static final String FLOAT_FIELD = "f";
   private static final String TIME_FIELD = "tt";
@@ -79,7 +82,9 @@ public class TestArrowSchemaUtil {
                 MAP_FIELD,
                 Types.MapType.ofOptional(15, 16, StringType.get(), IntegerType.get())),
             Types.NestedField.optional(17, FIXED_WIDTH_BINARY_FIELD, Types.FixedType.ofLength(10)),
-            Types.NestedField.optional(18, UUID_FIELD, Types.UUIDType.get()));
+            Types.NestedField.optional(18, UUID_FIELD, Types.UUIDType.get()),
+            Types.NestedField.optional(
+                19, TIMESTAMP_NANO_FIELD, Types.TimestampNanoType.withZone()));
 
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
 
@@ -87,7 +92,7 @@ public class TestArrowSchemaUtil {
   }
 
   @Test
-  public void convertComplex() {
+  public void convertMap() {
     Schema iceberg =
         new Schema(
             Types.NestedField.optional(
@@ -99,6 +104,83 @@ public class TestArrowSchemaUtil {
                     4, 5, StringType.get(), ListType.ofOptional(6, TimestampType.withoutZone()))));
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
     assertThat(arrow.getFields()).hasSameSizeAs(iceberg.columns());
+
+    // Validate simple map with primitive values
+    Field simpleMap = arrow.findField("m");
+    assertThat(simpleMap).isNotNull();
+    assertThat(simpleMap.getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Map);
+    assertThat(simpleMap.getChildren()).hasSize(1);
+    Field simpleEntry = simpleMap.getChildren().get(0);
+    assertThat(simpleEntry.getChildren()).hasSize(2);
+    assertThat(simpleEntry.getChildren().get(0).getType().getTypeID())
+        .isEqualTo(ArrowType.ArrowTypeID.Utf8);
+    assertThat(simpleEntry.getChildren().get(1).getType().getTypeID())
+        .isEqualTo(ArrowType.ArrowTypeID.Int);
+
+    // Validate map with complex values (list of timestamps)
+    Field complexMap = arrow.findField("m2");
+    assertThat(complexMap).isNotNull();
+    assertThat(complexMap.getType().getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Map);
+    assertThat(complexMap.getChildren()).hasSize(1);
+    Field complexEntry = complexMap.getChildren().get(0);
+    assertThat(complexEntry.getChildren()).hasSize(2);
+    assertThat(complexEntry.getChildren().get(0).getType().getTypeID())
+        .isEqualTo(ArrowType.ArrowTypeID.Utf8);
+    assertThat(complexEntry.getChildren().get(1).getType().getTypeID())
+        .isEqualTo(ArrowType.List.TYPE_TYPE);
+
+    // Validate the list element type within the map value
+    Field listValue = complexEntry.getChildren().get(1);
+    assertThat(listValue.getChildren()).hasSize(1);
+    assertThat(listValue.getChildren().get(0).getType().getTypeID())
+        .isEqualTo(ArrowType.ArrowTypeID.Timestamp);
+  }
+
+  @Test
+  public void convertStruct() {
+    Schema iceberg =
+        new Schema(
+            Types.NestedField.optional(
+                0,
+                STRUCT_FIELD,
+                StructType.of(
+                    Types.NestedField.required(1, "inner_string", StringType.get()),
+                    Types.NestedField.optional(2, "inner_int", IntegerType.get()))));
+
+    org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
+    validate(iceberg, arrow);
+
+    Field structField = arrow.findField(STRUCT_FIELD);
+    assertThat(structField).isNotNull();
+    assertThat(structField.getChildren()).hasSize(2);
+    assertThat(structField.getChildren().get(0).getName()).isEqualTo("inner_string");
+    assertThat(structField.getChildren().get(1).getName()).isEqualTo("inner_int");
+  }
+
+  @Test
+  public void convertNestedStructInList() {
+    Schema iceberg =
+        new Schema(
+            Types.NestedField.optional(
+                0,
+                "lt",
+                ListType.ofOptional(
+                    1,
+                    StructType.of(
+                        Types.NestedField.required(2, "nested_field", StringType.get())))));
+
+    org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
+
+    validate(iceberg, arrow);
+    Field listField = arrow.findField("lt");
+    assertThat(listField).isNotNull();
+    assertThat(listField.getType().getTypeID()).isEqualTo(ArrowType.List.TYPE_TYPE);
+    assertThat(listField.getChildren()).hasSize(1);
+
+    Field structElement = listField.getChildren().get(0);
+    assertThat(structElement.getType().getTypeID()).isEqualTo(ArrowType.Struct.TYPE_TYPE);
+    assertThat(structElement.getChildren()).hasSize(1);
+    assertThat(structElement.getChildren().get(0).getName()).isEqualTo("nested_field");
   }
 
   private void validate(Schema iceberg, org.apache.arrow.vector.types.pojo.Schema arrow) {
@@ -146,6 +228,12 @@ public class TestArrowSchemaUtil {
       case TIMESTAMP:
         assertThat(field.getName()).isEqualTo(TIMESTAMP_FIELD);
         assertThat(arrowType.getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Timestamp);
+        assertThat(((ArrowType.Timestamp) arrowType).getUnit()).isEqualTo(TimeUnit.MICROSECOND);
+        break;
+      case TIMESTAMP_NANO:
+        assertThat(field.getName()).isEqualTo(TIMESTAMP_NANO_FIELD);
+        assertThat(arrowType.getTypeID()).isEqualTo(ArrowType.ArrowTypeID.Timestamp);
+        assertThat(((ArrowType.Timestamp) arrowType).getUnit()).isEqualTo(TimeUnit.NANOSECOND);
         break;
       case STRING:
         assertThat(field.getName()).isEqualTo(STRING_FIELD);

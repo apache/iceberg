@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -107,7 +108,11 @@ public class TestPartitionValues {
 
   @BeforeAll
   public static void startSpark() {
-    TestPartitionValues.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestPartitionValues.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
   }
 
   @AfterAll

@@ -20,12 +20,17 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
 import org.apache.curator.test.TestingServer;
-import org.junit.After;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
 public class TestZkLockFactory extends TestLockFactoryBase {
-  private final String testLockId = "tableName";
+
   private TestingServer zkTestServer;
+
+  @Override
+  TriggerLockFactory lockFactory(String tableName) {
+    return new ZkLockFactory(zkTestServer.getConnectString(), tableName, 5000, 3000, 1000, 3);
+  }
 
   @BeforeEach
   @Override
@@ -39,15 +44,9 @@ public class TestZkLockFactory extends TestLockFactoryBase {
     super.before();
   }
 
-  @Override
-  TriggerLockFactory lockFactory() {
-    return new ZkLockFactory(zkTestServer.getConnectString(), testLockId, 5000, 3000, 1000, 3);
-  }
-
-  @After
+  @AfterEach
   public void after() throws IOException {
     super.after();
-
     if (zkTestServer != null) {
       zkTestServer.close();
     }

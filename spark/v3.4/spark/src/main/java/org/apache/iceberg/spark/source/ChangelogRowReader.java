@@ -54,7 +54,8 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
-        partition.isCaseSensitive());
+        partition.isCaseSensitive(),
+        partition.cacheDeleteFilesOnExecutors());
   }
 
   ChangelogRowReader(
@@ -62,13 +63,15 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
       ScanTaskGroup<ChangelogScanTask> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
     super(
         table,
         taskGroup,
         tableSchema,
         ChangelogUtil.dropChangelogMetadata(expectedSchema),
-        caseSensitive);
+        caseSensitive,
+        cacheDeleteFilesOnExecutors);
   }
 
   @Override

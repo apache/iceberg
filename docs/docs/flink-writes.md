@@ -19,7 +19,9 @@ title: "Flink Writes"
  -->
 # Flink Writes
 
-Iceberg support batch and streaming writes With [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API.
+Iceberg support batch and streaming writes with [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API.
+
+The Flink Iceberg sink guarantees exactly-once semantics.
 
 ## Writing with SQL
 
@@ -370,7 +372,7 @@ the state of the Flink job. To avoid that, make sure to keep the last snapshot c
 job (which can be identified by the `flink.job-id` property in the summary), and only delete
 orphan files that are old enough.
 
-# Flink Writes (SinkV2 based implementation)
+## Sink V2 based implementation
 
 At the time when the current default, `FlinkSink` implementation was created, Flink Sink's interface had some
 limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based 
@@ -381,14 +383,14 @@ was introduced. This interface is used in the new `IcebergSink` implementation w
 The new implementation is a base for further work on features such as [table maintenance](maintenance.md).
 The SinkV2 based implementation is currently an experimental feature so use it with caution.
 
-## Writing with SQL
+### Writing with SQL
 
 To turn on SinkV2 based implementation in SQL, set this configuration option:
 ```sql
 SET table.exec.iceberg.use-v2-sink = true;
 ```
 
-## Writing with DataStream
+### Writing with DataStream
 
 To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in the provided snippets.
 !!! warning
@@ -398,9 +400,9 @@ To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in th
      - When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`
 
 
-## Dynamic Iceberg Flink Sink
+## Flink Dynamic Iceberg Sink
 
-Dynamic Flink Iceberg Sink allows:
+The Flink Dynamic Iceberg Sink (Dynamic Sink) allows:
 
 1. **Writing to any number of tables**  
    A single sink can dynamically route records to multiple Iceberg tables.
@@ -515,7 +517,7 @@ Unsupported schema updates:
 Dropping columns is avoided to prevent issues with late or out-of-order data, as removed fields cannot be easily restored without data loss. Renaming is unsupported because schema comparison is name-based, and renames would require additional metadata or hints to resolve.
 
 
-#### Cache
+### Caching
 
 There are two distinct caches involved: the table metadata cache and the input schema cache.
 

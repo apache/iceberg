@@ -564,11 +564,11 @@ Awaitility.await("Tables were not deleted")
 Please refer to the [usage guide](https://github.com/awaitility/awaitility/wiki/Usage) of [Awaitility](https://github.com/awaitility/awaitility) for more usage examples.
 
 
-### JUnit4 / JUnit5
+### JUnit 5 / AssertJ
 
-Iceberg currently uses a mix of JUnit4 (`org.junit` imports) and JUnit5 (`org.junit.jupiter.api` imports) tests. To allow an easier migration to JUnit5 in the future, new test classes
-that are being added to the codebase should be written purely in JUnit5 where possible.
 
+Iceberg has now fully migrated to JUnit 5 (org.junit.jupiter.api imports) for all tests. Any new test classes should be written using JUnit 5, 
+and assertions should follow the AssertJ style to ensure consistency and readability.
 
 ## Running Benchmarks
 Some PRs/changesets might require running benchmarks to determine whether they are affecting the baseline performance. Currently there is 

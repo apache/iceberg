@@ -89,7 +89,6 @@ public class SparkScanBuilder
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Predicate[] NO_PREDICATES = new Predicate[0];
-  private StructType pushedAggregateSchema;
   private Scan localScan;
 
   private final SparkSession spark;
@@ -256,7 +255,7 @@ public class SparkScanBuilder
       return false;
     }
 
-    pushedAggregateSchema =
+    StructType pushedAggregateSchema =
         SparkSchemaUtil.convert(new Schema(aggregateEvaluator.resultType().fields()));
     InternalRow[] pushedAggregateRows = new InternalRow[1];
     StructLike structLike = aggregateEvaluator.result();

@@ -27,7 +27,7 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
-class ContentFileParser {
+public class ContentFileParser {
   private static final String SPEC_ID = "spec-id";
   private static final String CONTENT = "content";
   private static final String FILE_PATH = "file-path";
@@ -56,12 +56,12 @@ class ContentFileParser {
     return partitionData != null && partitionData.size() > 0;
   }
 
-  static String toJson(ContentFile<?> contentFile, PartitionSpec spec) {
+  public static String toJson(ContentFile<?> contentFile, PartitionSpec spec) {
     return JsonUtil.generate(
         generator -> ContentFileParser.toJson(contentFile, spec, generator), false);
   }
 
-  static void toJson(ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator)
+  public static void toJson(ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator)
       throws IOException {
     Preconditions.checkArgument(contentFile != null, "Invalid content file: null");
     Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
@@ -134,13 +134,18 @@ class ContentFileParser {
     generator.writeEndObject();
   }
 
-  static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
+  public static ContentFile<?> fromJson(JsonNode jsonNode, PartitionSpec spec) {
+    return fromJson(jsonNode, spec == null ? null : Map.of(spec.specId(), spec));
+  }
+
+  public static ContentFile<?> fromJson(JsonNode jsonNode, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for content file: non-object (%s)", jsonNode);
-    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
-
+    Preconditions.checkArgument(specsById != null, "Invalid partition spec: null");
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
+    PartitionSpec spec = specsById.get(specId);
+    Preconditions.checkArgument(spec != null, "Invalid partition specId: %s", specId);
     FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
     String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
     FileFormat fileFormat = FileFormat.fromString(JsonUtil.getString(FILE_FORMAT, jsonNode));

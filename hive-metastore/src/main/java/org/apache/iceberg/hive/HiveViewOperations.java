@@ -90,6 +90,10 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
 
     try {
       table = metaClients.run(client -> client.getTable(database, viewName));
+
+      // Check if we are trying to load an Iceberg Table as a View
+      HiveOperationsBase.validateIcebergTableNotLoadedAsIcebergView(table, fullName);
+      // Check if it is a valid Iceberg View
       HiveOperationsBase.validateTableIsIcebergView(table, fullName);
 
       metadataLocation =

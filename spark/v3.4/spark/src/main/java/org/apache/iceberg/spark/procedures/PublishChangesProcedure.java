@@ -95,7 +95,7 @@ class PublishChangesProcedure extends BaseProcedure {
                       snapshot -> wapId.equals(WapUtil.stagedWapId(snapshot)),
                       null));
           if (!wapSnapshot.isPresent()) {
-            throw new ValidationException(String.format("Cannot apply unknown WAP ID '%s'", wapId));
+            throw new ValidationException("Cannot apply unknown WAP ID '%s'", wapId);
           }
 
           long wapSnapshotId = wapSnapshot.get().snapshotId();

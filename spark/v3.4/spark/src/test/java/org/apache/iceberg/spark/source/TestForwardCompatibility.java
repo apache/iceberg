@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
@@ -94,7 +95,11 @@ public class TestForwardCompatibility {
 
   @BeforeAll
   public static void startSpark() {
-    TestForwardCompatibility.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestForwardCompatibility.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
   }
 
   @AfterAll

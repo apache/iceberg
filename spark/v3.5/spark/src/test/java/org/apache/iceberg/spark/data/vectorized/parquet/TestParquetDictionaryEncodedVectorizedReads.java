@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
@@ -60,7 +61,11 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
 
   @BeforeAll
   public static void startSpark() {
-    spark = SparkSession.builder().master("local[2]").getOrCreate();
+    spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
   }
 
   @AfterAll
@@ -165,24 +170,30 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     List<Row> expected = df.collectAsList();
     long expectedSize = df.count();
 
-    Parquet.ReadBuilder readBuilder =
-        Parquet.read(Files.localInput(path.toFile()))
-            .project(schema)
-            .createBatchedReaderFunc(
-                type ->
-                    VectorizedSparkParquetReaders.buildReader(
-                        schema, type, ImmutableMap.of(), null));
+    assertNoLeak(
+        "testDecimalNotAllPagesDictionaryEncoded",
+        allocator -> {
+          Parquet.ReadBuilder readBuilder =
+              Parquet.read(Files.localInput(path.toFile()))
+                  .project(schema)
+                  .createBatchedReaderFunc(
+                      type ->
+                          VectorizedSparkParquetReaders.buildReader(
+                              schema, type, ImmutableMap.of(), null, allocator));
 
-    try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
-      Iterator<Row> expectedIter = expected.iterator();
-      Iterator<ColumnarBatch> batches = batchReader.iterator();
-      int numRowsRead = 0;
-      while (batches.hasNext()) {
-        ColumnarBatch batch = batches.next();
-        numRowsRead += batch.numRows();
-        TestHelpers.assertEqualsBatchWithRows(schema.asStruct(), expectedIter, batch);
-      }
-      assertThat(numRowsRead).isEqualTo(expectedSize);
-    }
+          try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
+            Iterator<Row> expectedIter = expected.iterator();
+            Iterator<ColumnarBatch> batches = batchReader.iterator();
+            int numRowsRead = 0;
+            while (batches.hasNext()) {
+              ColumnarBatch batch = batches.next();
+              numRowsRead += batch.numRows();
+              TestHelpers.assertEqualsBatchWithRows(schema.asStruct(), expectedIter, batch);
+            }
+            assertThat(numRowsRead).isEqualTo(expectedSize);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
   }
 }

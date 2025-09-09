@@ -22,6 +22,10 @@ import java.nio.ByteBuffer;
 
 /** A variant metadata and value pair. */
 public interface Variant {
+
+  /** The current version of the Variant spec */
+  byte VARIANT_SPEC_VERSION = (byte) 1;
+
   /** Returns the metadata for all values in the variant. */
   VariantMetadata metadata();
 

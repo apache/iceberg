@@ -32,13 +32,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -48,9 +48,6 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.variants.VariantMetadata;
-import org.apache.iceberg.variants.VariantTestUtil;
-import org.apache.iceberg.variants.Variants;
 import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -68,14 +65,6 @@ public abstract class AvroDataTestBase {
           FIRST_ROW_ID,
           MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
           34L);
-
-  private static final ByteBuffer TEST_METADATA_BUFFER =
-      VariantTestUtil.createMetadata(ImmutableList.of("a", "b", "c", "d", "e"), true);
-  private static final VariantMetadata TEST_METADATA = Variants.metadata(TEST_METADATA_BUFFER);
-  private static final Schema SCHEMA =
-      new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "var", Types.VariantType.get()));
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
@@ -121,8 +110,8 @@ public abstract class AvroDataTestBase {
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)), // int encoded
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)), // long encoded
           required(116, "dec_20_5", Types.DecimalType.of(20, 5)), // requires padding
-          required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
-          );
+          required(117, "dec_38_10", Types.DecimalType.of(38, 10)), // Spark's maximum precision
+          optional(118, "unk", Types.UnknownType.get()));
 
   @TempDir protected Path temp;
 
@@ -151,10 +140,6 @@ public abstract class AvroDataTestBase {
         Types.GeographyType.crs84(),
       };
 
-  protected boolean supportsUnknown() {
-    return false;
-  }
-
   protected boolean supportsTime() {
     return false;
   }
@@ -174,11 +159,6 @@ public abstract class AvroDataTestBase {
   @ParameterizedTest
   @FieldSource("SIMPLE_TYPES")
   public void testTypeSchema(Type type) throws IOException {
-    assumeThat(
-            supportsUnknown()
-                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
-        .as("unknown is not yet implemented")
-        .isTrue();
     assumeThat(supportsTime() || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIME) == null)
         .as("Spark does not support time fields")
         .isTrue();
@@ -215,10 +195,13 @@ public abstract class AvroDataTestBase {
 
   @Test
   public void testStructWithRequiredFields() throws IOException {
+    List<Types.NestedField> supportedPrimitives =
+        SUPPORTED_PRIMITIVES.fields().stream()
+            .filter(f -> f.type().typeId() != Type.TypeID.UNKNOWN)
+            .collect(Collectors.toList());
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(
-            new Schema(
-                Lists.transform(SUPPORTED_PRIMITIVES.fields(), Types.NestedField::asRequired))));
+            new Schema(Lists.transform(supportedPrimitives, Types.NestedField::asRequired))));
   }
 
   @Test
@@ -697,5 +680,49 @@ public abstract class AvroDataTestBase {
                     33L)),
             record.copy(Map.of("id", 4L, "data", "d", "_row_id", 1_001L)),
             record.copy(Map.of("id", 5L, "data", "e"))));
+  }
+
+  @Test
+  public void testUnknownNestedLevel() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema schema =
+        new Schema(
+            required(1, "id", LongType.get()),
+            optional(
+                2,
+                "nested",
+                Types.StructType.of(
+                    required(20, "int", Types.IntegerType.get()),
+                    optional(21, "unk", Types.UnknownType.get()))));
+
+    writeAndValidate(schema);
+  }
+
+  @Test
+  public void testUnknownListType() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema schema =
+        new Schema(
+            required(0, "id", LongType.get()),
+            optional(1, "data", ListType.ofOptional(2, Types.UnknownType.get())));
+
+    writeAndValidate(schema);
+  }
+
+  @Test
+  public void testUnknownMapType() throws IOException {
+    assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema schema =
+        new Schema(
+            required(0, "id", LongType.get()),
+            optional(
+                1,
+                "data",
+                MapType.ofOptional(2, 3, Types.StringType.get(), Types.UnknownType.get())));
+
+    writeAndValidate(schema);
   }
 }
