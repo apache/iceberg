@@ -42,6 +42,7 @@ import org.apache.iceberg.rest.responses.LoadCredentialsResponseParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockserver.model.Header;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
@@ -55,9 +56,17 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
   private static final String STORAGE_ACCOUNT_2 = "account2";
   private static final String CREDENTIAL_PREFIX_2 =
       "abfs://container@account2.dfs.core.windows.net/dir";
+  private static final String HEADER_NAME = "test-header";
+  private static final String HEADER_VALUE = "test-value";
+  private static final Header TEST_HEADER = Header.header(HEADER_NAME, HEADER_VALUE);
   private static final Map<String, String> PROPERTIES =
       ImmutableMap.of(
-          VendedAdlsCredentialProvider.URI, CREDENTIALS_URI, CatalogProperties.URI, CATALOG_URI);
+          VendedAdlsCredentialProvider.URI,
+          CREDENTIALS_URI,
+          CatalogProperties.URI,
+          CATALOG_URI,
+          "header." + HEADER_NAME,
+          HEADER_VALUE);
 
   @Test
   public void invalidOrMissingUri() {
@@ -93,7 +102,8 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
 
   @Test
   public void noADLSCredentials() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
 
     HttpResponse mockResponse =
         response(
@@ -111,7 +121,8 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
 
   @Test
   public void expirationNotSet() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     LoadCredentialsResponse response =
         ImmutableLoadCredentialsResponse.builder()
             .addCredentials(
@@ -134,7 +145,8 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
 
   @Test
   public void nonExpiredSasToken() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     Credential credential =
         ImmutableCredential.builder()
             .prefix(CREDENTIAL_PREFIX)
@@ -168,7 +180,8 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
 
   @Test
   public void expiredSasToken() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     Credential credential =
         ImmutableCredential.builder()
             .prefix(CREDENTIAL_PREFIX)
@@ -201,7 +214,8 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
 
   @Test
   public void multipleADLSCredentialsPerStorageAccount() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     Credential credential1 =
         ImmutableCredential.builder()
             .prefix(CREDENTIAL_PREFIX)
@@ -238,7 +252,8 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
 
   @Test
   public void multipleStorageAccounts() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     Credential credential1 =
         ImmutableCredential.builder()
             .prefix(CREDENTIAL_PREFIX)
@@ -281,7 +296,8 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
   public void serializableTest(
       TestHelpers.RoundTripSerializer<VendedAdlsCredentialProvider> roundTripSerializer)
       throws IOException, ClassNotFoundException {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     Credential credential =
         ImmutableCredential.builder()
             .prefix(CREDENTIAL_PREFIX)

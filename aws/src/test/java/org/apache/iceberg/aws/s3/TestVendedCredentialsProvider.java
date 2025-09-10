@@ -40,6 +40,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockserver.integration.ClientAndServer;
+import org.mockserver.model.Header;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
@@ -52,9 +53,17 @@ public class TestVendedCredentialsProvider {
   private static final String CREDENTIALS_URI =
       String.format("http://127.0.0.1:%d/v1/credentials", PORT);
   private static final String CATALOG_URI = String.format("http://127.0.0.1:%d/v1", PORT);
+  private static final String HEADER_NAME = "test-header";
+  private static final String HEADER_VALUE = "test-value";
+  private static final Header TEST_HEADER = Header.header(HEADER_NAME, HEADER_VALUE);
   private static final ImmutableMap<String, String> PROPERTIES =
       ImmutableMap.of(
-          VendedCredentialsProvider.URI, CREDENTIALS_URI, CatalogProperties.URI, CATALOG_URI);
+          VendedCredentialsProvider.URI,
+          CREDENTIALS_URI,
+          CatalogProperties.URI,
+          CATALOG_URI,
+          "header." + HEADER_NAME,
+          HEADER_VALUE);
   private static ClientAndServer mockServer;
 
   @BeforeAll
@@ -102,7 +111,8 @@ public class TestVendedCredentialsProvider {
 
   @Test
   public void noS3Credentials() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
 
     HttpResponse mockResponse =
         response(
@@ -120,7 +130,8 @@ public class TestVendedCredentialsProvider {
 
   @Test
   public void accessKeyIdAndSecretAccessKeyWithoutToken() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     LoadCredentialsResponse response =
         ImmutableLoadCredentialsResponse.builder()
             .addCredentials(
@@ -148,7 +159,8 @@ public class TestVendedCredentialsProvider {
 
   @Test
   public void expirationNotSet() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     LoadCredentialsResponse response =
         ImmutableLoadCredentialsResponse.builder()
             .addCredentials(
@@ -178,7 +190,8 @@ public class TestVendedCredentialsProvider {
 
   @Test
   public void nonExpiredToken() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     Credential credential =
         ImmutableCredential.builder()
             .prefix("s3")
@@ -216,7 +229,8 @@ public class TestVendedCredentialsProvider {
 
   @Test
   public void expiredToken() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     Credential credential =
         ImmutableCredential.builder()
             .prefix("s3")
@@ -253,7 +267,8 @@ public class TestVendedCredentialsProvider {
 
   @Test
   public void multipleS3Credentials() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
     Credential credentialOne =
         ImmutableCredential.builder()
             .prefix("gcs")
@@ -383,7 +398,8 @@ public class TestVendedCredentialsProvider {
 
   @Test
   public void expiredTokenInProperties() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
 
     Credential credential =
         ImmutableCredential.builder()
@@ -408,19 +424,17 @@ public class TestVendedCredentialsProvider {
 
     try (VendedCredentialsProvider provider =
         VendedCredentialsProvider.create(
-            ImmutableMap.of(
-                CatalogProperties.URI,
-                CATALOG_URI,
-                VendedCredentialsProvider.URI,
-                CREDENTIALS_URI,
-                S3FileIOProperties.ACCESS_KEY_ID,
-                "randomAccessKeyFromProperties",
-                S3FileIOProperties.SECRET_ACCESS_KEY,
-                "randomSecretAccessKeyFromProperties",
-                S3FileIOProperties.SESSION_TOKEN,
-                "sessionTokenFromProperties",
-                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
-                Long.toString(Instant.now().minus(1, ChronoUnit.HOURS).toEpochMilli())))) {
+            ImmutableMap.<String, String>builder()
+                .put(CatalogProperties.URI, CATALOG_URI)
+                .put(VendedCredentialsProvider.URI, CREDENTIALS_URI)
+                .put("header." + HEADER_NAME, HEADER_VALUE)
+                .put(S3FileIOProperties.ACCESS_KEY_ID, "randomAccessKeyFromProperties")
+                .put(S3FileIOProperties.SECRET_ACCESS_KEY, "randomSecretAccessKeyFromProperties")
+                .put(S3FileIOProperties.SESSION_TOKEN, "sessionTokenFromProperties")
+                .put(
+                    S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                    Long.toString(Instant.now().minus(1, ChronoUnit.HOURS).toEpochMilli()))
+                .build())) {
       AwsCredentials awsCredentials = provider.resolveCredentials();
 
       verifyCredentials(awsCredentials, credential);
@@ -437,7 +451,8 @@ public class TestVendedCredentialsProvider {
 
   @Test
   public void invalidTokenInProperties() {
-    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpRequest mockRequest =
+        request("/v1/credentials").withMethod(HttpMethod.GET.name()).withHeader(TEST_HEADER);
 
     Credential credential =
         ImmutableCredential.builder()
@@ -463,17 +478,14 @@ public class TestVendedCredentialsProvider {
     // token expiration is missing from the properties
     try (VendedCredentialsProvider provider =
         VendedCredentialsProvider.create(
-            ImmutableMap.of(
-                CatalogProperties.URI,
-                CATALOG_URI,
-                VendedCredentialsProvider.URI,
-                CREDENTIALS_URI,
-                S3FileIOProperties.ACCESS_KEY_ID,
-                "randomAccessKeyFromProperties",
-                S3FileIOProperties.SECRET_ACCESS_KEY,
-                "randomSecretAccessKeyFromProperties",
-                S3FileIOProperties.SESSION_TOKEN,
-                "sessionTokenFromProperties"))) {
+            ImmutableMap.<String, String>builder()
+                .put(CatalogProperties.URI, CATALOG_URI)
+                .put(VendedCredentialsProvider.URI, CREDENTIALS_URI)
+                .put("header." + HEADER_NAME, HEADER_VALUE)
+                .put(S3FileIOProperties.ACCESS_KEY_ID, "randomAccessKeyFromProperties")
+                .put(S3FileIOProperties.SECRET_ACCESS_KEY, "randomSecretAccessKeyFromProperties")
+                .put(S3FileIOProperties.SESSION_TOKEN, "sessionTokenFromProperties")
+                .build())) {
       AwsCredentials awsCredentials = provider.resolveCredentials();
 
       verifyCredentials(awsCredentials, credential);
