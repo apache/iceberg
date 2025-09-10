@@ -97,7 +97,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String COMMIT_TOTAL_RETRY_TIME_MS_PROP =
       "iceberg.control.commit.total-retry-time-ms";
   private static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 300_000; // 5 minutes
-  public static final String FAIL_ON_MAX_COMMIT_RETRIES = "fail.on.max.commit.retries";
+  public static final String FAIL_ON_MAX_COMMIT_RETRIES = "iceberg.control.fail.on.max.commit.retries";
   public static final boolean FAIL_ON_MAX_COMMIT_RETRIES_DEFAULT = false;
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
   private static final String TRANSACTIONAL_PREFIX_PROP =

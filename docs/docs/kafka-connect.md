@@ -81,10 +81,11 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
 | iceberg.control.commit.threads             | Number of threads to use for commits, default is (cores * 2)                                                     |
-| iceberg.control.commit.max-retry           | Max number of retry to use for commits, default is 3                                                             
-| iceberg.control.commit.min-retry-wait-ms   | Minimum wait time in ms to wait before retry, default is 60,000 (60 sec)                                         |
-| iceberg.control.commit.max-retry-wait-ms   | Maximum wait time in ms to wait before retry, default is 300,000 (5 minutes)                                     |
-| fail.on.max.commit.retries                 | Whether to fail the connector task after maximum number of retries has been reached, default is false            |
+| iceberg.control.commit.max-retries         | Max number of retry to use for commits, default is 3                                                             |
+| iceberg.control.commit.min-retry-wait-ms   | Minimum wait time in ms to wait before retry, default is 100 (0.1 sec)                                           |
+| iceberg.control.commit.max-retry-wait-ms   | Maximum wait time in ms to wait before retry, default is 60,000 (1 minute)                                       |
+| iceberg.control.commit.total-retry-time-ms | Total retry time, default is 300,000 (5 minutes)                                                                 |
+| iceberg.control.fail.on.max.commit.retries | Whether to fail the connector task after maximum number of retries has been reached, default is false            |
 | iceberg.coordinator.transactional.prefix   | Prefix for the transactional id to use for the coordinator producer, default is to use no/empty prefix           |
 | iceberg.catalog                            | Name of the catalog, default is `iceberg`                                                                        |
 | iceberg.catalog.*                          | Properties passed through to Iceberg catalog initialization                                                      |

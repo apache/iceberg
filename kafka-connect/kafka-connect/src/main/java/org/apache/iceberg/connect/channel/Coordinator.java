@@ -152,7 +152,7 @@ class Coordinator extends Channel {
             e);
       } else {
         LOG.warn(
-            "Connector will continue and try again next cycle. Set 'fail.on.max.commit.retries' to true to fail fast on persistent commit errors.");
+            "Connector will continue and try again next cycle. Set 'iceberg.control.fail.on.max.commit.retries' to true to fail fast on persistent commit errors.");
       }
     } finally {
       commitState.endCurrentCommit();

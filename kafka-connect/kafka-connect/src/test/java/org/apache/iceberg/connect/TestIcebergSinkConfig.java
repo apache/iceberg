@@ -90,7 +90,7 @@ public class TestIcebergSinkConfig {
             "iceberg.catalog.type", "rest",
             "topics", "source-topic",
             "iceberg.tables", "db.landing",
-            "fail.on.max.commit.retries", "true");
+            "iceberg.control.fail.on.max.commit.retries", "true");
     IcebergSinkConfig configEnabled = new IcebergSinkConfig(propsEnabled);
     assertThat(configEnabled.failOnMaxCommitRetries()).isTrue();
 
@@ -99,7 +99,7 @@ public class TestIcebergSinkConfig {
             "iceberg.catalog.type", "rest",
             "topics", "source-topic",
             "iceberg.tables", "db.landing",
-            "fail.on.max.commit.retries", "false");
+            "iceberg.control.fail.on.max.commit.retries", "false");
     IcebergSinkConfig configDisabled = new IcebergSinkConfig(propsDisabled);
     assertThat(configDisabled.failOnMaxCommitRetries()).isFalse();
   }
