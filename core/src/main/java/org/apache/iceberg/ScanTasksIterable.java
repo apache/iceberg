@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
@@ -27,27 +26,27 @@ import java.util.function.Supplier;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
-import org.apache.iceberg.util.ParallelIterable;
 
 public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
   private final RESTClient client;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
   private final Supplier<Map<String, String>> headers;
-  // parallelizing on this where a planTask produces a list of file scan tasks, as
-  //  well more planTasks.
-  private final String planTask;
-  private final ArrayDeque<FileScanTask> fileScanTasks;
   private final ExecutorService executorService;
   private final Map<Integer, PartitionSpec> specsById;
   private final boolean caseSensitive;
+
+  // Either planTask OR fileScanTasks will be non-null, never both
+  private final String planTask;
+  private final ArrayDeque<FileScanTask> fileScanTasks;
+
+  private volatile boolean closed = false;
 
   public ScanTasksIterable(
       String planTask,
@@ -58,15 +57,16 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       ExecutorService executorService,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive) {
-    this.planTask = planTask;
-    this.fileScanTasks = null;
-    this.client = client;
-    this.resourcePaths = resourcePaths;
-    this.tableIdentifier = tableIdentifier;
-    this.headers = headers;
-    this.executorService = executorService;
-    this.specsById = specsById;
-    this.caseSensitive = caseSensitive;
+    this(
+        planTask,
+        null,
+        client,
+        resourcePaths,
+        tableIdentifier,
+        headers,
+        executorService,
+        specsById,
+        caseSensitive);
   }
 
   public ScanTasksIterable(
@@ -78,8 +78,30 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       ExecutorService executorService,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive) {
-    this.planTask = null;
-    this.fileScanTasks = new ArrayDeque<>(fileScanTasks);
+    this(
+        null,
+        fileScanTasks,
+        client,
+        resourcePaths,
+        tableIdentifier,
+        headers,
+        executorService,
+        specsById,
+        caseSensitive);
+  }
+
+  private ScanTasksIterable(
+      String planTask,
+      List<FileScanTask> fileScanTasks,
+      RESTClient client,
+      ResourcePaths resourcePaths,
+      TableIdentifier tableIdentifier,
+      Supplier<Map<String, String>> headers,
+      ExecutorService executorService,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive) {
+    this.planTask = planTask;
+    this.fileScanTasks = fileScanTasks != null ? new ArrayDeque<>(fileScanTasks) : null;
     this.client = client;
     this.resourcePaths = resourcePaths;
     this.tableIdentifier = tableIdentifier;
@@ -91,6 +113,10 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
 
   @Override
   public CloseableIterator<FileScanTask> iterator() {
+    validateState();
+    if (closed) {
+      throw new IllegalStateException("ScanTasksIterable has been closed");
+    }
     return new ScanTasksIterator(
         planTask,
         fileScanTasks,
@@ -103,8 +129,23 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
         caseSensitive);
   }
 
+  private void validateState() {
+    if (planTask == null && fileScanTasks == null) {
+      throw new IllegalStateException("Either planTask or fileScanTasks must be non-null");
+    }
+    if (planTask != null && fileScanTasks != null) {
+      throw new IllegalStateException("Only one of planTask or fileScanTasks should be non-null");
+    }
+  }
+
   @Override
-  public void close() throws IOException {}
+  public void close() {
+    closed = true;
+    // Clear any pre-existing file scan tasks to free memory
+    if (fileScanTasks != null) {
+      fileScanTasks.clear();
+    }
+  }
 
   private static class ScanTasksIterator implements CloseableIterator<FileScanTask> {
     private final RESTClient client;
@@ -116,7 +157,11 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     private final ExecutorService executorService;
     private final Map<Integer, PartitionSpec> specsById;
     private final boolean caseSensitive;
+    private final ParserContext parserContext;
 
+    private volatile boolean closed = false;
+
+    @SuppressWarnings("unused")
     ScanTasksIterator(
         String planTask,
         ArrayDeque<FileScanTask> fileScanTasks,
@@ -136,40 +181,53 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       this.executorService = executorService;
       this.specsById = specsById;
       this.caseSensitive = caseSensitive;
+      // Create ParserContext once to avoid recreation on each fetchScanTasks call
+      this.parserContext =
+          ParserContext.builder()
+              .add("specsById", specsById)
+              .add("caseSensitive", caseSensitive)
+              .build();
     }
 
     @Override
     public boolean hasNext() {
+      if (closed) {
+        return false;
+      }
+
+      // Return true if we have tasks queued
       if (!fileScanTasks.isEmpty()) {
-        // Have file scan tasks so continue to consume
         return true;
       }
-      // Out of file scan tasks, so need to now fetch more from each planTask
-      // Service can send back more planTasks which acts as pagination
+
+      // If we have a plan task to process, fetch its scan tasks
       if (planTask != null) {
         fetchScanTasks(planTask);
-        planTask = null;
-        // Make another hasNext() call, as more fileScanTasks have been fetched
-        return hasNext();
+        planTask = null; // Mark as processed
+        return !fileScanTasks.isEmpty(); // Return true if fetch added tasks
       }
-      // we have no file scan tasks left to consume
-      // so means we are finished
+
+      // No more tasks available
       return false;
     }
 
     @Override
     public FileScanTask next() {
+      if (closed) {
+        throw new IllegalStateException("Iterator has been closed");
+      }
+      if (fileScanTasks.isEmpty()) {
+        throw new java.util.NoSuchElementException("No more scan tasks available");
+      }
       return fileScanTasks.removeFirst();
     }
 
     private void fetchScanTasks(String withPlanTask) {
+      if (closed || withPlanTask == null || withPlanTask.trim().isEmpty()) {
+        return;
+      }
+
       FetchScanTasksRequest fetchScanTasksRequest = new FetchScanTasksRequest(withPlanTask);
-      // we need injectable values here
-      ParserContext parserContext =
-          ParserContext.builder()
-              .add("specsById", specsById)
-              .add("caseSensitive", caseSensitive)
-              .build();
       FetchScanTasksResponse response =
           client.post(
               resourcePaths.fetchScanTasks(tableIdentifier),
@@ -177,42 +235,66 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
               FetchScanTasksResponse.class,
               headers.get(),
               ErrorHandlers.defaultErrorHandler(),
-              stringStringMap -> {},
+              ignored -> {},
               parserContext);
-      if (response.fileScanTasks() != null) {
-        fileScanTasks.addAll(response.fileScanTasks());
+
+      List<FileScanTask> responseTasks = response.fileScanTasks();
+      if (responseTasks != null && !responseTasks.isEmpty()) {
+        fileScanTasks.addAll(responseTasks);
       }
 
-      if (response.planTasks() != null) {
-        // this is the case where a plan task returned an additional plan task, so ensure that this
-        // result is added to top level fileScanTasks list.
-        // confirmed working with catalog test
-        // #testPlanTableScanAndFetchScanTasksWithCompletedStatusAndNestedPlanTasks
-        Iterable<FileScanTask> fileScanTasksFromPlanTasks =
-            getScanTasksIterable(response.planTasks());
-        fileScanTasksFromPlanTasks.forEach(fileScanTasks::add);
+      List<String> responsePlanTasks = response.planTasks();
+      if (responsePlanTasks != null) {
+        processNestedPlanTasks(responsePlanTasks);
       }
     }
 
-    public CloseableIterable<FileScanTask> getScanTasksIterable(List<String> planTasks) {
-      List<ScanTasksIterable> iterableOfScanTaskIterables = Lists.newArrayList();
-      for (String withPlanTask : planTasks) {
-        ScanTasksIterable iterable =
-            new ScanTasksIterable(
-                withPlanTask,
-                client,
-                resourcePaths,
-                tableIdentifier,
-                headers,
-                executorService,
-                specsById,
-                caseSensitive);
-        iterableOfScanTaskIterables.add(iterable);
+    private void processNestedPlanTasks(List<String> planTasks) {
+      // Process nested plan tasks sequentially and add results to current queue
+      for (String nestedPlanTask : planTasks) {
+        if (closed) {
+          return; // Exit early if closed
+        }
+        if (nestedPlanTask == null || nestedPlanTask.trim().isEmpty()) {
+          continue;
+        }
+
+        ScanTasksIterable nestedIterable = createNestedScanTasksIterable(nestedPlanTask);
+        try (CloseableIterator<FileScanTask> nestedIterator = nestedIterable.iterator()) {
+          while (nestedIterator.hasNext() && !closed) {
+            fileScanTasks.add(nestedIterator.next());
+          }
+        } catch (Exception e) {
+          throw new RuntimeException("Failed to process nested plan task: " + nestedPlanTask, e);
+        }
       }
-      return new ParallelIterable<>(iterableOfScanTaskIterables, executorService);
+    }
+
+    private ScanTasksIterable createNestedScanTasksIterable(String nestedPlanTask) {
+      return new ScanTasksIterable(
+          nestedPlanTask,
+          client,
+          resourcePaths,
+          tableIdentifier,
+          headers,
+          executorService,
+          specsById,
+          caseSensitive);
     }
 
     @Override
-    public void close() throws IOException {}
+    public void close() {
+      if (closed) {
+        return; // Already closed
+      }
+
+      closed = true;
+
+      // Clear remaining tasks to free memory
+      fileScanTasks.clear();
+
+      // Stop any further plan task processing
+      planTask = null;
+    }
   }
 }

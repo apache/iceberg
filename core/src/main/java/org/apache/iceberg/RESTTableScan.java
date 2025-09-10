@@ -50,6 +50,7 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
   private final Table table;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
+  private final ParserContext parserContext;
 
   // Plan ID lifecycle management
   private final AtomicReference<String> activePlanId = new AtomicReference<>();
@@ -75,6 +76,11 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
     this.operations = operations;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
+    this.parserContext =
+        ParserContext.builder()
+            .add("specsById", table.specs())
+            .add("caseSensitive", context.caseSensitive())
+            .build();
   }
 
   @Override
@@ -143,7 +149,7 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
             headers.get(),
             ErrorHandlers.defaultErrorHandler(),
             stringStringMap -> {},
-            createParserContext());
+            parserContext);
 
     return handleInitialPlanStatus(response.planStatus(), response);
   }
@@ -160,7 +166,7 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
                 FetchPlanningResultResponse.class,
                 headers.get(),
                 ErrorHandlers.defaultErrorHandler(),
-                createParserContext());
+                parserContext);
 
         CloseableIterable<FileScanTask> result =
             handlePlanningStatus(response.planStatus(), planId, response);
@@ -376,13 +382,6 @@ class RESTTableScan extends DataTableScan implements AutoCloseable {
   @Override
   public void close() {
     cancelPlanning();
-  }
-
-  private ParserContext createParserContext() {
-    return ParserContext.builder()
-        .add("specsById", table.specs())
-        .add("caseSensitive", context().caseSensitive())
-        .build();
   }
 
   private ScanTasksIterable createScanTasksIterable(List<FileScanTask> fileScanTasks) {
