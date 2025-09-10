@@ -167,8 +167,8 @@ subprojects {
   def testParallelism = System.getProperty('testParallelism')
   if (testParallelism != null) {
     def numTestWorkers
-    if (testParallelism.equals('auto')) {
-      numTestWorkers = Runtime.getRuntime().availableProcessors() / 2
+    if (testParallelism.equalsIgnoreCase('auto')) {
+      numTestWorkers = Math.ceil(Runtime.getRuntime().availableProcessors() / 2.0) as int
     } else {
       numTestWorkers = testParallelism as int
     }
