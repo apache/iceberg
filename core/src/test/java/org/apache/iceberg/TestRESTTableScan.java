@@ -60,7 +60,7 @@ public class TestRESTTableScan {
   private RESTTableScan tableScan;
 
   @BeforeEach
-  public void setUp() {
+  public void beforeEach() {
     mockClient = mock(RESTClient.class);
     mockTable = mock(Table.class);
     mockContext = mock(TableScanContext.class);
