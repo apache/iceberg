@@ -1861,6 +1861,10 @@ Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers t
 
 Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
 
+### Position Delete Files with Row Data
+
+The feature allowing position delete files to include row data, which was introduced in the V2 Iceberg specification, is now deprecated in V3. The Java reference implementation will deprecate this feature in version 1.11.0 and remove it in version 1.12.0, including for V2 tables. Other implementations are encouraged to follow the same deprecation and removal schedule.
+
 ## Appendix G: Geospatial Notes
 
 The Geometry and Geography class hierarchy and its Well-known text (WKT) and Well-known binary (WKB) serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
