@@ -19,7 +19,12 @@
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.api.gax.rpc.FixedHeaderProvider;
+import com.google.auth.Credentials;
 import com.google.cloud.NoCredentials;
+import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
+import com.google.cloud.gcs.analyticscore.client.GcsFileSystemImpl;
+import com.google.cloud.gcs.analyticscore.client.GcsFileSystemOptions;
+import com.google.cloud.gcs.analyticscore.core.GcsAnalyticsCoreOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
@@ -41,6 +46,8 @@ class PrefixedStorage implements AutoCloseable {
   private SerializableSupplier<Storage> storage;
   private CloseableGroup closeableGroup;
   private transient volatile Storage storageClient;
+  private final SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier;
+  private transient volatile GcsFileSystem gcsFileSystem;
 
   PrefixedStorage(
       String storagePrefix, Map<String, String> properties, SerializableSupplier<Storage> storage) {
@@ -81,6 +88,8 @@ class PrefixedStorage implements AutoCloseable {
             return builder.build().getService();
           };
     }
+
+    this.gcsFileSystemSupplier = getGcsFileSystemSupplier(properties);
   }
 
   public String storagePrefix() {
@@ -117,5 +126,54 @@ class PrefixedStorage implements AutoCloseable {
       // GCS Storage does not appear to be closable, so release the reference
       storage = null;
     }
+
+    if (null != gcsFileSystem) {
+      gcsFileSystem.close();
+      gcsFileSystem = null;
+    }
+  }
+
+  static Credentials getCredentials(Map<String, String> properties, CloseableGroup closeableGroup) {
+    GCPProperties gcpProperties = new GCPProperties(properties);
+    if (gcpProperties.oauth2Token().isPresent()) {
+      return GCPAuthUtils.oauth2CredentialsFromGcpProperties(
+          new GCPProperties(properties), closeableGroup);
+    } else if (gcpProperties.noAuth()) {
+      return NoCredentials.getInstance();
+    } else {
+      return null;
+    }
+  }
+
+  public GcsFileSystem gcsFileSystem() {
+    if (gcsFileSystem == null) {
+      synchronized (this) {
+        if (gcsFileSystem == null) {
+          this.gcsFileSystem = gcsFileSystemSupplier.get();
+        }
+      }
+    }
+    return this.gcsFileSystem;
+  }
+
+  private SerializableSupplier<GcsFileSystem> getGcsFileSystemSupplier(
+      Map<String, String> properties) {
+    ImmutableMap.Builder<String, String> propertiesWithUserAgent =
+        new ImmutableMap.Builder<String, String>()
+            .putAll(properties)
+            .put("user-agent", GCS_FILE_IO_USER_AGENT);
+    GcsAnalyticsCoreOptions gcsAnalyticsCoreOptions =
+        new GcsAnalyticsCoreOptions("", propertiesWithUserAgent.build());
+    GcsFileSystemOptions fileSystemOptions = gcsAnalyticsCoreOptions.getGcsFileSystemOptions();
+    if (this.closeableGroup == null) {
+      this.closeableGroup = new CloseableGroup();
+    }
+    Credentials credentials = getCredentials(properties, closeableGroup);
+    SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier =
+        () ->
+            credentials == null
+                ? new GcsFileSystemImpl(fileSystemOptions)
+                : new GcsFileSystemImpl(credentials, fileSystemOptions);
+    return gcsFileSystemSupplier;
   }
 }
