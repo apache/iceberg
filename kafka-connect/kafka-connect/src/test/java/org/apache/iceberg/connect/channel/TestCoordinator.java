@@ -160,12 +160,13 @@ public class TestCoordinator extends ChannelTestBase {
 
   private UUID coordinatorTest(
       List<DataFile> dataFiles, List<DeleteFile> deleteFiles, OffsetDateTime ts) {
+    SinkTaskContext context = mock(SinkTaskContext.class);
     when(config.commitIntervalMs()).thenReturn(0);
     when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+    when(config.context()).thenReturn(context);
+    when(config.loadCatalog()).thenReturn(catalog);
 
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    Coordinator coordinator =
-        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    Coordinator coordinator = new Coordinator(config, ImmutableList.of(), clientFactory);
     coordinator.start();
 
     // init consumer after subscribe()
