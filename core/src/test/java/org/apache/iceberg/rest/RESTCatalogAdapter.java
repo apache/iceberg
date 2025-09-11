@@ -399,10 +399,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             return castResponse(
                 responseType, CatalogHandlers.stageTableCreate(catalog, namespace, request));
           } else {
-            LoadTableResponse resp = CatalogHandlers.createTable(catalog, namespace, request);
+            LoadTableResponse response = CatalogHandlers.createTable(catalog, namespace, request);
             responseHeaders.accept(
-                ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(resp.metadataLocation())));
-            return castResponse(responseType, resp);
+                ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+            return castResponse(responseType, response);
           }
         }
 
@@ -425,40 +425,41 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
       case LOAD_TABLE:
         {
-          LoadTableResponse resp = CatalogHandlers.loadTable(catalog, tableIdentFromPathVars(vars));
+          LoadTableResponse response =
+              CatalogHandlers.loadTable(catalog, tableIdentFromPathVars(vars));
 
           responseHeaders.accept(
-              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(resp.metadataLocation())));
+              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
 
-          return castResponse(responseType, resp);
+          return castResponse(responseType, response);
         }
 
       case REGISTER_TABLE:
         {
-          LoadTableResponse resp =
+          LoadTableResponse response =
               CatalogHandlers.registerTable(
                   catalog,
                   namespaceFromPathVars(vars),
                   castRequest(RegisterTableRequest.class, body));
 
           responseHeaders.accept(
-              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(resp.metadataLocation())));
+              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
 
-          return castResponse(responseType, resp);
+          return castResponse(responseType, response);
         }
 
       case UPDATE_TABLE:
         {
-          LoadTableResponse resp =
+          LoadTableResponse response =
               CatalogHandlers.updateTable(
                   catalog,
                   tableIdentFromPathVars(vars),
                   castRequest(UpdateTableRequest.class, body));
 
           responseHeaders.accept(
-              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(resp.metadataLocation())));
+              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
 
-          return castResponse(responseType, resp);
+          return castResponse(responseType, response);
         }
 
       case RENAME_TABLE:
