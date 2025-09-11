@@ -455,10 +455,51 @@ public class SparkScanBuilder
         SparkReadOptions.START_TIMESTAMP,
         SparkReadOptions.END_TIMESTAMP);
 
+    partitionFilterCheck();
+
     if (startSnapshotId != null) {
       return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats, expectedSchema);
     } else {
       return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, expectedSchema);
+    }
+  }
+
+  private void partitionFilterCheck() {
+    boolean partitionFilterRequired =
+        table
+            .properties()
+            .getOrDefault(TableProperties.PARTITION_FILTER_REQUIRED, "false")
+            .equals("true");
+
+    if (partitionFilterRequired) {
+      if (filterExpressions == null || filterExpressions.isEmpty()) {
+        throw new ValidationException(
+            "Queries on partitioned tables must include a filter on at least one partition column");
+      }
+
+      PartitionSpec spec = table.spec();
+
+      if (spec.isPartitioned()) {
+        Set<Integer> partitionIds =
+            spec.fields().stream().map(PartitionField::sourceId).collect(Collectors.toSet());
+
+        boolean hasPartitionFilter = false;
+
+        for (Expression filter : filterExpressions) {
+          Set<Integer> filterReferences =
+              Binder.boundReferences(
+                  schema.asStruct(), Collections.singletonList(filter), caseSensitive);
+          if (!Sets.intersection(filterReferences, partitionIds).isEmpty()) {
+            hasPartitionFilter = true;
+            break;
+          }
+        }
+
+        if (!hasPartitionFilter) {
+          throw new ValidationException(
+              "Queries on partitioned tables must include a filter on at least one partition column");
+        }
+      }
     }
   }
 

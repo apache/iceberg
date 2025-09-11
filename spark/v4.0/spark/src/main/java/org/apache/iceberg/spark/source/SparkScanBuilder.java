@@ -19,12 +19,14 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.FileScanTask;
@@ -33,6 +35,7 @@ import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -40,6 +43,7 @@ import org.apache.iceberg.SparkDistributedDataScan;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundAggregate;
@@ -455,10 +459,51 @@ public class SparkScanBuilder
         SparkReadOptions.START_TIMESTAMP,
         SparkReadOptions.END_TIMESTAMP);
 
+    partitionFilterCheck();
+
     if (startSnapshotId != null) {
       return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats, expectedSchema);
     } else {
       return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, expectedSchema);
+    }
+  }
+
+  private void partitionFilterCheck() {
+    boolean partitionFilterRequired =
+        table
+            .properties()
+            .getOrDefault(TableProperties.PARTITION_FILTER_REQUIRED, "false")
+            .equals("true");
+
+    if (partitionFilterRequired) {
+      if (filterExpressions == null || filterExpressions.isEmpty()) {
+        throw new ValidationException(
+            "Queries on partitioned tables must include a filter on at least one partition column");
+      }
+
+      PartitionSpec spec = table.spec();
+
+      if (spec.isPartitioned()) {
+        Set<Integer> partitionIds =
+            spec.fields().stream().map(PartitionField::sourceId).collect(Collectors.toSet());
+
+        boolean hasPartitionFilter = false;
+
+        for (Expression filter : filterExpressions) {
+          Set<Integer> filterReferences =
+              Binder.boundReferences(
+                  schema.asStruct(), Collections.singletonList(filter), caseSensitive);
+          if (!Sets.intersection(filterReferences, partitionIds).isEmpty()) {
+            hasPartitionFilter = true;
+            break;
+          }
+        }
+
+        if (!hasPartitionFilter) {
+          throw new ValidationException(
+              "Queries on partitioned tables must include a filter on at least one partition column");
+        }
+      }
     }
   }
 

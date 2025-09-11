@@ -30,7 +30,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
-import org.apache.iceberg.spark.OrcBatchReadConf;
+import org.apache.iceberg.git cspark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.SparkReadConf;
