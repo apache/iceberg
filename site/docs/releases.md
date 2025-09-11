@@ -74,7 +74,7 @@ Apache Iceberg 1.10.0 was released on September ??, 2025.
 The 1.10.0 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.10.0)
 
 * Deprecation / End of Support
-  - Flink: Remove Flink 1.18 support ([\#13191](https://github.com/apache/iceberg/pull/13191))
+  - Flink: Remove Flink 1.18 support ([\#12527](https://github.com/apache/iceberg/pull/12527))
   - Common: Remove public visibility for deprecated methods in DynConstructors and DynMethods since 1.7.0 ([\#13053](https://github.com/apache/iceberg/pull/13053))
   - AWS, Core, Flink, Parquet: Remove deprecations targeted for 1.10.0 ([\#12909](https://github.com/apache/iceberg/pull/12909))
 * Behavior change
