@@ -142,7 +142,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     - Streaming: make maxRecordPerMicrobatch a soft limit ([\#12988](https://github.com/apache/iceberg/pull/12988))
     - V3: Fix row lineage inheritance for distributed planning ([\#13061](https://github.com/apache/iceberg/pull/13061))
     - Storage partitioned join: add bucket reducer ([\#13167](https://github.com/apache/iceberg/pull/13167)) and hour to day reducer ([\#13166](https://github.com/apache/iceberg/pull/13166))
-    - Rewrite table path action: filter content files by snapshot id in incremental mode  REST: Add context aware response parsing ([\#12885](https://github.com/apache/iceberg/pull/12885))
+    - Rewrite table path action: filter content files by snapshot id in incremental mode ([\#12885](https://github.com/apache/iceberg/pull/12885))
     - Fix DML query failure with identifier fields ([\#13535](https://github.com/apache/iceberg/pull/13435))
     - Add action and procedure to compute partition stats ([\#12450](https://github.com/apache/iceberg/pull/12450))([\#13480](https://github.com/apache/iceberg/pull/13480))
     - Throw unsupported exception for ADD COLUMN with default value ([\#13464](https://github.com/apache/iceberg/pull/13464))
