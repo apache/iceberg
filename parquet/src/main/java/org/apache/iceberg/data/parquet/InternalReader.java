@@ -20,9 +20,9 @@ package org.apache.iceberg.data.parquet;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.curator.shaded.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types.StructType;
@@ -30,9 +30,6 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
 
 public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> {
-
-  private Class<? extends StructLike> rootType = Record.class;
-  private Map<Integer, Class<? extends StructLike>> typesById = new java.util.HashMap<>();
 
   private static final InternalReader<?> INSTANCE = new InternalReader<>();
 
@@ -50,6 +47,14 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
     return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema);
   }
 
+  public static <T extends StructLike> ParquetValueReader<T> createWithType(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, Class<? extends StructLike>> customTypesById) {
+    return (ParquetValueReader<T>)
+        INSTANCE.createReader(expectedSchema, fileSchema, ImmutableMap.of(), customTypesById);
+  }
+
   public <T extends StructLike> ParquetValueReader<T> reader(
       Schema expectedSchema, MessageType fileSchema) {
     return (ParquetValueReader<T>) createReader(expectedSchema, fileSchema);
@@ -64,12 +69,12 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   protected ParquetValueReader<T> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, StructType structType, Integer fieldId) {
+      List<ParquetValueReader<?>> fieldReaders,
+      StructType structType,
+      Class<? extends StructLike> structClass) {
     return (ParquetValueReader<T>)
-        ParquetValueReaders.structLikeReader(
-            fieldReaders, structType, typesById.getOrDefault(fieldId, rootType));
+        ParquetValueReaders.structLikeReader(fieldReaders, structType, structClass);
   }
 
   @Override
@@ -90,13 +95,5 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   @Override
   protected ParquetValueReader<?> timestampReader(ColumnDescriptor desc, boolean isAdjustedToUTC) {
     return ParquetValueReaders.timestamps(desc);
-  }
-
-  public void setCustomType(int fieldId, Class<? extends StructLike> type) {
-    this.typesById.put(fieldId, type);
-  }
-
-  public void setRootType(Class<? extends StructLike> rootClass) {
-    setCustomType(ROOT_ID, rootClass);
   }
 }

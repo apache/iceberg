@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -54,7 +56,7 @@ import org.apache.parquet.schema.Type;
 
 abstract class BaseParquetReaders<T> {
   // Root ID is used for the top-level struct in the Parquet Schema
-  protected static final int ROOT_ID = 1;
+  private static final int ROOT_ID = 1;
 
   protected BaseParquetReaders() {}
 
@@ -78,12 +80,34 @@ abstract class BaseParquetReaders<T> {
     }
   }
 
+  protected ParquetValueReader<T> createReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant,
+      Map<Integer, Class<? extends StructLike>> customTypesById) {
+    if (ParquetSchemaUtil.hasIds(fileSchema)) {
+      return (ParquetValueReader<T>)
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
+              new ReadBuilder(fileSchema, idToConstant, customTypesById));
+    } else {
+      return (ParquetValueReader<T>)
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
+              new FallbackReadBuilder(fileSchema, idToConstant));
+    }
+  }
+
   /**
    * This method can be overridden to provide a custom implementation which also uses the fieldId of
    * the Schema when creating the struct reader
    */
   protected ParquetValueReader<T> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType, Integer fieldId) {
+      List<ParquetValueReader<?>> fieldReaders,
+      Types.StructType structType,
+      Class<? extends StructLike> fieldClass) {
     // Fallback to the signature without fieldId if not overridden
     return createStructReader(fieldReaders, structType);
   }
@@ -134,7 +158,7 @@ abstract class BaseParquetReaders<T> {
       }
 
       Integer id = struct.getId() != null ? struct.getId().intValue() : null;
-      return createStructReader(newFields, expected, id);
+      return createStructReader(newFields, expected, getOrDefault(id));
     }
   }
 
@@ -222,10 +246,19 @@ abstract class BaseParquetReaders<T> {
   private class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
     private final Map<Integer, ?> idToConstant;
+    private final Map<Integer, Class<? extends StructLike>> customTypesById;
 
     private ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+      this(type, idToConstant, ImmutableMap.of());
+    }
+
+    private ReadBuilder(
+        MessageType type,
+        Map<Integer, ?> idToConstant,
+        Map<Integer, Class<? extends StructLike>> customTypesById) {
       this.type = type;
       this.idToConstant = idToConstant;
+      this.customTypesById = customTypesById;
     }
 
     @Override
@@ -234,12 +267,16 @@ abstract class BaseParquetReaders<T> {
       return struct(expected, message.asGroupType().withId(ROOT_ID), fieldReaders);
     }
 
+    Class<? extends StructLike> getOrDefault(Integer fieldId) {
+      return customTypesById.getOrDefault(fieldId, Record.class);
+    }
+
     @Override
     public ParquetValueReader<?> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       if (null == expected) {
         Integer id = struct.getId() != null ? struct.getId().intValue() : null;
-        return createStructReader(ImmutableList.of(), null, id);
+        return createStructReader(ImmutableList.of(), null, getOrDefault(id));
       }
 
       // match the expected struct's order
@@ -269,7 +306,7 @@ abstract class BaseParquetReaders<T> {
       }
 
       Integer id = struct.getId() != null ? struct.getId().intValue() : null;
-      return createStructReader(reorderedFields, expected, id);
+      return createStructReader(reorderedFields, expected, getOrDefault(id));
     }
 
     private ParquetValueReader<?> defaultReader(
