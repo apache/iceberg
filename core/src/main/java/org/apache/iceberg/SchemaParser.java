@@ -96,11 +96,15 @@ public class SchemaParser {
       if (field.initialDefault() != null) {
         generator.writeFieldName(INITIAL_DEFAULT);
         SingleValueParser.toJson(field.type(), field.initialDefault(), generator);
+      } else {
+        generator.writeNullField(INITIAL_DEFAULT);
       }
 
       if (field.writeDefault() != null) {
         generator.writeFieldName(WRITE_DEFAULT);
         SingleValueParser.toJson(field.type(), field.writeDefault(), generator);
+      } else {
+        generator.writeNullField(WRITE_DEFAULT);
       }
 
       generator.writeEndObject();
@@ -196,11 +200,20 @@ public class SchemaParser {
   }
 
   private static Literal<?> defaultFromJson(String defaultField, Type type, JsonNode json) {
-    if (json.has(defaultField)) {
-      return Expressions.lit(SingleValueParser.fromJson(type, json.get(defaultField)));
+    JsonNode defaultValue = json.get(defaultField);
+    if (defaultValue == null || defaultValue.isNull()) {
+      return null;
     }
 
-    return null;
+    // Always parse non-null default values from json to ensure types match up
+    Object javaDefaultValue = SingleValueParser.fromJson(type, defaultValue);
+    if (!type.isStructType()) {
+      return Expressions.lit(javaDefaultValue);
+    }
+
+    Preconditions.checkArgument(
+        defaultValue.isEmpty(), "Cannot parse non-empty struct default value: %s", defaultValue);
+    return Expressions.lit(EmptyStructLike.get());
   }
 
   private static Types.NestedField.Builder fieldBuilder(boolean isRequired, String name) {
