@@ -754,8 +754,8 @@ A snapshot consists of the following fields:
 | _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below)                         |
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage)        |
+|            |            | _required_ | **`added-rows`**         | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage)                                |
 |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
-
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -782,6 +782,10 @@ A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on 
 
 The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
 
+The snapshot's `added-rows` captures the upper bound of the number of rows with assigned row IDs.
+It can be used safely to increment the table's `next-row-id` during a commit.
+It can be more than the number of rows added in this snapshot and include some existing rows,
+see [Row Lieange Example](#row-lineage-example).
 
 ### Manifest Lists
 
