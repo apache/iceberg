@@ -1863,7 +1863,7 @@ Some implementations require that GZIP compressed files have the suffix `.gz.met
 
 ### Position Delete Files with Row Data
 
-The feature allowing position delete files to include row data, which was introduced in the V2 Iceberg specification, is now deprecated in V3. The Java reference implementation will deprecate this feature in version 1.11.0 and remove it in version 1.12.0, including for V2 tables. Other implementations are encouraged to follow the same deprecation and removal schedule.
+Although the spec allows for including the deleted row itself (in addition to the path and position of the row in the data file) in v2 position delete files, writing the row is optional and no implementation currently writes it. The ability to write and read the row is supported in the Java implementation but is deprecated in version 1.11.0.
 
 ## Appendix G: Geospatial Notes
 
