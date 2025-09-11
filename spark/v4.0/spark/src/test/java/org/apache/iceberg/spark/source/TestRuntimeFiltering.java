@@ -23,6 +23,7 @@ import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -35,6 +36,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -506,5 +508,41 @@ public class TestRuntimeFiltering extends TestBaseWithCatalog {
     assertThat(deletedFileLocations)
         .as("Deleted unexpected number of files")
         .hasSize(expectedDeletedFileCount);
+  }
+
+  @TestTemplate
+    public void testPartitionFilterCheck() {
+      sql(
+              "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
+                      + "USING iceberg "
+                      + "PARTITIONED BY (date)"
+                      + " TBLPROPERTIES ('partition.filter.required'='true')",
+              tableName);
+      configurePlanningMode(planningMode);
+
+      Dataset<Row> df =
+              spark
+                      .range(1, 100)
+                      .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
+                      .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+                      .withColumn("data", expr("CAST(date AS STRING)"))
+                      .select("id", "data", "date", "ts");
+
+      df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
+
+      String query = String.format(
+              "SELECT f.* FROM %s f",
+              tableName);
+
+      String filter_query = String.format(
+                      "SELECT f.* FROM %s f where date='1970-01-02'",
+                      tableName);
+
+      assertThrows(ValidationException.class,() -> sql(query));
+
+      assertEquals(
+              "Should have expected rows",
+              sql("SELECT * FROM %s WHERE date = DATE '1970-01-02' ORDER BY id", tableName),
+              sql(filter_query));
   }
 }
