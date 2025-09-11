@@ -22,8 +22,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import org.apache.comet.CometRuntimeException;
 import org.apache.comet.parquet.AbstractColumnReader;
-import org.apache.comet.parquet.BatchReader;
+import org.apache.comet.parquet.IcebergCometBatchReader;
+import org.apache.comet.parquet.RowGroupReader;
+import org.apache.comet.vector.CometSelectionVector;
+import org.apache.comet.vector.CometVector;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -55,7 +59,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   // calling BatchReader.nextBatch, the isDeleted value is not yet available, so
   // DeleteColumnReader.readBatch must be called explicitly later, after the isDeleted value is
   // available.
-  private final BatchReader delegate;
+  private final IcebergCometBatchReader delegate;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
 
@@ -65,9 +69,13 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     this.hasIsDeletedColumn =
         readers.stream().anyMatch(reader -> reader instanceof CometDeleteColumnReader);
 
-    AbstractColumnReader[] abstractColumnReaders = new AbstractColumnReader[readers.size()];
-    this.delegate = new BatchReader(abstractColumnReaders);
-    delegate.setSparkSchema(SparkSchemaUtil.convert(schema));
+    this.delegate = new IcebergCometBatchReader(readers.size(), SparkSchemaUtil.convert(schema));
+  }
+
+  @Override
+  public void setRowGroupInfo(
+      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
+    setRowGroupInfo(pageStore, metaData);
   }
 
   @Override
@@ -79,19 +87,22 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
             && !(readers[i] instanceof CometPositionColumnReader)
             && !(readers[i] instanceof CometDeleteColumnReader)) {
           readers[i].reset();
-          readers[i].setPageReader(pageStore.getPageReader(readers[i].descriptor()));
+          readers[i].setPageReader((RowGroupReader) pageStore);
         }
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to setRowGroupInfo for Comet vectorization", e);
       }
     }
 
+    AbstractColumnReader[] delegateReaders = new AbstractColumnReader[readers.length];
     for (int i = 0; i < readers.length; i++) {
-      delegate.getColumnReaders()[i] = this.readers[i].delegate();
+      delegateReaders[i] = readers[i].delegate();
     }
 
+    delegate.init(delegateReaders);
+
     this.rowStartPosInBatch =
-        pageStore
+        ((RowGroupReader) pageStore)
             .getRowIndexOffset()
             .orElseThrow(
                 () ->
@@ -148,9 +159,17 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
         Pair<int[], Integer> pair = buildRowIdMapping(vectors);
         if (pair != null) {
           int[] rowIdMapping = pair.first();
-          numLiveRows = pair.second();
-          for (int i = 0; i < vectors.length; i++) {
-            vectors[i] = new ColumnVectorWithFilter(vectors[i], rowIdMapping);
+          if (pair.second() != null) {
+            numLiveRows = pair.second();
+            for (int i = 0; i < vectors.length; i++) {
+              if (vectors[i] instanceof CometVector) {
+                vectors[i] =
+                    new CometSelectionVector((CometVector) vectors[i], rowIdMapping, numLiveRows);
+              } else {
+                throw new CometRuntimeException(
+                    "Unsupported column vector type: " + vectors[i].getClass());
+              }
+            }
           }
         }
       }
