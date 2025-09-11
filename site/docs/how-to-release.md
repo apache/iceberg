@@ -332,7 +332,7 @@ The versioned docs is located in the `docs` directory within the source of the r
 Check out the `docs` branch in the `iceberg` repo and copy the versioned docs over:
 
 ```
-cp -R apache-iceberg-1.8.0/docs 1.8.0
+cp -R iceberg/docs 1.8.0
 ```
 
 Once this is done, create a PR against the `docs` branch containing the changes under the `1.8.0` folder, similar to https://github.com/apache/iceberg/pull/12411.
