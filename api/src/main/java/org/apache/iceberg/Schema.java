@@ -49,7 +49,7 @@ import org.apache.iceberg.types.Types.StructType;
  * The schema of a data table.
  *
  * <p>Schema ID will only be populated when reading from/writing to table metadata, otherwise it
- * will be default to 0.
+ * will default to 0.
  */
 public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
