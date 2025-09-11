@@ -59,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * specialized writer for the requested content type.
  *
  * @param <B> the concrete builder type for method chaining
+ * @param <S> the type of the schema for the input data
  * @param <D> the type of data records the writer will accept
  */
 @SuppressWarnings("unchecked")
@@ -300,7 +301,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
 
       return new PositionDeleteWriter<D>(
           (FileAppender)
-              new ConvertingFileAppender<>(
+              new PositionDeleteFileAppender<>(
                   super.writeBuilder
                       .meta("delete-type", "position")
                       .schema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
@@ -315,12 +316,12 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
     }
   }
 
-  private static class ConvertingFileAppender<D> implements FileAppender<PositionDelete<D>> {
+  private static class PositionDeleteFileAppender<D> implements FileAppender<PositionDelete<D>> {
     private final FileAppender<D> appender;
     private final Function<PositionDelete<D>, D> converter;
     private final Schema rowSchema;
 
-    ConvertingFileAppender(
+    PositionDeleteFileAppender(
         FileAppender<D> appender, Function<PositionDelete<D>, D> converter, Schema rowSchema) {
       this.appender = appender;
       this.converter = converter;
