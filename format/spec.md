@@ -785,7 +785,7 @@ The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifes
 The snapshot's `added-rows` captures the upper bound of the number of rows with assigned row IDs.
 It can be used safely to increment the table's `next-row-id` during a commit.
 It can be more than the number of rows added in this snapshot and include some existing rows,
-see [Row Lieange Example](#row-lineage-example).
+see [Row Lineage Example](#row-lineage-example).
 
 ### Manifest Lists
 
