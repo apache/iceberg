@@ -511,7 +511,7 @@ public class TestRuntimeFiltering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-    public void testPartitionFilterCheck() {
+    public void testPartitionFilterCheck() throws NoSuchTableException {
       sql(
               "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
                       + "USING iceberg "
