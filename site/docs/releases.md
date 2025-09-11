@@ -83,7 +83,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     Previously, an empty list was returned.
     - Core: fix spec non-confirming field ids for partition stats files ([\#13329](https://github.com/apache/iceberg/pull/13329))
 * Spec
-  - Table: Clarify write requirement to prevent orphaned DVs ([\#13042](https://github.com/apache/iceberg/pull/13042))
+    - Table: Clarify write requirement to prevent orphaned DVs ([\#13042](https://github.com/apache/iceberg/pull/13042))
     - Table: Clarify behavior of special geo objects for lower and upper bounds ([\#12956](https://github.com/apache/iceberg/pull/12956))
     - Table: Add encryption keys ([\#12162](https://github.com/apache/iceberg/pull/12162))
     - Table: Avoid struct field conflicts in default values ([\#12841](https://github.com/apache/iceberg/pull/12841))
@@ -92,7 +92,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     - REST: remove update to enable row lineage as it is always on for V3 table ([\#12986](https://github.com/apache/iceberg/pull/12986))
     - REST: mark 503 as non retryable ([\#13619](https://github.com/apache/iceberg/pull/13619))
 * API
-  - Add table metadata keys for encryption ([\#12927](https://github.com/apache/iceberg/pull/12927))
+    - Add table metadata keys for encryption ([\#12927](https://github.com/apache/iceberg/pull/12927))
     - Add deleteFile to RowDelta API ([\#12861](https://github.com/apache/iceberg/pull/12861))
     - Expose cleanExpiredMetadata in ExpireSnapshots ([\#13509](https://github.com/apache/iceberg/pull/13509))
     - Preserve original type for upper/lower bounds in metrics ([\#13695](https://github.com/apache/iceberg/pull/13695))
@@ -158,7 +158,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     - Accept custom partition order in RewriteManifest  ([\#12840](https://github.com/apache/iceberg/pull/12840))
     - 4.0: read and write unknown type ([\#13445](https://github.com/apache/iceberg/pull/13445))
 * Flink
-  - Support Flink 2.0 ([\#12527](https://github.com/apache/iceberg/pull/12527))
+    - Support Flink 2.0 ([\#12527](https://github.com/apache/iceberg/pull/12527))
     - Dynamic sink that supports dynamic schema and partition evolution, fan out write to and creation of tables ([\#12424](https://github.com/apache/iceberg/pull/12424))
     - Migrate from deprecated TableSchema to ResolvedSchema ([\#13072](https://github.com/apache/iceberg/pull/13072))
     -  `IcebergSink` v2 sink: default writer task parallelism to input stream parallelism to promote chaining and maintain the same behavior as `FlinkSink` v1 sink ([\#13260](https://github.com/apache/iceberg/pull/13260))
@@ -174,7 +174,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
 * Kafka connect
     - Resolve CVE-2025-48734 ([\#13561](https://github.com/apache/iceberg/pull/13561))
 * Vendor integrations
-  - AWS/GCP: Fix double checked locking pattern with incomplete initialization of prefixed client ([\#13276](https://github.com/apache/iceberg/pull/13276))
+    - AWS/GCP: Fix double checked locking pattern with incomplete initialization of prefixed client ([\#13276](https://github.com/apache/iceberg/pull/13276))
     - AWS/GCP: fix FileIO serialization issue with empty immutable collections ([\#13216](https://github.com/apache/iceberg/pull/13216))
     - AWS: Support multiple storage credential prefixes ([\#12799](https://github.com/apache/iceberg/pull/12799))
     - AWS: add LegacyMd5Plugin to S3 client builder ([\#12264](https://github.com/apache/iceberg/pull/12264))
