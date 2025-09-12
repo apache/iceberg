@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.platform.commons.PreconditionViolationException;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRowLineageMetadata {
@@ -193,8 +194,8 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testFastAppendV1V3() throws IOException {
-    // Test the scenario where a V1 table is upgraded to V3 and then has appends
-    // This can cause NPE in ManifestListWriter when existingRowsCount is null
+    // Test the scenario where a V1 table is upgraded to V3 and then
+    // appends a new Snapshots that includes an old v1 Manifest without existingRowsCount.
 
     // Start with a V1 table
     TestTables.TestTable table =
@@ -271,7 +272,8 @@ public class TestRowLineageMetadata {
 
     // This should now trigger the V3Writer code path with a manifest that has null existingRowsCount
     // If there's a bug, this will throw NPE when trying to add null existingRowsCount
-    table.newFastAppend().appendFile(fileWithRows(17)).commit();
+    assertThatThrownBy(() -> table.newFastAppend().appendFile(fileWithRows(17)).commit())
+        .hasMessageContaining("Cannot include v1 manifest with missing existing or added rows count");
   }
 
   @TestTemplate
