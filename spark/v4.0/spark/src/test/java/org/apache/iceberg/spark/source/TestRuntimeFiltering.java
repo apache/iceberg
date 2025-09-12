@@ -511,38 +511,34 @@ public class TestRuntimeFiltering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-    public void testPartitionFilterCheck() throws NoSuchTableException {
-      sql(
-              "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
-                      + "USING iceberg "
-                      + "PARTITIONED BY (date)"
-                      + " TBLPROPERTIES ('partition.filter.required'='true')",
-              tableName);
-      configurePlanningMode(planningMode);
+  public void testPartitionFilterCheck() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING, date DATE, ts TIMESTAMP) "
+            + "USING iceberg "
+            + "PARTITIONED BY (date)"
+            + " TBLPROPERTIES ('partition.filter.required'='true')",
+        tableName);
+    configurePlanningMode(planningMode);
 
-      Dataset<Row> df =
-              spark
-                      .range(1, 100)
-                      .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
-                      .withColumn("ts", expr("TO_TIMESTAMP(date)"))
-                      .withColumn("data", expr("CAST(date AS STRING)"))
-                      .select("id", "data", "date", "ts");
+    Dataset<Row> df =
+        spark
+            .range(1, 100)
+            .withColumn("date", date_add(expr("DATE '1970-01-01'"), expr("CAST(id % 4 AS INT)")))
+            .withColumn("ts", expr("TO_TIMESTAMP(date)"))
+            .withColumn("data", expr("CAST(date AS STRING)"))
+            .select("id", "data", "date", "ts");
 
-      df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
+    df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
 
-      String query = String.format(
-              "SELECT f.* FROM %s f",
-              tableName);
+    String query = String.format("SELECT f.* FROM %s f", tableName);
 
-      String filter_query = String.format(
-                      "SELECT f.* FROM %s f where date='1970-01-02'",
-                      tableName);
+    String filter_query = String.format("SELECT f.* FROM %s f where date='1970-01-02'", tableName);
 
-      assertThrows(ValidationException.class,() -> sql(query));
+    assertThrows(ValidationException.class, () -> sql(query));
 
-      assertEquals(
-              "Should have expected rows",
-              sql("SELECT * FROM %s WHERE date = DATE '1970-01-02' ORDER BY id", tableName),
-              sql(filter_query));
+    assertEquals(
+        "Should have expected rows",
+        sql("SELECT * FROM %s WHERE date = DATE '1970-01-02' ORDER BY id", tableName),
+        sql(filter_query));
   }
 }
