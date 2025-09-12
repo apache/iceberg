@@ -1863,6 +1863,18 @@ Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers t
 
 Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
 
+### Schema Evolution/Type Promotion
+
+Column projection rules are designed so that the table will remain readable even if writers use an outdated schema. At the beginning of a transaction Writers should load the latest schema (the schema pointed to by `current-schema-id` from the latest table metadata) and use it for reading and writing data.  Note, that in the common cases of schema evolution (adding nullable columns, adding required columns with an `initial-default`, renaming a column, dropping a column, or doing type promotion) then appending data with outdated schemas presents no issues under either SNAPSHOT or SERIALIZABLE isolation levels.
+
+While writers are not required to bind to the latest schema there are edge cases to consider:
+
+1. Assume two transactions that are started concurrently. The first modifies the `write-default` on the column. The second is a data write that makes use of `write-default` from the changed column in the first transaction. If the first transaction gets committed first, the result of the second transaction depends on isolation level. Under SNAPSHOT isolation the second transaction can be committed. However, the second transaction produces the serialization anomaly of using the outdated `write-default` default value.  SERIALIZABLE isolation does not allow for such anomolies and the second transaction must fail in this mode. In this scenario, the transaction could be retried after updating to the new schema and rewriting the data using the new `write-default`. To generalize, for SERIALIZABLE isolation, writers must confirm that the schema did not have a change to a `write-default` value, this can be confirmed in two stages: First check if there was any schema change (for the REST catalog this can be done with `assert-ref-snapshot-id`); Second, if the schema changed determine if there was a change to a `write-default` value used in the transaction. No check for schema changes is needed For SNAPSHOT isolation.
+
+2. Assume a sequence of transactions: the first transaction adds a column and populates it with new values. The second transactions  is run using the schema prior to the new column being added and updates another column (e.g. `update table x set pre_existing_col='xyz'`). Transaction b) must fail under both SNAPSHOT and SERIALIZABLE isolation levels, since it would drop data from the new column added in the first transaction. If the transactions started concurrently, one of them should still fail with SNAPSHOT isolation because there is an overlap in the rows modified by the transactions.
+
+Writers must write out all fields with the types specified from the schema loaded at the beginning of the transaction. Writing all fields prevents similar anomolies as those outlined for the first case above but with `initial-default` instead of `write-default` (all nulls can't be distinguished from missing columns that need an initial default).
+
 ## Appendix G: Geospatial Notes
 
 The Geometry and Geography class hierarchy and its Well-known text (WKT) and Well-known binary (WKB) serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
