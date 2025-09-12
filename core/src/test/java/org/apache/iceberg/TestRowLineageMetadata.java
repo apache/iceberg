@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -188,6 +189,89 @@ public class TestRowLineageMetadata {
 
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11);
+  }
+
+  @TestTemplate
+  public void testFastAppendV1V3() throws IOException {
+    // Test the scenario where a V1 table is upgraded to V3 and then has appends
+    // This can cause NPE in ManifestListWriter when existingRowsCount is null
+
+    // Start with a V1 table
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), 1);
+
+    // V1 tables should start with nextRowId = 0 (INITIAL_ROW_ID)
+    assertThat(table.ops().current().nextRowId()).isEqualTo(0L);
+
+    // Manually create a manifest with null existingRowsCount to simulate the V1 scenario
+    ManifestFile manifestWithNullExistingRows = new GenericManifestFile(
+        "manifest1.avro", // path
+        100L, // length
+        0, // spec_id
+        ManifestContent.DATA, // content
+        0L, // sequence_number
+        0L, // min_sequence_number
+        1L, // snapshot_id
+        null, // partitions
+        null, // key_metadata
+        1, // added_files_count
+        1L, // added_rows_count
+        null, // existing_files_count
+        null, // existing_rows_count - THIS IS THE KEY: null value
+        0, // deleted_files_count
+        0L, // deleted_rows_count
+        null); // first_row_id
+
+    // Create a manifest list file that contains our custom manifest
+    File manifestListFile = new File(tableDir, "manifest_list_" + System.nanoTime() + ".avro");
+    String manifestListLocation;
+    try (ManifestListWriter writer =
+        ManifestLists.write(
+            1, Files.localOutput(manifestListFile), 1L, null, 0, 0L)) {
+      writer.add(manifestWithNullExistingRows);
+      manifestListLocation = Files.localInput(manifestListFile).location();
+    }
+
+    // Create a snapshot with this manifest list
+    Snapshot snapshotWithNullManifest = new BaseSnapshot(
+        0L, // sequence_number
+        1L, // snapshot_id
+        null, // parent_id
+        System.currentTimeMillis(), // timestamp_millis
+        DataOperations.APPEND, // operation
+        null, // summary
+        null, // schema_id
+        manifestListLocation, // manifest_list
+        null, // first_row_id
+        null, // added_rows
+        null); // key_id
+
+    // Add this snapshot to the table metadata
+    TableOperations ops = table.ops();
+    TableMetadata current = ops.current();
+    TableMetadata withSnapshot = TableMetadata.buildFrom(current)
+        .setBranchSnapshot(snapshotWithNullManifest, "main")// Set this as the current snapshot
+        .build();
+    ops.commit(current, withSnapshot);
+
+    // Verify that our manually created manifest has null existingRowsCount
+    Snapshot currentSnapshot = table.currentSnapshot();
+    assertThat(currentSnapshot.allManifests(table.io())).isNotEmpty();
+    ManifestFile firstManifest = currentSnapshot.allManifests(table.io()).get(0);
+    assertThat(firstManifest.existingRowsCount()).isNull(); // This should now be null!
+
+    // Now upgrade the table to V3 - this is where the problem occurs
+    current = ops.current();
+    TableMetadata upgraded = TableMetadata.buildFrom(current).upgradeFormatVersion(3).build();
+    ops.commit(current, upgraded);
+
+    // Verify the table is now V3
+    assertThat(table.ops().current().formatVersion()).isEqualTo(3);
+
+    // This should now trigger the V3Writer code path with a manifest that has null existingRowsCount
+    // If there's a bug, this will throw NPE when trying to add null existingRowsCount
+    table.newFastAppend().appendFile(fileWithRows(17)).commit();
   }
 
   @TestTemplate
