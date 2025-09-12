@@ -19,8 +19,12 @@
 package org.apache.iceberg.events.model;
 
 import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.RESTRequest;
 
-public class GetEventsRequest {
+public class GetEventsRequest implements RESTRequest {
 
   private String nextPageToken;
   private Integer pageSize;
@@ -29,79 +33,64 @@ public class GetEventsRequest {
   private List<OperationType> operationTypes;
   private List<String> users;
   private List<Actor> actors;
-  private List<Object> catalogObjects; // NamespaceReference, TableReference, ViewReference
-  private Object customFilters;
+  private List<CatalogObject> catalogObjects;
+  private Map<String, String> customFilters;
 
-  // Getters and Setters
   public String getNextPageToken() {
     return nextPageToken;
-  }
-
-  public void setNextPageToken(String nextPageToken) {
-    this.nextPageToken = nextPageToken;
   }
 
   public Integer getPageSize() {
     return pageSize;
   }
 
-  public void setPageSize(Integer pageSize) {
-    this.pageSize = pageSize;
-  }
-
   public Long getAfterTimestampMs() {
     return afterTimestampMs;
-  }
-
-  public void setAfterTimestampMs(Long afterTimestampMs) {
-    this.afterTimestampMs = afterTimestampMs;
   }
 
   public Long getAfterSequence() {
     return afterSequence;
   }
 
-  public void setAfterSequence(Long afterSequence) {
-    this.afterSequence = afterSequence;
-  }
-
   public List<OperationType> getOperationTypes() {
     return operationTypes;
-  }
-
-  public void setOperationTypes(List<OperationType> operationTypes) {
-    this.operationTypes = operationTypes;
   }
 
   public List<String> getUsers() {
     return users;
   }
 
-  public void setUsers(List<String> users) {
-    this.users = users;
-  }
-
   public List<Actor> getActors() {
     return actors;
   }
 
-  public void setActors(List<Actor> actors) {
-    this.actors = actors;
-  }
-
-  public List<Object> getCatalogObjects() {
+  public List<CatalogObject> getCatalogObjects() {
     return catalogObjects;
   }
 
-  public void setCatalogObjects(List<Object> catalogObjects) {
-    this.catalogObjects = catalogObjects;
-  }
-
-  public Object getCustomFilters() {
+  public Map<String, String> getCustomFilters() {
     return customFilters;
   }
 
-  public void setCustomFilters(Object customFilters) {
-    this.customFilters = customFilters;
+  @Override
+  public void validate() {
+    if (pageSize != null) {
+      Preconditions.checkArgument(pageSize > 0, "Page size must be positive");
+    }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("nextPageToken", nextPageToken)
+        .add("pageSize", pageSize)
+        .add("afterTimestampMs", afterTimestampMs)
+        .add("afterSequence", afterSequence)
+        .add("operationTypes", operationTypes)
+        .add("users", users)
+        .add("actors", actors)
+        .add("catalogObjects", catalogObjects)
+        .add("customFilters", customFilters)
+        .toString();
   }
 }

@@ -18,53 +18,60 @@
  */
 package org.apache.iceberg.events.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.RESTResponse;
 
-public class EventsResponse {
+public class EventsResponse implements RESTResponse {
 
-  @JsonProperty("next-page-token")
-  private String nextPageToken;
+  private final String nextPageToken;
+  private final Long highestProcessedTimestampMs;
+  private final Long highestProcessedSequence;
+  private final List<Event> events;
 
-  @JsonProperty("highest-processed-timestamp-ms")
-  private Long highestProcessedTimestampMs;
-
-  @JsonProperty("highest-processed-sequence")
-  private Long highestProcessedSequence;
-
-  @JsonProperty("events")
-  private List<Event> events;
-
-  // Getters and setters
-  public String getNextPageToken() {
-    return nextPageToken;
+  @JsonCreator
+  public EventsResponse(
+      @JsonProperty("next-page-token") String nextPageToken,
+      @JsonProperty("highest-processed-timestamp-ms") Long highestProcessedTimestampMs,
+      @JsonProperty("highest-processed-sequence") Long highestProcessedSequence,
+      @JsonProperty("events") List<Event> events) {
+    this.nextPageToken = nextPageToken;
+    this.highestProcessedTimestampMs = highestProcessedTimestampMs;
+    this.highestProcessedSequence = highestProcessedSequence;
+    this.events = events;
   }
 
-  public void setNextPageToken(String nextPageToken) {
-    this.nextPageToken = nextPageToken;
+  public String getNextPageToken() {
+    return nextPageToken;
   }
 
   public Long getHighestProcessedTimestampMs() {
     return highestProcessedTimestampMs;
   }
 
-  public void setHighestProcessedTimestampMs(Long highestProcessedTimestampMs) {
-    this.highestProcessedTimestampMs = highestProcessedTimestampMs;
-  }
-
   public Long getHighestProcessedSequence() {
     return highestProcessedSequence;
-  }
-
-  public void setHighestProcessedSequence(Long highestProcessedSequence) {
-    this.highestProcessedSequence = highestProcessedSequence;
   }
 
   public List<Event> getEvents() {
     return events;
   }
 
-  public void setEvents(List<Event> events) {
-    this.events = events;
+  @Override
+  public void validate() {
+    Preconditions.checkNotNull(events, "events must not be null");
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("nextPageToken", nextPageToken)
+        .add("highestProcessedTimestampMs", highestProcessedTimestampMs)
+        .add("highestProcessedSequence", highestProcessedSequence)
+        .add("events", events)
+        .toString();
   }
 }

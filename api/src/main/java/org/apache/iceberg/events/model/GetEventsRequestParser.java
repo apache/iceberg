@@ -16,27 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.events.controller;
+package org.apache.iceberg.events.rest;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import org.apache.iceberg.events.model.GetEventsRequest;
-import org.apache.iceberg.events.service.EventsService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 
-@RestController
-public class EventsController {
+public class GetEventsRequestParser {
 
-  private final EventsService eventsService;
+  private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  @Autowired
-  public EventsController(EventsService eventsService) {
-    this.eventsService = eventsService;
+  public static String toJson(GetEventsRequest request) throws IOException {
+    return MAPPER.writeValueAsString(request);
   }
 
-  @PostMapping("/events/{prefix}")
-  public ResponseEntity<?> getEvents(
-      @PathVariable String prefix, @RequestBody GetEventsRequest request) {
-    return ResponseEntity.ok(eventsService.fetchEvents(prefix, request));
+  public static GetEventsRequest fromJson(String json) throws IOException {
+    return MAPPER.readValue(json, GetEventsRequest.class);
+  }
+
+  public static void toJson(GetEventsRequest request, JsonGenerator gen) throws IOException {
+    MAPPER.writeValue(gen, request);
+  }
+
+  public static GetEventsRequest fromJson(JsonNode jsonNode) throws IOException {
+    return MAPPER.treeToValue(jsonNode, GetEventsRequest.class);
   }
 }

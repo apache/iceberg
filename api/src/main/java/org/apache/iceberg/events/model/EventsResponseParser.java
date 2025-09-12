@@ -16,30 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.events.model;
+package org.apache.iceberg.events.rest;
 
-import static org.junit.jupiter.api.Assertions.*;
-
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Test;
+import java.io.IOException;
+import org.apache.iceberg.events.model.EventsResponse;
 
-public class EventTest {
+public class EventsResponseParser {
 
-  private final ObjectMapper mapper = new ObjectMapper();
+  private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  @Test
-  void testSerializationAndDeserialization() throws Exception {
-    XXXOperation op = new XXXOperation();
-    op.setType(OperationType.DELETE);
+  public static String toJson(EventsResponse response) throws IOException {
+    return MAPPER.writeValueAsString(response);
+  }
 
-    Event event = new Event();
-    event.setEventId("evt-10");
-    event.setOperation(op);
+  public static EventsResponse fromJson(String json) throws IOException {
+    return MAPPER.readValue(json, EventsResponse.class);
+  }
 
-    String json = mapper.writeValueAsString(event);
-    Event deserialized = mapper.readValue(json, Event.class);
+  public static void toJson(EventsResponse response, JsonGenerator gen) throws IOException {
+    MAPPER.writeValue(gen, response);
+  }
 
-    assertEquals("evt-10", deserialized.getEventId());
-    assertEquals(OperationType.DELETE, deserialized.getOperation().getType());
+  public static EventsResponse fromJson(JsonNode jsonNode) throws IOException {
+    return MAPPER.treeToValue(jsonNode, EventsResponse.class);
   }
 }

@@ -27,15 +27,13 @@ public class EventsService {
 
   public EventsResponse fetchEvents(String prefix, GetEventsRequest request) {
     // For now, you can mock data for testing
-    EventsResponse response = new EventsResponse();
-
-    response.setHighestProcessedSequence(100L);
-    response.setHighestProcessedTimestampMs(System.currentTimeMillis());
-
-    // Add mock events or integrate with your Event repository
-    // Example:
-    // List<Event> events = eventRepository.getEvents(request);
-    // response.setEvents(events);
+    EventsResponse response =
+        new EventsResponse(
+            null, // nextPageToken
+            System.currentTimeMillis(), // highestProcessedTimestampMs
+            100L, // highestProcessedSequence
+            Collections.emptyList() // events
+            );
 
     return response;
   }
