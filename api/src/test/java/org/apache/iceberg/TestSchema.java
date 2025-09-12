@@ -213,7 +213,7 @@ public class TestSchema {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testSupportedWriteDefault(int formatVersion) {
-    // only the initial default is a forward-incompatible change
+    // TODO: need to clarify if this needs to be updated to block for <v3
     assertThatCode(() -> Schema.checkCompatibility(WRITE_DEFAULT_SCHEMA, formatVersion))
         .doesNotThrowAnyException();
   }
