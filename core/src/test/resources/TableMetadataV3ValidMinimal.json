@@ -1,5 +1,5 @@
 {
-  "format-version": 2,
+  "format-version": 3,
   "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1",
   "location": "s3://bucket/test/location",
   "last-sequence-number": 34,
