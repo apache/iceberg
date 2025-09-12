@@ -36,6 +36,33 @@ val df = spark.readStream
 !!! warning
     Iceberg only supports reading data from append snapshots. Overwrite snapshots cannot be processed and will cause an exception by default. Overwrites may be ignored by setting `streaming-skip-overwrite-snapshots=true`. Similarly, delete snapshots will cause an exception by default, and deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
 
+### Limit input rate
+To control the size of micro-batches in the DataFrame API, Iceberg supports two read options:
+
+* `streaming-max-files-per-micro-batch` Maximum number of files to be processed in every micro-batch.
+* `streaming-max-rows-per-micro-batch` A "soft max" on the number of rows to be processed in every micro-batch. A batch will always include all the rows in the next unprocessed data file but additional files will not be included if doing so would exceed the soft max limit.
+
+If both options are set, the micro-batch size will be limited by whichever option is reached first.
+
+```scala
+// Read a hard limit of 1 file per micro-batch
+val df = spark.readStream
+    .format("iceberg")
+    .option("streaming-max-files-per-micro-batch", "1")
+    .load("database.table_name")
+```
+
+```scala
+// Read files until the number of included rows >= 1000 per micro-batch
+val df = spark.readStream
+    .format("iceberg")
+    .option("streaming-max-rows-per-micro-batch", "1000")
+    .load("database.table_name")
+```
+
+!!! info
+    Note: In addition to limiting micro-batch sizes on queries that use the default trigger (i.e. `Trigger.ProcessingTime`), rate limiting options can be applied to queries that use `Trigger.AvailableNow` to split one-time processing of all available source data into multiple micro-batches for better query scalability. Rate limiting options will be ignored when using the deprecated `Trigger.Once` trigger.
+
 ## Streaming Writes
 
 To write values from streaming query to Iceberg table, use `DataStreamWriter`:

@@ -211,23 +211,18 @@ spark.read
     .table("catalog.db.table")
 ```
 
-| Spark option    | Default               | Description                                                                               |
-| --------------- | --------------------- | ----------------------------------------------------------------------------------------- |
-| snapshot-id     | (latest)              | Snapshot ID of the table snapshot to read                                                 |
-| as-of-timestamp | (latest)              | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time. |
-| split-size      | As per table property | Overrides this table's read.split.target-size and read.split.metadata-target-size         |
-| lookback        | As per table property | Overrides this table's read.split.planning-lookback                                       |
-| file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                          |
-| vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                          |
-| batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
-| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
-| streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch |
-| streaming-max-rows-per-micro-batch  | INT_MAX | Maximum number of rows per microbatch |
-
-!!! warning
-    streaming-max-rows-per-micro-batch option sets a “soft max”, a batch will always include all the rows in the next unprocessed data file but additional files will not be included if doing so would exceed the soft max limit.
-
-
+| Spark option    | Default               | Description                                                                                                                                                                   |
+| --------------- | --------------------- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| snapshot-id     | (latest)              | Snapshot ID of the table snapshot to read                                                                                                                                     |
+| as-of-timestamp | (latest)              | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time.                                                                                     |
+| split-size      | As per table property | Overrides this table's read.split.target-size and read.split.metadata-target-size                                                                                             |
+| lookback        | As per table property | Overrides this table's read.split.planning-lookback                                                                                                                           |
+| file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                                                                                                              |
+| vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                                                                                                     |
+| batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                                                                                                  |
+| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used                                                             |
+| streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch                                                                                                                                        |
+| streaming-max-rows-per-micro-batch  | INT_MAX | "Soft maximum" number of rows per microbatch; always includes all rows in next unprocessed file, excludes additional files if their inclusion would exceed the soft max limit |
 
 ### Write options
 
