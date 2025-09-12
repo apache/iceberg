@@ -66,22 +66,25 @@ public interface ExtendedParser extends ParserInterface {
     }
   }
 
-  static <T> T findParser(ParserInterface parser, Class<T> clazz) {
+  private static <T> T findParser(ParserInterface parser, Class<T> clazz) {
     ParserInterface current = parser;
     while (current != null) {
       if (clazz.isInstance(current)) {
         return clazz.cast(current);
       }
+
       Object next = getDelegate(current);
       if (next == null || next == current) {
         break;
       }
+
       current = (ParserInterface) next;
     }
+
     return null;
   }
 
-  static Object getDelegate(Object parser) {
+  private static Object getDelegate(Object parser) {
     try {
       for (java.lang.reflect.Field field : parser.getClass().getDeclaredFields()) {
         field.setAccessible(true);
@@ -93,6 +96,7 @@ public interface ExtendedParser extends ParserInterface {
     } catch (Exception e) {
       // pass
     }
+
     return null;
   }
 
