@@ -252,7 +252,7 @@ public class TestRowLineageMetadata {
     TableOperations ops = table.ops();
     TableMetadata current = ops.current();
     TableMetadata withSnapshot = TableMetadata.buildFrom(current)
-        .setBranchSnapshot(snapshotWithNullManifest, "main")// Set this as the current snapshot
+        .setBranchSnapshot(snapshotWithNullManifest, "main")
         .build();
     ops.commit(current, withSnapshot);
 
@@ -262,7 +262,6 @@ public class TestRowLineageMetadata {
     ManifestFile firstManifest = currentSnapshot.allManifests(table.io()).get(0);
     assertThat(firstManifest.existingRowsCount()).isNull(); // This should now be null!
 
-    // Now upgrade the table to V3 - this is where the problem occurs
     current = ops.current();
     TableMetadata upgraded = TableMetadata.buildFrom(current).upgradeFormatVersion(3).build();
     ops.commit(current, upgraded);
