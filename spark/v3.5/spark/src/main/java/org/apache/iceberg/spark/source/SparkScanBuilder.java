@@ -455,26 +455,26 @@ public class SparkScanBuilder
         SparkReadOptions.START_TIMESTAMP,
         SparkReadOptions.END_TIMESTAMP);
 
-        if (startSnapshotId != null) {
-            return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats, expectedSchema);
-        } else {
-            return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, expectedSchema);
-        }
+    if (startSnapshotId != null) {
+      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats, expectedSchema);
+    } else {
+      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, expectedSchema);
     }
+  }
 
-    private org.apache.iceberg.Scan buildBatchScan(
-            Long snapshotId,
-            Long asOfTimestamp,
-            String branch,
-            String tag,
-            boolean withStats,
-            Schema expectedSchema) {
-        BatchScan scan =
-                newBatchScan()
-                        .caseSensitive(caseSensitive)
-                        .filter(filterExpression())
-                        .project(expectedSchema)
-                        .metricsReporter(metricsReporter);
+  private org.apache.iceberg.Scan buildBatchScan(
+      Long snapshotId,
+      Long asOfTimestamp,
+      String branch,
+      String tag,
+      boolean withStats,
+      Schema expectedSchema) {
+    BatchScan scan =
+        newBatchScan()
+            .caseSensitive(caseSensitive)
+            .filter(filterExpression())
+            .project(expectedSchema)
+            .metricsReporter(metricsReporter);
 
     if (withStats) {
       scan = scan.includeColumnStats();
