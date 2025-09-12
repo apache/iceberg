@@ -36,8 +36,10 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -105,6 +107,13 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         true,
         BATCH_SIZE,
         IDENTITY);
+  }
+
+  protected void writeAndValidate(
+      Schema writeSchema, Schema expectedSchema, List<Record> records, int batchSize)
+      throws IOException {
+    writeAndValidate(
+        writeSchema, expectedSchema, true, batchSize, records.size(), records, ID_TO_CONSTANT);
   }
 
   @Override
@@ -318,6 +327,40 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         0L,
         0.99f,
         true);
+  }
+
+  @Test
+  public void testMetadataColumnsNoMemoryLeak() throws Exception {
+    Schema schema =
+        new Schema(
+            MetadataColumns.ROW_POSITION,
+            MetadataColumns.ROW_ID,
+            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+
+    GenericRecord record = GenericRecord.create(schema);
+
+    // batchSize is set to 1 to verify that vector reuse doesn't leak memory
+    writeAndValidate(
+        schema,
+        schema,
+        List.of(
+            record.copy(
+                Map.of(
+                    MetadataColumns.ROW_POSITION.name(),
+                    0L,
+                    MetadataColumns.ROW_ID.name(),
+                    1_000L,
+                    MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
+                    33L)),
+            record.copy(
+                Map.of(
+                    MetadataColumns.ROW_POSITION.name(),
+                    1L,
+                    MetadataColumns.ROW_ID.name(),
+                    1_000L,
+                    MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
+                    33L))),
+        1);
   }
 
   @Test
