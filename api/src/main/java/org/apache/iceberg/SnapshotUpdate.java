@@ -71,4 +71,11 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
             "Cannot commit to branch %s: %s does not support branch commits",
             branch, this.getClass().getName()));
   }
+
+  default ThisT addCommitValidator(Consumer<ReadonlyTableMetadata> validator) {
+    throw new UnsupportedOperationException(
+        String.format(
+            "Cannot add commit validator %s: %s does not support commit validators",
+            validator, this.getClass().getName()));
+  }
 }
