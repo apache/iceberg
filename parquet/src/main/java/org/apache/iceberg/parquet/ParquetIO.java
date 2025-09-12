@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -182,12 +183,20 @@ class ParquetIO {
       return ranges.stream()
           .map(
               parquetFileRange -> {
-                CompletableFuture<ByteBuffer> result = new CompletableFuture<>();
-                parquetFileRange.setDataReadFuture(result);
-                return new FileRange(
-                    parquetFileRange.getDataReadFuture(),
-                    parquetFileRange.getOffset(),
-                    parquetFileRange.getLength());
+                CompletableFuture<ByteBuffer> future = new CompletableFuture<>();
+                parquetFileRange.setDataReadFuture(future);
+                try {
+                  return new FileRange(
+                      parquetFileRange.getDataReadFuture(),
+                      parquetFileRange.getOffset(),
+                      parquetFileRange.getLength());
+                } catch (EOFException e) {
+                  throw new RuntimeIOException(
+                      e,
+                      "Failed to create range file for offset: %s and length: %s",
+                      parquetFileRange.getOffset(),
+                      parquetFileRange.getLength());
+                }
               })
           .collect(Collectors.toList());
     }

@@ -18,15 +18,24 @@
  */
 package org.apache.iceberg.io;
 
+import java.io.EOFException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class FileRange {
   private final CompletableFuture<ByteBuffer> byteBuffer;
   private final long offset;
   private final int length;
 
-  public FileRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length) {
+  public FileRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length)
+      throws EOFException {
+    Preconditions.checkNotNull(offset, "offset is null");
+    Preconditions.checkNotNull(length, "length is null");
+    Preconditions.checkArgument(length() >= 0, "length %s is negative ", length);
+    if (offset < 0) {
+      throw new EOFException("position is negative in range: " + offset);
+    }
     this.byteBuffer = byteBuffer;
     this.offset = offset;
     this.length = length;

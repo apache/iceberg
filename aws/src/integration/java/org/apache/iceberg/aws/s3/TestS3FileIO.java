@@ -41,6 +41,8 @@ import java.util.Random;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -66,9 +68,11 @@ import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.FileInfo;
+import org.apache.iceberg.io.FileRange;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.jdbc.JdbcCatalog;
@@ -964,6 +968,135 @@ public class TestS3FileIO {
     assertThatThrownBy(() -> actualConfiguration.credentialsProvider().resolveIdentity())
         .isInstanceOf(SdkClientException.class)
         .hasMessageContaining("Unable to load credentials from any of the providers");
+  }
+
+  @Test
+  public void testVectoredRead() throws Exception {
+    String location = "s3://bucket/path/to/vectored-read.dat";
+    int dataSize = 1024 * 1024;
+
+    byte[] expected = new byte[dataSize];
+    random.nextBytes(expected);
+
+    InputFile inputFile = s3FileIO.newInputFile(location);
+    assertThat(inputFile.exists()).isFalse();
+
+    OutputFile out = s3FileIO.newOutputFile(location);
+    try (OutputStream os = out.createOrOverwrite()) {
+      IOUtil.writeFully(os, ByteBuffer.wrap(expected));
+    }
+
+    try (InputStream inputStream = inputFile.newStream()) {
+      assertThat(inputStream instanceof RangeReadable);
+      RangeReadable in = (RangeReadable) inputStream;
+
+      IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
+
+      List<FileRange> ranges = Lists.newArrayList();
+      CompletableFuture<ByteBuffer> future1 = new CompletableFuture<>();
+      CompletableFuture<ByteBuffer> future2 = new CompletableFuture<>();
+      CompletableFuture<ByteBuffer> future3 = new CompletableFuture<>();
+
+      // First range: first 1024 bytes
+      int range1Offset = 0;
+      int range1Length = 1024;
+      ranges.add(new FileRange(future1, range1Offset, range1Length));
+
+      // Second range: middle 2048 bytes
+      int range2Offset = dataSize / 2;
+      int range2Length = 2048;
+      ranges.add(new FileRange(future2, range2Offset, range2Length));
+
+      // Third range: last 1024 bytes
+      int range3Offset = dataSize - 1024;
+      int range3Length = 1024;
+      ranges.add(new FileRange(future3, range3Offset, range3Length));
+
+      in.readVectored(ranges, allocate);
+
+      ByteBuffer buffer1 = future1.get();
+      ByteBuffer buffer2 = future2.get();
+      ByteBuffer buffer3 = future3.get();
+
+      assertThat(future1.isDone()).isTrue();
+      assertThat(future2.isDone()).isTrue();
+      assertThat(future3.isDone()).isTrue();
+
+      assertThat(buffer1.limit()).isEqualTo(range1Length);
+      assertThat(buffer2.limit()).isEqualTo(range2Length);
+      assertThat(buffer3.limit()).isEqualTo(range3Length);
+
+      byte[] range1Data = new byte[range1Length];
+      byte[] range2Data = new byte[range2Length];
+      byte[] range3Data = new byte[range3Length];
+
+      buffer1.get(range1Data);
+      buffer2.get(range2Data);
+      buffer3.get(range3Data);
+    }
+  }
+
+  @Test
+  public void testVectoredReadWithNonContinuousRanges() throws Exception {
+
+    String location = "s3://bucket/path/to/vectored-read-overlapping.dat";
+    int dataSize = 1024 * 1024;
+
+    byte[] expected = new byte[dataSize];
+    random.nextBytes(expected);
+
+    InputFile inputFile = s3FileIO.newInputFile(location);
+    assertThat(inputFile.exists()).isFalse();
+
+    OutputFile out = s3FileIO.newOutputFile(location);
+    try (OutputStream os = out.createOrOverwrite()) {
+      IOUtil.writeFully(os, ByteBuffer.wrap(expected));
+    }
+
+    try (InputStream inputStream = inputFile.newStream()) {
+      assertThat(inputStream instanceof RangeReadable);
+      RangeReadable in = (RangeReadable) inputStream;
+      List<FileRange> ranges = Lists.newArrayList();
+      CompletableFuture<ByteBuffer> future1 = new CompletableFuture<>();
+      CompletableFuture<ByteBuffer> future2 = new CompletableFuture<>();
+
+      // First range: 0-1024
+      int range1Offset = 0;
+      int range1Length = 1024;
+      ranges.add(new FileRange(future1, range1Offset, range1Length));
+
+      // Second range: 2000-3400
+      int range2Offset = 2000;
+      int range2Length = 3400;
+      ranges.add(new FileRange(future2, range2Offset, range2Length));
+
+      // Call readVectored
+      IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
+      in.readVectored(ranges, allocate);
+
+      // Verify the buffers have the expected content
+      ByteBuffer buffer1 = future1.get();
+      ByteBuffer buffer2 = future2.get();
+
+      // Verify the futures were completed
+      assertThat(future1.isDone()).isTrue();
+      assertThat(future2.isDone()).isTrue();
+
+      assertThat(buffer1.limit()).isEqualTo(range1Length);
+      assertThat(buffer2.limit()).isEqualTo(range2Length);
+
+      // Verify the buffer content matches the original data
+      byte[] range1Data = new byte[range1Length];
+      byte[] range2Data = new byte[range2Length];
+
+      buffer1.get(range1Data);
+      buffer2.get(range2Data);
+
+      assertThat(range1Data)
+          .isEqualTo(Arrays.copyOfRange(expected, range1Offset, range1Offset + range1Length));
+      assertThat(range2Data)
+          .isEqualTo(Arrays.copyOfRange(expected, range2Offset, range2Offset + range2Length));
+    }
   }
 
   private void createRandomObjects(String prefix, int count) {
