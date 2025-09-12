@@ -179,4 +179,34 @@ public class TestResourcePaths {
     assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views/view-name");
     assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/n%1Fs/views/view-name");
   }
+
+  @Test
+  public void testCancelPlanning() {
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+    String planId = "plan-123";
+    assertThat(withPrefix.cancelPlanning(ident, planId))
+        .isEqualTo("v1/ws/catalog/namespaces/ns/tables/table/plan/plan-123");
+    assertThat(withoutPrefix.cancelPlanning(ident, planId))
+        .isEqualTo("v1/namespaces/ns/tables/table/plan/plan-123");
+  }
+
+  @Test
+  public void testCancelPlanningWithSlash() {
+    TableIdentifier ident = TableIdentifier.of("n/s", "tab/le");
+    String planId = "plan-abc/def";
+    assertThat(withPrefix.cancelPlanning(ident, planId))
+        .isEqualTo("v1/ws/catalog/namespaces/n%2Fs/tables/tab%2Fle/plan/plan-abc/def");
+    assertThat(withoutPrefix.cancelPlanning(ident, planId))
+        .isEqualTo("v1/namespaces/n%2Fs/tables/tab%2Fle/plan/plan-abc/def");
+  }
+
+  @Test
+  public void testCancelPlanningWithMultipartNamespace() {
+    TableIdentifier ident = TableIdentifier.of("n", "s", "table");
+    String planId = "plan-456";
+    assertThat(withPrefix.cancelPlanning(ident, planId))
+        .isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables/table/plan/plan-456");
+    assertThat(withoutPrefix.cancelPlanning(ident, planId))
+        .isEqualTo("v1/namespaces/n%1Fs/tables/table/plan/plan-456");
+  }
 }
