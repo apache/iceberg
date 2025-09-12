@@ -23,8 +23,9 @@ nav:
   - Docs:
     - Java:
       - Nightly: '!include docs/docs/nightly/mkdocs.yml'
-      - Latest (1.9.2): '!include docs/docs/latest/mkdocs.yml'
+      - Latest (1.10.0): '!include docs/docs/latest/mkdocs.yml'
       - Previous:
+        - 1.9.2: '!include docs/docs/1.9.2/mkdocs.yml'
         - 1.9.1: '!include docs/docs/1.9.1/mkdocs.yml'
         - 1.9.0: '!include docs/docs/1.9.0/mkdocs.yml'
         - 1.8.1: '!include docs/docs/1.8.1/mkdocs.yml'
@@ -47,12 +48,44 @@ nav:
       - Rust: https://rust.iceberg.apache.org/
       - Go: https://go.iceberg.apache.org/
       - C++: https://github.com/apache/iceberg-cpp/
+    - Third-party:
+      - Catalogs:
+        - Apache Gravitino: https://gravitino.apache.org/
+        - Apache Polaris: https://polaris.apache.org/
+        - Boring Catalog: https://github.com/boringdata/boring-catalog
+        - DataHub: https://docs.datahub.com/docs/iceberg-catalog
+        - Google BigLake metastore: https://cloud.google.com/bigquery/docs/blms-manage-resources
+        - Lakekeeper: https://github.com/lakekeeper/lakekeeper
+      - Integrations:
+        - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
+        - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
+        - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
+        - Amazon Redshift: https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg.html
+        - Apache Amoro: integrations/amoro.md
+        - Apache Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
+        - Apache Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
+        - BladePipe: https://www.bladepipe.com/docs/dataMigrationAndSync/datasource_func/Iceberg/props_for_iceberg_ds
+        - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
+        - Daft: integrations/daft.md
+        - Databend: https://docs.databend.com/guides/access-data-lake/iceberg
+        - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
+        - DuckDB: https://duckdb.org/docs/preview/core_extensions/iceberg/overview
+        - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
+        - Firebolt: https://docs.firebolt.io/reference-sql/functions-reference/table-valued/read_iceberg
+        - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
+        - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
+        - Memiiso Debezium: https://memiiso.github.io/debezium-server-iceberg/
+        - Nimtable: https://github.com/nimtable/nimtable
+        - OLake: https://olake.io/docs
+        - Presto: https://prestodb.io/docs/current/connector/iceberg.html
+        - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
+        - RisingWave: integrations/risingwave.md
+        - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
+        - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
+        - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
+        - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Releases: releases.md
-  - Blogs: blogs.md
-  - Talks: talks.md
-  - Vendors: vendors.md
   - Project:
-    - Community: community.md
     - Contributing: contribute.md
     - Multi-engine support: multi-engine-support.md
     - How to release: how-to-release.md
@@ -63,6 +96,11 @@ nav:
       - License: https://www.apache.org/licenses/
       - Security: https://www.apache.org/security/
       - Sponsors: https://www.apache.org/foundation/sponsors.html
+  - Community:
+    - Community: community.md
+    - Blogs: blogs.md
+    - Talks: talks.md
+    - Vendors: vendors.md
   - Specification:
     - Terms: terms.md
     - REST Catalog Spec: rest-catalog-spec.md

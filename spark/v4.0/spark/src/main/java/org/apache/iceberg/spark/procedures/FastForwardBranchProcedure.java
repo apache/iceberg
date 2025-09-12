@@ -68,6 +68,7 @@ public class FastForwardBranchProcedure extends BaseProcedure {
     return this;
   }
 
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }

@@ -64,11 +64,11 @@ import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles;
 import org.apache.spark.sql.connector.read.streaming.ReadMaxRows;
-import org.apache.spark.sql.connector.read.streaming.SupportsAdmissionControl;
+import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissionControl {
+public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
   private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
@@ -88,6 +88,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   private final long fromTimestamp;
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
+  private final boolean cacheDeleteFilesOnExecutors;
+  private StreamingOffset lastOffsetForTriggerAvailableNow;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -107,6 +109,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     this.fromTimestamp = readConf.streamFromTimestamp();
     this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
+    this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
     InitialOffsetStore initialOffsetStore =
         new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
@@ -168,7 +171,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
               branch,
               expectedSchema,
               caseSensitive,
-              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE);
+              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
+              cacheDeleteFilesOnExecutors);
     }
 
     return partitions;
@@ -381,13 +385,19 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
     validateCurrentSnapshotExists(curSnapshot, startingOffset);
 
+    // Use the pre-computed snapshotId when Trigger.AvailableNow is enabled.
+    long latestSnapshotId =
+        lastOffsetForTriggerAvailableNow != null
+            ? lastOffsetForTriggerAvailableNow.snapshotId()
+            : table.currentSnapshot().snapshotId();
+
     int startPosOfSnapOffset = (int) startingOffset.position();
 
     boolean scanAllFiles = startingOffset.shouldScanAllFiles();
 
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
-    int curRecordCount = 0;
+    long curRecordCount = 0;
     int curPos = 0;
 
     // Note : we produce nextOffset with pos as non-inclusive
@@ -436,8 +446,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
           LOG.warn("Failed to close task iterable", ioe);
         }
       }
-      // if the currentSnapShot was also the mostRecentSnapshot then break
-      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
+      // if the currentSnapShot was also the latestSnapshot then break
+      if (curSnapshot.snapshotId() == latestSnapshotId) {
         break;
       }
 
@@ -498,6 +508,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     if (snapshot == null) {
       throw new IllegalStateException(
           String.format(
+              Locale.ROOT,
               "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
               currentOffset.snapshotId()));
     }
@@ -518,6 +529,16 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
     } else {
       return ReadLimit.allAvailable();
     }
+  }
+
+  @Override
+  public void prepareForTriggerAvailableNow() {
+    LOG.info("The streaming query reports to use Trigger.AvailableNow");
+
+    lastOffsetForTriggerAvailableNow =
+        (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+
+    LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
   }
 
   private static class InitialOffsetStore {
