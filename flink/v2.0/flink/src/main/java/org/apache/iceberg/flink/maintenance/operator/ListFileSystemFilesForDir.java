@@ -41,7 +41,8 @@ import org.slf4j.LoggerFactory;
  * are omitted in the result.
  */
 @Internal
-public class ListFileSystemFilesForDir extends ProcessFunction<OrphanFilesDirTask, String> {
+public class ListFileSystemFilesForDir
+    extends ProcessFunction<ListFileSystemFilesForDir.OrphanFilesDirTask, String> {
   private static final Logger LOG = LoggerFactory.getLogger(ListFileSystemFilesForDir.class);
 
   private final String taskName;
@@ -102,5 +103,26 @@ public class ListFileSystemFilesForDir extends ProcessFunction<OrphanFilesDirTas
   public void close() throws Exception {
     super.close();
     tableLoader.close();
+  }
+
+  public static class OrphanFilesDirTask {
+
+    private String dir;
+    private long olderThanTimestamp;
+
+    public OrphanFilesDirTask() {}
+
+    public OrphanFilesDirTask(String dir, long olderThanTimestamp) {
+      this.dir = dir;
+      this.olderThanTimestamp = olderThanTimestamp;
+    }
+
+    public String subDir() {
+      return dir;
+    }
+
+    public long olderThanTimestamp() {
+      return olderThanTimestamp;
+    }
   }
 }

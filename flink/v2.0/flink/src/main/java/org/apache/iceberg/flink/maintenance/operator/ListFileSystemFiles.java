@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import org.apache.flink.annotation.Internal;
@@ -37,7 +36,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.FileSystemWalker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,7 +114,6 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
             (SupportsPrefixOperations) io, location, specs, predicate, out::collect);
       } else {
         Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
-        List<String> remainingSubDirs = Lists.newArrayList();
         FileSystemWalker.listDirRecursivelyWithHadoop(
             location,
             specs,
@@ -124,14 +121,11 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
             configuration,
             maxListingDepth,
             maxListingDirectSubDirs,
-            remainingSubDirs::add,
+            dir ->
+                ctx.output(
+                    DeleteOrphanFiles.DIR_TASK_STREAM,
+                    new ListFileSystemFilesForDir.OrphanFilesDirTask(dir, olderThanTimestamp)),
             out::collect);
-
-        for (String remainingSubDir : remainingSubDirs) {
-          ctx.output(
-              DeleteOrphanFiles.DIR_TASK_STREAM,
-              new OrphanFilesDirTask(remainingSubDir, olderThanTimestamp));
-        }
       }
     } catch (Exception e) {
       LOG.warn("Exception listing files for {} at {}", location, ctx.timestamp(), e);

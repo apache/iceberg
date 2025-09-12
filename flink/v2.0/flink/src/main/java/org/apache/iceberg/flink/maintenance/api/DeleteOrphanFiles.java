@@ -39,7 +39,6 @@ import org.apache.iceberg.flink.maintenance.operator.ListFileSystemFilesForDir;
 import org.apache.iceberg.flink.maintenance.operator.ListMetadataFiles;
 import org.apache.iceberg.flink.maintenance.operator.MetadataTablePlanner;
 import org.apache.iceberg.flink.maintenance.operator.OrphanFilesDetector;
-import org.apache.iceberg.flink.maintenance.operator.OrphanFilesDirTask;
 import org.apache.iceberg.flink.maintenance.operator.SkipOnError;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
 import org.apache.iceberg.flink.source.ScanContext;
@@ -61,8 +60,10 @@ public class DeleteOrphanFiles {
       new OutputTag<>("error-stream", TypeInformation.of(Exception.class));
 
   @Internal
-  public static final OutputTag<OrphanFilesDirTask> DIR_TASK_STREAM =
-      new OutputTag<>("dir-task-stream", TypeInformation.of(OrphanFilesDirTask.class));
+  public static final OutputTag<ListFileSystemFilesForDir.OrphanFilesDirTask> DIR_TASK_STREAM =
+      new OutputTag<>(
+          "dir-task-stream",
+          TypeInformation.of(ListFileSystemFilesForDir.OrphanFilesDirTask.class));
 
   static final String PLANNER_TASK_NAME = "Table Planner";
   static final String READER_TASK_NAME = "Files Reader";
@@ -301,7 +302,7 @@ public class DeleteOrphanFiles {
 
       DataStream<String> allFsFiles = firstFsFiles;
       if (!usePrefixListing) {
-        SideOutputDataStream<OrphanFilesDirTask> subDirs =
+        SideOutputDataStream<ListFileSystemFilesForDir.OrphanFilesDirTask> subDirs =
             firstFsFiles.getSideOutput(DIR_TASK_STREAM);
         SingleOutputStreamOperator<String> restFsFiles =
             subDirs

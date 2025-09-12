@@ -35,13 +35,17 @@ class TestListFileSystemFilesForDir extends OperatorTestBase {
     insert(table, 1, "a");
     insert(table, 2, "b");
     insert(table, 3, "c");
-    try (OneInputStreamOperatorTestHarness<OrphanFilesDirTask, String> testHarness =
-        ProcessFunctionTestHarnesses.forProcessFunction(
-            new ListFileSystemFilesForDir(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
+    try (OneInputStreamOperatorTestHarness<ListFileSystemFilesForDir.OrphanFilesDirTask, String>
+        testHarness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new ListFileSystemFilesForDir(
+                    OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
       testHarness.open();
       testHarness.processElement(
           new StreamRecord<>(
-              new OrphanFilesDirTask(table.location(), System.currentTimeMillis()), EVENT_TIME));
+              new ListFileSystemFilesForDir.OrphanFilesDirTask(
+                  table.location(), System.currentTimeMillis()),
+              EVENT_TIME));
 
       assertThat(testHarness.extractOutputValues()).hasSize(11);
       assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
@@ -55,14 +59,18 @@ class TestListFileSystemFilesForDir extends OperatorTestBase {
     insertPartitioned(table, 2, "p1");
     insertPartitioned(table, 3, "p2");
     insertPartitioned(table, 4, "p2");
-    try (OneInputStreamOperatorTestHarness<OrphanFilesDirTask, String> testHarness =
-        ProcessFunctionTestHarnesses.forProcessFunction(
-            new ListFileSystemFilesForDir(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
+    try (OneInputStreamOperatorTestHarness<ListFileSystemFilesForDir.OrphanFilesDirTask, String>
+        testHarness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new ListFileSystemFilesForDir(
+                    OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
 
       testHarness.open();
       testHarness.processElement(
           new StreamRecord<>(
-              new OrphanFilesDirTask(table.location(), System.currentTimeMillis()), EVENT_TIME));
+              new ListFileSystemFilesForDir.OrphanFilesDirTask(
+                  table.location(), System.currentTimeMillis()),
+              EVENT_TIME));
 
       assertThat(testHarness.extractOutputValues()).hasSize(14);
       assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
@@ -72,14 +80,18 @@ class TestListFileSystemFilesForDir extends OperatorTestBase {
   @Test
   void testMetadataFilesWithEmptyTable() throws Exception {
     Table table = createTable();
-    try (OneInputStreamOperatorTestHarness<OrphanFilesDirTask, String> testHarness =
-        ProcessFunctionTestHarnesses.forProcessFunction(
-            new ListFileSystemFilesForDir(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
+    try (OneInputStreamOperatorTestHarness<ListFileSystemFilesForDir.OrphanFilesDirTask, String>
+        testHarness =
+            ProcessFunctionTestHarnesses.forProcessFunction(
+                new ListFileSystemFilesForDir(
+                    OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
 
       testHarness.open();
       testHarness.processElement(
           new StreamRecord<>(
-              new OrphanFilesDirTask(table.location(), System.currentTimeMillis()), EVENT_TIME));
+              new ListFileSystemFilesForDir.OrphanFilesDirTask(
+                  table.location(), System.currentTimeMillis()),
+              EVENT_TIME));
 
       assertThat(testHarness.extractOutputValues()).hasSize(2);
       assertThat(testHarness.getSideOutput(DeleteOrphanFiles.ERROR_STREAM)).isNull();
