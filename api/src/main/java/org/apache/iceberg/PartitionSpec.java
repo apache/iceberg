@@ -401,10 +401,10 @@ public class PartitionSpec implements Serializable {
       Types.NestedField schemaField =
           this.caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
       // corner case: extra partition column in metadata table
-      if (name.equalsIgnoreCase("partition") && null!= schemaField && schemaField.fieldId() > 1000) {
-        schemaField =
-                this.caseSensitive ? schema.findField("partition.partition") :
-                        schema.caseInsensitiveFindField("partition.partition");
+      if (null != schemaField
+          && schemaField.name().equals("partition")
+          && schemaField.fieldId() > 1000) {
+        schemaField = schema.findField("partition.partition");
       }
       if (checkConflicts) {
         if (sourceColumnId != null) {
