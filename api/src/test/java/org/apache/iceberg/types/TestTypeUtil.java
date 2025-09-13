@@ -849,4 +849,41 @@ public class TestTypeUtil {
     Schema reassignedSchema = TypeUtil.reassignDoc(schema, docSourceSchema);
     assertThat(reassignedSchema.asStruct()).isEqualTo(docSourceSchema.asStruct());
   }
+
+  @Test
+  public void testDecimalPromotionAllowed() {
+    assertThat(
+            TypeUtil.isPromotionAllowed(Types.DecimalType.of(10, 2), Types.DecimalType.of(10, 2)))
+        .isTrue();
+
+    assertThat(
+            TypeUtil.isPromotionAllowed(Types.DecimalType.of(10, 2), Types.DecimalType.of(12, 2)))
+        .isTrue();
+
+    assertThat(
+            TypeUtil.isPromotionAllowed(Types.DecimalType.of(10, 2), Types.DecimalType.of(12, 4)))
+        .isTrue();
+
+    assertThat(
+            TypeUtil.isPromotionAllowed(Types.DecimalType.of(10, 2), Types.DecimalType.of(15, 5)))
+        .isTrue();
+
+    assertThat(TypeUtil.isPromotionAllowed(Types.DecimalType.of(10, 2), Types.DecimalType.of(8, 2)))
+        .isFalse();
+
+    assertThat(
+            TypeUtil.isPromotionAllowed(Types.DecimalType.of(10, 2), Types.DecimalType.of(12, 1)))
+        .isFalse();
+
+    assertThat(
+            TypeUtil.isPromotionAllowed(Types.DecimalType.of(10, 2), Types.DecimalType.of(10, 4)))
+        .isFalse();
+
+    assertThat(
+            TypeUtil.isPromotionAllowed(Types.DecimalType.of(10, 2), Types.DecimalType.of(12, 4)))
+        .isTrue();
+
+    assertThat(TypeUtil.isPromotionAllowed(Types.DecimalType.of(10, 2), Types.IntegerType.get()))
+        .isFalse();
+  }
 }
