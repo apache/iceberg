@@ -20,9 +20,13 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
-import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.util.Collector;
+import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -36,23 +40,27 @@ import org.apache.iceberg.flink.CatalogLoader;
  */
 @Internal
 class DynamicTableUpdateOperator
-    extends RichMapFunction<DynamicRecordInternal, DynamicRecordInternal> {
+    extends ProcessFunction<DynamicRecordInternal, DynamicRecordInternal> {
   private final CatalogLoader catalogLoader;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
+  private final boolean errorStreamEnabled;
 
   private transient TableUpdater updater;
+  private transient OutputTag<Tuple2<DynamicRecordInternal, Exception>> errorStream;
 
   DynamicTableUpdateOperator(
       CatalogLoader catalogLoader,
       int cacheMaximumSize,
       long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize) {
+      int inputSchemasPerTableCacheMaximumSize,
+      boolean errorStreamEnabled) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
+    this.errorStreamEnabled = errorStreamEnabled;
   }
 
   @Override
@@ -64,10 +72,37 @@ class DynamicTableUpdateOperator
             new TableMetadataCache(
                 catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize),
             catalog);
+
+    if (errorStreamEnabled) {
+      errorStream =
+          new OutputTag<>(
+              DynamicRecordProcessor.ERROR_STREAM,
+              // Make sure to write schema and spec, as they might noe be known.
+              new TupleTypeInfo<>(
+                  new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize),
+                  TypeInformation.of(Exception.class)));
+    }
   }
 
   @Override
-  public DynamicRecordInternal map(DynamicRecordInternal data) throws Exception {
+  public void processElement(
+      DynamicRecordInternal record, Context ctx, Collector<DynamicRecordInternal> out)
+      throws Exception {
+    try {
+      out.collect(processRecord(record));
+    } catch (Exception e) {
+      // Send erroneous record to side output
+      if (errorStreamEnabled) {
+        ctx.output(errorStream, Tuple2.of(record, e));
+      } else {
+        throw new RuntimeException(
+            "Error processing DynamicRecord. You can setup an error stream on the DynamicSink builder to process these records.",
+            e);
+      }
+    }
+  }
+
+  private DynamicRecordInternal processRecord(DynamicRecordInternal data) {
     Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
         updater.update(
             TableIdentifier.parse(data.tableName()), data.branch(), data.schema(), data.spec());

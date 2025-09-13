@@ -23,7 +23,14 @@ import static org.apache.iceberg.flink.TestFixtures.TABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import org.apache.flink.api.common.functions.OpenContext;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.util.Collector;
+import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
@@ -32,6 +39,7 @@ import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.mockito.Mockito;
 
 class TestDynamicTableUpdateOperator {
 
@@ -61,8 +69,9 @@ class TestDynamicTableUpdateOperator {
             CATALOG_EXTENSION.catalogLoader(),
             cacheMaximumSize,
             cacheRefreshMs,
-            inputSchemaCacheMaximumSize);
-    operator.open(null);
+            inputSchemaCacheMaximumSize,
+            false);
+    operator.open((OpenContext) null);
 
     DynamicRecordInternal input =
         new DynamicRecordInternal(
@@ -74,7 +83,7 @@ class TestDynamicTableUpdateOperator {
             42,
             false,
             Collections.emptySet());
-    DynamicRecordInternal output = operator.map(input);
+    DynamicRecordInternal output = processRecord(operator, input);
 
     assertThat(catalog.tableExists(table)).isTrue();
     assertThat(input).isEqualTo(output);
@@ -93,8 +102,9 @@ class TestDynamicTableUpdateOperator {
             CATALOG_EXTENSION.catalogLoader(),
             cacheMaximumSize,
             cacheRefreshMs,
-            inputSchemaCacheMaximumSize);
-    operator.open(null);
+            inputSchemaCacheMaximumSize,
+            false);
+    operator.open((OpenContext) null);
 
     catalog.createTable(table, SCHEMA1);
     DynamicRecordInternal input =
@@ -107,14 +117,102 @@ class TestDynamicTableUpdateOperator {
             42,
             false,
             Collections.emptySet());
-    DynamicRecordInternal output = operator.map(input);
+    DynamicRecordInternal output = processRecord(operator, input);
 
     assertThat(catalog.loadTable(table).schema().sameSchema(SCHEMA2)).isTrue();
     assertThat(input).isEqualTo(output);
 
     // Process the same input again
-    DynamicRecordInternal output2 = operator.map(input);
+    DynamicRecordInternal output2 = processRecord(operator, input);
     assertThat(output2).isEqualTo(output);
     assertThat(catalog.loadTable(table).schema().schemaId()).isEqualTo(output.schema().schemaId());
+  }
+
+  @Test
+  void testDynamicTableUpdateOperatorErrorStream() throws Exception {
+    int cacheMaximumSize = 10;
+    int cacheRefreshMs = 1000;
+    int inputSchemaCacheMaximumSize = 10;
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier table = TableIdentifier.of(TABLE);
+
+    AtomicInteger errorCount = new AtomicInteger();
+    AtomicReference<Tuple2<DynamicRecordInternal, Exception>> errorRecord = new AtomicReference<>();
+
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            CATALOG_EXTENSION.catalogLoader(),
+            cacheMaximumSize,
+            cacheRefreshMs,
+            inputSchemaCacheMaximumSize,
+            // Enable error stream
+            true);
+    operator.open((OpenContext) null);
+
+    // Create table with integer id field
+    catalog.createTable(table, SCHEMA1);
+
+    // Try to process record with incompatible schema (int -> boolean)
+    Schema incompatibleSchema =
+        new Schema(Types.NestedField.required(1, "id", Types.BooleanType.get()));
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            TABLE,
+            "branch",
+            incompatibleSchema,
+            GenericRowData.of(true),
+            PartitionSpec.unpartitioned(),
+            42,
+            false,
+            Collections.emptySet());
+
+    TestCollector collector = new TestCollector();
+
+    ProcessFunction.Context mockContext = Mockito.mock(ProcessFunction.Context.class);
+
+    Mockito.doAnswer(
+            invocation -> {
+              errorCount.incrementAndGet();
+              assertThat(((OutputTag) invocation.getArgument(0)).getId())
+                  .isEqualTo(DynamicRecordProcessor.ERROR_STREAM);
+              errorRecord.set(invocation.getArgument(1));
+              return null;
+            })
+        .when(mockContext)
+        .output(Mockito.any(OutputTag.class), Mockito.any(Tuple2.class));
+
+    operator.processElement(input, mockContext, collector);
+
+    // Verify error
+    assertThat(errorCount.get()).isEqualTo(1);
+    assertThat(errorRecord.get().f0).isEqualTo(input);
+    assertThat(errorRecord.get().f1.getMessage())
+        .contains("Cannot change column type: id: int -> boolean");
+
+    // Verify no output
+    assertThat(collector.getResult()).isNull();
+  }
+
+  private DynamicRecordInternal processRecord(
+      DynamicTableUpdateOperator operator, DynamicRecordInternal input) throws Exception {
+    TestCollector collector = new TestCollector();
+    operator.processElement(input, null, collector);
+    return collector.getResult();
+  }
+
+  private static class TestCollector implements Collector<DynamicRecordInternal> {
+    private DynamicRecordInternal result;
+
+    @Override
+    public void collect(DynamicRecordInternal record) {
+      this.result = record;
+    }
+
+    @Override
+    public void close() {}
+
+    public DynamicRecordInternal getResult() {
+      return result;
+    }
   }
 }

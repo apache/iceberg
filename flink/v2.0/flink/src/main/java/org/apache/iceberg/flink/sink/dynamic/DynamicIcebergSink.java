@@ -21,8 +21,11 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.api.connector.sink2.CommitterInitContext;
@@ -31,6 +34,8 @@ import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.api.connector.sink2.SupportsCommitter;
 import org.apache.flink.api.connector.sink2.WriterInitContext;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
@@ -43,11 +48,13 @@ import org.apache.flink.streaming.api.connector.sink2.SupportsPreCommitTopology;
 import org.apache.flink.streaming.api.connector.sink2.SupportsPreWriteTopology;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
+import org.apache.flink.streaming.api.datastream.SideOutputDataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
@@ -78,7 +85,6 @@ public class DynamicIcebergSink
   private final String uidPrefix;
   private final String sinkId;
   private final Map<String, String> writeProperties;
-  private final transient FlinkWriteConf flinkWriteConf;
   private final FileFormat dataFileFormat;
   private final long targetDataFileSize;
   private final boolean overwriteMode;
@@ -96,7 +102,6 @@ public class DynamicIcebergSink
     this.snapshotProperties = snapshotProperties;
     this.uidPrefix = uidPrefix;
     this.writeProperties = writeProperties;
-    this.flinkWriteConf = flinkWriteConf;
     this.dataFileFormat = flinkWriteConf.dataFileFormat();
     this.targetDataFileSize = flinkWriteConf.targetDataFileSize();
     this.overwriteMode = flinkWriteConf.overwriteMode();
@@ -186,6 +191,7 @@ public class DynamicIcebergSink
     private final Map<String, String> snapshotSummary = Maps.newHashMap();
     private ReadableConfig readableConfig = new Configuration();
     private boolean immediateUpdate = false;
+    @Nullable private Consumer<DataStream<Tuple2<DynamicRecord, Exception>>> errorStreamConsumer;
     private int cacheMaximumSize = 100;
     private long cacheRefreshMs = 1_000;
     private int inputSchemasPerTableCacheMaximumSize = 10;
@@ -304,6 +310,42 @@ public class DynamicIcebergSink
       return this;
     }
 
+    /**
+     * Sets a consumer for handling {@link DynamicRecord}s that fail to be processed.
+     *
+     * <p>When provided, the Dynamic Sink will create an error stream containing tuples of the
+     * original {@link DynamicRecord} and the {@link Exception} that caused the failure during
+     * DynamicRecord processing. This allows for graceful error handling and debugging without
+     * causing the entire job to fail.
+     *
+     * <p>DynamicRecord processing may fail during:
+     *
+     * <ul>
+     *   <li>Schema evolution or validation
+     *   <li>Partition spec updates
+     *   <li>Table metadata operations
+     *   <li>Data serialization
+     * </ul>
+     *
+     * <p>The error stream is useful for:
+     *
+     * <ul>
+     *   <li>Graceful error handling by processing failed records separately
+     *   <li>Debugging and monitoring processing failures
+     *   <li>Capturing error patterns for analysis
+     * </ul>
+     *
+     * <p>If not set, DynamicRecord processing errors will cause the job to fail with an exception.
+     *
+     * @param streamConsumer consumer that processes the error stream containing failed
+     *     DynamicRecords and their associated exceptions.
+     */
+    public Builder<T> errorStreamConsumer(
+        @Nullable Consumer<DataStream<Tuple2<DynamicRecord, Exception>>> streamConsumer) {
+      this.errorStreamConsumer = streamConsumer;
+      return this;
+    }
+
     /** Maximum size of the caches used in Dynamic Sink for table data and serializers. */
     public Builder<T> cacheMaxSize(int maxSize) {
       this.cacheMaximumSize = maxSize;
@@ -362,7 +404,7 @@ public class DynamicIcebergSink
      * @return {@link DataStreamSink} for sink.
      */
     public DataStreamSink<DynamicRecordInternal> append() {
-      DynamicRecordInternalType type =
+      DynamicRecordInternalType dynamicRecordInternalType =
           new DynamicRecordInternalType(catalogLoader, false, cacheMaximumSize);
       DynamicIcebergSink sink = build();
       SingleOutputStreamOperator<DynamicRecordInternal> converted =
@@ -374,32 +416,86 @@ public class DynamicIcebergSink
                       immediateUpdate,
                       cacheMaximumSize,
                       cacheRefreshMs,
-                      inputSchemasPerTableCacheMaximumSize))
+                      inputSchemasPerTableCacheMaximumSize,
+                      errorStreamConsumer != null))
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
-              .returns(type);
+              .returns(dynamicRecordInternalType);
 
-      DataStreamSink<DynamicRecordInternal> rowDataDataStreamSink =
+      SingleOutputStreamOperator<DynamicRecordInternal> updater =
           converted
               .getSideOutput(
                   new OutputTag<>(
                       DynamicRecordProcessor.DYNAMIC_TABLE_UPDATE_STREAM,
                       new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)))
               .keyBy((KeySelector<DynamicRecordInternal, String>) DynamicRecordInternal::tableName)
-              .map(
+              .process(
                   new DynamicTableUpdateOperator(
                       catalogLoader,
                       cacheMaximumSize,
                       cacheRefreshMs,
-                      inputSchemasPerTableCacheMaximumSize))
+                      inputSchemasPerTableCacheMaximumSize,
+                      errorStreamConsumer != null))
               .uid(prefixIfNotNull(uidPrefix, "-updater"))
               .name(operatorName("Updater"))
-              .returns(type)
-              .union(converted)
-              .sinkTo(sink)
-              .uid(prefixIfNotNull(uidPrefix, "-sink"));
-      if (sink.flinkWriteConf.writeParallelism() != null) {
-        rowDataDataStreamSink.setParallelism(sink.flinkWriteConf.writeParallelism());
+              .returns(dynamicRecordInternalType);
+
+      DataStreamSink<DynamicRecordInternal> rowDataDataStreamSink =
+          updater.union(converted).sinkTo(sink).uid(prefixIfNotNull(uidPrefix, "-sink"));
+
+      FlinkWriteConf flinkWriteConf = new FlinkWriteConf(writeOptions, readableConfig);
+      if (flinkWriteConf.writeParallelism() != null) {
+        rowDataDataStreamSink.setParallelism(flinkWriteConf.writeParallelism());
+      }
+
+      if (errorStreamConsumer != null) {
+        OutputTag<Tuple2<DynamicRecordInternal, Exception>> errorStreamOutputTag =
+            new OutputTag<>(
+                DynamicRecordProcessor.ERROR_STREAM,
+                // Use an instance of DynamicRecordInternalType which writes schema and spec. Schema
+                // and spec might not be known, especially if updating them fails.
+                new TupleTypeInfo<>(
+                    new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize),
+                    TypeInformation.of(Exception.class)));
+
+        SideOutputDataStream<Tuple2<DynamicRecordInternal, Exception>> erroneousFromProcessor =
+            converted.getSideOutput(errorStreamOutputTag);
+        SideOutputDataStream<Tuple2<DynamicRecordInternal, Exception>> erroneousFromUpdater =
+            updater.getSideOutput(errorStreamOutputTag);
+
+        DataStream<Tuple2<DynamicRecord, Exception>> errorStream =
+            erroneousFromProcessor
+                .union(erroneousFromUpdater)
+                .map(
+                    (MapFunction<
+                            Tuple2<DynamicRecordInternal, Exception>,
+                            Tuple2<DynamicRecord, Exception>>)
+                        tuple -> {
+                          DynamicRecordInternal record = tuple.f0;
+                          Exception exception = tuple.f1;
+                          return Tuple2.of(
+                              // We need to convert back to DynamicRecord to present the record in
+                              // its original format. We use Flink's Kryo serializer by default,
+                              // but it's possible for the user to set a different serializer
+                              // because we directly return the resulting stream to the error
+                              // consumer.
+                              new DynamicRecord(
+                                  TableIdentifier.parse(record.tableName()),
+                                  record.branch(),
+                                  record.schema(),
+                                  record.rowData(),
+                                  record.spec(),
+                                  null, // We don't have distribution mode available anymore
+                                  -1 // We don't have the write parallelism available anymore
+                                  ),
+                              exception);
+                        })
+                .returns(
+                    new TupleTypeInfo<>(
+                        TypeInformation.of(DynamicRecord.class),
+                        TypeInformation.of(Exception.class)));
+
+        errorStreamConsumer.accept(errorStream);
       }
 
       return rowDataDataStreamSink;
