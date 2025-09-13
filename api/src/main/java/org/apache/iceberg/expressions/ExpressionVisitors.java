@@ -143,7 +143,7 @@ public class ExpressionVisitors {
 
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
-      if (!(pred.term() instanceof BoundReference)) {
+      if (!(pred.term() instanceof BoundReference || (pred.term().ref() != null))) {
         return handleNonReference(pred.term());
       }
 
@@ -163,7 +163,11 @@ public class ExpressionVisitors {
           case NOT_EQ:
             return notEq((BoundReference<T>) pred.term(), literalPred.literal());
           case STARTS_WITH:
-            return startsWith((BoundReference<T>) pred.term(), literalPred.literal());
+            if (pred.term().ref() != null) {
+              return startsWith((BoundReference<T>) pred.term().ref(), literalPred.literal());
+            } else {
+              return startsWith((BoundReference<T>) pred.term(), literalPred.literal());
+            }
           case NOT_STARTS_WITH:
             return notStartsWith((BoundReference<T>) pred.term(), literalPred.literal());
           default:
