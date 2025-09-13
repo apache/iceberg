@@ -21,7 +21,8 @@ package org.apache.iceberg;
 import java.util.List;
 
 /** API for updating partition statistics files in a table. */
-public interface UpdatePartitionStatistics extends PendingUpdate<List<PartitionStatisticsFile>> {
+public interface UpdatePartitionStatistics
+    extends PendingUpdate<List<PartitionStatisticsFile>, Snapshot> {
   /**
    * Set the table's partition statistics file for given snapshot, replacing the previous partition
    * statistics file for the snapshot if any exists. No-op if the provided file is null.

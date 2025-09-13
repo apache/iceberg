@@ -29,4 +29,4 @@ package org.apache.iceberg;
  * will be resolved by applying the pending changes to the new table metadata.
  */
 public interface ReplaceSortOrder
-    extends PendingUpdate<SortOrder>, SortOrderBuilder<ReplaceSortOrder> {}
+    extends PendingUpdate<SortOrder, Snapshot>, SortOrderBuilder<ReplaceSortOrder> {}

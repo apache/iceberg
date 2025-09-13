@@ -49,10 +49,12 @@ public class SetStatistics implements UpdateStatistics {
   }
 
   @Override
-  public void commit() {
+  public Snapshot commit() {
     TableMetadata base = ops.current();
     TableMetadata newMetadata = internalApply(base);
     ops.commit(base, newMetadata);
+    // Return the current snapshot from the updated metadata
+    return newMetadata.currentSnapshot();
   }
 
   private TableMetadata internalApply(TableMetadata base) {
