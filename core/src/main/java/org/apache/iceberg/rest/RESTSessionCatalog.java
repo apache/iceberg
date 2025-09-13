@@ -501,6 +501,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         "Invalid metadata file location: %s",
         metadataFileLocation);
 
+    Namespace namespace = ident.namespace();
+    if (!namespaceExists(context, namespace)) {
+      throw new NoSuchNamespaceException(
+          "Cannot register table %s to catalog %s. Namespace does not exist: %s",
+          ident, name(), namespace);
+    }
+
     RegisterTableRequest request =
         ImmutableRegisterTableRequest.builder()
             .name(ident.name())
@@ -512,7 +519,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         client
             .withAuthSession(contextualSession)
             .post(
-                paths.register(ident.namespace()),
+                paths.register(namespace),
                 request,
                 LoadTableResponse.class,
                 Map.of(),
