@@ -20,6 +20,7 @@ package org.apache.iceberg.data.parquet;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.curator.shaded.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -32,13 +33,7 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
 
   private static final InternalReader<?> INSTANCE = new InternalReader<>();
 
-  private InternalReader() {}
-
-  @SuppressWarnings("unchecked")
-  public static <T extends StructLike> ParquetValueReader<T> create(
-      Schema expectedSchema, MessageType fileSchema) {
-    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema);
-  }
+  public InternalReader() {}
 
   @SuppressWarnings("unchecked")
   public static <T extends StructLike> ParquetValueReader<T> create(
@@ -46,11 +41,40 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
     return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
-  @Override
   @SuppressWarnings("unchecked")
+  public static <T extends StructLike> ParquetValueReader<T> create(
+      Schema expectedSchema, MessageType fileSchema) {
+    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema);
+  }
+
+  public static <T extends StructLike> ParquetValueReader<T> createWithType(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, Class<? extends StructLike>> customTypesById) {
+    return (ParquetValueReader<T>)
+        INSTANCE.createReader(expectedSchema, fileSchema, ImmutableMap.of(), customTypesById);
+  }
+
+  public <T extends StructLike> ParquetValueReader<T> reader(
+      Schema expectedSchema, MessageType fileSchema) {
+    return (ParquetValueReader<T>) createReader(expectedSchema, fileSchema);
+  }
+
+  @Override
   protected ParquetValueReader<T> createStructReader(
       List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return (ParquetValueReader<T>) ParquetValueReaders.recordReader(fieldReaders, structType);
+    throw new UnsupportedOperationException(
+        "createStructReader(List<ParquetValueReader<?>>, StructType) is not supported because "
+            + "InternalReader needs the fieldId to determine the type of struct to return");
+  }
+
+  @Override
+  protected ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders,
+      StructType structType,
+      Class<? extends StructLike> structClass) {
+    return (ParquetValueReader<T>)
+        ParquetValueReaders.structLikeReader(fieldReaders, structType, structClass);
   }
 
   @Override
