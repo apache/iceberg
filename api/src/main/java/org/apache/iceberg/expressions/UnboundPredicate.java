@@ -168,6 +168,14 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
           boundTerm.type());
     }
 
+    if (op() == Operation.ENDS_WITH || op() == Operation.NOT_ENDS_WITH) {
+      ValidationException.check(
+          boundTerm.type().equals(Types.StringType.get()),
+          "Term for ENDS_WITH or NOT_ENDS_WITH must produce a string: %s: %s",
+          boundTerm,
+          boundTerm.type());
+    }
+
     Literal<T> lit = literal().to(boundTerm.type());
 
     if (lit == null) {
@@ -276,6 +284,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         return term() + " startsWith \"" + literal() + "\"";
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal() + "\"";
+      case ENDS_WITH:
+        return term() + " endsWith \"" + literal() + "\"";
+      case NOT_ENDS_WITH:
+        return term() + " notEndsWith \"" + literal() + "\"";
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:

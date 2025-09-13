@@ -549,6 +549,30 @@ public class ParquetMetricsRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean endsWith(BoundReference<T> ref, Literal<T> lit) {
+      int id = ref.fieldId();
+
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      @SuppressWarnings("unchecked")
+      Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
+      if (colStats != null && !colStats.isEmpty() && allNulls(colStats, valueCount)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEndsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T min(Statistics<?> statistics, int id) {
       return (T) conversions.get(id).apply(statistics.genericGetMin());
