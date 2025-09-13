@@ -237,7 +237,8 @@ public class TestBase {
             .listFiles(
                 (dir, name) ->
                     !name.startsWith("snap")
-                        && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+                        && (Files.getFileExtension(name).equalsIgnoreCase("avro")
+                            || Files.getFileExtension(name).equalsIgnoreCase("parquet"))));
   }
 
   List<File> listManifestLists(File tableDirToList) {
@@ -276,7 +277,7 @@ public class TestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
-    File manifestFile = temp.resolve("input.m0.avro").toFile();
+    File manifestFile = temp.resolve(manifestExtension("input.m0")).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -298,13 +299,13 @@ public class TestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, ManifestEntry<?>... entries) throws IOException {
-    return writeManifest(snapshotId, "input.m0.avro", entries);
+    return writeManifest(snapshotId, manifestExtension("input.m0"), entries);
   }
 
   @SuppressWarnings("unchecked")
   <F extends ContentFile<F>> ManifestFile writeManifest(
       Long snapshotId, String fileName, ManifestEntry<?>... entries) throws IOException {
-    File manifestFile = temp.resolve(fileName).toFile();
+    File manifestFile = temp.resolve(manifestExtension(fileName)).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -334,8 +335,7 @@ public class TestBase {
       throws IOException {
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
-            FileFormat.AVRO.addExtension(
-                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+            temp.resolve(manifestExtension("junit" + System.nanoTime())).toString());
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
     try {
@@ -349,7 +349,7 @@ public class TestBase {
   }
 
   ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
-    File manifestFile = temp.resolve(name + ".avro").toFile();
+    File manifestFile = temp.resolve(manifestExtension(name)).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -465,7 +465,8 @@ public class TestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals(
@@ -577,7 +578,8 @@ public class TestBase {
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
 
@@ -603,7 +605,7 @@ public class TestBase {
       Iterator<DeleteFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DeleteFile> entry :
-        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs()).entries()) {
       DeleteFile file = entry.file();
       DeleteFile expected = expectedFiles.next();
 
@@ -750,6 +752,14 @@ public class TestBase {
     }
   }
 
+  protected String manifestExtension(String filename) {
+    if (formatVersion >= 4) {
+      return FileFormat.PARQUET.addExtension(filename);
+    } else {
+      return FileFormat.AVRO.addExtension(filename);
+    }
+  }
+
   private void move(String location, String newLocation) {
     Path path = Paths.get(location);
     Path tempPath = Paths.get(newLocation);
@@ -765,8 +775,9 @@ public class TestBase {
       ManifestFile manifest,
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
-      Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+      Iterator<ManifestEntry.Status> expectedStatuses,
+      Map<Integer, PartitionSpec> specs) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO, specs).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
@@ -804,8 +815,8 @@ public class TestBase {
     return Iterators.forArray(files);
   }
 
-  static Iterator<DataFile> files(ManifestFile manifest) {
-    return ManifestFiles.read(manifest, FILE_IO).iterator();
+  static Iterator<DataFile> files(ManifestFile manifest, Map<Integer, PartitionSpec> specs) {
+    return ManifestFiles.read(manifest, FILE_IO, specs).iterator();
   }
 
   static long recordCount(ContentFile<?>... files) {

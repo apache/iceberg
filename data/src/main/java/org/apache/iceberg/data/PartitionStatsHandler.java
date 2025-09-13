@@ -29,6 +29,7 @@ import java.util.UUID;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.PartitionStats;
@@ -39,7 +40,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.avro.InternalReader;
 import org.apache.iceberg.data.parquet.InternalWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
@@ -230,24 +230,7 @@ public class PartitionStatsHandler {
     Preconditions.checkArgument(
         fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
 
-    switch (fileFormat) {
-      case PARQUET:
-        return Parquet.read(inputFile)
-            .project(schema)
-            .createReaderFunc(
-                fileSchema ->
-                    org.apache.iceberg.data.parquet.InternalReader.create(schema, fileSchema))
-            .build();
-      case AVRO:
-        return Avro.read(inputFile)
-            .project(schema)
-            .createReaderFunc(fileSchema -> InternalReader.create(schema))
-            .build();
-      case ORC:
-        // Internal readers are not supported for ORC yet.
-      default:
-        throw new UnsupportedOperationException("Unsupported file format:" + fileFormat.name());
-    }
+    return InternalData.read(fileFormat, inputFile).project(schema).build();
   }
 
   private static PartitionStats recordToPartitionStats(StructLike record) {

@@ -16,27 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.data;
 
-import org.apache.iceberg.data.parquet.InternalReader;
-import org.apache.iceberg.data.parquet.InternalWriter;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.parquet.Parquet;
+import java.util.Map;
 
-public class InternalParquet {
-  private InternalParquet() {}
-
-  public static void register() {
-    InternalData.register(
-        FileFormat.PARQUET, InternalParquet::writeInternal, InternalParquet::readInternal);
-  }
-
-  private static Parquet.WriteBuilder writeInternal(OutputFile outputFile) {
-    return Parquet.write(outputFile).createWriterFunc(InternalWriter::createWriter);
-  }
-
-  private static Parquet.ReadBuilder readInternal(InputFile inputFile) {
-    return Parquet.read(inputFile).createInternalReader(new InternalReader<>());
-  }
+public interface HasMetadata {
+  Map<String, String> getMetadata();
 }
