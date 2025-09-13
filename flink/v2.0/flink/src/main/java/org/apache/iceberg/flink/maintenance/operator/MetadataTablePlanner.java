@@ -28,7 +28,6 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
@@ -99,7 +98,7 @@ public class MetadataTablePlanner extends ProcessFunction<Trigger, MetadataTable
       }
     } catch (Exception e) {
       LOG.warn("Exception planning scan for {} at {}", table, ctx.timestamp(), e);
-      ctx.output(DeleteOrphanFiles.ERROR_STREAM, e);
+      ctx.output(TaskResultAggregator.ERROR_STREAM, e);
       errorCounter.inc();
     }
   }
