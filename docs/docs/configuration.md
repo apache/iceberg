@@ -143,6 +143,23 @@ The properties can be manually constructed or passed in from a compute engine li
 Spark uses its session properties as catalog properties, see more details in the [Spark configuration](spark-configuration.md#catalog-configuration) section.
 Flink passes in catalog properties through `CREATE CATALOG` statement, see more details in the [Flink](flink.md#adding-catalogs) section.
 
+### Catalog REST auth properties
+
+The following catalog properties configure authentication for the REST catalog.
+They support Basic, OAuth2, and SigV4 authentication, in addition to the default none.
+
+| Property                          | Default            | Description                                            |
+| --------------------------------- | ------------------ | ------------------------------------------------------ |
+| rest.auth.type                    | none               | Authentication mechanism for REST catalog access. Supported values: `none`, `basic`, `oauth2`, `sigv4`. |
+| rest.auth.basic.username          | null               | Username for Basic authentication. Required if `rest.auth.type` = `basic`. |
+| rest.auth.basic.password          | null               | Password for Basic authentication. Required if `rest.auth.type` is `basic`. |
+| rest.auth.credential              | null               | Credential string (client_id:client_secret) exchanged for a token in the OAuth2 client-credentials flow. Required if `rest.auth.type` = `oauth2`. |
+| rest.auth.oauth2-server-uri       | null               | OAuth2 token endpoint URI. Required if the REST catalog is not the OAuth2 authentication server. Required if `rest.auth.type` = `oauth2`. |
+| rest.auth.token-expires-in-ms     | 3600000 (1 hour)   | Time in milliseconds after which a bearer token is considered expired. Used to decide when to refresh or re-exchange a token. |
+| rest.auth.token-refresh-enabled   | true               | Determines whether tokens are automatically refreshed when expiration details are available. |
+| rest.auth.scope                   | catalog            | Additional scope for OAuth2.                           |
+
+
 ### Lock catalog properties
 
 Here are the catalog properties related to locking. They are used by some catalog implementations to control the locking behavior during commits.
