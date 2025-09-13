@@ -613,4 +613,21 @@ public class TestSelect extends CatalogTestBase {
     assertEquals("Should return all expected rows", ImmutableList.of(row(1)), result);
     sql("DROP TABLE IF EXISTS %s", complexTypeTableName);
   }
+
+  @TestTemplate
+  public void testRequiredNestedFieldInOptionalStructFilter() {
+    String nestedStructTable = tableName("nested_struct_table");
+    sql(
+        "CREATE TABLE %s (id INT NOT NULL, address STRUCT<street: STRING NOT NULL>) "
+            + "USING iceberg",
+        nestedStructTable);
+    sql("INSERT INTO %s VALUES (0, NULL)", nestedStructTable);
+    sql("INSERT INTO %s VALUES (1, STRUCT('123 Main St'))", nestedStructTable);
+
+    List<Object[]> result =
+        sql("SELECT id FROM %s WHERE address.street IS NULL", nestedStructTable);
+
+    assertEquals("Should return all expected rows", ImmutableList.of(row(0)), result);
+    sql("DROP TABLE IF EXISTS %s", nestedStructTable);
+  }
 }
