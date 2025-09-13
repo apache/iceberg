@@ -96,7 +96,7 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
             "credential",
             "catalog:12345",
             // assume that the server supports view endpoints
-            RESTSessionCatalog.VIEW_ENDPOINTS_SUPPORTED,
+            RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED,
             "true",
             CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
             "catalog-default-key1",

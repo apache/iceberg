@@ -64,6 +64,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -104,12 +105,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
-  private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
-  private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
-  // for backwards compatibility with older REST servers where it can be assumed that a particular
-  // server supports view endpoints but doesn't send the "endpoints" field in the ConfigResponse
-  static final String VIEW_ENDPOINTS_SUPPORTED = "view-endpoints-supported";
-  public static final String REST_PAGE_SIZE = "rest-page-size";
+
+  /**
+   * @deprecated will be removed in 2.0.0. Use {@link
+   *     org.apache.iceberg.rest.RESTCatalogProperties#PAGE_SIZE} instead.
+   */
+  @Deprecated public static final String REST_PAGE_SIZE = "rest-page-size";
 
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
@@ -159,15 +160,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
 
-  enum SnapshotMode {
-    ALL,
-    REFS;
-
-    Map<String, String> params() {
-      return ImmutableMap.of("snapshots", this.name().toLowerCase(Locale.US));
-    }
-  }
-
   public RESTSessionCatalog() {
     this(
         config ->
@@ -212,7 +204,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     if (config.endpoints().isEmpty()) {
       this.endpoints =
-          PropertyUtil.propertyAsBoolean(mergedProps, VIEW_ENDPOINTS_SUPPORTED, false)
+          PropertyUtil.propertyAsBoolean(
+                  mergedProps,
+                  RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED,
+                  RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED_DEFAULT)
               ? ImmutableSet.<Endpoint>builder()
                   .addAll(DEFAULT_ENDPOINTS)
                   .addAll(VIEW_ENDPOINTS)
@@ -230,10 +225,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.catalogAuth = authManager.catalogSession(client, mergedProps);
     this.closeables.addCloseable(this.catalogAuth);
 
-    this.pageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
+    this.pageSize =
+        PropertyUtil.propertyAsNullableInt(mergedProps, RESTCatalogProperties.PAGE_SIZE);
     if (pageSize != null) {
       Preconditions.checkArgument(
-          pageSize > 0, "Invalid value for %s, must be a positive integer", REST_PAGE_SIZE);
+          pageSize > 0,
+          "Invalid value for %s, must be a positive integer",
+          RESTCatalogProperties.PAGE_SIZE);
     }
 
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
@@ -246,13 +244,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.snapshotMode =
         SnapshotMode.valueOf(
             PropertyUtil.propertyAsString(
-                    mergedProps, REST_SNAPSHOT_LOADING_MODE, SnapshotMode.ALL.name())
+                    mergedProps,
+                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
                 .toUpperCase(Locale.US));
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
 
     this.reportingViaRestEnabled =
-        PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
+        PropertyUtil.propertyAsBoolean(
+            mergedProps,
+            RESTCatalogProperties.METRICS_REPORTING_ENABLED,
+            RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
     super.initialize(name, mergedProps);
   }
 
@@ -366,6 +369,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
   }
 
+  private static Map<String, String> snapshotModeToParam(SnapshotMode mode) {
+    return ImmutableMap.of("snapshots", mode.name().toLowerCase(Locale.US));
+  }
+
   private LoadTableResponse loadInternal(
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
@@ -374,7 +381,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         .withAuthSession(contextualSession)
         .get(
             paths.table(identifier),
-            mode.params(),
+            snapshotModeToParam(mode),
             LoadTableResponse.class,
             Map.of(),
             ErrorHandlers.tableErrorHandler());
