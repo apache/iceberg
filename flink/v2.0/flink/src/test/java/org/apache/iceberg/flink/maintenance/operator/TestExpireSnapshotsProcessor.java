@@ -20,25 +20,48 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 class TestExpireSnapshotsProcessor extends OperatorTestBase {
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void testExpire(boolean success) throws Exception {
+
+  @Parameter(index = 0)
+  private boolean success;
+
+  @Parameter(index = 1)
+  private boolean collectResults;
+
+  @Parameter(index = 2)
+  private boolean cleanExpiredMetadata;
+
+  @Parameters(name = "success = {0},collectResults = {1},cleanExpiredMetadata = {2}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {true, true, true},
+        new Object[] {true, false, true},
+        new Object[] {false, true, false},
+        new Object[] {false, false, false});
+  }
+
+  @TestTemplate
+  void testExpire() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
@@ -47,7 +70,8 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     Queue<StreamRecord<String>> deletes;
     try (OneInputStreamOperatorTestHarness<Trigger, TaskResult> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10, false))) {
+            new ExpireSnapshotsProcessor(
+                tableLoader(), 0L, 1, 10, cleanExpiredMetadata, collectResults))) {
       testHarness.open();
 
       if (!success) {
@@ -79,9 +103,8 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void testCleanExpiredMetadata(boolean cleanExpiredMetadata) throws Exception {
+  @TestTemplate
+  void testCleanExpiredMetadata() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
@@ -93,7 +116,8 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     Queue<StreamRecord<String>> deletes;
     try (OneInputStreamOperatorTestHarness<Trigger, TaskResult> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10, cleanExpiredMetadata))) {
+            new ExpireSnapshotsProcessor(
+                tableLoader(), 0L, 1, 10, cleanExpiredMetadata, collectResults))) {
       testHarness.open();
 
       testHarness.processElement(Trigger.create(10, 11), System.currentTimeMillis());
