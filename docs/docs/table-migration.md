@@ -70,5 +70,5 @@ After the initial step (either Snapshot Table or Migrate Table), it is common to
 In practice, these files can be new data files in Hive tables or new snapshots (versions) of Delta Lake tables. The Add Files action is essential for incorporating these files into the Iceberg table.
 
 # Migrating From Different Table Formats
-* [From Hive to Iceberg](hive-migration.md)
-* [From Delta Lake to Iceberg](delta-lake-migration.md)
+- [From Hive to Iceberg](hive-migration.md)
+- [From Delta Lake to Iceberg](delta-lake-migration.md)

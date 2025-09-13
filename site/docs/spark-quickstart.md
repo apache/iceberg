@@ -121,25 +121,33 @@ You can then run any of the following commands to start a Spark session.
 
 === "SparkSQL"
 
-    ``` sh 
-    docker exec -it spark-iceberg spark-sql
-    ```
+```
+``` sh 
+docker exec -it spark-iceberg spark-sql
+```
+```
 
 === "Spark-Shell"
 
-    ``` sh 
-    docker exec -it spark-iceberg spark-shell
-    ```
+```
+``` sh 
+docker exec -it spark-iceberg spark-shell
+```
+```
 
 === "PySpark"
 
-    ``` sh 
-    docker exec -it spark-iceberg pyspark
-    ```
+```
+``` sh 
+docker exec -it spark-iceberg pyspark
+```
+```
 
 !!! note
 
-    You can also use the notebook server available at [http://localhost:8888](http://localhost:8888)
+```
+You can also use the notebook server available at [http://localhost:8888](http://localhost:8888)
+```
 
 ### Creating a table
 
@@ -149,57 +157,63 @@ using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database n
 
 === "SparkSQL"
 
-    ```sql
-    CREATE TABLE demo.nyc.taxis
-    (
-      vendor_id bigint,
-      trip_id bigint,
-      trip_distance float,
-      fare_amount double,
-      store_and_fwd_flag string
-    )
-    PARTITIONED BY (vendor_id);
-    ```
+```
+```sql
+CREATE TABLE demo.nyc.taxis
+(
+  vendor_id bigint,
+  trip_id bigint,
+  trip_distance float,
+  fare_amount double,
+  store_and_fwd_flag string
+)
+PARTITIONED BY (vendor_id);
+```
+```
 
 === "Spark-Shell"
 
-    ```scala
-    import org.apache.spark.sql.types._
-    import org.apache.spark.sql.Row
-    val schema = StructType( Array(
-        StructField("vendor_id", LongType,true),
-        StructField("trip_id", LongType,true),
-        StructField("trip_distance", FloatType,true),
-        StructField("fare_amount", DoubleType,true),
-        StructField("store_and_fwd_flag", StringType,true)
-    ))
-    val df = spark.createDataFrame(spark.sparkContext.emptyRDD[Row],schema)
-    df.writeTo("demo.nyc.taxis").create()
-    ```
+```
+```scala
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.Row
+val schema = StructType( Array(
+    StructField("vendor_id", LongType,true),
+    StructField("trip_id", LongType,true),
+    StructField("trip_distance", FloatType,true),
+    StructField("fare_amount", DoubleType,true),
+    StructField("store_and_fwd_flag", StringType,true)
+))
+val df = spark.createDataFrame(spark.sparkContext.emptyRDD[Row],schema)
+df.writeTo("demo.nyc.taxis").create()
+```
+```
 
 === "PySpark"
 
-    ```py
-    from pyspark.sql.types import DoubleType, FloatType, LongType, StructType,StructField, StringType
-    schema = StructType([
-      StructField("vendor_id", LongType(), True),
-      StructField("trip_id", LongType(), True),
-      StructField("trip_distance", FloatType(), True),
-      StructField("fare_amount", DoubleType(), True),
-      StructField("store_and_fwd_flag", StringType(), True)
-    ])
-    
-    df = spark.createDataFrame([], schema)
-    df.writeTo("demo.nyc.taxis").create()
-    ```
+```
+```py
+from pyspark.sql.types import DoubleType, FloatType, LongType, StructType,StructField, StringType
+schema = StructType([
+  StructField("vendor_id", LongType(), True),
+  StructField("trip_id", LongType(), True),
+  StructField("trip_distance", FloatType(), True),
+  StructField("fare_amount", DoubleType(), True),
+  StructField("store_and_fwd_flag", StringType(), True)
+])
+
+df = spark.createDataFrame([], schema)
+df.writeTo("demo.nyc.taxis").create()
+```
+```
 
 
 Iceberg catalogs support the full range of SQL DDL commands, including:
 
-* [`CREATE TABLE ... PARTITIONED BY`](docs/latest/spark-ddl.md#create-table)
-* [`CREATE TABLE ... AS SELECT`](docs/latest/spark-ddl.md#create-table--as-select)
-* [`ALTER TABLE`](docs/latest/spark-ddl.md#alter-table)
-* [`DROP TABLE`](docs/latest/spark-ddl.md#drop-table)
+- [`CREATE TABLE ... PARTITIONED BY`](docs/latest/spark-ddl.md#create-table)
+- [`CREATE TABLE ... AS SELECT`](docs/latest/spark-ddl.md#create-table--as-select)
+- [`ALTER TABLE`](docs/latest/spark-ddl.md#alter-table)
+- [`DROP TABLE`](docs/latest/spark-ddl.md#drop-table)
 
 ### Writing Data to a Table
 
@@ -207,40 +221,46 @@ Once your table is created, you can insert records.
 
 === "SparkSQL"
 
-    ```sql
-    INSERT INTO demo.nyc.taxis
-    VALUES (1, 1000371, 1.8, 15.32, 'N'), (2, 1000372, 2.5, 22.15, 'N'), (2, 1000373, 0.9, 9.01, 'N'), (1, 1000374, 8.4, 42.13, 'Y');
-    ```
+```
+```sql
+INSERT INTO demo.nyc.taxis
+VALUES (1, 1000371, 1.8, 15.32, 'N'), (2, 1000372, 2.5, 22.15, 'N'), (2, 1000373, 0.9, 9.01, 'N'), (1, 1000374, 8.4, 42.13, 'Y');
+```
+```
 
 === "Spark-Shell"
 
-    ```scala
-    import org.apache.spark.sql.Row
-    
-    val schema = spark.table("demo.nyc.taxis").schema
-    val data = Seq(
-        Row(1: Long, 1000371: Long, 1.8f: Float, 15.32: Double, "N": String),
-        Row(2: Long, 1000372: Long, 2.5f: Float, 22.15: Double, "N": String),
-        Row(2: Long, 1000373: Long, 0.9f: Float, 9.01: Double, "N": String),
-        Row(1: Long, 1000374: Long, 8.4f: Float, 42.13: Double, "Y": String)
-    )
-    val df = spark.createDataFrame(spark.sparkContext.parallelize(data), schema)
-    df.writeTo("demo.nyc.taxis").append()
-    ```
+```
+```scala
+import org.apache.spark.sql.Row
+
+val schema = spark.table("demo.nyc.taxis").schema
+val data = Seq(
+    Row(1: Long, 1000371: Long, 1.8f: Float, 15.32: Double, "N": String),
+    Row(2: Long, 1000372: Long, 2.5f: Float, 22.15: Double, "N": String),
+    Row(2: Long, 1000373: Long, 0.9f: Float, 9.01: Double, "N": String),
+    Row(1: Long, 1000374: Long, 8.4f: Float, 42.13: Double, "Y": String)
+)
+val df = spark.createDataFrame(spark.sparkContext.parallelize(data), schema)
+df.writeTo("demo.nyc.taxis").append()
+```
+```
 
 === "PySpark"
 
-    ```py
-    schema = spark.table("demo.nyc.taxis").schema
-    data = [
-        (1, 1000371, 1.8, 15.32, "N"),
-        (2, 1000372, 2.5, 22.15, "N"),
-        (2, 1000373, 0.9, 9.01, "N"),
-        (1, 1000374, 8.4, 42.13, "Y")
-      ]
-    df = spark.createDataFrame(data, schema)
-    df.writeTo("demo.nyc.taxis").append()
-    ```
+```
+```py
+schema = spark.table("demo.nyc.taxis").schema
+data = [
+    (1, 1000371, 1.8, 15.32, "N"),
+    (2, 1000372, 2.5, 22.15, "N"),
+    (2, 1000373, 0.9, 9.01, "N"),
+    (1, 1000374, 8.4, 42.13, "Y")
+  ]
+df = spark.createDataFrame(data, schema)
+df.writeTo("demo.nyc.taxis").append()
+```
+```
 
 ### Reading Data from a Table
 
@@ -249,21 +269,27 @@ To read a table, simply use the Iceberg table's name.
 
 === "SparkSQL"
 
-    ```sql
-    SELECT * FROM demo.nyc.taxis;
-    ```
+```
+```sql
+SELECT * FROM demo.nyc.taxis;
+```
+```
 
 === "Spark-Shell"
 
-    ```scala
-    val df = spark.table("demo.nyc.taxis").show()
-    ```
+```
+```scala
+val df = spark.table("demo.nyc.taxis").show()
+```
+```
 
 === "PySpark"
 
-    ```py
-    df = spark.table("demo.nyc.taxis").show()
-    ```
+```
+```py
+df = spark.table("demo.nyc.taxis").show()
+```
+```
 
 ### Adding A Catalog
 
@@ -276,29 +302,33 @@ This configuration creates a path-based catalog named `local` for tables under `
 
 === "CLI"
 
-    ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}\
-        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
-        --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
-        --conf spark.sql.catalog.spark_catalog.type=hive \
-        --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
-        --conf spark.sql.catalog.local.type=hadoop \
-        --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
-        --conf spark.sql.defaultCatalog=local
-    ```
+```
+```sh
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}\
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
+    --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
+    --conf spark.sql.catalog.spark_catalog.type=hive \
+    --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.local.type=hadoop \
+    --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
+    --conf spark.sql.defaultCatalog=local
+```
+```
 
 === "spark-defaults.conf"
 
-    ```sh
-    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
-    spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-    spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
-    spark.sql.catalog.spark_catalog.type                 hive
-    spark.sql.catalog.local                              org.apache.iceberg.spark.SparkCatalog
-    spark.sql.catalog.local.type                         hadoop
-    spark.sql.catalog.local.warehouse                    $PWD/warehouse
-    spark.sql.defaultCatalog                             local
-    ```
+```
+```sh
+spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
+spark.sql.catalog.spark_catalog.type                 hive
+spark.sql.catalog.local                              org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.local.type                         hadoop
+spark.sql.catalog.local.warehouse                    $PWD/warehouse
+spark.sql.defaultCatalog                             local
+```
+```
 
 !!! note
     If your Iceberg catalog is not set as the default catalog, you will have to switch to it by executing `USE local;`
@@ -311,21 +341,27 @@ If you already have a Spark environment, you can add Iceberg, using the `--packa
 
 === "SparkSQL"
 
-    ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
-    ```
+```
+```sh
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+```
+```
 
 === "Spark-Shell"
 
-    ```sh
-    spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
-    ```
+```
+```sh
+spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+```
+```
 
 === "PySpark"
 
-    ```sh
-    pyspark --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
-    ```
+```
+```sh
+pyspark --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+```
+```
 
 !!! note
     If you want to include Iceberg in your Spark installation, add the Iceberg Spark runtime to Spark's `jars` folder.

@@ -65,7 +65,6 @@ Hive supports the following features with Hive version 4.0.0 and above:
 !!! warning
     DML operations work only with Tez execution engine.
 
-
 ## Enabling Iceberg support in Hive
 
 Starting from 1.8.0 Iceberg doesn't release Hive runtime connector. For Hive query engine integration (specifically
@@ -244,12 +243,11 @@ The supported transformations for Hive are the same as for Spark:
 * hours(ts) or date_hour(ts): equivalent to dateint and hour partitioning
 * bucket(N, col): partition by hashed value mod N buckets
 * truncate(L, col): partition by value truncated to L
-     - Strings are truncated to the given length
-     - Integers and longs truncate to bins: truncate(10, i) produces partitions 0, 10, 20, 30,
+  * Strings are truncated to the given length
+  * Integers and longs truncate to bins: truncate(10, i) produces partitions 0, 10, 20, 30,
 
 !!! info
     The resulting table does not create partitions in HMS, but instead, converts partition data into Iceberg partitions.
-
 
 ### CREATE TABLE AS SELECT
 
@@ -267,7 +265,7 @@ CREATE TABLE target PARTITIONED BY SPEC (year(year_field), identity_field) STORE
 ```sql
 CREATE TABLE target LIKE source STORED BY ICEBERG;
 ```
- 
+
 ### CREATE EXTERNAL TABLE overlaying an existing Iceberg table
 
 The `CREATE EXTERNAL TABLE` command is used to overlay a Hive table "on top of" an existing Iceberg table. Iceberg
@@ -342,7 +340,7 @@ TBLPROPERTIES ('iceberg.catalog'='hadoop_cat');
 ### ALTER TABLE
 #### Table properties
 For HiveCatalog tables the Iceberg table properties and the Hive table properties stored in HMS are kept in sync.
-    
+  
 !!! info
     IMPORTANT: This feature is not available for other Catalog implementations.
 
@@ -382,7 +380,6 @@ ALTER TABLE orders REPLACE COLUMNS (remaining string);
 !!! info
     Note, that dropping columns is only thing REPLACE COLUMNS can be used for
     i.e. if columns are specified out-of-order an error will be thrown signalling this limitation.
-
 
 #### Partition evolution
 You change the partitioning schema using the following commands:
@@ -530,8 +527,8 @@ DROP TABLE [IF EXISTS] table_name [PURGE];
 
 ### METADATA LOCATION
 
-The metadata location (snapshot location) only can be changed if the new path contains the exact same metadata json. 
-It can be done only after migrating the table to Iceberg, the two operation cannot be done in one step. 
+The metadata location (snapshot location) only can be changed if the new path contains the exact same metadata json.
+It can be done only after migrating the table to Iceberg, the two operation cannot be done in one step.
 
 ```sql
 ALTER TABLE t set TBLPROPERTIES ('metadata_location'='<path>/hivemetadata/00003-a1ada2b8-fc86-4b5b-8c91-400b6b46d0f2.metadata.json');
@@ -556,7 +553,7 @@ Here are the features highlights for Iceberg Hive read support:
 Some of the advanced / little used optimizations are not yet implemented for Iceberg tables, so you should check your individual queries.
 Also currently the statistics stored in the MetaStore are used for query planning. This is something we are planning to improve in the future.
 
-Hive 4 supports select operations on branches which also work similar to the table level select operations. However, the branch must be provided as follows - 
+Hive 4 supports select operations on branches which also work similar to the table level select operations. However, the branch must be provided as follows -
 ```sql
 -- Branches should be specified as <database_name>.<table_name>.branch_<branch_name>
 SELECT * FROM default.test.branch_branch1;
