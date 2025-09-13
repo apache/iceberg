@@ -324,7 +324,7 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 
 ### Documentation Release
 
-Please follow the instructions on the GitHub repository in the [`README.md` in the `site/`](https://github.com/apache/iceberg/tree/main/site) directory.
+
 
 #### Versioned Docs
 
@@ -359,6 +359,10 @@ cp -R apache-iceberg-1.8.0/site/docs/javadoc/1.8.0 1.8.0
 ```
 
 Once this is done, create a PR against the `javadoc` branch, similar to https://github.com/apache/iceberg/pull/12412.
+
+#### Versioned docs and javadoc release
+
+Please follow the instructions on the GitHub repository in the [`README.md` in the `site/`](https://github.com/apache/iceberg/tree/main/site) directory.
 
 #### Site update
 
