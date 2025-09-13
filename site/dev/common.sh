@@ -123,7 +123,7 @@ get_latest_version () {
   local latest_version=$(basename "${latest}")  
 
   # Output the latest version number
-  echo "latest version is ${latest_version}"
+  echo "${latest_version}"
 }
 
 # Creates a 'latest' version of the documentation based on a specified ICEBERG_VERSION.
@@ -225,10 +225,10 @@ pull_versioned_docs () {
   local latest_version=$(get_latest_version)  
 
   # Output the latest version for debugging purposes
-  echo "latest version is: ${latest_version}"
+  echo "Latest version is: ${latest_version}"
   
   # Create the 'latest' version of documentation
-  create_latest "${latest_version}"  
+  create_latest "${latest_version}"
 
   # Create the 'nightly' version of documentation
   create_nightly  
