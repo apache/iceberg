@@ -461,11 +461,18 @@ public class SparkWriteConf {
         .parse();
   }
 
+  private String wapBranch() {
+    return confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
+  }
+
+  public boolean isWapBranch() {
+    return wapBranch() != null;
+  }
+
   public String branch() {
     if (wapEnabled()) {
       String wapId = wapId();
-      String wapBranch =
-          confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
+      String wapBranch = wapBranch();
 
       ValidationException.check(
           wapId == null || wapBranch == null,
