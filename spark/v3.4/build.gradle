@@ -33,6 +33,8 @@ configure(sparkProjects) {
         force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson214.get()}"
         force "com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson214.get()}"
         force "com.fasterxml.jackson.core:jackson-core:${libs.versions.jackson214.get()}"
+        force "org.apache.hadoop:hadoop-client-api:${libs.versions.hadoop3.get()}"
+        force "org.apache.hadoop:hadoop-client-runtime:${libs.versions.hadoop3.get()}"
       }
     }
   }
