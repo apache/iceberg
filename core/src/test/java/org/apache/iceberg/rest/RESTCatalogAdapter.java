@@ -24,8 +24,10 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.hadoop.util.Preconditions;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
@@ -47,6 +49,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
+import org.apache.iceberg.exceptions.NotModifiedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -83,6 +86,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
       ImmutableMap.<Class<? extends Exception>, Integer>builder()
+          .put(NotModifiedException.class, 304)
           .put(IllegalArgumentException.class, 400)
           .put(ValidationException.class, 400)
           .put(NamespaceNotEmptyException.class, 409)
@@ -425,11 +429,23 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
       case LOAD_TABLE:
         {
-          LoadTableResponse response =
-              CatalogHandlers.loadTable(catalog, tableIdentFromPathVars(vars));
+          TableIdentifier ident = tableIdentFromPathVars(vars);
 
-          responseHeaders.accept(
-              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+          LoadTableResponse response = CatalogHandlers.loadTable(catalog, ident);
+
+          Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
+              httpRequest.headers().entries().stream()
+                  .filter(e -> e.name().equals(HttpHeaders.IF_NONE_MATCH))
+                  .findFirst();
+
+          String eTag = ETagProvider.of(response.metadataLocation());
+          Preconditions.checkNotNull(eTag, "ETag is null");
+
+          if (ifNoneMatchHeader.isPresent() && eTag.equals(ifNoneMatchHeader.get().value())) {
+            throw new NotModifiedException("Table %s is not modified", ident.toString());
+          }
+
+          responseHeaders.accept(ImmutableMap.of(HttpHeaders.ETAG, eTag));
 
           return castResponse(responseType, response);
         }

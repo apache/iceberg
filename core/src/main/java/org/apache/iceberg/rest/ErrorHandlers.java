@@ -29,6 +29,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
+import org.apache.iceberg.exceptions.NotModifiedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
@@ -111,6 +112,8 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
+        case 304:
+          throw new NotModifiedException("%s", error.message());
         case 404:
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
             throw new NoSuchNamespaceException("%s", error.message());
