@@ -104,7 +104,7 @@ public class PartitionStatsHandlerBenchmark {
     List<PartitionStats> stats;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
-            PartitionStatsHandler.schema(Partitioning.partitionType(table)),
+            PartitionStatsHandler.schema(Partitioning.partitionType(table), 2),
             Files.localInput(statisticsFile.path()))) {
       stats = Lists.newArrayList(recordIterator);
     }

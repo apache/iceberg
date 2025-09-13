@@ -617,7 +617,7 @@ public abstract class PartitionStatsHandlerTestBase {
     Table testTable =
         TestTables.create(tempDir("old_schema"), "old_schema", SCHEMA, spec, 2, fileFormatProperty);
     Types.StructType partitionType = Partitioning.partitionType(testTable);
-    Schema newSchema = PartitionStatsHandler.schema(partitionType);
+    Schema newSchema = PartitionStatsHandler.schema(partitionType, 2);
     Schema oldSchema = invalidOldSchema(partitionType);
 
     PartitionStatisticsFile invalidStatisticsFile =
@@ -667,7 +667,7 @@ public abstract class PartitionStatsHandlerTestBase {
     List<PartitionStats> partitionStats;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
-            PartitionStatsHandler.schema(partitionType),
+            PartitionStatsHandler.schema(partitionType, 2),
             testTable.io().newInputFile(statisticsFile.path()))) {
       partitionStats = Lists.newArrayList(recordIterator);
     }

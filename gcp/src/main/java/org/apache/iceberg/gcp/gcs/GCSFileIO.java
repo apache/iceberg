@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
@@ -89,23 +88,6 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   public GCSFileIO(SerializableSupplier<Storage> storageSupplier) {
     this.storageSupplier = storageSupplier;
     this.properties = SerializableMap.copyOf(Maps.newHashMap());
-  }
-
-  /**
-   * Constructor with custom storage supplier and GCP properties.
-   *
-   * <p>Calling {@link GCSFileIO#initialize(Map)} will overwrite information set in this
-   * constructor.
-   *
-   * @param storageSupplier storage supplier
-   * @param gcpProperties gcp properties
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     GCSFileIO#GCSFileIO(SerializableSupplier)} with {@link GCSFileIO#initialize(Map)} instead
-   */
-  @Deprecated
-  public GCSFileIO(SerializableSupplier<Storage> storageSupplier, GCPProperties gcpProperties) {
-    this.storageSupplier = storageSupplier;
-    this.properties = SerializableMap.copyOf(gcpProperties.properties());
   }
 
   @Override
