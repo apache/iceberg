@@ -90,7 +90,7 @@ public abstract class TestMetrics {
           required(1, "intCol", IntegerType.get()),
           required(2, "nestedStructCol", NESTED_STRUCT_TYPE));
 
-  private static final Schema SIMPLE_SCHEMA =
+  static final Schema SIMPLE_SCHEMA =
       new Schema(
           optional(1, "booleanCol", BooleanType.get()),
           required(2, "intCol", IntegerType.get()),

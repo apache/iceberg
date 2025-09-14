@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.Immutable;
+import org.apache.hadoop.classification.VisibleForTesting;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -214,6 +215,7 @@ public final class MetricsConfig implements Serializable {
     // Handle user override of default mode
     MetricsMode defaultMode;
     String configuredDefault = props.get(DEFAULT_WRITE_METRICS_MODE);
+    boolean applyMaxInferredDefaultColumns = false;
 
     if (configuredDefault != null) {
       // a user-configured default mode is applied for all columns
@@ -226,10 +228,7 @@ public final class MetricsConfig implements Serializable {
         // everywhere
         defaultMode = DEFAULT_MODE;
       } else {
-        for (Integer id : limitFieldIds(schema, maxInferredDefaultColumns)) {
-          columnModes.put(schema.findColumnName(id), DEFAULT_MODE);
-        }
-
+        applyMaxInferredDefaultColumns = true;
         // all other columns don't use metrics
         defaultMode = MetricsModes.None.get();
       }
@@ -238,18 +237,46 @@ public final class MetricsConfig implements Serializable {
     // First set sorted column with sorted column default (can be overridden by user)
     MetricsMode sortedColDefaultMode = sortedColumnDefaultMode(defaultMode);
     Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
-    sortedCols.forEach(sc -> columnModes.put(sc, sortedColDefaultMode));
+    sortedCols.stream()
+        .filter(sc -> columnModes.size() < maxInferredDefaultColumns)
+        .forEach(sc -> columnModes.put(sc, sortedColDefaultMode));
 
     // Handle user overrides of defaults
     for (String key : props.keySet()) {
       if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
+        if (columnModes.size() >= maxInferredDefaultColumns) {
+          LOG.warn(
+              "Exhausted Max Inferred default columns ({}). Skipping column {} even for which mode configured explicitly",
+              maxInferredDefaultColumns,
+              key);
+          break;
+        }
         String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
         MetricsMode mode = parseMode(props.get(key), defaultMode, "column " + columnAlias);
         columnModes.put(columnAlias, mode);
       }
     }
 
+    if (applyMaxInferredDefaultColumns) {
+      // Limit all other fields coming from schema
+      for (Integer id : limitFieldIds(schema, maxInferredDefaultColumns)) {
+        String columnName = schema.findColumnName(id);
+        if (columnModes.size() >= maxInferredDefaultColumns) {
+          LOG.warn(
+              "Exhausted Max Inferred default columns ({}). Skipping column {} from schema",
+              maxInferredDefaultColumns,
+              columnName);
+          break;
+        }
+        columnModes.put(columnName, DEFAULT_MODE);
+      }
+    }
     return new MetricsConfig(columnModes, defaultMode);
+  }
+
+  @VisibleForTesting
+  Map<String, MetricsModes.MetricsMode> getColumnModes() {
+    return columnModes;
   }
 
   /**
