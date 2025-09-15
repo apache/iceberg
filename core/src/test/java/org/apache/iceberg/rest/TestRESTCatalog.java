@@ -76,7 +76,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
-import org.apache.iceberg.rest.RESTSessionCatalog.SnapshotMode;
+import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
@@ -888,13 +888,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testSnapshotParams() {
-    assertThat(SnapshotMode.ALL.params()).isEqualTo(ImmutableMap.of("snapshots", "all"));
-
-    assertThat(SnapshotMode.REFS.params()).isEqualTo(ImmutableMap.of("snapshots", "refs"));
-  }
-
-  @Test
   public void testTableSnapshotLoading() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
@@ -908,8 +901,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
             // default loading to refs only
-            "snapshot-loading-mode",
-            "refs"));
+            RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+            SnapshotMode.REFS.name()));
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TABLE.namespace());
@@ -1004,8 +997,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "ignored",
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
-            "snapshot-loading-mode",
-            "refs"));
+            RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+            SnapshotMode.REFS.name()));
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TABLE.namespace());
@@ -1137,8 +1130,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "ignored",
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
-            "snapshot-loading-mode",
-            "refs"));
+            RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+            SnapshotMode.REFS.name()));
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TABLE.namespace());
@@ -2307,13 +2300,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     assertThatThrownBy(
             () ->
-                catalog.initialize(
-                    "test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "-1")))
+                catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "-1")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             String.format(
                 "Invalid value for %s, must be a positive integer",
-                RESTSessionCatalog.REST_PAGE_SIZE));
+                RESTCatalogProperties.PAGE_SIZE));
   }
 
   @ParameterizedTest
@@ -2322,7 +2314,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
+    catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "10"));
     String namespaceName = "newdb";
 
     // create several namespaces for listing and verify
@@ -2381,7 +2373,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
+    catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "10"));
     String namespaceName = "newdb";
     String tableName = "newtable";
     Namespace namespace = Namespace.of(namespaceName);
