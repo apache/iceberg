@@ -32,3 +32,8 @@ deploy: # Clean, build, and deploy the Iceberg docs site.
 .PHONY: clean
 clean: # Clean the local docs site.
 	dev/clean.sh
+
+.PHONY: lint
+lint: # Lint markdown files
+	dev/lint.sh
+

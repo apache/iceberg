@@ -162,7 +162,6 @@ cd apache-iceberg-1.8.0
 
 To build and publish the convenience binaries, run the `dev/stage-binaries.sh` script. This will push to a release staging repository.
 
-
 ```
 dev/stage-binaries.sh
 ```
@@ -173,7 +172,7 @@ Next, you need to close the staging repository:
 2. In the menu on the left, choose "Staging Repositories"
 3. Select the Iceberg repository
    * If multiple staging repositories are created after running the script, verify that gradle parallelism is disabled and try again.
-   * Multiple staging repositories can be created if the script is run in a corporate network 
+   * Multiple staging repositories can be created if the script is run in a corporate network
    with a proxy that has floating IPs for outbound requests. You can verify this by checking
    the client IP address in the `Activity` tab of the staging repositories. To avoid this, you
    can run the `dev/stage-binaries.sh` script outside the corporate network.
@@ -245,7 +244,6 @@ The vote result is:
 Therefore, the release candidate is passed/rejected.
 ```
 
-
 ### Finishing the release
 
 After the release vote has passed, you need to release the last candidate's artifacts.
@@ -305,12 +303,12 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 
 #### Update GitHub
 
-- Create a PR in the `iceberg` repo to add the new version to the github issue template. For an example see [this PR](https://github.com/apache/iceberg/pull/6287).
-- Draft [a new release to update Github](https://github.com/apache/iceberg/releases/new) to show the latest release. A changelog can be generated automatically using Github.
+* Create a PR in the `iceberg` repo to add the new version to the github issue template. For an example see [this PR](https://github.com/apache/iceberg/pull/6287).
+* Draft [a new release to update Github](https://github.com/apache/iceberg/releases/new) to show the latest release. A changelog can be generated automatically using Github.
 
 #### Update DOAP (ASF Project Description)
 
-- Create a PR to update the release version in [doap.rdf](https://github.com/apache/iceberg/blob/main/doap.rdf) file, in the `<release/>` section:
+* Create a PR to update the release version in [doap.rdf](https://github.com/apache/iceberg/blob/main/doap.rdf) file, in the `<release/>` section:
 
 ```xml
     <release>
@@ -328,7 +326,7 @@ Please follow the instructions on the GitHub repository in the [`README.md` in t
 
 #### Versioned Docs
 
-The versioned docs is located in the `docs` directory within the source of the released tag (e.g. https://github.com/apache/iceberg/tree/apache-iceberg-1.8.0/docs). 
+The versioned docs is located in the `docs` directory within the source of the released tag (e.g. https://github.com/apache/iceberg/tree/apache-iceberg-1.8.0/docs).
 Check out the `docs` branch in the `iceberg` repo and copy the versioned docs over:
 
 ```
@@ -362,7 +360,7 @@ Once this is done, create a PR against the `javadoc` branch, similar to https://
 
 #### Site update
 
-Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12242, 
+Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12242,
 to update the Iceberg version, the links to the new version's documentation, and the release notes.
 
 # How to Verify a Release
@@ -380,11 +378,11 @@ license documentation.
 
 Release announcements include links to the following:
 
-- **A source tarball**
-- **A signature (.asc)**
-- **A checksum (.sha512)**
-- **KEYS file**
-- **GitHub change comparison**
+* **A source tarball**
+* **A signature (.asc)**
+* **A checksum (.sha512)**
+* **KEYS file**
+* **GitHub change comparison**
 
 After downloading the source tarball, signature, checksum, and KEYS file, here are instructions on how to
 verify signatures, checksums, and documentation.
@@ -486,7 +484,6 @@ sql-client.sh embedded \
     -j flink-connector-hive_2.12-1.20.jar \
     shell
 ```
-
 
 ## Voting
 

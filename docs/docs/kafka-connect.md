@@ -70,7 +70,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.evolve-schema-enabled       | Set to `true` to add any missing record fields to the table schema, default is `false`                           |
 | iceberg.tables.schema-force-optional       | Set to `true` to set columns as optional during table create and evolution, default is `false` to respect schema |
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
-| iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
+| iceberg.tables.auto-create-props.*| Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
 | iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
 | iceberg.table.<_table-name_\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
@@ -80,12 +80,12 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.control.group-id-prefix            | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
-| iceberg.control.commit.threads             | Number of threads to use for commits, default is (cores * 2)                                                     |
+| iceberg.control.commit.threads             | Number of threads to use for commits, default is (cores *2)                                                     |
 | iceberg.coordinator.transactional.prefix   | Prefix for the transactional id to use for the coordinator producer, default is to use no/empty prefix           |
 | iceberg.catalog                            | Name of the catalog, default is `iceberg`                                                                        |
 | iceberg.catalog.*                          | Properties passed through to Iceberg catalog initialization                                                      |
 | iceberg.hadoop-conf-dir                    | If specified, Hadoop config files in this directory will be loaded                                               |
-| iceberg.hadoop.*                           | Properties passed through to the Hadoop configuration                                                            |
+| iceberg.hadoop.*| Properties passed through to the Hadoop configuration                                                            |
 | iceberg.kafka.*                            | Properties passed through to control topic Kafka client initialization                                           |
 
 If `iceberg.tables.dynamic-enabled` is `false` (the default) then you must specify `iceberg.tables`. If
@@ -397,7 +397,7 @@ The `DmsTransform` SMT transforms an AWS DMS formatted message for use by the si
 It will promote the `data` element fields to top level and add the following metadata fields:
 `_cdc.op`, `_cdc.ts`, and `_cdc.source`.
 
-##### Configuration
+#### Configuration
 
 The SMT currently has no configuration.
 
@@ -408,7 +408,7 @@ The `DebeziumTransform` SMT transforms a Debezium formatted message for use by t
 It will promote the `before` or `after` element fields to top level and add the following metadata fields:
 `_cdc.op`, `_cdc.ts`, `_cdc.offset`, `_cdc.source`, `_cdc.target`, and `_cdc.key`.
 
-##### Configuration
+#### Configuration
 
 | Property            | Description                                                                       |
 |---------------------|-----------------------------------------------------------------------------------|
@@ -429,11 +429,11 @@ Map (String) columns for the JSON objects.
 
 Note:
 
-- You must use the `stringConverter` as the `value.converter` setting for your connector, not `jsonConverter`
-    - It expects JSON objects (`{...}`) in those strings.
-- Message keys, tombstones, and headers are not transformed and are passed along as-is by the SMT
+* You must use the `stringConverter` as the `value.converter` setting for your connector, not `jsonConverter`
+  * It expects JSON objects (`{...}`) in those strings.
+* Message keys, tombstones, and headers are not transformed and are passed along as-is by the SMT
 
-##### Configuration
+#### Configuration
 
 | Property             | Description  (default value)             |
 |----------------------|------------------------------------------|
@@ -497,9 +497,9 @@ The `KafkaMetadata` injects `topic`, `partition`, `offset`, `timestamp` which ar
 
 | Property       | Description (default value)                                                       |
 |----------------|-----------------------------------------------------------------------------------|
-| field_name     | (_kafka_metadata) prefix for fields                                               | 
+| field_name     | (_kafka_metadata) prefix for fields                                               |
 | nested         | (false) if true, nests data on a struct else adds to top level as prefixed fields |
-| external_field | (none) appends a constant `key,value` to the metadata (e.g. cluster name)         | 
+| external_field | (none) appends a constant `key,value` to the metadata (e.g. cluster name)         |
 
 If `nested` is on:
 
@@ -528,5 +528,5 @@ all elements for a given array instance are of the same type. This option is a r
 easy processing of arrays by downstream clients.
 
 Value document will convert the array into a struct of structs in the similar way as done by BSON serialization.
-The main struct contains fields named _0, _1, _2 etc. where the name represents the index of the element in the array.
+The main struct contains fields named _0,_1, _2 etc. where the name represents the index of the element in the array.
 Every element is then passed as the value for the given field.

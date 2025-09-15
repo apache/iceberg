@@ -61,7 +61,7 @@ Here is a list of talks and other videos related to Iceberg.
 **Date**: January 30, 2025, **Authors**: Danfeng Xu
 
 ### [From Passive to Powerful, How Storage-Acceleration can Supercharge Iceberg Query Performance](https://www.youtube.com/watch?v=3aZlxPFJR2s)
-**Date**: January 30, 2025, **Authors**: Kartik Kulkarni 
+**Date**: January 30, 2025, **Authors**: Kartik Kulkarni
 
 ### [Iceberg Metadata for Variant Support](https://youtu.be/MKqllL_D-fs)
 **Date**: January 30, 2025, **Authors**: Aihua Xu
@@ -154,4 +154,4 @@ Here is a list of talks and other videos related to Iceberg.
 **Date**: October 21, 2020, **Authors**: Anton Okolnychyi, Vishwa Lakkundi
 
 ### [Apache Iceberg - A Table Format for Huge Analytic Datasets](https://www.youtube.com/watch?v=mf8Hb0coI6o)
-**Date**: October 21, 2020, **Author**: Ryan Blue 
+**Date**: October 21, 2020, **Author**: Ryan Blue

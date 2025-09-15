@@ -17,15 +17,6 @@
 #
 
 source dev/common.sh
-
 set -e
 
-clean
-
-install_deps
-
-pull_versioned_docs
-
-scan_markdown_files
-
-git show "${REMOTE}/main:../.asf.yaml" > docs/.asf.yaml
+fix_markdown_files
