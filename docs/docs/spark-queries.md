@@ -389,6 +389,13 @@ SELECT * from prod.db.table.position_deletes;
 | -- | -- | -- | -- |  -- | -- |
 | s3:/.../table/data/00042-3-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001.parquet | 1 | 0 | {20211001, 11} | 0 | s3:/.../table/data/00191-1933-25e9f2f3-d863-4a69-a5e1-f9aeeebe60bb-00001-deletes.parquet |
 
+Note: when a column named `partition` is also the partition key, the `partition` column in the table above will be renamed to `prod.db.table.partition`. One example is shown as the following:
+
+| file_path | pos | row | **prod.db.table.partition** | spec_id | delete_file_path |
+| -- | -- | -- |-------------------------|  -- | -- |
+| s3:/.../table/data/00042-3-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001.parquet | 1 | 0 | {20211001, 11}          | 0 | s3:/.../table/data/00191-1933-25e9f2f3-d863-4a69-a5e1-f9aeeebe60bb-00001-deletes.parquet |
+
+
 ### All Metadata Tables
 
 These tables are unions of the metadata tables specific to the current snapshot, and return metadata across all snapshots.
