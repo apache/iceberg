@@ -157,8 +157,10 @@ public class ParquetMetricsRowGroupFilter {
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be
-      // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      // evaluated post scan. Variant types also need to be evaluated post scan to access
+      // shredded statistics.
+      Type type = schema.findType(id);
+      if (type instanceof Type.NestedType || type.isVariantType()) {
         return ROWS_MIGHT_MATCH;
       }
 

@@ -62,6 +62,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
@@ -78,6 +79,10 @@ import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.FloatType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.Variants;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -986,6 +991,97 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead)
         .as("Should read: filter contains non-reference evaluate as True")
         .isTrue();
+  }
+
+  @TestTemplate
+  public void testVariantFilterNotNull() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema variantSchema =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            optional(2, "variant_field", Types.VariantType.get()));
+
+    File parquetFile = new File(tempDir, "test-variant" + System.nanoTime());
+
+    OutputFile outFile = Files.localOutput(parquetFile);
+    try (FileAppender<GenericRecord> appender =
+        Parquet.write(outFile)
+            .schema(variantSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+
+      for (int i = 0; i < 10; i++) {
+        GenericRecord record = GenericRecord.create(variantSchema);
+        record.setField("id", i);
+
+        if (i % 2 == 0) {
+          VariantMetadata metadata = Variants.metadata("field");
+          ShreddedObject obj = Variants.object(metadata);
+          obj.put("field", Variants.of("value" + i));
+          Variant variant = Variant.of(metadata, obj);
+          record.setField("variant_field", variant);
+        }
+
+        appender.add(record);
+      }
+    }
+
+    InputFile inFile = Files.localInput(parquetFile);
+    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
+      assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
+      BlockMetaData blockMetaData = reader.getRowGroups().get(0);
+      MessageType fileSchema = reader.getFileMetaData().getSchema();
+
+      ParquetMetricsRowGroupFilter rowGroupFilter =
+          new ParquetMetricsRowGroupFilter(variantSchema, notNull("variant_field"), true);
+      boolean shouldRead = rowGroupFilter.shouldRead(fileSchema, blockMetaData);
+      assertThat(shouldRead)
+          .as("Should read: variant notNull filters must be evaluated post scan")
+          .isTrue();
+    }
+    parquetFile.deleteOnExit();
+  }
+
+  @TestTemplate
+  public void testAllNullsVariantNotNull() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema variantSchema =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            optional(2, "variant_field", Types.VariantType.get()));
+
+    File parquetFile = new File(tempDir, "test-variant-nulls" + System.nanoTime());
+
+    OutputFile outFile = Files.localOutput(parquetFile);
+    try (FileAppender<GenericRecord> appender =
+        Parquet.write(outFile)
+            .schema(variantSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+
+      for (int i = 0; i < 10; i++) {
+        GenericRecord record = GenericRecord.create(variantSchema);
+        record.setField("id", i);
+        record.setField("variant_field", null);
+        appender.add(record);
+      }
+    }
+
+    InputFile inFile = Files.localInput(parquetFile);
+    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
+      BlockMetaData blockMetaData = reader.getRowGroups().get(0);
+      MessageType fileSchema = reader.getFileMetaData().getSchema();
+
+      ParquetMetricsRowGroupFilter rowGroupFilter =
+          new ParquetMetricsRowGroupFilter(variantSchema, notNull("variant_field"), true);
+      boolean shouldRead = rowGroupFilter.shouldRead(fileSchema, blockMetaData);
+      assertThat(shouldRead)
+          .as("Should read: variant notNull filters must be evaluated post scan even for all nulls")
+          .isTrue();
+    }
+    parquetFile.deleteOnExit();
   }
 
   private boolean shouldRead(Expression expression) {
