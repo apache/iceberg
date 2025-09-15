@@ -55,9 +55,15 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   }
 
   public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
-    this(schema, spec, null, null, null);
+    this(null, schema, spec, null, null, null);
   }
 
+  /**
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #GenericAppenderFactory(Table, Schema, PartitionSpec, Map, int[], Schema)} instead.
+   */
+  @Deprecated
   public GenericAppenderFactory(
       Schema schema,
       PartitionSpec spec,
@@ -76,8 +82,32 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
    * @param config the configuration for the writer
    * @param equalityFieldIds the field ids for equality delete
    * @param eqDeleteRowSchema the schema for equality delete rows
-   * @param posDeleteRowSchema the schema for position delete rows
    */
+  public GenericAppenderFactory(
+      Table table,
+      Schema schema,
+      PartitionSpec spec,
+      Map<String, String> config,
+      int[] equalityFieldIds,
+      Schema eqDeleteRowSchema) {
+    this(table, schema, spec, config, equalityFieldIds, eqDeleteRowSchema, null);
+  }
+
+  /**
+   * Constructor for GenericAppenderFactory.
+   *
+   * @param table iceberg table
+   * @param schema the schema of the records to write
+   * @param spec the partition spec of the records
+   * @param config the configuration for the writer
+   * @param equalityFieldIds the field ids for equality delete
+   * @param eqDeleteRowSchema the schema for equality delete rows
+   * @param posDeleteRowSchema the schema for position delete rows
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #GenericAppenderFactory(Table, Schema, PartitionSpec, Map, int[], Schema)} instead.
+   */
+  @Deprecated
   public GenericAppenderFactory(
       Table table,
       Schema schema,
@@ -102,6 +132,11 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
+    if (this.posDeleteRowSchema != null) {
+      Preconditions.checkState(
+          equalityFieldIds == null || equalityFieldIds.length == 0,
+          "Cannot provide both equality field ids and position delete row schema");
+    }
   }
 
   public GenericAppenderFactory set(String property, String value) {
@@ -201,12 +236,10 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       PositionDeleteWriteBuilder<Record, Types.StructType> builder =
           FormatModelRegistry.positionDeleteWriteBuilder(format, Record.class, file);
       return builder
-          .schema(schema)
           .partition(partition)
           .overwrite()
           .set(config)
           .metricsConfig(metricsConfig)
-          .rowSchema(posDeleteRowSchema)
           .spec(spec)
           .keyMetadata(file.keyMetadata())
           .build();

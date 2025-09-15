@@ -39,6 +39,16 @@ import org.apache.iceberg.util.ArrayUtil;
  */
 public interface EqualityDeleteWriteBuilder<D, S>
     extends ContentFileWriteBuilder<EqualityDeleteWriteBuilder<D, S>, S> {
+
+  /** Set the file schema. */
+  EqualityDeleteWriteBuilder<D, S> schema(Schema schema);
+
+  /**
+   * Sets the input schema accepted by the writer. If not provided derived from the {@link
+   * #schema(Schema)}.
+   */
+  EqualityDeleteWriteBuilder<D, S> inputSchema(S schema);
+
   /** Sets the row schema for the delete writers. */
   EqualityDeleteWriteBuilder<D, S> rowSchema(Schema rowSchema);
 

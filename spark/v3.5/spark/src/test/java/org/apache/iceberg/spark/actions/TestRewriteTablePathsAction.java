@@ -81,6 +81,7 @@ import org.apache.spark.storage.BlockManager;
 import org.apache.spark.storage.BroadcastBlockId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import scala.Tuple2;
@@ -425,6 +426,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
+  @Disabled("Position delete writer does not support row data")
   public void testPositionDeleteWithRow() throws Exception {
     String dataFileLocation =
         table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location();

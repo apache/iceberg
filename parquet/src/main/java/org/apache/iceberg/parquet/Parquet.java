@@ -347,6 +347,17 @@ public class Parquet {
       return this;
     }
 
+    WriteBuilderImpl<D, S> deleteWriter() {
+      Preconditions.checkState(
+          writerFunction == null, "Cannot set multiple writer builder functions");
+      this.createWriterFunc =
+          (icebergSchema, messageType) ->
+              new PositionDeleteStructWriter<D>(
+                  (StructWriter<?>) GenericParquetWriter.create(icebergSchema, messageType),
+                  Function.identity());
+      return this;
+    }
+
     @Override
     public WriteBuilderImpl<D, S> content(FileContent newContent) {
       this.content = newContent;
@@ -471,25 +482,36 @@ public class Parquet {
     @Override
     @SuppressWarnings("MethodLength")
     public FileAppender<D> build() throws IOException {
-      Preconditions.checkNotNull(schema, "Schema is required");
-      Preconditions.checkNotNull(name, "Table name is required and cannot be null");
-
       if (content != null) {
-        Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-        this.createWriterFunc =
-            (icebergSchema, messageType) ->
-                writerFunction.write(icebergSchema, messageType, inputSchema);
         switch (content) {
           case DATA:
+            Preconditions.checkNotNull(schema, "Schema is required");
+            Preconditions.checkNotNull(name, "Table name is required and cannot be null");
+            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+            this.createWriterFunc =
+                (icebergSchema, messageType) ->
+                    writerFunction.write(icebergSchema, messageType, inputSchema);
             this.createContextFunc = Context::dataContext;
             break;
           case EQUALITY_DELETES:
+            Preconditions.checkNotNull(schema, "Schema is required");
+            Preconditions.checkNotNull(name, "Table name is required and cannot be null");
+            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+            this.createWriterFunc =
+                (icebergSchema, messageType) ->
+                    writerFunction.write(icebergSchema, messageType, inputSchema);
+            this.createContextFunc = Context::deleteContext;
+            break;
           case POSITION_DELETES:
+            this.schema = DeleteSchemaUtil.pathPosSchema();
             this.createContextFunc = Context::deleteContext;
             break;
           default:
             throw new IllegalArgumentException("Not supported content: " + content);
         }
+      } else {
+        Preconditions.checkNotNull(schema, "Schema is required");
+        Preconditions.checkNotNull(name, "Table name is required and cannot be null");
       }
 
       // add the Iceberg schema to keyValueMetadata

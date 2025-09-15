@@ -19,13 +19,13 @@
 package org.apache.iceberg.orc;
 
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FormatModel;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.WriteBuilder;
 import org.apache.orc.TypeDescription;
 
 public class ORCFormatModel<D, S> implements FormatModel<D, S> {
@@ -33,31 +33,25 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D> batchReaderFunction;
   private final WriterFunction<S> writerFunction;
-  private final Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter;
 
   private ORCFormatModel(
       Class<D> type,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D> batchReaderFunction,
-      WriterFunction<S> writerFunction,
-      Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
+      WriterFunction<S> writerFunction) {
     this.type = type;
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.writerFunction = writerFunction;
-    this.positionDeleteConverter = positionDeleteConverter;
   }
 
   public ORCFormatModel(
-      Class<D> type,
-      ReaderFunction<D> readerFunction,
-      WriterFunction<S> writerFunction,
-      Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
-    this(type, readerFunction, null, writerFunction, positionDeleteConverter);
+      Class<D> type, ReaderFunction<D> readerFunction, WriterFunction<S> writerFunction) {
+    this(type, readerFunction, null, writerFunction);
   }
 
   public ORCFormatModel(Class<D> type, BatchReaderFunction<D> batchReaderFunction) {
-    this(type, null, batchReaderFunction, null, null);
+    this(type, null, batchReaderFunction, null);
   }
 
   @Override
@@ -76,8 +70,8 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public Function<PositionDelete<D>, D> positionDeleteConverter(Schema schema) {
-    return positionDeleteConverter.apply(schema);
+  public WriteBuilder<PositionDelete<D>, S> positionDeleteWriteBuilder(OutputFile outputFile) {
+    return new ORC.WriteBuilderImpl<PositionDelete<D>, S>(outputFile).deleteWriter();
   }
 
   @Override

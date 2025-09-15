@@ -18,9 +18,7 @@
  */
 package org.apache.iceberg.io;
 
-import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.FormatModelRegistry;
 import org.apache.iceberg.deletes.PositionDelete;
 
@@ -48,29 +46,25 @@ public interface FormatModel<D, S> {
   /**
    * Returns the unique identifier for the object model implementation processed by this factory.
    *
-   * <p>The model names (for example: "generic", "spark", "spark-vectorized", "flink", "arrow") act
-   * as a contract specifying the expected data structures for both reading (converting file formats
-   * into output objects) and writing (converting input objects into file formats). This ensures
-   * proper integration between Iceberg's storage layer and processing engines.
+   * <p>The model types act as a contract specifying the expected data structures for both reading
+   * (converting file formats into output objects) and writing (converting input objects into file
+   * formats). This ensures proper integration between Iceberg's storage layer and processing
+   * engines.
    *
    * <p>Processing engines can define their own object models by implementing this interface and
    * using their own model name. They can register these models with Iceberg by using the {@link
    * FormatModelRegistry}. This allows custom data representations to be seamlessly integrated with
    * Iceberg's file format handlers.
    *
-   * @return string identifier for this model implementation
+   * @return the type of the data structures handled by this model implementation
    */
   Class<D> type();
 
   /**
-   * Creates a writer builder for standard data files.
+   * Creates a writer builder for data files.
    *
    * <p>The returned {@link WriteBuilder} configures and creates a writer that converts input
-   * objects into the file format supported by this factory. The builder allows for configuration of
-   * various writing aspects like schema, metrics collection, compression, encryption.
-   *
-   * <p>The builder follows the fluent pattern for configuring writer properties and ultimately
-   * creates a {@link FileAppender} for writing the files.
+   * objects into the file format supported by this factory.
    *
    * @param outputFile destination for the written data
    * @return configured writer builder
@@ -78,25 +72,21 @@ public interface FormatModel<D, S> {
   WriteBuilder<D, S> writeBuilder(OutputFile outputFile);
 
   /**
-   * Creates a function that converts {@link PositionDelete} objects into the format-specific
-   * objects which is used for writing position deletes
+   * Creates a writer builder for position delete files.
    *
-   * @param schema of the position delete row content
-   * @return a function that converts {@link PositionDelete} objects into the format-specific
-   *     objects.
+   * <p>The returned {@link WriteBuilder} configures and creates a writer that converts {@link
+   * PositionDelete} objects into the file format supported by this factory.
+   *
+   * @param outputFile destination for the written data
+   * @return configured position delete writer builder
    */
-  Function<PositionDelete<D>, D> positionDeleteConverter(Schema schema);
+  WriteBuilder<PositionDelete<D>, S> positionDeleteWriteBuilder(OutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.
    *
    * <p>The returned {@link ReadBuilder} configures and creates a reader that converts data from the
-   * file format into output objects supported by this factory. The builder allows for configuration
-   * of various reading aspects like schema projection, predicate pushdown, row/batch size,
-   * container reuse, encryption settings, and other format-specific options.
-   *
-   * <p>The builder follows the fluent pattern for configuring reader properties and ultimately
-   * creates a {@link CloseableIterable} for consuming the file data.
+   * file format into output objects supported by this factory.
    *
    * @param inputFile source file to read from
    * @return configured reader builder for the specified input

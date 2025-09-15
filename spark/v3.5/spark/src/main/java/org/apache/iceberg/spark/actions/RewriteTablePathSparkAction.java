@@ -640,6 +640,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     @Override
     public PositionDeleteWriter<Record> writer(
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
+        throws IOException {
+      return positionDeletesWriter(outputFile, format, spec, partition, null);
+    }
+
+    @Override
+    public PositionDeleteWriter<Record> writer(
         OutputFile outputFile,
         FileFormat format,
         PartitionSpec spec,
@@ -690,7 +697,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     PositionDeleteWriteBuilder<Record, Types.StructType> builder =
         FormatModelRegistry.positionDeleteWriteBuilder(
             format, Record.class, EncryptedFiles.plainAsEncryptedOutput(outputFile));
-    return builder.partition(partition).rowSchema(rowSchema).spec(spec).build();
+    return builder.partition(partition).spec(spec).build();
   }
 
   private Set<Snapshot> snapshotSet(TableMetadata metadata) {

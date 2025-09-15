@@ -40,7 +40,6 @@ import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
@@ -54,12 +53,11 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private final PartitionSpec spec;
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
-  private final Schema posDeleteRowSchema;
   private final Table table;
 
   private RowType eqDeleteFlinkSchema = null;
-  private RowType posDeleteFlinkSchema = null;
 
+  @Deprecated
   public FlinkAppenderFactory(
       Table table,
       Schema schema,
@@ -69,6 +67,17 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
+    this(table, schema, flinkSchema, props, spec, equalityFieldIds, eqDeleteRowSchema);
+  }
+
+  public FlinkAppenderFactory(
+      Table table,
+      Schema schema,
+      RowType flinkSchema,
+      Map<String, String> props,
+      PartitionSpec spec,
+      int[] equalityFieldIds,
+      Schema eqDeleteRowSchema) {
     Preconditions.checkNotNull(table, "Table shouldn't be null");
     this.table = table;
     this.schema = schema;
@@ -77,7 +86,6 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     this.spec = spec;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
-    this.posDeleteRowSchema = posDeleteRowSchema;
   }
 
   private RowType lazyEqDeleteFlinkSchema() {
@@ -86,14 +94,6 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       this.eqDeleteFlinkSchema = FlinkSchemaUtil.convert(eqDeleteRowSchema);
     }
     return eqDeleteFlinkSchema;
-  }
-
-  private RowType lazyPosDeleteFlinkSchema() {
-    if (posDeleteFlinkSchema == null) {
-      this.posDeleteFlinkSchema =
-          FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
-    }
-    return this.posDeleteFlinkSchema;
   }
 
   @Override
@@ -179,8 +179,6 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
           .set(props)
           .metricsConfig(metricsConfig)
           .partition(partition)
-          .rowSchema(posDeleteRowSchema)
-          .inputSchema(lazyPosDeleteFlinkSchema())
           .spec(spec)
           .keyMetadata(outputFile.keyMetadata())
           .build();

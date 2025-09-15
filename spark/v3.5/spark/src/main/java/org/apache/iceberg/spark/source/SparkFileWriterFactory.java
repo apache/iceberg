@@ -42,6 +42,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
   private static final StructType PATH_POS_TYPE =
       SparkSchemaUtil.convert(DeleteSchemaUtil.pathPosSchema());
 
+  @Deprecated
   SparkFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
@@ -56,6 +57,34 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
       Schema positionDeleteRowSchema,
       StructType positionDeleteSparkType,
       Map<String, String> writeProperties) {
+    this(
+        table,
+        dataFileFormat,
+        dataSchema,
+        dataSparkType,
+        dataSortOrder,
+        deleteFileFormat,
+        equalityFieldIds,
+        equalityDeleteRowSchema,
+        equalityDeleteSparkType,
+        equalityDeleteSortOrder,
+        positionDeleteRowSchema,
+        writeProperties);
+  }
+
+  SparkFileWriterFactory(
+      Table table,
+      FileFormat dataFileFormat,
+      Schema dataSchema,
+      StructType dataSparkType,
+      SortOrder dataSortOrder,
+      FileFormat deleteFileFormat,
+      int[] equalityFieldIds,
+      Schema equalityDeleteRowSchema,
+      StructType equalityDeleteSparkType,
+      SortOrder equalityDeleteSortOrder,
+      Schema positionDeleteRowSchema,
+      Map<String, String> writeProperties) {
 
     super(
         table,
@@ -67,12 +96,9 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
         equalityFieldIds,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
-        positionDeleteRowSchema,
         writeProperties,
         calculateSparkType(dataSparkType, dataSchema),
-        calculateSparkType(equalityDeleteSparkType, equalityDeleteRowSchema),
-        calculateSparkTypeForDelete(
-            positionDeleteSparkType, DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema)));
+        calculateSparkType(equalityDeleteSparkType, equalityDeleteRowSchema));
   }
 
   static Builder builderFor(Table table) {

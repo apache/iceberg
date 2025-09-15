@@ -51,11 +51,9 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
   private final int[] equalityFieldIds;
   private final Schema equalityDeleteRowSchema;
   private final SortOrder equalityDeleteSortOrder;
-  private final Schema positionDeleteRowSchema;
   private final Map<String, String> writeProperties;
   private final S inputSchema;
   private final S equalityDeleteInputSchema;
-  private final S positionDeleteInputSchema;
 
   protected RegistryBasedFileWriterFactory(
       Table table,
@@ -67,11 +65,9 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
       int[] equalityFieldIds,
       Schema equalityDeleteRowSchema,
       SortOrder equalityDeleteSortOrder,
-      Schema positionDeleteRowSchema,
       Map<String, String> writeProperties,
       S inputSchema,
-      S equalityDeleteInputSchema,
-      S positionDeleteInputSchema) {
+      S equalityDeleteInputSchema) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
     this.inputType = inputType;
@@ -81,11 +77,9 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     this.equalityFieldIds = equalityFieldIds;
     this.equalityDeleteRowSchema = equalityDeleteRowSchema;
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
-    this.positionDeleteRowSchema = positionDeleteRowSchema;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
     this.inputSchema = inputSchema;
     this.equalityDeleteInputSchema = equalityDeleteInputSchema;
-    this.positionDeleteInputSchema = positionDeleteInputSchema;
   }
 
   protected S inputSchema() {
@@ -94,10 +88,6 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
 
   protected S equalityDeleteInputSchema() {
     return equalityDeleteInputSchema;
-  }
-
-  protected S positionDeleteInputSchema() {
-    return positionDeleteInputSchema;
   }
 
   @Override
@@ -169,8 +159,6 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
-          .rowSchema(positionDeleteRowSchema)
-          .inputSchema(positionDeleteInputSchema())
           .spec(spec)
           .partition(partition)
           .keyMetadata(keyMetadata)

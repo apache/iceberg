@@ -228,6 +228,17 @@ public class ORC {
       return this;
     }
 
+    WriteBuilderImpl<D, S> deleteWriter() {
+      Preconditions.checkState(
+          writerFunction == null, "Cannot set multiple writer builder functions");
+      this.createWriterFunc =
+          (icebergSchema, typeDescription) ->
+              GenericOrcWriters.positionDelete(
+                  GenericOrcWriter.buildWriter(icebergSchema, typeDescription),
+                  Function.identity());
+      return this;
+    }
+
     @Override
     public WriteBuilderImpl<D, S> set(String property, String value) {
       config.put(property, value);
@@ -282,24 +293,33 @@ public class ORC {
 
     @Override
     public FileAppender<D> build() {
-      Preconditions.checkNotNull(schema, "Schema is required");
-
       if (content != null) {
-        Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-        this.createWriterFunc =
-            (icebergSchema, typeDescription) ->
-                writerFunction.write(icebergSchema, typeDescription, inputSchema);
         switch (content) {
           case DATA:
+            Preconditions.checkNotNull(schema, "Schema is required");
+            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+            this.createWriterFunc =
+                (icebergSchema, typeDescription) ->
+                    writerFunction.write(icebergSchema, typeDescription, inputSchema);
             this.createContextFunc = Context::dataContext;
             break;
           case EQUALITY_DELETES:
+            Preconditions.checkNotNull(schema, "Schema is required");
+            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+            this.createWriterFunc =
+                (icebergSchema, typeDescription) ->
+                    writerFunction.write(icebergSchema, typeDescription, inputSchema);
+            this.createContextFunc = Context::deleteContext;
+            break;
           case POSITION_DELETES:
+            this.schema = DeleteSchemaUtil.pathPosSchema();
             this.createContextFunc = Context::deleteContext;
             break;
           default:
             throw new IllegalArgumentException("Not supported content: " + content);
         }
+      } else {
+        Preconditions.checkNotNull(schema, "Schema is required");
       }
 
       for (Map.Entry<String, String> entry : config.entrySet()) {

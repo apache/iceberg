@@ -34,6 +34,16 @@ import org.apache.iceberg.io.DataWriter;
  * @param <D> the type of data records the writer will accept
  */
 public interface DataWriteBuilder<D, S> extends ContentFileWriteBuilder<DataWriteBuilder<D, S>, S> {
+
+  /** Set the file schema. */
+  DataWriteBuilder<D, S> schema(Schema schema);
+
+  /**
+   * Sets the input schema accepted by the writer. If not provided derived from the {@link
+   * #schema(Schema)}.
+   */
+  DataWriteBuilder<D, S> inputSchema(S schema);
+
   /**
    * Creates a data file writer configured with the current builder settings.
    *

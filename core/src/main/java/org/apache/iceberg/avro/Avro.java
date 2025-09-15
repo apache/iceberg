@@ -237,6 +237,13 @@ public class Avro {
       return this;
     }
 
+    WriteBuilderImpl<D, S> deleteWriter() {
+      Preconditions.checkState(
+          writerFunction == null, "Cannot set multiple writer builder functions");
+      this.createWriterFunc = unused -> new Avro.PositionDatumWriter();
+      return this;
+    }
+
     @Override
     public WriteBuilderImpl<D, S> content(FileContent newContent) {
       this.content = newContent;
@@ -291,23 +298,32 @@ public class Avro {
 
     @Override
     public FileAppender<D> build() throws IOException {
-      Preconditions.checkNotNull(schema, "Schema is required");
-      Preconditions.checkNotNull(name, "Table name is required and cannot be null");
-
       if (content != null) {
-        Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-        this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, inputSchema);
         switch (content) {
           case DATA:
+            Preconditions.checkNotNull(schema, "Schema is required");
+            Preconditions.checkNotNull(name, "Table name is required and cannot be null");
+            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+            this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, inputSchema);
             this.createContextFunc = Context::dataContext;
             break;
           case EQUALITY_DELETES:
+            Preconditions.checkNotNull(schema, "Schema is required");
+            Preconditions.checkNotNull(name, "Table name is required and cannot be null");
+            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+            this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, inputSchema);
+            this.createContextFunc = Context::deleteContext;
+            break;
           case POSITION_DELETES:
+            this.schema = DeleteSchemaUtil.pathPosSchema();
             this.createContextFunc = Context::deleteContext;
             break;
           default:
             throw new IllegalArgumentException("Not supported content: " + content);
         }
+      } else {
+        Preconditions.checkNotNull(schema, "Schema is required");
+        Preconditions.checkNotNull(name, "Table name is required and cannot be null");
       }
 
       Function<Schema, DatumWriter<?>> writerFunc;
