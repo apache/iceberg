@@ -36,11 +36,11 @@ public class TestStatsUtil {
     // 10_000 + 200 * 7_084_950 = 1_417_000_000, which is the starting range for reserved columns
     int max = (StatsUtil.METADATA_SPACE_FIELD_ID_START - StatsUtil.DATA_SPACE_FIELD_ID_START) / 200;
     for (int id = 0; id < max; id++) {
-      int statsFieldId = StatsUtil.statsFieldIdFor(id);
+      int statsFieldId = StatsUtil.statsFieldIdForField(id);
       int expected = StatsUtil.DATA_SPACE_FIELD_ID_START + offset;
       assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
-      offset += StatsUtil.RESERVED_FIELD_IDS;
-      assertThat(StatsUtil.fieldIdFor(statsFieldId)).as("at pos %s", id).isEqualTo(id);
+      offset += StatsUtil.NUM_STATS_PER_COLUMN;
+      assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).as("at pos %s", id).isEqualTo(id);
     }
   }
 
@@ -50,11 +50,13 @@ public class TestStatsUtil {
       int id =
           ThreadLocalRandom.current()
               .nextInt(StatsUtil.METADATA_SPACE_FIELD_ID_START, StatsUtil.RESERVED_FIELD_IDS_START);
-      int statsFieldId = StatsUtil.statsFieldIdFor(id);
+      int statsFieldId = StatsUtil.statsFieldIdForField(id);
       int expected = -1;
       assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
-      assertThat(StatsUtil.fieldIdFor(id)).as("at pos %s", id).isEqualTo(expected);
-      assertThat(StatsUtil.fieldIdFor(statsFieldId)).as("at pos %s", id).isEqualTo(expected);
+      assertThat(StatsUtil.fieldIdForStatsField(id)).as("at pos %s", id).isEqualTo(expected);
+      assertThat(StatsUtil.fieldIdForStatsField(statsFieldId))
+          .as("at pos %s", id)
+          .isEqualTo(expected);
     }
   }
 
@@ -62,11 +64,11 @@ public class TestStatsUtil {
   public void statsIdsForReservedColumns() {
     int offset = 0;
     for (int id = StatsUtil.RESERVED_FIELD_IDS_START; id < Integer.MAX_VALUE; id++) {
-      int statsFieldId = StatsUtil.statsFieldIdFor(id);
+      int statsFieldId = StatsUtil.statsFieldIdForField(id);
       int expected = StatsUtil.METADATA_SPACE_FIELD_ID_START + offset;
       assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
-      offset = offset + StatsUtil.RESERVED_FIELD_IDS;
-      assertThat(StatsUtil.fieldIdFor(statsFieldId)).as("at pos %s", id).isEqualTo(id);
+      offset = offset + StatsUtil.NUM_STATS_PER_COLUMN;
+      assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).as("at pos %s", id).isEqualTo(id);
     }
   }
 
@@ -138,8 +140,8 @@ public class TestStatsUtil {
             "value_count",
             Types.LongType.get(),
             "Total value count, including null and NaN"),
-        optional(fieldId++, "nan_value_count", Types.LongType.get(), "Total NaN value count"),
         optional(fieldId++, "null_value_count", Types.LongType.get(), "Total null value count"),
+        optional(fieldId++, "nan_value_count", Types.LongType.get(), "Total NaN value count"),
         optional(fieldId++, "lower_bound", type, "Lower bound"),
         optional(fieldId, "upper_bound", type, "Upper bound"));
   }

@@ -31,7 +31,13 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class StatsUtil {
-  private static final int NUM_STATS_PER_COLUMN = 200;
+  static final int COLUMN_SIZE_OFFSET = 0;
+  static final int VALUE_COUNT_OFFSET = 1;
+  static final int NULL_VALUE_COUNT_OFFSET = 2;
+  static final int NAN_VALUE_COUNT_OFFSET = 3;
+  static final int LOWER_BOUND_OFFSET = 4;
+  static final int UPPER_BOUND_OFFSET = 5;
+  static final int NUM_STATS_PER_COLUMN = 200;
   static final int RESERVED_FIELD_IDS = 200;
   static final int DATA_SPACE_FIELD_ID_START = 10_000;
   static final int METADATA_SPACE_FIELD_ID_START = 1_417_000_000;
@@ -39,45 +45,55 @@ public class StatsUtil {
 
   private StatsUtil() {}
 
-  public static int statsFieldIdFor(int fieldId) {
-    int idSpaceStart = DATA_SPACE_FIELD_ID_START;
-    int id = fieldId;
-    if (fieldId >= RESERVED_FIELD_IDS_START) {
-      // this is a reserved field ID, which uses a different calculation
-      idSpaceStart = METADATA_SPACE_FIELD_ID_START;
-      id = RESERVED_FIELD_IDS - (Integer.MAX_VALUE - fieldId);
-    }
+  public static int statsFieldIdForField(int fieldId) {
+    return fieldId >= RESERVED_FIELD_IDS_START
+        ? statsFieldIdForReservedField(fieldId)
+        : statsFieldIdForDataField(fieldId);
+  }
 
-    long finalId = idSpaceStart + NUM_STATS_PER_COLUMN * (long) id;
-    if (finalId < 0
-        || finalId > RESERVED_FIELD_IDS_START
-        || (finalId >= METADATA_SPACE_FIELD_ID_START
-            && idSpaceStart != METADATA_SPACE_FIELD_ID_START)) {
+  private static int statsFieldIdForDataField(int fieldId) {
+    long statsFieldId = DATA_SPACE_FIELD_ID_START + NUM_STATS_PER_COLUMN * (long) fieldId;
+    if (statsFieldId < 0 || statsFieldId >= METADATA_SPACE_FIELD_ID_START) {
       // ID overflows
       return -1;
     }
 
-    return (int) finalId;
+    return (int) statsFieldId;
   }
 
-  public static int fieldIdFor(int statsFieldId) {
+  private static int statsFieldIdForReservedField(int fieldId) {
+    int offset = RESERVED_FIELD_IDS - (Integer.MAX_VALUE - fieldId);
+
+    long statsFieldId = METADATA_SPACE_FIELD_ID_START + NUM_STATS_PER_COLUMN * (long) offset;
+    if (statsFieldId < 0 || statsFieldId > RESERVED_FIELD_IDS_START) {
+      // ID overflows
+      return -1;
+    }
+
+    return (int) statsFieldId;
+  }
+
+  public static int fieldIdForStatsField(int statsFieldId) {
     if (statsFieldId < 0 || statsFieldId % NUM_STATS_PER_COLUMN != 0) {
       return -1;
     }
 
-    int finalId;
-    if (statsFieldId < METADATA_SPACE_FIELD_ID_START) {
-      finalId = (statsFieldId - DATA_SPACE_FIELD_ID_START) / NUM_STATS_PER_COLUMN;
-    } else {
-      // this is a reserved field ID, which uses a different calculation
-      finalId =
-          statsFieldId
-              - RESERVED_FIELD_IDS
-              + (Integer.MAX_VALUE - statsFieldId)
-              + (statsFieldId - METADATA_SPACE_FIELD_ID_START) / NUM_STATS_PER_COLUMN;
-    }
+    return statsFieldId < METADATA_SPACE_FIELD_ID_START
+        ? fieldIdForStatsFieldFromDataField(statsFieldId)
+        : fieldIdForStatsFieldFromReservedField(statsFieldId);
+  }
 
-    return Math.max(-1, finalId);
+  private static int fieldIdForStatsFieldFromDataField(int statsFieldId) {
+    return Math.max(-1, (statsFieldId - DATA_SPACE_FIELD_ID_START) / NUM_STATS_PER_COLUMN);
+  }
+
+  private static int fieldIdForStatsFieldFromReservedField(int statsFieldId) {
+    return Math.max(
+        -1,
+        statsFieldId
+            - RESERVED_FIELD_IDS
+            + (Integer.MAX_VALUE - statsFieldId)
+            + (statsFieldId - METADATA_SPACE_FIELD_ID_START) / NUM_STATS_PER_COLUMN);
   }
 
   public static Types.NestedField contentStatsFor(Schema schema) {
@@ -85,19 +101,26 @@ public class StatsUtil {
   }
 
   private static Types.StructType contentStatsFor(Type type, int id) {
-    int fieldId = id;
-
     return Types.StructType.of(
-        optional(fieldId++, "column_size", Types.LongType.get(), "Total size on disk"),
         optional(
-            fieldId++,
+            id + COLUMN_SIZE_OFFSET, "column_size", Types.LongType.get(), "Total size on disk"),
+        optional(
+            id + VALUE_COUNT_OFFSET,
             "value_count",
             Types.LongType.get(),
             "Total value count, including null and NaN"),
-        optional(fieldId++, "nan_value_count", Types.LongType.get(), "Total NaN value count"),
-        optional(fieldId++, "null_value_count", Types.LongType.get(), "Total null value count"),
-        optional(fieldId++, "lower_bound", type, "Lower bound"),
-        optional(fieldId, "upper_bound", type, "Upper bound"));
+        optional(
+            id + NULL_VALUE_COUNT_OFFSET,
+            "null_value_count",
+            Types.LongType.get(),
+            "Total null value count"),
+        optional(
+            id + NAN_VALUE_COUNT_OFFSET,
+            "nan_value_count",
+            Types.LongType.get(),
+            "Total NaN value count"),
+        optional(id + LOWER_BOUND_OFFSET, "lower_bound", type, "Lower bound"),
+        optional(id + UPPER_BOUND_OFFSET, "upper_bound", type, "Upper bound"));
   }
 
   private static class ContentStatsSchemaVisitor extends TypeUtil.SchemaVisitor<Types.NestedField> {
@@ -154,7 +177,7 @@ public class StatsUtil {
         return null;
       }
 
-      int fieldId = StatsUtil.statsFieldIdFor(field.fieldId());
+      int fieldId = StatsUtil.statsFieldIdForField(field.fieldId());
       // don't overflow and don't overlap with the metadata ID range
       if (fieldId >= 0) {
         Types.StructType structType = contentStatsFor(field.type(), fieldId + 1);

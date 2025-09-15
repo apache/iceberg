@@ -50,7 +50,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
                   : null;
       fieldStats.add(
           BaseFieldStats.builder()
-              .fieldId(StatsUtil.fieldIdFor(field.fieldId()))
+              .fieldId(StatsUtil.fieldIdForStatsField(field.fieldId()))
               .type(type)
               .build());
     }

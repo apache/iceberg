@@ -102,17 +102,17 @@ public class BaseFieldStats implements FieldStats, StructLike, Serializable {
   @Override
   public Object get(int pos, Class javaClass) {
     switch (pos) {
-      case 0:
+      case StatsUtil.COLUMN_SIZE_OFFSET:
         return javaClass.cast(columnSize);
-      case 1:
+      case StatsUtil.VALUE_COUNT_OFFSET:
         return javaClass.cast(valueCount);
-      case 2:
-        return javaClass.cast(nanValueCount);
-      case 3:
+      case StatsUtil.NULL_VALUE_COUNT_OFFSET:
         return javaClass.cast(nullValueCount);
-      case 4:
+      case StatsUtil.NAN_VALUE_COUNT_OFFSET:
+        return javaClass.cast(nanValueCount);
+      case StatsUtil.LOWER_BOUND_OFFSET:
         return javaClass.cast(lowerBound);
-      case 5:
+      case StatsUtil.UPPER_BOUND_OFFSET:
         return javaClass.cast(upperBound);
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
