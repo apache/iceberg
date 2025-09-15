@@ -18,10 +18,10 @@
 
 set -e
 
-remote_name="${1:apache}"
+remote_name="${1:-apache}"
 
 ./dev/setup_env.sh
 
 echo " --> Deploy to asf-site branch of remote repository: ${remote_name}"
 
-mkdocs gh-deploy --no-history --remote-branch=asf-site --remote-name apache
+mkdocs gh-deploy --no-history --remote-branch=asf-site --remote-name ${remote_name}
