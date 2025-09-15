@@ -996,7 +996,7 @@ public class TestMetricsRowGroupFilter {
   }
 
   @TestTemplate
-  public void testUUIDClassCastExceptionBug() {
+  public void testUUIDEq() {
     assumeThat(format).as("Only valid for Parquet").isEqualTo(FileFormat.PARQUET);
 
     boolean shouldRead = shouldRead(equal("uuid_col", TARGET_UUID));

@@ -1276,16 +1276,19 @@ public class TestDictionaryRowGroupFilter {
 
   @TestTemplate
   public void testUUIDDictionaryFilter() {
+    assumeThat(getColumnForName(rowGroupMetadata, "_uuid_col").getEncodings())
+        .contains(Encoding.RLE_DICTIONARY);
+
     boolean shouldReadExisting =
         new ParquetDictionaryRowGroupFilter(SCHEMA, equal("uuid_col", TARGET_UUID))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldReadExisting).as("Should not crash on UUID filtering").isTrue();
+    assertThat(shouldReadExisting).as("Should read: Dictionary contains a matching entry").isTrue();
 
-    UUID nonExistentUuid = UUID.fromString("99999999-9999-9999-9999-999999999999");
-    boolean shouldReadNonExistent =
-        new ParquetDictionaryRowGroupFilter(SCHEMA, equal("uuid_col", nonExistentUuid))
+    UUID nonExistentUUID = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    boolean shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, equal("uuid_col", nonExistentUUID))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldReadNonExistent).as("Should not crash on UUID filtering").isNotNull();
+    assertThat(shouldRead).as("Should skip: UUID not found in dictionary").isFalse();
   }
 
   private ColumnChunkMetaData getColumnForName(BlockMetaData rowGroup, String columnName) {
