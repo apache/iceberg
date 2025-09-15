@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -48,15 +47,6 @@ import org.apache.iceberg.io.DataWriter;
  * @param <B> the concrete builder type for method chaining
  */
 interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, S>, S> {
-
-  /** Set the file schema. */
-  B schema(Schema schema);
-
-  /**
-   * Sets the input schema accepted by the writer. If not provided derived from the {@link
-   * #schema(Schema)}.
-   */
-  B inputSchema(S schema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.

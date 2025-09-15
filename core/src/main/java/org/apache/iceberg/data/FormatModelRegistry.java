@@ -88,7 +88,7 @@ public final class FormatModelRegistry {
    *
    * @param formatModel the factory implementation to register
    * @throws IllegalArgumentException if a factory is already registered for the combination of
-   *     {@link FormatModel#format()} and {@link FormatModel#type()} ()}
+   *     {@link FormatModel#format()} and {@link FormatModel#type()}
    */
   public static void register(FormatModel<?, ?> formatModel) {
     Pair<FileFormat, Class<?>> key = Pair.of(formatModel.format(), formatModel.type());
@@ -224,15 +224,12 @@ public final class FormatModelRegistry {
   public static <D, S> PositionDeleteWriteBuilder<D, S> positionDeleteWriteBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
     FormatModel<D, S> factory = factoryFor(format, type);
-    WriteBuilder<D, S> writeBuilder =
+    WriteBuilder<PositionDelete<D>, S> writeBuilder =
         factory
-            .writeBuilder(outputFile.encryptingOutputFile())
+            .positionDeleteWriteBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.POSITION_DELETES);
     return ContentFileWriteBuilderImpl.forPositionDelete(
-        writeBuilder,
-        outputFile.encryptingOutputFile().location(),
-        format,
-        factory::positionDeleteConverter);
+        writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
 
   @SuppressWarnings("unchecked")

@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.FileFormat;
@@ -37,7 +36,6 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.WriteBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -84,12 +82,8 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
   }
 
   static <D, S> PositionDeleteWriteBuilder<D, S> forPositionDelete(
-      WriteBuilder<D, S> writeBuilder,
-      String location,
-      FileFormat format,
-      Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
-    return new PositionDeleteFileWriteBuilder<>(
-        writeBuilder, location, format, positionDeleteConverter);
+      WriteBuilder<PositionDelete<D>, S> writeBuilder, String location, FileFormat format) {
+    return new PositionDeleteFileWriteBuilder<>(writeBuilder, location, format);
   }
 
   private ContentFileWriteBuilderImpl(
@@ -97,18 +91,6 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
     this.writeBuilder = writeBuilder;
     this.location = location;
     this.format = format;
-  }
-
-  @Override
-  public B schema(Schema schema) {
-    writeBuilder.schema(schema);
-    return self();
-  }
-
-  @Override
-  public B inputSchema(S schema) {
-    writeBuilder.inputSchema(schema);
-    return self();
   }
 
   @Override
@@ -180,6 +162,18 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
     }
 
     @Override
+    public DataFileWriteBuilder<D, S> schema(Schema schema) {
+      super.writeBuilder.schema(schema);
+      return this;
+    }
+
+    @Override
+    public DataFileWriteBuilder<D, S> inputSchema(S schema) {
+      super.writeBuilder.inputSchema(schema);
+      return this;
+    }
+
+    @Override
     public DataFileWriteBuilder<D, S> self() {
       return this;
     }
@@ -211,6 +205,18 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
     private EqualityDeleteFileWriteBuilder(
         WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
+    }
+
+    @Override
+    public EqualityDeleteFileWriteBuilder<D, S> schema(Schema schema) {
+      super.writeBuilder.schema(schema);
+      return this;
+    }
+
+    @Override
+    public EqualityDeleteFileWriteBuilder<D, S> inputSchema(S schema) {
+      super.writeBuilder.inputSchema(schema);
+      return this;
     }
 
     @Override
@@ -263,18 +269,12 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
   }
 
   private static class PositionDeleteFileWriteBuilder<D, S>
-      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder<D, S>, D, S>
+      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder<D, S>, PositionDelete<D>, S>
       implements PositionDeleteWriteBuilder<D, S> {
-    private final Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter;
-    private Schema rowSchema = null;
 
     private PositionDeleteFileWriteBuilder(
-        WriteBuilder<D, S> writeBuilder,
-        String location,
-        FileFormat format,
-        Function<Schema, Function<PositionDelete<D>, D>> positionDeleteConverter) {
+        WriteBuilder<PositionDelete<D>, S> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
-      this.positionDeleteConverter = positionDeleteConverter;
     }
 
     @Override
@@ -283,31 +283,16 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
     }
 
     @Override
-    public PositionDeleteFileWriteBuilder<D, S> rowSchema(Schema schema) {
-      this.rowSchema = schema;
-      return this;
-    }
-
-    @Override
     public PositionDeleteWriter<D> build() throws IOException {
-      Preconditions.checkArgument(
-          positionDeleteConverter != null,
-          "Positional delete converter must not be null when creating position delete writer");
       Preconditions.checkArgument(
           super.spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(
           super.spec.isUnpartitioned() || super.partition != null,
           "Partition must not be null for partitioned writes");
 
-      return new PositionDeleteWriter<D>(
-          (FileAppender)
-              new PositionDeleteFileAppender<>(
-                  super.writeBuilder
-                      .meta("delete-type", "position")
-                      .schema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
-                      .build(),
-                  positionDeleteConverter.apply(rowSchema),
-                  rowSchema),
+      return new PositionDeleteWriter<>(
+          new PositionDeleteFileAppender<>(
+              super.writeBuilder.meta("delete-type", "position").build()),
           super.format,
           super.location,
           super.spec,
@@ -316,24 +301,16 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
     }
   }
 
-  private static class PositionDeleteFileAppender<D> implements FileAppender<PositionDelete<D>> {
-    private final FileAppender<D> appender;
-    private final Function<PositionDelete<D>, D> converter;
-    private final Schema rowSchema;
+  private static class PositionDeleteFileAppender<D> implements FileAppender<StructLike> {
+    private final FileAppender<PositionDelete<D>> appender;
 
-    PositionDeleteFileAppender(
-        FileAppender<D> appender, Function<PositionDelete<D>, D> converter, Schema rowSchema) {
+    PositionDeleteFileAppender(FileAppender<PositionDelete<D>> appender) {
       this.appender = appender;
-      this.converter = converter;
-      this.rowSchema = rowSchema;
     }
 
     @Override
-    public void add(PositionDelete<D> positionDelete) {
-      Preconditions.checkArgument(
-          rowSchema == null || positionDelete.row() != null,
-          "The row in PositionDelete must not be null because it was set row schema in position delete.");
-      appender.add(converter.apply(positionDelete));
+    public void add(StructLike positionDelete) {
+      appender.add((PositionDelete<D>) positionDelete);
     }
 
     @Override
