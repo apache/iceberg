@@ -127,7 +127,9 @@ public class PositionDeletesTable extends BaseMetadataTable {
             .add(
                 Types.NestedField.required(
                     MetadataColumns.PARTITION_COLUMN_ID,
-                    PARTITION,
+                    table().schema().findField(PARTITION) == null
+                        ? PARTITION
+                        : table().name() + "." + PARTITION,
                     partitionType,
                     "Partition that position delete row belongs to"))
             .add(

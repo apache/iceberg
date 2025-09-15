@@ -400,12 +400,6 @@ public class PartitionSpec implements Serializable {
     private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
       Types.NestedField schemaField =
           this.caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
-      // corner case: extra partition column in metadata table and whose field id is extremely large
-      if (null != schemaField
-          && schemaField.name().equals("partition")
-          && schemaField.fieldId() > 2000) {
-        schemaField = schema.findField("partition.partition");
-      }
       if (checkConflicts) {
         if (sourceColumnId != null) {
           // for identity transform case we allow conflicts between partition and schema field name
