@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
@@ -118,7 +119,11 @@ public class TestFilteredScan {
 
   @BeforeAll
   public static void startSpark() {
-    TestFilteredScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestFilteredScan.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
 
     // define UDFs used by partition tests
     Function<Object, Integer> bucket4 = Transforms.bucket(4).bind(Types.LongType.get());

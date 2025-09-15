@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -355,6 +356,7 @@ public class RewritePositionDeleteFilesSparkAction
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(
+          Locale.ROOT,
           "Rewriting %d position delete files (%s, file group %d/%d, %s (%d/%d)) in %s",
           group.rewrittenDeleteFiles().size(),
           runner.description(),
@@ -366,6 +368,7 @@ public class RewritePositionDeleteFilesSparkAction
           table.name());
     } else {
       return String.format(
+          Locale.ROOT,
           "Rewriting %d position files (%s, file group %d/%d) in %s",
           group.rewrittenDeleteFiles().size(),
           runner.description(),
