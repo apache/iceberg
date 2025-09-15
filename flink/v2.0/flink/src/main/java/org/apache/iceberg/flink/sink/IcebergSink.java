@@ -663,6 +663,7 @@ public class IcebergSink
           }
         }
       }
+
       FlinkMaintenanceConfig flinkMaintenanceConfig =
           new FlinkMaintenanceConfig(table, writeOptions, readableConfig);
 
