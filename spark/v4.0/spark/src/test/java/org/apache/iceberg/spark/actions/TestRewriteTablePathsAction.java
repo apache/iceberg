@@ -1234,7 +1234,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(targetPath1).startsWith(targetTableLocation());
     assertThat(targetPath2).startsWith(targetTableLocation());
   }
-  
+
   @Test
   public void testRewritePathWithoutCreateFileList() throws Exception {
     // Target table location
@@ -1491,7 +1491,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     blockInfoManager.removeBlock(blockId);
     blockManager.memoryStore().remove(blockId);
   }
-  
+
   private void findAndAssertFileInFileList(
       RewriteTablePath.Result result,
       String fileIdentifier,
