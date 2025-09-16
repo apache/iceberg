@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.data;
 
-import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
@@ -49,8 +48,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import org.apache.avro.generic.GenericData.Record;
-import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
@@ -59,7 +56,6 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -73,6 +69,7 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetMetricsRowGroupFilter;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.DoubleType;
@@ -159,12 +156,16 @@ public class TestMetricsRowGroupFilter {
   private File orcFile = null;
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
+  private Schema testSchema;
+  private Schema fileSchema;
 
   @Parameter private FileFormat format;
   @TempDir private File tempDir;
 
   @BeforeEach
   public void createInputFile() throws IOException {
+    this.testSchema = schemaForFormat(format);
+    this.fileSchema = fileSchemaForFormat(format);
     switch (format) {
       case ORC:
         createOrcInputFile();
@@ -178,16 +179,42 @@ public class TestMetricsRowGroupFilter {
     }
   }
 
+  private static Schema schemaForFormat(FileFormat format) {
+    if (format == FileFormat.PARQUET) {
+      return new Schema(
+          Lists.newArrayList(
+              Iterables.concat(
+                  SCHEMA.columns(),
+                  Lists.newArrayList(
+                      optional(18, "some_nulls_variant", Types.VariantType.get()),
+                      optional(19, "all_nulls_variant", Types.VariantType.get())))));
+    }
+    return SCHEMA;
+  }
+
+  private static Schema fileSchemaForFormat(FileFormat format) {
+    if (format == FileFormat.PARQUET) {
+      return new Schema(
+          Lists.newArrayList(
+              Iterables.concat(
+                  FILE_SCHEMA.columns(),
+                  Lists.newArrayList(
+                      optional(18, "_some_nulls_variant", Types.VariantType.get()),
+                      optional(19, "_all_nulls_variant", Types.VariantType.get())))));
+    }
+    return FILE_SCHEMA;
+  }
+
   public void createOrcInputFile() throws IOException {
     this.orcFile = new File(tempDir, "junit" + System.nanoTime());
 
     OutputFile outFile = Files.localOutput(orcFile);
     try (FileAppender<GenericRecord> appender =
         ORC.write(outFile)
-            .schema(FILE_SCHEMA)
+            .schema(fileSchema)
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .build()) {
-      GenericRecord record = GenericRecord.create(FILE_SCHEMA);
+      GenericRecord record = GenericRecord.create(fileSchema);
       // create 50 records
       for (int i = 0; i < INT_MAX_VALUE - INT_MIN_VALUE + 1; i += 1) {
         record.setField("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
@@ -227,35 +254,46 @@ public class TestMetricsRowGroupFilter {
   private void createParquetInputFile() throws IOException {
     File parquetFile = new File(tempDir, "junit" + System.nanoTime());
 
-    // build struct field schema
-    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
-
     OutputFile outFile = Files.localOutput(parquetFile);
-    try (FileAppender<Record> appender = Parquet.write(outFile).schema(FILE_SCHEMA).build()) {
-      GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
+    try (FileAppender<GenericRecord> appender =
+        Parquet.write(outFile)
+            .schema(fileSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
       // create 50 records
       for (int i = 0; i < INT_MAX_VALUE - INT_MIN_VALUE + 1; i += 1) {
-        builder.set("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
-        builder.set(
+        GenericRecord record = GenericRecord.create(fileSchema);
+        record.setField("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
+        record.setField(
             "_no_stats_parquet",
             TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
         // in Parquet
-        builder.set("_required", "req"); // required, always non-null
-        builder.set("_all_nulls", null); // never non-null
-        builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
-        builder.set("_no_nulls", ""); // optional, but always non-null
-        builder.set("_all_nans", Double.NaN); // never non-nan
-        builder.set("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
-        builder.set(
+        record.setField("_required", "req"); // required, always non-null
+        record.setField("_all_nulls", null); // never non-null
+        record.setField("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
+        record.setField("_no_nulls", ""); // optional, but always non-null
+        record.setField("_all_nans", Double.NaN); // never non-nan
+        record.setField("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
+        record.setField(
             "_some_double_nans", (i % 10 == 0) ? Double.NaN : 2D); // includes some nan values
-        builder.set("_no_nans", 3D); // optional, but always non-nan
-        builder.set("_str", i + "str" + i);
+        record.setField("_no_nans", 3D); // optional, but always non-nan
+        record.setField("_str", i + "str" + i);
 
-        Record structNotNull = new Record(structSchema);
-        structNotNull.put("_int_field", INT_MIN_VALUE + i);
-        builder.set("_struct_not_null", structNotNull); // struct with int
+        GenericRecord structNotNull = GenericRecord.create(UNDERSCORE_STRUCT_FIELD_TYPE);
+        structNotNull.setField("_int_field", INT_MIN_VALUE + i);
+        record.setField("_struct_not_null", structNotNull); // struct with int
 
-        appender.add(builder.build());
+        if (i % 2 == 0) {
+          VariantMetadata metadata = Variants.metadata("data");
+          ShreddedObject obj = Variants.object(metadata);
+          obj.put("data", Variants.of(25 + i));
+          record.setField("_some_nulls_variant", Variant.of(metadata, obj));
+        } else {
+          record.setField("_some_nulls_variant", null);
+        }
+        record.setField("_all_nulls_variant", null);
+
+        appender.add(record);
       }
     }
 
@@ -986,7 +1024,8 @@ public class TestMetricsRowGroupFilter {
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     boolean shouldRead =
-        new ParquetMetricsRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"), true)
+        new ParquetMetricsRowGroupFilter(
+                testSchema, equal(truncate("required", 2), "some_value"), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
     assertThat(shouldRead)
         .as("Should read: filter contains non-reference evaluate as True")
@@ -994,94 +1033,105 @@ public class TestMetricsRowGroupFilter {
   }
 
   @TestTemplate
-  public void testVariantFilterNotNull() throws IOException {
-    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+  public void testVariantNotNull() {
+    assumeThat(format).isNotEqualTo(FileFormat.ORC).as("ORC does not fully support variant type");
 
-    Schema variantSchema =
-        new Schema(
-            required(1, "id", IntegerType.get()),
-            optional(2, "variant_field", Types.VariantType.get()));
+    boolean shouldRead = shouldRead(notNull("some_nulls_variant"));
+    assertThat(shouldRead)
+        .as("Should read: variant notNull filters must be evaluated post scan")
+        .isTrue();
 
-    File parquetFile = new File(tempDir, "test-variant" + System.nanoTime());
-
-    OutputFile outFile = Files.localOutput(parquetFile);
-    try (FileAppender<GenericRecord> appender =
-        Parquet.write(outFile)
-            .schema(variantSchema)
-            .createWriterFunc(GenericParquetWriter::create)
-            .build()) {
-
-      for (int i = 0; i < 10; i++) {
-        GenericRecord record = GenericRecord.create(variantSchema);
-        record.setField("id", i);
-
-        if (i % 2 == 0) {
-          VariantMetadata metadata = Variants.metadata("field");
-          ShreddedObject obj = Variants.object(metadata);
-          obj.put("field", Variants.of("value" + i));
-          Variant variant = Variant.of(metadata, obj);
-          record.setField("variant_field", variant);
-        }
-
-        appender.add(record);
-      }
-    }
-
-    InputFile inFile = Files.localInput(parquetFile);
-    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
-      BlockMetaData blockMetaData = reader.getRowGroups().get(0);
-      MessageType fileSchema = reader.getFileMetaData().getSchema();
-
-      ParquetMetricsRowGroupFilter rowGroupFilter =
-          new ParquetMetricsRowGroupFilter(variantSchema, notNull("variant_field"), true);
-      boolean shouldRead = rowGroupFilter.shouldRead(fileSchema, blockMetaData);
-      assertThat(shouldRead)
-          .as("Should read: variant notNull filters must be evaluated post scan")
-          .isTrue();
-    }
-    parquetFile.deleteOnExit();
+    shouldRead = shouldRead(notNull("all_nulls_variant"));
+    assertThat(shouldRead)
+        .as("Should read: variant notNull filters must be evaluated post scan even for all nulls")
+        .isTrue();
   }
 
   @TestTemplate
-  public void testAllNullsVariantNotNull() throws IOException {
-    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+  public void testVariantEq() {
+    assumeThat(format).isNotEqualTo(FileFormat.ORC).as("ORC does not fully support variant type");
 
-    Schema variantSchema =
-        new Schema(
-            required(1, "id", IntegerType.get()),
-            optional(2, "variant_field", Types.VariantType.get()));
+    assertThatThrownBy(() -> shouldRead(equal("some_nulls_variant", "test")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("test");
+  }
 
-    File parquetFile = new File(tempDir, "test-variant-nulls" + System.nanoTime());
+  @TestTemplate
+  public void testVariantIn() {
+    assumeThat(format).isNotEqualTo(FileFormat.ORC).as("ORC does not fully support variant type");
 
-    OutputFile outFile = Files.localOutput(parquetFile);
-    try (FileAppender<GenericRecord> appender =
-        Parquet.write(outFile)
-            .schema(variantSchema)
-            .createWriterFunc(GenericParquetWriter::create)
-            .build()) {
+    assertThatThrownBy(() -> shouldRead(in("some_nulls_variant", "test1", "test2")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("test1");
 
-      for (int i = 0; i < 10; i++) {
-        GenericRecord record = GenericRecord.create(variantSchema);
-        record.setField("id", i);
-        record.setField("variant_field", null);
-        appender.add(record);
-      }
-    }
+    assertThatThrownBy(() -> shouldRead(in("all_nulls_variant", "test1", "test2")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("test1");
+  }
 
-    InputFile inFile = Files.localInput(parquetFile);
-    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      BlockMetaData blockMetaData = reader.getRowGroups().get(0);
-      MessageType fileSchema = reader.getFileMetaData().getSchema();
+  @TestTemplate
+  public void testVariantNotIn() {
+    assumeThat(format).isNotEqualTo(FileFormat.ORC);
 
-      ParquetMetricsRowGroupFilter rowGroupFilter =
-          new ParquetMetricsRowGroupFilter(variantSchema, notNull("variant_field"), true);
-      boolean shouldRead = rowGroupFilter.shouldRead(fileSchema, blockMetaData);
-      assertThat(shouldRead)
-          .as("Should read: variant notNull filters must be evaluated post scan even for all nulls")
-          .isTrue();
-    }
-    parquetFile.deleteOnExit();
+    // Variant columns cannot be used in 'notIn' expressions with literals
+    assertThatThrownBy(() -> shouldRead(notIn("some_nulls_variant", "test1", "test2")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("test1");
+
+    assertThatThrownBy(() -> shouldRead(notIn("all_nulls_variant", "test1", "test2")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("test1");
+  }
+
+  @TestTemplate
+  public void testVariantIsNull() {
+    assumeThat(format).isNotEqualTo(FileFormat.ORC).as("ORC does not fully support variant type");
+
+    boolean shouldRead = shouldRead(isNull("some_nulls_variant"));
+    assertThat(shouldRead)
+        .as("Should read: variant isNull filters must be evaluated post scan")
+        .isTrue();
+
+    shouldRead = shouldRead(isNull("all_nulls_variant"));
+    assertThat(shouldRead)
+        .as("Should read: variant isNull filters must be evaluated post scan even for all nulls")
+        .isTrue();
+  }
+
+  @TestTemplate
+  public void testVariantComparisons() {
+    assumeThat(format).isNotEqualTo(FileFormat.ORC).as("ORC does not fully support variant type");
+
+    // Variant columns cannot be used in comparison expressions with literals
+    assertThatThrownBy(() -> shouldRead(lessThan("some_nulls_variant", 42)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("42");
+
+    assertThatThrownBy(() -> shouldRead(lessThanOrEqual("some_nulls_variant", 42)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("42");
+
+    assertThatThrownBy(() -> shouldRead(greaterThan("some_nulls_variant", 42)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("42");
+
+    assertThatThrownBy(() -> shouldRead(greaterThanOrEqual("some_nulls_variant", 42)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("42");
+
+    assertThatThrownBy(() -> shouldRead(notEqual("some_nulls_variant", 42)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid value for conversion to type variant:")
+        .hasMessageContaining("42");
   }
 
   private boolean shouldRead(Expression expression) {
@@ -1103,8 +1153,8 @@ public class TestMetricsRowGroupFilter {
   private boolean shouldReadOrc(Expression expression, boolean caseSensitive) {
     try (CloseableIterable<org.apache.iceberg.data.Record> reader =
         ORC.read(Files.localInput(orcFile))
-            .project(SCHEMA)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
+            .project(testSchema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(testSchema, fileSchema))
             .filter(expression)
             .caseSensitive(caseSensitive)
             .build()) {
@@ -1119,7 +1169,7 @@ public class TestMetricsRowGroupFilter {
       boolean caseSensitive,
       MessageType messageType,
       BlockMetaData blockMetaData) {
-    return new ParquetMetricsRowGroupFilter(SCHEMA, expression, caseSensitive)
+    return new ParquetMetricsRowGroupFilter(testSchema, expression, caseSensitive)
         .shouldRead(messageType, blockMetaData);
   }
 

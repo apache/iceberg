@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.spark.sql.Row;
+import org.apache.spark.unsafe.types.VariantVal;
 
 public class SparkTestHelperBase {
   protected static final Object ANY = new Object();
@@ -79,6 +80,12 @@ public class SparkTestHelperBase {
         } else {
           assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
         }
+      } else if (expectedValue instanceof VariantVal && actualValue instanceof VariantVal) {
+        // Spark VariantVal may have fixed-width padding, so we compare their JSON representation
+        // instead of raw byte arrays.
+        assertThat((actualValue).toString())
+            .as("%s contents should match (VariantVal JSON)", context)
+            .isEqualTo((expectedValue).toString());
       } else if (expectedValue != ANY) {
         assertThat(actualValue).as("%s contents should match", context).isEqualTo(expectedValue);
       }
