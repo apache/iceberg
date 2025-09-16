@@ -21,12 +21,10 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -48,25 +46,6 @@ class ManifestLists {
       throw new RuntimeIOException(
           e, "Cannot read manifest list file: %s", manifestList.location());
     }
-  }
-
-  // or should we modify all related tests (to pass PlaintextEncryptionManager)?
-  @VisibleForTesting
-  static ManifestListWriter write(
-      int formatVersion,
-      OutputFile manifestListFile,
-      long snapshotId,
-      Long parentSnapshotId,
-      long sequenceNumber,
-      Long firstRowId) {
-    return write(
-        formatVersion,
-        manifestListFile,
-        PlaintextEncryptionManager.instance(),
-        snapshotId,
-        parentSnapshotId,
-        sequenceNumber,
-        firstRowId);
   }
 
   static ManifestListWriter write(
