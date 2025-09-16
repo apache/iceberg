@@ -20,8 +20,6 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SinkWriter;
@@ -100,20 +98,27 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
+    // Always try to stop the worker to avoid duplicates.
+    stopWorker();
+
+    // Empty partitions → task was stopped explicitly. Stop coordinator if running.
+    if (closedPartitions.isEmpty()) {
+      LOG.info("Task stopped. Closing coordinator.");
+      stopCoordinator();
+      config.closeCatalog();
+      return;
+    }
+
+    // Normal close: if leader partition is lost, stop coordinator.
     if (hasLeaderPartition(closedPartitions)) {
       LOG.info(
-          "Committer {}-{} lost leader partition. Stopping Coordinator.",
+          "Committer {}-{} lost leader partition. Stopping coordinator.",
           config.connectorName(),
           config.taskId());
       stopCoordinator();
     }
-    LOG.info("Stopping worker {}-{}.", config.connectorName(), config.taskId());
-    stopWorker();
-    Set<TopicPartition> oldAssignment = context.assignment().stream().collect(Collectors.toSet());
-    oldAssignment.removeAll(closedPartitions);
-    if (oldAssignment.isEmpty()) {
-      config.closeCatalog();
-    }
+
+    // Reset offsets to last committed to avoid data loss.
     LOG.info(
         "Seeking to last committed offsets for worker {}-{}.",
         config.connectorName(),
@@ -135,11 +140,15 @@ public class CommitterImpl implements Committer {
     this.config = icebergSinkConfig;
     this.context = icebergSinkConfig.context();
     this.clientFactory = new KafkaClientFactory(icebergSinkConfig.kafkaProps());
+    this.config.loadCatalog();
   }
 
   private void processControlEvents() {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
-      throw new NotRunningException("Coordinator unexpectedly terminated");
+      throw new NotRunningException(
+          String.format(
+              "Coordinator unexpectedly terminated on committer %s-%s",
+              config.connectorName(), config.taskId()));
     }
     if (worker != null) {
       worker.process();
@@ -148,7 +157,7 @@ public class CommitterImpl implements Committer {
 
   private void startWorker() {
     if (null == this.worker) {
-      LOG.info("Starting commit worker");
+        LOG.info("Starting commit worker {}-{}", config.connectorName(), config.taskId());
       SinkWriter sinkWriter = new SinkWriter(config);
       worker = new Worker(config, clientFactory, sinkWriter);
       worker.start();
@@ -157,7 +166,10 @@ public class CommitterImpl implements Committer {
 
   private void startCoordinator() {
     if (null == this.coordinatorThread) {
-      LOG.info("Task elected leader, starting commit coordinator");
+      LOG.info(
+          "Task {}-{} elected leader, starting commit coordinator",
+          config.connectorName(),
+          config.taskId());
       Coordinator coordinator =
           new Coordinator(config, membersWhenWorkerIsCoordinator, clientFactory);
       coordinatorThread = new CoordinatorThread(coordinator);

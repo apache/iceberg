@@ -58,7 +58,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         partition.expectedSchema(),
         partition.isCaseSensitive(),
         parquetBatchReadConf,
-        orcBatchReadConf);
+        orcBatchReadConf,
+        partition.cacheDeleteFilesOnExecutors());
   }
 
   BatchDataReader(
@@ -68,8 +69,17 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       Schema expectedSchema,
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
-      OrcBatchReadConf orcConf) {
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, parquetConf, orcConf);
+      OrcBatchReadConf orcConf,
+      boolean cacheDeleteFilesOnExecutors) {
+    super(
+        table,
+        taskGroup,
+        tableSchema,
+        expectedSchema,
+        caseSensitive,
+        parquetConf,
+        orcConf,
+        cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());

@@ -82,6 +82,7 @@ public class ComputePartitionStatsProcedure extends BaseProcedure {
     return this;
   }
 
+  @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
   }

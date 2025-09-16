@@ -191,7 +191,8 @@ public class SparkCatalog extends BaseCatalog {
         SnapshotRef ref = sparkTable.table().refs().get(version);
         ValidationException.check(
             ref != null,
-            "Cannot find matching snapshot ID or reference name for version " + version);
+            "Cannot find matching snapshot ID or reference name for version %s",
+            version);
 
         if (ref.isBranch()) {
           return sparkTable.copyWithBranch(version);

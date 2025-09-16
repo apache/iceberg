@@ -70,7 +70,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   @Override
   public OAuth2Util.AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
-    warnIfDeprecatedTokenEndpointUsed(properties);
+    warnIfOAuthServerUriNotSet(properties);
     AuthConfig config =
         ImmutableAuthConfig.builder()
             .from(AuthConfig.fromProperties(properties))
@@ -272,8 +272,8 @@ public class OAuth2Manager extends RefreshingAuthManager {
         refreshClient, refreshExecutor(), response, System.currentTimeMillis(), parent);
   }
 
-  private static void warnIfDeprecatedTokenEndpointUsed(Map<String, String> properties) {
-    if (usesDeprecatedTokenEndpoint(properties)) {
+  private static void warnIfOAuthServerUriNotSet(Map<String, String> properties) {
+    if (!properties.containsKey(OAuth2Properties.OAUTH2_SERVER_URI)) {
       String credential = properties.get(OAuth2Properties.CREDENTIAL);
       String initToken = properties.get(OAuth2Properties.TOKEN);
       boolean hasCredential = credential != null && !credential.isEmpty();
@@ -281,7 +281,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
       if (hasInitToken || hasCredential) {
         LOG.warn(
             "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}/{}. "
-                + "This automatic fallback will be removed in a future Iceberg release."
+                + "This automatic fallback will be removed in a future Iceberg release. "
                 + "It is recommended to configure the OAuth2 endpoint using the '{}' property to be prepared. "
                 + "This warning will disappear if the OAuth2 endpoint is explicitly configured. "
                 + "See https://github.com/apache/iceberg/issues/10537",
@@ -290,16 +290,6 @@ public class OAuth2Manager extends RefreshingAuthManager {
             OAuth2Properties.OAUTH2_SERVER_URI);
       }
     }
-  }
-
-  private static boolean usesDeprecatedTokenEndpoint(Map<String, String> properties) {
-    if (properties.containsKey(OAuth2Properties.OAUTH2_SERVER_URI)) {
-      String oauth2ServerUri = properties.get(OAuth2Properties.OAUTH2_SERVER_URI);
-      boolean relativePath = !oauth2ServerUri.startsWith("http");
-      boolean sameHost = oauth2ServerUri.startsWith(properties.get(CatalogProperties.URI));
-      return relativePath || sameHost;
-    }
-    return true;
   }
 
   private static Duration sessionTimeout(Map<String, String> props) {

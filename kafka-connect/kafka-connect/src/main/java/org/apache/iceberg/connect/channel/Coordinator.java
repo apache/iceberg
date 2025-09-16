@@ -74,6 +74,7 @@ class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
+  private volatile boolean terminated;
 
   Coordinator(
       IcebergSinkConfig config,
@@ -230,6 +231,10 @@ class Coordinator extends Channel {
             .filter(distinctByKey(ContentFile::location))
             .collect(Collectors.toList());
 
+    if (terminated) {
+      throw new ConnectException("Coordinator is terminated, commit aborted");
+    }
+
     if (dataFiles.isEmpty() && deleteFiles.isEmpty()) {
       LOG.info("Nothing to commit to table {}, skipping", tableIdentifier);
     } else {
@@ -309,7 +314,10 @@ class Coordinator extends Channel {
   }
 
   void terminate() {
+    this.terminated = true;
+
     exec.shutdownNow();
+
     // wait for coordinator termination, else cause the sink task to fail
     try {
       if (!exec.awaitTermination(1, TimeUnit.MINUTES)) {
@@ -318,11 +326,5 @@ class Coordinator extends Channel {
     } catch (InterruptedException e) {
       throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
     }
-  }
-
-  @Override
-  public void stop() {
-    terminate();
-    super.stop();
   }
 }

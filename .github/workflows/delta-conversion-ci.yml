@@ -31,6 +31,7 @@ on:
     paths-ignore:
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/workflows/api-binary-compatibility.yml'
+      - '.github/workflows/docs-ci.yml'
       - '.github/workflows/flink-ci.yml'
       - '.github/workflows/hive-ci.yml'
       - '.github/workflows/java-ci.yml'

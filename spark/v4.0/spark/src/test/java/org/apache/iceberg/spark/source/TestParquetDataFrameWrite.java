@@ -18,9 +18,13 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.spark.SparkException;
+import org.junit.jupiter.api.Test;
 
 public class TestParquetDataFrameWrite extends DataFrameWriteTestBase {
   @Override
@@ -34,5 +38,25 @@ public class TestParquetDataFrameWrite extends DataFrameWriteTestBase {
         .updateProperties()
         .set(TableProperties.DEFAULT_FILE_FORMAT, FileFormat.PARQUET.toString())
         .commit();
+  }
+
+  @Test
+  @Override
+  public void testUnknownListType() {
+    assertThatThrownBy(super::testUnknownListType)
+        .isInstanceOf(SparkException.class)
+        .cause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot convert element Parquet: unknown");
+  }
+
+  @Test
+  @Override
+  public void testUnknownMapType() {
+    assertThatThrownBy(super::testUnknownMapType)
+        .isInstanceOf(SparkException.class)
+        .cause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot convert value Parquet: unknown");
   }
 }
