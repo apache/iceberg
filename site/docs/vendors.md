@@ -109,6 +109,10 @@ Firebolt is also available as [Firebolt Core](https://docs.firebolt.io/firebolt-
 
 Learn more about querying Iceberg with Firebolt [here](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance).
 
+### [Fivetran](https://www.fivetran.com)
+[Fivetran](https://www.fivetran.com), the global leader in data movement, is trusted by Enterprises to centralize data from SaaS applications and databases into cloud destinations, including [Managed Data Lakes](https://fivetran.com/docs/destinations/managed-data-lake-service). Fivetran empowers organizations to modernize their data infrastructure, ensure compliance, and power AI and innovation.
+
+
 ### [IBM watsonx.data](https://www.ibm.com/products/watsonx-data)
 
 [IBM watsonx.data](https://www.ibm.com/products/watsonx-data) is an open data lakehouse for AI and analytics. It uses Apache Iceberg as a core table format, providing features like schema evolution, time travel, and partitioning. This allows developers to easily work with large, complex data sets while ensuring efficient performance and flexibility. watsonx.data simplifies the integration of Iceberg tables, making it easy to manage data across different environments and query historical data without disruption. 
