@@ -18,7 +18,7 @@
 
 set -e
 
-remote_name="${1:-apache}"
+remote_name="${1:-origin}"
 
 ./dev/setup_env.sh
 
