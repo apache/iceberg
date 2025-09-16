@@ -24,7 +24,9 @@ The latest version of Iceberg is [{{ icebergVersion }}](../../releases.md).
 
 Spark is currently the most feature-rich compute engine for Iceberg operations.
 We recommend you to get started with Spark to understand Iceberg concepts and features with examples.
-You can also view documentations of using Iceberg with other compute engine under the [Multi-Engine Support](../../multi-engine-support.md) page.
+You can also view documentations of using Iceberg with other compute engine under the
+[Multi-Engine Support page](https://iceberg.apache.org/multi-engine-support/).
+
 
 ## Using Iceberg in Spark 3
 
