@@ -38,14 +38,12 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
-import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.ActionsProvider;
@@ -902,36 +900,35 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
-  public void testPartitionStatisticFile() throws IOException {
+  public void testTableWithManyPartitionStatisticFile() throws IOException {
     String sourceTableLocation = newTableLocation();
     Map<String, String> properties = Maps.newHashMap();
     properties.put("format-version", "2");
     String tableName = "v2tblwithPartStats";
     Table sourceTable =
-        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0, "c1");
 
-    TableMetadata metadata = currentMetadata(sourceTable);
-    TableMetadata withPartStatistics =
-        TableMetadata.buildFrom(metadata)
-            .setPartitionStatistics(
-                ImmutableGenericPartitionStatisticsFile.builder()
-                    .snapshotId(11L)
-                    .path("/some/partition/stats/file.parquet")
-                    .fileSizeInBytes(42L)
-                    .build())
-            .build();
+    int iterations = 10;
+    for (int i = 0; i < iterations; i++) {
+      sql("insert into hive.default.%s values (%s, 'AAAAAAAAAA', 'AAAA')", tableName, i);
+      sourceTable.refresh();
+      actions().computePartitionStats(sourceTable).execute();
+    }
 
-    OutputFile file = sourceTable.io().newOutputFile(metadata.metadataFileLocation());
-    TableMetadataParser.overwrite(withPartStatistics, file);
+    sourceTable.refresh();
+    assertThat(sourceTable.partitionStatisticsFiles()).hasSize(iterations);
 
-    assertThatThrownBy(
-            () ->
-                actions()
-                    .rewriteTablePath(sourceTable)
-                    .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
-                    .execute())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Partition statistics files are not supported yet");
+    String targetTableLocation = targetTableLocation();
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation)
+            .execute();
+    checkFileNum(
+        iterations * 2 + 1, iterations, iterations, 0, iterations, iterations * 6 + 1, result);
+
+    findAndAssertFileInFileList(
+        result, "partition-stats", sourceTableLocation, targetTableLocation);
   }
 
   @Test
@@ -988,29 +985,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     checkFileNum(3, 1, 1, 1, 7, result);
 
-    // Read the file list to verify statistics file paths
-    List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
-
-    // Find the statistics file entry in the file list using stream
-    Tuple2<String, String> statsFilePathPair =
-        filesToMove.stream()
-            .filter(pathPair -> pathPair._1().endsWith(".stats"))
-            .findFirst()
-            .orElse(null);
-
-    assertThat(statsFilePathPair).as("Should find statistics file in file list").isNotNull();
-
-    // Verify the source path points to the actual source location, not staging
-    assertThat(statsFilePathPair._1())
-        .as("Statistics file source should point to source table location and NOT staging")
-        .startsWith(sourceTableLocation)
-        .contains("/metadata/")
-        .doesNotContain("staging");
-
-    // Verify the target path is correctly rewritten
-    assertThat(statsFilePathPair._2())
-        .as("Statistics file target should point to target table location")
-        .startsWith(targetTableLocation);
+    findAndAssertFileInFileList(result, ".stats", sourceTableLocation, targetTableLocation);
   }
 
   @Test
@@ -1265,7 +1240,7 @@ public class TestRewriteTablePathsAction extends TestBase {
       int manifestFileCount,
       int totalCount,
       RewriteTablePath.Result result) {
-    checkFileNum(versionFileCount, manifestListCount, manifestFileCount, 0, totalCount, result);
+    checkFileNum(versionFileCount, manifestListCount, manifestFileCount, 0, 0, totalCount, result);
   }
 
   protected void checkFileNum(
@@ -1273,6 +1248,24 @@ public class TestRewriteTablePathsAction extends TestBase {
       int manifestListCount,
       int manifestFileCount,
       int statisticsFileCount,
+      int totalCount,
+      RewriteTablePath.Result result) {
+    checkFileNum(
+        versionFileCount,
+        manifestListCount,
+        manifestFileCount,
+        statisticsFileCount,
+        0,
+        totalCount,
+        result);
+  }
+
+  protected void checkFileNum(
+      int versionFileCount,
+      int manifestListCount,
+      int manifestFileCount,
+      int statisticsFileCount,
+      int partitionFileCount,
       int totalCount,
       RewriteTablePath.Result result) {
     List<String> filesToMove =
@@ -1302,6 +1295,9 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(filesToMove.stream().filter(f -> f.endsWith(".stats")))
         .as("Wrong rebuilt Statistic file count")
         .hasSize(statisticsFileCount);
+    assertThat(filesToMove.stream().filter(f -> f.contains("partition-stats")))
+        .as("Wrong rebuilt Partition Statistic file count")
+        .hasSize(partitionFileCount);
     assertThat(filesToMove).as("Wrong total file count").hasSize(totalCount);
   }
 
@@ -1355,41 +1351,79 @@ public class TestRewriteTablePathsAction extends TestBase {
       String namespace,
       String tableName,
       int snapshotNumber) {
+    return createMetastoreTable(location, properties, namespace, tableName, snapshotNumber, null);
+  }
+
+  private Table createMetastoreTable(
+      String location,
+      Map<String, String> properties,
+      String namespace,
+      String tableName,
+      int snapshotNumber,
+      String partitionColumn) {
     spark.conf().set("spark.sql.catalog.hive", SparkCatalog.class.getName());
     spark.conf().set("spark.sql.catalog.hive.type", "hive");
     spark.conf().set("spark.sql.catalog.hive.default-namespace", "default");
     spark.conf().set("spark.sql.catalog.hive.cache-enabled", "false");
 
+    // Generate and execute CREATE TABLE SQL
+    String createTableSQL =
+        generateCreateTableSQL(location, properties, namespace, tableName, partitionColumn);
+    sql(createTableSQL);
+
+    for (int i = 0; i < snapshotNumber; i++) {
+      sql("insert into hive.%s.%s values (%s, 'AAAAAAAAAA', 'AAAA')", namespace, tableName, i);
+    }
+    return catalog.loadTable(TableIdentifier.of(namespace, tableName));
+  }
+
+  /**
+   * Generates SQL statement for creating an Iceberg table
+   *
+   * @param location location the storage location path for the table, can be empty
+   * @param properties key-value pairs of table properties for setting table metadata
+   * @param namespace the namespace (database name)
+   * @param tableName the name of the table to be created
+   * @param partitionColumn the partition column name, must be one of c1, c2, or c3; can be null or
+   *     empty string for non-partitioned table
+   * @return CREATE TABLE SQL statement string
+   */
+  private String generateCreateTableSQL(
+      String location,
+      Map<String, String> properties,
+      String namespace,
+      String tableName,
+      String partitionColumn) {
     StringBuilder propertiesStr = new StringBuilder();
     properties.forEach((k, v) -> propertiesStr.append("'" + k + "'='" + v + "',"));
     String tblProperties =
         propertiesStr.substring(0, propertiesStr.length() > 0 ? propertiesStr.length() - 1 : 0);
 
     sql("DROP TABLE IF EXISTS hive.%s.%s", namespace, tableName);
-    if (tblProperties.isEmpty()) {
-      String sqlStr =
-          String.format(
-              "CREATE TABLE hive.%s.%s (c1 bigint, c2 string, c3 string)", namespace, tableName);
-      if (!location.isEmpty()) {
-        sqlStr = String.format("%s USING iceberg LOCATION '%s'", sqlStr, location);
-      }
-      sql(sqlStr);
+
+    StringBuilder createTableSql = new StringBuilder();
+    createTableSql
+        .append("CREATE TABLE hive.")
+        .append(namespace)
+        .append(".")
+        .append(tableName)
+        .append(" (c1 bigint, c2 string, c3 string)");
+
+    if (partitionColumn != null && !partitionColumn.isEmpty()) {
+      createTableSql.append(" USING iceberg PARTITIONED BY (").append(partitionColumn).append(")");
     } else {
-      String sqlStr =
-          String.format(
-              "CREATE TABLE hive.%s.%s (c1 bigint, c2 string, c3 string)", namespace, tableName);
-      if (!location.isEmpty()) {
-        sqlStr = String.format("%s USING iceberg LOCATION '%s'", sqlStr, location);
-      }
-
-      sqlStr = String.format("%s TBLPROPERTIES (%s)", sqlStr, tblProperties);
-      sql(sqlStr);
+      createTableSql.append(" USING iceberg");
     }
 
-    for (int i = 0; i < snapshotNumber; i++) {
-      sql("insert into hive.%s.%s values (%s, 'AAAAAAAAAA', 'AAAA')", namespace, tableName, i);
+    if (!location.isEmpty()) {
+      createTableSql.append(" LOCATION '").append(location).append("'");
     }
-    return catalog.loadTable(TableIdentifier.of(namespace, tableName));
+
+    if (!tblProperties.isEmpty()) {
+      createTableSql.append(" TBLPROPERTIES (").append(tblProperties).append(")");
+    }
+
+    return createTableSql.toString();
   }
 
   private static String fileName(String path) {
@@ -1433,5 +1467,37 @@ public class TestRewriteTablePathsAction extends TestBase {
     blockInfoManager.lockForWriting(blockId, true);
     blockInfoManager.removeBlock(blockId);
     blockManager.memoryStore().remove(blockId);
+  }
+
+  private void findAndAssertFileInFileList(
+      RewriteTablePath.Result result,
+      String fileIdentifier,
+      String sourceTableLocation,
+      String targetTableLocation) {
+
+    List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
+
+    // Find the file path pair that contains the specified file identifier
+    Tuple2<String, String> filePathPair =
+        filesToMove.stream()
+            .filter(pair -> pair._1().contains(fileIdentifier))
+            .findFirst()
+            .orElse(null);
+
+    // Assert that the file was found in the list
+    assertThat(filePathPair).as("Should find " + fileIdentifier + " file in file list").isNotNull();
+
+    // Validate source path: should point to source table location, contain metadata, and not
+    // staging
+    assertThat(filePathPair._1())
+        .as(fileIdentifier + " source should point to source table location and NOT staging")
+        .startsWith(sourceTableLocation)
+        .contains("/metadata/")
+        .doesNotContain("staging");
+
+    // Validate target path: should point to target table location
+    assertThat(filePathPair._2())
+        .as(fileIdentifier + " target should point to target table location")
+        .startsWith(targetTableLocation);
   }
 }

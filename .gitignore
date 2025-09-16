@@ -69,3 +69,6 @@ derby.log
 
 # jenv
 .java-version
+
+# sdkman
+.sdkmanrc

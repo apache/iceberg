@@ -72,10 +72,10 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
-| iceberg.table.\<table name\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
-| iceberg.table.\<table name\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
-| iceberg.table.\<table name\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
-| iceberg.table.\<table name\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
+| iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
+| iceberg.table.<_table-name_\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
+| iceberg.table.<_table-name_\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
+| iceberg.table.<_table-name_\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
 | iceberg.control.topic                      | Name of the control topic, default is `control-iceberg`                                                          |
 | iceberg.control.group-id-prefix            | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
