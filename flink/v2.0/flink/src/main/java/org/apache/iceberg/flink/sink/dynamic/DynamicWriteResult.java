@@ -22,15 +22,15 @@ import org.apache.iceberg.io.WriteResult;
 
 class DynamicWriteResult {
 
-  private final WriteTarget key;
+  private final TableKey key;
   private final WriteResult writeResult;
 
-  DynamicWriteResult(WriteTarget key, WriteResult writeResult) {
+  DynamicWriteResult(TableKey key, WriteResult writeResult) {
     this.key = key;
     this.writeResult = writeResult;
   }
 
-  WriteTarget key() {
+  TableKey key() {
     return key;
   }
 
