@@ -133,7 +133,7 @@ public class TestIcebergSinkConfig {
             "topics",
             "source-topic",
             "iceberg.catalog.catalog-impl",
-            CatalogUtilsTest.TestCatalog.class.getName(),
+            TestCatalogUtils.TestCatalog.class.getName(),
             "iceberg.tables",
             "db.landing");
     IcebergSinkConfig config = new IcebergSinkConfig(props, null);
