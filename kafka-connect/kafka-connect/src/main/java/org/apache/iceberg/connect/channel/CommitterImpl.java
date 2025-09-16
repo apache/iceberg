@@ -157,7 +157,7 @@ public class CommitterImpl implements Committer {
 
   private void startWorker() {
     if (null == this.worker) {
-        LOG.info("Starting commit worker {}-{}", config.connectorName(), config.taskId());
+      LOG.info("Starting commit worker {}-{}", config.connectorName(), config.taskId());
       SinkWriter sinkWriter = new SinkWriter(config);
       worker = new Worker(config, clientFactory, sinkWriter);
       worker.start();
