@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.comet.parquet.SupportsComet;
 import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -95,7 +96,7 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkScan implements Scan, SupportsReportStatistics {
+abstract class SparkScan implements Scan, SupportsReportStatistics, SupportsComet {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
   private static final String NDV_KEY = "ndv";
 
@@ -350,5 +351,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     } else {
       return splitSize;
     }
+  }
+
+  @Override
+  public boolean isCometEnabled() {
+    SparkBatch batch = (SparkBatch) this.toBatch();
+    return batch.useCometBatchReads();
   }
 }
