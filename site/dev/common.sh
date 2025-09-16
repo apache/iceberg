@@ -187,7 +187,6 @@ update_version () {
 
 }
 
-
 # Excludes versioned documentation from search indexing by modifying .md files.
 # Arguments:
 #   $1: ICEBERG_VERSION - The version number of the documentation to exclude from search indexing.
