@@ -40,7 +40,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   private final String tableKeyId;
   private final int dataKeyLength;
 
-  // a holder class of metadata that is not available after serialization
+  // unserializable elements of the EncryptionManager
   private class TransientEncryptionState {
     private final KeyManagementClient kmsClient;
     private final Map<String, EncryptedKey> encryptionKeys;
@@ -110,7 +110,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   /**
-   * @deprecated will be removed in 1.11.0.
+   * @deprecated will be removed in 2.0.
    */
   @Deprecated
   public ByteBuffer wrapKey(ByteBuffer secretKey) {
@@ -123,7 +123,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   /**
-   * @deprecated will be removed in 1.11.0.
+   * @deprecated will be removed in 2.0.
    */
   @Deprecated
   public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {

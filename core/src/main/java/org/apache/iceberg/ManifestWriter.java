@@ -195,9 +195,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
 
-    // if key metadata can store the length, add it
     ByteBuffer keyMetadataBuffer;
     if (keyMetadata instanceof NativeEncryptionKeyMetadata) {
+      // File length is required by AES GCM Stream encryption, to prevent file truncation attacks
       keyMetadataBuffer =
           ((NativeEncryptionKeyMetadata) keyMetadata).copyWithLength(length()).buffer();
     } else if (keyMetadata != null) {

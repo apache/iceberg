@@ -1254,11 +1254,6 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
       justification: "Changing deprecated code"
   "1.9.0":
-    org.apache.iceberg:iceberg-api:
-    - code: "java.class.defaultSerializationChanged"
-      old: "class org.apache.iceberg.encryption.EncryptingFileIO"
-      new: "class org.apache.iceberg.encryption.EncryptingFileIO"
-      justification: "New method for Manifest List reading"
     org.apache.iceberg:iceberg-common:
     - code: "java.method.visibilityReduced"
       old: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\
@@ -1369,6 +1364,11 @@ acceptedBreaks:
         \ org.apache.iceberg.data.parquet.GenericParquetWriter::createStructWriter(java.util.List<org.apache.iceberg.parquet.ParquetValueWriter<?>>)"
       justification: "Removing deprecations for 1.10.0"
   "1.10.0":
+    org.apache.iceberg:iceberg-api:
+      - code: "java.class.defaultSerializationChanged"
+        old: "class org.apache.iceberg.encryption.EncryptingFileIO"
+        new: "class org.apache.iceberg.encryption.EncryptingFileIO"
+        justification: "New method for Manifest List reading"
     org.apache.iceberg:iceberg-core:
       - code: "java.field.constantValueChanged"
         old: "field org.apache.iceberg.rest.ResourcePaths.V1_TABLE_SCAN_PLAN"
