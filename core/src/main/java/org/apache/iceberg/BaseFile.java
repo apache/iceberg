@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
@@ -631,5 +632,71 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("content_offset", contentOffset == null ? "null" : contentOffset)
         .add("content_size_in_bytes", contentSizeInBytes == null ? "null" : contentSizeInBytes)
         .toString();
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @Override
+  public boolean equals(Object other) {
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+    BaseFile<?> baseFile = (BaseFile<?>) other;
+    return partitionSpecId == baseFile.partitionSpecId
+        && fileSizeInBytes == baseFile.fileSizeInBytes
+        && Objects.equals(partitionType, baseFile.partitionType)
+        && Objects.equals(fileOrdinal, baseFile.fileOrdinal)
+        && Objects.equals(manifestLocation, baseFile.manifestLocation)
+        && content == baseFile.content
+        && Objects.equals(filePath, baseFile.filePath)
+        && format == baseFile.format
+        && Objects.equals(partitionData, baseFile.partitionData)
+        && Objects.equals(recordCount, baseFile.recordCount)
+        && Objects.equals(dataSequenceNumber, baseFile.dataSequenceNumber)
+        && Objects.equals(fileSequenceNumber, baseFile.fileSequenceNumber)
+        && Objects.equals(columnSizes, baseFile.columnSizes)
+        && Objects.equals(valueCounts, baseFile.valueCounts)
+        && Objects.equals(nullValueCounts, baseFile.nullValueCounts)
+        && Objects.equals(nanValueCounts, baseFile.nanValueCounts)
+        && Objects.equals(lowerBounds, baseFile.lowerBounds)
+        && Objects.equals(upperBounds, baseFile.upperBounds)
+        && Objects.deepEquals(splitOffsets, baseFile.splitOffsets)
+        && Objects.deepEquals(equalityIds, baseFile.equalityIds)
+        && Objects.deepEquals(keyMetadata, baseFile.keyMetadata)
+        && Objects.equals(sortOrderId, baseFile.sortOrderId)
+        && Objects.equals(firstRowId, baseFile.firstRowId)
+        && Objects.equals(referencedDataFile, baseFile.referencedDataFile)
+        && Objects.equals(contentOffset, baseFile.contentOffset)
+        && Objects.equals(contentSizeInBytes, baseFile.contentSizeInBytes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        partitionType,
+        fileOrdinal,
+        manifestLocation,
+        partitionSpecId,
+        content,
+        filePath,
+        format,
+        partitionData,
+        recordCount,
+        fileSizeInBytes,
+        dataSequenceNumber,
+        fileSequenceNumber,
+        columnSizes,
+        valueCounts,
+        nullValueCounts,
+        nanValueCounts,
+        lowerBounds,
+        upperBounds,
+        Arrays.hashCode(splitOffsets),
+        Arrays.hashCode(equalityIds),
+        Arrays.hashCode(keyMetadata),
+        sortOrderId,
+        firstRowId,
+        referencedDataFile,
+        contentOffset,
+        contentSizeInBytes);
   }
 }

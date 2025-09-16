@@ -19,10 +19,13 @@
 package org.apache.iceberg.io;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -133,5 +136,36 @@ public class WriteResult implements Serializable {
     public WriteResult build() {
       return new WriteResult(dataFiles, deleteFiles, referencedDataFiles, rewrittenDeleteFiles);
     }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("dataFiles", dataFiles)
+        .add("deleteFiles", deleteFiles)
+        .add("referencedDataFiles", referencedDataFiles)
+        .add("rewrittenDeleteFiles", rewrittenDeleteFiles)
+        .toString();
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+    WriteResult that = (WriteResult) other;
+    return Objects.deepEquals(dataFiles, that.dataFiles)
+        && Objects.deepEquals(deleteFiles, that.deleteFiles)
+        && Objects.deepEquals(referencedDataFiles, that.referencedDataFiles)
+        && Objects.deepEquals(rewrittenDeleteFiles, that.rewrittenDeleteFiles);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        Arrays.hashCode(dataFiles),
+        Arrays.hashCode(deleteFiles),
+        Arrays.hashCode(referencedDataFiles),
+        Arrays.hashCode(rewrittenDeleteFiles));
   }
 }

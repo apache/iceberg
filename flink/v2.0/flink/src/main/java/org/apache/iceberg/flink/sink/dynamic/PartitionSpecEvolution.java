@@ -34,9 +34,9 @@ public class PartitionSpecEvolution {
   private PartitionSpecEvolution() {}
 
   /**
-   * Checks whether two PartitionSpecs are compatible with each other. Less strict than {@code
-   * PartitionSpec#compatible} in the sense that it tolerates differently named partition fields, as
-   * long as their transforms and field names corresponding to their source ids match.
+   * Checks whether two PartitionSpecs are compatible with each other. Less strict than {@link
+   * PartitionSpec#compatibleWith} in the sense that it tolerates differently named partition
+   * fields, as long as their transforms and field names corresponding to their source ids match.
    */
   public static boolean checkCompatibility(PartitionSpec spec1, PartitionSpec spec2) {
     if (spec1.equals(spec2)) {

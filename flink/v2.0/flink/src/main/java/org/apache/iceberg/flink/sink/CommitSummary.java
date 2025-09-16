@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.annotation.Internal;
@@ -43,11 +42,7 @@ public class CommitSummary {
     pendingResults.values().forEach(this::addWriteResult);
   }
 
-  public void addAll(NavigableMap<Long, List<WriteResult>> pendingResults) {
-    pendingResults.values().forEach(writeResults -> writeResults.forEach(this::addWriteResult));
-  }
-
-  private void addWriteResult(WriteResult writeResult) {
+  public void addWriteResult(WriteResult writeResult) {
     dataFilesCount.addAndGet(writeResult.dataFiles().length);
     Arrays.stream(writeResult.dataFiles())
         .forEach(

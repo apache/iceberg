@@ -23,6 +23,8 @@ import java.io.IOException;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
+import org.apache.iceberg.flink.sink.WriteResultSerializer;
+import org.apache.iceberg.io.WriteResult;
 
 /**
  * This serializer is used for serializing the {@link DynamicCommittable} objects between the {@link
@@ -32,6 +34,7 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicCommittable> {
 
   private static final int VERSION = 1;
+  private static final WriteResultSerializer WRITE_RESULT_SERIALIZER = new WriteResultSerializer();
 
   @Override
   public int getVersion() {
@@ -46,8 +49,10 @@ class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicC
     view.writeUTF(committable.jobId());
     view.writeUTF(committable.operatorId());
     view.writeLong(committable.checkpointId());
-    view.writeInt(committable.manifest().length);
-    view.write(committable.manifest());
+
+    byte[] result = WRITE_RESULT_SERIALIZER.serialize(committable.writeResult());
+    view.write(result);
+
     return out.toByteArray();
   }
 
@@ -55,15 +60,16 @@ class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicC
   public DynamicCommittable deserialize(int version, byte[] serialized) throws IOException {
     if (version == 1) {
       DataInputDeserializer view = new DataInputDeserializer(serialized);
-      WriteTarget key = WriteTarget.deserializeFrom(view);
+      TableKey key = TableKey.deserializeFrom(view);
       String jobId = view.readUTF();
       String operatorId = view.readUTF();
       long checkpointId = view.readLong();
-      int manifestLen = view.readInt();
-      byte[] manifestBuf;
-      manifestBuf = new byte[manifestLen];
-      view.read(manifestBuf);
-      return new DynamicCommittable(key, manifestBuf, jobId, operatorId, checkpointId);
+
+      byte[] resultBuf = new byte[view.available()];
+      view.read(resultBuf);
+      WriteResult writeResult = WRITE_RESULT_SERIALIZER.deserialize(version, resultBuf);
+
+      return new DynamicCommittable(key, writeResult, jobId, operatorId, checkpointId);
     }
 
     throw new IOException("Unrecognized version or corrupt state: " + version);
