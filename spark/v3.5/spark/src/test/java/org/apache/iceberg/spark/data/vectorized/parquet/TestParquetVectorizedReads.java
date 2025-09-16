@@ -517,12 +517,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
     String name = Paths.get(url.getPath()).getFileName().toString(); // e.g., string.parquet
     String suffix = name.contains(".") ? name.substring(name.lastIndexOf('.')) : "";
-    Path tmp = java.nio.file.Files.createTempFile("golden-", suffix);
-    try (InputStream in = url.openStream()) {
-      java.nio.file.Files.copy(in, tmp, REPLACE_EXISTING);
-    }
-    tmp.toFile().deleteOnExit();
-    return tmp.toFile();
+    return File.createTempFile("golden-", suffix, temp.toFile());
   }
 
   @ParameterizedTest
