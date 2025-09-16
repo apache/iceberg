@@ -80,8 +80,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTestBase {
   @Override
   protected void writeAndValidate(Schema schema, List<Record> expected) throws IOException {
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     SecureRandom rand = new SecureRandom();
     rand.nextBytes(FILE_DEK.array());
@@ -150,8 +149,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTestBase {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     SecureRandom rand = new SecureRandom();
     rand.nextBytes(FILE_DEK.array());

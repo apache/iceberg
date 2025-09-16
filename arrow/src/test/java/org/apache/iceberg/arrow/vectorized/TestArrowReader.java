@@ -52,6 +52,8 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.TimeStampNanoTZVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -69,6 +71,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -79,6 +82,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -124,7 +128,13 @@ public class TestArrowReader {
           "uuid",
           "uuid_nullable",
           "decimal",
-          "decimal_nullable");
+          "decimal_nullable",
+          "fixed",
+          "fixed_nullable",
+          "timestamp_nano",
+          "timestamp_nano_nullable",
+          "timestamp_nano_tz",
+          "timestamp_nano_tz_nullable");
   @TempDir private File tempDir;
 
   private HadoopTables tables;
@@ -633,6 +643,66 @@ public class TestArrowReader {
         "decimal_nullable",
         (records, i) -> records.get(i).getField("decimal_nullable"),
         (array, i) -> array.getDecimal(i, 9, 2));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("fixed"),
+        columnSet,
+        "fixed",
+        (records, i) -> records.get(i).getField("fixed"),
+        (array, i) -> array.getBinary(i));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("fixed_nullable"),
+        columnSet,
+        "fixed_nullable",
+        (records, i) -> records.get(i).getField("fixed_nullable"),
+        (array, i) -> array.getBinary(i));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("timestamp_nano"),
+        columnSet,
+        "timestamp_nano",
+        (records, i) -> records.get(i).getField("timestamp_nano"),
+        (array, i) -> timestampFromNanos(array.getLong(i)));
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("timestamp_nano_nullable"),
+        columnSet,
+        "timestamp_nano_nullable",
+        (records, i) -> records.get(i).getField("timestamp_nano_nullable"),
+        (array, i) -> timestampFromNanos(array.getLong(i)));
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("timestamp_nano_tz"),
+        columnSet,
+        "timestamp_nano_tz",
+        (records, i) ->
+            timestampToNanos((OffsetDateTime) records.get(i).getField("timestamp_nano_tz")),
+        ColumnVector::getLong);
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("timestamp_nano_tz_nullable"),
+        columnSet,
+        "timestamp_nano_tz_nullable",
+        (records, i) ->
+            timestampToNanos(
+                (OffsetDateTime) records.get(i).getField("timestamp_nano_tz_nullable")),
+        ColumnVector::getLong);
   }
 
   private static void checkColumnarArrayValues(
@@ -698,11 +768,21 @@ public class TestArrowReader {
             Types.NestedField.required(24, "uuid", Types.UUIDType.get()),
             Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get()),
             Types.NestedField.required(26, "decimal", Types.DecimalType.of(9, 2)),
-            Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)));
+            Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)),
+            Types.NestedField.required(28, "fixed", Types.FixedType.ofLength(7)),
+            Types.NestedField.optional(29, "fixed_nullable", Types.FixedType.ofLength(7)),
+            Types.NestedField.required(30, "timestamp_nano", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.optional(
+                31, "timestamp_nano_nullable", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(32, "timestamp_nano_tz", Types.TimestampNanoType.withZone()),
+            Types.NestedField.optional(
+                33, "timestamp_nano_tz_nullable", Types.TimestampNanoType.withZone()));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).month("timestamp").build();
 
-    Table table = tables.create(schema, spec, tableLocation);
+    Table table =
+        tables.create(
+            schema, spec, ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"), tableLocation);
 
     OverwriteFiles overwrite = table.newOverwrite();
     for (int i = 1; i <= 12; i++) {
@@ -785,6 +865,35 @@ public class TestArrowReader {
             new Field(
                 "decimal_nullable",
                 new FieldType(true, new ArrowType.Decimal(9, 2, 128), null),
+                null),
+            new Field("fixed", new FieldType(false, new ArrowType.FixedSizeBinary(7), null), null),
+            new Field(
+                "fixed_nullable",
+                new FieldType(true, new ArrowType.FixedSizeBinary(7), null),
+                null),
+            new Field(
+                "timestamp_nano",
+                new FieldType(false, MinorType.TIMESTAMPNANO.getType(), null),
+                null),
+            new Field(
+                "timestamp_nano_nullable",
+                new FieldType(true, MinorType.TIMESTAMPNANO.getType(), null),
+                null),
+            new Field(
+                "timestamp_nano_tz",
+                new FieldType(
+                    false,
+                    new ArrowType.Timestamp(
+                        org.apache.arrow.vector.types.TimeUnit.NANOSECOND, "UTC"),
+                    null),
+                null),
+            new Field(
+                "timestamp_nano_tz_nullable",
+                new FieldType(
+                    true,
+                    new ArrowType.Timestamp(
+                        org.apache.arrow.vector.types.TimeUnit.NANOSECOND, "UTC"),
+                    null),
                 null));
     List<Field> filteredFields =
         allFields.stream()
@@ -828,6 +937,16 @@ public class TestArrowReader {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.0" + i % 10));
       rec.setField("decimal_nullable", new BigDecimal("14.0" + i % 10));
+      rec.setField("fixed", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", ("abcdef" + i % 7).getBytes(StandardCharsets.UTF_8));
+      rec.setField("timestamp_nano", datetime.plus(i, ChronoUnit.DAYS).plusNanos(i));
+      rec.setField("timestamp_nano_nullable", datetime.plus(i, ChronoUnit.DAYS).plusNanos(i));
+      rec.setField(
+          "timestamp_nano_tz",
+          datetime.plus(i, ChronoUnit.MINUTES).plusNanos(i).atOffset(ZoneOffset.UTC));
+      rec.setField(
+          "timestamp_nano_tz_nullable",
+          datetime.plus(i, ChronoUnit.MINUTES).plusNanos(i).atOffset(ZoneOffset.UTC));
       records.add(rec);
     }
     return records;
@@ -865,6 +984,12 @@ public class TestArrowReader {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.20"));
       rec.setField("decimal_nullable", new BigDecimal("14.20"));
+      rec.setField("fixed", "abcdefg".getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", "abcdefg".getBytes(StandardCharsets.UTF_8));
+      rec.setField("timestamp_nano", datetime);
+      rec.setField("timestamp_nano_nullable", datetime);
+      rec.setField("timestamp_nano_tz", datetime.atOffset(ZoneOffset.UTC));
+      rec.setField("timestamp_nano_tz_nullable", datetime.atOffset(ZoneOffset.UTC));
       records.add(rec);
     }
     return records;
@@ -906,10 +1031,22 @@ public class TestArrowReader {
     return ChronoUnit.MICROS.between(Instant.EPOCH, instant);
   }
 
+  private static long timestampToNanos(OffsetDateTime value) {
+    Instant instant = value.toInstant();
+    return ChronoUnit.NANOS.between(Instant.EPOCH, instant);
+  }
+
   private static LocalDateTime timestampFromMicros(long micros) {
     return LocalDateTime.ofEpochSecond(
         TimeUnit.MICROSECONDS.toSeconds(micros),
         (int) TimeUnit.MICROSECONDS.toNanos(micros % 1000),
+        ZoneOffset.UTC);
+  }
+
+  private static LocalDateTime timestampFromNanos(long nanos) {
+    return LocalDateTime.ofEpochSecond(
+        TimeUnit.NANOSECONDS.toSeconds(nanos),
+        (int) TimeUnit.NANOSECONDS.toNanos(nanos % 1000),
         ZoneOffset.UTC);
   }
 
@@ -945,6 +1082,13 @@ public class TestArrowReader {
     assertEqualsForField(root, columnSet, "int_promotion", IntVector.class);
     assertEqualsForField(root, columnSet, "decimal", DecimalVector.class);
     assertEqualsForField(root, columnSet, "decimal_nullable", DecimalVector.class);
+    assertEqualsForField(root, columnSet, "fixed", FixedSizeBinaryVector.class);
+    assertEqualsForField(root, columnSet, "fixed_nullable", FixedSizeBinaryVector.class);
+    assertEqualsForField(root, columnSet, "timestamp_nano", TimeStampNanoVector.class);
+    assertEqualsForField(root, columnSet, "timestamp_nano_nullable", TimeStampNanoVector.class);
+    assertEqualsForField(root, columnSet, "timestamp_nano_tz", TimeStampNanoTZVector.class);
+    assertEqualsForField(
+        root, columnSet, "timestamp_nano_tz_nullable", TimeStampNanoTZVector.class);
   }
 
   private void assertEqualsForField(
@@ -1185,6 +1329,60 @@ public class TestArrowReader {
         "decimal_nullable",
         (records, i) -> records.get(i).getField("decimal_nullable"),
         (vector, i) -> ((DecimalVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "fixed",
+        (records, i) -> records.get(i).getField("fixed"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "fixed_nullable",
+        (records, i) -> records.get(i).getField("fixed_nullable"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "timestamp_nano",
+        (records, i) -> records.get(i).getField("timestamp_nano"),
+        (vector, i) -> ((TimeStampNanoVector) vector).getObject(i));
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "timestamp_nano_nullable",
+        (records, i) -> records.get(i).getField("timestamp_nano_nullable"),
+        (vector, i) -> ((TimeStampNanoVector) vector).getObject(i));
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "timestamp_nano_tz",
+        (records, i) ->
+            timestampToNanos((OffsetDateTime) records.get(i).getField("timestamp_nano_tz")),
+        (vector, i) -> ((TimeStampNanoTZVector) vector).get(i));
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "timestamp_nano_tz_nullable",
+        (records, i) ->
+            timestampToNanos(
+                (OffsetDateTime) records.get(i).getField("timestamp_nano_tz_nullable")),
+        (vector, i) -> ((TimeStampNanoTZVector) vector).get(i));
   }
 
   private static void checkVectorValues(

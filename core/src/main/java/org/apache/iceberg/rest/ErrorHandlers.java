@@ -94,6 +94,7 @@ public class ErrorHandlers {
           throw new CommitFailedException("Commit failed: %s", error.message());
         case 500:
         case 502:
+        case 503:
         case 504:
           throw new CommitStateUnknownException(
               new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
@@ -137,6 +138,7 @@ public class ErrorHandlers {
           throw new CommitFailedException("Commit failed: %s", error.message());
         case 500:
         case 502:
+        case 503:
         case 504:
           throw new CommitStateUnknownException(
               new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));

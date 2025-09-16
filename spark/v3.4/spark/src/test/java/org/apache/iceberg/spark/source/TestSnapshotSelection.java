@@ -24,6 +24,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -86,7 +87,11 @@ public class TestSnapshotSelection {
 
   @BeforeAll
   public static void startSpark() {
-    TestSnapshotSelection.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestSnapshotSelection.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
   }
 
   @AfterAll

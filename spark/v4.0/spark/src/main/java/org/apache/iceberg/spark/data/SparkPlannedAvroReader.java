@@ -127,6 +127,12 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
     }
 
     @Override
+    public ValueReader<?> variant(
+        Type partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
+      return SparkValueReaders.variants();
+    }
+
+    @Override
     public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {

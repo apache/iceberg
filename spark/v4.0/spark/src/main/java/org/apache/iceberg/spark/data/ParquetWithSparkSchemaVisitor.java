@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -31,10 +32,12 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Type.Repetition;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 
 /**
  * Visitor for traversing a Parquet type with a companion Spark type.
@@ -152,6 +155,18 @@ public class ParquetWithSparkSchemaVisitor<T> {
         } finally {
           visitor.fieldNames.pop();
         }
+      } else if (LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION).equals(annotation)
+          || sType instanceof VariantType) {
+        // For the Variant we both check the Parquet LogicalTypeAnnotation, and we rely on the
+        // Iceberg schema, since there are engines like Spark that produce VariantTypes without the
+        // annotation.
+        Preconditions.checkArgument(
+            sType instanceof VariantType,
+            "Invalid variant: Spark type %s is not a variant type",
+            sType);
+        VariantType variant = (VariantType) sType;
+
+        return visitor.variant(variant, group);
       }
 
       Preconditions.checkArgument(
@@ -173,20 +188,26 @@ public class ParquetWithSparkSchemaVisitor<T> {
 
   private static <T> List<T> visitFields(
       StructType struct, GroupType group, ParquetWithSparkSchemaVisitor<T> visitor) {
-    StructField[] sFields = struct.fields();
-    Preconditions.checkArgument(
-        sFields.length == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
-    for (int i = 0; i < sFields.length; i += 1) {
-      Type field = group.getFields().get(i);
-      StructField sField = sFields[i];
-      Preconditions.checkArgument(
-          field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.name())),
-          "Structs do not match: field %s != %s",
-          field.getName(),
-          sField.name());
-      results.add(visitField(sField, field, visitor));
+
+    int fieldIndex = 0;
+    for (StructField sField : struct.fields()) {
+      if (sField.dataType() != DataTypes.NullType) {
+        Type field = group.getFields().get(fieldIndex);
+        Preconditions.checkArgument(
+            field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.name())),
+            "Structs do not match: field %s != %s",
+            field.getName(),
+            sField.name());
+        results.add(visitField(sField, field, visitor));
+
+        fieldIndex += 1;
+      }
     }
+
+    // All the group fields should have been visited
+    Preconditions.checkArgument(
+        fieldIndex == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
 
     return results;
   }
@@ -209,6 +230,10 @@ public class ParquetWithSparkSchemaVisitor<T> {
 
   public T primitive(DataType sPrimitive, PrimitiveType primitive) {
     return null;
+  }
+
+  public T variant(VariantType sVariant, GroupType variant) {
+    throw new UnsupportedOperationException("Not implemented for variant");
   }
 
   protected String[] currentPath() {

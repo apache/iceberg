@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -65,7 +66,9 @@ public class TestBase {
   public static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).bucket("data", BUCKETS_NUMBER).build();
 
-  static final DataFile FILE_A =
+  public static final Map<Integer, PartitionSpec> PARTITION_SPECS_BY_ID = Map.of(0, SPEC);
+
+  public static final DataFile FILE_A =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
@@ -79,7 +82,7 @@ public class TestBase {
           .withPartitionPath("data_bucket=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DeleteFile FILE_A_DELETES =
+  public static final DeleteFile FILE_A_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
           .withPath("/path/to/data-a-deletes.parquet")
@@ -332,7 +335,7 @@ public class TestBase {
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
             FileFormat.AVRO.addExtension(
-                File.createTempFile("junit", null, temp.toFile()).toString()));
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
     try {

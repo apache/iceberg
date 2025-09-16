@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 
 import java.io.File;
@@ -49,7 +49,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
@@ -84,6 +83,7 @@ import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.StringToFil
 import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.FileSystemWalker;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -1159,20 +1159,19 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFilesSparkAction deleteOrphanFilesSparkAction =
         SparkActions.get().deleteOrphanFiles(table);
     DeleteOrphanFilesSparkAction spyAction = Mockito.spy(deleteOrphanFilesSparkAction);
-    try (MockedStatic<DeleteOrphanFilesSparkAction> mockedStatic =
-        Mockito.mockStatic(DeleteOrphanFilesSparkAction.class)) {
+    try (MockedStatic<FileSystemWalker> mockedStatic = Mockito.mockStatic(FileSystemWalker.class)) {
       spyAction.execute();
       mockedStatic.verify(
           () ->
-              DeleteOrphanFilesSparkAction.listDirRecursivelyWithHadoop(
+              FileSystemWalker.listDirRecursivelyWithHadoop(
                   anyString(),
+                  anyMap(),
                   any(Predicate.class),
                   any(Configuration.class),
                   anyInt(),
                   anyInt(),
-                  anyList(),
-                  any(PathFilter.class),
-                  anyList()));
+                  any(),
+                  any()));
     }
   }
 

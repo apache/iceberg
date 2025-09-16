@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -31,6 +32,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSerializedObject {
@@ -182,17 +185,28 @@ public class TestSerializedObject {
     assertThat(actualInner.get("f").asPrimitive().get()).isEqualTo((byte) 3);
   }
 
-  @ParameterizedTest
-  @ValueSource(
-      ints = {
-        300, // a big string larger than 255 bytes to push the value offset size above 1 byte to
+  static Stream<Arguments> provideInputsForTestMultiByteOffsets() {
+    return Stream.of(
+        Arguments.of(
+            300,
+            2), // a big string larger than 255 bytes to push the value offset size above 1 byte to
         // test TwoByteOffsets
-        70_000 // a really-big string larger than 65535 bytes to push the value offset size above 1
+        Arguments.of(
+            70_000,
+            3), // a really-big string larger than 65535 bytes to push the value offset size above 2
         // byte to test ThreeByteOffsets
-      })
-  public void testMultiByteOffsets(int multiByteOffset) {
+        Arguments.of(
+            16_800_000,
+            4) // a really very big string larger than 1677216 bytes to push the value offset size
+        // above 3 byte to test FourByteOffsets
+        );
+  }
+
+  @ParameterizedTest
+  @MethodSource("provideInputsForTestMultiByteOffsets")
+  public void testMultiByteOffsets(int multiByteOffset, int offsetSize) {
     String randomString = RandomUtil.generateString(multiByteOffset, random);
-    SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
+    VariantPrimitive<?> bigString = VariantTestUtil.createString(randomString);
 
     // note that order doesn't matter. fields are sorted by name
     Map<String, VariantValue> data = ImmutableMap.of("big", bigString, "a", I1, "b", I2, "c", I3);
@@ -211,14 +225,14 @@ public class TestSerializedObject {
     assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
     assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
-    VariantTestUtil.assertVariantString(object.get("big"), randomString);
+    VariantTestUtil.assertVariantString(object.get("big"), randomString, offsetSize);
   }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   @SuppressWarnings({"unchecked", "rawtypes"})
   public void testLargeObject(boolean sortFieldNames) {
-    Map<String, SerializedPrimitive> fields = Maps.newHashMap();
+    Map<String, VariantPrimitive<?>> fields = Maps.newHashMap();
     for (int i = 0; i < 10_000; i += 1) {
       fields.put(
           RandomUtil.generateString(10, random),
@@ -234,7 +248,7 @@ public class TestSerializedObject {
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(object.numFields()).isEqualTo(10_000);
 
-    for (Map.Entry<String, SerializedPrimitive> entry : fields.entrySet()) {
+    for (Map.Entry<String, VariantPrimitive<?>> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
       assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
       assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());

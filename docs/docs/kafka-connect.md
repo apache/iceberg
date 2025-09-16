@@ -20,8 +20,8 @@ title: "Kafka Connect"
 
 # Kafka Connect
 
-[Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) is a popular framework for moving data
-in and out of Kafka via connectors. There are many different connectors available, such as the S3 sink
+[Kafka Connect](https://kafka.apache.org/documentation/#connect) is a popular framework for moving data
+in and out of Apache Kafka via connectors. There are many different connectors available, such as the S3 sink
 for writing data from Kafka to S3 and Debezium source connectors for writing change data capture records from relational
 databases to Kafka.
 
@@ -72,10 +72,10 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
-| iceberg.table.\<table name\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
-| iceberg.table.\<table name\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
-| iceberg.table.\<table name\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
-| iceberg.table.\<table name\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
+| iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
+| iceberg.table.<_table-name_\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
+| iceberg.table.<_table-name_\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
+| iceberg.table.<_table-name_\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
 | iceberg.control.topic                      | Name of the control topic, default is `control-iceberg`                                                          |
 | iceberg.control.group-id-prefix            | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
@@ -241,7 +241,7 @@ This assumes the source topic already exists and is named `events`.
 If your Kafka cluster has `auto.create.topics.enable` set to `true` (the default), then the control topic will be
 automatically created. If not, then you will need to create the topic first. The default topic name is `control-iceberg`:
 ```bash
-bin/kafka-topics  \
+bin/kafka-topics.sh  \
   --command-config command-config.props \
   --bootstrap-server ${CONNECT_BOOTSTRAP_SERVERS} \
   --create \
@@ -276,8 +276,8 @@ PARTITIONED BY (hours(ts))
 This example config connects to a Iceberg REST catalog.
 ```json
 {
-"name": "events-sink",
-"config": {
+  "name": "events-sink",
+  "config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -286,7 +286,7 @@ This example config connects to a Iceberg REST catalog.
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-    }
+  }
 }
 ```
 
@@ -318,8 +318,8 @@ PARTITIONED BY (hours(ts));
 
 ```json
 {
-"name": "events-sink",
-"config": {
+  "name": "events-sink",
+  "config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -331,7 +331,7 @@ PARTITIONED BY (hours(ts));
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-    }
+  }
 }
 ```
 
@@ -349,8 +349,8 @@ See above for creating two tables.
 
 ```json
 {
-"name": "events-sink",
-"config": {
+  "name": "events-sink",
+  "config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -360,7 +360,7 @@ See above for creating two tables.
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-    }
+  }
 }
 ```
 
@@ -452,7 +452,7 @@ Example json:
 
 ```json
 {
-  "key": 1, 
+  "key": 1,
   "array": [1,"two",3],
   "empty_obj": {},
   "nested_obj": {"some_key": ["one", "two"]}
@@ -470,8 +470,8 @@ Sinkrecord.value (Struct):
     "key" : "1",
     "array" : "[1,"two",3]"
     "empty_obj": "{}"
-    "nested_obj": "{"some_key":["one","two"]}}"
-   )
+    "nested_obj": "{"some_key":["one","two"]}"
+  )
 ```
 
 Will become the following if `json.root` is false
@@ -483,9 +483,9 @@ SinkRecord.schema:
   "nested_object": (Optional) Map<string, String>
   
 SinkRecord.value (Struct):
- "key" 1, 
- "array" ["1", "two", "3"] 
- "nested_object" Map ("some_key" : "["one", "two"]") 
+  "key" 1, 
+  "array" ["1", "two", "3"] 
+  "nested_object" Map ("some_key" : "["one", "two"]") 
 ```
 
 ### KafkaMetadataTransform
@@ -506,7 +506,7 @@ If `nested` is on:
 `_kafka_metadata.topic`, `_kafka_metadata.partition`, `_kafka_metadata.offset`, `_kafka_metadata.timestamp`
 
 If `nested` is off:
-`_kafka_metdata_topic`, `_kafka_metadata_partition`, `_kafka_metadata_offset`, `_kafka_metadata_timestamp`
+`_kafka_metadata_topic`, `_kafka_metadata_partition`, `_kafka_metadata_offset`, `_kafka_metadata_timestamp`
 
 ### MongoDebeziumTransform
 _(Experimental)_

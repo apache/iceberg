@@ -73,6 +73,21 @@ or any public cloud.
 
 [Crunchy Data Warehouse](https://www.crunchydata.com/products/warehouse) is a modern data warehouse built on PostgreSQL. Crunchy Data Warehouse extends unmodified PostgreSQL to provide support for fully transactional Iceberg tables and high performance analytics. Crunchy Data Warehouse is available as a managed service on AWS via [Crunchy Bridge](https://www.crunchydata.com/products/crunchy-bridge), fully managed PostgreSQL as a service. Crunchy Data Warehouse can create Iceberg tables directly from a PostgreSQL database or external URLs and can read, query, and update Iceberg tables using PostgreSQL syntax. Using a hybrid query engine that combines PostgreSQL and DuckDB, Crunchy Data Warehouse enables high performance analytical queries of Iceberg tables.
 
+### [Databricks](https://www.databricks.com/)
+
+[Databricks](https://www.databricks.com/) uses an open lakehouse architecture to power its Data Intelligence Platform and provide a unified foundation for all data and governance, combined with AI models tuned to an organization’s unique characteristics. Through [Unity Catalog](https://www.databricks.com/product/unity-catalog), users can manage and govern all structured data, unstructured data, business metrics and AI models across open data formats like Delta Lake, Apache Iceberg, Hudi, Parquet and more.
+
+### [dltHub](https://dlthub.com/)
+
+[dlt](https://dlthub.com/docs/intro) is an open-source Python library for building production-grade extract & load pipelines. It automates the tedious parts of ELT, letting you load any data source into Apache Iceberg with minimal code. dlt eliminates boilerplate and makes data ingestion robust against evolving and unpredictable data sources.
+ 
+* [Pythonic pipelines](https://dlthub.com/docs/tutorial/load-data-from-an-api): Define Iceberg ingestion with simple Python functions that are testable and CI/CD-friendly.
+* [Automated schema management](https://dlthub.com/docs/general-usage/schema-contracts): Infers and evolves Iceberg table schemas on the fly, adapting automatically to source changes.
+* [Catalog support](https://dlthub.com/docs/plus/ecosystem/iceberg#configuration): Works with SQL-based (SQLite, PostgreSQL), REST (Lakekeeper, Polaris), and cloud-native options like AWS Glue, Databricks Unity Catalog and Snowflake Open Catalog.   
+* [Flexible deployment](https://dlthub.com/docs/walkthroughs/share-a-dataset): Run Iceberg pipelines anywhere - local, Docker, Airflow, or serverless.    
+
+Go from an API to a versioned Iceberg table in minutes [here](https://dlthub.com/docs/dlt-ecosystem/destinations/iceberg).
+
 ### [Dremio](https://www.dremio.com/)
 
 With Dremio, an organization can easily build and manage a data lakehouse in which data is stored in open formats like Apache Iceberg and can be processed with Dremio’s interactive SQL query engine and non-Dremio processing engines. [Dremio Cloud](https://www.dremio.com/get-started/) provides these capabilities in a fully managed offering.
@@ -160,3 +175,9 @@ Learn more in the [Tinybird documentation](https://www.tinybird.co/docs/forward/
 ### [VeloDB](https://velodb.io)
 
 [VeloDB](https://www.velodb.io/) is a commercial data warehouse powered by [Apache Doris](https://doris.apache.org/), an open-source, real-time data warehouse. It also provides powerful [query acceleration for Iceberg tables and efficient data writeback](https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog). VeloDB offers [enterprise version](https://www.velodb.io/enterprise) and [cloud service](https://www.velodb.io/cloud), which are fully compatible with open-source Apache Doris. Quick start with Apache Doris and Apache Iceberg [here](https://doris.apache.org/docs/lakehouse/lakehouse-best-practices/doris-iceberg).
+
+### [OLake](https://olake.io/)
+
+[OLake](https://olake.io/) is an open-source ELT tool to facilitate the replication of databases into Apache Iceberg™ data lakehouses. It offers native integration with PostgreSQL, MySQL, MongoDB, Oracle, and Kafka, enabling real-time data ingestion without the need for intermediary layers like Debezium, Kafka or Spark. The platform's modular architecture supports full-load operations, continuous Change Data Capture (CDC), and incremental synchronization with bookmark/cursor column support, with resumable syncs and schema evolution handling. By employing a parallelized chunking strategy, OLake accelerates initial syncs, while CDC cursor preservation ensures that incremental updates capture all events.
+
+Learn more in the [OLake documentation](https://olake.io/docs) and explore the [Github repository](https://github.com/datazip-inc/olake).

@@ -31,7 +31,7 @@ build: # Clean and build the docs site locally.
 
 .PHONY: deploy
 deploy: # Clean, build, and deploy the Iceberg docs site.
-	dev/deploy.sh
+	dev/deploy.sh $(remote_name)
 
 .PHONY: clean
 clean: # Clean the local docs site.

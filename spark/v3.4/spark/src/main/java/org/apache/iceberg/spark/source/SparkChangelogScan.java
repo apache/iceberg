@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
@@ -127,13 +128,18 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   @Override
   public String description() {
     return String.format(
+        Locale.ROOT,
         "%s [fromSnapshotId=%d, toSnapshotId=%d, filters=%s]",
-        table, startSnapshotId, endSnapshotId, Spark3Util.describe(filters));
+        table,
+        startSnapshotId,
+        endSnapshotId,
+        Spark3Util.describe(filters));
   }
 
   @Override
   public String toString() {
     return String.format(
+        Locale.ROOT,
         "IcebergChangelogScan(table=%s, type=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",
         table,
         expectedSchema.asStruct(),

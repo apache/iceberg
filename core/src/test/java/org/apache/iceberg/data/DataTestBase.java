@@ -21,6 +21,7 @@ package org.apache.iceberg.data;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -45,7 +46,6 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -156,26 +156,26 @@ public abstract class DataTestBase {
   @ParameterizedTest
   @FieldSource("SIMPLE_TYPES")
   public void testTypeSchema(Type type) throws IOException {
-    Assumptions.assumeThat(
+    assumeThat(
             supportsUnknown()
                 || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
         .as("unknown is not yet implemented")
         .isTrue();
-    Assumptions.assumeThat(
+    assumeThat(
             supportsTimestampNanos()
                 || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIMESTAMP_NANO) == null)
         .as("timestamp_ns is not yet implemented")
         .isTrue();
-    Assumptions.assumeThat(
+    assumeThat(
             supportsVariant()
                 || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.VARIANT) == null)
         .as("variant is not yet implemented")
         .isTrue();
     if (!supportsGeospatial()) {
-      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOMETRY) == null)
+      assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOMETRY) == null)
           .as("geometry is not yet implemented")
           .isTrue();
-      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOGRAPHY) == null)
+      assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOGRAPHY) == null)
           .as("geography is not yet implemented")
           .isTrue();
     }
@@ -324,7 +324,7 @@ public abstract class DataTestBase {
 
   @Test
   public void testMissingRequiredWithoutDefault() {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema = new Schema(required(1, "id", Types.LongType.get()));
 
@@ -344,7 +344,7 @@ public abstract class DataTestBase {
 
   @Test
   public void testDefaultValues() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -380,7 +380,7 @@ public abstract class DataTestBase {
 
   @Test
   public void testNullDefaultValue() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -410,7 +410,7 @@ public abstract class DataTestBase {
 
   @Test
   public void testNestedDefaultValue() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -453,7 +453,7 @@ public abstract class DataTestBase {
 
   @Test
   public void testMapNestedDefaultValue() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -505,7 +505,7 @@ public abstract class DataTestBase {
 
   @Test
   public void testListNestedDefaultValue() throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -578,7 +578,7 @@ public abstract class DataTestBase {
   @MethodSource("primitiveTypesAndDefaults")
   public void testPrimitiveTypeDefaultValues(Type.PrimitiveType type, Literal<?> defaultValue)
       throws IOException {
-    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    assumeThat(supportsDefaultValues()).isTrue();
 
     Schema writeSchema = new Schema(required(1, "id", Types.LongType.get()));
 
@@ -616,9 +616,7 @@ public abstract class DataTestBase {
 
   @Test
   public void testRowLineage() throws Exception {
-    Assumptions.assumeThat(supportsRowLineage())
-        .as("Row Lineage support is not implemented")
-        .isTrue();
+    assumeThat(supportsRowLineage()).as("Row Lineage support is not implemented").isTrue();
 
     Schema schema =
         new Schema(
