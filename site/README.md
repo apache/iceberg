@@ -147,7 +147,7 @@ Deploying the docs is a two-step process:
     ```
  1. Build and push the generated site to the `asf-site` branch of [remote repo](https://github.com/apache/iceberg). This requires committer write permission.
     ```sh
-    # Default remote name is 'apache'
+    # Default remote name is 'origin'
     make deploy
     # Or specify a different remote
     make deploy remote_name=apache
