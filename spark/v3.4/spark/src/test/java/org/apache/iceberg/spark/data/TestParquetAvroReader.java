@@ -194,8 +194,7 @@ public class TestParquetAvroReader {
   public void testCorrectness() throws IOException {
     Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 50_000, 34139);
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("file.parquet").toFile();
 
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile)).schema(COMPLEX_SCHEMA).build()) {
@@ -224,8 +223,7 @@ public class TestParquetAvroReader {
   }
 
   private File writeTestData(Schema schema, int numRecords, int seed) throws IOException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("file.parquet").toFile();
 
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile)).schema(schema).build()) {

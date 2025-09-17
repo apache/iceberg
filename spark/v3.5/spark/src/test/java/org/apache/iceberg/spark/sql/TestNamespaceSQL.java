@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -253,17 +252,14 @@ public class TestNamespaceSQL extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateNamespaceWithLocation() throws Exception {
+  public void testCreateNamespaceWithLocation() {
     assumeThat(isHadoopCatalog).as("HadoopCatalog does not support namespace metadata").isFalse();
 
     assertThat(validationNamespaceCatalog.namespaceExists(NS))
         .as("Namespace should not already exist")
         .isFalse();
 
-    File location = File.createTempFile("junit", null, temp.toFile());
-    assertThat(location.delete()).isTrue();
-
-    sql("CREATE NAMESPACE %s LOCATION '%s'", fullNamespace, location);
+    sql("CREATE NAMESPACE %s LOCATION '%s'", fullNamespace, temp);
 
     assertThat(validationNamespaceCatalog.namespaceExists(NS))
         .as("Namespace should exist")
@@ -271,7 +267,7 @@ public class TestNamespaceSQL extends CatalogTestBase {
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(NS);
 
-    assertThat(nsMetadata).containsEntry("location", "file:" + location.getPath());
+    assertThat(nsMetadata).containsEntry("location", "file:" + temp);
   }
 
   @TestTemplate

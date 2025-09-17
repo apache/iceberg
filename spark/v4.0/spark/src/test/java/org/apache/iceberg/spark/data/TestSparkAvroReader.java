@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark.data;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -44,8 +42,7 @@ public class TestSparkAvroReader extends AvroDataTestBase {
   protected void writeAndValidate(
       Schema writeSchema, Schema expectedSchema, List<org.apache.iceberg.data.Record> records)
       throws IOException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("file.avro").toFile();
 
     try (DataWriter<Record> dataWriter =
         Avro.writeData(Files.localOutput(testFile))

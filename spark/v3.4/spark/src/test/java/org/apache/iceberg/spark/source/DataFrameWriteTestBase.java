@@ -77,8 +77,7 @@ public abstract class DataFrameWriteTestBase extends ScanTestBase {
       throws IOException {
     // this uses the SparkAvroReader to create a DataFrame from the list of records
     // it assumes that SparkAvroReader is correct
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("file.avro").toFile();
 
     try (FileAppender<GenericData.Record> writer =
         Avro.write(Files.localOutput(testFile)).schema(schema).named("test").build()) {

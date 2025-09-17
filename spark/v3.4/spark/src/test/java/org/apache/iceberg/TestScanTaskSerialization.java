@@ -75,8 +75,7 @@ public class TestScanTaskSerialization extends TestBase {
   public void testBaseCombinedScanTaskKryoSerialization() throws Exception {
     BaseCombinedScanTask scanTask = prepareBaseCombinedScanTaskForSerDeTest();
 
-    File data = File.createTempFile("junit", null, temp.toFile());
-    assertThat(data.delete()).isTrue();
+    File data = temp.resolve("kryo").toFile();
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
     try (Output out = new Output(new FileOutputStream(data))) {
@@ -118,15 +117,14 @@ public class TestScanTaskSerialization extends TestBase {
 
     assertThat(taskGroup.tasks()).as("Task group can't be empty").isNotEmpty();
 
-    File data = File.createTempFile("junit", null, temp.toFile());
-    assertThat(data.delete()).isTrue();
+    Path data = temp.resolve("kryo");
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
-    try (Output out = new Output(Files.newOutputStream(data.toPath()))) {
+    try (Output out = new Output(Files.newOutputStream(data))) {
       kryo.writeClassAndObject(out, taskGroup);
     }
 
-    try (Input in = new Input(Files.newInputStream(data.toPath()))) {
+    try (Input in = new Input(Files.newInputStream(data))) {
       Object obj = kryo.readClassAndObject(in);
       assertThat(obj).as("should be a BaseScanTaskGroup").isInstanceOf(BaseScanTaskGroup.class);
       TaskCheckHelper.assertEquals(taskGroup, (BaseScanTaskGroup<FileScanTask>) obj);

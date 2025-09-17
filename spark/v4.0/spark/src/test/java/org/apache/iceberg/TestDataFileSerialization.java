@@ -105,8 +105,7 @@ public class TestDataFileSerialization {
 
   @Test
   public void testDataFileKryoSerialization() throws Exception {
-    File data = File.createTempFile("junit", null, temp.toFile());
-    assertThat(data.delete()).isTrue();
+    File data = temp.resolve("kryo").toFile();
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
     try (Output out = new Output(new FileOutputStream(data))) {
@@ -160,7 +159,7 @@ public class TestDataFileSerialization {
     }
 
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
+    File dataFile = temp.resolve("kryo").toFile();
     try (Output out = new Output(new FileOutputStream(dataFile))) {
       kryo.writeClassAndObject(out, writer.splitOffsets());
     }

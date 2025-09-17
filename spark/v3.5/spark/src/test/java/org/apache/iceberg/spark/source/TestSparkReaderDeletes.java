@@ -576,8 +576,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     List<Path> fileSplits = Lists.newArrayList();
     StructType sparkSchema = SparkSchemaUtil.convert(SCHEMA);
     Configuration conf = new Configuration();
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("file.parquet").toFile();
     Path testFilePath = new Path(testFile.getAbsolutePath());
 
     // Write a Parquet file with more than one row group
@@ -585,8 +584,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         new ParquetFileWriter(conf, ParquetSchemaUtil.convert(SCHEMA, "test3Schema"), testFilePath);
     parquetFileWriter.start();
     for (int i = 0; i < 2; i += 1) {
-      File split = File.createTempFile("junit", null, temp.toFile());
-      assertThat(split.delete()).as("Delete should succeed").isTrue();
+      File split = temp.resolve("split-" + i).toFile();
       Path splitPath = new Path(split.getAbsolutePath());
       fileSplits.add(splitPath);
       try (FileAppender<InternalRow> writer =
