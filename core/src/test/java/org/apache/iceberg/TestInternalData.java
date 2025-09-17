@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -41,12 +40,17 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestInternalData {
 
   @Parameter(index = 0)
-  private String format;
+  private FileFormat format;
 
-  @Parameters(name = "format={0}")
-  public static Object[][] parameters() {
-    return new Object[][] {{"avro"}, {"parquet"}};
+  @Parameters(name = " format = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(new Object[] {FileFormat.AVRO}, new Object[] {FileFormat.PARQUET});
   }
+
+  private static final Schema SIMPLE_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "name", Types.StringType.get()));
 
   private static final Schema NESTED_SCHEMA =
       new Schema(
@@ -64,13 +68,12 @@ public class TestInternalData {
 
   @TestTemplate
   public void testCustomRootType() throws IOException {
-    FileFormat fileFormat = FileFormat.fromString(format);
     OutputFile outputFile = fileIO.newOutputFile(tempDir.resolve("test." + format).toString());
 
-    List<Record> testData = createSimpleTestRecords();
+    List<Record> testData = RandomInternalData.generate(SIMPLE_SCHEMA, 1000, 1L);
 
     try (FileAppender<Record> appender =
-        InternalData.write(fileFormat, outputFile).schema(simpleSchema()).build()) {
+        InternalData.write(format, outputFile).schema(SIMPLE_SCHEMA).build()) {
       appender.addAll(testData);
     }
 
@@ -78,8 +81,8 @@ public class TestInternalData {
     List<PartitionData> readRecords = Lists.newArrayList();
 
     try (CloseableIterable<PartitionData> reader =
-        InternalData.read(fileFormat, inputFile)
-            .project(simpleSchema())
+        InternalData.read(format, inputFile)
+            .project(SIMPLE_SCHEMA)
             .setRootType(PartitionData.class)
             .build()) {
       for (PartitionData record : reader) {
@@ -100,13 +103,12 @@ public class TestInternalData {
 
   @TestTemplate
   public void testCustomTypeForNestedField() throws IOException {
-    FileFormat fileFormat = FileFormat.fromString(format);
     OutputFile outputFile = fileIO.newOutputFile(tempDir.resolve("test." + format).toString());
 
-    List<Record> testData = createNestedTestRecords();
+    List<Record> testData = RandomInternalData.generate(NESTED_SCHEMA, 1000, 1L);
 
     try (FileAppender<Record> appender =
-        InternalData.write(fileFormat, outputFile).schema(NESTED_SCHEMA).build()) {
+        InternalData.write(format, outputFile).schema(NESTED_SCHEMA).build()) {
       appender.addAll(testData);
     }
 
@@ -114,9 +116,9 @@ public class TestInternalData {
     List<Record> readRecords = Lists.newArrayList();
 
     try (CloseableIterable<Record> reader =
-        InternalData.read(fileFormat, inputFile)
+        InternalData.read(format, inputFile)
             .project(NESTED_SCHEMA)
-            .setCustomType(2, TestCustomRow.class)
+            .setCustomType(2, TestHelpers.CustomRow.class)
             .build()) {
       for (Record record : reader) {
         readRecords.add(record);
@@ -141,8 +143,8 @@ public class TestInternalData {
       if (actualNested != null) {
         assertThat(actualNested)
             .as("Custom type should be TestCustomRow, but was: " + actualNested.getClass())
-            .isInstanceOf(TestCustomRow.class);
-        TestCustomRow customRow = (TestCustomRow) actualNested;
+            .isInstanceOf(TestHelpers.CustomRow.class);
+        TestHelpers.CustomRow customRow = (TestHelpers.CustomRow) actualNested;
         Record expectedRecord = (Record) expectedNested;
 
         assertThat(customRow.get(0, Long.class))
@@ -150,96 +152,6 @@ public class TestInternalData {
         assertThat(customRow.get(1, String.class))
             .isEqualTo(expectedRecord.get(1, String.class)); // inner_name
       }
-    }
-  }
-
-  private List<Record> createSimpleTestRecords() {
-    Schema schema = simpleSchema();
-    List<Record> records = Lists.newArrayList();
-
-    Record record1 = GenericRecord.create(schema);
-    record1.set(0, 1L);
-    record1.set(1, "Alice");
-
-    Record record2 = GenericRecord.create(schema);
-    record2.set(0, 2L);
-    record2.set(1, "Bob");
-
-    records.add(record1);
-    records.add(record2);
-
-    return records;
-  }
-
-  private List<Record> createNestedTestRecords() {
-    List<Record> records = Lists.newArrayList();
-
-    Record record1 = GenericRecord.create(NESTED_SCHEMA);
-    record1.set(0, 1L);
-
-    Record nestedStruct1 =
-        GenericRecord.create(NESTED_SCHEMA.findType("nested_struct").asStructType());
-    nestedStruct1.set(0, 100L);
-    nestedStruct1.set(1, "inner_alice");
-    record1.set(1, nestedStruct1);
-
-    Record record2 = GenericRecord.create(NESTED_SCHEMA);
-    record2.set(0, 2L);
-    record2.set(1, null); // null nested struct
-
-    records.add(record1);
-    records.add(record2);
-
-    return records;
-  }
-
-  private Schema simpleSchema() {
-    return new Schema(
-        Types.NestedField.required(1, "id", Types.LongType.get()),
-        Types.NestedField.optional(2, "name", Types.StringType.get()));
-  }
-
-  public static class TestCustomRow implements StructLike {
-    private Object[] values;
-
-    public TestCustomRow() {
-      this.values = new Object[0];
-    }
-
-    public TestCustomRow(Types.StructType structType) {
-      this.values = new Object[structType.fields().size()];
-    }
-
-    @Override
-    public int size() {
-      return values.length;
-    }
-
-    @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(values[pos]);
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      values[pos] = value;
-    }
-
-    @Override
-    public boolean equals(Object other) {
-      if (this == other) {
-        return true;
-      } else if (other == null || getClass() != other.getClass()) {
-        return false;
-      }
-
-      TestCustomRow that = (TestCustomRow) other;
-      return Arrays.equals(values, that.values);
-    }
-
-    @Override
-    public int hashCode() {
-      return Arrays.hashCode(values);
     }
   }
 }
