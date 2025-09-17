@@ -23,8 +23,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.comet.parquet.AbstractColumnReader;
-import org.apache.comet.parquet.IcebergCometBatchReader;
-import org.apache.comet.parquet.RowGroupReader;
+import org.apache.comet.parquet.BatchReader;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -56,7 +55,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   // calling BatchReader.nextBatch, the isDeleted value is not yet available, so
   // DeleteColumnReader.readBatch must be called explicitly later, after the isDeleted value is
   // available.
-  private final IcebergCometBatchReader delegate;
+  private final BatchReader delegate;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
 
@@ -66,7 +65,9 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     this.hasIsDeletedColumn =
         readers.stream().anyMatch(reader -> reader instanceof CometDeleteColumnReader);
 
-    this.delegate = new IcebergCometBatchReader(readers.size(), SparkSchemaUtil.convert(schema));
+    AbstractColumnReader[] abstractColumnReaders = new AbstractColumnReader[readers.size()];
+    this.delegate = new BatchReader(abstractColumnReaders);
+    delegate.setSparkSchema(SparkSchemaUtil.convert(schema));
   }
 
   @Override
@@ -78,22 +79,19 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
             && !(readers[i] instanceof CometPositionColumnReader)
             && !(readers[i] instanceof CometDeleteColumnReader)) {
           readers[i].reset();
-          readers[i].setPageReader((RowGroupReader) pageStore);
+          readers[i].setPageReader(pageStore.getPageReader(readers[i].descriptor()));
         }
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to setRowGroupInfo for Comet vectorization", e);
       }
     }
 
-    AbstractColumnReader[] delegateReaders = new AbstractColumnReader[readers.length];
     for (int i = 0; i < readers.length; i++) {
-      delegateReaders[i] = readers[i].delegate();
+      delegate.getColumnReaders()[i] = this.readers[i].delegate();
     }
 
-    delegate.init(delegateReaders);
-
     this.rowStartPosInBatch =
-        ((RowGroupReader) pageStore)
+        pageStore
             .getRowIndexOffset()
             .orElseThrow(
                 () ->

@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.data.vectorized;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import org.apache.comet.parquet.ConstantColumnReader;
-import org.apache.iceberg.parquet.CometTypeUtils;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
@@ -35,11 +34,7 @@ class CometConstantColumnReader<T> extends CometColumnReader {
     super(field);
     // use delegate to set constant value on the native side to be consumed by native execution.
     setDelegate(
-        new ConstantColumnReader(
-            sparkType(),
-            CometTypeUtils.descriptorToParquetColumnSpec(descriptor()),
-            convertToSparkValue(value),
-            false));
+        new ConstantColumnReader(sparkType(), descriptor(), convertToSparkValue(value), false));
   }
 
   @Override
