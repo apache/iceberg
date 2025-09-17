@@ -375,4 +375,12 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
+
+  public String getSplitOrderingPartitionFieldOptional() {
+    return confParser
+        .stringConf()
+        .option(SparkReadOptions.SPLIT_ORDERING_BY_PARTITIONED_FIELD)
+        .sessionConf(SparkSQLProperties.SPLIT_ORDERING_BY_PARTITIONED_FIELD)
+        .parseOptional();
+  }
 }

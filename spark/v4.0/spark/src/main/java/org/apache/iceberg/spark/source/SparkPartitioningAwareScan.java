@@ -21,12 +21,14 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -41,8 +43,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeSet;
@@ -69,6 +74,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   private List<ScanTaskGroup<T>> taskGroups = null; // lazy cache of task groups
   private StructType groupingKeyType = null; // lazy cache of the grouping key type
   private Transform[] groupingKeyTransforms = null; // lazy cache of grouping key transforms
+  private String splitOrderingPartitionField =
+      null; // which partition field to use for ordering splits during planning phase
 
   SparkPartitioningAwareScan(
       SparkSession spark,
@@ -82,6 +89,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
+    this.splitOrderingPartitionField = readConf.getSplitOrderingPartitionFieldOptional();
 
     if (scan == null) {
       this.specs = Collections.emptySet();
@@ -169,19 +177,82 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     return specs;
   }
 
+  private Object getPartitionValue(T task, String partitionFieldName) {
+    PartitionData partitionData = ((PartitionData) task.partition());
+    int pos = partitionData.getSchema().getField(partitionFieldName).pos();
+    return partitionData.get(pos);
+  }
+
+  private void performSplitOrdering(List<T> plannedTasks, Type partitionType) {
+    try {
+      // Use Iceberg's built-in type-safe comparator
+      Comparator<Object> comparator = Comparators.forType(partitionType);
+
+      plannedTasks.sort(
+          (a, b) -> {
+            Object valueA = getPartitionValue(a, splitOrderingPartitionField);
+            Object valueB = getPartitionValue(b, splitOrderingPartitionField);
+            return comparator.compare(valueA, valueB);
+          });
+    } catch (Exception e) {
+      LOG.error("Error while trying to sort partition fields", e);
+    }
+  }
+
   protected synchronized List<T> tasks() {
     if (tasks == null) {
       try (CloseableIterable<? extends ScanTask> taskIterable = scan.planFiles()) {
         List<T> plannedTasks = Lists.newArrayList();
 
-        for (ScanTask task : taskIterable) {
-          ValidationException.check(
-              taskJavaClass().isInstance(task),
-              "Unsupported task type, expected a subtype of %s: %s",
-              taskJavaClass().getName(),
-              task.getClass().getName());
+        if (!this.preserveDataGrouping && this.splitOrderingPartitionField != null) {
+          Set<Type> partitionTypeSet = Sets.newHashSet();
 
-          plannedTasks.add(taskJavaClass().cast(task));
+          for (ScanTask task : taskIterable) {
+            ValidationException.check(
+                taskJavaClass().isInstance(task),
+                "Unsupported task type, expected a subtype of %s: %s",
+                taskJavaClass().getName(),
+                task.getClass().getName());
+
+            T concreteTask = taskJavaClass().cast(task);
+            concreteTask.spec().fields().stream()
+                .filter(
+                    partitionField ->
+                        partitionField.name().equals(this.splitOrderingPartitionField))
+                .forEach(
+                    partitionField -> {
+                      Type resultType =
+                          partitionField
+                              .transform()
+                              .getResultType(
+                                  concreteTask.spec().schema().findType(partitionField.sourceId()));
+                      partitionTypeSet.add(resultType);
+                    });
+
+            plannedTasks.add(concreteTask);
+          }
+
+          if (partitionTypeSet.size() == 1) {
+            LOG.info(
+                "Split Ordering on Partition is enabled on partition field name: {}",
+                this.splitOrderingPartitionField);
+            performSplitOrdering(plannedTasks, partitionTypeSet.iterator().next());
+          } else {
+            LOG.warn(
+                "Split Ordering on Partition is not applied on partition field name: {} either "
+                    + "due to multiple partition types or no partition type is found",
+                this.splitOrderingPartitionField);
+          }
+        } else {
+          for (ScanTask task : taskIterable) {
+            ValidationException.check(
+                taskJavaClass().isInstance(task),
+                "Unsupported task type, expected a subtype of %s: %s",
+                taskJavaClass().getName(),
+                task.getClass().getName());
+
+            plannedTasks.add(taskJavaClass().cast(task));
+          }
         }
 
         this.tasks = plannedTasks;

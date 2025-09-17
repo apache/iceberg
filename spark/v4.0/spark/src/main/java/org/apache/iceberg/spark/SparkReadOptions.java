@@ -95,4 +95,7 @@ public class SparkReadOptions {
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
 
   public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
+
+  // Controls which partition field name to use for ordering splits during planning phase
+  public static final String SPLIT_ORDERING_BY_PARTITIONED_FIELD = "partition-ordering-field-name";
 }

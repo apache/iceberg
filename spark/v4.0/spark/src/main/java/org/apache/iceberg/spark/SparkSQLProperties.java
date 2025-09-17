@@ -106,4 +106,9 @@ public class SparkSQLProperties {
   // Controls whether to report available column statistics to Spark for query optimization.
   public static final String REPORT_COLUMN_STATS = "spark.sql.iceberg.report-column-stats";
   public static final boolean REPORT_COLUMN_STATS_DEFAULT = true;
+
+  // Controls which partition field to use for ordering splits during planning phase
+  // This will be ignored when preserve-data-grouping is enabled.
+  public static final String SPLIT_ORDERING_BY_PARTITIONED_FIELD =
+      "spark.sql.iceberg.planning.ordering.partition-field-name";
 }
