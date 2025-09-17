@@ -1877,15 +1877,24 @@ Although the spec allows for including the deleted row itself (in addition to th
 
 ### Schema Evolution/Type Promotion
 
-Column projection rules are designed so that the table will remain readable even if writers use an outdated schema. At the beginning of a transaction Writers should load the latest schema (the schema pointed to by `current-schema-id` from the latest table metadata) and use it for reading and writing data.  Note, that in the common cases of schema evolution (adding nullable columns, adding required columns with an `initial-default`, renaming a column, dropping a column, or doing type promotion) then appending data with outdated schemas presents no issues under either SNAPSHOT or SERIALIZABLE isolation levels.
+Column projection rules are designed so that the table will remain readable even if writers use an outdated schema. At the beginning of a transaction Writers should load the latest schema (the schema referened by `current-schema-id` from the latest table metadata) and use it for reading and writing data.  Note, that in the common cases of schema evolution (adding nullable columns, adding required columns with an `initial-default`, renaming a column, dropping a column, or doing type promotion), appending data with outdated schemas presents no issues under either SNAPSHOT or SERIALIZABLE isolation levels
 
-While writers are not required to bind to the latest schema there are edge cases to consider:
+However, the less common case of updating default values may need to be handled depending on isolation level. Consider two concurrent transactions:
 
-1. Assume two transactions that are started concurrently. The first modifies the `write-default` on the column. The second is a data write that makes use of `write-default` from the changed column in the first transaction. If the first transaction gets committed first, the result of the second transaction depends on isolation level. Under SNAPSHOT isolation the second transaction can be committed. However, the second transaction produces the serialization anomaly of using the outdated `write-default` default value.  SERIALIZABLE isolation does not allow for such anomolies and the second transaction must fail in this mode. In this scenario, the transaction could be retried after updating to the new schema and rewriting the data using the new `write-default`. To generalize, for SERIALIZABLE isolation, writers must confirm that the schema did not have a change to a `write-default` value, this can be confirmed in two stages: First check if there was any schema change (for the REST catalog this can be done with `assert-ref-snapshot-id`); Second, if the schema changed determine if there was a change to a `write-default` value used in the transaction. No check for schema changes is needed For SNAPSHOT isolation.
+* **T1** modifies the `write-default` on the column.
+* **T2** writes data write that makes use of `write-default` from the changed column in the first transaction.
 
-2. Assume a sequence of transactions: the first transaction adds a column and populates it with new values. The second transactions  is run using the schema prior to the new column being added and updates another column (e.g. `update table x set pre_existing_col='xyz'`). Transaction b) must fail under both SNAPSHOT and SERIALIZABLE isolation levels, since it would drop data from the new column added in the first transaction. If the transactions started concurrently, one of them should still fail with SNAPSHOT isolation because there is an overlap in the rows modified by the transactions.
+If the **T1** commits before **T2** then handling **T2** depends on isolation level.
 
-Writers must write out all fields with the types specified from the schema loaded at the beginning of the transaction. Writing all fields prevents similar anomolies as those outlined for the first case above but with `initial-default` instead of `write-default` (all nulls can't be distinguished from missing columns that need an initial default).
+* **SNAPSHOT**: **T2** may be commited even though it used the old `write-default` (this is a permitted serialization anomaly).
+* **SERIALIZABLE**: **T2** must abort.
+
+When a transaction is aborted, the transaction could be retried after updating to the new schema and rewriting the data using the new `write-default`. One way of ensuring SERIALIZABLE isolation is a two phased approach:
+
+1. Check if there was a schema change (for the REST catalog this can be done with `assert-current-schema-id`) when committing.
+2. If the schema changed, determine if there was a change to a `write-default` value used in the transaction (if there is no such column the transaction may be retried without rewriting data).
+
+Writers must write out all fields with the types specified from the schema loaded at the beginning of the transaction. Writing all fields prevents similar issues as those outlined above but with `initial-default` instead of `write-default` (all nulls can't be distinguished from missing columns that would have initial default substituted).
 
 ## Appendix G: Geospatial Notes
 
