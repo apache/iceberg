@@ -18,43 +18,31 @@
  */
 package org.apache.iceberg.expressions;
 
-/**
- * The aggregate functions that can be evaluated in Iceberg. Supported aggregates include
- * Min(field), Max(field), Count(*), Count(field) and CountNull(field)
- */
-public abstract class Aggregate<C extends Term> implements Expression {
-  private final Operation op;
-  private final C term;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Types;
 
-  Aggregate(Operation op, C term) {
-    this.op = op;
-    this.term = term;
+public class CountNull<T> extends CountAggregate<T> {
+  private final int fieldId;
+
+  protected CountNull(BoundTerm<T> term) {
+    super(Operation.COUNT_NULL, term);
+    Types.NestedField field = term.ref().field();
+    this.fieldId = field.fieldId();
   }
 
   @Override
-  public Operation op() {
-    return op;
-  }
-
-  public C term() {
-    return term;
+  protected Long countFor(StructLike row) {
+    return term().eval(row) == null ? 1L : 0L;
   }
 
   @Override
-  public String toString() {
-    switch (op()) {
-      case COUNT:
-        return "count(" + term() + ")";
-      case COUNT_NULL:
-        return "count_if(" + term() + " is null)";
-      case COUNT_STAR:
-        return "count(*)";
-      case MAX:
-        return "max(" + term() + ")";
-      case MIN:
-        return "min(" + term() + ")";
-      default:
-        throw new UnsupportedOperationException("Invalid aggregate: " + op());
-    }
+  protected Long countFor(DataFile file) {
+    return safeGet(file.nullValueCounts(), fieldId, 0L);
+  }
+
+  @Override
+  protected boolean hasValue(DataFile file) {
+    return safeContainsKey(file.nullValueCounts(), fieldId);
   }
 }
