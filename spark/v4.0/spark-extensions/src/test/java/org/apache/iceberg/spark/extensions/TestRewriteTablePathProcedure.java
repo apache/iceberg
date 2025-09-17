@@ -224,6 +224,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
       // in the form of an AbsolutePath.
       filePath = file.getAbsolutePath().toString();
     }
+
     DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(table, table.io().newOutputFile(filePath), rowsToDelete)
             .first();
