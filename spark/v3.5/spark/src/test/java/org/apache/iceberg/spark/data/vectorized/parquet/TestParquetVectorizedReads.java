@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
@@ -531,13 +532,11 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       throws Exception {
     Path goldenResourcePath = Paths.get("encodings", encoding, typeName + ".parquet");
     URL goldenFileUrl = getClass().getClassLoader().getResource(goldenResourcePath.toString());
-    assumeThat(goldenFileUrl).isNotNull().as("type/encoding pair exists");
+    assumeThat(goldenFileUrl).as("type/encoding pair exists").isNotNull();
 
     Path plainResourcePath = Paths.get("encodings", PLAIN, typeName + ".parquet");
     URL plainFileUrl = getClass().getClassLoader().getResource(plainResourcePath.toString());
-    if (plainFileUrl == null) {
-      throw new IllegalStateException("PLAIN encoded file should exist: " + plainResourcePath);
-    }
+    Preconditions.checkState(plainFileUrl != null, "PLAIN encoded file should exist: " + plainResourcePath);
 
     Schema expectedSchema = new Schema(optional(1, "data", primitiveType));
     assertIdenticalFileContents(
