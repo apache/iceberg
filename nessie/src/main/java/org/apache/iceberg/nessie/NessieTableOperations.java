@@ -132,7 +132,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       throw NessieUtil.handleBadRequestForCommit(client, key, Content.Type.ICEBERG_TABLE)
           .orElse(ex);
     } finally {
-      if (failure) {
+      if (failure && !reuseMetadataLocation(newTable, metadata)) {
         io().deleteFile(newMetadataLocation);
       }
     }

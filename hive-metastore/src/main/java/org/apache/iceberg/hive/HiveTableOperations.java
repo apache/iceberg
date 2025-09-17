@@ -289,7 +289,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       throw new CommitFailedException(e);
 
     } finally {
-      HiveOperationsBase.cleanupMetadataAndUnlock(io(), commitStatus, newMetadataLocation, lock);
+      if (!reuseMetadataLocation(newTable, metadata)) {
+        HiveOperationsBase.cleanupMetadataAndUnlock(io(), commitStatus, newMetadataLocation, lock);
+      } else {
+        lock.unlock();
+      }
     }
 
     LOG.info(

@@ -152,7 +152,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       }
     } finally {
       try {
-        if (commitStatus == CommitStatus.FAILURE) {
+        if (commitStatus == CommitStatus.FAILURE && !reuseMetadataLocation(newTable, metadata)) {
           // if anything went wrong, clean up the uncommitted metadata file
           io().deleteFile(newMetadataLocation);
         }

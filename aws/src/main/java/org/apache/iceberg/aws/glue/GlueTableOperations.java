@@ -148,10 +148,10 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
 
     String newMetadataLocation = null;
     boolean glueTempTableCreated = false;
+    boolean newTable = base == null;
     try {
       glueTempTableCreated = createGlueTempTableIfNecessary(base, metadata.location());
 
-      boolean newTable = base == null;
       newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
       lock(newMetadataLocation);
       Table glueTable = getGlueTable();
@@ -190,7 +190,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           throw new CommitStateUnknownException(persistFailure);
       }
     } finally {
-      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation);
+      if (!reuseMetadataLocation(newTable, metadata)) {
+        cleanupMetadataAndUnlock(commitStatus, newMetadataLocation);
+      } else if (lockManager != null) {
+        lockManager.release(commitLockEntityId, newMetadataLocation);
+      }
       cleanupGlueTempTableIfNecessary(glueTempTableCreated, commitStatus);
     }
   }
