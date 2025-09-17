@@ -92,9 +92,6 @@ import org.slf4j.LoggerFactory;
  *   <li>Type promotion: In case of type promotion, the Arrow vector corresponding to the data type
  *       in the parquet file is returned instead of the data type in the latest schema. See
  *       https://github.com/apache/iceberg/issues/2483.
- *   <li>Columns with constant values are physically encoded as a dictionary. The Arrow vector type
- *       is int32 instead of the type as per the schema. See
- *       https://github.com/apache/iceberg/issues/2484.
  *   <li>Data types: {@link Types.ListType}, {@link Types.MapType} and {@link Types.StructType} See
  *       https://github.com/apache/iceberg/issues/2485 and
  *       https://github.com/apache/iceberg/issues/2486.

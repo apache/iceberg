@@ -25,9 +25,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.DeleteFileIndex.EqualityDeletes;
 import org.apache.iceberg.DeleteFileIndex.PositionDeletes;
@@ -84,6 +87,53 @@ public abstract class DeleteFileIndexTestBase<
         .withPath(UUID.randomUUID() + "/path/to/data-partitioned-pos-deletes.parquet")
         .withFileSizeInBytes(10)
         .withRecordCount(1)
+        .build();
+  }
+
+  private static DeleteFile posDeletesWithMetrics(PartitionSpec spec, String path) {
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath(UUID.randomUUID() + "/path/to/data-partitioned-pos-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withMetrics(
+            new Metrics(
+                1L,
+                ImmutableMap.of(1, 1L, MetadataColumns.DELETE_FILE_PATH.fieldId(), 2L),
+                ImmutableMap.of(1, 1L, MetadataColumns.DELETE_FILE_PATH.fieldId(), 2L),
+                ImmutableMap.of(1, 1L, MetadataColumns.DELETE_FILE_PATH.fieldId(), 2L),
+                ImmutableMap.of(1, 1L, MetadataColumns.DELETE_FILE_PATH.fieldId(), 2L),
+                ImmutableMap.of(
+                    1,
+                    ByteBuffer.wrap(new byte[10]),
+                    MetadataColumns.DELETE_FILE_PATH.fieldId(),
+                    ByteBuffer.wrap(path.getBytes(StandardCharsets.UTF_8))),
+                ImmutableMap.of(
+                    1,
+                    ByteBuffer.wrap(new byte[10]),
+                    MetadataColumns.DELETE_FILE_PATH.fieldId(),
+                    ByteBuffer.wrap(path.getBytes(StandardCharsets.UTF_8)))))
+        .build();
+  }
+
+  private static DeleteFile eqDeletesWithMetrics(
+      PartitionSpec spec, StructLike partition, int fieldId) {
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofEqualityDeletes(fieldId)
+        .withPartition(partition)
+        .withPath(UUID.randomUUID() + "/path/to/data-partitioned-eq-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withMetrics(
+            new Metrics(
+                1L,
+                ImmutableMap.of(1, 1L, 2, 2L),
+                ImmutableMap.of(1, 1L, 2, 2L),
+                ImmutableMap.of(1, 1L, 2, 2L),
+                ImmutableMap.of(1, 1L, 2, 2L),
+                ImmutableMap.of(1, ByteBuffer.wrap(new byte[10]), 2, ByteBuffer.wrap(new byte[20])),
+                ImmutableMap.of(
+                    1, ByteBuffer.wrap(new byte[10]), 2, ByteBuffer.wrap(new byte[20]))))
         .build();
   }
 
@@ -259,6 +309,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testUnpartitionedTableScan() throws IOException {
+    assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
     Table unpartitioned =
         TestTables.create(tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
@@ -450,6 +501,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testUnpartitionedTableSequenceNumbers() throws IOException {
+    assumeThat(formatVersion).as("Requires V2 position deletes").isEqualTo(2);
     Table unpartitioned =
         TestTables.create(tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
@@ -551,6 +603,77 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::location)))
         .as("Should have expected delete files")
         .isEqualTo(Sets.newHashSet(FILE_A_EQ_1.location(), fileADeletes().location()));
+  }
+
+  @TestTemplate
+  public void testPositionDeleteDiscardMetrics() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Table table =
+        TestTables.create(tableDir, "partitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // add a delete file
+    DeleteFile posDeletesWithMetrics = posDeletesWithMetrics(table.spec(), FILE_A.location());
+    table.newRowDelta().addDeletes(posDeletesWithMetrics).commit();
+
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
+    assertThat(tasks).as("Should have one task").hasSize(1);
+
+    FileScanTask task = (FileScanTask) tasks.get(0);
+    assertThat(task.file().location())
+        .as("Should have the correct data file path")
+        .isEqualTo(FILE_A.location());
+    assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
+
+    // verify scanned delete file only contains metrics for 'file_path' field
+    int fieldId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    DeleteFile deleteFile = task.deletes().get(0);
+    assertThat(deleteFile.columnSizes()).containsExactly(Map.entry(fieldId, 2L));
+    assertThat(deleteFile.valueCounts()).containsExactly(Map.entry(fieldId, 2L));
+    assertThat(deleteFile.nullValueCounts()).containsExactly(Map.entry(fieldId, 2L));
+    assertThat(deleteFile.nanValueCounts()).containsExactly(Map.entry(fieldId, 2L));
+    assertThat(deleteFile.lowerBounds())
+        .containsExactly(
+            Map.entry(
+                fieldId, ByteBuffer.wrap(FILE_A.location().getBytes(StandardCharsets.UTF_8))));
+    assertThat(deleteFile.upperBounds())
+        .containsExactly(
+            Map.entry(
+                fieldId, ByteBuffer.wrap(FILE_A.location().getBytes(StandardCharsets.UTF_8))));
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteDiscardMetrics() {
+    Table table = TestTables.create(tableDir, "partitioned", SCHEMA, SPEC, formatVersion);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // add a delete file
+    int fieldId = 2;
+    DeleteFile eqDeletesWithMetrics = eqDeletesWithMetrics(SPEC, FILE_A.partition(), fieldId);
+    table.newRowDelta().addDeletes(eqDeletesWithMetrics).commit();
+
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
+    assertThat(tasks).as("Should have one task").hasSize(1);
+
+    FileScanTask task = (FileScanTask) tasks.get(0);
+    assertThat(task.file().location())
+        .as("Should have the correct data file path")
+        .isEqualTo(FILE_A.location());
+    assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
+
+    // verify scanned delete file only contains metrics for equality fields
+    DeleteFile deleteFile = task.deletes().get(0);
+    assertThat(deleteFile.columnSizes()).containsExactly(Map.entry(fieldId, 2L));
+    assertThat(deleteFile.valueCounts()).containsExactly(Map.entry(fieldId, 2L));
+    assertThat(deleteFile.nullValueCounts()).containsExactly(Map.entry(fieldId, 2L));
+    assertThat(deleteFile.nanValueCounts()).containsExactly(Map.entry(fieldId, 2L));
+    assertThat(deleteFile.lowerBounds())
+        .containsExactly(Map.entry(fieldId, ByteBuffer.wrap(new byte[20])));
+    assertThat(deleteFile.upperBounds())
+        .containsExactly(Map.entry(fieldId, ByteBuffer.wrap(new byte[20])));
   }
 
   @TestTemplate

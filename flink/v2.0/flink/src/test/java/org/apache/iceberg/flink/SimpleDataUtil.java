@@ -323,7 +323,11 @@ public class SimpleDataUtil {
     Snapshot snapshot = latestSnapshot(table, branch);
 
     if (snapshot == null) {
-      assertThat(expected).isEmpty();
+      assertThat(expected)
+          .as(
+              "No snapshot for table '%s', assuming expected data is empty. If that's not the case, the Flink job most likely did not checkpoint.",
+              table.name())
+          .isEmpty();
       return;
     }
 

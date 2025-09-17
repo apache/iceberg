@@ -102,9 +102,11 @@ Inheriting the sequence number from manifest metadata allows writing a new manif
 
 Row-level deletes are stored in delete files.
 
-There are two types of row-level deletes:
-* _Position deletes_ mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
-* _Equality deletes_ mark a row deleted by one or more column values, like `id = 5`. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
+There are two types of row-level deletes: 
+
+* **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
+
+* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -1860,6 +1862,10 @@ Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers t
 ### Naming for GZIP compressed Metadata JSON files
 
 Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
+
+### Position Delete Files with Row Data
+
+Although the spec allows for including the deleted row itself (in addition to the path and position of the row in the data file) in v2 position delete files, writing the row is optional and no implementation currently writes it. The ability to write and read the row is supported in the Java implementation but is deprecated in version 1.11.0.
 
 ## Appendix G: Geospatial Notes
 
