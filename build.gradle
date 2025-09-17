@@ -869,6 +869,8 @@ project(':iceberg-orc') {
 }
 
 project(':iceberg-parquet') {
+  apply plugin: 'java-test-fixtures'
+
   test {
     useJUnitPlatform()
   }
