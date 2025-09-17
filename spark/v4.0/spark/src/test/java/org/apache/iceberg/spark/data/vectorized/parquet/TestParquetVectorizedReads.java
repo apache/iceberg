@@ -522,7 +522,8 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
     Path plainResourcePath = Paths.get("encodings", PLAIN, typeName + ".parquet");
     URL plainFileUrl = getClass().getClassLoader().getResource(plainResourcePath.toString());
-    Preconditions.checkState(plainFileUrl != null, "PLAIN encoded file should exist: " + plainResourcePath);
+    Preconditions.checkState(
+        plainFileUrl != null, "PLAIN encoded file should exist: " + plainResourcePath);
 
     Schema expectedSchema = new Schema(optional(1, "data", primitiveType));
     assertIdenticalFileContents(
