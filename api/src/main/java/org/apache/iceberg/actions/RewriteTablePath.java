@@ -127,12 +127,12 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
     String latestVersion();
 
     /** Number of delete files with rewritten paths. */
-    default int deleteFilesPathRewrittenCount() {
+    default int rewrittenDeleteFilePathsCount() {
       return 0;
     }
 
     /** Number of manifest files with rewritten paths. */
-    default int manifestFilesPathRewrittenCount() {
+    default int rewrittenManifestFilePathsCount() {
       return 0;
     }
   }

@@ -307,11 +307,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     ImmutableRewriteTablePath.Result.Builder builder =
         ImmutableRewriteTablePath.Result.builder()
             .stagingLocation(stagingDir)
-            .deleteFilesPathRewrittenCount(deleteFiles.size())
-            .manifestFilesPathRewrittenCount(metaFiles.size())
+            .rewrittenDeleteFilePathsCount(deleteFiles.size())
+            .rewrittenManifestFilePathsCount(metaFiles.size())
             .latestVersion(RewriteTablePathUtil.fileName(endVersionName));
 
-    // file list generation disabled
     if (!createFileList) {
       return builder.fileListLocation(NOT_APPLICABLE).build();
     }

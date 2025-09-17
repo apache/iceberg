@@ -70,9 +70,12 @@ public class RewriteTablePathProcedure extends BaseProcedure {
             new StructField("latest_version", DataTypes.StringType, true, Metadata.empty()),
             new StructField("file_list_location", DataTypes.StringType, true, Metadata.empty()),
             new StructField(
-                "rewritten_metadata_files_count", DataTypes.IntegerType, true, Metadata.empty()),
+                "rewritten_manifest_file_paths_count",
+                DataTypes.IntegerType,
+                true,
+                Metadata.empty()),
             new StructField(
-                "rewritten_delete_files_count", DataTypes.IntegerType, true, Metadata.empty())
+                "rewritten_delete_file_paths_count", DataTypes.IntegerType, true, Metadata.empty())
           });
 
   public static SparkProcedures.ProcedureBuilder builder() {
@@ -123,6 +126,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
           if (stagingLocation != null) {
             action.stagingLocation(stagingLocation);
           }
+
           action.createFileList(createFileList);
 
           return asScanIterator(
@@ -136,8 +140,8 @@ public class RewriteTablePathProcedure extends BaseProcedure {
       newInternalRow(
           UTF8String.fromString(result.latestVersion()),
           UTF8String.fromString(result.fileListLocation()),
-          result.manifestFilesPathRewrittenCount(),
-          result.deleteFilesPathRewrittenCount())
+          result.rewrittenManifestFilePathsCount(),
+          result.rewrittenDeleteFilePathsCount())
     };
   }
 
