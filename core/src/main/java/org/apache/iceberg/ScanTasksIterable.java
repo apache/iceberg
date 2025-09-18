@@ -48,6 +48,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
   private final ExecutorService executorService;
   private final Map<Integer, PartitionSpec> specsById;
   private final boolean caseSensitive;
+  private final Supplier<Boolean> cancellationCallback;
 
   public ScanTasksIterable(
       String planTask,
@@ -57,7 +58,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       Supplier<Map<String, String>> headers,
       ExecutorService executorService,
       Map<Integer, PartitionSpec> specsById,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      Supplier<Boolean> cancellationCallback) {
     this.planTask = planTask;
     this.fileScanTasks = null;
     this.client = client;
@@ -67,6 +69,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     this.executorService = executorService;
     this.specsById = specsById;
     this.caseSensitive = caseSensitive;
+    this.cancellationCallback = cancellationCallback;
   }
 
   public ScanTasksIterable(
@@ -77,7 +80,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       Supplier<Map<String, String>> headers,
       ExecutorService executorService,
       Map<Integer, PartitionSpec> specsById,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      Supplier<Boolean> cancellationCallback) {
     this.planTask = null;
     this.fileScanTasks = new ArrayDeque<>(fileScanTasks);
     this.client = client;
@@ -87,6 +91,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     this.executorService = executorService;
     this.specsById = specsById;
     this.caseSensitive = caseSensitive;
+    this.cancellationCallback = cancellationCallback;
   }
 
   @Override
@@ -100,7 +105,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
         headers,
         executorService,
         specsById,
-        caseSensitive);
+        caseSensitive,
+        cancellationCallback);
   }
 
   @Override
@@ -116,6 +122,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     private final ExecutorService executorService;
     private final Map<Integer, PartitionSpec> specsById;
     private final boolean caseSensitive;
+    private final Supplier<Boolean> cancellationCallback;
 
     ScanTasksIterator(
         String planTask,
@@ -126,7 +133,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
         Supplier<Map<String, String>> headers,
         ExecutorService executorService,
         Map<Integer, PartitionSpec> specsById,
-        boolean caseSensitive) {
+        boolean caseSensitive,
+        Supplier<Boolean> cancellationCallback) {
       this.client = client;
       this.resourcePaths = resourcePaths;
       this.tableIdentifier = tableIdentifier;
@@ -136,6 +144,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       this.executorService = executorService;
       this.specsById = specsById;
       this.caseSensitive = caseSensitive;
+      this.cancellationCallback = cancellationCallback;
     }
 
     @Override
@@ -184,12 +193,11 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       }
 
       if (response.planTasks() != null) {
-        // this is the case where a plan task returned an additional plan task, so ensure that this
+        // This is the case where a plan task returned an additional plan task, so ensure that this
         // result is added to top level fileScanTasks list.
-        // confirmed working with catalog test
-        // #testPlanTableScanAndFetchScanTasksWithCompletedStatusAndNestedPlanTasks
         Iterable<FileScanTask> fileScanTasksFromPlanTasks =
             getScanTasksIterable(response.planTasks());
+
         fileScanTasksFromPlanTasks.forEach(fileScanTasks::add);
       }
     }
@@ -213,6 +221,15 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     }
 
     @Override
-    public void close() throws IOException {}
+    public void close() throws IOException {
+      // Cancel the plan if we have a cancellation callback
+      if (cancellationCallback != null) {
+        try {
+          cancellationCallback.get();
+        } catch (Exception e) {
+          // Log but don't fail the close - cancellation failures are not critical
+        }
+      }
+    }
   }
 }
