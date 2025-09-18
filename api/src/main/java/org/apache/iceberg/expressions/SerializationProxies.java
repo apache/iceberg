@@ -81,4 +81,18 @@ class SerializationProxies {
       return bytes;
     }
   }
+
+  static class BoundingBoxLiteralProxy extends FixedLiteralProxy {
+    /** Constructor for Java serialization. */
+    BoundingBoxLiteralProxy() {}
+
+    BoundingBoxLiteralProxy(ByteBuffer buffer) {
+      super(buffer);
+    }
+
+    @Override
+    Object readResolve() throws ObjectStreamException {
+      return new Literals.BoundingBoxLiteral(ByteBuffer.wrap(bytes()));
+    }
+  }
 }
