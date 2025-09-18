@@ -24,7 +24,7 @@ Official Apache Iceberg Youtube Channel:
 ### [https://www.youtube.com/@ApacheIceberg](https://www.youtube.com/@ApacheIceberg)
 
 Apache Iceberg Summit 2025 Playlist:
-### [https://www.youtube.com/watch?v=3N2KEUs7224&list=PLkifVhhWtccxMcqWlXXFvjJybisFF7ESh&pp=gAQB](Iceberg Summit 2025 Playlist)
+### [Iceberg Summit 2025](https://www.youtube.com/watch?v=3N2KEUs7224&list=PLkifVhhWtccxMcqWlXXFvjJybisFF7ESh&pp=gAQB)
 
 Apache Iceberg Summit 2024 Playlist:
-### [https://www.youtube.com/watch?v=axbmLqmxuo4&list=PLkifVhhWtccxBSrKFPXOmjAFFEpeYii5K&pp=gAQB](Iceberg Summit 2024 Playlist)
+### [Iceberg Summit 2024](https://www.youtube.com/watch?v=axbmLqmxuo4&list=PLkifVhhWtccxBSrKFPXOmjAFFEpeYii5K&pp=gAQB)
