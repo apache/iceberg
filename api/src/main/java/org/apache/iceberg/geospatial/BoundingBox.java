@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.geospatial;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
@@ -30,7 +29,7 @@ import java.util.Objects;
  * minimum and maximum coordinates that define the box's corners. This provides a simple
  * approximation of a more complex geometry for efficient filtering and data skipping.
  */
-public class BoundingBox implements Serializable {
+public class BoundingBox {
   /**
    * Create a {@link BoundingBox} object from buffers containing min and max bounds
    *
