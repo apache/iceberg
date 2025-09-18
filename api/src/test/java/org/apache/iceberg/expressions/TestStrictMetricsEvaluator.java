@@ -20,6 +20,7 @@ package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.geospatialPredicate;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
@@ -39,16 +40,22 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestStrictMetricsEvaluator {
   private static final Schema SCHEMA =
@@ -73,7 +80,9 @@ public class TestStrictMetricsEvaluator {
               Types.StructType.of(
                   Types.NestedField.optional(16, "nested_col_no_stats", Types.IntegerType.get()),
                   Types.NestedField.optional(
-                      17, "nested_col_with_stats", Types.IntegerType.get()))));
+                      17, "nested_col_with_stats", Types.IntegerType.get()))),
+          optional(18, "geom", Types.GeometryType.crs84()),
+          optional(19, "geog", Types.GeographyType.crs84()));
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
@@ -171,6 +180,32 @@ public class TestStrictMetricsEvaluator {
           ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
           // upper bounds
           ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
+
+  private static final DataFile FILE_4 =
+      new TestDataFile(
+          "file_4.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(
+              1, 50L,
+              18, 50L,
+              19, 50L),
+          // null value counts
+          ImmutableMap.of(
+              1, 0L,
+              18, 0L,
+              19, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(
+              18, GeospatialBound.createXY(1, 2).toByteBuffer(),
+              19, GeospatialBound.createXY(1, 2).toByteBuffer()),
+          // upper bounds
+          ImmutableMap.of(
+              18, GeospatialBound.createXY(10, 20).toByteBuffer(),
+              19, GeospatialBound.createXY(10, 20).toByteBuffer()));
 
   @Test
   public void testAllNulls() {
@@ -683,5 +718,28 @@ public class TestStrictMetricsEvaluator {
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_with_stats")).eval(FILE);
     assertThat(shouldRead).as("notNull nested column should not match").isFalse();
+  }
+
+  private static Stream<Arguments> geospatialPredicateParameters() {
+    return Stream.of(
+        Arguments.of(Expression.Operation.ST_INTERSECTS, "geom"),
+        Arguments.of(Expression.Operation.ST_INTERSECTS, "geog"),
+        Arguments.of(Expression.Operation.ST_DISJOINT, "geom"),
+        Arguments.of(Expression.Operation.ST_DISJOINT, "geog"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("geospatialPredicateParameters")
+  public void testGeospatialPredicates(Expression.Operation operation, String columnName) {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(
+                SCHEMA,
+                geospatialPredicate(
+                    operation,
+                    columnName,
+                    new BoundingBox(
+                        GeospatialBound.createXY(1, 2), GeospatialBound.createXY(2, 3))))
+            .eval(FILE_4);
+    assertThat(shouldRead).as("Geospatial predicate should never match").isFalse();
   }
 }
