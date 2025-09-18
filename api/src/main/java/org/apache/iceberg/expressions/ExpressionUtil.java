@@ -33,6 +33,7 @@ import java.util.stream.StreamSupport;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Literals.BoundingBoxLiteral;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
@@ -340,6 +341,8 @@ public class ExpressionUtil {
         case NOT_EQ:
         case STARTS_WITH:
         case NOT_STARTS_WITH:
+        case ST_INTERSECTS:
+        case ST_DISJOINT:
           return new UnboundPredicate<>(
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case IN:
@@ -440,6 +443,10 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
+        case ST_INTERSECTS:
+          return "st_intersects(" + term + ", " + value((BoundLiteralPredicate<?>) pred) + ")";
+        case ST_DISJOINT:
+          return "st_disjoint(" + term + ", " + value((BoundLiteralPredicate<?>) pred) + ")";
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -492,6 +499,10 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
+        case ST_INTERSECTS:
+          return "st_intersects(" + term + ", " + sanitize(pred.literal(), nowMicros, today) + ")";
+        case ST_DISJOINT:
+          return "st_disjoint(" + term + ", " + sanitize(pred.literal(), nowMicros, today) + ")";
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -541,6 +552,8 @@ public class ExpressionUtil {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
     } else if (literal instanceof Literals.VariantLiteral) {
       return sanitizeVariant(((Literals.VariantLiteral) literal).value(), now, today);
+    } else if (literal instanceof BoundingBoxLiteral) {
+      return "(bounding-box)";
     } else {
       // for uuid, decimal, fixed and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());

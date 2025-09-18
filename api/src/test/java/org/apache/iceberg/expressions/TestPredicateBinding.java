@@ -41,10 +41,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
@@ -647,5 +650,54 @@ public class TestPredicateBinding {
     assertThat(expr)
         .as("Should change NOT_IN to alwaysTrue expression")
         .isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @Test
+  public void testGeospatialPredicateBinding() {
+    StructType struct =
+        StructType.of(
+            required(20, "geom", Types.GeometryType.crs84()),
+            required(21, "geog", Types.GeographyType.crs84()));
+
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    // Test ST_INTERSECTS with geometry
+    UnboundPredicate<ByteBuffer> stIntersectsGeom =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox);
+    Expression expr = stIntersectsGeom.bind(struct);
+    BoundPredicate<ByteBuffer> bound = assertAndUnwrap(expr);
+    assertThat(bound.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
+    assertThat(bound.term().ref().fieldId()).isEqualTo(20);
+    assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
+
+    // Test ST_DISJOINT with geometry
+    UnboundPredicate<ByteBuffer> stDisjointGeom =
+        Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox);
+    expr = stDisjointGeom.bind(struct);
+    bound = assertAndUnwrap(expr);
+    assertThat(bound.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
+    assertThat(bound.term().ref().fieldId()).isEqualTo(20);
+    assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
+
+    // Test ST_INTERSECTS with geography
+    UnboundPredicate<ByteBuffer> stIntersectsGeog =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox);
+    expr = stIntersectsGeog.bind(struct);
+    bound = assertAndUnwrap(expr);
+    assertThat(bound.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
+    assertThat(bound.term().ref().fieldId()).isEqualTo(21);
+    assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
+
+    // Test ST_DISJOINT with geography
+    UnboundPredicate<ByteBuffer> stDisjointGeog =
+        Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox);
+    expr = stDisjointGeog.bind(struct);
+    bound = assertAndUnwrap(expr);
+    assertThat(bound.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
+    assertThat(bound.term().ref().fieldId()).isEqualTo(21);
+    assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
   }
 }

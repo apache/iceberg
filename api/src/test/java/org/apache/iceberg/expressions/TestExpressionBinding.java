@@ -44,6 +44,8 @@ import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
@@ -62,7 +64,9 @@ public class TestExpressionBinding {
           required(3, "data", Types.StringType.get()),
           required(4, "var", Types.VariantType.get()),
           optional(5, "nullable", Types.IntegerType.get()),
-          optional(6, "always_null", Types.UnknownType.get()));
+          optional(6, "always_null", Types.UnknownType.get()),
+          required(7, "point", Types.GeometryType.crs84()),
+          required(8, "geography", Types.GeographyType.crs84()));
 
   @Test
   public void testMissingReference() {
@@ -508,5 +512,41 @@ public class TestExpressionBinding {
     bound = Binder.bind(schema.asStruct(), Expressions.notNull(path));
     TestHelpers.assertAllReferencesBound("NotNull", bound);
     assertThat(bound.op()).isEqualTo(expression.negate().op());
+  }
+
+  @Test
+  public void testStIntersects() {
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    Expression expr =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "point", bbox);
+    Expression bound = Binder.bind(STRUCT, expr);
+
+    TestHelpers.assertAllReferencesBound("ST_Intersects", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
+    assertThat(pred.term().ref().fieldId()).as("Should bind point correctly").isEqualTo(7);
+    assertThat(pred.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
+  }
+
+  @Test
+  public void testStDisjoint() {
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    Expression expr =
+        Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geography", bbox);
+    Expression bound = Binder.bind(STRUCT, expr);
+
+    TestHelpers.assertAllReferencesBound("ST_Disjoint", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
+    assertThat(pred.term().ref().fieldId()).as("Should bind geography correctly").isEqualTo(8);
+    assertThat(pred.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
   }
 }
