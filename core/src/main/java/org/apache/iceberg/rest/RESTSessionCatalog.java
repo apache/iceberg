@@ -116,7 +116,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   // rest scan planning endpoint
   public static final String REST_SERVER_PLANNING_ENABLED = "rest-server-planning-enabled";
-  private static final String REST_TABLE_SCAN_PLANNING_PROPERTY = "table.rest-scan-planning";
 
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
@@ -469,7 +468,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable = tableSupportsRemoteScanPlanning(ops, finalIdentifier, tableClient);
+    RESTTable restTable = getRemoteScanPlanningTable(ops, finalIdentifier, tableClient);
     if (restTable != null) {
       return restTable;
     }
@@ -486,22 +485,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return table;
   }
 
-  private RESTTable tableSupportsRemoteScanPlanning(
+  private RESTTable getRemoteScanPlanningTable(
       TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
-    if (ops.current().properties().containsKey(REST_TABLE_SCAN_PLANNING_PROPERTY)) {
-      boolean tableSupportsRemotePlanning =
-          ops.current().propertyAsBoolean(REST_TABLE_SCAN_PLANNING_PROPERTY, false);
-      if (tableSupportsRemotePlanning && restServerPlanningEnabled) {
-        return new RESTTable(
-            ops,
-            fullTableName(finalIdentifier),
-            metricsReporter(paths.metrics(finalIdentifier), restClient),
-            restClient,
-            paths.table(finalIdentifier),
-            Map::of,
-            finalIdentifier,
-            paths);
-      }
+    // server supports remote planning and the client has it enabled
+    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restServerPlanningEnabled) {
+      return new RESTTable(
+          ops,
+          fullTableName(finalIdentifier),
+          metricsReporter(paths.metrics(finalIdentifier), restClient),
+          restClient,
+          paths.table(finalIdentifier),
+          Map::of,
+          finalIdentifier,
+          paths);
     }
     return null;
   }
@@ -573,7 +569,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable = tableSupportsRemoteScanPlanning(ops, ident, tableClient);
+    RESTTable restTable = getRemoteScanPlanningTable(ops, ident, tableClient);
     if (restTable != null) {
       return restTable;
     }
@@ -837,7 +833,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable restTable = tableSupportsRemoteScanPlanning(ops, ident, tableClient);
+      RESTTable restTable = getRemoteScanPlanningTable(ops, ident, tableClient);
       if (restTable != null) {
         return restTable;
       }

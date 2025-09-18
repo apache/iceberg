@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -44,9 +45,14 @@ class RESTTableScan extends DataTableScan {
   private final Table table;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
+  private final ParserContext parserContext;
+
+  // Track the current plan ID for cancellation
+  private volatile String currentPlanId = null;
 
   // TODO revisit if this property should be configurable
   private static final int FETCH_PLANNING_SLEEP_DURATION_MS = 1000;
+  private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000L;
 
   RESTTableScan(
       Table table,
@@ -66,6 +72,11 @@ class RESTTableScan extends DataTableScan {
     this.operations = operations;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
+    this.parserContext =
+        ParserContext.builder()
+            .add("specsById", table.specs())
+            .add("caseSensitive", context().caseSensitive())
+            .build();
   }
 
   @Override
@@ -126,11 +137,6 @@ class RESTTableScan extends DataTableScan {
   }
 
   private CloseableIterable<FileScanTask> planTableScan(PlanTableScanRequest planTableScanRequest) {
-    ParserContext context =
-        ParserContext.builder()
-            .add("specsById", table.specs())
-            .add("caseSensitive", context().caseSensitive())
-            .build();
 
     PlanTableScanResponse response =
         client.post(
@@ -140,7 +146,7 @@ class RESTTableScan extends DataTableScan {
             headers.get(),
             ErrorHandlers.defaultErrorHandler(),
             stringStringMap -> {},
-            context);
+            parserContext);
 
     PlanStatus planStatus = response.planStatus();
     switch (planStatus) {
@@ -161,52 +167,63 @@ class RESTTableScan extends DataTableScan {
   }
 
   private CloseableIterable<FileScanTask> fetchPlanningResult(String planId) {
-    // TODO need to introduce a max wait time for this loop potentially
-    boolean planningFinished = false;
-    // we need to inject specById map here and also the caseSensitive
-    ParserContext context =
-        ParserContext.builder()
-            .add("specsById", table.specs())
-            .add("caseSensitive", context().caseSensitive())
-            .build();
-    while (!planningFinished) {
-      FetchPlanningResultResponse response =
-          client.get(
-              resourcePaths.fetchPlanningResult(tableIdentifier, planId),
-              Map.of(),
-              FetchPlanningResultResponse.class,
-              headers.get(),
-              ErrorHandlers.defaultErrorHandler(),
-              context);
+    // Set the current plan ID for potential cancellation
+    currentPlanId = planId;
 
-      PlanStatus planStatus = response.planStatus();
-      switch (planStatus) {
-        case COMPLETED:
-          return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
-        case SUBMITTED:
-          // TODO: Think more about whether we should use a backoff strategy here.
-          // For now, we will just sleep for a fixed duration before checking the status again.
-          try {
-            Thread.sleep(FETCH_PLANNING_SLEEP_DURATION_MS);
-          } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted while fetching plan status", e);
-          }
-          break;
-        case FAILED:
-          throw new RuntimeException(
-              "Received \"failed\" status from service when fetching a table scan");
-        case CANCELLED:
-          throw new RuntimeException(
-              String.format(
-                  "Received \"cancelled\" status from service when fetching a table scan, planId: %s is invalid",
-                  planId));
-        default:
-          throw new RuntimeException(
-              String.format("Invalid planStatus during fetchPlanningResult: %s", planStatus));
+    try {
+      long startTime = System.currentTimeMillis();
+      while (System.currentTimeMillis() - startTime <= MAX_WAIT_TIME_MS) {
+        FetchPlanningResultResponse response =
+            client.get(
+                resourcePaths.fetchPlanningResult(tableIdentifier, planId),
+                Map.of(),
+                FetchPlanningResultResponse.class,
+                headers.get(),
+                ErrorHandlers.defaultErrorHandler(),
+                parserContext);
+
+        PlanStatus planStatus = response.planStatus();
+        switch (planStatus) {
+          case COMPLETED:
+            return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
+          case SUBMITTED:
+            try {
+              // TODO: if we want to add some jitter here to avoid thundering herd.
+              Thread.sleep(FETCH_PLANNING_SLEEP_DURATION_MS);
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+              // Attempt to cancel the plan before exiting
+              cancelPlan();
+              throw new RuntimeException("Interrupted while fetching plan status", e);
+            }
+            break;
+          case FAILED:
+            throw new IllegalStateException(
+                "Received \"failed\" status from service when fetching a table scan");
+          case CANCELLED:
+            throw new IllegalStateException(
+                String.format(
+                    Locale.ROOT,
+                    "Received \"cancelled\" status from service when fetching a table scan, planId: %s is invalid",
+                    planId));
+          default:
+            throw new IllegalStateException(
+                String.format(
+                    Locale.ROOT, "Invalid planStatus during fetchPlanningResult: %s", planStatus));
+        }
       }
+      // If we reach here, we've exceeded the max wait time
+      currentPlanId = null; // Clear on timeout
+      throw new IllegalStateException(
+          String.format(
+              Locale.ROOT,
+              "Exceeded max wait time of %d ms when fetching planning result",
+              MAX_WAIT_TIME_MS));
+    } catch (Exception e) {
+      // Clear the plan ID on any exception (except successful completion)
+      currentPlanId = null;
+      throw e;
     }
-    return null;
   }
 
   public CloseableIterable<FileScanTask> getScanTasksIterable(
@@ -223,7 +240,8 @@ class RESTTableScan extends DataTableScan {
               headers,
               planExecutor(),
               table.specs(),
-              isCaseSensitive());
+              isCaseSensitive(),
+              this::cancelPlan);
       iterableOfScanTaskIterables.add(scanTasksIterable);
     }
     if (planTasks != null) {
@@ -238,11 +256,11 @@ class RESTTableScan extends DataTableScan {
                 headers,
                 planExecutor(),
                 table.specs(),
-                isCaseSensitive());
+                isCaseSensitive(),
+                this::cancelPlan);
         iterableOfScanTaskIterables.add(iterable);
       }
       return new ParallelIterable<>(iterableOfScanTaskIterables, planExecutor());
-      // another idea is to keep concatenating to the original parallel iterable???
     }
     // use a single scanTasks iterable since no need to parallelize since no planTasks
     return new ScanTasksIterable(
@@ -253,6 +271,32 @@ class RESTTableScan extends DataTableScan {
         headers,
         planExecutor(),
         table.specs(),
-        isCaseSensitive());
+        isCaseSensitive(),
+        this::cancelPlan);
+  }
+
+  /**
+   * Cancels the currently active scan plan if one exists. This method can be called from another
+   * thread to cancel a running scan operation.
+   *
+   * @return true if a plan was cancelled, false if no active plan exists
+   */
+  public boolean cancelPlan() {
+    String planId = currentPlanId;
+    if (planId == null) {
+      return false;
+    }
+
+    try {
+      client.delete(
+          resourcePaths.cancelPlan(tableIdentifier, planId),
+          Map.of(),
+          headers.get(),
+          ErrorHandlers.defaultErrorHandler());
+      return true;
+    } catch (Exception e) {
+      // Plan might have already completed or failed, which is acceptable
+      return false;
+    }
   }
 }
