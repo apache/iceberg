@@ -102,7 +102,7 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
 
     this.importer = new CometSchemaImporter(new RootAllocator());
 
-    spec = CometTypeUtils.descriptorToParquetColumnSpec(descriptor);
+    spec = (ParquetColumnSpec) CometTypeUtils.descriptorToParquetColumnSpec(descriptor);
 
     boolean useLegacyTime =
         Boolean.parseBoolean(

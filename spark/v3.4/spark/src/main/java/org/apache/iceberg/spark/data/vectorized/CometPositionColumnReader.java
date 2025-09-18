@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.comet.parquet.MetadataColumnReader;
 import org.apache.comet.parquet.Native;
+import org.apache.comet.parquet.ParquetColumnSpec;
 import org.apache.iceberg.parquet.CometTypeUtils;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -45,7 +46,7 @@ class CometPositionColumnReader extends CometColumnReader {
     PositionColumnReader(ColumnDescriptor descriptor) {
       super(
           DataTypes.LongType,
-          CometTypeUtils.descriptorToParquetColumnSpec(descriptor),
+          (ParquetColumnSpec) CometTypeUtils.descriptorToParquetColumnSpec(descriptor),
           false /* useDecimal128 = false */,
           false /* isConstant */);
     }
