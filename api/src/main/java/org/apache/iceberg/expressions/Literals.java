@@ -32,6 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
@@ -85,6 +86,8 @@ class Literals {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
     } else if (value instanceof Variant) {
       return (Literal<T>) new Literals.VariantLiteral((Variant) value);
+    } else if (value instanceof BoundingBox) {
+      return (Literal<T>) new Literals.BoundingBoxLiteral((BoundingBox) value);
     }
 
     throw new IllegalArgumentException(
@@ -717,6 +720,47 @@ class Literals {
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
       return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+    }
+  }
+
+  static class BoundingBoxLiteral extends BaseLiteral<ByteBuffer> {
+    private static final Comparator<ByteBuffer> CMP =
+        Comparators.<ByteBuffer>nullsFirst().thenComparing(Comparators.unsignedBytes());
+
+    BoundingBoxLiteral(BoundingBox value) {
+      super(value.toByteBuffer());
+    }
+
+    BoundingBoxLiteral(ByteBuffer value) {
+      super(value);
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return null;
+    }
+
+    @Override
+    public <T> Literal<T> to(Type type) {
+      if (type.typeId() != Type.TypeID.GEOMETRY && type.typeId() != Type.TypeID.GEOGRAPHY) {
+        return null;
+      }
+
+      return (Literal<T>) this;
+    }
+
+    @Override
+    public Comparator<ByteBuffer> comparator() {
+      return CMP;
+    }
+
+    Object writeReplace() throws ObjectStreamException {
+      return new SerializationProxies.BoundingBoxLiteralProxy(value());
+    }
+
+    @Override
+    public String toString() {
+      return String.valueOf(value());
     }
   }
 }

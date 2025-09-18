@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.nio.ByteBuffer;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
@@ -202,6 +204,24 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, expr, value);
   }
 
+  public static UnboundPredicate<ByteBuffer> stIntersects(String name, BoundingBox value) {
+    return geospatialPredicate(Operation.ST_INTERSECTS, name, value);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stIntersects(
+      UnboundTerm<ByteBuffer> expr, BoundingBox value) {
+    return geospatialPredicate(Operation.ST_INTERSECTS, expr, value);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stDisjoint(String name, BoundingBox value) {
+    return geospatialPredicate(Operation.ST_DISJOINT, name, value);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stDisjoint(
+      UnboundTerm<ByteBuffer> expr, BoundingBox value) {
+    return geospatialPredicate(Operation.ST_DISJOINT, expr, value);
+  }
+
   public static <T> UnboundPredicate<T> in(String name, T... values) {
     return predicate(Operation.IN, name, Lists.newArrayList(values));
   }
@@ -278,6 +298,16 @@ public class Expressions {
 
   public static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr) {
     return new UnboundPredicate<>(op, expr);
+  }
+
+  public static UnboundPredicate<ByteBuffer> geospatialPredicate(
+      Operation op, String name, BoundingBox value) {
+    return geospatialPredicate(op, ref(name), value);
+  }
+
+  public static UnboundPredicate<ByteBuffer> geospatialPredicate(
+      Operation op, UnboundTerm<ByteBuffer> expr, BoundingBox value) {
+    return new UnboundPredicate<>(op, expr, Literal.of(value));
   }
 
   public static True alwaysTrue() {
