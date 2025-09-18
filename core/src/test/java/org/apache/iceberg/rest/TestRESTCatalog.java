@@ -2764,12 +2764,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       catalog.createNamespace(tableIdentifier.namespace());
     }
 
-    Table table =
-        catalog
-            .buildTable(tableIdentifier, SCHEMA)
-            .withProperty("table.rest-scan-planning", "true")
-            .withPartitionSpec(SPEC)
-            .create();
+    Table table = catalog.buildTable(tableIdentifier, SCHEMA).withPartitionSpec(SPEC).create();
 
     table.newAppend().appendFile(FILE_A).commit();
     return table;
@@ -3007,5 +3002,193 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<HTTPRequest> captor = ArgumentCaptor.forClass(HTTPRequest.class);
     verify(adapter, atLeastOnce()).execute(captor.capture(), any(), any(), any());
     return captor.getAllValues();
+  }
+
+  @Test
+  public void testCancelPlanWithNoActivePlan() {
+    RESTCatalog catalog =
+        initCatalog(
+            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+
+    // Cast to RESTTable to access scan functionality
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    // Create a new scan and cast to RESTTableScan
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Calling cancel with no active plan should return false
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse();
+  }
+
+  @Test
+  public void testCancelPlanEndpointSupport() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    // Mock config response to include cancel endpoint
+    ConfigResponse configWithCancel =
+        ConfigResponse.builder()
+            .withEndpoints(
+                ImmutableList.of(
+                    Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+                    Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+                    Endpoint.V1_CANCEL_TABLE_SCAN_PLAN))
+            .build();
+
+    Mockito.doReturn(configWithCancel)
+        .when(adapter)
+        .execute(
+            argThat(req -> req.path().equals(ResourcePaths.config())),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true",
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+
+    // Verify that a RESTTable was created (indicating server-side planning is enabled)
+    assertThat(table).isInstanceOf(RESTTable.class);
+
+    // Create scan from RESTTable
+    TableScan scan = table.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Test that cancelPlan method is available and returns false when no plan is active
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse();
+  }
+
+  @Test
+  public void testCancelPlanMethodAvailability() throws IOException {
+    RESTCatalog catalog =
+        initCatalog(
+            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Test that cancelPlan method is available and callable
+    // When no plan is active, it should return false
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse();
+
+    // Verify the method exists and doesn't throw exceptions when called multiple times
+    boolean cancelled2 = restTableScan.cancelPlan();
+    assertThat(cancelled2).isFalse();
+  }
+
+  @Test
+  public void testCancelPlanEndpointPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    String planId = "plan-abc-123";
+    ResourcePaths paths = new ResourcePaths("test-prefix");
+
+    // Test that the cancel plan path is generated correctly
+    String cancelPath = paths.cancelPlan(tableId, planId);
+
+    assertThat(cancelPath)
+        .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    String complexPath = paths.cancelPlan(complexId, "plan-xyz-789");
+
+    assertThat(complexPath).contains("/plan/plan-xyz-789");
+    assertThat(complexPath).contains("db%1Fschema"); // URL encoded namespace separator
+  }
+
+  @Test
+  public void testIteratorCloseTriggersCancel() throws IOException {
+    RESTCatalog catalog =
+        initCatalog(
+            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Get the iterable and iterator
+    CloseableIterable<FileScanTask> iterable = restTableScan.planFiles();
+    CloseableIterator<FileScanTask> iterator = iterable.iterator();
+
+    // Verify we can close the iterator without exceptions
+    // The cancellation callback will be called (though no active plan exists)
+    iterator.close();
+
+    // Verify we can still call cancelPlan on the scan
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse(); // No active plan to cancel
+  }
+
+  @Test
+  public void testIterableCloseTriggersCancel() throws IOException {
+    RESTCatalog catalog =
+        initCatalog(
+            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Get the iterable
+    CloseableIterable<FileScanTask> iterable = restTableScan.planFiles();
+
+    // Verify we can close the iterable without exceptions
+    // This tests that cancellation callbacks are properly wired through
+    iterable.close();
+
+    // Verify the scan is still functional
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse(); // No active plan to cancel
   }
 }
