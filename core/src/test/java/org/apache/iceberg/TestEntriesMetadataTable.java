@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -31,11 +30,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestEntriesMetadataTable extends TestBase {
-
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testEntriesTable() {
@@ -68,7 +62,7 @@ public class TestEntriesMetadataTable extends TestBase {
         .isEqualTo(expectedSchema.asStruct());
 
     FileScanTask file = Iterables.getOnlyElement(scan.planFiles());
-    assertThat(file.file().path())
+    assertThat(file.file().location())
         .as("Data file should be the table's manifest")
         .isEqualTo(table.currentSnapshot().allManifests(table.io()).get(0).path());
 
@@ -131,7 +125,7 @@ public class TestEntriesMetadataTable extends TestBase {
     assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
 
     Table entriesTable = new ManifestEntriesTable(table);
     TableScan scan = entriesTable.newScan();
@@ -145,13 +139,13 @@ public class TestEntriesMetadataTable extends TestBase {
         .isEqualTo(expectedSchema.asStruct());
 
     List<FileScanTask> files = ImmutableList.copyOf(scan.planFiles());
-    assertThat(files.get(0).file().path())
+    assertThat(files.get(0).file().location())
         .as("Data file should be the table's manifest")
         .isEqualTo(table.currentSnapshot().dataManifests(table.io()).get(0).path());
     assertThat(files.get(0).file().recordCount())
         .as("Should contain 2 data file records")
         .isEqualTo(2);
-    assertThat(files.get(1).file().path())
+    assertThat(files.get(1).file().location())
         .as("Delete file should be in the table manifest")
         .isEqualTo(table.currentSnapshot().deleteManifests(table.io()).get(0).path());
     assertThat(files.get(1).file().recordCount())

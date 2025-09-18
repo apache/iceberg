@@ -139,4 +139,31 @@ public class TestRESTUtil {
 
     assertThat(RESTUtil.decodeFormData(formString)).isEqualTo(expected);
   }
+
+  @Test
+  public void testNullEndpointPath() {
+    assertThat(RESTUtil.resolveEndpoint("http://catalog-uri", null)).isNull();
+  }
+
+  @Test
+  public void testAbsoluteEndpointPath() {
+    assertThat(
+            RESTUtil.resolveEndpoint("http://catalog-uri", "http://catalog-uri/refresh-endpoint"))
+        .isEqualTo("http://catalog-uri/refresh-endpoint");
+    assertThat(
+            RESTUtil.resolveEndpoint("http://catalog-uri/", "http://catalog-uri/refresh-endpoint"))
+        .isEqualTo("http://catalog-uri/refresh-endpoint");
+  }
+
+  @Test
+  public void testRelativeEndpointPath() {
+    assertThat(RESTUtil.resolveEndpoint(null, "/refresh-endpoint")).isEqualTo("/refresh-endpoint");
+    assertThat(RESTUtil.resolveEndpoint("http://catalog-uri", "/refresh-endpoint"))
+        .isEqualTo("http://catalog-uri/refresh-endpoint");
+    assertThat(RESTUtil.resolveEndpoint("http://catalog-uri/", "/refresh-endpoint"))
+        .isEqualTo("http://catalog-uri/refresh-endpoint");
+    assertThat(
+            RESTUtil.resolveEndpoint("http://catalog-uri/", "relative-endpoint/refresh-endpoint"))
+        .isEqualTo("http://catalog-uri/relative-endpoint/refresh-endpoint");
+  }
 }

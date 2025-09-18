@@ -101,6 +101,7 @@ public class Spark3Util {
   private static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of(TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
+  private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
 
   private Spark3Util() {}
 
@@ -233,6 +234,13 @@ public class Spark3Util {
         add.isNullable(),
         "Incompatible change: cannot add required column: %s",
         leafName(add.fieldNames()));
+    if (add.defaultValue() != null) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Cannot add column %s since setting default values in Spark is currently unsupported",
+              leafName(add.fieldNames())));
+    }
+
     Type type = SparkSchemaUtil.convert(add.dataType());
     pendingUpdate.addColumn(
         parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());
@@ -858,6 +866,23 @@ public class Spark3Util {
         .quoted();
   }
 
+  public static org.apache.spark.sql.execution.datasources.PartitionSpec getInferredSpec(
+      SparkSession spark, Path rootPath) {
+    FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
+    InMemoryFileIndex fileIndex =
+        new InMemoryFileIndex(
+            spark,
+            JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
+                .asScala()
+                .toSeq(),
+            scala.collection.immutable.Map$.MODULE$.empty(),
+            Option.empty(), // Pass empty so that automatic schema inference is used
+            fileStatusCache,
+            Option.empty(),
+            Option.empty());
+    return fileIndex.partitionSpec();
+  }
+
   /**
    * Use Spark to list all partitions in the table.
    *
@@ -924,7 +949,7 @@ public class Spark3Util {
                         Object catalystValue = partition.values().get(fieldIndex, field.dataType());
                         Object value =
                             CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
-                        values.put(field.name(), String.valueOf(value));
+                        values.put(field.name(), (value == null) ? HIVE_NULL : value.toString());
                       });
 
               FileStatus fileStatus =

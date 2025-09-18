@@ -23,6 +23,7 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.ScanTaskUtil;
 
 abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends ContentFile<F>>
     implements ContentScanTask<F>, SplittableScanTask<ThisT> {
@@ -82,7 +83,7 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
 
   @Override
   public long length() {
-    return file.fileSizeInBytes();
+    return ScanTaskUtil.contentSizeInBytes(file);
   }
 
   @Override
@@ -116,7 +117,7 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("file", file().path())
+        .add("file", file().location())
         .add("partition_data", file().partition())
         .add("residual", residual())
         .toString();

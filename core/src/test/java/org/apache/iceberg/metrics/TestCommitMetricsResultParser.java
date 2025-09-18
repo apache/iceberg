@@ -74,6 +74,8 @@ public class TestCommitMetricsResultParser {
             .put(SnapshotSummary.ADDED_DELETE_FILES_PROP, "4")
             .put(SnapshotSummary.ADD_EQ_DELETE_FILES_PROP, "5")
             .put(SnapshotSummary.ADD_POS_DELETE_FILES_PROP, "6")
+            .put(SnapshotSummary.ADDED_DVS_PROP, "1")
+            .put(SnapshotSummary.REMOVED_DVS_PROP, "4")
             .put(SnapshotSummary.REMOVED_POS_DELETE_FILES_PROP, "7")
             .put(SnapshotSummary.REMOVED_EQ_DELETE_FILES_PROP, "8")
             .put(SnapshotSummary.REMOVED_DELETE_FILES_PROP, "9")
@@ -90,6 +92,10 @@ public class TestCommitMetricsResultParser {
             .put(SnapshotSummary.REMOVED_EQ_DELETES_PROP, "20")
             .put(SnapshotSummary.TOTAL_POS_DELETES_PROP, "21")
             .put(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "22")
+            .put(SnapshotSummary.CREATED_MANIFESTS_COUNT, "10")
+            .put(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "4")
+            .put(SnapshotSummary.KEPT_MANIFESTS_COUNT, "6")
+            .put(SnapshotSummary.PROCESSED_MANIFEST_ENTRY_COUNT, "20")
             .build();
 
     CommitMetricsResult result = CommitMetricsResult.from(commitMetrics, snapshotSummary);
@@ -101,6 +107,8 @@ public class TestCommitMetricsResultParser {
     assertThat(result.addedDeleteFiles().value()).isEqualTo(4L);
     assertThat(result.addedEqualityDeleteFiles().value()).isEqualTo(5L);
     assertThat(result.addedPositionalDeleteFiles().value()).isEqualTo(6L);
+    assertThat(result.addedDVs().value()).isEqualTo(1L);
+    assertThat(result.removedDVs().value()).isEqualTo(4L);
     assertThat(result.removedPositionalDeleteFiles().value()).isEqualTo(7L);
     assertThat(result.removedEqualityDeleteFiles().value()).isEqualTo(8L);
     assertThat(result.removedDeleteFiles().value()).isEqualTo(9L);
@@ -117,6 +125,10 @@ public class TestCommitMetricsResultParser {
     assertThat(result.removedEqualityDeletes().value()).isEqualTo(20L);
     assertThat(result.totalPositionalDeletes().value()).isEqualTo(21L);
     assertThat(result.totalEqualityDeletes().value()).isEqualTo(22L);
+    assertThat(result.manifestsCreated().value()).isEqualTo(10L);
+    assertThat(result.manifestsReplaced().value()).isEqualTo(4L);
+    assertThat(result.manifestsKept().value()).isEqualTo(6L);
+    assertThat(result.manifestEntriesProcessed().value()).isEqualTo(20L);
 
     String expectedJson =
         "{\n"
@@ -153,6 +165,10 @@ public class TestCommitMetricsResultParser {
             + "    \"unit\" : \"count\",\n"
             + "    \"value\" : 6\n"
             + "  },\n"
+            + "  \"added-dvs\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 1\n"
+            + "  },\n"
             + "  \"removed-delete-files\" : {\n"
             + "    \"unit\" : \"count\",\n"
             + "    \"value\" : 9\n"
@@ -160,6 +176,10 @@ public class TestCommitMetricsResultParser {
             + "  \"removed-positional-delete-files\" : {\n"
             + "    \"unit\" : \"count\",\n"
             + "    \"value\" : 7\n"
+            + "  },\n"
+            + "  \"removed-dvs\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 4\n"
             + "  },\n"
             + "  \"removed-equality-delete-files\" : {\n"
             + "    \"unit\" : \"count\",\n"
@@ -216,6 +236,22 @@ public class TestCommitMetricsResultParser {
             + "  \"total-equality-deletes\" : {\n"
             + "    \"unit\" : \"count\",\n"
             + "    \"value\" : 22\n"
+            + "  },\n"
+            + "  \"manifests-created\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 10\n"
+            + "  },\n"
+            + "  \"manifests-replaced\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 4\n"
+            + "  },\n"
+            + "  \"manifests-kept\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 6\n"
+            + "  },\n"
+            + "  \"manifest-entries-processed\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 20\n"
             + "  }\n"
             + "}";
 

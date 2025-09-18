@@ -21,19 +21,12 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotSummary extends TestBase {
-
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testFileSizeSummary() {
@@ -78,7 +71,7 @@ public class TestSnapshotSummary extends TestBase {
 
   @TestTemplate
   public void testFileSizeSummaryWithDeletes() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
@@ -260,7 +253,7 @@ public class TestSnapshotSummary extends TestBase {
 
   @TestTemplate
   public void rowDeltaWithDeletesAndDuplicates() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
     assertThat(listManifestFiles()).isEmpty();
 
     table
@@ -325,7 +318,7 @@ public class TestSnapshotSummary extends TestBase {
 
   @TestTemplate
   public void rewriteWithDeletesAndDuplicates() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
     assertThat(listManifestFiles()).isEmpty();
 
     table.newRowDelta().addRows(FILE_A2).addDeletes(FILE_A_DELETES).commit();
@@ -357,5 +350,102 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "1")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "20")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1");
+  }
+
+  @TestTemplate
+  public void testFileSizeSummaryWithDVs() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DeleteFile dv1 = newDV(FILE_A);
+    table.newRowDelta().addDeletes(dv1).commit();
+
+    DeleteFile dv2 = newDV(FILE_B);
+    table.newRowDelta().addDeletes(dv2).commit();
+
+    Map<String, String> summary1 = table.currentSnapshot().summary();
+    long addedPosDeletes1 = dv2.recordCount();
+    long addedFileSize1 = dv2.contentSizeInBytes();
+    long totalPosDeletes1 = dv1.recordCount() + dv2.recordCount();
+    long totalFileSize1 = dv1.contentSizeInBytes() + dv2.contentSizeInBytes();
+    assertThat(summary1)
+        .hasSize(12)
+        .doesNotContainKey(SnapshotSummary.ADD_POS_DELETE_FILES_PROP)
+        .doesNotContainKey(SnapshotSummary.REMOVED_POS_DELETE_FILES_PROP)
+        .containsEntry(SnapshotSummary.ADDED_DELETE_FILES_PROP, "1")
+        .doesNotContainKey(SnapshotSummary.REMOVED_DELETE_FILES_PROP)
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1")
+        .doesNotContainKey(SnapshotSummary.REMOVED_DVS_PROP)
+        .containsEntry(SnapshotSummary.ADDED_POS_DELETES_PROP, String.valueOf(addedPosDeletes1))
+        .doesNotContainKey(SnapshotSummary.REMOVED_POS_DELETES_PROP)
+        .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, String.valueOf(addedFileSize1))
+        .doesNotContainKey(SnapshotSummary.REMOVED_FILE_SIZE_PROP)
+        .containsEntry(SnapshotSummary.TOTAL_DELETE_FILES_PROP, "2")
+        .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, String.valueOf(totalPosDeletes1))
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, String.valueOf(totalFileSize1))
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "0")
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1");
+
+    DeleteFile dv3 = newDV(FILE_A);
+    table
+        .newRowDelta()
+        .removeDeletes(dv1)
+        .removeDeletes(dv2)
+        .addDeletes(dv3)
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .commit();
+
+    Map<String, String> summary2 = table.currentSnapshot().summary();
+    long addedPosDeletes2 = dv3.recordCount();
+    long removedPosDeletes2 = dv1.recordCount() + dv2.recordCount();
+    long addedFileSize2 = dv3.contentSizeInBytes();
+    long removedFileSize2 = dv1.contentSizeInBytes() + dv2.contentSizeInBytes();
+    long totalPosDeletes2 = dv3.recordCount();
+    long totalFileSize2 = dv3.contentSizeInBytes();
+    assertThat(summary2)
+        .hasSize(16)
+        .doesNotContainKey(SnapshotSummary.ADD_POS_DELETE_FILES_PROP)
+        .doesNotContainKey(SnapshotSummary.REMOVED_POS_DELETE_FILES_PROP)
+        .containsEntry(SnapshotSummary.ADDED_DELETE_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_DELETE_FILES_PROP, "2")
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1")
+        .containsEntry(SnapshotSummary.REMOVED_DVS_PROP, "2")
+        .containsEntry(SnapshotSummary.ADDED_POS_DELETES_PROP, String.valueOf(addedPosDeletes2))
+        .containsEntry(SnapshotSummary.REMOVED_POS_DELETES_PROP, String.valueOf(removedPosDeletes2))
+        .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, String.valueOf(addedFileSize2))
+        .containsEntry(SnapshotSummary.REMOVED_FILE_SIZE_PROP, String.valueOf(removedFileSize2))
+        .containsEntry(SnapshotSummary.TOTAL_DELETE_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, String.valueOf(totalPosDeletes2))
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, String.valueOf(totalFileSize2))
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "0")
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2");
+  }
+
+  @TestTemplate
+  public void rewriteManifestsWithDuplicateFiles() {
+    assertThat(listManifestFiles()).isEmpty();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+    table.newAppend().appendFile(FILE_C).commit();
+
+    table.rewriteManifests().clusterBy(file -> "file").rewriteIf(ignored -> true).commit();
+
+    assertThat(table.currentSnapshot().summary())
+        .hasSize(12)
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "3")
+        .containsEntry(SnapshotSummary.TOTAL_DELETE_FILES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "30")
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "3")
+        .containsEntry(SnapshotSummary.PROCESSED_MANIFEST_ENTRY_COUNT, "3")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "3");
   }
 }

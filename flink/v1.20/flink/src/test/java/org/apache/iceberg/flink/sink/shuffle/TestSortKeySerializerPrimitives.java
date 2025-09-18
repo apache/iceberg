@@ -80,8 +80,8 @@ public class TestSortKeySerializerPrimitives extends TestSortKeySerializerBase {
     byte[] serializedBytes = output.getCopyOfBuffer();
     assertThat(serializedBytes.length)
         .as(
-            "Serialized bytes for sort key should be 38 bytes (34 UUID text + 4 byte integer of string length")
-        .isEqualTo(38);
+            "Serialized bytes for sort key should be 39 bytes (34 UUID text + 4 byte integer of string length + 1 byte of isnull flag")
+        .isEqualTo(39);
 
     DataInputDeserializer input = new DataInputDeserializer(serializedBytes);
     SortKey deserialized = serializer.deserialize(input);

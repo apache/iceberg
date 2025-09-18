@@ -66,9 +66,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.GenericManifestFile;
-import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -157,7 +157,7 @@ class TestIcebergCommitter extends TestBase {
   protected static List<Object> parameters() {
     List<Object> parameters = Lists.newArrayList();
     for (Boolean isStreamingMode : new Boolean[] {true, false}) {
-      for (int formatVersion : new int[] {1, 2}) {
+      for (int formatVersion : org.apache.iceberg.TestHelpers.ALL_VERSIONS) {
         parameters.add(new Object[] {formatVersion, isStreamingMode, SnapshotRef.MAIN_BRANCH});
         parameters.add(new Object[] {formatVersion, isStreamingMode, "test-branch"});
       }
@@ -715,7 +715,7 @@ class TestIcebergCommitter extends TestBase {
       processElement(jobId, checkpointId, harness, 1, operatorId.toString(), dataFile);
 
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(0);
+      assertFlinkManifests(1);
     }
 
     // Redeploying flink job from external checkpoint.
@@ -726,6 +726,11 @@ class TestIcebergCommitter extends TestBase {
       harness.getStreamConfig().setOperatorID(operatorId);
       harness.initializeState(snapshot);
       harness.open();
+
+      // test harness has a limitation wherein it is not able to commit pending commits when
+      // initializeState is called, when the checkpointId > 0
+      // so we have to call it explicitly
+      harness.notifyOfCompletedCheckpoint(checkpointId);
 
       // All flink manifests should be cleaned because it has committed the unfinished iceberg
       // transaction.
@@ -1023,7 +1028,7 @@ class TestIcebergCommitter extends TestBase {
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles =
           FlinkManifestUtil.readDataFiles(
-              createTestingManifestFile(manifestPath), table.io(), table.specs());
+              createTestingManifestFile(manifestPath, dataFile1), table.io(), table.specs());
       assertThat(dataFiles).hasSize(1);
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -1159,23 +1164,17 @@ class TestIcebergCommitter extends TestBase {
     }
   }
 
-  private ManifestFile createTestingManifestFile(Path manifestPath) {
-    return new GenericManifestFile(
-        manifestPath.toAbsolutePath().toString(),
-        manifestPath.toFile().length(),
-        0,
-        ManifestContent.DATA,
-        0,
-        0,
-        0L,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        null,
-        null);
+  private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
+      throws IOException {
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(
+            formatVersion,
+            PartitionSpec.unpartitioned(),
+            table.io().newOutputFile(manifestPath.toString()),
+            0L);
+    writer.add(dataFile);
+    writer.close();
+    return writer.toManifestFile();
   }
 
   private IcebergWriteAggregator buildIcebergWriteAggregator(String myJobId, String operatorId) {
@@ -1315,7 +1314,8 @@ class TestIcebergCommitter extends TestBase {
         false,
         10,
         "sinkId",
-        metric);
+        metric,
+        false);
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(

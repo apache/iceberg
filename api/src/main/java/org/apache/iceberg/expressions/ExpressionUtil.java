@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -38,6 +40,12 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
+import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantPrimitive;
+import org.apache.iceberg.variants.VariantValue;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
@@ -337,9 +345,9 @@ public class ExpressionUtil {
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case IN:
         case NOT_IN:
-          Iterable<String> iter =
-              () -> pred.literals().stream().map(lit -> sanitize(lit, now, today)).iterator();
-          return new UnboundPredicate<>(pred.op(), pred.term(), (Iterable<T>) iter);
+          Iterable<T> iter =
+              () -> pred.literals().stream().map(lit -> (T) sanitize(lit, now, today)).iterator();
+          return new UnboundPredicate<>(pred.op(), pred.term(), iter);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -511,6 +519,10 @@ public class ExpressionUtil {
     return sanitizedValues;
   }
 
+  private static String sanitize(Type type, Literal<?> lit, long now, int today) {
+    return sanitize(type, lit.value(), now, today);
+  }
+
   private static String sanitize(Type type, Object value, long now, int today) {
     switch (type.typeId()) {
       case INTEGER:
@@ -529,12 +541,16 @@ public class ExpressionUtil {
         return sanitizeTimestamp(DateTimeUtil.nanosToMicros((long) value / 1000), now);
       case STRING:
         return sanitizeString((CharSequence) value, now, today);
+      case VARIANT:
+        return sanitizeVariant((Variant) value, now, today);
+      case UNKNOWN:
+        return "(unknown)";
       case BOOLEAN:
       case UUID:
       case DECIMAL:
       case FIXED:
       case BINARY:
-        // for boolean, uuid, decimal, fixed, and binary, match the string result
+        // for boolean, uuid, decimal, fixed, unknown, and binary, match the string result
         return sanitizeSimpleString(value.toString());
     }
     throw new UnsupportedOperationException(
@@ -561,8 +577,10 @@ public class ExpressionUtil {
       return sanitizeNumber(((Literals.FloatLiteral) literal).value(), "float");
     } else if (literal instanceof Literals.DoubleLiteral) {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
+    } else if (literal instanceof Literals.VariantLiteral) {
+      return sanitizeVariant(((Literals.VariantLiteral) literal).value(), now, today);
     } else {
-      // for uuid, decimal, fixed, and binary, match the string result
+      // for uuid, decimal, fixed and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());
     }
   }
@@ -637,6 +655,85 @@ public class ExpressionUtil {
   private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
     return String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply(value));
+  }
+
+  private static String sanitizeVariant(Variant value, long now, int today) {
+    return sanitizeVariant(value.value(), now, today);
+  }
+
+  private static String sanitizeVariant(VariantValue value, long now, int today) {
+    if (value instanceof VariantObject) {
+      return sanitizeVariantObject(value.asObject(), now, today);
+    } else if (value instanceof VariantPrimitive) {
+      return sanitizeVariantValue(value.asPrimitive(), value.type(), now, today);
+    } else {
+      return sanitizeVariantArray(value.asArray(), now, today);
+    }
+  }
+
+  private static String sanitizeVariantObject(VariantObject value, long now, int today) {
+    return StreamSupport.stream(value.fieldNames().spliterator(), false)
+        .map(
+            field -> {
+              VariantValue fieldValue = value.get(field);
+              PhysicalType fieldType = fieldValue.type();
+              return String.format(
+                  Locale.ROOT,
+                  "(hash-%s): %s",
+                  field,
+                  sanitizeVariantValue(fieldValue, fieldType, now, today));
+            })
+        .collect(Collectors.joining(", ", "{", "}"));
+  }
+
+  private static String sanitizeVariantArray(VariantArray value, long now, int today) {
+    return IntStream.range(0, value.numElements())
+        .mapToObj(
+            i -> {
+              VariantValue element = value.get(i);
+              return sanitizeVariantValue(element, element.type(), now, today);
+            })
+        .collect(Collectors.joining(", ", "[", "]"));
+  }
+
+  private static String sanitizeVariantValue(
+      VariantValue fieldValue, PhysicalType fieldType, long now, int today) {
+    StringBuilder builder = new StringBuilder();
+    switch (fieldType) {
+      case INT8:
+      case INT16:
+      case INT32:
+      case INT64:
+      case FLOAT:
+      case DOUBLE:
+      case DECIMAL4:
+      case DECIMAL8:
+      case DECIMAL16:
+        builder.append(sanitizeNumber((Number) fieldValue.asPrimitive().get(), fieldType.name()));
+        break;
+      case DATE:
+        builder.append(sanitizeDate(((Number) fieldValue.asPrimitive().get()).intValue(), today));
+        break;
+      case TIMESTAMPTZ:
+      case TIMESTAMPNTZ:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
+        builder.append(
+            sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
+        break;
+      case TIME:
+        return "(time)";
+      case ARRAY:
+        builder.append(sanitizeVariantArray((VariantArray) fieldValue, now, today));
+        break;
+      case OBJECT:
+        builder.append(sanitizeVariantObject((VariantObject) fieldValue, now, today));
+        break;
+      default:
+        builder.append(sanitizeSimpleString(fieldValue.toString()));
+        break;
+    }
+    return builder.toString();
   }
 
   private static PartitionSpec identitySpec(Schema schema, int... ids) {

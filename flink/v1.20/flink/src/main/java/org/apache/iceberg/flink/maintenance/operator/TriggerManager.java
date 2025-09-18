@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
@@ -30,14 +29,16 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -57,11 +58,11 @@ import org.slf4j.LoggerFactory;
  * the timer functions are available, but the key is not used.
  */
 @Internal
-class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
+public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     implements CheckpointedFunction {
   private static final Logger LOG = LoggerFactory.getLogger(TriggerManager.class);
 
-  private final TableLoader tableLoader;
+  private final String tableName;
   private final TriggerLockFactory lockFactory;
   private final List<String> maintenanceTaskNames;
   private final List<TriggerEvaluator> evaluators;
@@ -89,7 +90,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   private transient int startsFrom = 0;
   private transient boolean triggered = false;
 
-  TriggerManager(
+  public TriggerManager(
       TableLoader tableLoader,
       TriggerLockFactory lockFactory,
       List<String> maintenanceTaskNames,
@@ -110,7 +111,8 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     Preconditions.checkArgument(
         lockCheckDelayMs > 0, "Minimum lock delay rate should be at least 1 ms.");
 
-    this.tableLoader = tableLoader;
+    tableLoader.open();
+    this.tableName = tableLoader.loadTable().name();
     this.lockFactory = lockFactory;
     this.maintenanceTaskNames = maintenanceTaskNames;
     this.evaluators = evaluators;
@@ -120,33 +122,19 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
 
   @Override
   public void open(Configuration parameters) throws Exception {
+    MetricGroup mainGroup = TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName);
     this.rateLimiterTriggeredCounter =
-        getRuntimeContext()
-            .getMetricGroup()
-            .addGroup(
-                TableMaintenanceMetrics.GROUP_KEY, TableMaintenanceMetrics.GROUP_VALUE_DEFAULT)
-            .counter(TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED);
+        mainGroup.counter(TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED);
     this.concurrentRunThrottledCounter =
-        getRuntimeContext()
-            .getMetricGroup()
-            .addGroup(
-                TableMaintenanceMetrics.GROUP_KEY, TableMaintenanceMetrics.GROUP_VALUE_DEFAULT)
-            .counter(TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED);
-    this.nothingToTriggerCounter =
-        getRuntimeContext()
-            .getMetricGroup()
-            .addGroup(
-                TableMaintenanceMetrics.GROUP_KEY, TableMaintenanceMetrics.GROUP_VALUE_DEFAULT)
-            .counter(TableMaintenanceMetrics.NOTHING_TO_TRIGGER);
-    this.triggerCounters =
-        maintenanceTaskNames.stream()
-            .map(
-                name ->
-                    getRuntimeContext()
-                        .getMetricGroup()
-                        .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
-                        .counter(TableMaintenanceMetrics.TRIGGERED))
-            .collect(Collectors.toList());
+        mainGroup.counter(TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED);
+    this.nothingToTriggerCounter = mainGroup.counter(TableMaintenanceMetrics.NOTHING_TO_TRIGGER);
+    this.triggerCounters = Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
+    for (int taskIndex = 0; taskIndex < maintenanceTaskNames.size(); ++taskIndex) {
+      triggerCounters.add(
+          TableMaintenanceMetrics.groupFor(
+                  mainGroup, maintenanceTaskNames.get(taskIndex), taskIndex)
+              .counter(TableMaintenanceMetrics.TRIGGERED));
+    }
 
     this.nextEvaluationTimeState =
         getRuntimeContext()
@@ -159,8 +147,6 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     this.lastTriggerTimesState =
         getRuntimeContext()
             .getListState(new ListStateDescriptor<>("triggerManagerLastTriggerTime", Types.LONG));
-
-    tableLoader.open();
   }
 
   @Override
@@ -188,6 +174,9 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     this.recoveryLock = lockFactory.createRecoveryLock();
     if (context.isRestored()) {
       shouldRestoreTasks = true;
+    } else {
+      lock.unlock();
+      recoveryLock.unlock();
     }
   }
 
@@ -220,7 +209,6 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
 
   @Override
   public void close() throws IOException {
-    tableLoader.close();
     lockFactory.close();
   }
 
@@ -256,10 +244,8 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
 
     if (lock.tryLock()) {
       TableChange change = accumulatedChanges.get(taskToStart);
-      SerializableTable table =
-          (SerializableTable) SerializableTable.copyOf(tableLoader.loadTable());
-      out.collect(Trigger.create(current, table, taskToStart));
-      LOG.debug("Fired event with time: {}, collected: {} for {}", current, change, table.name());
+      out.collect(Trigger.create(current, taskToStart));
+      LOG.debug("Fired event with time: {}, collected: {} for {}", current, change, tableName);
       triggerCounters.get(taskToStart).inc();
       accumulatedChanges.set(taskToStart, TableChange.empty());
       lastTriggerTimes.set(taskToStart, current);

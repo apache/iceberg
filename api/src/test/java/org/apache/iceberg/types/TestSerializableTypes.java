@@ -45,7 +45,9 @@ public class TestSerializableTypes {
           Types.TimestampNanoType.withZone(),
           Types.StringType.get(),
           Types.UUIDType.get(),
-          Types.BinaryType.get()
+          Types.BinaryType.get(),
+          Types.UnknownType.get(),
+          Types.VariantType.get()
         };
 
     for (Type type : identityPrimitives) {
@@ -62,7 +64,12 @@ public class TestSerializableTypes {
           Types.DecimalType.of(9, 3),
           Types.DecimalType.of(11, 0),
           Types.FixedType.ofLength(4),
-          Types.FixedType.ofLength(34)
+          Types.FixedType.ofLength(34),
+          Types.GeometryType.crs84(),
+          Types.GeometryType.of("srid:3857"),
+          Types.GeographyType.crs84(),
+          Types.GeographyType.of("srid:4269"),
+          Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
         };
 
     for (Type type : equalityPrimitives) {

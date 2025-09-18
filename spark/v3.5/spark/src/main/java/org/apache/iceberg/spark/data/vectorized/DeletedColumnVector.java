@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.types.Decimal;
@@ -28,12 +27,14 @@ import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class DeletedColumnVector extends ColumnVector {
-  private final boolean[] isDeleted;
+  private boolean[] isDeleted;
 
-  public DeletedColumnVector(Type type, boolean[] isDeleted) {
+  public DeletedColumnVector(Type type) {
     super(SparkSchemaUtil.convert(type));
-    Preconditions.checkArgument(isDeleted != null, "Boolean array isDeleted cannot be null");
-    this.isDeleted = isDeleted;
+  }
+
+  public void setValue(boolean[] deleted) {
+    this.isDeleted = deleted;
   }
 
   @Override

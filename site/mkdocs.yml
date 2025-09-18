@@ -30,11 +30,12 @@ theme:
   font:
     text: Nunito Sans
   palette:
-    scheme: iceberg  
+    scheme: iceberg
   features:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.path
+    - navigation.sections
     - navigation.top
     - navigation.tracking
     - toc.follow
@@ -52,6 +53,11 @@ plugins:
   - privacy
   - offline:
       enabled: !ENV [OFFLINE, false]
+  - redirects:
+      redirect_maps:
+        'docs/nightly/amoro.md': 'integrations/amoro.md'
+        'docs/nightly/daft.md': 'integrations/daft.md'
+        'docs/nightly/risingwave.md': 'integrations/risingwave.md'
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -65,7 +71,7 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.tabbed:
-      alternate_style: true 
+      alternate_style: true
   - pymdownx.mark
   - pymdownx.tilde
   - attr_list
@@ -78,10 +84,10 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.6.1'
-  nessieVersion: '0.92.1'
-  flinkVersion: '1.19.0'
-  flinkVersionMajor: '1.19'
+  icebergVersion: '1.10.0'
+  nessieVersion: '0.104.5'
+  flinkVersion: '2.0.0'
+  flinkVersionMajor: '2.0'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'
@@ -104,7 +110,7 @@ extra_css:
   - assets/stylesheets/bootstrap-grid.css
   - assets/stylesheets/bootstrap-buttons.css
   - assets/stylesheets/home.css
-  
+
 extra_javascript:
   - assets/javascript/extra.js
 

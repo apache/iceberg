@@ -105,6 +105,10 @@ public class DateTimeUtil {
     return ChronoUnit.MICROS.addTo(EPOCH, microsFromEpoch);
   }
 
+  public static OffsetDateTime timestamptzFromNanos(long nanosFromEpoch) {
+    return ChronoUnit.NANOS.addTo(EPOCH, nanosFromEpoch);
+  }
+
   public static long microsFromTimestamptz(OffsetDateTime dateTime) {
     return ChronoUnit.MICROS.between(EPOCH, dateTime);
   }
@@ -177,6 +181,11 @@ public class DateTimeUtil {
   public static long isoTimestampToNanos(CharSequence timestampString) {
     return nanosFromTimestamp(
         LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+  }
+
+  public static int hoursToDays(int hours) {
+    LocalDate date = EPOCH.toLocalDateTime().plusHours(hours).toLocalDate();
+    return daysFromDate(date);
   }
 
   public static int daysToYears(int days) {

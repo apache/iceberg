@@ -401,7 +401,7 @@ To set the write order for a table, use `WRITE ORDERED BY`:
 
 ```sql
 ALTER TABLE prod.db.sample WRITE ORDERED BY category, id
--- use optional ASC/DEC keyword to specify sort order of each field (default ASC)
+-- use optional ASC/DESC keyword to specify sort order of each field (default ASC)
 ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC, id DESC
 -- use optional NULLS FIRST/NULLS LAST keyword to specify null order of each field (default FIRST)
 ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC NULLS LAST, id DESC NULLS FIRST
@@ -635,7 +635,7 @@ DROP VIEW IF EXISTS <viewName>
 
 Update a view's schema, its properties, or the underlying SQL statement using `CREATE OR REPLACE`:
 ```sql
-CREATE OR REPLACE <viewName> (updated_id COMMENT 'updated ID')
+CREATE OR REPLACE VIEW <viewName> (updated_id COMMENT 'updated ID')
     TBLPROPERTIES ('key1' = 'new_val1')
     AS SELECT id FROM <tableName>
 ```

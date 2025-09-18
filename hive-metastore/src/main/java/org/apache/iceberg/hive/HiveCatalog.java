@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.hive;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,13 +46,13 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -92,7 +91,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
-  private FileIOTracker fileIOTracker;
 
   public HiveCatalog() {}
 
@@ -125,7 +123,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
-    this.fileIOTracker = new FileIOTracker();
   }
 
   @Override
@@ -412,6 +409,66 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     }
   }
 
+  /**
+   * Check whether table or metadata table exists.
+   *
+   * <p>Note: If a hive table with the same identifier exists in catalog, this method will return
+   * {@code false}.
+   *
+   * @param identifier a table identifier
+   * @return true if the table exists, false otherwise
+   */
+  @Override
+  public boolean tableExists(TableIdentifier identifier) {
+    TableIdentifier baseTableIdentifier = identifier;
+    if (!isValidIdentifier(identifier)) {
+      if (!isValidMetadataIdentifier(identifier)) {
+        return false;
+      } else {
+        baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      }
+    }
+
+    String database = baseTableIdentifier.namespace().level(0);
+    String tableName = baseTableIdentifier.name();
+    try {
+      Table table = clients.run(client -> client.getTable(database, tableName));
+      HiveOperationsBase.validateTableIsIceberg(table, fullTableName(name, baseTableIdentifier));
+      return true;
+    } catch (NoSuchTableException | NoSuchObjectException e) {
+      return false;
+    } catch (TException e) {
+      throw new RuntimeException("Failed to check table existence of " + baseTableIdentifier, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          "Interrupted in call to check table existence of " + baseTableIdentifier, e);
+    }
+  }
+
+  @Override
+  public boolean viewExists(TableIdentifier viewIdentifier) {
+    if (!isValidIdentifier(viewIdentifier)) {
+      return false;
+    }
+
+    String database = viewIdentifier.namespace().level(0);
+    String viewName = viewIdentifier.name();
+    try {
+      Table table = clients.run(client -> client.getTable(database, viewName));
+      HiveOperationsBase.validateTableIsIcebergView(table, fullTableName(name, viewIdentifier));
+      return true;
+    } catch (NoSuchIcebergViewException | NoSuchObjectException e) {
+      return false;
+    } catch (TException e) {
+      throw new RuntimeException("Failed to check view existence of " + viewIdentifier, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          "Interrupted in call to check view existence of " + viewIdentifier, e);
+    }
+  }
+
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> meta) {
     Preconditions.checkArgument(
@@ -451,7 +508,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    if (!isValidateNamespace(namespace) && !namespace.isEmpty()) {
+    if (!namespace.isEmpty() && (!isValidateNamespace(namespace) || !namespaceExists(namespace))) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
     if (!namespace.isEmpty()) {
@@ -629,10 +686,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    HiveTableOperations ops =
-        new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
-    fileIOTracker.track(ops);
-    return ops;
+    return new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
   }
 
   @Override
@@ -759,14 +813,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
-  }
-
-  @Override
-  public void close() throws IOException {
-    super.close();
-    if (fileIOTracker != null) {
-      fileIOTracker.close();
-    }
   }
 
   @VisibleForTesting

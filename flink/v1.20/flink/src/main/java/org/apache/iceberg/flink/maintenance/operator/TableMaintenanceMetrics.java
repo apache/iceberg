@@ -18,9 +18,17 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.metrics.MetricGroup;
+
 public class TableMaintenanceMetrics {
-  public static final String GROUP_KEY = "maintenanceTask";
-  public static final String GROUP_VALUE_DEFAULT = "maintenanceTask";
+  public static final String GROUP_KEY = "maintenance";
+  public static final String TASK_NAME_KEY = "taskName";
+  public static final String TASK_INDEX_KEY = "taskIndex";
+  public static final String TABLE_NAME_KEY = "tableName";
+
+  // Operator error counter
+  public static final String ERROR_COUNTER = "error";
 
   // TriggerManager metrics
   public static final String RATE_LIMITER_TRIGGERED = "rateLimiterTriggered";
@@ -32,6 +40,34 @@ public class TableMaintenanceMetrics {
   public static final String SUCCEEDED_TASK_COUNTER = "succeededTasks";
   public static final String FAILED_TASK_COUNTER = "failedTasks";
   public static final String LAST_RUN_DURATION_MS = "lastRunDurationMs";
+
+  // DeleteFiles metrics
+  public static final String DELETE_FILE_FAILED_COUNTER = "deleteFailed";
+  public static final String DELETE_FILE_SUCCEEDED_COUNTER = "deleteSucceeded";
+
+  // DataFileUpdater metrics
+  public static final String ADDED_DATA_FILE_NUM_METRIC = "addedDataFileNum";
+  public static final String ADDED_DATA_FILE_SIZE_METRIC = "addedDataFileSize";
+  public static final String REMOVED_DATA_FILE_NUM_METRIC = "removedDataFileNum";
+  public static final String REMOVED_DATA_FILE_SIZE_METRIC = "removedDataFileSize";
+
+  static MetricGroup groupFor(
+      RuntimeContext context, String tableName, String taskName, int taskIndex) {
+    return groupFor(groupFor(context, tableName), taskName, taskIndex);
+  }
+
+  static MetricGroup groupFor(RuntimeContext context, String tableName) {
+    return context
+        .getMetricGroup()
+        .addGroup(TableMaintenanceMetrics.GROUP_KEY)
+        .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName);
+  }
+
+  static MetricGroup groupFor(MetricGroup mainGroup, String taskName, int taskIndex) {
+    return mainGroup
+        .addGroup(TableMaintenanceMetrics.TASK_NAME_KEY, taskName)
+        .addGroup(TableMaintenanceMetrics.TASK_INDEX_KEY, String.valueOf(taskIndex));
+  }
 
   private TableMaintenanceMetrics() {
     // do not instantiate

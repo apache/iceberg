@@ -26,7 +26,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.expressions.Evaluator;
@@ -92,7 +92,7 @@ class GenericReader implements Serializable {
   }
 
   private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
-    InputFile input = io.newInputFile(task.file().path().toString());
+    InputFile input = io.newInputFile(task.file());
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
@@ -101,8 +101,7 @@ class GenericReader implements Serializable {
         Avro.ReadBuilder avro =
             Avro.read(input)
                 .project(fileProjection)
-                .createReaderFunc(
-                    avroSchema -> DataReader.create(fileProjection, avroSchema, partition))
+                .createResolvingReader(schema -> PlannedDataReader.create(schema, partition))
                 .split(task.start(), task.length());
 
         if (reuseContainers) {
@@ -147,7 +146,7 @@ class GenericReader implements Serializable {
       default:
         throw new UnsupportedOperationException(
             String.format(
-                "Cannot read %s file: %s", task.file().format().name(), task.file().path()));
+                "Cannot read %s file: %s", task.file().format().name(), task.file().location()));
     }
   }
 

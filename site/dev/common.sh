@@ -69,7 +69,7 @@ install_deps () {
   echo " --> install deps"
 
   # Use pip to install or upgrade dependencies from the 'requirements.txt' file quietly
-  pip -q install -r requirements.txt --upgrade
+  pip3 -q install -r requirements.txt --upgrade
 }
 
 # Checks if a provided argument is not empty. If empty, displays an error message and exits with a status code 1.
@@ -103,6 +103,14 @@ create_nightly () {
   # Update version information within the 'nightly' documentation
   update_version "nightly"  
   cd -
+
+  # Remove any existing javadoc 'nightly' link
+  rm -fr docs/javadoc/nightly
+
+  # Create symbolic link to 'nightly' javadoc
+  cd docs/javadoc
+  ln -s latest nightly
+  cd -
 }
 
 # Finds and retrieves the latest version of the documentation based on the directory structure.
@@ -115,19 +123,19 @@ get_latest_version () {
   local latest_version=$(basename "${latest}")  
 
   # Output the latest version number
-  echo "${latest_version}"  
+  echo "${latest_version}"
 }
 
 # Creates a 'latest' version of the documentation based on a specified ICEBERG_VERSION.
 # Arguments:
 #   $1: ICEBERG_VERSION - The version number of the documentation to be treated as the latest.
 create_latest () {
-  echo " --> create latest"
-
   local ICEBERG_VERSION="$1"
 
   # Ensure ICEBERG_VERSION is not empty
-  assert_not_empty "${ICEBERG_VERSION}"  
+  assert_not_empty "${ICEBERG_VERSION}"
+
+  echo " --> create latest from ${ICEBERG_VERSION}"
 
   # Output the provided ICEBERG_VERSION for verification
   echo "${ICEBERG_VERSION}"  
@@ -145,24 +153,32 @@ create_latest () {
   # Update version information within the 'latest' documentation
   update_version "latest"  
   cd -
+
+  # Remove any javadoc 'latest' symbolic link
+  rm -rf docs/javadoc/latest
+
+  # Create symbolic link for the 'latest' javadoc
+  cd docs/javadoc
+  ln -s "${ICEBERG_VERSION}" latest
+  cd -
 }
 
 # Updates version information within the mkdocs.yml file for a specified ICEBERG_VERSION.
 # Arguments:
 #   $1: ICEBERG_VERSION - The version number used for updating the mkdocs.yml file.
 update_version () {
-  echo " --> update version"
-
   local ICEBERG_VERSION="$1"
 
   # Ensure ICEBERG_VERSION is not empty
   assert_not_empty "${ICEBERG_VERSION}"  
 
+  echo " --> update version: ${ICEBERG_VERSION}"
+
   # Update version information within the mkdocs.yml file using sed commands
   if [ "$(uname)" == "Darwin" ]
   then
-    sed -i '' -E "s/(^site\_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
-    sed -i '' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
+    /usr/bin/sed -i '' -E "s/(^site\_name:[[:space:]]+docs\/).*$/\1${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
+    /usr/bin/sed -i '' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" ${ICEBERG_VERSION}/mkdocs.yml
   elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]
   then
     sed -i'' -E "s/(^site_name:[[:space:]]+docs\/)[^[:space:]]+/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
@@ -175,11 +191,12 @@ update_version () {
 # Arguments:
 #   $1: ICEBERG_VERSION - The version number of the documentation to exclude from search indexing.
 search_exclude_versioned_docs () {
-  echo " --> search exclude version docs"
   local ICEBERG_VERSION="$1"
 
   # Ensure ICEBERG_VERSION is not empty
-  assert_not_empty "${ICEBERG_VERSION}"  
+  assert_not_empty "${ICEBERG_VERSION}"
+
+  echo " --> search exclude version docs"
 
   cd "${ICEBERG_VERSION}/docs/"
 
@@ -208,10 +225,10 @@ pull_versioned_docs () {
   local latest_version=$(get_latest_version)  
 
   # Output the latest version for debugging purposes
-  echo "Latest version is: ${latest_version}" 
+  echo "Latest version is: ${latest_version}"
   
   # Create the 'latest' version of documentation
-  create_latest "${latest_version}"  
+  create_latest "${latest_version}"
 
   # Create the 'nightly' version of documentation
   create_nightly  

@@ -50,13 +50,8 @@ class ReassignDoc extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
       Preconditions.checkNotNull(docField, "Field " + fieldId + " not found in source schema");
 
-      if (field.isRequired()) {
-        newFields.add(
-            Types.NestedField.required(fieldId, field.name(), types.get(i), docField.doc()));
-      } else {
-        newFields.add(
-            Types.NestedField.optional(fieldId, field.name(), types.get(i), docField.doc()));
-      }
+      newFields.add(
+          Types.NestedField.from(field).ofType(types.get(i)).withDoc(docField.doc()).build());
     }
 
     return Types.StructType.of(newFields);
@@ -94,6 +89,11 @@ class ReassignDoc extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     } else {
       return Types.MapType.ofRequired(keyId, valueId, keyType, valueType);
     }
+  }
+
+  @Override
+  public Type variant(Types.VariantType variant) {
+    return variant;
   }
 
   @Override

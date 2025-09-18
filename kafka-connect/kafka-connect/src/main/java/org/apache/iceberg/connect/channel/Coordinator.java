@@ -28,11 +28,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.RowDelta;
@@ -50,8 +53,8 @@ import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
@@ -90,7 +93,17 @@ class Coordinator extends Channel {
     this.snapshotOffsetsProp =
         String.format(
             "kafka.connect.offsets.%s.%s", config.controlTopic(), config.connectGroupId());
-    this.exec = ThreadPools.newFixedThreadPool("iceberg-committer", config.commitThreads());
+    this.exec =
+        new ThreadPoolExecutor(
+            config.commitThreads(),
+            config.commitThreads(),
+            config.keepAliveTimeoutInMs(),
+            TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(),
+            new ThreadFactoryBuilder()
+                .setDaemon(true)
+                .setNameFormat("iceberg-committer" + "-%d")
+                .build());
     this.commitState = new CommitState(config);
   }
 
@@ -209,7 +222,7 @@ class Coordinator extends Channel {
             .filter(payload -> payload.dataFiles() != null)
             .flatMap(payload -> payload.dataFiles().stream())
             .filter(dataFile -> dataFile.recordCount() > 0)
-            .filter(distinctByKey(dataFile -> dataFile.path().toString()))
+            .filter(distinctByKey(ContentFile::location))
             .collect(Collectors.toList());
 
     List<DeleteFile> deleteFiles =
@@ -217,7 +230,7 @@ class Coordinator extends Channel {
             .filter(payload -> payload.deleteFiles() != null)
             .flatMap(payload -> payload.deleteFiles().stream())
             .filter(deleteFile -> deleteFile.recordCount() > 0)
-            .filter(distinctByKey(deleteFile -> deleteFile.path().toString()))
+            .filter(distinctByKey(ContentFile::location))
             .collect(Collectors.toList());
 
     if (terminated) {

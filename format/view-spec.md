@@ -65,7 +65,8 @@ The view version metadata file has the following fields:
 | _optional_  | `properties`         | A string to string map of view properties [2] |
 
 Notes:
-1. The number of versions to retain is controlled by the table property: `version.history.num-entries`.
+
+1. The number of versions to retain is controlled by the view property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
 
 #### Versions
@@ -102,6 +103,7 @@ A view version can have more than one representation. All representations for a 
 View versions are immutable. Once a version is created, it cannot be changed. This means that representations for a version cannot be changed. If a view definition changes (or new representations are to be added), a new version must be created.
 
 Each representation is an object with at least one common field, `type`, that is one of the following:
+
 * `sql`: a SQL SELECT statement that defines the view
 
 Representations further define metadata for each type.
@@ -204,7 +206,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
     "default-namespace" : [ "default" ],
     "summary" : {
       "engine-name" : "Spark",
-      "engineVersion" : "3.3.2"
+      "engine-version" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",
@@ -261,7 +263,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,
   "location" : "s3://bucket/warehouse/default.db/event_agg",
-  "current-version-id" : 1,
+  "current-version-id" : 2,
   "properties" : {
     "comment" : "Daily event counts"
   },
@@ -273,7 +275,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-namespace" : [ "default" ],
     "summary" : {
       "engine-name" : "Spark",
-      "engineVersion" : "3.3.2"
+      "engine-version" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",
@@ -288,7 +290,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-namespace" : [ "default" ],
     "summary" : {
       "engine-name" : "Spark",
-      "engineVersion" : "3.3.2"
+      "engine-version" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",

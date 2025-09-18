@@ -69,10 +69,34 @@ public class TestCallStatementParser {
   }
 
   @Test
+  public void testDelegateUnsupportedProcedure() {
+    assertThatThrownBy(() -> parser.parsePlan("CALL cat.d.t()"))
+        .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters()).containsEntry("error", "'CALL'");
+            });
+  }
+
+  @Test
+  public void testCallWithBackticks() throws ParseException {
+    CallStatement call =
+        (CallStatement) parser.parsePlan("CALL cat.`system`.`rollback_to_snapshot`()");
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
+
+    assertThat(seqAsJavaList(call.args())).isEmpty();
+  }
+
+  @Test
   public void testCallWithPositionalArgs() throws ParseException {
     CallStatement call =
-        (CallStatement) parser.parsePlan("CALL c.n.func(1, '2', 3L, true, 1.0D, 9.0e1, 900e-1BD)");
-    assertThat(seqAsJavaList(call.name())).containsExactly("c", "n", "func");
+        (CallStatement)
+            parser.parsePlan(
+                "CALL c.system.rollback_to_snapshot(1, '2', 3L, true, 1.0D, 9.0e1, 900e-1BD)");
+    assertThat(seqAsJavaList(call.name())).containsExactly("c", "system", "rollback_to_snapshot");
 
     assertThat(seqAsJavaList(call.args())).hasSize(7);
 
@@ -88,8 +112,10 @@ public class TestCallStatementParser {
   @Test
   public void testCallWithNamedArgs() throws ParseException {
     CallStatement call =
-        (CallStatement) parser.parsePlan("CALL cat.system.func(c1 => 1, c2 => '2', c3 => true)");
-    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
+        (CallStatement)
+            parser.parsePlan(
+                "CALL cat.system.rollback_to_snapshot(c1 => 1, c2 => '2', c3 => true)");
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
 
     assertThat(seqAsJavaList(call.args())).hasSize(3);
 
@@ -100,8 +126,9 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallWithMixedArgs() throws ParseException {
-    CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func(c1 => 1, '2')");
-    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
+    CallStatement call =
+        (CallStatement) parser.parsePlan("CALL cat.system.rollback_to_snapshot(c1 => 1, '2')");
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
 
     assertThat(seqAsJavaList(call.args())).hasSize(2);
 
@@ -113,8 +140,9 @@ public class TestCallStatementParser {
   public void testCallWithTimestampArg() throws ParseException {
     CallStatement call =
         (CallStatement)
-            parser.parsePlan("CALL cat.system.func(TIMESTAMP '2017-02-03T10:37:30.00Z')");
-    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
+            parser.parsePlan(
+                "CALL cat.system.rollback_to_snapshot(TIMESTAMP '2017-02-03T10:37:30.00Z')");
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
 
     assertThat(seqAsJavaList(call.args())).hasSize(1);
 
@@ -125,8 +153,9 @@ public class TestCallStatementParser {
   @Test
   public void testCallWithVarSubstitution() throws ParseException {
     CallStatement call =
-        (CallStatement) parser.parsePlan("CALL cat.system.func('${spark.extra.prop}')");
-    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
+        (CallStatement)
+            parser.parsePlan("CALL cat.system.rollback_to_snapshot('${spark.extra.prop}')");
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
 
     assertThat(seqAsJavaList(call.args())).hasSize(1);
 
@@ -135,28 +164,30 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallParseError() {
-    assertThatThrownBy(() -> parser.parsePlan("CALL cat.system radish kebab"))
+    assertThatThrownBy(() -> parser.parsePlan("CALL cat.system.rollback_to_snapshot kebab"))
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("missing '(' at 'radish'");
+        .hasMessageContaining("missing '(' at 'kebab'");
   }
 
   @Test
   public void testCallStripsComments() throws ParseException {
     List<String> callStatementsWithComments =
         Lists.newArrayList(
-            "/* bracketed comment */  CALL cat.system.func('${spark.extra.prop}')",
-            "/**/  CALL cat.system.func('${spark.extra.prop}')",
-            "-- single line comment \n CALL cat.system.func('${spark.extra.prop}')",
-            "-- multiple \n-- single line \n-- comments \n CALL cat.system.func('${spark.extra.prop}')",
-            "/* select * from multiline_comment \n where x like '%sql%'; */ CALL cat.system.func('${spark.extra.prop}')",
+            "/* bracketed comment */  CALL cat.system.rollback_to_snapshot('${spark.extra.prop}')",
+            "/**/  CALL cat.system.rollback_to_snapshot('${spark.extra.prop}')",
+            "-- single line comment \n CALL cat.system.rollback_to_snapshot('${spark.extra.prop}')",
+            "-- multiple \n-- single line \n-- comments \n CALL cat.system.rollback_to_snapshot('${spark.extra.prop}')",
+            "/* select * from multiline_comment \n where x like '%sql%'; */ CALL cat.system.rollback_to_snapshot('${spark.extra.prop}')",
             "/* {\"app\": \"dbt\", \"dbt_version\": \"1.0.1\", \"profile_name\": \"profile1\", \"target_name\": \"dev\", "
-                + "\"node_id\": \"model.profile1.stg_users\"} \n*/ CALL cat.system.func('${spark.extra.prop}')",
+                + "\"node_id\": \"model.profile1.stg_users\"} \n*/ CALL cat.system.rollback_to_snapshot('${spark.extra.prop}')",
             "/* Some multi-line comment \n"
-                + "*/ CALL /* inline comment */ cat.system.func('${spark.extra.prop}') -- ending comment",
-            "CALL -- a line ending comment\n" + "cat.system.func('${spark.extra.prop}')");
+                + "*/ CALL /* inline comment */ cat.system.rollback_to_snapshot('${spark.extra.prop}') -- ending comment",
+            "CALL -- a line ending comment\n"
+                + "cat.system.rollback_to_snapshot('${spark.extra.prop}')");
     for (String sqlText : callStatementsWithComments) {
       CallStatement call = (CallStatement) parser.parsePlan(sqlText);
-      assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "func");
+      assertThat(seqAsJavaList(call.name()))
+          .containsExactly("cat", "system", "rollback_to_snapshot");
 
       assertThat(seqAsJavaList(call.args())).hasSize(1);
 

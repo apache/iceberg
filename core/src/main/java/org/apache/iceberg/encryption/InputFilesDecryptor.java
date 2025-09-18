@@ -40,7 +40,7 @@ public class InputFilesDecryptor {
         .flatMap(
             fileScanTask ->
                 Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-        .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
+        .forEach(file -> keyMetadata.put(file.location(), file.keyMetadata()));
     Stream<EncryptedInputFile> encrypted =
         keyMetadata.entrySet().stream()
             .map(
@@ -59,7 +59,7 @@ public class InputFilesDecryptor {
 
   public InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-    return decryptedInputFiles.get(task.file().path().toString());
+    return decryptedInputFiles.get(task.file().location());
   }
 
   public InputFile getInputFile(String location) {

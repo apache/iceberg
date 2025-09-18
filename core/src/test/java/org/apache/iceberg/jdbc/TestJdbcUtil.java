@@ -49,7 +49,7 @@ public class TestJdbcUtil {
 
     Properties actual = JdbcUtil.filterAndRemovePrefix(input, "jdbc.");
 
-    assertThat(expected).isEqualTo(actual);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -142,5 +142,11 @@ public class TestJdbcUtil {
               "testLocation");
       assertThat(updated).isEqualTo(1);
     }
+  }
+
+  @Test
+  public void emptyNamespaceInIdentifier() {
+    assertThat(JdbcUtil.stringToTableIdentifier("", "tblName"))
+        .isEqualTo(TableIdentifier.of(Namespace.empty(), "tblName"));
   }
 }

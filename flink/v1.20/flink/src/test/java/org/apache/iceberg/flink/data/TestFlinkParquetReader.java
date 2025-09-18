@@ -36,7 +36,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -56,8 +56,23 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.Test;
 
-public class TestFlinkParquetReader extends DataTest {
+public class TestFlinkParquetReader extends DataTestBase {
   private static final int NUM_RECORDS = 100;
+
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
 
   @Test
   public void testBuildReader() {
@@ -151,7 +166,7 @@ public class TestFlinkParquetReader extends DataTest {
     ParquetValueReader<RowData> reader =
         FlinkParquetReaders.buildReader(new Schema(SUPPORTED_PRIMITIVES.fields()), fileSchema);
 
-    assertThat(reader.columns().size()).isEqualTo(SUPPORTED_PRIMITIVES.fields().size());
+    assertThat(reader.columns()).hasSameSizeAs(SUPPORTED_PRIMITIVES.fields());
   }
 
   @Test
@@ -199,29 +214,30 @@ public class TestFlinkParquetReader extends DataTest {
     }
   }
 
-  private void writeAndValidate(Iterable<Record> iterable, Schema schema) throws IOException {
+  private void writeAndValidate(
+      Iterable<Record> iterable, Schema writeSchema, Schema expectedSchema) throws IOException {
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();
 
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile))
-            .schema(schema)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .schema(writeSchema)
+            .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       writer.addAll(iterable);
     }
 
     try (CloseableIterable<RowData> reader =
         Parquet.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
+            .project(expectedSchema)
+            .createReaderFunc(type -> FlinkParquetReaders.buildReader(expectedSchema, type))
             .build()) {
       Iterator<Record> expected = iterable.iterator();
       Iterator<RowData> rows = reader.iterator();
-      LogicalType rowType = FlinkSchemaUtil.convert(schema);
+      LogicalType rowType = FlinkSchemaUtil.convert(writeSchema);
       for (int i = 0; i < NUM_RECORDS; i += 1) {
         assertThat(rows).hasNext();
-        TestHelpers.assertRowData(schema.asStruct(), rowType, expected.next(), rows.next());
+        TestHelpers.assertRowData(writeSchema.asStruct(), rowType, expected.next(), rows.next());
       }
       assertThat(rows).isExhausted();
     }
@@ -229,11 +245,24 @@ public class TestFlinkParquetReader extends DataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidate(RandomGenericData.generate(schema, NUM_RECORDS, 19981), schema);
+    writeAndValidate(RandomGenericData.generate(schema, NUM_RECORDS, 19981), schema, schema);
     writeAndValidate(
-        RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124), schema);
+        RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124),
+        schema,
+        schema);
     writeAndValidate(
         RandomGenericData.generateFallbackRecords(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20),
+        schema,
         schema);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    writeAndValidate(RandomGenericData.generate(writeSchema, 100, 0L), writeSchema, expectedSchema);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expectedData) throws IOException {
+    writeAndValidate(expectedData, schema, schema);
   }
 }

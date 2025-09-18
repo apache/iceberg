@@ -171,4 +171,39 @@ public interface Snapshot extends Serializable {
   default Integer schemaId() {
     return null;
   }
+
+  /**
+   * The row-id of the first newly added row in this snapshot. All rows added in this snapshot will
+   * have a row-id assigned to them greater than this value. All rows with a row-id less than this
+   * value were created in a snapshot that was added to the table (but not necessarily commited to
+   * this branch) in the past.
+   *
+   * @return the first row-id to be used in this snapshot or null when row lineage is not supported
+   */
+  default Long firstRowId() {
+    return null;
+  }
+
+  /**
+   * The upper bound of number of rows with assigned row IDs in this snapshot. It can be used safely
+   * to increment the table's `next-row-id` during a commit. It can be more than the number of rows
+   * added in this snapshot and include some existing rows.
+   *
+   * <p>This field is optional but is required when the table version supports row lineage.
+   *
+   * @return the upper bound of number of rows with assigned row IDs in this snapshot or null if the
+   *     value was not stored.
+   */
+  default Long addedRows() {
+    return null;
+  }
+
+  /**
+   * ID of the encryption key used to encrypt this snapshot's manifest list.
+   *
+   * @return a string key ID
+   */
+  default String keyId() {
+    return null;
+  }
 }

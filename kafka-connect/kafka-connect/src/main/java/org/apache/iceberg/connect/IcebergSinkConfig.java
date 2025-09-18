@@ -80,15 +80,19 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
+  private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
   private static final int COMMIT_INTERVAL_MS_DEFAULT = 300_000;
   private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commit.timeout-ms";
   private static final int COMMIT_TIMEOUT_MS_DEFAULT = 30_000;
   private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
+  private static final String TRANSACTIONAL_PREFIX_PROP =
+      "iceberg.coordinator.transactional.prefix";
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
+  private static final String TASK_ID = "task.id";
   private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
 
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
@@ -97,6 +101,9 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
+
+  private static final String COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS =
+      "iceberg.coordinator-executor-keep-alive-timeout-ms";
 
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 
@@ -181,6 +188,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Name of the control topic");
     configDef.define(
+        CONTROL_GROUP_ID_PREFIX_PROP,
+        ConfigDef.Type.STRING,
+        DEFAULT_CONTROL_GROUP_PREFIX,
+        Importance.LOW,
+        "Prefix of the control consumer group");
+    configDef.define(
         CONNECT_GROUP_ID_PROP,
         ConfigDef.Type.STRING,
         null,
@@ -205,11 +218,23 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Coordinator threads to use for table commits, default is (cores * 2)");
     configDef.define(
+        TRANSACTIONAL_PREFIX_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.LOW,
+        "Optional prefix of the transactional id for the coordinator");
+    configDef.define(
         HADOOP_CONF_DIR_PROP,
         ConfigDef.Type.STRING,
         null,
         Importance.MEDIUM,
         "If specified, Hadoop config files in this directory will be loaded");
+    configDef.define(
+        COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS,
+        ConfigDef.Type.LONG,
+        120000L,
+        Importance.LOW,
+        "config to control coordinator executor keep alive time");
     return configDef;
   }
 
@@ -269,6 +294,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     return originalProps.get(NAME_PROP);
   }
 
+  public String taskId() {
+    return originalProps.get(TASK_ID);
+  }
+
   public String transactionalSuffix() {
     // this is for internal use and is not part of the config definition...
     return originalProps.get(INTERNAL_TRANSACTIONAL_SUFFIX_PROP);
@@ -322,6 +351,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getString(TABLES_DEFAULT_PARTITION_BY);
   }
 
+  public long keepAliveTimeoutInMs() {
+    return getLong(COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS);
+  }
+
   public TableSinkConfig tableConfig(String tableName) {
     return tableConfigMap.computeIfAbsent(
         tableName,
@@ -359,6 +392,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getString(CONTROL_TOPIC_PROP);
   }
 
+  public String controlGroupIdPrefix() {
+    return getString(CONTROL_GROUP_ID_PREFIX_PROP);
+  }
+
   public String connectGroupId() {
     String result = getString(CONNECT_GROUP_ID_PROP);
     if (result != null) {
@@ -380,6 +417,15 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public int commitThreads() {
     return getInt(COMMIT_THREADS_PROP);
+  }
+
+  public String transactionalPrefix() {
+    String result = getString(TRANSACTIONAL_PREFIX_PROP);
+    if (result != null) {
+      return result;
+    }
+
+    return "";
   }
 
   public String hadoopConfDir() {

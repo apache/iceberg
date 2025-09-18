@@ -20,7 +20,6 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
@@ -40,11 +39,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructLikeUtil;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTaskWriter.class);
+
   private final List<DataFile> completedDataFiles = Lists.newArrayList();
   private final List<DeleteFile> completedDeleteFiles = Lists.newArrayList();
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
@@ -91,7 +95,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         .executeWith(ThreadPools.getWorkerPool())
         .throwFailureWhenFinished()
         .noRetry()
-        .run(file -> io.deleteFile(file.path().toString()));
+        .run(file -> io.deleteFile(file.location()));
   }
 
   @Override
@@ -149,7 +153,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
       // Create a copied key from this row.
-      StructLike copiedKey = StructCopy.copy(structProjection.wrap(asStructLike(row)));
+      StructLike copiedKey = StructLikeUtil.copy(structProjection.wrap(asStructLike(row)));
 
       // Adding a pos-delete to replace the old path-offset.
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
@@ -344,12 +348,17 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           currentWriter.close();
 
           if (currentRows == 0L) {
-            try {
-              io.deleteFile(currentFile.encryptingOutputFile());
-            } catch (UncheckedIOException e) {
-              // the file may not have been created, and it isn't worth failing the job to clean up,
-              // skip deleting
-            }
+            // the file may not have been created or cannot be deleted, and it isn't worth failing
+            // the job to clean up, skip deleting
+            Tasks.foreach(currentFile.encryptingOutputFile())
+                .suppressFailureWhenFinished()
+                .onFailure(
+                    (file, exc) ->
+                        LOG.warn(
+                            "Failed to delete the uncommitted empty file during writer clean up: {}",
+                            file,
+                            exc))
+                .run(io::deleteFile);
           } else {
             complete(currentWriter);
           }

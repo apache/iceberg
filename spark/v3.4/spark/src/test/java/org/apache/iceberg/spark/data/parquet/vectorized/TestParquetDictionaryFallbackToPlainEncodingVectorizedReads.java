@@ -18,19 +18,18 @@
  */
 package org.apache.iceberg.spark.data.parquet.vectorized;
 
-import java.io.File;
 import java.io.IOException;
 import org.apache.avro.generic.GenericData;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.data.RandomData;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
     extends TestParquetVectorizedReads {
@@ -54,9 +53,9 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
   }
 
   @Override
-  FileAppender<GenericData.Record> getParquetWriter(Schema schema, File testFile)
+  FileAppender<GenericData.Record> getParquetWriter(Schema schema, OutputFile outputFile)
       throws IOException {
-    return Parquet.write(Files.localOutput(testFile))
+    return Parquet.write(outputFile)
         .schema(schema)
         .named("test")
         .set(TableProperties.PARQUET_DICT_SIZE_BYTES, "512000")
@@ -65,11 +64,11 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
 
   @Test
   @Override
-  @Ignore // Fallback encoding not triggered when data is mostly null
+  @Disabled // Fallback encoding not triggered when data is mostly null
   public void testMostlyNullsForOptionalFields() {}
 
   @Test
   @Override
-  @Ignore // Ignored since this code path is already tested in TestParquetVectorizedReads
+  @Disabled // Ignored since this code path is already tested in TestParquetVectorizedReads
   public void testVectorizedReadsWithNewContainers() throws IOException {}
 }

@@ -48,7 +48,10 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
       int[] equalityFieldIds,
       Integer sortOrderId,
       List<Long> splitOffsets,
-      ByteBuffer keyMetadata) {
+      ByteBuffer keyMetadata,
+      String referencedDataFile,
+      Long contentOffset,
+      Long contentSizeInBytes) {
     super(
         specId,
         content,
@@ -66,7 +69,11 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         splitOffsets,
         equalityFieldIds,
         sortOrderId,
-        keyMetadata);
+        keyMetadata,
+        null /* delete files do not use first-row-id */,
+        referencedDataFile,
+        contentOffset,
+        contentSizeInBytes);
   }
 
   /**

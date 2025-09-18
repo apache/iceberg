@@ -28,7 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Internal
-class TriggerEvaluator implements Serializable {
+public class TriggerEvaluator implements Serializable {
   private static final Logger LOG = LoggerFactory.getLogger(TriggerEvaluator.class);
   private final List<Predicate> predicates;
 
@@ -50,7 +50,7 @@ class TriggerEvaluator implements Serializable {
     return result;
   }
 
-  static class Builder implements Serializable {
+  public static class Builder implements Serializable {
     private Integer dataFileCount;
     private Long dataFileSizeInBytes;
     private Integer posDeleteFileCount;
@@ -95,12 +95,12 @@ class TriggerEvaluator implements Serializable {
       return this;
     }
 
-    Builder timeout(Duration newTimeout) {
+    public Builder timeout(Duration newTimeout) {
       this.timeout = newTimeout;
       return this;
     }
 
-    TriggerEvaluator build() {
+    public TriggerEvaluator build() {
       List<Predicate> predicates = Lists.newArrayList();
       if (dataFileCount != null) {
         predicates.add((change, unused, unused2) -> change.dataFileCount() >= dataFileCount);

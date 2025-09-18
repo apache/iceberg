@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -96,7 +95,8 @@ public class ManifestWriteBenchmark {
   @Benchmark
   @Threads(1)
   public void writeManifestFile(BenchmarkState state) throws IOException {
-    this.baseDir = Files.createTempDir().getAbsolutePath();
+    this.baseDir =
+        java.nio.file.Files.createTempDirectory("benchmark-").toAbsolutePath().toString();
     this.manifestListFile = String.format("%s/%s.avro", baseDir, UUID.randomUUID());
 
     try (ManifestListWriter listWriter =
@@ -105,7 +105,8 @@ public class ManifestWriteBenchmark {
             org.apache.iceberg.Files.localOutput(manifestListFile),
             0,
             1L,
-            0)) {
+            0,
+            0L)) {
       for (int i = 0; i < NUM_FILES; i++) {
         OutputFile manifestFile =
             org.apache.iceberg.Files.localOutput(

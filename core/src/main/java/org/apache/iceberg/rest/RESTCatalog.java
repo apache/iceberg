@@ -55,7 +55,11 @@ public class RESTCatalog
   public RESTCatalog() {
     this(
         SessionCatalog.SessionContext.createEmpty(),
-        config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
+        config ->
+            HTTPClient.builder(config)
+                .uri(config.get(CatalogProperties.URI))
+                .withHeaders(RESTUtil.configHeaders(config))
+                .build());
   }
 
   public RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
@@ -226,6 +230,11 @@ public class RESTCatalog
   @Override
   public List<Namespace> listNamespaces(Namespace ns) throws NoSuchNamespaceException {
     return nsDelegate.listNamespaces(ns);
+  }
+
+  @Override
+  public boolean namespaceExists(Namespace namespace) {
+    return nsDelegate.namespaceExists(namespace);
   }
 
   @Override

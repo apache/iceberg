@@ -27,10 +27,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StatisticsFile;
@@ -41,8 +40,8 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.RandomData;
@@ -56,10 +55,12 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.types.StructType;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestComputeTableStatsAction extends SparkCatalogTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestComputeTableStatsAction extends CatalogTestBase {
 
   private static final Types.StructType LEAF_STRUCT_TYPE =
       Types.StructType.of(
@@ -77,12 +78,12 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
           required(4, "nestedStructCol", NESTED_STRUCT_TYPE),
           required(5, "stringCol", Types.StringType.get()));
 
-  public TestComputeTableStatsAction(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
+  @AfterEach
+  public void removeTable() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testLoadingTableDirectly() {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     sql("INSERT into %s values(1, 'abcd')", tableName);
@@ -92,11 +93,11 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     SparkActions actions = SparkActions.get();
     ComputeTableStats.Result results = actions.computeTableStats(table).execute();
     StatisticsFile statisticsFile = results.statisticsFile();
-    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
-    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(2);
+    assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+    assertThat(statisticsFile.blobMetadata()).hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsAction() throws NoSuchTableException, ParseException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
@@ -116,23 +117,29 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
             new SimpleRecord(4, "d"));
     spark.createDataset(records, Encoders.bean(SimpleRecord.class)).writeTo(tableName).append();
     SparkActions actions = SparkActions.get();
+    table.refresh();
     ComputeTableStats.Result results =
         actions.computeTableStats(table).columns("id", "data").execute();
     assertThat(results).isNotNull();
 
     List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    assertThat(statisticsFiles.size()).isEqualTo(1);
-
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
-    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(2);
-
-    BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    assertThat(blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY))
-        .isEqualTo(String.valueOf(4));
+    assertThat(statisticsFiles)
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .hasSize(2)
+                  .element(0)
+                  .satisfies(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+                      });
+            });
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsActionWithoutExplicitColumns()
       throws NoSuchTableException, ParseException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
@@ -153,29 +160,26 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     ComputeTableStats.Result results = actions.computeTableStats(table).execute();
     assertThat(results).isNotNull();
 
-    assertThat(table.statisticsFiles().size()).isEqualTo(1);
-    StatisticsFile statisticsFile = table.statisticsFiles().get(0);
-    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(2);
-    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
-    assertThat(
-            Long.parseLong(
-                statisticsFile
-                    .blobMetadata()
-                    .get(0)
-                    .properties()
-                    .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY)))
-        .isEqualTo(4);
-    assertThat(
-            Long.parseLong(
-                statisticsFile
-                    .blobMetadata()
-                    .get(1)
-                    .properties()
-                    .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY)))
-        .isEqualTo(4);
+    assertThat(table.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .hasSize(2)
+                  .satisfiesExactly(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+                      },
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+                      });
+            });
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsForInvalidColumns() throws NoSuchTableException, ParseException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     // Append data to create snapshot
@@ -187,7 +191,7 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
         .hasMessageContaining("Can't find column id1 in table");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsWithNoSnapshots() throws NoSuchTableException, ParseException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
@@ -196,7 +200,7 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     assertThat(result.statisticsFile()).isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsWithNullValues() throws NoSuchTableException, ParseException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     List<SimpleRecord> records =
@@ -216,19 +220,22 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     ComputeTableStats.Result results = actions.computeTableStats(table).columns("data").execute();
     assertThat(results).isNotNull();
 
-    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    assertThat(statisticsFiles.size()).isEqualTo(1);
-
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
-    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(1);
-
-    BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    assertThat(blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY))
-        .isEqualTo(String.valueOf(4));
+    assertThat(table.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .singleElement()
+                  .satisfies(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "4");
+                      });
+            });
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsWithSnapshotHavingDifferentSchemas()
       throws NoSuchTableException, ParseException {
     SparkActions actions = SparkActions.get();
@@ -259,7 +266,7 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
         .hasMessageContaining("Can't find column data in table");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsWhenSnapshotIdNotSpecified()
       throws NoSuchTableException, ParseException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
@@ -271,19 +278,22 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
 
     assertThat(results).isNotNull();
 
-    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    assertThat(statisticsFiles.size()).isEqualTo(1);
-
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
-    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(1);
-
-    BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    assertThat(blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY))
-        .isEqualTo(String.valueOf(1));
+    assertThat(table.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .singleElement()
+                  .satisfies(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsEntry(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, "1");
+                      });
+            });
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsWithNestedSchema()
       throws NoSuchTableException, ParseException, IOException {
     List<Record> records = Lists.newArrayList(createNestedRecord());
@@ -293,8 +303,7 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
             SCHEMA_WITH_NESTED_COLUMN,
             PartitionSpec.unpartitioned(),
             ImmutableMap.of());
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     table.newAppend().appendFile(dataFile).commit();
 
     Table tbl = Spark3Util.loadIcebergTable(spark, tableName);
@@ -302,21 +311,22 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     actions.computeTableStats(tbl).execute();
 
     tbl.refresh();
-    List<StatisticsFile> statisticsFiles = tbl.statisticsFiles();
-    assertThat(statisticsFiles.size()).isEqualTo(1);
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
-    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(1);
+    assertThat(tbl.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata()).hasSize(1);
+            });
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsWithNoComputableColumns() throws IOException {
     List<Record> records = Lists.newArrayList(createNestedRecord());
     Table table =
         validationCatalog.createTable(
             tableIdent, NESTED_SCHEMA, PartitionSpec.unpartitioned(), ImmutableMap.of());
-    DataFile dataFile =
-        FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     table.newAppend().appendFile(dataFile).commit();
 
     table.refresh();
@@ -326,48 +336,48 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
         .hasMessageContaining("No columns found to compute stats");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsOnByteColumn() throws NoSuchTableException, ParseException {
     testComputeTableStats("byte_col", "TINYINT");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsOnShortColumn() throws NoSuchTableException, ParseException {
     testComputeTableStats("short_col", "SMALLINT");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsOnIntColumn() throws NoSuchTableException, ParseException {
     testComputeTableStats("int_col", "INT");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsOnLongColumn() throws NoSuchTableException, ParseException {
     testComputeTableStats("long_col", "BIGINT");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsOnTimestampColumn() throws NoSuchTableException, ParseException {
     testComputeTableStats("timestamp_col", "TIMESTAMP");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsOnTimestampNtzColumn()
       throws NoSuchTableException, ParseException {
     testComputeTableStats("timestamp_col", "TIMESTAMP_NTZ");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsOnDateColumn() throws NoSuchTableException, ParseException {
     testComputeTableStats("date_col", "DATE");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsOnDecimalColumn() throws NoSuchTableException, ParseException {
     testComputeTableStats("decimal_col", "DECIMAL(20, 2)");
   }
 
-  @Test
+  @TestTemplate
   public void testComputeTableStatsOnBinaryColumn() throws NoSuchTableException, ParseException {
     testComputeTableStats("binary_col", "BINARY");
   }
@@ -386,16 +396,19 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
         actions.computeTableStats(table).columns(columnName).execute();
     assertThat(results).isNotNull();
 
-    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    assertThat(statisticsFiles.size()).isEqualTo(1);
-
-    StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
-    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(1);
-
-    BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    assertThat(blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY))
-        .isNotNull();
+    assertThat(table.statisticsFiles())
+        .singleElement()
+        .satisfies(
+            statisticsFile -> {
+              assertThat(statisticsFile.fileSizeInBytes()).isGreaterThan(0);
+              assertThat(statisticsFile.blobMetadata())
+                  .singleElement()
+                  .satisfies(
+                      blobMetadata -> {
+                        assertThat(blobMetadata.properties())
+                            .containsKey(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY);
+                      });
+            });
   }
 
   private GenericRecord createNestedRecord() {
@@ -420,10 +433,5 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
   private void append(String table, Dataset<Row> df) throws NoSuchTableException {
     // fanout writes are enabled as write-time clustering is not supported without Spark extensions
     df.coalesce(1).writeTo(table).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
-  }
-
-  @After
-  public void removeTable() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 }

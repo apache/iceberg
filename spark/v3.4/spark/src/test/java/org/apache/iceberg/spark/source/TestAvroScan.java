@@ -25,87 +25,34 @@ import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.spark.data.AvroDataTest;
-import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
-public class TestAvroScan extends AvroDataTest {
-  private static final Configuration CONF = new Configuration();
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  private static SparkSession spark = null;
-
-  @BeforeClass
-  public static void startSpark() {
-    TestAvroScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
-  }
-
-  @AfterClass
-  public static void stopSpark() {
-    SparkSession currentSpark = TestAvroScan.spark;
-    TestAvroScan.spark = null;
-    currentSpark.stop();
-  }
-
+public class TestAvroScan extends ScanTestBase {
   @Override
-  protected void writeAndValidate(Schema schema) throws IOException {
-    File parent = temp.newFolder("avro");
-    File location = new File(parent, "test");
-    File dataFolder = new File(location, "data");
-    dataFolder.mkdirs();
+  protected void writeRecords(Table table, List<Record> records) throws IOException {
+    File dataFolder = new File(table.location(), "data");
 
     File avroFile =
         new File(dataFolder, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
 
-    HadoopTables tables = new HadoopTables(CONF);
-    Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
-
-    // Important: use the table's schema for the rest of the test
-    // When tables are created, the column ids are reassigned.
-    Schema tableSchema = table.schema();
-
-    List<Record> expected = RandomData.generateList(tableSchema, 100, 1L);
-
     try (FileAppender<Record> writer =
-        Avro.write(localOutput(avroFile)).schema(tableSchema).build()) {
-      writer.addAll(expected);
+        Avro.write(localOutput(avroFile)).schema(table.schema()).build()) {
+      writer.addAll(records);
     }
 
     DataFile file =
         DataFiles.builder(PartitionSpec.unpartitioned())
-            .withRecordCount(100)
             .withFileSizeInBytes(avroFile.length())
+            .withRecordCount(records.size())
             .withPath(avroFile.toString())
             .build();
 
     table.newAppend().appendFile(file).commit();
-
-    Dataset<Row> df = spark.read().format("iceberg").load(location.toString());
-
-    List<Row> rows = df.collectAsList();
-    Assert.assertEquals("Should contain 100 rows", 100, rows.size());
-
-    for (int i = 0; i < expected.size(); i += 1) {
-      TestHelpers.assertEqualsSafe(tableSchema.asStruct(), expected.get(i), rows.get(i));
-    }
   }
 }

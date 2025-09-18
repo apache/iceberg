@@ -29,6 +29,7 @@ import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.ExtendedParser
 import org.apache.iceberg.spark.ExtendedParser.RawOrderField
 import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.procedures.SparkProcedures
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
@@ -194,8 +195,10 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       // Strip comments of the form  /* ... */. This must come after stripping newlines so that
       // comments that span multiple lines are caught.
       .replaceAll("/\\*.*?\\*/", " ")
+      // Strip backtick then `system`.`ancestors_of` changes to system.ancestors_of
+      .replaceAll("`", "")
       .trim()
-    normalized.startsWith("call") || (
+    isIcebergProcedure(normalized) || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||
             normalized.contains("drop partition field") ||
@@ -207,6 +210,12 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
             normalized.contains("set identifier fields") ||
             normalized.contains("drop identifier fields") ||
             isSnapshotRefDdl(normalized)))
+  }
+
+  // All builtin Iceberg procedures are under the 'system' namespace
+  private def isIcebergProcedure(normalized: String): Boolean = {
+    normalized.startsWith("call") &&
+      SparkProcedures.names().asScala.map("system." + _).exists(normalized.contains)
   }
 
   private def isSnapshotRefDdl(normalized: String): Boolean = {
@@ -229,19 +238,23 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     parser.removeErrorListeners()
     parser.addErrorListener(IcebergParseErrorListener)
 
+    // https://github.com/antlr/antlr4/issues/192#issuecomment-15238595
+    // Save a great deal of time on correct inputs by using a two-stage parsing strategy.
     try {
       try {
-        // first, try parsing with potentially faster SLL mode
+        // first, try parsing with potentially faster SLL mode and BailErrorStrategy
+        parser.setErrorHandler(new BailErrorStrategy)
         parser.getInterpreter.setPredictionMode(PredictionMode.SLL)
         toResult(parser)
       }
       catch {
         case _: ParseCancellationException =>
-          // if we fail, parse with LL mode
+          // if we fail, parse with LL mode with DefaultErrorStrategy
           tokenStream.seek(0) // rewind input stream
           parser.reset()
 
           // Try Again.
+          parser.setErrorHandler(new DefaultErrorStrategy)
           parser.getInterpreter.setPredictionMode(PredictionMode.LL)
           toResult(parser)
       }

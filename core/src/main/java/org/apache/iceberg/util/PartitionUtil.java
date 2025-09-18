@@ -53,10 +53,21 @@ public class PartitionUtil {
     // use java.util.HashMap because partition data may contain null values
     Map<Integer, Object> idToConstant = Maps.newHashMap();
 
+    // add first_row_id as _row_id
+    if (task.file().firstRowId() != null) {
+      idToConstant.put(
+          MetadataColumns.ROW_ID.fieldId(),
+          convertConstant.apply(Types.LongType.get(), task.file().firstRowId()));
+    }
+
+    idToConstant.put(
+        MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
+        convertConstant.apply(Types.LongType.get(), task.file().fileSequenceNumber()));
+
     // add _file
     idToConstant.put(
         MetadataColumns.FILE_PATH.fieldId(),
-        convertConstant.apply(Types.StringType.get(), task.file().path()));
+        convertConstant.apply(Types.StringType.get(), task.file().location()));
 
     // add _spec_id
     idToConstant.put(

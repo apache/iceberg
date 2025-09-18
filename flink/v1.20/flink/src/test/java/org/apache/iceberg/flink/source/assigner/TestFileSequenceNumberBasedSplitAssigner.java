@@ -43,7 +43,7 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
             () -> assigner.onDiscoveredSplits(createSplits(4, 2, "2")),
             "Multiple files in a split is not allowed")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Please use 'split-open-file-cost'");
+        .hasMessageContaining("Please use 'split-file-open-cost'");
   }
 
   /** Test sorted splits */

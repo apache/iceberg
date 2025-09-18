@@ -19,7 +19,9 @@
 package org.apache.iceberg.connect;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,7 +33,10 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.clients.admin.Admin;
@@ -39,11 +44,12 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.assertj.core.api.Condition;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
-public class IntegrationTestBase {
+public abstract class IntegrationTestBase {
 
   private static TestContext context;
 
@@ -55,6 +61,13 @@ public class IntegrationTestBase {
   private KafkaProducer<String, String> producer;
 
   protected static final int TEST_TOPIC_PARTITIONS = 2;
+  protected static final String TEST_DB = "test";
+
+  abstract KafkaConnectUtils.Config createConfig(boolean useSchema);
+
+  abstract void sendEvents(boolean useSchema);
+
+  abstract void dropTables();
 
   protected TestContext context() {
     return context;
@@ -84,10 +97,16 @@ public class IntegrationTestBase {
     this.admin = context.initLocalAdmin();
     this.connectorName = "test_connector-" + UUID.randomUUID();
     this.testTopic = "test-topic-" + UUID.randomUUID();
+    createTopic(testTopic(), TEST_TOPIC_PARTITIONS);
+    ((SupportsNamespaces) catalog()).createNamespace(Namespace.of(TEST_DB));
   }
 
   @AfterEach
   public void baseAfter() {
+    context().stopConnector(connectorName());
+    deleteTopic(testTopic());
+    dropTables();
+    ((SupportsNamespaces) catalog()).dropNamespace(Namespace.of(TEST_DB));
     try {
       if (catalog instanceof AutoCloseable) {
         ((AutoCloseable) catalog).close();
@@ -157,5 +176,58 @@ public class IntegrationTestBase {
 
   protected void flush() {
     producer.flush();
+  }
+
+  protected KafkaConnectUtils.Config createCommonConfig(boolean useSchema) {
+    // set offset reset to the earliest, so we don't miss any test messages
+    return new KafkaConnectUtils.Config(connectorName())
+        .config("topics", testTopic())
+        .config("connector.class", IcebergSinkConnector.class.getName())
+        .config("tasks.max", 2)
+        .config("consumer.override.auto.offset.reset", "earliest")
+        .config("key.converter", "org.apache.kafka.connect.json.JsonConverter")
+        .config("key.converter.schemas.enable", false)
+        .config("value.converter", "org.apache.kafka.connect.json.JsonConverter")
+        .config("value.converter.schemas.enable", useSchema)
+        .config("iceberg.control.commit.interval-ms", 1000)
+        .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
+        .config("iceberg.kafka.auto.offset.reset", "earliest");
+  }
+
+  protected void runTest(
+      String branch,
+      boolean useSchema,
+      Map<String, String> extraConfig,
+      List<TableIdentifier> tableIdentifiers) {
+    KafkaConnectUtils.Config connectorConfig = createConfig(useSchema);
+
+    context().connectorCatalogProperties().forEach(connectorConfig::config);
+
+    if (branch != null) {
+      connectorConfig.config("iceberg.tables.default-commit-branch", branch);
+    }
+
+    extraConfig.forEach(connectorConfig::config);
+
+    context().startConnector(connectorConfig);
+
+    sendEvents(useSchema);
+    flush();
+
+    Awaitility.await()
+        .atMost(Duration.ofSeconds(30))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(() -> assertSnapshotAdded(tableIdentifiers));
+  }
+
+  protected void assertSnapshotAdded(List<TableIdentifier> tableIdentifiers) {
+    for (TableIdentifier tableId : tableIdentifiers) {
+      try {
+        Table table = catalog().loadTable(tableId);
+        assertThat(table.snapshots()).hasSize(1);
+      } catch (NoSuchTableException e) {
+        fail("Table should exist");
+      }
+    }
   }
 }

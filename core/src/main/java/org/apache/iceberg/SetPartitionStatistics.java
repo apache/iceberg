@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
@@ -36,7 +35,10 @@ public class SetPartitionStatistics implements UpdatePartitionStatistics {
 
   @Override
   public UpdatePartitionStatistics setPartitionStatistics(PartitionStatisticsFile file) {
-    Preconditions.checkArgument(null != file, "partition statistics file must not be null");
+    if (file == null) {
+      return this;
+    }
+
     statsToSet.put(file.snapshotId(), file);
     return this;
   }

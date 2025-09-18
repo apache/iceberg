@@ -119,7 +119,6 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 * `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
 * `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
-* `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 
 ## Setting up IDE and Code Style
 
@@ -423,6 +422,49 @@ Use `this` when assigning values to instance variables, making it clear when the
 2. Use `.` to create a hierarchy of config groups
     * For example, `s3` in `s3.access-key-id`, `s3.secret-access-key`
 
+#### Block Spacing
+
+To improve readability and maintain consistency, always place a newline after control blocks (if, for, while, switch, etc.). 
+This helps separate logical sections of the code, making it easier to read and debug.
+
+```java
+  // BAD: No newline separator after `if` block
+  public static WriteBuilder write(OutputFile file) {
+     if (file instanceof EncryptedOutputFile) {
+        return write((EncryptedOutputFile) file);
+     }
+     return new WriteBuilder(file);
+  }
+
+  // GOOD: newline separator after `if` block
+  public static WriteBuilder write(OutputFile file) {
+     if (file instanceof EncryptedOutputFile) {
+        return write((EncryptedOutputFile) file);
+     }
+     
+     return new WriteBuilder(file);
+  }
+
+  // BAD: No newline separator after `for` block
+  public static Schema convert(Schema schema) {
+     ImmutableList.Builder<Field> fields = ImmutableList.builder();
+     for (NestedField f : schema.columns()) {
+        fields.add(convert(f));
+     }
+     return new Schema(fields.build());
+  }
+
+  // GOOD: newline separator after `for` block
+  public static Schema convert(Schema schema) {
+     ImmutableList.Builder<Field> fields = ImmutableList.builder();
+     for (NestedField f : schema.columns()) {
+        fields.add(convert(f));
+     }
+
+     return new Schema(fields.build());
+  }
+```
+
 ## Testing
 
 ### AssertJ
@@ -455,6 +497,18 @@ assertThat(metadataFileLocations).isNotNull().hasSize(4);
 
 // or
 assertThat(metadataFileLocations).isNotNull().hasSameSizeAs(expected).hasSize(4);
+```
+```java
+// if the specific element doesn't match the value, it won't show the content and its index of array 
+assertThat(array).hasSize(2);
+assertThat(array[0]).isEqualTo("value0");
+assertThat(array[1]).isEqualTo("value1");
+
+// better: all checks can be combined and the content of the array will be shown if any check fails
+assertThat(array).hasSize(2).containsExactly("value0", "value1");
+
+// better: if a specific element is checked, the content and its index will be also shown
+assertThat(array).contains("value1", atIndex(1));
 ```
 ```java
 // if any key doesn't exist, it won't show the content of the map
@@ -510,11 +564,11 @@ Awaitility.await("Tables were not deleted")
 Please refer to the [usage guide](https://github.com/awaitility/awaitility/wiki/Usage) of [Awaitility](https://github.com/awaitility/awaitility) for more usage examples.
 
 
-### JUnit4 / JUnit5
+### JUnit 5 / AssertJ
 
-Iceberg currently uses a mix of JUnit4 (`org.junit` imports) and JUnit5 (`org.junit.jupiter.api` imports) tests. To allow an easier migration to JUnit5 in the future, new test classes
-that are being added to the codebase should be written purely in JUnit5 where possible.
 
+Iceberg has now fully migrated to JUnit 5 (org.junit.jupiter.api imports) for all tests. Any new test classes should be written using JUnit 5, 
+and assertions should follow the AssertJ style to ensure consistency and readability.
 
 ## Running Benchmarks
 Some PRs/changesets might require running benchmarks to determine whether they are affecting the baseline performance. Currently there is 

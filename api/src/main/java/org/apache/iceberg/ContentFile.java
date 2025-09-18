@@ -168,6 +168,13 @@ public interface ContentFile<F> {
   }
 
   /**
+   * Returns the starting row ID to assign to new rows in the data file (with _row_id set to null).
+   */
+  default Long firstRowId() {
+    return null;
+  }
+
+  /**
    * Copies this file. Manifest readers can reuse file instances; use this method to copy data when
    * collecting files from tasks.
    *

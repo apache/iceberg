@@ -32,7 +32,10 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.schema.MessageType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;
@@ -94,12 +97,13 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {
+    private static final Logger LOG = LoggerFactory.getLogger(FileIterator.class);
+
     private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
     private final ParquetValueReader<T> model;
     private final long totalValues;
     private final boolean reuseContainers;
-    private final long[] rowGroupsStartRowPos;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
@@ -112,7 +116,6 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.model = conf.model();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
-      this.rowGroupsStartRowPos = conf.startRowPositions();
     }
 
     @Override
@@ -122,18 +125,29 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public T next() {
-      if (valuesRead >= nextRowGroupStart) {
-        advance();
-      }
+      try {
+        if (valuesRead >= nextRowGroupStart) {
+          advance();
+        }
 
-      if (reuseContainers) {
-        this.last = model.read(last);
-      } else {
-        this.last = model.read(null);
-      }
-      valuesRead += 1;
+        if (reuseContainers) {
+          this.last = model.read(last);
+        } else {
+          this.last = model.read(null);
+        }
 
-      return last;
+        valuesRead += 1;
+
+        return last;
+      } catch (ParquetDecodingException e) {
+        if (reader != null) {
+          // Knowing the exact parquet file is essential for tracing bad nodes
+          // that produced the corrupt file, parquet lib doesn't do this today.
+          LOG.error("Error decoding Parquet file {}", reader.getFile(), e);
+        }
+
+        throw e;
+      }
     }
 
     private void advance() {
@@ -149,11 +163,10 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         throw new RuntimeIOException(e);
       }
 
-      long rowPosition = rowGroupsStartRowPos[nextRowGroup];
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
 
-      model.setPageSource(pages, rowPosition);
+      model.setPageSource(pages);
     }
 
     @Override

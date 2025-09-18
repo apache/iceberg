@@ -31,7 +31,7 @@ import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Sink for collecting output during testing. */
-class CollectingSink<T> implements Sink<T> {
+public class CollectingSink<T> implements Sink<T> {
   private static final long serialVersionUID = 1L;
   private static final List<BlockingQueue<Object>> QUEUES =
       Collections.synchronizedList(Lists.newArrayListWithExpectedSize(1));
@@ -39,7 +39,7 @@ class CollectingSink<T> implements Sink<T> {
   private final int index;
 
   /** Creates a new sink which collects the elements received. */
-  CollectingSink() {
+  public CollectingSink() {
     this.index = NUM_SINKS.incrementAndGet();
     QUEUES.add(new LinkedBlockingQueue<>());
   }
@@ -69,7 +69,7 @@ class CollectingSink<T> implements Sink<T> {
    * @return The first element received by this {@link Sink}
    * @throws TimeoutException if no element received until the timeout
    */
-  T poll(Duration timeout) throws TimeoutException {
+  public T poll(Duration timeout) throws TimeoutException {
     Object element;
 
     try {

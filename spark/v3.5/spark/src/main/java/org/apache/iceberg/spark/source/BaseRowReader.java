@@ -44,8 +44,10 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       ScanTaskGroup<T> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
+    super(
+        table, taskGroup, tableSchema, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
   }
 
   protected CloseableIterable<InternalRow> newIterable(
@@ -77,7 +79,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         .reuseContainers()
         .project(projection)
         .split(start, length)
-        .createReaderFunc(readSchema -> SparkPlannedAvroReader.create(projection, idToConstant))
+        .createResolvingReader(schema -> SparkPlannedAvroReader.create(schema, idToConstant))
         .withNameMapping(nameMapping())
         .build();
   }

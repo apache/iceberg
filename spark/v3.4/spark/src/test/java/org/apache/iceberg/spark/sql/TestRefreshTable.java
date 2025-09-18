@@ -19,39 +19,41 @@
 package org.apache.iceberg.spark.sql;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestRefreshTable extends SparkCatalogTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRefreshTable extends CatalogTestBase {
 
-  public TestRefreshTable(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void createTables() {
     sql("CREATE TABLE %s (key int, value int) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1,1)", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testRefreshCommand() {
     // We are not allowed to change the session catalog after it has been initialized, so build a
     // new one
-    if (catalogName.equals(SparkCatalogConfig.SPARK.catalogName())
-        || catalogName.equals(SparkCatalogConfig.HADOOP.catalogName())) {
+    if (Set.of(
+            SparkCatalogConfig.SPARK.catalogName(),
+            SparkCatalogConfig.HADOOP.catalogName(),
+            SparkCatalogConfig.REST.catalogName())
+        .contains(catalogName)) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".cache-enabled", true);
       spark = spark.cloneSession();
     }

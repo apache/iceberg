@@ -42,7 +42,7 @@ public class ValidationHelpers {
   }
 
   public static List<String> files(ContentFile<?>... files) {
-    return Arrays.stream(files).map(file -> file.path().toString()).collect(Collectors.toList());
+    return Arrays.stream(files).map(ContentFile::location).collect(Collectors.toList());
   }
 
   public static void validateDataManifest(
@@ -62,7 +62,7 @@ public class ValidationHelpers {
       actualDataSeqs.add(entry.dataSequenceNumber());
       actualFileSeqs.add(entry.fileSequenceNumber());
       actualSnapshotIds.add(entry.snapshotId());
-      actualFiles.add(entry.file().path().toString());
+      actualFiles.add(entry.file().location());
     }
 
     assertSameElements("data seqs", actualDataSeqs, dataSeqs);

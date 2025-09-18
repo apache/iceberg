@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.apache.iceberg.CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -205,6 +208,13 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     List<File> manifests = listManifestFiles();
     assertThat(manifests).as("Should contain 0 Avro manifest files").isEmpty();
+
+    // verifies that there is no temporary metadata.json files left on disk
+    List<String> actual =
+        listMetadataJsonFiles().stream().map(File::getName).sorted().collect(Collectors.toList());
+    assertThat(actual)
+        .as("only v1 and v2 metadata.json should exist.")
+        .containsExactly("v1.metadata.json", "v2.metadata.json");
   }
 
   @Test
@@ -371,7 +381,8 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // inject the mockFS into the TableOperations
     doReturn(mockFs).when(spyOps).getFileSystem(any(), any());
     assertThatThrownBy(() -> spyOps.commit(tops.current(), meta1))
-        .isInstanceOf(CommitFailedException.class);
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Cannot commit changes based on stale table metadata");
 
     // Verifies that there is no temporary metadata.json files left on rename failures.
     Set<String> actual =
@@ -414,7 +425,16 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         TABLES.create(
             SCHEMA,
             SPEC,
-            ImmutableMap.of(COMMIT_NUM_RETRIES, String.valueOf(threadsCount)),
+            ImmutableMap.of(
+                COMMIT_NUM_RETRIES,
+                String.valueOf(threadsCount),
+                COMMIT_MIN_RETRY_WAIT_MS,
+                "10",
+                COMMIT_MAX_RETRY_WAIT_MS,
+                "1000",
+                // Disable extra retry on lock acquire failure since commit will fail anyway.
+                LOCK_ACQUIRE_TIMEOUT_MS,
+                "0"),
             dir.toURI().toString());
 
     String fileName = UUID.randomUUID().toString();
@@ -439,7 +459,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
                 final int currentFilesCount = numCommittedFiles;
                 Awaitility.await()
                     .pollInterval(Duration.ofMillis(10))
-                    .atMost(Duration.ofSeconds(10))
+                    .atMost(Duration.ofSeconds(60))
                     .until(() -> barrier.get() >= currentFilesCount * threadsCount);
                 tableWithHighRetries.newFastAppend().appendFile(file).commit();
                 barrier.incrementAndGet();

@@ -23,6 +23,7 @@ import java.util.Map;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /**
@@ -37,6 +38,13 @@ public interface AwsClientFactory extends Serializable {
    * @return s3 client
    */
   S3Client s3();
+
+  /**
+   * create a Amazon S3 async client
+   *
+   * @return s3 async client
+   */
+  S3AsyncClient s3Async();
 
   /**
    * create a AWS Glue client

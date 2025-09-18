@@ -199,7 +199,7 @@ Only append and dynamic overwrite snapshots can be successfully published.
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
-| `wap_id`      | ✔️  | long | The wap_id to be pusblished from stage to prod |
+| `wap_id`      | ✔️  | long | The wap_id to be published from stage to prod |
 
 #### Output
 
@@ -271,6 +271,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
 | `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
 | `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
+| `clean_expired_metadata` |   | boolean       | When true, cleans up metadata such as partition specs and schemas that are no longer referenced by snapshots. |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](configuration.md#table-behavior-properties) will be used.
 Snapshots that are still referenced by branches or tags won't be removed. By default, branches and tags never expire, but their retention policy can be changed with the table property `history.expire.max-ref-age-ms`. The `main` branch never expires.
@@ -283,7 +284,8 @@ Snapshots that are still referenced by branches or tags won't be removed. By def
 | `deleted_position_delete_files_count` | long | Number of position delete files deleted by this operation |
 | `deleted_equality_delete_files_count` | long | Number of equality delete files deleted by this operation |
 | `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
-| `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
+| `deleted_manifest_lists_count` | long | Number of manifest list files deleted by this operation |
+| `deleted_statistics_files_count` | long | Number of statistics files deleted by this operation |
 
 #### Examples
 
@@ -316,6 +318,7 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
 | `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
 | `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
+| `prefix_listing` |    | boolean   | When true, use prefix-based file listing via the `SupportsPrefixOperations` interface. The Table FileIO implementation must support `SupportsPrefixOperations` when this flag is enabled (defaults to false) |
 
 #### Output
 
@@ -369,6 +372,11 @@ CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_schemes
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_authorities => map('ns1', 'ns2'));
 ```
 
+List all the files that are candidates for removal using prefix listing.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_listing => true);
+```
+
 ### `rewrite_data_files`
 
 Iceberg tracks each data file in a table. More data files leads to more metadata stored in manifest files, and small data files causes an unnecessary amount of metadata and less efficient queries from file open costs.
@@ -393,16 +401,24 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
 | `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
 | `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
+| `partial-progress.max-failed-commits` | value of `partital-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
 | `use-starting-sequence-number` | true | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot |
 | `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
 | `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
 | `min-file-size-bytes` | 75% of target file size | Files under this threshold will be considered for rewriting regardless of any other criteria |
 | `max-file-size-bytes` | 180% of target file size | Files with sizes above this threshold will be considered for rewriting regardless of any other criteria |
-| `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
+| `min-input-files` | 5 | Any file group with this number of files or more will be rewritten regardless of other criteria (the file group should have at least two files) |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
 | `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
+| `delete-ratio-threshold` | 0.3 | Minimum deletion ratio that needs to be associated with a data file for it to be considered for rewriting |
+| `output-spec-id` | current partition spec id | Identifier of the output partition spec. Data will be reorganized during the rewrite to align with the output partitioning. |
+| `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional commit for the removal. |
 
+!!! info
+    Dangling delete files are removed based solely on data sequence numbers. This action does not apply to global 
+    equality deletes or invalid equality deletes if their delete conditions do not match any data files, 
+    nor to position delete files containing position deletes no longer matching any live data files.
 
 ##### Options for sort strategy
 
@@ -426,6 +442,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `added_data_files_count`     | int | Number of new data files which were written by this command |
 | `rewritten_bytes_count`      | long | Number of bytes which were written by this command |
 | `failed_data_files_count`    | int | Number of data files that failed to be rewritten when `partial-progress.enabled` is true |
+| `removed_delete_files_count` | int | Number of delete files removed by this command |
 
 #### Examples
 
@@ -447,9 +464,9 @@ Using the same defaults as bin-pack to determine which files to rewrite.
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'zorder(c1,c2)');
 ```
 
-Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where more than 2 or more files need to be rewritten.
+Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where at least two files need rewriting, and then remove any dangling delete files.
 ```sql
-CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files','2'));
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files', '2', 'remove-dangling-deletes', 'true'));
 ```
 
 Rewrite the data files in table `db.sample` and select the files that may contain data matching the filter (id = 3 and name = "foo") to be rewritten.
@@ -472,7 +489,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | Argument Name | Required? | Type | Description                                                   |
 |---------------|-----------|------|---------------------------------------------------------------|
 | `table`       | ✔️  | string | Name of the table to update                                   |
-| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true)         |
+| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to false). Enabling caching can increase memory footprint on executors. |
 | `spec_id`     | ️   | int | Spec id of the manifests to rewrite (defaults to current spec id) |
 
 #### Output
@@ -480,7 +497,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | `rewritten_manifests_count` | int | Number of manifests which were re-written by this command |
-| `added_mainfests_count`     | int | Number of new manifest files which were written by this command |
+| `added_manifests_count`     | int | Number of new manifest files which were written by this command |
 
 #### Examples
 
@@ -489,9 +506,9 @@ Rewrite the manifests in table `db.sample` and align manifest files with table p
 CALL catalog_name.system.rewrite_manifests('db.sample');
 ```
 
-Rewrite the manifests in table `db.sample` and disable the use of Spark caching. This could be done to avoid memory issues on executors.
+Rewrite the manifests on the partition spec `1` in table `db.sample`.
 ```sql
-CALL catalog_name.system.rewrite_manifests('db.sample', false);
+CALL catalog_name.system.rewrite_manifests(table => 'db.sample', spec_id => 1);
 ```
 
 ### `rewrite_position_delete_files`
@@ -507,6 +524,7 @@ Iceberg can rewrite position delete files, which serves two purposes:
 |---------------|-----------|------|----------------------------------|
 | `table`       | ✔️  | string | Name of the table to update      |
 | `options`     | ️   | map<string, string> | Options to be used for procedure |
+| `where`       | ️   | string | predicate as a string used for filtering the files. |
 
 Dangling deletes are always filtered out during rewriting.
 
@@ -524,6 +542,7 @@ Dangling deletes are always filtered out during rewriting.
 | `min-input-files` | 5 | Any file group exceeding this number of files will be rewritten regardless of other criteria |
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
+| `max-files-to-rewrite` | null | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten. |
 
 #### Output
 
@@ -691,9 +710,9 @@ Add the files from table `db.src_table`, a Hive or Spark table registered in the
 `db.tbl`. Only add files that exist within partitions where `part_col_1` is equal to `A`.
 ```sql
 CALL spark_catalog.system.add_files(
-table => 'db.tbl',
-source_table => 'db.src_tbl',
-partition_filter => map('part_col_1', 'A')
+  table => 'db.tbl',
+  source_table => 'db.src_tbl',
+  partition_filter => map('part_col_1', 'A')
 );
 ```
 
@@ -837,7 +856,7 @@ CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
   options => map('start-snapshot-id','1','end-snapshot-id', '2'),
   identifier_columns => array('id', 'name')
-)
+);
 ```
 
 Once the changelog view is created, you can query the view to see the changes that happened between the snapshots.
@@ -920,3 +939,162 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 |-----|--------|--------------|
 | 3   | Robert | UPDATE_BEFORE|
 | 3   | Dan    | UPDATE_AFTER |
+
+## Table Statistics
+
+### `compute_table_stats`
+
+This procedure calculates the [Number of Distinct Values (NDV) statistics](../../puffin-spec.md#apache-datasketches-theta-v1-blob-type) for a specific table.
+By default, statistics are computed for all columns using the table's current snapshot.
+The procedure can be optionally configured to compute statistics for a specific snapshot and/or a subset of columns.
+
+| Argument Name | Required? | Type          | Description                         |
+|---------------|-----------|---------------|-------------------------------------|
+| `table`       | ✔️        | string        | Name of the table                   |
+| `snapshot_id` |           | string        | Id of the snapshot to collect stats |
+| `columns`     |           | array<string> | Columns to collect stats            |
+
+#### Output
+
+| Output Name       | Type   | Description                                     |
+|-------------------|--------|-------------------------------------------------|
+| `statistics_file` | string | Path to stats file created from by this command |
+
+#### Examples
+
+Collect statistics of the latest snapshot of table `my_table`
+```sql
+CALL catalog_name.system.compute_table_stats('my_table');
+```
+
+Collect statistics of the snapshot with id `snap1` of table `my_table`
+```sql
+CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1' );
+```
+
+Collect statistics of the snapshot with id `snap1` of table `my_table` for columns `col1` and `col2`
+```sql
+CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1', columns => array('col1', 'col2'));
+```
+
+## Partition Statistics
+
+### `compute_partition_stats`
+
+This procedure computes the [partition stats](../../spec.md#partition-statistics) incrementally from the last snapshot that has a `PartitionStatisticsFile` 
+until the given snapshot (uses current snapshot if not specified) and writes the combined result into a `PartitionStatisticsFile`. 
+It performs a full compute if the previous partition statistics file does not exist. It also registers the 
+`PartitionStatisticsFile` to the table metadata.
+
+| Argument Name | Required? | Type          | Description                                                                    |
+|---------------|-----------|---------------|--------------------------------------------------------------------------------|
+| `table`       | ✔️        | string        | Name of the table                                                              |
+| `snapshot_id` |           | string        | Id of the snapshot to compute partition stats. Defaults to current snapshot id |
+
+#### Output
+
+| Output Name       | Type   | Description                                              |
+|-------------------|--------|----------------------------------------------------------|
+| `partition_statistics_file` | string | Path to the partition stats file created from by command |
+
+#### Examples
+
+Collect partition statistics of the latest snapshot of table `my_table`
+```sql
+CALL catalog_name.system.compute_partition_stats('my_table');
+```
+
+Collect partition statistics of the snapshot with id `snap1` of table `my_table`
+```sql
+CALL catalog_name.system.compute_partition_stats(table => 'my_table', snapshot_id => 'snap1');
+```
+
+## Table Replication
+
+The `rewrite_table_path` procedure prepares an Iceberg table for copying to another location.
+
+### `rewrite_table_path`
+
+Stages a copy of the Iceberg table's metadata files where every absolute path source prefix is replaced by the specified target prefix.  
+This can be the starting point to fully or incrementally copy an Iceberg table to a new location.
+
+!!! info
+    This procedure only stages rewritten metadata files and prepares a list of files to copy. The actual file copy is not included in this procedure.
+
+
+| Argument Name      | Required? | default                                        | Type   | Description                                                            |
+|--------------------|-----------|------------------------------------------------|--------|------------------------------------------------------------------------|
+| `table`            | ✔️        |                                                | string | Name of the table                                                      |
+| `source_prefix`    | ✔️        |                                                | string | The existing prefix to be replaced                                     |
+| `target_prefix`    | ✔️        |                                                | string | The replacement prefix for `source_prefix`                             |
+| `start_version`    |           | first metadata.json in table's metadata log    | string | The name or path of the chronologically first metadata.json to rewrite |
+| `end_version`      |           | latest metadata.json in table's metadata log   | string | The name or path of the chronologically last metadata.json to rewrite  |
+| `staging_location` |           | new directory under table's metadata directory | string | The output location for newly rewritten metadata files                 |
+
+
+#### Modes of operation
+
+* Full Rewrite: A full rewrite will rewrite all reachable metadata files (this includes metadata.json, manifest lists, manifests, and position delete files), and will return all reachable files in the `file_list_location`. This is the default mode of operation for this procedure.
+
+* Incremental Rewrite: Optionally, `start_version` and `end_version` can be provided to limit the scope to an incremental rewrite. An incremental rewrite will only rewrite metadata files added between `start_version` and `end_version`, and will only return files added in this range in the `file_list_location`.
+
+
+#### Output
+
+| Output Name          | Type   | Description                                                       |
+|----------------------|--------|-------------------------------------------------------------------|
+| `latest_version`     | string | Name of the latest metadata file rewritten by this procedure      |
+| `file_list_location` | string | Path to a CSV file containing a mapping of source to target paths |
+
+##### File List
+The file contains the copy plan for all files added to the table between `start_version` and `end_version`.
+
+For each file, it specifies:
+
+* Source Path: The original file path in the table, or the staging location if the file has been rewritten
+
+* Target Path: The path with the replacement prefix
+
+The following example shows a copy plan for three files:
+
+```csv
+sourcepath/datafile1.parquet,targetpath/datafile1.parquet
+sourcepath/datafile2.parquet,targetpath/datafile2.parquet
+stagingpath/manifest.avro,targetpath/manifest.avro
+```
+
+#### Examples
+
+This example fully rewrites metadata paths of `my_table` from source location in HDFS to a target location in S3.
+It will produce a new set of metadata in the default staging location under the table's metadata directory.
+
+```sql
+CALL catalog_name.system.rewrite_table_path(
+    table => 'db.my_table', 
+    source_prefix => 'hdfs://nn:8020/path/to/source_table',
+    target_prefix => 's3a://bucket/prefix/db.db/my_table'
+);
+```
+
+This example incrementally rewrites metadata paths of `my_table` between metadata versions `v2.metadata.json` and `v20.metadata.json`,
+with new metadata files written to an explicit staging location.
+
+```sql
+CALL catalog_name.system.rewrite_table_path(
+    table => 'db.my_table', 
+    source_prefix => 's3a://bucketOne/prefix/db.db/my_table',
+    target_prefix => 's3a://bucketTwo/prefix/db.db/my_table',
+    start_version => 'v2.metadata.json',
+    end_version => 'v20.metadata.json',
+    staging_location => 's3a://bucketStaging/my_table'  
+);
+```
+
+Once the rewrite completes, third-party tools (
+eg. [Distcp](https://hadoop.apache.org/docs/current/hadoop-distcp/DistCp.html)) can copy the newly created
+metadata files and data files to the target location.
+
+Lastly, the [register_table](#register_table) procedure can be used to register the copied table in the target location with a catalog.
+
+!!! warning
+    Iceberg tables with partition statistics files are not currently supported for path rewrite.

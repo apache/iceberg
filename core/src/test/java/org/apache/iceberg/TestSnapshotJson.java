@@ -40,10 +40,21 @@ public class TestSnapshotJson {
     int snapshotId = 23;
     Long parentId = null;
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
+    String keyId = "key-1";
 
     Snapshot expected =
         new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, 1, manifestList);
+            0,
+            snapshotId,
+            parentId,
+            System.currentTimeMillis(),
+            null,
+            null,
+            1,
+            manifestList,
+            null,
+            null,
+            keyId);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -52,6 +63,9 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isEqualTo(1);
+    assertThat(snapshot.firstRowId()).isNull();
+    assertThat(snapshot.addedRows()).isNull();
+    assertThat(snapshot.keyId()).isEqualTo(keyId);
   }
 
   @Test
@@ -62,7 +76,17 @@ public class TestSnapshotJson {
 
     Snapshot expected =
         new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, null, manifestList);
+            0,
+            snapshotId,
+            parentId,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null,
+            null);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -71,6 +95,8 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isNull();
+    assertThat(snapshot.firstRowId()).isNull();
+    assertThat(snapshot.addedRows()).isNull();
   }
 
   @Test
@@ -89,7 +115,10 @@ public class TestSnapshotJson {
             DataOperations.REPLACE,
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             3,
-            manifestList);
+            manifestList,
+            null,
+            null,
+            null);
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
@@ -105,6 +134,41 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
+    assertThat(snapshot.firstRowId()).isNull();
+    assertThat(snapshot.addedRows()).isNull();
+  }
+
+  @Test
+  public void testJsonConversionWithRowLineage() throws IOException {
+    int snapshotId = 23;
+    Long parentId = null;
+    Long firstRowId = 20L;
+    Long addedRows = 30L;
+    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
+
+    Snapshot expected =
+        new BaseSnapshot(
+            0,
+            snapshotId,
+            parentId,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            manifestList,
+            firstRowId,
+            addedRows,
+            null);
+    String json = SnapshotParser.toJson(expected);
+    Snapshot snapshot = SnapshotParser.fromJson(json);
+
+    assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
+    assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
+    assertThat(snapshot.operation()).isNull();
+    assertThat(snapshot.summary()).isNull();
+    assertThat(snapshot.schemaId()).isNull();
+    assertThat(snapshot.firstRowId()).isEqualTo(firstRowId);
+    assertThat(snapshot.addedRows()).isEqualTo(addedRows);
   }
 
   @Test
@@ -157,23 +221,97 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
+    assertThat(snapshot.firstRowId()).isNull();
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
       throws IOException {
-    File manifestList = File.createTempFile("manifests", null, temp.toFile());
-    manifestList.deleteOnExit();
+    File manifestList = temp.resolve("manifests" + System.nanoTime()).toFile();
 
     List<ManifestFile> manifests =
         ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
+            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0, snapshotId),
+            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
 
     try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+        ManifestLists.write(
+            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0L)) {
       writer.addAll(manifests);
     }
 
     return localInput(manifestList).location();
+  }
+
+  @Test
+  public void testJsonConversionSummaryWithoutOperation() {
+    // This behavior is out of spec, but we don't want to fail on it.
+    // Instead, the operation will be set to overwrite, to ensure that it will produce
+    // correct metadata when it is written
+
+    long currentMs = System.currentTimeMillis();
+    String json =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"summary\" : {\n"
+                + "    \"files-added\" : \"4\",\n"
+                + "    \"files-deleted\" : \"100\"\n"
+                + "  },\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+
+    Snapshot snap = SnapshotParser.fromJson(json);
+    String expected =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"summary\" : {\n"
+                + "    \"operation\" : \"overwrite\",\n"
+                + "    \"files-added\" : \"4\",\n"
+                + "    \"files-deleted\" : \"100\"\n"
+                + "  },\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+    assertThat(SnapshotParser.toJson(snap)).isEqualTo(expected);
+  }
+
+  @Test
+  public void testJsonConversionEmptySummary() {
+    // This behavior is out of spec, but we don't want to fail on it.
+    // Instead, when we find an empty summary, we'll just set it to null
+
+    long currentMs = System.currentTimeMillis();
+    String json =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"summary\" : { },\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+
+    Snapshot snap = SnapshotParser.fromJson(json);
+    String expected =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+    assertThat(SnapshotParser.toJson(snap)).isEqualTo(expected);
   }
 }

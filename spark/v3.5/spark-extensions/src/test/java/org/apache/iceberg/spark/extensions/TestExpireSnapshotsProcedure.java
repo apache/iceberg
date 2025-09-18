@@ -33,8 +33,10 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
@@ -51,10 +53,12 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
   @AfterEach
@@ -168,8 +172,14 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.expire_snapshots not found");
+        .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))
         .isInstanceOf(AnalysisException.class)
@@ -277,8 +287,8 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
     assertThat(TestHelpers.deleteManifests(table)).as("Should have 1 delete manifest").hasSize(1);
     assertThat(TestHelpers.deleteFiles(table)).as("Should have 1 delete file").hasSize(1);
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
-    Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+    DeleteFile deleteFile = TestHelpers.deleteFiles(table).iterator().next();
+    Path deleteFilePath = new Path(deleteFile.location());
 
     sql(
         "CALL %s.system.rewrite_data_files("
@@ -289,14 +299,15 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
         catalogName, tableIdent);
     table.refresh();
 
-    sql(
-        "INSERT INTO TABLE %s VALUES (5, 'e')",
-        tableName); // this txn moves the file to the DELETED state
+    table
+        .newRowDelta()
+        .removeDeletes(deleteFile)
+        .commit(); // this txn moves the file to the DELETED state
     sql("INSERT INTO TABLE %s VALUES (6, 'f')", tableName); // this txn removes the file reference
     table.refresh();
 
-    assertThat(TestHelpers.deleteManifests(table)).as("Should have no delete manifests").hasSize(0);
-    assertThat(TestHelpers.deleteFiles(table)).as("Should have no delete files").hasSize(0);
+    assertThat(TestHelpers.deleteManifests(table)).as("Should have no delete manifests").isEmpty();
+    assertThat(TestHelpers.deleteFiles(table)).as("Should have no delete files").isEmpty();
 
     FileSystem localFs = FileSystem.getLocal(new Configuration());
     assertThat(localFs.exists(deleteManifestPath))
@@ -365,11 +376,11 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
     // There should only be one single snapshot left.
     table.refresh();
-    assertThat(table.snapshots()).as("Should be 1 snapshots").hasSize(1);
     assertThat(table.snapshots())
+        .hasSize(1)
         .as("Snapshot ID should not be present")
         .filteredOn(snapshot -> snapshot.snapshotId() == firstSnapshotId)
-        .hasSize(0);
+        .isEmpty();
   }
 
   @TestTemplate
@@ -441,7 +452,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             table.currentSnapshot().sequenceNumber(),
             statsFileLocation1,
             table.io());
-    table.updateStatistics().setStatistics(statisticsFile1.snapshotId(), statisticsFile1).commit();
+    table.updateStatistics().setStatistics(statisticsFile1).commit();
 
     sql("INSERT INTO %s SELECT 20, 'def'", tableName);
     table.refresh();
@@ -452,7 +463,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             table.currentSnapshot().sequenceNumber(),
             statsFileLocation2,
             table.io());
-    table.updateStatistics().setStatistics(statisticsFile2.snapshotId(), statisticsFile2).commit();
+    table.updateStatistics().setStatistics(statisticsFile2).commit();
 
     waitUntilAfter(table.currentSnapshot().timestampMillis());
 
@@ -527,6 +538,66 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             "partition statistics file should exist for snapshot %s",
             partitionStatisticsFile2.snapshotId())
         .exists();
+  }
+
+  @TestTemplate
+  public void testNoExpiredMetadataCleanupByDefault() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("ALTER TABLE %s ADD COLUMN extra_col int", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 21)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.snapshots()).as("Should be 2 snapshots").hasSize(2);
+    assertThat(table.schemas()).as("Should have 2 schemas").hasSize(2);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s', table => '%s')",
+            catalogName,
+            Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis())),
+            tableIdent);
+
+    table.refresh();
+    assertThat(table.schemas()).as("Should have 2 schemas").hasSize(2);
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
+  }
+
+  @TestTemplate
+  public void testCleanExpiredMetadata() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("ALTER TABLE %s ADD COLUMN extra_col int", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b', 21)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.snapshots()).as("Should be 2 snapshots").hasSize(2);
+    assertThat(table.schemas()).as("Should have 2 schemas").hasSize(2);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots("
+                + "older_than => TIMESTAMP '%s', "
+                + "clean_expired_metadata => true, "
+                + "table => '%s')",
+            catalogName,
+            Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis())),
+            tableIdent);
+
+    table.refresh();
+
+    assertThat(table.schemas().keySet())
+        .as("Should have only the latest schema")
+        .containsExactly(table.schema().schemaId());
+    assertEquals(
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
   }
 
   private static StatisticsFile writeStatsFile(

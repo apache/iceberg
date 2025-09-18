@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.split;
 
+import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -35,7 +36,8 @@ public class SplitComparators {
     return (IcebergSourceSplit o1, IcebergSourceSplit o2) -> {
       Preconditions.checkArgument(
           o1.task().files().size() == 1 && o2.task().files().size() == 1,
-          "Could not compare combined task. Please use 'split-open-file-cost' to prevent combining multiple files to a split");
+          "Could not compare combined task. Please use '%s' to prevent combining multiple files to a split",
+          FlinkReadOptions.SPLIT_FILE_OPEN_COST);
 
       Long seq1 = o1.task().files().iterator().next().file().fileSequenceNumber();
       Long seq2 = o2.task().files().iterator().next().file().fileSequenceNumber();

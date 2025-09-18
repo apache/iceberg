@@ -22,9 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
@@ -32,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -50,12 +47,7 @@ public abstract class FilterFilesTestBase<
   private final Schema schema =
       new Schema(
           required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
-  private File tableDir = null;
-
-  @BeforeEach
-  public void setupTableDir() throws IOException {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-  }
+  @TempDir private File tableDir;
 
   @AfterEach
   public void cleanupTables() {

@@ -22,20 +22,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.PartitionStatisticsFile;
+import org.apache.iceberg.PartitionStats;
+import org.apache.iceberg.PartitionStatsHandler;
+import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -45,7 +58,8 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -70,6 +84,29 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testFilterCaseSensitivity() {
+    createTable();
+    insertData(10);
+    sql("set %s = false", SQLConf.CASE_SENSITIVE().key());
+    List<Object[]> expectedRecords = currentData();
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table=>'%s', where=>'C1 > 0')",
+            catalogName, tableIdent);
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
   public void testZOrderSortExpression() {
     List<ExtendedParser.RawOrderField> order =
         ExtendedParser.parseSortOrder(spark, "c1, zorder(c2, c3)");
@@ -84,7 +121,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesInEmptyTable() {
     createTable();
     List<Object[]> output = sql("CALL %s.system.rewrite_data_files('%s')", catalogName, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L, 0)), output);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L, 0, 0)), output);
   }
 
   @TestTemplate
@@ -102,13 +139,56 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 2),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
+  public void testPartitionStatsIncrementalCompute() throws IOException {
+    createPartitionTable();
+    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
+    insertData(10);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    PartitionStatisticsFile statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table);
+    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+
+    Schema dataSchema = PartitionStatsHandler.schema(Partitioning.partitionType(table));
+    List<PartitionStats> statsBeforeCompaction;
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            dataSchema, Files.localInput(statisticsFile.path()))) {
+      statsBeforeCompaction = Lists.newArrayList(recordIterator);
+    }
+
+    sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    table.refresh();
+    statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
+    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+    List<PartitionStats> statsAfterCompaction;
+    try (CloseableIterable<PartitionStats> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            dataSchema, Files.localInput(statisticsFile.path()))) {
+      statsAfterCompaction = Lists.newArrayList(recordIterator);
+    }
+
+    for (int index = 0; index < statsBeforeCompaction.size(); index++) {
+      PartitionStats statsAfter = statsAfterCompaction.get(index);
+      PartitionStats statsBefore = statsBeforeCompaction.get(index);
+
+      assertThat(statsAfter.partition()).isEqualTo(statsBefore.partition());
+      // data count should match after compaction
+      assertThat(statsAfter.dataRecordCount()).isEqualTo(statsBefore.dataRecordCount());
+      // file count should not match as new file count will be one after compaction
+      assertThat(statsAfter.dataFileCount()).isNotEqualTo(statsBefore.dataFileCount());
+    }
   }
 
   @TestTemplate
@@ -126,7 +206,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -150,7 +230,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     assertEquals(
         "Action should rewrite 0 data files and add 0 data files",
-        ImmutableList.of(row(0, 0, 0L, 0)),
+        ImmutableList.of(row(0, 0, 0L, 0, 0)),
         output);
 
     List<Object[]> actualRecords = currentData();
@@ -176,7 +256,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -238,7 +318,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -279,7 +359,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         "Action should rewrite 10 data files and add 1 data files",
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(snapshotSummary())
         .containsEntry(SnapshotSummary.REMOVED_FILE_SIZE_PROP, String.valueOf(output.get(0)[2]));
     assertThat(sql("SELECT * FROM %s", tableName))
@@ -351,7 +431,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -376,7 +456,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -422,7 +502,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -435,7 +515,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesWithFilterOnOnBucketExpression() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK_SESSION.catalogName());
     createBucketPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
     insertData(10);
@@ -454,7 +534,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         row(output.get(0)[0], output.get(0)[1]));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -482,7 +562,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(5, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -562,7 +642,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesWithPossibleV2Filters() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK_SESSION.catalogName());
 
     SystemFunctionPushDownHelper.createPartitionedTable(spark, tableName, "id");
     sql(
@@ -615,7 +695,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                         + "sort_order => 'c1 ASC NULLS FIRST')",
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessageStartingWith("Cannot set rewrite mode, it has already been set to ");
 
     // Test for sort strategy without any (default/user defined) sort_order
     assertThatThrownBy(
@@ -694,11 +774,17 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Named and positional arguments cannot be mixed");
+        .hasMessageContaining("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.rewrite_data_files not found");
+        .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
@@ -738,7 +824,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isEqualTo(
             Long.valueOf(snapshotSummary(identifier).get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -746,7 +832,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -777,7 +863,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -786,7 +872,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -817,7 +903,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(10, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(
@@ -826,7 +912,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -853,7 +939,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         row(2, 1),
         Arrays.copyOf(output.get(0), 2));
     // verify rewritten bytes separately
-    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)).hasSize(5);
     assertThat(output.get(0)[2])
         .isInstanceOf(Long.class)
         .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
@@ -897,19 +983,77 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
             EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.5"));
   }
 
+  @TestTemplate
+  public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg TBLPROPERTIES('format-version' = '3')",
+        tableName);
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    int numRecords = 10;
+    for (int i = 0; i < numRecords; i++) {
+      records.add(new ThreeColumnRecord(i, null, null));
+    }
+
+    spark
+        .createDataFrame(records, ThreeColumnRecord.class)
+        .repartition(10)
+        .writeTo(tableName)
+        .append();
+    List<Object[]> expectedRowsWithLineage =
+        sql(
+            "SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            tableName);
+    List<Long> rowIds =
+        expectedRowsWithLineage.stream()
+            .map(record -> (Long) record[1])
+            .collect(Collectors.toList());
+    List<Long> sequenceNumbers =
+        expectedRowsWithLineage.stream()
+            .map(record -> (Long) record[2])
+            .collect(Collectors.toList());
+    assertThat(rowIds)
+        .isEqualTo(LongStream.range(0, numRecords).boxed().collect(Collectors.toList()));
+    assertThat(sequenceNumbers).isEqualTo(Collections.nCopies(numRecords, 1L));
+
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data file",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+
+    List<Object[]> rowsWithLineageAfterRewrite =
+        sql(
+            "SELECT c1, _row_id, _last_updated_sequence_number FROM %s ORDER BY _row_id",
+            tableName);
+    assertEquals(
+        "Rows with lineage before rewrite should equal rows with lineage after rewrite",
+        expectedRowsWithLineage,
+        rowsWithLineageAfterRewrite);
+  }
+
   private void createTable() {
     sql("CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg", tableName);
   }
 
   private void createPartitionTable() {
+    createPartitionTable(
+        ImmutableMap.of(
+            TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_NONE));
+  }
+
+  private void createPartitionTable(Map<String, String> properties) {
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) "
             + "USING iceberg "
-            + "PARTITIONED BY (c2) "
-            + "TBLPROPERTIES ('%s' '%s')",
-        tableName,
-        TableProperties.WRITE_DISTRIBUTION_MODE,
-        TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
+            + "PARTITIONED BY (c2)",
+        tableName);
+    properties.forEach(
+        (prop, value) ->
+            this.sql(
+                "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+                new Object[] {this.tableName, prop, value}));
   }
 
   private void createBucketPartitionTable() {

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -30,9 +31,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.data.GenericRecord;
@@ -68,11 +67,12 @@ import org.junit.jupiter.api.io.TempDir;
 public abstract class TestMetrics {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  protected static List<Integer> formatVersions() {
+    return ALL_VERSIONS;
   }
 
-  @TempDir public Path temp;
+  @TempDir protected Path temp;
+  @TempDir private File tableDir;
 
   private static final StructType LEAF_STRUCT_TYPE =
       StructType.of(
@@ -355,17 +355,10 @@ public abstract class TestMetrics {
 
     Metrics metrics = getMetrics(schema, record);
     assertThat(metrics.recordCount()).isEqualTo(1L);
-    if (fileFormat() != FileFormat.ORC) {
-      assertCounts(1, 1L, 0L, metrics);
-      assertCounts(2, 1L, 0L, metrics);
-      assertCounts(4, 3L, 0L, metrics);
-      assertCounts(6, 1L, 0L, metrics);
-    } else {
-      assertCounts(1, null, null, metrics);
-      assertCounts(2, null, null, metrics);
-      assertCounts(4, null, null, metrics);
-      assertCounts(6, null, null, metrics);
-    }
+    assertCounts(1, null, null, metrics);
+    assertCounts(2, null, null, metrics);
+    assertCounts(4, null, null, metrics);
+    assertCounts(6, null, null, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
     assertBounds(2, StringType.get(), null, null, metrics);
     assertBounds(4, IntegerType.get(), null, null, metrics);
@@ -676,9 +669,6 @@ public abstract class TestMetrics {
 
   @TestTemplate
   public void testSortedColumnMetrics() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue(); // created by table create
-
     SortOrder sortOrder =
         SortOrder.builderFor(SIMPLE_SCHEMA)
             .asc("booleanCol")
@@ -739,9 +729,6 @@ public abstract class TestMetrics {
 
   @TestTemplate
   public void testMetricsForSortedNestedStructFields() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue(); // created by table create
-
     SortOrder sortOrder =
         SortOrder.builderFor(NESTED_SCHEMA)
             .asc("nestedStructCol.longCol")
@@ -783,6 +770,10 @@ public abstract class TestMetrics {
       int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
     Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
+    if (null != lowerBound || null != upperBound) {
+      // if there's an expected lower/upper bound, then the original type should be available
+      assertThat(metrics.originalTypes().get(fieldId)).isEqualTo(type);
+    }
 
     if (lowerBounds.containsKey(fieldId)) {
       assertThat((Object) fromByteBuffer(type, lowerBounds.get(fieldId))).isEqualTo(lowerBound);

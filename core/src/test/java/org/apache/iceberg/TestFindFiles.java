@@ -21,8 +21,9 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -34,10 +35,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFindFiles extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testBasicBehavior() {
@@ -210,12 +207,35 @@ public class TestFindFiles extends TestBase {
     assertThat(files).hasSize(0);
   }
 
+  @TestTemplate
+  public void testPlanWith() {
+    table
+        .newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .commit();
+
+    ExecutorService executorService = Executors.newFixedThreadPool(2);
+    try {
+      Iterable<DataFile> files =
+          FindFiles.in(table)
+              .planWith(executorService)
+              .withMetadataMatching(Expressions.startsWith("file_path", "/path/to/data"))
+              .collect();
+
+      assertThat(pathSet(files)).isEqualTo(pathSet(FILE_A, FILE_B, FILE_C, FILE_D));
+    } finally {
+      executorService.shutdown();
+    }
+  }
+
   private Set<String> pathSet(DataFile... files) {
-    return Sets.newHashSet(
-        Iterables.transform(Arrays.asList(files), file -> file.path().toString()));
+    return Sets.newHashSet(Iterables.transform(Arrays.asList(files), ContentFile::location));
   }
 
   private Set<String> pathSet(Iterable<DataFile> files) {
-    return Sets.newHashSet(Iterables.transform(files, file -> file.path().toString()));
+    return Sets.newHashSet(Iterables.transform(files, ContentFile::location));
   }
 }

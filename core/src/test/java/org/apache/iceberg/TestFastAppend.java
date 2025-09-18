@@ -23,12 +23,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -37,10 +38,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFastAppend extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testAddManyFiles() {
@@ -59,6 +56,66 @@ public class TestFastAppend extends TestBase {
     append.commit();
 
     validateTableFiles(table, dataFiles);
+  }
+
+  @TestTemplate
+  public void testEmptyTableFastAppendFilesWithDifferentSpecs() {
+    assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
+
+    TableMetadata base = readMetadata();
+    assertThat(base.currentSnapshot()).as("Should not have a current snapshot").isNull();
+    assertThat(base.lastSequenceNumber()).as("Last sequence number should be 0").isEqualTo(0);
+
+    table.updateSpec().addField("id").commit();
+    PartitionSpec newSpec = table.spec();
+
+    assertThat(table.specs()).as("Table should have 2 specs").hasSize(2);
+
+    DataFile fileNewSpec =
+        DataFiles.builder(newSpec)
+            .withPath("/path/to/data-b.parquet")
+            .withPartitionPath("data_bucket=0/id=0")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    Snapshot committedSnapshot =
+        commit(
+            table,
+            table.newFastAppend().appendFile(FILE_A).appendFile(fileNewSpec),
+            SnapshotRef.MAIN_BRANCH);
+
+    assertThat(committedSnapshot).as("Should create a snapshot").isNotNull();
+    V1Assert.assertEquals(
+        "Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
+    V2Assert.assertEquals(
+        "Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
+
+    assertThat(committedSnapshot.allManifests(table.io()))
+        .as("Should create 2 manifests for initial write, 1 manifest per spec")
+        .hasSize(2);
+
+    long snapshotId = committedSnapshot.snapshotId();
+
+    ImmutableMap<Integer, DataFile> expectedFileBySpec =
+        ImmutableMap.of(SPEC.specId(), FILE_A, newSpec.specId(), fileNewSpec);
+
+    expectedFileBySpec.forEach(
+        (specId, expectedDataFile) -> {
+          ManifestFile manifestFileForSpecId =
+              committedSnapshot.allManifests(table.io()).stream()
+                  .filter(m -> Objects.equals(m.partitionSpecId(), specId))
+                  .findAny()
+                  .get();
+
+          validateManifest(
+              manifestFileForSpecId,
+              dataSeqs(1L),
+              fileSeqs(1L),
+              ids(snapshotId),
+              files(expectedDataFile),
+              statuses(Status.ADDED));
+        });
   }
 
   @TestTemplate

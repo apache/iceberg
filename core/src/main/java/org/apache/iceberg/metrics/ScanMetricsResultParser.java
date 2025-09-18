@@ -121,6 +121,11 @@ class ScanMetricsResultParser {
       CounterResultParser.toJson(metrics.positionalDeleteFiles(), gen);
     }
 
+    if (null != metrics.dvs()) {
+      gen.writeFieldName(ScanMetrics.DVS);
+      CounterResultParser.toJson(metrics.dvs(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -159,6 +164,7 @@ class ScanMetricsResultParser {
         .equalityDeleteFiles(CounterResultParser.fromJson(ScanMetrics.EQUALITY_DELETE_FILES, json))
         .positionalDeleteFiles(
             CounterResultParser.fromJson(ScanMetrics.POSITIONAL_DELETE_FILES, json))
+        .dvs(CounterResultParser.fromJson(ScanMetrics.DVS, json))
         .build();
   }
 }

@@ -50,7 +50,7 @@ public class TestSplitScan {
           required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
 
   private Table table;
-  private File tableLocation;
+  @TempDir private File tableLocation;
   private List<Record> expectedRecords;
 
   @Parameters(name = "fileFormat = {0}")
@@ -59,11 +59,9 @@ public class TestSplitScan {
   }
 
   @Parameter private FileFormat format;
-  @TempDir private File tempDir;
 
   @BeforeEach
   public void before() throws IOException {
-    tableLocation = java.nio.file.Files.createTempDirectory(tempDir.toPath(), "table").toFile();
     setupTable();
   }
 
@@ -100,8 +98,7 @@ public class TestSplitScan {
   }
 
   private File writeToFile(List<Record> records, FileFormat fileFormat) throws IOException {
-    File file = File.createTempFile("junit", null, tempDir);
-    assertThat(file.delete()).isTrue();
+    File file = new File(tableLocation, "junit" + System.nanoTime());
 
     GenericAppenderFactory factory =
         new GenericAppenderFactory(SCHEMA)

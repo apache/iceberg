@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -72,9 +71,7 @@ public class TestStreamingReaderOperator extends TestBase {
   @BeforeEach
   @Override
   public void setupTable() throws IOException {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     this.metadataDir = new File(tableDir, "metadata");
-    assertThat(tableDir.delete()).isTrue();
 
     // Construct the iceberg table.
     table = create(SCHEMA, PartitionSpec.unpartitioned());

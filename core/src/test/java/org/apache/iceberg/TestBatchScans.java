@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
@@ -32,17 +31,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestBatchScans extends TestBase {
 
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
-
   @TestTemplate
   public void testDataTableScan() {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     if (formatVersion > 1) {
-      table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+      table.newRowDelta().addDeletes(fileADeletes()).commit();
     }
 
     BatchScan scan = table.newBatchScan();
@@ -51,12 +45,12 @@ public class TestBatchScans extends TestBase {
     assertThat(tasks).hasSize(2);
 
     FileScanTask t1 = tasks.get(0).asFileScanTask();
-    assertThat(FILE_A.path()).as("Task file must match").isEqualTo(t1.file().path());
+    assertThat(FILE_A.location()).as("Task file must match").isEqualTo(t1.file().location());
     V1Assert.assertEquals("Task deletes size must match", 0, t1.deletes().size());
     V2Assert.assertEquals("Task deletes size must match", 1, t1.deletes().size());
 
     FileScanTask t2 = tasks.get(1).asFileScanTask();
-    assertThat(FILE_B.path()).as("Task file must match").isEqualTo(t2.file().path());
+    assertThat(FILE_B.location()).as("Task file must match").isEqualTo(t2.file().location());
     assertThat(t2.deletes()).as("Task deletes size must match").hasSize(0);
 
     List<ScanTaskGroup<ScanTask>> taskGroups = planTaskGroups(scan);
@@ -88,10 +82,10 @@ public class TestBatchScans extends TestBase {
     assertThat(tasks).as("Expected 2 tasks").hasSize(2);
 
     FileScanTask t1 = tasks.get(0).asFileScanTask();
-    assertThat(manifestPaths).first().as("Task file must match").isEqualTo(t1.file().path());
+    assertThat(manifestPaths).first().as("Task file must match").isEqualTo(t1.file().location());
 
     FileScanTask t2 = tasks.get(1).asFileScanTask();
-    assertThat(manifestPaths).element(1).as("Task file must match").isEqualTo(t2.file().path());
+    assertThat(manifestPaths).element(1).as("Task file must match").isEqualTo(t2.file().location());
 
     List<ScanTaskGroup<ScanTask>> taskGroups = planTaskGroups(scan);
     assertThat(taskGroups).as("Expected 1 task group").hasSize(1);
@@ -121,6 +115,6 @@ public class TestBatchScans extends TestBase {
   }
 
   private String path(ScanTask task) {
-    return ((ContentScanTask<?>) task).file().path().toString();
+    return ((ContentScanTask<?>) task).file().location().toString();
   }
 }

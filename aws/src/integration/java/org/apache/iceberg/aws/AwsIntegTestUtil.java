@@ -46,6 +46,17 @@ public class AwsIntegTestUtil {
   private static final Logger LOG = LoggerFactory.getLogger(AwsIntegTestUtil.class);
   private static final int BATCH_DELETION_SIZE = 1000;
 
+  public static final String AWS_ACCESS_KEY_ID = "AWS_ACCESS_KEY_ID";
+  public static final String AWS_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
+  public static final String AWS_SESSION_TOKEN = "AWS_SESSION_TOKEN";
+  public static final String AWS_REGION = "AWS_REGION";
+  public static final String AWS_CROSS_REGION = "AWS_CROSS_REGION";
+  public static final String AWS_TEST_BUCKET = "AWS_TEST_BUCKET";
+  public static final String AWS_TEST_CROSS_REGION_BUCKET = "AWS_TEST_CROSS_REGION_BUCKET";
+  public static final String AWS_TEST_ACCOUNT_ID = "AWS_TEST_ACCOUNT_ID";
+  public static final String AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS =
+      "AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS";
+
   private AwsIntegTestUtil() {}
 
   /**
@@ -54,7 +65,7 @@ public class AwsIntegTestUtil {
    * @return region
    */
   public static String testRegion() {
-    return System.getenv("AWS_REGION");
+    return System.getenv(AWS_REGION);
   }
 
   /**
@@ -63,10 +74,9 @@ public class AwsIntegTestUtil {
    * @return region
    */
   public static String testCrossRegion() {
-    String crossRegion = System.getenv("AWS_CROSS_REGION");
+    String crossRegion = System.getenv(AWS_CROSS_REGION);
     Preconditions.checkArgument(
-        !testRegion().equals(crossRegion),
-        "AWS_REGION should not be equal to " + "AWS_CROSS_REGION");
+        !testRegion().equals(crossRegion), "AWS_REGION should not be equal to " + AWS_CROSS_REGION);
     return crossRegion;
   }
 
@@ -76,7 +86,7 @@ public class AwsIntegTestUtil {
    * @return bucket name
    */
   public static String testBucketName() {
-    return System.getenv("AWS_TEST_BUCKET");
+    return System.getenv(AWS_TEST_BUCKET);
   }
 
   /**
@@ -86,7 +96,7 @@ public class AwsIntegTestUtil {
    * @return bucket name
    */
   public static String testCrossRegionBucketName() {
-    return System.getenv("AWS_TEST_CROSS_REGION_BUCKET");
+    return System.getenv(AWS_TEST_CROSS_REGION_BUCKET);
   }
 
   /**
@@ -95,7 +105,7 @@ public class AwsIntegTestUtil {
    * @return account id
    */
   public static String testAccountId() {
-    return System.getenv("AWS_TEST_ACCOUNT_ID");
+    return System.getenv(AWS_TEST_ACCOUNT_ID);
   }
 
   /**
@@ -106,7 +116,7 @@ public class AwsIntegTestUtil {
    * @return The alias of S3 multi region access point route to the default S3 bucket
    */
   public static String testMultiRegionAccessPointAlias() {
-    return System.getenv("AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS");
+    return System.getenv(AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS);
   }
 
   public static void cleanS3GeneralPurposeBucket(S3Client s3, String bucketName, String prefix) {

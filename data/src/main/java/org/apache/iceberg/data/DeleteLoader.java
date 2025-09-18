@@ -35,9 +35,10 @@ public interface DeleteLoader {
   StructLikeSet loadEqualityDeletes(Iterable<DeleteFile> deleteFiles, Schema projection);
 
   /**
-   * Loads the content of position delete files for a given data file path into a position index.
+   * Loads the content of a deletion vector or position delete files for a given data file path into
+   * a position index.
    *
-   * @param deleteFiles position delete files
+   * @param deleteFiles a deletion vector or position delete files
    * @param filePath the data file path for which to load deletes
    * @return a position delete index for the provided data file path
    */

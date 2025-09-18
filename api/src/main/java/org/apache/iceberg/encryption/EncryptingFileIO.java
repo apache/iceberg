@@ -93,10 +93,9 @@ public class EncryptingFileIO implements FileIO, Serializable {
 
   private InputFile newInputFile(ContentFile<?> file) {
     if (file.keyMetadata() != null) {
-      return newDecryptingInputFile(
-          file.path().toString(), file.fileSizeInBytes(), file.keyMetadata());
+      return newDecryptingInputFile(file.location(), file.fileSizeInBytes(), file.keyMetadata());
     } else {
-      return newInputFile(file.path().toString(), file.fileSizeInBytes());
+      return newInputFile(file.location(), file.fileSizeInBytes());
     }
   }
 
@@ -148,7 +147,7 @@ public class EncryptingFileIO implements FileIO, Serializable {
   }
 
   private SimpleEncryptedInputFile wrap(ContentFile<?> file) {
-    InputFile encryptedInputFile = io.newInputFile(file.path().toString(), file.fileSizeInBytes());
+    InputFile encryptedInputFile = io.newInputFile(file.location(), file.fileSizeInBytes());
     return new SimpleEncryptedInputFile(encryptedInputFile, toKeyMetadata(file.keyMetadata()));
   }
 

@@ -24,6 +24,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -48,6 +51,8 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -156,6 +161,33 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       // save the evaluated filter for equals/hashCode
       runtimeFilterExpressions.add(runtimeFilterExpr);
     }
+  }
+
+  protected Map<String, DeleteFileSet> rewritableDeletes(boolean forDVs) {
+    Map<String, DeleteFileSet> rewritableDeletes = Maps.newHashMap();
+
+    for (ScanTask task : tasks()) {
+      FileScanTask fileScanTask = task.asFileScanTask();
+      for (DeleteFile deleteFile : fileScanTask.deletes()) {
+        if (shouldRewrite(deleteFile, forDVs)) {
+          rewritableDeletes
+              .computeIfAbsent(fileScanTask.file().location(), ignored -> DeleteFileSet.create())
+              .add(deleteFile);
+        }
+      }
+    }
+
+    return rewritableDeletes;
+  }
+
+  // for DVs all position deletes must be rewritten
+  // for position deletes, only file-scoped deletes must be rewritten
+  private boolean shouldRewrite(DeleteFile deleteFile, boolean forDVs) {
+    if (forDVs) {
+      return deleteFile.content() != FileContent.EQUALITY_DELETES;
+    }
+
+    return ContentFileUtil.isFileScoped(deleteFile);
   }
 
   // at this moment, Spark can only pass IN filters for a single attribute

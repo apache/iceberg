@@ -33,6 +33,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
   /**
+   * Adapts an Iterable to CloseableIterable using a no-op close if it is not Closeable.
+   *
+   * @param iterable an Iterable
+   * @return a CloseableIterable that closes Iterable if it is Closeable
+   */
+  static <E> CloseableIterable<E> of(Iterable<E> iterable) {
+    if (iterable instanceof CloseableIterable) {
+      return (CloseableIterable<E>) iterable;
+    } else if (iterable instanceof Closeable) {
+      Closeable asCloseable = (Closeable) iterable;
+      return combine(iterable, asCloseable);
+    } else {
+      return withNoopClose(iterable);
+    }
+  }
+
+  /**
    * Returns a closeable iterator over elements of type {@code T}.
    *
    * @return an {@link CloseableIterator}.

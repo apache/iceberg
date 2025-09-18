@@ -54,7 +54,7 @@ public class TestManifestReader extends TestBase {
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       assertThat(entry.status()).isEqualTo(Status.EXISTING);
-      assertThat(entry.file().path()).isEqualTo(FILE_A.path());
+      assertThat(entry.file().location()).isEqualTo(FILE_A.location());
       assertThat(entry.snapshotId()).isEqualTo(1000L);
     }
   }
@@ -130,9 +130,6 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(17))
-            .as("Position from field index should match")
-            .isEqualTo(expectedPos);
         expectedPos += 1;
       }
     }
@@ -158,9 +155,6 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(17))
-            .as("Position from field index should match")
-            .isEqualTo(expectedPos);
         expectedPos += 1;
       }
     }
@@ -177,6 +171,48 @@ public class TestManifestReader extends TestBase {
         ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
       for (DeleteFile file : reader) {
         assertThat(file.manifestLocation()).isEqualTo(manifest.path());
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testDeleteFilesWithReferences() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    DeleteFile deleteFile1 = newDeleteFileWithRef(FILE_A);
+    DeleteFile deleteFile2 = newDeleteFileWithRef(FILE_B);
+    ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, deleteFile1, deleteFile2);
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs())) {
+      for (DeleteFile deleteFile : reader) {
+        if (deleteFile.location().equals(deleteFile1.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_A.location());
+        } else {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_B.location());
+        }
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testDVs() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    DeleteFile dv1 = newDV(FILE_A);
+    DeleteFile dv2 = newDV(FILE_B);
+    ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, dv1, dv2);
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs())) {
+      for (DeleteFile dv : reader) {
+        if (dv.location().equals(dv1.location())) {
+          assertThat(dv.location()).isEqualTo(dv1.location());
+          assertThat(dv.referencedDataFile()).isEqualTo(FILE_A.location());
+          assertThat(dv.contentOffset()).isEqualTo(dv1.contentOffset());
+          assertThat(dv.contentSizeInBytes()).isEqualTo(dv1.contentSizeInBytes());
+        } else {
+          assertThat(dv.location()).isEqualTo(dv2.location());
+          assertThat(dv.referencedDataFile()).isEqualTo(FILE_B.location());
+          assertThat(dv.contentOffset()).isEqualTo(dv2.contentOffset());
+          assertThat(dv.contentSizeInBytes()).isEqualTo(dv2.contentSizeInBytes());
+        }
       }
     }
   }

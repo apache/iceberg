@@ -19,13 +19,17 @@
 package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.util.List;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -38,7 +42,9 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   @BeforeEach
   public void createTable() {
@@ -243,5 +249,136 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
             row(3L, "c", 120000.34F),
             row(4L, "d", 140000.56F)),
         sql("select * from %s order by id", tableName));
+  }
+
+  @TestTemplate
+  public void testMergeSchemaIgnoreCastingLongToInt() throws Exception {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> bigintDF =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
+
+    bigintDF.writeTo(tableName).append();
+
+    assertEquals(
+        "Should have initial rows with long column",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("select * from %s order by id", tableName));
+
+    Dataset<Row> intDF =
+        jsonToDF(
+            "id int, data string",
+            "{ \"id\": 3, \"data\": \"c\" }",
+            "{ \"id\": 4, \"data\": \"d\" }");
+
+    // merge-schema=true on writes allows table schema updates when incoming data has schema changes
+    assertThatCode(() -> intDF.writeTo(tableName).option("merge-schema", "true").append())
+        .doesNotThrowAnyException();
+
+    assertEquals(
+        "Should include new rows with unchanged long column type",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d")),
+        sql("select * from %s order by id", tableName));
+
+    // verify the column type did not change
+    Types.NestedField idField =
+        Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
+    assertThat(idField.type().typeId()).isEqualTo(Type.TypeID.LONG);
+  }
+
+  @TestTemplate
+  public void testMergeSchemaIgnoreCastingDoubleToFloat() throws Exception {
+    removeTables();
+    sql("CREATE TABLE %s (id double, data string) USING iceberg", tableName);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> doubleDF =
+        jsonToDF(
+            "id double, data string",
+            "{ \"id\": 1.0, \"data\": \"a\" }",
+            "{ \"id\": 2.0, \"data\": \"b\" }");
+
+    doubleDF.writeTo(tableName).append();
+
+    assertEquals(
+        "Should have initial rows with double column",
+        ImmutableList.of(row(1.0, "a"), row(2.0, "b")),
+        sql("select * from %s order by id", tableName));
+
+    Dataset<Row> floatDF =
+        jsonToDF(
+            "id float, data string",
+            "{ \"id\": 3.0, \"data\": \"c\" }",
+            "{ \"id\": 4.0, \"data\": \"d\" }");
+
+    // merge-schema=true on writes allows table schema updates when incoming data has schema changes
+    assertThatCode(() -> floatDF.writeTo(tableName).option("merge-schema", "true").append())
+        .doesNotThrowAnyException();
+
+    assertEquals(
+        "Should include new rows with unchanged double column type",
+        ImmutableList.of(row(1.0, "a"), row(2.0, "b"), row(3.0, "c"), row(4.0, "d")),
+        sql("select * from %s order by id", tableName));
+
+    // verify the column type did not change
+    Types.NestedField idField =
+        Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
+    assertThat(idField.type().typeId()).isEqualTo(Type.TypeID.DOUBLE);
+  }
+
+  @TestTemplate
+  public void testMergeSchemaIgnoreCastingDecimalToDecimalWithNarrowerPrecision() throws Exception {
+    removeTables();
+    sql("CREATE TABLE %s (id decimal(6,2), data string) USING iceberg", tableName);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> decimalPrecision6DF =
+        jsonToDF(
+            "id decimal(6,2), data string",
+            "{ \"id\": 1.0, \"data\": \"a\" }",
+            "{ \"id\": 2.0, \"data\": \"b\" }");
+
+    decimalPrecision6DF.writeTo(tableName).append();
+
+    assertEquals(
+        "Should have initial rows with decimal column with precision 6",
+        ImmutableList.of(row(new BigDecimal("1.00"), "a"), row(new BigDecimal("2.00"), "b")),
+        sql("select * from %s order by id", tableName));
+
+    Dataset<Row> decimalPrecision4DF =
+        jsonToDF(
+            "id decimal(4,2), data string",
+            "{ \"id\": 3.0, \"data\": \"c\" }",
+            "{ \"id\": 4.0, \"data\": \"d\" }");
+
+    // merge-schema=true on writes allows table schema updates when incoming data has schema changes
+    assertThatCode(
+            () -> decimalPrecision4DF.writeTo(tableName).option("merge-schema", "true").append())
+        .doesNotThrowAnyException();
+
+    assertEquals(
+        "Should include new rows with unchanged decimal precision",
+        ImmutableList.of(
+            row(new BigDecimal("1.00"), "a"),
+            row(new BigDecimal("2.00"), "b"),
+            row(new BigDecimal("3.00"), "c"),
+            row(new BigDecimal("4.00"), "d")),
+        sql("select * from %s order by id", tableName));
+
+    // verify the decimal column precision did not change
+    Type idFieldType =
+        Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id").type();
+    assertThat(idFieldType.typeId()).isEqualTo(Type.TypeID.DECIMAL);
+    Types.DecimalType decimalType = (Types.DecimalType) idFieldType;
+    assertThat(decimalType.precision()).isEqualTo(6);
   }
 }

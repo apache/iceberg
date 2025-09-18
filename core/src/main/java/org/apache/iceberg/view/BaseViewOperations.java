@@ -163,9 +163,15 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
   }
 
   private String metadataFileLocation(ViewMetadata metadata, String filename) {
-    return String.format(
-        "%s/%s/%s",
-        LocationUtil.stripTrailingSlash(metadata.location()), METADATA_FOLDER_NAME, filename);
+    String metadataLocation = metadata.properties().get(ViewProperties.WRITE_METADATA_LOCATION);
+
+    if (metadataLocation != null) {
+      return String.format("%s/%s", LocationUtil.stripTrailingSlash(metadataLocation), filename);
+    } else {
+      return String.format(
+          "%s/%s/%s",
+          LocationUtil.stripTrailingSlash(metadata.location()), METADATA_FOLDER_NAME, filename);
+    }
   }
 
   protected void refreshFromMetadataLocation(String newLocation) {

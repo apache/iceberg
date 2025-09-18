@@ -52,6 +52,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(':iceberg-data')
@@ -60,14 +62,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-arrow')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
     implementation("org.apache.datasketches:datasketches-java:${libs.versions.datasketches.get()}")
-    if (scalaVersion == '2.12') {
-      // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
-      implementation 'org.scala-lang:scala-library:2.12.18'
-    }
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive34.get()}") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark34.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -76,6 +74,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'org.roaringbitmap'
     }
+
+    compileOnly "org.apache.datafusion:comet-spark-spark${sparkMajorVersion}_${scalaVersion}:${libs.versions.comet.get()}"
 
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
@@ -96,7 +96,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     implementation libs.caffeine
 
-    testImplementation(libs.hadoop2.minicluster) {
+    testImplementation(libs.hadoop3.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
       // to make sure netty libs only come from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
@@ -107,9 +107,13 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
+      transitive = false
+    }
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
-    testImplementation libs.junit.vintage.engine
+    // runtime dependencies for running REST Catalog based integration test
+    testRuntimeOnly libs.jetty.servlet
   }
 
   test {
@@ -118,7 +122,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
   tasks.withType(Test) {
     // Vectorized reads need more memory
-    maxHeapSize '2560m'
+    maxHeapSize '3160m'
   }
 }
 
@@ -143,10 +147,6 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
   dependencies {
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
-    if (scalaVersion == '2.12') {
-      // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
-      implementation 'org.scala-lang:scala-library:2.12.18'
-    }
     implementation libs.roaringbitmap
 
     compileOnly "org.scala-lang:scala-library"
@@ -155,7 +155,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
     compileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive34.get()}") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark34.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -174,14 +174,25 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
+    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
+      transitive = false
+    }
+    // runtime dependencies for running REST Catalog based integration test
+    testRuntimeOnly libs.jetty.servlet
+    testRuntimeOnly libs.sqlite.jdbc
 
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
-    testImplementation libs.junit.vintage.engine
+    testImplementation libs.awaitility
+    testImplementation "org.apache.datafusion:comet-spark-spark${sparkMajorVersion}_${scalaVersion}:${libs.versions.comet.get()}"
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly libs.antlr.runtime
     antlr libs.antlr.antlr4
+  }
+
+  test {
+    useJUnitPlatform()
   }
 
   generateGrammarSource {
@@ -244,14 +255,26 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
-    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive34.get()}"
-    integrationImplementation libs.junit.vintage.engine
+    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark34.get()}"
+    integrationImplementation libs.junit.jupiter
+    integrationImplementation libs.junit.platform.launcher
     integrationImplementation libs.slf4j.simple
     integrationImplementation libs.assertj.core
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     integrationImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
     integrationImplementation project(path: ":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
+
+    // runtime dependencies for running Hive Catalog based integration test
+    integrationRuntimeOnly project(':iceberg-hive-metastore')
+    // runtime dependencies for running REST Catalog based integration test
+    integrationRuntimeOnly project(path: ':iceberg-core', configuration: 'testArtifacts')
+    integrationRuntimeOnly (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
+      transitive = false
+    }
+    integrationRuntimeOnly libs.jetty.servlet
+    integrationRuntimeOnly libs.sqlite.jdbc
+
     // Not allowed on our classpath, only the runtime jar is allowed
     integrationCompileOnly project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
     integrationCompileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
@@ -296,6 +319,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
   }
 
   task integrationTest(type: Test) {
+    useJUnitPlatform()
     description = "Test Spark3 Runtime Jar against Spark ${sparkMajorVersion}"
     group = "verification"
     jvmArgs += project.property('extraJvmArgs')

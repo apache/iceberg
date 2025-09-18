@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -38,14 +36,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class MetadataTableScanTestBase extends TestBase {
 
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
-
   protected Set<String> scannedPaths(TableScan scan) {
     return StreamSupport.stream(scan.planFiles().spliterator(), false)
-        .map(t -> t.file().path().toString())
+        .map(t -> t.file().location().toString())
         .collect(Collectors.toSet());
   }
 
@@ -86,7 +79,7 @@ public abstract class MetadataTableScanTestBase extends TestBase {
   protected void validatePartition(
       CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries,
       int position,
-      int partitionValue) {
+      Object partitionValue) {
     assertThat(entries)
         .as("File scan tasks do not include correct file")
         .anyMatch(

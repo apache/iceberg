@@ -52,6 +52,8 @@ public class PositionDeletesTable extends BaseMetadataTable {
   public static final String PARTITION = "partition";
   public static final String SPEC_ID = "spec_id";
   public static final String DELETE_FILE_PATH = "delete_file_path";
+  public static final String CONTENT_OFFSET = "content_offset";
+  public static final String CONTENT_SIZE_IN_BYTES = "content_size_in_bytes";
 
   private final Schema schema;
   private final int defaultSpecId;
@@ -110,31 +112,54 @@ public class PositionDeletesTable extends BaseMetadataTable {
   }
 
   private Schema calculateSchema() {
+    int formatVersion = TableUtil.formatVersion(table());
     Types.StructType partitionType = Partitioning.partitionType(table());
-    List<Types.NestedField> columns =
-        ImmutableList.of(
-            MetadataColumns.DELETE_FILE_PATH,
-            MetadataColumns.DELETE_FILE_POS,
-            Types.NestedField.optional(
-                MetadataColumns.DELETE_FILE_ROW_FIELD_ID,
-                MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
-                table().schema().asStruct(),
-                MetadataColumns.DELETE_FILE_ROW_DOC),
-            Types.NestedField.required(
-                MetadataColumns.PARTITION_COLUMN_ID,
-                PARTITION,
-                partitionType,
-                "Partition that position delete row belongs to"),
-            Types.NestedField.required(
-                MetadataColumns.SPEC_ID_COLUMN_ID,
-                SPEC_ID,
-                Types.IntegerType.get(),
-                MetadataColumns.SPEC_ID_COLUMN_DOC),
-            Types.NestedField.required(
-                MetadataColumns.FILE_PATH_COLUMN_ID,
-                DELETE_FILE_PATH,
-                Types.StringType.get(),
-                MetadataColumns.FILE_PATH_COLUMN_DOC));
+    ImmutableList.Builder<Types.NestedField> builder =
+        ImmutableList.<Types.NestedField>builder()
+            .add(MetadataColumns.DELETE_FILE_PATH)
+            .add(MetadataColumns.DELETE_FILE_POS)
+            .add(
+                Types.NestedField.optional(
+                    MetadataColumns.DELETE_FILE_ROW_FIELD_ID,
+                    MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
+                    table().schema().asStruct(),
+                    MetadataColumns.DELETE_FILE_ROW_DOC))
+            .add(
+                Types.NestedField.required(
+                    MetadataColumns.PARTITION_COLUMN_ID,
+                    PARTITION,
+                    partitionType,
+                    "Partition that position delete row belongs to"))
+            .add(
+                Types.NestedField.required(
+                    MetadataColumns.SPEC_ID_COLUMN_ID,
+                    SPEC_ID,
+                    Types.IntegerType.get(),
+                    MetadataColumns.SPEC_ID_COLUMN_DOC))
+            .add(
+                Types.NestedField.required(
+                    MetadataColumns.FILE_PATH_COLUMN_ID,
+                    DELETE_FILE_PATH,
+                    Types.StringType.get(),
+                    MetadataColumns.FILE_PATH_COLUMN_DOC));
+
+    if (formatVersion >= 3) {
+      builder
+          .add(
+              Types.NestedField.optional(
+                  MetadataColumns.CONTENT_OFFSET_COLUMN_ID,
+                  CONTENT_OFFSET,
+                  Types.LongType.get(),
+                  "The offset in the DV where the content starts"))
+          .add(
+              Types.NestedField.optional(
+                  MetadataColumns.CONTENT_SIZE_IN_BYTES_COLUMN_ID,
+                  CONTENT_SIZE_IN_BYTES,
+                  Types.LongType.get(),
+                  "The length in bytes of the DV blob"));
+    }
+
+    List<Types.NestedField> columns = builder.build();
 
     // Calculate used ids (for de-conflict)
     Set<Integer> currentlyUsedIds =

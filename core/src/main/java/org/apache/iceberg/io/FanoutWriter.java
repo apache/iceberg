@@ -25,6 +25,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructLikeUtil;
 
 /**
  * A writer capable of writing to multiple specs and partitions that keeps files for each seen
@@ -59,7 +60,7 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
 
     if (writer == null) {
       // copy the partition key as the key object may be reused
-      StructLike copiedPartition = StructCopy.copy(partition);
+      StructLike copiedPartition = StructLikeUtil.copy(partition);
       writer = newWriter(spec, copiedPartition);
       specWriters.put(copiedPartition, writer);
     }

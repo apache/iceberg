@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -64,14 +65,6 @@ class RemoveSnapshots implements ExpireSnapshots {
   private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE =
       MoreExecutors.newDirectExecutorService();
 
-  private final Consumer<String> defaultDelete =
-      new Consumer<String>() {
-        @Override
-        public void accept(String file) {
-          ops.io().deleteFile(file);
-        }
-      };
-
   private final TableOperations ops;
   private final Set<Long> idsToRemove = Sets.newHashSet();
   private final long now;
@@ -80,11 +73,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   private TableMetadata base;
   private long defaultExpireOlderThan;
   private int defaultMinNumSnapshots;
-  private Consumer<String> deleteFunc = defaultDelete;
+  private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
-  private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
+  private ExecutorService planExecutorService;
   private Boolean incrementalCleanup;
   private boolean specifiedSnapshotId = false;
+  private boolean cleanExpiredMetadata = false;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -159,6 +153,20 @@ class RemoveSnapshots implements ExpireSnapshots {
     return this;
   }
 
+  protected ExecutorService planExecutorService() {
+    if (planExecutorService == null) {
+      this.planExecutorService = ThreadPools.getWorkerPool();
+    }
+
+    return planExecutorService;
+  }
+
+  @Override
+  public ExpireSnapshots cleanExpiredMetadata(boolean clean) {
+    this.cleanExpiredMetadata = clean;
+    return this;
+  }
+
   @Override
   public List<Snapshot> apply() {
     TableMetadata updated = internalApply();
@@ -170,7 +178,9 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private TableMetadata internalApply() {
     this.base = ops.refresh();
-    if (base.snapshots().isEmpty()) {
+    // attempt to clean expired metadata even if there are no snapshots to expire
+    // table metadata builder takes care of the case when this should actually be a no-op
+    if (base.snapshots().isEmpty() && !cleanExpiredMetadata) {
       return base;
     }
 
@@ -208,6 +218,38 @@ class RemoveSnapshots implements ExpireSnapshots {
         .filter(snapshot -> !idsToRetain.contains(snapshot))
         .forEach(idsToRemove::add);
     updatedMetaBuilder.removeSnapshots(idsToRemove);
+
+    if (cleanExpiredMetadata) {
+      Set<Integer> reachableSpecs = Sets.newConcurrentHashSet();
+      reachableSpecs.add(base.defaultSpecId());
+      Set<Integer> reachableSchemas = Sets.newConcurrentHashSet();
+      reachableSchemas.add(base.currentSchemaId());
+
+      Tasks.foreach(idsToRetain)
+          .executeWith(planExecutorService())
+          .run(
+              snapshotId -> {
+                Snapshot snapshot = base.snapshot(snapshotId);
+                snapshot.allManifests(ops.io()).stream()
+                    .map(ManifestFile::partitionSpecId)
+                    .forEach(reachableSpecs::add);
+                reachableSchemas.add(snapshot.schemaId());
+              });
+
+      Set<Integer> specsToRemove =
+          base.specs().stream()
+              .map(PartitionSpec::specId)
+              .filter(specId -> !reachableSpecs.contains(specId))
+              .collect(Collectors.toSet());
+      updatedMetaBuilder.removeSpecs(specsToRemove);
+
+      Set<Integer> schemasToRemove =
+          base.schemas().stream()
+              .map(Schema::schemaId)
+              .filter(schemaId -> !reachableSchemas.contains(schemaId))
+              .collect(Collectors.toSet());
+      updatedMetaBuilder.removeSchemas(schemasToRemove);
+    }
 
     return updatedMetaBuilder.build();
   }
@@ -310,7 +352,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             });
     LOG.info("Committed snapshot changes");
 
-    if (cleanExpiredFiles) {
+    if (cleanExpiredFiles && !base.snapshots().isEmpty()) {
       cleanExpiredSnapshots();
     }
   }
@@ -323,17 +365,13 @@ class RemoveSnapshots implements ExpireSnapshots {
   private void cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
 
-    if (specifiedSnapshotId) {
-      if (incrementalCleanup != null && incrementalCleanup) {
-        throw new UnsupportedOperationException(
-            "Cannot clean files incrementally when snapshot IDs are specified");
-      }
-
-      incrementalCleanup = false;
-    }
-
-    if (incrementalCleanup == null) {
-      incrementalCleanup = current.refs().size() == 1;
+    if (Boolean.TRUE.equals(incrementalCleanup)) {
+      validateCleanupCanBeIncremental(current);
+    } else if (incrementalCleanup == null) {
+      incrementalCleanup =
+          !specifiedSnapshotId
+              && !hasRemovedNonMainAncestors(base, current)
+              && !hasNonMainSnapshots(current);
     }
 
     LOG.info(
@@ -342,10 +380,73 @@ class RemoveSnapshots implements ExpireSnapshots {
     FileCleanupStrategy cleanupStrategy =
         incrementalCleanup
             ? new IncrementalFileCleanup(
-                ops.io(), deleteExecutorService, planExecutorService, deleteFunc)
+                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc)
             : new ReachableFileCleanup(
-                ops.io(), deleteExecutorService, planExecutorService, deleteFunc);
+                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc);
 
     cleanupStrategy.cleanFiles(base, current);
+  }
+
+  private void validateCleanupCanBeIncremental(TableMetadata current) {
+    if (specifiedSnapshotId) {
+      throw new UnsupportedOperationException(
+          "Cannot clean files incrementally when snapshot IDs are specified");
+    }
+
+    if (hasRemovedNonMainAncestors(base, current)) {
+      throw new UnsupportedOperationException(
+          "Cannot incrementally clean files when snapshots outside of main ancestry were removed");
+    }
+
+    if (hasNonMainSnapshots(current)) {
+      throw new UnsupportedOperationException(
+          "Cannot incrementally clean files when there are snapshots outside of main");
+    }
+  }
+
+  private boolean hasRemovedNonMainAncestors(
+      TableMetadata beforeExpiration, TableMetadata afterExpiration) {
+    Set<Long> mainAncestors = mainAncestors(beforeExpiration);
+    for (Snapshot snapshotBeforeExpiration : beforeExpiration.snapshots()) {
+      boolean removedSnapshot =
+          afterExpiration.snapshot(snapshotBeforeExpiration.snapshotId()) == null;
+      boolean snapshotInMainAncestry =
+          mainAncestors.contains(snapshotBeforeExpiration.snapshotId());
+      if (removedSnapshot && !snapshotInMainAncestry) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private boolean hasNonMainSnapshots(TableMetadata metadata) {
+    if (metadata.currentSnapshot() == null) {
+      return !metadata.snapshots().isEmpty();
+    }
+
+    Set<Long> mainAncestors = mainAncestors(metadata);
+
+    for (Snapshot snapshot : metadata.snapshots()) {
+      if (!mainAncestors.contains(snapshot.snapshotId())) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private Set<Long> mainAncestors(TableMetadata metadata) {
+    Set<Long> ancestors = Sets.newHashSet();
+    if (metadata.currentSnapshot() == null) {
+      return ancestors;
+    }
+
+    for (Snapshot ancestor :
+        SnapshotUtil.ancestorsOf(metadata.currentSnapshot().snapshotId(), metadata::snapshot)) {
+      ancestors.add(ancestor.snapshotId());
+    }
+
+    return ancestors;
   }
 }

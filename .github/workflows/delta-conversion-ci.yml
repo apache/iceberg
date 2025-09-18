@@ -31,13 +31,14 @@ on:
     paths-ignore:
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/workflows/api-binary-compatibility.yml'
+      - '.github/workflows/docs-ci.yml'
       - '.github/workflows/flink-ci.yml'
       - '.github/workflows/hive-ci.yml'
       - '.github/workflows/java-ci.yml'
       - '.github/workflows/jmh-benchmarks-ci.yml'
       - '.github/workflows/kafka-connect-ci.yml'
       - '.github/workflows/labeler.yml'
-      - '.github/workflows/licence-check.yml'
+      - '.github/workflows/license-check.yml'
       - '.github/workflows/open-api.yml'
       - '.github/workflows/publish-snapshot.yml'
       - '.github/workflows/recurring-jmh-benchmarks.yml'
@@ -45,24 +46,21 @@ on:
       - '.github/workflows/spark-ci.yml'
       - '.github/workflows/stale.yml'
       - '.gitignore'
-      - '.asf.yml'
+      - '.asf.yaml'
       - 'dev/**'
+      - 'docker/**'
       - 'mr/**'
-      - 'hive3/**'
-      - 'hive3-orc-bundle/**'
-      - 'hive-runtime/**'
       - 'flink/**'
       - 'kafka-connect/**'
-      - 'pig/**'
       - 'docs/**'
       - 'site/**'
       - 'open-api/**'
       - 'format/**'
       - '.gitattributes'
-      - 'README.md'
+      - '**/README.md'
       - 'CONTRIBUTING.md'
-      - 'LICENSE'
-      - 'NOTICE'
+      - '**/LICENSE'
+      - '**/NOTICE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -90,7 +88,7 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - run: ./gradlew -DsparkVersions=3.5 -DscalaVersion=2.12 -DhiveVersions= -DkafkaVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
+      - run: ./gradlew -DsparkVersions=3.5 -DscalaVersion=2.12 -DkafkaVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -119,7 +117,7 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - run: ./gradlew -DsparkVersions=3.5 -DscalaVersion=2.13 -DhiveVersions= -DkafkaVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
+      - run: ./gradlew -DsparkVersions=3.5 -DscalaVersion=2.13 -DkafkaVersions= -DflinkVersions= :iceberg-delta-lake:check -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -27,19 +27,16 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestIcebergSourceHadoopTables extends TestIcebergSourceTablesBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-
-  File tableDir = null;
+  @TempDir private File tableDir;
   String tableLocation = null;
 
   @BeforeEach
-  public void setupTable() throws Exception {
-    this.tableDir = temp.toFile();
-    tableDir.delete(); // created by table create
-
+  public void setupTable() {
     this.tableLocation = tableDir.toURI().toString();
   }
 

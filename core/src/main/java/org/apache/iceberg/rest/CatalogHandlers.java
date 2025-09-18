@@ -111,7 +111,8 @@ public class CatalogHandlers {
   }
 
   private static <T> Pair<List<T>, String> paginate(List<T> list, String pageToken, int pageSize) {
-    int pageStart = INITIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
+    boolean isFirstPage = pageToken == null || pageToken.equals(INITIAL_PAGE_TOKEN);
+    int pageStart = isFirstPage ? 0 : Integer.parseInt(pageToken);
     if (pageStart >= list.size()) {
       return Pair.of(Collections.emptyList(), null);
     }
@@ -161,6 +162,12 @@ public class CatalogHandlers {
         .withNamespace(namespace)
         .setProperties(catalog.loadNamespaceMetadata(namespace))
         .build();
+  }
+
+  public static void namespaceExists(SupportsNamespaces catalog, Namespace namespace) {
+    if (!catalog.namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
   }
 
   public static GetNamespaceResponse loadNamespace(
@@ -307,6 +314,13 @@ public class CatalogHandlers {
   public static void purgeTable(Catalog catalog, TableIdentifier ident) {
     boolean dropped = catalog.dropTable(ident, true);
     if (!dropped) {
+      throw new NoSuchTableException("Table does not exist: %s", ident);
+    }
+  }
+
+  public static void tableExists(Catalog catalog, TableIdentifier ident) {
+    boolean exists = catalog.tableExists(ident);
+    if (!exists) {
       throw new NoSuchTableException("Table does not exist: %s", ident);
     }
   }
@@ -498,6 +512,12 @@ public class CatalogHandlers {
         .metadata(metadata)
         .metadataLocation(metadata.metadataFileLocation())
         .build();
+  }
+
+  public static void viewExists(ViewCatalog catalog, TableIdentifier viewIdentifier) {
+    if (!catalog.viewExists(viewIdentifier)) {
+      throw new NoSuchViewException("View does not exist: %s", viewIdentifier);
+    }
   }
 
   public static LoadViewResponse loadView(ViewCatalog catalog, TableIdentifier viewIdentifier) {

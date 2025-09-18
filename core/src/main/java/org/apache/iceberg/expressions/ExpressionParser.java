@@ -352,8 +352,8 @@ public class ExpressionParser {
             node.has(VALUE), "Cannot parse %s predicate: missing value", op);
         Preconditions.checkArgument(
             !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
-        Object value = literal(JsonUtil.get(VALUE, node), convertValue);
-        return Expressions.predicate(op, term, (Iterable<T>) ImmutableList.of(value));
+        T value = literal(JsonUtil.get(VALUE, node), convertValue);
+        return Expressions.predicate(op, term, ImmutableList.of(value));
       case IN:
       case NOT_IN:
         // literal set predicates

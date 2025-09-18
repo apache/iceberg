@@ -35,12 +35,12 @@ This page describes the procedures that the release manager and voting PMC membe
 To create a release candidate, you will need:
 
 * Apache LDAP credentials for Nexus and SVN
-* A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://dist.apache.org/repos/dist/dev/iceberg/KEYS)
+* A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://downloads.apache.org/iceberg/KEYS)
 
 If you have not published your GPG key yet, you must publish it before sending the vote email by doing:
 
 ```shell
-svn co https://dist.apache.org/repos/dist/dev/iceberg icebergsvn
+svn co https://dist.apache.org/repos/dist/release/iceberg icebergsvn
 cd icebergsvn
 echo "" >> KEYS # append a newline
 gpg --list-sigs <YOUR KEY ID HERE> >> KEYS # append signatures
@@ -93,18 +93,18 @@ The release status is discussed during each community sync meeting. Release mana
 To create the source release artifacts, run the `source-release.sh` script with the release version and release candidate number:
 
 ```bash
-dev/source-release.sh -v 0.13.0 -r 0 -k <YOUR KEY ID HERE>
+dev/source-release.sh -v 1.8.0 -r 0 -k <YOUR KEY ID HERE>
 ```
 
 Example console output:
 
 ```text
-Preparing source for apache-iceberg-0.13.0-rc1
+Preparing source for apache-iceberg-1.8.0-rc0
 Adding version.txt and tagging release...
-[main ca8bb7d0] Add version.txt for release 0.13.0
+[main ca8bb7d0] Add version.txt for release 1.8.0
  1 file changed, 1 insertion(+)
  create mode 100644 version.txt
-Pushing apache-iceberg-0.13.0-rc1 to origin...
+Pushing apache-iceberg-1.8.0-rc0 to origin...
 Enumerating objects: 5, done.
 Counting objects: 100% (5/5), done.
 Delta compression using up to 12 threads
@@ -113,26 +113,26 @@ Writing objects: 100% (4/4), 433 bytes | 433.00 KiB/s, done.
 Total 4 (delta 1), reused 0 (delta 0)
 remote: Resolving deltas: 100% (1/1), completed with 1 local object.
 To https://github.com/apache/iceberg.git
- * [new tag]           apache-iceberg-0.13.0-rc1 -> apache-iceberg-0.13.0-rc1
+ * [new tag]           apache-iceberg-1.8.0-rc0 -> apache-iceberg-1.8.0-rc0
 Creating tarball  using commit ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
 Signing the tarball...
 Checking out Iceberg RC subversion repo...
 Checked out revision 52260.
 Adding tarball to the Iceberg distribution Subversion repo...
-A         tmp/apache-iceberg-0.13.0-rc1
-A         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.asc
-A  (bin)  tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz
-A         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.sha512
-Adding         tmp/apache-iceberg-0.13.0-rc1
-Adding  (bin)  tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz
-Adding         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.asc
-Adding         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.sha512
+A         tmp/apache-iceberg-1.8.0-rc0
+A         tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz.asc
+A  (bin)  tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz
+A         tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz.sha512
+Adding         tmp/apache-iceberg-1.8.0-rc0
+Adding  (bin)  tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz
+Adding         tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz.asc
+Adding         tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz.sha512
 Transmitting file data ...done
 Committing transaction...
 Committed revision 52261.
 Creating release-announcement-email.txt...
 Success! The release candidate is available here:
-  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-0.13.0-rc1
+  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-1.8.0-rc0
 
 Commit SHA1: ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
 
@@ -156,13 +156,12 @@ Convenience binaries are created using the source release tarball from in the la
 Untar the source release and go into the release directory:
 
 ```bash
-tar xzf apache-iceberg-0.13.0.tar.gz
-cd apache-iceberg-0.13.0
+tar xzf apache-iceberg-1.8.0.tar.gz
+cd apache-iceberg-1.8.0
 ```
 
 To build and publish the convenience binaries, run the `dev/stage-binaries.sh` script. This will push to a release staging repository.
 
-Disable gradle parallelism by setting `org.gradle.parallel=false` in `gradle.properties`.
 
 ```
 dev/stage-binaries.sh
@@ -174,6 +173,10 @@ Next, you need to close the staging repository:
 2. In the menu on the left, choose "Staging Repositories"
 3. Select the Iceberg repository
    * If multiple staging repositories are created after running the script, verify that gradle parallelism is disabled and try again.
+   * Multiple staging repositories can be created if the script is run in a corporate network 
+   with a proxy that has floating IPs for outbound requests. You can verify this by checking
+   the client IP address in the `Activity` tab of the staging repositories. To avoid this, you
+   can run the `dev/stage-binaries.sh` script outside the corporate network.
 4. At the top, select "Close" and follow the instructions
    * In the comment field use "Apache Iceberg &lt;version&gt; RC&lt;num&gt;"
 
@@ -204,7 +207,7 @@ The release tarball, signature, and checksums are here:
 * https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-<VERSION>-rc<NUM>/
 
 You can find the KEYS file here:
-* https://dist.apache.org/repos/dist/dev/iceberg/KEYS
+* https://downloads.apache.org/iceberg/KEYS
 
 Convenience binary artifacts are staged in Nexus. The Maven repository URL is:
 * https://repository.apache.org/content/repositories/orgapacheiceberg-<ID>/
@@ -268,6 +271,8 @@ Next, add a release tag to the git repository based on the passing candidate tag
 git tag -am 'Release Apache Iceberg <VERSION>' apache-iceberg-<VERSION> apache-iceberg-<VERSION>-rcN
 ```
 
+Create a new release in the iceberg repository on GitHub, using the tag created above [Steps](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
+
 Then release the candidate repository in [Nexus](https://repository.apache.org/#stagingRepositories).
 
 #### Announcing the release
@@ -319,7 +324,48 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 
 ### Documentation Release
 
+#### Generate versioned Docs
+
+The versioned docs is located in the `docs` directory within the source of the released tag (e.g. https://github.com/apache/iceberg/tree/apache-iceberg-1.8.0/docs). 
+Check out the `docs` branch in the `iceberg` repo and copy the versioned docs over:
+
+```
+cp -R iceberg/docs 1.8.0
+```
+
+Once this is done, create a PR against the `docs` branch containing the changes under the `1.8.0` folder, similar to https://github.com/apache/iceberg/pull/12411.
+
+Note: Update the site name from `docs/latest` to `docs/1.8.0` in the copied `mkdocs.yml` file.
+
+#### Generate versioned Javadoc
+
+Navigate to the source tarball and generate Javadoc:
+
+Note: When generating Javadoc, make sure to use JDK 17+.
+
+```
+cd apache-iceberg-1.8.0
+./gradlew refreshJavadoc
+```
+
+The versioned Javadoc will be generated under `site/docs/javadoc/1.8.0`.
+
+Check out the `javadoc` branch in the `iceberg` repo and copy the generated Javadoc over:
+
+```
+cp -R apache-iceberg-1.8.0/site/docs/javadoc/1.8.0 1.8.0
+```
+
+Once this is done, create a PR against the `javadoc` branch, similar to https://github.com/apache/iceberg/pull/12412.
+
+#### Release versioned docs and javadoc
+
 Please follow the instructions on the GitHub repository in the [`README.md` in the `site/`](https://github.com/apache/iceberg/tree/main/site) directory.
+
+#### Site update
+
+Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12242, 
+to update the Iceberg version, the links to the new version's documentation, and the release notes.
 
 # How to Verify a Release
 
@@ -349,27 +395,27 @@ verify signatures, checksums, and documentation.
 
 First, import the keys.
 ```bash
-curl https://dist.apache.org/repos/dist/dev/iceberg/KEYS -o KEYS
+curl https://downloads.apache.org/iceberg/KEYS -o KEYS
 gpg --import KEYS
 ```
 
 Next, verify the `.asc` file.
 ```bash
-gpg --verify apache-iceberg-{{ icebergVersion }}.tar.gz.asc
+gpg --verify apache-iceberg-*.tar.gz.asc
 ```
 
 ### Verifying Checksums
 
 ```bash
-shasum -a 512 --check apache-iceberg-{{ icebergVersion }}.tar.gz.sha512
+shasum -a 512 --check apache-iceberg-*.tar.gz.sha512
 ```
 
 ### Verifying License Documentation
 
 Untar the archive and change into the source directory.
 ```bash
-tar xzf apache-iceberg-{{ icebergVersion }}.tar.gz
-cd apache-iceberg-{{ icebergVersion }}
+tar xzf apache-iceberg-*.tar.gz
+cd apache-iceberg-*/
 ```
 
 Run RAT checks to validate license headers.
@@ -422,11 +468,11 @@ spark-runtime jar for the Spark installation):
 ```bash
 spark-shell \
     --conf spark.jars.repositories=${MAVEN_URL} \
-    --packages org.apache.iceberg:iceberg-spark3-runtime:{{ icebergVersion }} \
+    --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }} \
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.local.type=hadoop \
-    --conf spark.sql.catalog.local.warehouse=${LOCAL_WAREHOUSE_PATH} \
+    --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
     --conf spark.sql.catalog.local.default-namespace=default \
     --conf spark.sql.defaultCatalog=local
 ```
@@ -435,13 +481,14 @@ spark-shell \
 
 To verify using Flink, start a Flink SQL Client with the following command:
 ```bash
-wget ${MAVEN_URL}/iceberg-flink-runtime/{{ icebergVersion }}/iceberg-flink-runtime-{{ icebergVersion }}.jar
+wget ${MAVEN_URL}/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar
 
 sql-client.sh embedded \
-    -j iceberg-flink-runtime-{{ icebergVersion }}.jar \
-    -j ${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar \
+    -j iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar \
+    -j flink-connector-hive_2.12-1.20.jar \
     shell
 ```
+
 
 ## Voting
 
@@ -449,8 +496,10 @@ Votes are cast by replying to the release candidate announcement email on the de
 with either `+1`, `0`, or `-1`.
 
 > [ ] +1 Release this as Apache Iceberg {{ icebergVersion }}
-[ ] +0
-[ ] -1 Do not release this because...
+>
+> [ ] +0
+>
+> [ ] -1 Do not release this because...
 
 In addition to your vote, it's customary to specify if your vote is binding or non-binding. Only members
 of the Project Management Committee have formally binding votes. If you're unsure, you can specify that your

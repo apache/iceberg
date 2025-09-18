@@ -39,7 +39,6 @@ public class TestBaseIncrementalAppendScan
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_B).commit();
-    long snapshotBId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_C).commit();
     long snapshotCId = table.currentSnapshot().snapshotId();
 
@@ -221,7 +220,6 @@ public class TestBaseIncrementalAppendScan
     table.newFastAppend().appendFile(FILE_B).commit();
     long snapshotBId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_C).commit();
-    long snapshotCId = table.currentSnapshot().snapshotId();
 
     IncrementalAppendScan scan = newScan().fromSnapshotExclusive(snapshotAId);
     assertThat(scan.planFiles()).hasSize(2);
@@ -240,7 +238,6 @@ public class TestBaseIncrementalAppendScan
     table.newFastAppend().appendFile(FILE_B).commit();
     long snapshotBId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_C).commit();
-    long snapshotCId = table.currentSnapshot().snapshotId();
     table.expireSnapshots().expireOlderThan(expireTimestampSnapshotA).commit();
 
     IncrementalAppendScan scan = newScan().fromSnapshotExclusive(snapshotAId);
@@ -299,11 +296,9 @@ public class TestBaseIncrementalAppendScan
   @TestTemplate
   public void testToSnapshot() {
     table.newFastAppend().appendFile(FILE_A).commit();
-    long snapshotAId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_B).commit();
     long snapshotBId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_C).commit();
-    long snapshotCId = table.currentSnapshot().snapshotId();
 
     IncrementalAppendScan scan = newScan().toSnapshot(snapshotBId);
     assertThat(scan.planFiles()).hasSize(2);
@@ -312,7 +307,6 @@ public class TestBaseIncrementalAppendScan
   @TestTemplate
   public void testToSnapshotWithTag() {
     table.newFastAppend().appendFile(FILE_A).commit();
-    long snapshotAId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_B).commit();
     long snapshotBId = table.currentSnapshot().snapshotId();
 
@@ -368,7 +362,6 @@ public class TestBaseIncrementalAppendScan
   @TestTemplate
   public void testMultipleRootSnapshots() throws Exception {
     table.newFastAppend().appendFile(FILE_A).commit();
-    long snapshotAId = table.currentSnapshot().snapshotId();
     long expireTimestampSnapshotA =
         TestHelpers.waitUntilAfter(table.currentSnapshot().timestampMillis());
 
@@ -378,7 +371,6 @@ public class TestBaseIncrementalAppendScan
     appendFiles.commit();
 
     table.newFastAppend().appendFile(FILE_C).commit();
-    long snapshotCId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_D).commit();
     long snapshotDId = table.currentSnapshot().snapshotId();
 

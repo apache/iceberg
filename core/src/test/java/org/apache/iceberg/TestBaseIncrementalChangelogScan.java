@@ -73,7 +73,7 @@ public class TestBaseIncrementalChangelogScan
           AddedRowsScanTask t1 = (AddedRowsScanTask) Iterables.getOnlyElement(tasks);
           assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
           assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
-          assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_B.path());
+          assertThat(t1.file().location()).as("Data file must match").isEqualTo(FILE_B.location());
           assertThat(t1.deletes()).as("Must be no deletes").isEmpty();
         });
   }
@@ -98,13 +98,13 @@ public class TestBaseIncrementalChangelogScan
     AddedRowsScanTask t1 = (AddedRowsScanTask) tasks.get(0);
     assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
-    assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_A2.path());
+    assertThat(t1.file().location()).as("Data file must match").isEqualTo(FILE_A2.location());
     assertThat(t1.deletes()).as("Must be no deletes").isEmpty();
 
     DeletedDataFileScanTask t2 = (DeletedDataFileScanTask) tasks.get(1);
     assertThat(t2.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t2.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
-    assertThat(t2.file().path()).as("Data file must match").isEqualTo(FILE_A.path());
+    assertThat(t2.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
     assertThat(t2.existingDeletes()).as("Must be no deletes").isEmpty();
   }
 
@@ -128,7 +128,7 @@ public class TestBaseIncrementalChangelogScan
     DeletedDataFileScanTask t1 = (DeletedDataFileScanTask) Iterables.getOnlyElement(tasks);
     assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
-    assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_A.path());
+    assertThat(t1.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
     assertThat(t1.existingDeletes()).as("Must be no deletes").isEmpty();
   }
 
@@ -161,7 +161,7 @@ public class TestBaseIncrementalChangelogScan
     AddedRowsScanTask t1 = (AddedRowsScanTask) Iterables.getOnlyElement(tasks);
     assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap3.snapshotId());
-    assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_C.path());
+    assertThat(t1.file().location()).as("Data file must match").isEqualTo(FILE_C.location());
     assertThat(t1.deletes()).as("Must be no deletes").isEmpty();
   }
 
@@ -202,19 +202,19 @@ public class TestBaseIncrementalChangelogScan
     AddedRowsScanTask t1 = (AddedRowsScanTask) tasks.get(0);
     assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap1.snapshotId());
-    assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_A.path());
+    assertThat(t1.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
     assertThat(t1.deletes()).as("Must be no deletes").isEmpty();
 
     AddedRowsScanTask t2 = (AddedRowsScanTask) tasks.get(1);
     assertThat(t2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
     assertThat(t2.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
-    assertThat(t2.file().path()).as("Data file must match").isEqualTo(FILE_B.path());
+    assertThat(t2.file().location()).as("Data file must match").isEqualTo(FILE_B.location());
     assertThat(t2.deletes()).as("Must be no deletes").isEmpty();
 
     AddedRowsScanTask t3 = (AddedRowsScanTask) tasks.get(2);
     assertThat(t3.changeOrdinal()).as("Ordinal must match").isEqualTo(2);
     assertThat(t3.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap4.snapshotId());
-    assertThat(t3.file().path()).as("Data file must match").isEqualTo(FILE_C.path());
+    assertThat(t3.file().location()).as("Data file must match").isEqualTo(FILE_C.location());
     assertThat(t3.deletes()).as("Must be no deletes").isEmpty();
   }
 
@@ -237,13 +237,13 @@ public class TestBaseIncrementalChangelogScan
     AddedRowsScanTask t1 = (AddedRowsScanTask) tasks.get(0);
     assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap1.snapshotId());
-    assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_A.path());
+    assertThat(t1.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
     assertThat(t1.deletes()).as("Must be no deletes").isEmpty();
 
     AddedRowsScanTask t2 = (AddedRowsScanTask) tasks.get(1);
     assertThat(t2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
     assertThat(t2.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
-    assertThat(t2.file().path()).as("Data file must match").isEqualTo(FILE_B.path());
+    assertThat(t2.file().location()).as("Data file must match").isEqualTo(FILE_B.location());
     assertThat(t2.deletes()).as("Must be no deletes").isEmpty();
   }
 
@@ -282,6 +282,6 @@ public class TestBaseIncrementalChangelogScan
   }
 
   private String path(ChangelogScanTask task) {
-    return ((ContentScanTask<?>) task).file().path().toString();
+    return ((ContentScanTask<?>) task).file().location().toString();
   }
 }

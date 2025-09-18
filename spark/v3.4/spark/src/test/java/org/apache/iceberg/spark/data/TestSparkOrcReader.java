@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.spark.data.TestHelpers.assertEquals;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,10 +38,9 @@ import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-public class TestSparkOrcReader extends AvroDataTest {
+public class TestSparkOrcReader extends AvroDataTestBase {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     final Iterable<InternalRow> expected = RandomData.generateSpark(schema, 100, 0L);
@@ -62,8 +62,7 @@ public class TestSparkOrcReader extends AvroDataTest {
 
   private void writeAndValidateRecords(Schema schema, Iterable<InternalRow> expected)
       throws IOException {
-    final File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    final File testFile = temp.resolve("test").toFile();
 
     try (FileAppender<InternalRow> writer =
         ORC.write(Files.localOutput(testFile))
@@ -81,10 +80,10 @@ public class TestSparkOrcReader extends AvroDataTest {
       final Iterator<InternalRow> actualRows = reader.iterator();
       final Iterator<InternalRow> expectedRows = expected.iterator();
       while (expectedRows.hasNext()) {
-        Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
+        assertThat(actualRows.hasNext()).as("Should have expected number of rows").isTrue();
         assertEquals(schema, expectedRows.next(), actualRows.next());
       }
-      Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
+      assertThat(actualRows.hasNext()).as("Should not have extra rows").isFalse();
     }
 
     try (CloseableIterable<ColumnarBatch> reader =
@@ -97,10 +96,10 @@ public class TestSparkOrcReader extends AvroDataTest {
       final Iterator<InternalRow> actualRows = batchesToRows(reader.iterator());
       final Iterator<InternalRow> expectedRows = expected.iterator();
       while (expectedRows.hasNext()) {
-        Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
+        assertThat(actualRows.hasNext()).as("Should have expected number of rows").isTrue();
         assertEquals(schema, expectedRows.next(), actualRows.next());
       }
-      Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
+      assertThat(actualRows.hasNext()).as("Should not have extra rows").isFalse();
     }
   }
 

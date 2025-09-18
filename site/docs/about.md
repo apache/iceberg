@@ -22,7 +22,7 @@ Iceberg is a high-performance format for huge analytic tables. Iceberg brings th
 <div class="button-box">
 <ul class="list-inline intro-social-buttons">
     <li>
-        <a href="/getting-started" class="btn btn-default btn-lg">
+        <a href="/spark-quickstart" class="btn btn-default btn-lg">
             <span class="network-name">Learn More</span>
         </a>
     </li>

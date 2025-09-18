@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,7 +44,11 @@ public class JsonUtil {
 
   private JsonUtil() {}
 
-  private static final JsonFactory FACTORY = new JsonFactory();
+  private static final JsonFactory FACTORY =
+      new JsonFactoryBuilder()
+          .configure(JsonFactory.Feature.INTERN_FIELD_NAMES, false)
+          .configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false)
+          .build();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
 
   public static JsonFactory factory() {
@@ -144,6 +149,13 @@ public class JsonUtil {
     return pNode.asLong();
   }
 
+  public static Boolean getBoolOrNull(String property, JsonNode node) {
+    if (!node.hasNonNull(property)) {
+      return null;
+    }
+    return getBool(property, node);
+  }
+
   public static boolean getBool(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing boolean: %s", property);
     JsonNode pNode = node.get(property);
@@ -187,6 +199,14 @@ public class JsonUtil {
         pNode.isTextual(), "Cannot parse byte buffer from non-text value: %s: %s", property, pNode);
     return ByteBuffer.wrap(
         BaseEncoding.base16().decode(pNode.textValue().toUpperCase(Locale.ROOT)));
+  }
+
+  public static Map<String, String> getStringMapOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+
+    return getStringMap(property, node);
   }
 
   public static Map<String, String> getStringMap(String property, JsonNode node) {
@@ -327,11 +347,61 @@ public class JsonUtil {
     }
   }
 
+  public static void writeIntegerFieldIfPresent(String key, Integer value, JsonGenerator generator)
+      throws IOException {
+    writeIntegerFieldIf(value != null, key, value, generator);
+  }
+
   public static void writeLongFieldIf(
       boolean condition, String key, Long value, JsonGenerator generator) throws IOException {
     if (condition) {
       generator.writeNumberField(key, value);
     }
+  }
+
+  public static void writeLongFieldIfPresent(String key, Long value, JsonGenerator generator)
+      throws IOException {
+    writeLongFieldIf(value != null, key, value, generator);
+  }
+
+  public static void writeStringFieldIfPresent(String key, String value, JsonGenerator generator)
+      throws IOException {
+    writeStringFieldIf(value != null, key, value, generator);
+  }
+
+  private static void writeStringFieldIf(
+      boolean condition, String key, String value, JsonGenerator generator) throws IOException {
+    if (condition) {
+      generator.writeStringField(key, value);
+    }
+  }
+
+  public static <T> List<T> getObjectListOrNull(
+      String property, JsonNode node, FromJson<T> fromJson) {
+    if (!node.has(property)) {
+      return null;
+    }
+
+    return getObjectList(property, node, fromJson);
+  }
+
+  public static <T> List<T> getObjectList(String property, JsonNode node, FromJson<T> fromJson) {
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing list: %s", property);
+    Iterator<T> iter =
+        new JsonArrayIterator<>(property, node) {
+          @Override
+          T convert(JsonNode element) {
+            return fromJson.parse(element);
+          }
+
+          @Override
+          void validate(JsonNode element) {
+            Preconditions.checkArgument(
+                element.isObject(), "Cannot parse object from non-object value: %s", element);
+          }
+        };
+
+    return ImmutableList.copyOf(iter);
   }
 
   abstract static class JsonArrayIterator<T> implements Iterator<T> {

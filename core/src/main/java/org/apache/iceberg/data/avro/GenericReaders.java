@@ -32,6 +32,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.Pair;
 
 class GenericReaders {
   private GenericReaders() {}
@@ -50,6 +51,19 @@ class GenericReaders {
 
   static ValueReader<OffsetDateTime> timestamptz() {
     return TimestamptzReader.INSTANCE;
+  }
+
+  static ValueReader<LocalDateTime> timestampNanos() {
+    return TimestampNanoReader.INSTANCE;
+  }
+
+  static ValueReader<OffsetDateTime> timestamptzNanos() {
+    return TimestamptzNanoReader.INSTANCE;
+  }
+
+  static ValueReader<Record> struct(
+      List<Pair<Integer, ValueReader<?>>> readPlan, StructType struct) {
+    return new PlannedRecordReader(readPlan, struct);
   }
 
   static ValueReader<Record> struct(
@@ -98,6 +112,56 @@ class GenericReaders {
     @Override
     public OffsetDateTime read(Decoder decoder, Object reuse) throws IOException {
       return DateTimeUtil.timestamptzFromMicros(decoder.readLong());
+    }
+  }
+
+  private static class TimestampNanoReader implements ValueReader<LocalDateTime> {
+    private static final TimestampNanoReader INSTANCE = new TimestampNanoReader();
+
+    private TimestampNanoReader() {}
+
+    @Override
+    public LocalDateTime read(Decoder decoder, Object reuse) throws IOException {
+      return DateTimeUtil.timestampFromNanos(decoder.readLong());
+    }
+  }
+
+  private static class TimestamptzNanoReader implements ValueReader<OffsetDateTime> {
+    private static final TimestamptzNanoReader INSTANCE = new TimestamptzNanoReader();
+
+    private TimestamptzNanoReader() {}
+
+    @Override
+    public OffsetDateTime read(Decoder decoder, Object reuse) throws IOException {
+      return DateTimeUtil.timestamptzFromNanos(decoder.readLong());
+    }
+  }
+
+  private static class PlannedRecordReader extends ValueReaders.PlannedStructReader<Record> {
+    private final StructType structType;
+
+    private PlannedRecordReader(List<Pair<Integer, ValueReader<?>>> readPlan, StructType struct) {
+      super(readPlan);
+      this.structType = struct;
+    }
+
+    @Override
+    protected Record reuseOrCreate(Object reuse) {
+      if (reuse instanceof Record) {
+        return (Record) reuse;
+      } else {
+        return GenericRecord.create(structType);
+      }
+    }
+
+    @Override
+    protected Object get(Record struct, int pos) {
+      return struct.get(pos);
+    }
+
+    @Override
+    protected void set(Record struct, int pos, Object value) {
+      struct.set(pos, value);
     }
   }
 

@@ -91,6 +91,12 @@ public class FlinkConfigOptions {
           .defaultValue(false)
           .withDescription("Use the FLIP-27 based Iceberg source implementation.");
 
+  public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_USE_V2_SINK =
+      ConfigOptions.key("table.exec.iceberg.use-v2-sink")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription("Use the SinkV2 API based Iceberg sink implementation.");
+
   public static final ConfigOption<SplitAssignerType> TABLE_EXEC_SPLIT_ASSIGNER_TYPE =
       ConfigOptions.key("table.exec.iceberg.split-assigner-type")
           .enumType(SplitAssignerType.class)

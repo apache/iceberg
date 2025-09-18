@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -83,7 +84,11 @@ public class TestSparkReadProjection extends TestReadProjection {
 
   @BeforeAll
   public static void startSpark() {
-    TestSparkReadProjection.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestSparkReadProjection.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
     ImmutableMap<String, String> config =
         ImmutableMap.of(
             "type", "hive",
@@ -152,8 +157,7 @@ public class TestSparkReadProjection extends TestReadProjection {
       Schema expectedSchema = reassignIds(readSchema, idMapping);
 
       // Set the schema to the expected schema directly to simulate the table schema evolving
-      TestTables.replaceMetadata(
-          desc, TestTables.readMetadata(desc).updateSchema(expectedSchema, 100));
+      TestTables.replaceMetadata(desc, TestTables.readMetadata(desc).updateSchema(expectedSchema));
 
       Dataset<Row> df =
           spark

@@ -32,14 +32,14 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.DataTestHelpers;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -47,48 +47,86 @@ import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.Test;
 
-public class TestGenericData extends DataTest {
+public class TestGenericData extends DataTestBase {
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsRowLineage() {
+    return true;
+  }
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
+    writeAndValidate(schema, schema);
+  }
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expected) throws IOException {
+    writeAndValidate(schema, schema, expected);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    List<Record> data = RandomGenericData.generate(writeSchema, 100, 12228L);
+    writeAndValidate(writeSchema, expectedSchema, data);
+  }
+
+  private void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
+      throws IOException {
+
+    OutputFile output = new InMemoryOutputFile();
 
     try (FileAppender<Record> appender =
-        Parquet.write(Files.localOutput(testFile))
-            .schema(schema)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+        Parquet.write(output)
+            .schema(writeSchema)
+            .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       appender.addAll(expected);
     }
 
     List<Record> rows;
     try (CloseableIterable<Record> reader =
-        Parquet.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+        Parquet.read(output.toInputFile())
+            .project(expectedSchema)
+            .createReaderFunc(
+                fileSchema ->
+                    GenericParquetReaders.buildReader(expectedSchema, fileSchema, ID_TO_CONSTANT))
             .build()) {
       rows = Lists.newArrayList(reader);
     }
 
-    for (int i = 0; i < expected.size(); i += 1) {
-      DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+    for (int pos = 0; pos < expected.size(); pos += 1) {
+      DataTestHelpers.assertEquals(
+          expectedSchema.asStruct(), expected.get(pos), rows.get(pos), ID_TO_CONSTANT, pos);
     }
 
     // test reuseContainers
     try (CloseableIterable<Record> reader =
-        Parquet.read(Files.localInput(testFile))
-            .project(schema)
+        Parquet.read(output.toInputFile())
+            .project(expectedSchema)
             .reuseContainers()
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .createReaderFunc(
+                fileSchema ->
+                    GenericParquetReaders.buildReader(expectedSchema, fileSchema, ID_TO_CONSTANT))
             .build()) {
-      CloseableIterator it = reader.iterator();
-      int idx = 0;
-      while (it.hasNext()) {
-        GenericRecord actualRecord = (GenericRecord) it.next();
-        DataTestHelpers.assertEquals(schema.asStruct(), expected.get(idx), actualRecord);
-        idx++;
+      int pos = 0;
+      for (Record actualRecord : reader) {
+        DataTestHelpers.assertEquals(
+            expectedSchema.asStruct(), expected.get(pos), actualRecord, ID_TO_CONSTANT, pos);
+        pos += 1;
       }
     }
   }
@@ -101,8 +139,7 @@ public class TestGenericData extends DataTest {
             optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
         AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(new Path(testFile.toURI()))
@@ -131,14 +168,12 @@ public class TestGenericData extends DataTest {
             .reuseContainers()
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
-      CloseableIterator it = reader.iterator();
-      assertThat(it).hasNext();
-      while (it.hasNext()) {
-        GenericRecord actualRecord = (GenericRecord) it.next();
+      for (Record actualRecord : reader) {
         assertThat(actualRecord.get(0, ArrayList.class)).first().isEqualTo(expectedBinary);
         assertThat(actualRecord.get(1, ByteBuffer.class)).isEqualTo(expectedBinary);
-        assertThat(it).isExhausted();
       }
+
+      assertThat(Lists.newArrayList(reader)).hasSize(1);
     }
   }
 }

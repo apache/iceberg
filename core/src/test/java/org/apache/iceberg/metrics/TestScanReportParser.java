@@ -84,6 +84,7 @@ public class TestScanReportParser {
     scanMetrics.skippedDeleteManifests().increment(3L);
     scanMetrics.indexedDeleteFiles().increment(10L);
     scanMetrics.positionalDeleteFiles().increment(6L);
+    scanMetrics.dvs().increment();
     scanMetrics.equalityDeleteFiles().increment(4L);
 
     String tableName = "roundTripTableName";
@@ -118,6 +119,7 @@ public class TestScanReportParser {
                     + "\"indexed-delete-files\":{\"unit\":\"count\",\"value\":10},"
                     + "\"equality-delete-files\":{\"unit\":\"count\",\"value\":4},"
                     + "\"positional-delete-files\":{\"unit\":\"count\",\"value\":6},"
+                    + "\"dvs\":{\"unit\":\"count\",\"value\":1},"
                     + "\"extra-metric\":\"extra-val\"},"
                     + "\"extra\":\"extraVal\"}"))
         .isEqualTo(scanReport);
@@ -279,6 +281,10 @@ public class TestScanReportParser {
             + "    \"positional-delete-files\" : {\n"
             + "      \"unit\" : \"count\",\n"
             + "      \"value\" : 6\n"
+            + "    },\n"
+            + "    \"dvs\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 0\n"
             + "    }\n"
             + "  }\n"
             + "}";

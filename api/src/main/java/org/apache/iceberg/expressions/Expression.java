@@ -45,6 +45,7 @@ public interface Expression extends Serializable {
     STARTS_WITH,
     NOT_STARTS_WITH,
     COUNT,
+    COUNT_NULL,
     COUNT_STAR,
     MAX,
     MIN;

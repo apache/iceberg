@@ -21,11 +21,7 @@ package org.apache.iceberg.deletes;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
@@ -33,10 +29,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestPositionFilter {
   @Test
@@ -134,16 +127,8 @@ public class TestPositionFilter {
         .containsExactlyElementsOf(Lists.newArrayList(1L, 2L, 5L, 6L, 8L));
   }
 
-  static Stream<ExecutorService> executorServiceProvider() {
-    return Stream.of(
-        null,
-        MoreExecutors.getExitingExecutorService(
-            (ThreadPoolExecutor) Executors.newFixedThreadPool(4)));
-  }
-
-  @ParameterizedTest
-  @MethodSource("executorServiceProvider")
-  public void testCombinedPositionSetRowFilter(ExecutorService executorService) {
+  @Test
+  public void testCombinedPositionSetRowFilter() {
     CloseableIterable<StructLike> positionDeletes1 =
         CloseableIterable.withNoopClose(
             Lists.newArrayList(
@@ -175,13 +160,14 @@ public class TestPositionFilter {
                 Row.of(8L, "i"),
                 Row.of(9L, "j")));
 
+    CloseableIterable<Long> positions =
+        CloseableIterable.transform(
+            CloseableIterable.filter(
+                CloseableIterable.concat(ImmutableList.of(positionDeletes1, positionDeletes2)),
+                row -> "file_a.avro".equals(row.get(0, String.class))),
+            row -> row.get(1, Long.class));
     Predicate<StructLike> isDeleted =
-        row ->
-            Deletes.toPositionIndex(
-                    "file_a.avro",
-                    ImmutableList.of(positionDeletes1, positionDeletes2),
-                    executorService)
-                .isDeleted(row.get(0, Long.class));
+        row -> Deletes.toPositionIndex(positions).isDeleted(row.get(0, Long.class));
     CloseableIterable<StructLike> actual = CloseableIterable.filter(rows, isDeleted.negate());
 
     assertThat(Iterables.transform(actual, row -> row.get(0, Long.class)))

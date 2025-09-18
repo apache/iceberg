@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.TableEnvironment;
@@ -137,7 +138,7 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
     return table;
   }
 
-  private void createNestedTable() throws IOException {
+  private Table createNestedTable() throws IOException {
     Table table =
         validationCatalog.createTable(
             TableIdentifier.of(DATABASE, TABLE_NAME),
@@ -154,6 +155,8 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
     File testFile = File.createTempFile("junit", null, temp.toFile());
     DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(testFile), records);
     table.newAppend().appendFile(dataFile).commit();
+
+    return table;
   }
 
   @BeforeEach
@@ -212,32 +215,88 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
 
   @TestTemplate
   public void testPrimitiveColumns() throws Exception {
-    createPrimitiveTable();
+    Table table = createPrimitiveTable();
     List<Row> result = sql("SELECT readable_metrics FROM %s$files", TABLE_NAME);
+
+    // With new releases of Parquet, new features might be added which cause the
+    // size of the column to increase. For example, with Parquet 1.14.x the
+    // uncompressed size has been added to allow for better allocation of memory upfront.
+    // Therefore, we look the sizes up, rather than hardcoding them
+    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    Map<Integer, Long> columnSizeStats = dataFile.columnSizes();
 
     Row binaryCol =
         Row.of(
-            55L,
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("binaryCol").fieldId()),
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Row booleanCol = Row.of(36L, 4L, 0L, null, false, true);
-    Row decimalCol = Row.of(91L, 4L, 1L, null, new BigDecimal("1.00"), new BigDecimal("2.00"));
-    Row doubleCol = Row.of(91L, 4L, 0L, 1L, 1.0D, 2.0D);
+    Row booleanCol =
+        Row.of(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("booleanCol").fieldId()),
+            4L,
+            0L,
+            null,
+            false,
+            true);
+    Row decimalCol =
+        Row.of(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("decimalCol").fieldId()),
+            4L,
+            1L,
+            null,
+            new BigDecimal("1.00"),
+            new BigDecimal("2.00"));
+    Row doubleCol =
+        Row.of(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("doubleCol").fieldId()),
+            4L,
+            0L,
+            1L,
+            1.0D,
+            2.0D);
     Row fixedCol =
         Row.of(
-            47L,
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("fixedCol").fieldId()),
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Row floatCol = Row.of(77L, 4L, 0L, 2L, 0f, 0f);
-    Row intCol = Row.of(77L, 4L, 0L, null, 1, 2);
-    Row longCol = Row.of(85L, 4L, 0L, null, 1L, 2L);
-    Row stringCol = Row.of(85L, 4L, 0L, null, "1", "2");
+    Row floatCol =
+        Row.of(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("floatCol").fieldId()),
+            4L,
+            0L,
+            2L,
+            0f,
+            0f);
+    Row intCol =
+        Row.of(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("intCol").fieldId()),
+            4L,
+            0L,
+            null,
+            1,
+            2);
+    Row longCol =
+        Row.of(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("longCol").fieldId()),
+            4L,
+            0L,
+            null,
+            1L,
+            2L);
+    Row stringCol =
+        Row.of(
+            columnSizeStats.get(PRIMITIVE_SCHEMA.findField("stringCol").fieldId()),
+            4L,
+            0L,
+            null,
+            "1",
+            "2");
 
     List<Row> expected =
         Lists.newArrayList(
@@ -288,12 +347,18 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
   @TestTemplate
   public void testNestedValues() throws Exception {
     createNestedTable();
+    List<Row> result = sql("SELECT readable_metrics FROM %s$files", TABLE_NAME);
 
-    Row leafDoubleCol = Row.of(50L, 3L, 1L, 1L, 0.0D, 0.0D);
-    Row leafLongCol = Row.of(57L, 3L, 1L, null, 0L, 1L);
+    // We have to take a slightly different approach, since we don't store
+    // the column sizes for nested fields.
+    long leafDoubleColSize =
+        (long) ((Row) ((Row) result.get(0).getField(0)).getField(0)).getField(0);
+    long leafLongColSize = (long) ((Row) ((Row) result.get(0).getField(0)).getField(1)).getField(0);
+
+    Row leafDoubleCol = Row.of(leafDoubleColSize, 3L, 1L, 1L, 0.0D, 0.0D);
+    Row leafLongCol = Row.of(leafLongColSize, 3L, 1L, null, 0L, 1L);
     Row metrics = Row.of(Row.of(leafDoubleCol, leafLongCol));
 
-    TestHelpers.assertRows(
-        sql("SELECT readable_metrics FROM %s$files", TABLE_NAME), ImmutableList.of(metrics));
+    TestHelpers.assertRows(result, ImmutableList.of(metrics));
   }
 }

@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Comparators;
@@ -51,13 +52,14 @@ public class TestContentFileParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid JSON generator: null");
 
-    assertThatThrownBy(() -> ContentFileParser.fromJson(null, TestBase.SPEC))
+    assertThatThrownBy(
+            () -> ContentFileParser.fromJson(null, Map.of(TestBase.SPEC.specId(), TestBase.SPEC)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid JSON node for content file: null");
 
     String jsonStr = ContentFileParser.toJson(TestBase.FILE_A, TestBase.SPEC);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, null))
+    assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, (PartitionSpec) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid partition spec: null");
   }
@@ -69,7 +71,8 @@ public class TestContentFileParser {
     String jsonStr = ContentFileParser.toJson(dataFile, spec);
     assertThat(jsonStr).isEqualTo(expectedJson);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    ContentFile<?> deserializedContentFile = ContentFileParser.fromJson(jsonNode, spec);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(TestBase.SPEC.specId(), spec));
     assertThat(deserializedContentFile).isInstanceOf(DataFile.class);
     assertContentFileEquals(dataFile, deserializedContentFile, spec);
   }
@@ -81,7 +84,8 @@ public class TestContentFileParser {
     String jsonStr = ContentFileParser.toJson(deleteFile, spec);
     assertThat(jsonStr).isEqualTo(expectedJson);
     JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
-    ContentFile<?> deserializedContentFile = ContentFileParser.fromJson(jsonNode, spec);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), TestBase.SPEC));
     assertThat(deserializedContentFile).isInstanceOf(DeleteFile.class);
     assertContentFileEquals(deleteFile, deserializedContentFile, spec);
   }
@@ -198,6 +202,7 @@ public class TestContentFileParser {
 
   private static Stream<Arguments> provideSpecAndDeleteFile() {
     return Stream.of(
+        Arguments.of(TestBase.SPEC, dv(TestBase.SPEC), dvJson()),
         Arguments.of(
             PartitionSpec.unpartitioned(),
             deleteFileWithRequiredOnly(PartitionSpec.unpartitioned()),
@@ -213,7 +218,61 @@ public class TestContentFileParser {
         Arguments.of(
             TestBase.SPEC,
             deleteFileWithAllOptional(TestBase.SPEC),
-            deleteFileJsonWithAllOptional(TestBase.SPEC)));
+            deleteFileJsonWithAllOptional(TestBase.SPEC)),
+        Arguments.of(
+            TestBase.SPEC, deleteFileWithDataRef(TestBase.SPEC), deleteFileWithDataRefJson()));
+  }
+
+  private static DeleteFile deleteFileWithDataRef(PartitionSpec spec) {
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    partitionData.set(0, 4);
+    return new GenericDeleteFile(
+        spec.specId(),
+        FileContent.POSITION_DELETES,
+        "/path/to/delete.parquet",
+        FileFormat.PARQUET,
+        partitionData,
+        1234,
+        new Metrics(10L, null, null, null, null),
+        null,
+        null,
+        null,
+        null,
+        "/path/to/data/file.parquet",
+        null,
+        null);
+  }
+
+  private static String deleteFileWithDataRefJson() {
+    return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete.parquet\","
+        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":4},\"file-size-in-bytes\":1234,"
+        + "\"record-count\":10,\"referenced-data-file\":\"/path/to/data/file.parquet\"}";
+  }
+
+  private static DeleteFile dv(PartitionSpec spec) {
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    partitionData.set(0, 4);
+    return new GenericDeleteFile(
+        spec.specId(),
+        FileContent.POSITION_DELETES,
+        "/path/to/delete.puffin",
+        FileFormat.PUFFIN,
+        partitionData,
+        1234,
+        new Metrics(10L, null, null, null, null),
+        null,
+        null,
+        null,
+        null,
+        "/path/to/data/file.parquet",
+        4L,
+        40L);
+  }
+
+  private static String dvJson() {
+    return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete.puffin\","
+        + "\"file-format\":\"PUFFIN\",\"partition\":{\"1000\":4},\"file-size-in-bytes\":1234,\"record-count\":10,"
+        + "\"referenced-data-file\":\"/path/to/data/file.parquet\",\"content-offset\":4,\"content-size-in-bytes\":40}";
   }
 
   private static DeleteFile deleteFileWithRequiredOnly(PartitionSpec spec) {
@@ -231,6 +290,9 @@ public class TestContentFileParser {
         partitionData,
         1234,
         new Metrics(9L, null, null, null, null),
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -273,7 +335,10 @@ public class TestContentFileParser {
         new int[] {3},
         1,
         Collections.singletonList(128L),
-        ByteBuffer.wrap(new byte[16]));
+        ByteBuffer.wrap(new byte[16]),
+        null,
+        null,
+        null);
   }
 
   private static String deleteFileJsonWithRequiredOnly(PartitionSpec spec) {
@@ -317,7 +382,7 @@ public class TestContentFileParser {
     assertThat(actual.getClass()).isEqualTo(expected.getClass());
     assertThat(actual.specId()).isEqualTo(expected.specId());
     assertThat(actual.content()).isEqualTo(expected.content());
-    assertThat(actual.path()).isEqualTo(expected.path());
+    assertThat(actual.location()).isEqualTo(expected.location());
     assertThat(actual.format()).isEqualTo(expected.format());
     assertThat(actual.partition())
         .usingComparator(Comparators.forType(spec.partitionType()))

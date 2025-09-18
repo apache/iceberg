@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.util.Map;
+import java.util.Optional;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -33,6 +34,8 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.TimeStampNanoTZVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -50,7 +53,7 @@ import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
-import org.apache.parquet.schema.OriginalType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
@@ -139,6 +142,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     if (reuse == null
         || (!dictEncoded && readType == ReadType.DICTIONARY)
         || (dictEncoded && readType != ReadType.DICTIONARY)) {
+      // The vector may already exist but be of a different type, clear it
+      if (vec != null) {
+        vec.close();
+        vec = null;
+      }
+
       allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
     } else {
@@ -209,12 +218,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
+    // Allocate-only: caller must ensure there is no active vector in use.
+    Preconditions.checkState(
+        vec == null,
+        "Allocation must be called only when the previous vector instance was released");
     if (dictionaryEncodedVector) {
       allocateDictEncodedVector();
     } else {
       Field arrowField = ArrowSchemaUtil.convert(getPhysicalType(columnDescriptor, icebergField));
-      if (columnDescriptor.getPrimitiveType().getOriginalType() != null) {
-        allocateVectorBasedOnOriginalType(columnDescriptor.getPrimitiveType(), arrowField);
+      if (columnDescriptor.getPrimitiveType().getLogicalTypeAnnotation() != null) {
+        allocateVectorBasedOnLogicalType(columnDescriptor.getPrimitiveType(), arrowField);
       } else {
         allocateVectorBasedOnTypeName(columnDescriptor.getPrimitiveType(), arrowField);
       }
@@ -226,7 +239,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     PrimitiveType primitive = desc.getPrimitiveType();
     PrimitiveType.PrimitiveTypeName typeName = primitive.getPrimitiveTypeName();
     Types.NestedField physicalType = logicalType;
-    if (OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
+    if (primitive.getLogicalTypeAnnotation()
+        instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
       org.apache.iceberg.types.Type type;
       if (PrimitiveType.PrimitiveTypeName.INT64.equals(typeName)) {
         // Use BigIntVector for long backed decimal
@@ -238,9 +252,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         // Use FixedSizeBinaryVector for binary backed decimal
         type = Types.FixedType.ofLength(primitive.getTypeLength());
       }
-      physicalType =
-          Types.NestedField.of(
-              logicalType.fieldId(), logicalType.isOptional(), logicalType.name(), type);
+      physicalType = Types.NestedField.from(logicalType).ofType(type).build();
     }
 
     return physicalType;
@@ -259,89 +271,18 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     this.readType = ReadType.DICTIONARY;
   }
 
-  private void allocateVectorBasedOnOriginalType(PrimitiveType primitive, Field arrowField) {
-    switch (primitive.getOriginalType()) {
-      case ENUM:
-      case JSON:
-      case UTF8:
-      case BSON:
-        this.vec = arrowField.createVector(rootAlloc);
-        // TODO: Possibly use the uncompressed page size info to set the initial capacity
-        vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
-        vec.allocateNewSafe();
-        this.readType = ReadType.VARCHAR;
-        this.typeWidth = UNKNOWN_WIDTH;
-        break;
-      case INT_8:
-      case INT_16:
-      case INT_32:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((IntVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.INT;
-        this.typeWidth = (int) IntVector.TYPE_WIDTH;
-        break;
-      case DATE:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((DateDayVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.INT;
-        this.typeWidth = (int) IntVector.TYPE_WIDTH;
-        break;
-      case INT_64:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((BigIntVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.LONG;
-        this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
-        break;
-      case TIMESTAMP_MILLIS:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((BigIntVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.TIMESTAMP_MILLIS;
-        this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
-        break;
-      case TIMESTAMP_MICROS:
-        this.vec = arrowField.createVector(rootAlloc);
-        if (((Types.TimestampType) icebergField.type()).shouldAdjustToUTC()) {
-          ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
-        } else {
-          ((TimeStampMicroVector) vec).allocateNew(batchSize);
-        }
-        this.readType = ReadType.LONG;
-        this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
-        break;
-      case TIME_MICROS:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((TimeMicroVector) vec).allocateNew(batchSize);
-        this.readType = ReadType.LONG;
-        this.typeWidth = (int) TimeMicroVector.TYPE_WIDTH;
-        break;
-      case DECIMAL:
-        this.vec = arrowField.createVector(rootAlloc);
-        switch (primitive.getPrimitiveTypeName()) {
-          case BINARY:
-          case FIXED_LEN_BYTE_ARRAY:
-            ((FixedSizeBinaryVector) vec).allocateNew(batchSize);
-            this.readType = ReadType.FIXED_LENGTH_DECIMAL;
-            this.typeWidth = primitive.getTypeLength();
-            break;
-          case INT64:
-            ((BigIntVector) vec).allocateNew(batchSize);
-            this.readType = ReadType.LONG_BACKED_DECIMAL;
-            this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
-            break;
-          case INT32:
-            ((IntVector) vec).allocateNew(batchSize);
-            this.readType = ReadType.INT_BACKED_DECIMAL;
-            this.typeWidth = (int) IntVector.TYPE_WIDTH;
-            break;
-          default:
-            throw new UnsupportedOperationException(
-                "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-        }
-        break;
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported logical type: " + primitive.getOriginalType());
-    }
+  private void allocateVectorBasedOnLogicalType(PrimitiveType primitive, Field arrowField) {
+    LogicalTypeVisitorResult logicalTypeVisitorResult =
+        primitive
+            .getLogicalTypeAnnotation()
+            .accept(new LogicalTypeVisitor(arrowField, primitive))
+            .orElseThrow(
+                () ->
+                    new UnsupportedOperationException(
+                        "Unsupported logical type: " + primitive.getOriginalType()));
+    this.readType = logicalTypeVisitorResult.readType;
+    this.typeWidth = logicalTypeVisitorResult.typeWidth;
+    this.vec = logicalTypeVisitorResult.vec;
   }
 
   private void allocateVectorBasedOnTypeName(PrimitiveType primitive, Field arrowField) {
@@ -430,8 +371,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   @Override
-  public void setRowGroupInfo(
-      PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
+  public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
     ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
     this.dictionary =
         vectorizedColumnIterator.setRowGroupInfo(
@@ -463,6 +403,214 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return new PositionVectorReader(true);
   }
 
+  public static VectorizedArrowReader rowIds(Long baseRowId, VectorizedArrowReader idReader) {
+    if (baseRowId != null) {
+      return new RowIdVectorReader(baseRowId, idReader);
+    } else {
+      return nulls();
+    }
+  }
+
+  public static VectorizedArrowReader lastUpdated(
+      Long baseRowId, Long fileLastUpdated, VectorizedArrowReader seqReader) {
+    if (fileLastUpdated != null && baseRowId != null) {
+      return new LastUpdatedSeqVectorReader(fileLastUpdated, seqReader);
+    } else {
+      return nulls();
+    }
+  }
+
+  public static VectorizedReader<?> replaceWithMetadataReader(
+      Types.NestedField icebergField,
+      VectorizedReader<?> reader,
+      Map<Integer, ?> idToConstant,
+      boolean setArrowValidityVector) {
+    int id = icebergField.fieldId();
+    if (id == MetadataColumns.ROW_ID.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(id);
+      return rowIds(baseRowId, (VectorizedArrowReader) reader);
+    } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
+      Long fileSeqNumber = (Long) idToConstant.get(id);
+      return VectorizedArrowReader.lastUpdated(
+          baseRowId, fileSeqNumber, (VectorizedArrowReader) reader);
+    } else if (idToConstant.containsKey(id)) {
+      // containsKey is used because the constant may be null
+      return new ConstantVectorReader<>(icebergField, idToConstant.get(id));
+    } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+      if (setArrowValidityVector) {
+        return positionsWithSetArrowValidityVector();
+      } else {
+        return VectorizedArrowReader.positions();
+      }
+    } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
+      return new DeletedVectorReader();
+    }
+
+    return reader;
+  }
+
+  private static final class LogicalTypeVisitorResult {
+    private final FieldVector vec;
+    private final Integer typeWidth;
+    private final ReadType readType;
+
+    LogicalTypeVisitorResult(FieldVector vec, ReadType readType, Integer typeWidth) {
+      this.vec = vec;
+      this.typeWidth = typeWidth;
+      this.readType = readType;
+    }
+  }
+
+  private final class LogicalTypeVisitor
+      implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<LogicalTypeVisitorResult> {
+    private final Field arrowField;
+    private final PrimitiveType primitive;
+
+    LogicalTypeVisitor(Field arrowField, PrimitiveType primitive) {
+      this.arrowField = arrowField;
+      this.primitive = primitive;
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.StringLogicalTypeAnnotation stringLogicalType) {
+      return allocateVectorForEnumJsonBsonString();
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumLogicalType) {
+      return allocateVectorForEnumJsonBsonString();
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
+      FieldVector vector = arrowField.createVector(rootAlloc);
+      ((FixedSizeBinaryVector) vector).allocateNew(batchSize);
+      return Optional.of(
+          new LogicalTypeVisitorResult(vector, ReadType.UUID, primitive.getTypeLength()));
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalLogicalType) {
+      FieldVector vector = arrowField.createVector(rootAlloc);
+      switch (primitive.getPrimitiveTypeName()) {
+        case BINARY:
+        case FIXED_LEN_BYTE_ARRAY:
+          ((FixedSizeBinaryVector) vector).allocateNew(batchSize);
+          return Optional.of(
+              new LogicalTypeVisitorResult(
+                  vector, ReadType.FIXED_LENGTH_DECIMAL, primitive.getTypeLength()));
+        case INT64:
+          ((BigIntVector) vector).allocateNew(batchSize);
+          return Optional.of(
+              new LogicalTypeVisitorResult(
+                  vector, ReadType.LONG_BACKED_DECIMAL, (int) BigIntVector.TYPE_WIDTH));
+        case INT32:
+          ((IntVector) vector).allocateNew(batchSize);
+          return Optional.of(
+              new LogicalTypeVisitorResult(
+                  vector, ReadType.INT_BACKED_DECIMAL, (int) IntVector.TYPE_WIDTH));
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+      }
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.DateLogicalTypeAnnotation dateLogicalType) {
+      FieldVector vector = arrowField.createVector(rootAlloc);
+      ((DateDayVector) vector).allocateNew(batchSize);
+      return Optional.of(
+          new LogicalTypeVisitorResult(vector, ReadType.INT, (int) IntVector.TYPE_WIDTH));
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
+      FieldVector vector = arrowField.createVector(rootAlloc);
+      ((TimeMicroVector) vector).allocateNew(batchSize);
+      return Optional.of(
+          new LogicalTypeVisitorResult(vector, ReadType.LONG, (int) TimeMicroVector.TYPE_WIDTH));
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
+      FieldVector vector = arrowField.createVector(rootAlloc);
+      switch (timestampLogicalType.getUnit()) {
+        case MILLIS:
+          ((BigIntVector) vector).allocateNew(batchSize);
+          return Optional.of(
+              new LogicalTypeVisitorResult(
+                  vector, ReadType.TIMESTAMP_MILLIS, (int) BigIntVector.TYPE_WIDTH));
+        case MICROS:
+          if (((Types.TimestampType) icebergField.type()).shouldAdjustToUTC()) {
+            ((TimeStampMicroTZVector) vector).allocateNew(batchSize);
+          } else {
+            ((TimeStampMicroVector) vector).allocateNew(batchSize);
+          }
+
+          return Optional.of(
+              new LogicalTypeVisitorResult(vector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));
+        case NANOS:
+          if (((Types.TimestampNanoType) icebergField.type()).shouldAdjustToUTC()) {
+            ((TimeStampNanoTZVector) vector).allocateNew(batchSize);
+          } else {
+            ((TimeStampNanoVector) vector).allocateNew(batchSize);
+          }
+
+          return Optional.of(
+              new LogicalTypeVisitorResult(vector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));
+      }
+
+      return Optional.empty();
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
+      FieldVector vector = arrowField.createVector(rootAlloc);
+      int bitWidth = intLogicalType.getBitWidth();
+
+      if (bitWidth == 8 || bitWidth == 16 || bitWidth == 32) {
+        ((IntVector) vector).allocateNew(batchSize);
+        return Optional.of(
+            new LogicalTypeVisitorResult(vector, ReadType.INT, (int) IntVector.TYPE_WIDTH));
+      } else if (bitWidth == 64) {
+        ((BigIntVector) vector).allocateNew(batchSize);
+        return Optional.of(
+            new LogicalTypeVisitorResult(vector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));
+      }
+
+      return Optional.empty();
+    }
+
+    private Optional<LogicalTypeVisitorResult> allocateVectorForEnumJsonBsonString() {
+      FieldVector vector = arrowField.createVector(rootAlloc);
+      // TODO: Possibly use the uncompressed page size info to set the initial capacity
+      vector.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
+      vector.allocateNewSafe();
+      return Optional.of(new LogicalTypeVisitorResult(vector, ReadType.VARCHAR, UNKNOWN_WIDTH));
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
+      return allocateVectorForEnumJsonBsonString();
+    }
+
+    @Override
+    public Optional<LogicalTypeVisitorResult> visit(
+        LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
+      return allocateVectorForEnumJsonBsonString();
+    }
+  }
+
   private static final class NullVectorReader extends VectorizedArrowReader {
     private static final NullVectorReader INSTANCE = new NullVectorReader();
 
@@ -473,7 +621,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
     public String toString() {
@@ -532,16 +680,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       return vector;
     }
 
-    private static NullabilityHolder newNullabilityHolder(int size) {
-      NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
-      nullabilityHolder.setNotNulls(0, size);
-      return nullabilityHolder;
-    }
-
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
-      this.rowStart = rowPosition;
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      this.rowStart =
+          source
+              .getRowIndexOffset()
+              .orElseThrow(
+                  () ->
+                      new IllegalArgumentException(
+                          "PageReadStore does not contain row index offset"));
     }
 
     @Override
@@ -561,6 +709,164 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public void close() {
       // don't close vectors as they are not owned by readers
     }
+  }
+
+  private static final class RowIdVectorReader extends VectorizedArrowReader {
+    private static final Field ROW_ID_ARROW_FIELD = ArrowSchemaUtil.convert(MetadataColumns.ROW_ID);
+
+    private final long firstRowId;
+    private final VectorizedReader<VectorHolder> idReader;
+    private final VectorizedReader<VectorHolder> posReader;
+    private NullabilityHolder nulls;
+
+    private RowIdVectorReader(long firstRowId, VectorizedArrowReader idReader) {
+      this.firstRowId = firstRowId;
+      this.idReader = idReader != null ? idReader : nulls();
+      this.posReader = new PositionVectorReader(true);
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      FieldVector positions = null;
+      FieldVector ids = null;
+
+      try {
+        positions = posReader.read(null, numValsToRead).vector();
+        VectorHolder idsHolder = idReader.read(null, numValsToRead);
+        ids = idsHolder.vector();
+        ArrowVectorAccessor<?, String, ?, ?> idsAccessor =
+            ids == null ? null : ArrowVectorAccessors.getVectorAccessor(idsHolder);
+
+        BigIntVector rowIds = allocateBigIntVector(ROW_ID_ARROW_FIELD, numValsToRead);
+        ArrowBuf dataBuffer = rowIds.getDataBuffer();
+        for (int i = 0; i < numValsToRead; i += 1) {
+          long bufferOffset = (long) i * Long.BYTES;
+          if (idsAccessor == null || isNull(idsHolder, i)) {
+            long rowId = firstRowId + (Long) positions.getObject(i);
+            dataBuffer.setLong(bufferOffset, rowId);
+          } else {
+            long materializedRowId = idsAccessor.getLong(i);
+            dataBuffer.setLong(bufferOffset, materializedRowId);
+          }
+        }
+
+        rowIds.setValueCount(numValsToRead);
+        return VectorHolder.vectorHolder(rowIds, MetadataColumns.ROW_ID, nulls);
+      } finally {
+        if (positions != null) {
+          positions.close();
+        }
+
+        if (ids != null) {
+          ids.close();
+        }
+      }
+    }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      idReader.setRowGroupInfo(source, metadata);
+      posReader.setRowGroupInfo(source, metadata);
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+      if (nulls == null || nulls.size() < batchSize) {
+        this.nulls = newNullabilityHolder(batchSize);
+      }
+
+      idReader.setBatchSize(batchSize);
+      posReader.setBatchSize(batchSize);
+    }
+
+    @Override
+    public void close() {
+      // don't close result vectors as they are not owned by readers
+    }
+  }
+
+  private static final class LastUpdatedSeqVectorReader extends VectorizedArrowReader {
+    private static final Field LAST_UPDATED_SEQ =
+        ArrowSchemaUtil.convert(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+
+    private final long lastUpdatedSeq;
+    private final VectorizedReader<VectorHolder> seqReader;
+    private NullabilityHolder nulls;
+
+    private LastUpdatedSeqVectorReader(
+        long lastUpdatedSeq, VectorizedReader<VectorHolder> seqReader) {
+      this.lastUpdatedSeq = lastUpdatedSeq;
+      this.seqReader = seqReader == null ? nulls() : seqReader;
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      FieldVector seqNumbers = null;
+      try {
+        VectorHolder seqNumbersHolder = seqReader.read(null, numValsToRead);
+        seqNumbers = seqNumbersHolder.vector();
+        ArrowVectorAccessor<?, String, ?, ?> seqAccessor =
+            seqNumbers == null ? null : ArrowVectorAccessors.getVectorAccessor(seqNumbersHolder);
+
+        BigIntVector lastUpdatedSequenceNumbers =
+            allocateBigIntVector(LAST_UPDATED_SEQ, numValsToRead);
+        ArrowBuf dataBuffer = lastUpdatedSequenceNumbers.getDataBuffer();
+        for (int i = 0; i < numValsToRead; i += 1) {
+          long bufferOffset = (long) i * Long.BYTES;
+          if (seqAccessor == null || isNull(seqNumbersHolder, i)) {
+            dataBuffer.setLong(bufferOffset, lastUpdatedSeq);
+          } else {
+            long materializedSeqNumber = seqAccessor.getLong(i);
+            dataBuffer.setLong(bufferOffset, materializedSeqNumber);
+          }
+        }
+
+        lastUpdatedSequenceNumbers.setValueCount(numValsToRead);
+        return VectorHolder.vectorHolder(
+            lastUpdatedSequenceNumbers, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER, nulls);
+      } finally {
+        if (seqNumbers != null) {
+          seqNumbers.close();
+        }
+      }
+    }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      seqReader.setRowGroupInfo(source, metadata);
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+      if (nulls == null || nulls.size() < batchSize) {
+        this.nulls = newNullabilityHolder(batchSize);
+      }
+
+      seqReader.setBatchSize(batchSize);
+    }
+
+    @Override
+    public void close() {
+      // don't close result vectors as they are not owned by readers
+    }
+  }
+
+  private static boolean isNull(VectorHolder holder, int index) {
+    return holder.nullabilityHolder().isNullAt(index) == 1;
+  }
+
+  private static BigIntVector allocateBigIntVector(Field field, int valueCount) {
+    BigIntVector vector = (BigIntVector) field.createVector(ArrowAllocation.rootAllocator());
+    vector.allocateNew(valueCount);
+    return vector;
+  }
+
+  private static NullabilityHolder newNullabilityHolder(int size) {
+    NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
+    nullabilityHolder.setNotNulls(0, size);
+    return nullabilityHolder;
   }
 
   /**
@@ -584,7 +890,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
     public String toString() {
@@ -611,7 +917,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
     public String toString() {

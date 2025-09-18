@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -39,13 +40,15 @@ import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.PartitionMetadata;
 import software.amazon.awssdk.regions.Region;
@@ -66,9 +69,21 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.VersioningConfiguration;
 import software.amazon.awssdk.services.s3control.S3ControlClient;
-import software.amazon.awssdk.utils.ImmutableMap;
 import software.amazon.awssdk.utils.IoUtils;
+import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 
+@EnabledIfEnvironmentVariables({
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_ACCESS_KEY_ID, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SESSION_TOKEN, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_TEST_ACCOUNT_ID, matches = "\\d{12}"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_REGION, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_CROSS_REGION, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_TEST_BUCKET, matches = ".*"),
+  @EnabledIfEnvironmentVariable(
+      named = AwsIntegTestUtil.AWS_TEST_CROSS_REGION_BUCKET,
+      matches = ".*")
+})
 public class TestS3FileIOIntegration {
 
   private final Random random = new Random(1);
@@ -126,6 +141,7 @@ public class TestS3FileIOIntegration {
   public static void afterClass() {
     if (S3URI.isS3DirectoryBucket(bucketName)) {
       S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+      s3FileIO.initialize(ImmutableMap.of());
       AwsIntegTestUtil.cleanS3DirectoryBucket(s3FileIO.client(), bucketName, prefix);
     } else {
       AwsIntegTestUtil.cleanS3GeneralPurposeBucket(s3, bucketName, prefix);
@@ -149,6 +165,7 @@ public class TestS3FileIOIntegration {
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of());
     validateRead(s3FileIO);
   }
 
@@ -240,7 +257,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testNewInputStreamWithMultiRegionAccessPoint() throws Exception {
-    Assumptions.assumeThat(multiRegionAccessPointAlias).isNotEmpty();
+    assumeThat(multiRegionAccessPointAlias).isNotEmpty();
     clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
     S3Client s3Client = clientFactory.s3();
     s3Client.putObject(
@@ -256,8 +273,51 @@ public class TestS3FileIOIntegration {
   }
 
   @Test
+  public void testNewInputStreamWithAnalyticsAccelerator() throws Exception {
+    s3.putObject(
+        PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO();
+    s3FileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED, String.valueOf(true)));
+    validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testNewInputStreamWithAnalyticsAcceleratorAndCRT() throws Exception {
+    s3.putObject(
+        PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO();
+    s3FileIO.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED,
+            String.valueOf(true),
+            S3FileIOProperties.S3_CRT_ENABLED,
+            String.valueOf(true)));
+    validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testNewInputStreamWithAnalyticsAcceleratorCustomConfigured() throws Exception {
+    final String prefetchingMode = "logicalio.prefetching.mode";
+    final String s3Uri = String.format("s3://%s/%s/%s.parquet", bucketName, prefix, objectKey);
+    S3FileIO s3FileIO = new S3FileIO();
+    s3FileIO.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED,
+            String.valueOf(true),
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_PROPERTIES_PREFIX + prefetchingMode,
+            PrefetchMode.ALL.name()));
+    write(s3FileIO, s3Uri);
+    validateRead(s3FileIO, s3Uri);
+    s3FileIO.deleteFile(s3Uri);
+  }
+
+  @Test
   public void testNewOutputStream() throws Exception {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of());
     write(s3FileIO);
     try (InputStream stream =
         s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())) {
@@ -308,7 +368,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testNewOutputStreamWithMultiRegionAccessPoint() throws Exception {
-    Assumptions.assumeThat(multiRegionAccessPointAlias).isNotEmpty();
+    assumeThat(multiRegionAccessPointAlias).isNotEmpty();
     clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     s3FileIO.initialize(
@@ -325,10 +385,23 @@ public class TestS3FileIOIntegration {
   }
 
   @Test
+  public void testNewOutputStreamWithAnalyticsAccelerator() throws Exception {
+    S3FileIO s3FileIO = new S3FileIO();
+    s3FileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED, String.valueOf(true)));
+    write(s3FileIO);
+    try (InputStream stream =
+        s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())) {
+      String result = IoUtils.toUtf8String(stream);
+      assertThat(result).isEqualTo(content);
+    }
+  }
+
+  @Test
   public void testServerSideS3Encryption() throws Exception {
-    S3FileIOProperties properties = new S3FileIOProperties();
-    properties.setSseType(S3FileIOProperties.SSE_TYPE_S3);
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.SSE_TYPE, S3FileIOProperties.SSE_TYPE_S3));
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
@@ -340,10 +413,13 @@ public class TestS3FileIOIntegration {
   @Test
   public void testServerSideKmsEncryption() throws Exception {
     requireKMSEncryptionSupport();
-    S3FileIOProperties properties = new S3FileIOProperties();
-    properties.setSseType(S3FileIOProperties.SSE_TYPE_KMS);
-    properties.setSseKey(kmsKeyArn);
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.SSE_TYPE,
+            S3FileIOProperties.SSE_TYPE_KMS,
+            S3FileIOProperties.SSE_KEY,
+            kmsKeyArn));
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
@@ -356,9 +432,9 @@ public class TestS3FileIOIntegration {
   @Test
   public void testServerSideKmsEncryptionWithDefaultKey() throws Exception {
     requireKMSEncryptionSupport();
-    S3FileIOProperties properties = new S3FileIOProperties();
-    properties.setSseType(S3FileIOProperties.SSE_TYPE_KMS);
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.SSE_TYPE, S3FileIOProperties.SSE_TYPE_KMS));
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
@@ -378,10 +454,13 @@ public class TestS3FileIOIntegration {
   @Test
   public void testDualLayerServerSideKmsEncryption() throws Exception {
     requireKMSEncryptionSupport();
-    S3FileIOProperties properties = new S3FileIOProperties();
-    properties.setSseType(S3FileIOProperties.DSSE_TYPE_KMS);
-    properties.setSseKey(kmsKeyArn);
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.SSE_TYPE,
+            S3FileIOProperties.DSSE_TYPE_KMS,
+            S3FileIOProperties.SSE_KEY,
+            kmsKeyArn));
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
@@ -405,11 +484,15 @@ public class TestS3FileIOIntegration {
     String md5 =
         new String(encoder.encode(digest.digest(secretKey.getEncoded())), StandardCharsets.UTF_8);
 
-    S3FileIOProperties properties = new S3FileIOProperties();
-    properties.setSseType(S3FileIOProperties.SSE_TYPE_CUSTOM);
-    properties.setSseKey(encodedKey);
-    properties.setSseMd5(md5);
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.SSE_TYPE,
+            S3FileIOProperties.SSE_TYPE_CUSTOM,
+            S3FileIOProperties.SSE_KEY,
+            encodedKey,
+            S3FileIOProperties.SSE_MD5,
+            md5));
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response =
@@ -430,9 +513,11 @@ public class TestS3FileIOIntegration {
   @Test
   public void testACL() throws Exception {
     requireACLSupport();
-    S3FileIOProperties properties = new S3FileIOProperties();
-    properties.setAcl(ObjectCannedACL.BUCKET_OWNER_FULL_CONTROL);
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.ACL, ObjectCannedACL.BUCKET_OWNER_FULL_CONTROL.toString()));
+
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectAclResponse response =
@@ -447,6 +532,7 @@ public class TestS3FileIOIntegration {
   @Test
   public void testClientFactorySerialization() throws Exception {
     S3FileIO fileIO = new S3FileIO(clientFactory::s3);
+    fileIO.initialize(ImmutableMap.of());
     write(fileIO);
     byte[] data = TestHelpers.serialize(fileIO);
     S3FileIO fileIO2 = TestHelpers.deserialize(data);
@@ -455,16 +541,21 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testDeleteFilesMultipleBatches() throws Exception {
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, Integer.toString(deletionBatchSize)));
+
     testDeleteFiles(deletionBatchSize * 2, s3FileIO);
   }
 
   @Test
   public void testDeleteFilesMultipleBatchesWithAccessPoints() throws Exception {
     requireAccessPointSupport();
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     s3FileIO.initialize(
         ImmutableMap.of(
+            S3FileIOProperties.DELETE_BATCH_SIZE,
+            Integer.toString(deletionBatchSize),
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
             testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
     testDeleteFiles(deletionBatchSize * 2, s3FileIO);
@@ -474,9 +565,11 @@ public class TestS3FileIOIntegration {
   public void testDeleteFilesMultipleBatchesWithCrossRegionAccessPoints() throws Exception {
     requireKMSEncryptionSupport();
     clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     s3FileIO.initialize(
         ImmutableMap.of(
+            S3FileIOProperties.DELETE_BATCH_SIZE,
+            Integer.toString(deletionBatchSize),
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
             testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName)));
     testDeleteFiles(deletionBatchSize * 2, s3FileIO);
@@ -484,13 +577,17 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testDeleteFilesLessThanBatchSize() throws Exception {
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, Integer.toString(deletionBatchSize)));
     testDeleteFiles(deletionBatchSize - 1, s3FileIO);
   }
 
   @Test
   public void testDeleteFilesSingleBatchWithRemainder() throws Exception {
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, Integer.toString(deletionBatchSize)));
     testDeleteFiles(5, s3FileIO);
   }
 
@@ -498,6 +595,7 @@ public class TestS3FileIOIntegration {
   @Test
   public void testPrefixList() {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of());
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
     String listPrefix = String.format("s3://%s/%s/%s", bucketName, prefix, "prefix-list-test");
 
@@ -516,9 +614,8 @@ public class TestS3FileIOIntegration {
   @SuppressWarnings("DangerousParallelStreamUsage")
   @Test
   public void testPrefixDelete() {
-    S3FileIOProperties properties = new S3FileIOProperties();
-    properties.setDeleteBatchSize(100);
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of(S3FileIOProperties.DELETE_BATCH_SIZE, "100"));
     String deletePrefix = String.format("s3://%s/%s/%s", bucketName, prefix, "prefix-delete-test");
 
     List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1000, 2500);
@@ -535,7 +632,8 @@ public class TestS3FileIOIntegration {
   @Test
   public void testFileRecoveryHappyPath() throws Exception {
     requireVersioningSupport();
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, new S3FileIOProperties());
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of());
     String filePath = String.format("s3://%s/%s/%s", bucketName, prefix, "someFile.parquet");
     write(s3FileIO, filePath);
     s3FileIO.deleteFile(filePath);
@@ -548,7 +646,8 @@ public class TestS3FileIOIntegration {
   @Test
   public void testFileRecoveryFailsToRecover() throws Exception {
     requireVersioningSupport();
-    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, new S3FileIOProperties());
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    s3FileIO.initialize(ImmutableMap.of());
     s3.putBucketVersioning(
         PutBucketVersioningRequest.builder()
             .bucket(bucketName)
@@ -561,12 +660,6 @@ public class TestS3FileIOIntegration {
     assertThat(s3FileIO.newInputFile(filePath).exists()).isFalse();
 
     assertThat(s3FileIO.recoverFile(filePath)).isFalse();
-  }
-
-  private S3FileIOProperties getDeletionTestProperties() {
-    S3FileIOProperties properties = new S3FileIOProperties();
-    properties.setDeleteBatchSize(deletionBatchSize);
-    return properties;
   }
 
   private void testDeleteFiles(int numObjects, S3FileIO s3FileIO) throws Exception {
@@ -637,21 +730,21 @@ public class TestS3FileIOIntegration {
 
   /** S3 Express doesn't support access points */
   private void requireAccessPointSupport() {
-    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
+    assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 
   /** S3 Express doesn’t support KMS/custom encryption */
   private void requireKMSEncryptionSupport() {
-    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
+    assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 
   /** S3 Express doesn't support versioning */
   private void requireVersioningSupport() {
-    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
+    assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 
   /** File ACLs aren’t supported by S3 Express */
   private void requireACLSupport() {
-    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
+    assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 }

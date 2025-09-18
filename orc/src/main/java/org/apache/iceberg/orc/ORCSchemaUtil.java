@@ -19,7 +19,6 @@
 package org.apache.iceberg.orc;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -83,6 +82,24 @@ public final class ORCSchemaUtil {
 
   static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
+  /**
+   * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding
+   * to an ORC struct type.
+   */
+  static final String ICEBERG_STRUCT_TYPE_ATTRIBUTE = "iceberg.struct-type";
+
+  static final String VARIANT = "VARIANT";
+  static final String VARIANT_METADATA = "metadata";
+  static final String VARIANT_VALUE = "value";
+
+  /**
+   * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg timestamp unit.
+   */
+  static final String TIMESTAMP_UNIT = "iceberg.timestamp-unit";
+
+  static final String MICROS = "MICROS";
+  static final String NANOS = "NANOS";
+
   private static final ImmutableMultimap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
       ImmutableMultimap.<Type.TypeID, TypeDescription.Category>builder()
           .put(Type.TypeID.BOOLEAN, TypeDescription.Category.BOOLEAN)
@@ -110,7 +127,9 @@ public final class ORCSchemaUtil {
     final Types.StructType schemaRoot = schema.asStruct();
     for (Types.NestedField field : schemaRoot.asStructType().fields()) {
       TypeDescription orcColumnType = convert(field.fieldId(), field.type(), field.isRequired());
-      root.addField(field.name(), orcColumnType);
+      if (orcColumnType != null) {
+        root.addField(field.name(), orcColumnType);
+      }
     }
     return root;
   }
@@ -119,6 +138,8 @@ public final class ORCSchemaUtil {
     final TypeDescription orcType;
 
     switch (type.typeId()) {
+      case UNKNOWN:
+        return null;
       case BOOLEAN:
         orcType = TypeDescription.createBoolean();
         break;
@@ -149,6 +170,18 @@ public final class ORCSchemaUtil {
         } else {
           orcType = TypeDescription.createTimestamp();
         }
+
+        orcType.setAttribute(TIMESTAMP_UNIT, MICROS);
+        break;
+      case TIMESTAMP_NANO:
+        Types.TimestampNanoType tsNanoType = (Types.TimestampNanoType) type;
+        if (tsNanoType.shouldAdjustToUTC()) {
+          orcType = TypeDescription.createTimestampInstant();
+        } else {
+          orcType = TypeDescription.createTimestamp();
+        }
+
+        orcType.setAttribute(TIMESTAMP_UNIT, NANOS);
         break;
       case STRING:
         orcType = TypeDescription.createString();
@@ -176,27 +209,49 @@ public final class ORCSchemaUtil {
                   .withPrecision(decimal.precision());
           break;
         }
+      case VARIANT:
+        orcType = TypeDescription.createStruct();
+        orcType.addField(VARIANT_METADATA, TypeDescription.createBinary());
+        orcType.addField(VARIANT_VALUE, TypeDescription.createBinary());
+        orcType.setAttribute(ICEBERG_STRUCT_TYPE_ATTRIBUTE, VARIANT);
+        break;
       case STRUCT:
         {
           orcType = TypeDescription.createStruct();
           for (Types.NestedField field : type.asStructType().fields()) {
             TypeDescription childType = convert(field.fieldId(), field.type(), field.isRequired());
-            orcType.addField(field.name(), childType);
+            if (childType != null) {
+              orcType.addField(field.name(), childType);
+            }
           }
           break;
         }
       case LIST:
         {
           Types.ListType list = (Types.ListType) type;
+
+          Preconditions.checkArgument(
+              list.elementType().typeId() != Type.TypeID.UNKNOWN,
+              "Cannot create ListType with unknown element type");
+
           TypeDescription elementType =
               convert(list.elementId(), list.elementType(), list.isElementRequired());
+
           orcType = TypeDescription.createList(elementType);
           break;
         }
       case MAP:
         {
           Types.MapType map = (Types.MapType) type;
+
+          // Only the value can be set as an unknown by definition:
+          // UnknownType requires to be optional, and the key has to be required.
+          Preconditions.checkArgument(
+              map.valueType().typeId() != Type.TypeID.UNKNOWN,
+              "Cannot create MapType with unknown value type");
+
           TypeDescription keyType = convert(map.keyId(), map.keyType(), true);
+
           TypeDescription valueType =
               convert(map.valueId(), map.valueType(), map.isValueRequired());
           orcType = TypeDescription.createMap(keyType, valueType);
@@ -264,11 +319,11 @@ public final class ORCSchemaUtil {
   public static TypeDescription buildOrcProjection(
       Schema schema, TypeDescription originalOrcSchema) {
     final Map<Integer, OrcField> icebergToOrc = icebergToOrcMapping("root", originalOrcSchema);
-    return buildOrcProjection(Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc);
+    return buildOrcProjection(schema, Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc);
   }
 
   private static TypeDescription buildOrcProjection(
-      Integer fieldId, Type type, boolean isRequired, Map<Integer, OrcField> mapping) {
+      Schema root, Integer fieldId, Type type, boolean isRequired, Map<Integer, OrcField> mapping) {
     final TypeDescription orcType;
 
     switch (type.typeId()) {
@@ -284,31 +339,45 @@ public final class ORCSchemaUtil {
                   .orElseGet(() -> nestedField.name() + "_r" + nestedField.fieldId());
           TypeDescription childType =
               buildOrcProjection(
+                  root,
                   nestedField.fieldId(),
                   nestedField.type(),
                   isRequired && nestedField.isRequired(),
                   mapping);
-          orcType.addField(name, childType);
+
+          if (childType != null) {
+            orcType.addField(name, childType);
+          }
         }
         break;
       case LIST:
         Types.ListType list = (Types.ListType) type;
         TypeDescription elementType =
             buildOrcProjection(
+                root,
                 list.elementId(),
                 list.elementType(),
                 isRequired && list.isElementRequired(),
                 mapping);
+        Preconditions.checkArgument(elementType != null, "Invalid element type: unknown");
         orcType = TypeDescription.createList(elementType);
         break;
       case MAP:
         Types.MapType map = (Types.MapType) type;
         TypeDescription keyType =
-            buildOrcProjection(map.keyId(), map.keyType(), isRequired, mapping);
+            buildOrcProjection(root, map.keyId(), map.keyType(), isRequired, mapping);
         TypeDescription valueType =
             buildOrcProjection(
-                map.valueId(), map.valueType(), isRequired && map.isValueRequired(), mapping);
+                root, map.valueId(), map.valueType(), isRequired && map.isValueRequired(), mapping);
+        Preconditions.checkArgument(keyType != null, "Invalid key type: unknown");
+        Preconditions.checkArgument(valueType != null, "Invalid value type: unknown");
         orcType = TypeDescription.createMap(keyType, valueType);
+        break;
+      case VARIANT:
+        orcType = TypeDescription.createStruct();
+        orcType.addField(VARIANT_METADATA, TypeDescription.createBinary());
+        orcType.addField(VARIANT_VALUE, TypeDescription.createBinary());
+        orcType.setAttribute(ICEBERG_STRUCT_TYPE_ATTRIBUTE, VARIANT);
         break;
       default:
         if (mapping.containsKey(fieldId)) {
@@ -326,19 +395,30 @@ public final class ORCSchemaUtil {
             orcType = originalType.clone();
           }
         } else {
+          Types.NestedField field = root.findField(fieldId);
           if (isRequired) {
-            throw new IllegalArgumentException(
+            Preconditions.checkArgument(
+                field.initialDefault() != null,
+                "Missing required field: %s (%s)",
+                root.findColumnName(fieldId),
+                type);
+          }
+
+          if (field.initialDefault() != null) {
+            throw new UnsupportedOperationException(
                 String.format(
-                    Locale.ROOT,
-                    "Field %d of type %s is required and was not found.",
-                    fieldId,
-                    type));
+                    "ORC cannot read default value for field %s (%s): %s",
+                    root.findColumnName(fieldId), type, field.initialDefault()));
           }
 
           orcType = convert(fieldId, type, false);
         }
     }
-    orcType.setAttribute(ICEBERG_ID_ATTRIBUTE, fieldId.toString());
+
+    if (orcType != null) {
+      orcType.setAttribute(ICEBERG_ID_ATTRIBUTE, fieldId.toString());
+    }
+
     return orcType;
   }
 
@@ -399,6 +479,13 @@ public final class ORCSchemaUtil {
   private static boolean isSameType(TypeDescription orcType, Type icebergType) {
     if (icebergType.typeId() == Type.TypeID.TIMESTAMP) {
       Types.TimestampType tsType = (Types.TimestampType) icebergType;
+      return Objects.equals(
+          tsType.shouldAdjustToUTC()
+              ? TypeDescription.Category.TIMESTAMP_INSTANT
+              : TypeDescription.Category.TIMESTAMP,
+          orcType.getCategory());
+    } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+      Types.TimestampNanoType tsType = (Types.TimestampNanoType) icebergType;
       return Objects.equals(
           tsType.shouldAdjustToUTC()
               ? TypeDescription.Category.TIMESTAMP_INSTANT

@@ -76,7 +76,9 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.cache-enabled     | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
 | spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds) | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true`. `-1` disables cache expiration and `0` disables caching entirely, irrespective of `cache-enabled`. Default is `30000` (30 seconds) |
 | spark.sql.catalog._catalog-name_.table-default._propertyKey_  |                               | Default Iceberg table property value for property key _propertyKey_, which will be set on tables created by this catalog if not overridden                                                                                               |
-| spark.sql.catalog._catalog-name_.table-override._propertyKey_ |                               | Enforced Iceberg table property value for property key _propertyKey_, which cannot be overridden by user                                                                                                                                 |
+| spark.sql.catalog._catalog-name_.table-override._propertyKey_ |                               | Enforced Iceberg table property value for property key _propertyKey_, which cannot be overridden on table creation by user                                                                                                               |
+| spark.sql.catalog._catalog-name_.view-default._propertyKey_  |                               | Default Iceberg view property value for property key _propertyKey_, which will be set on views created by this catalog if not overridden                                                                                               |
+| spark.sql.catalog._catalog-name_.view-override._propertyKey_ |                               | Enforced Iceberg view property value for property key _propertyKey_, which cannot be overridden on view creation by user                                                                                                               |
 | spark.sql.catalog._catalog-name_.use-nullable-query-schema | `true` or `false` | Whether to preserve fields' nullability when creating the table using CTAS and RTAS. If set to `true`, all fields will be marked as nullable. If set to `false`, fields' nullability will be preserved. The default value is `true`. Available in Spark 3.5 and above.   |
 
 Additional properties can be found in common [catalog configuration](configuration.md#catalog-properties).
@@ -143,6 +145,61 @@ Using those SQL commands requires adding Iceberg extensions to your Spark enviro
 
 ## Runtime configuration
 
+### Precedence of Configuration Settings
+Iceberg allows configurations to be specified at different levels. The effective configuration for a read or write operation is determined based on the following order of precedence:
+
+1. DataSource API Read/Write Options – Explicitly passed to `.option(...)` in a read/write operation.
+
+2. Spark Session Configuration - Set globally in Spark via `spark.conf.set(...)`, `spark-defaults.conf`, or `--conf` in spark-submit.
+
+3. Table Properties – Defined on the Iceberg table via `ALTER TABLE SET TBLPROPERTIES`.
+
+4. Default Value.
+
+If a setting is not defined at a higher level, the next level is used as fallback. This allows flexibility while enabling global defaults when needed.
+
+### Spark SQL Options
+
+Iceberg supports setting various global behaviors using Spark SQL configuration options. These can be set via `spark.conf`, `SparkSession` settings, or Spark submit arguments.
+For example:
+
+```scala
+// disabling vectorization
+val spark = SparkSession.builder()
+  .appName("IcebergExample")
+  .master("local[*]")
+  .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog")
+  .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+  .config("spark.sql.iceberg.vectorization.enabled", "false")
+  .getOrCreate()
+```
+
+| Spark option                                           | Default                                                        | Description                                                                                                                     |
+|--------------------------------------------------------|----------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| spark.sql.iceberg.vectorization.enabled                | Table default                                                  | Enables vectorized reads of data files                                                                                          |
+| spark.sql.iceberg.parquet.reader-type                  | ICEBERG                                                        | Sets Parquet reader implementation (`ICEBERG`,`COMET`)                                                                          |
+| spark.sql.iceberg.check-nullability                    | true                                                           | Validate that the write schema's nullability matches the table's nullability                                                    |
+| spark.sql.iceberg.check-ordering                       | true                                                           | Validates the write schema column order matches the table schema order                                                          |
+| spark.sql.iceberg.planning.preserve-data-grouping      | false                                                          | When true, co-locate scan tasks for the same partition in the same read split, used in Storage Partitioned Joins                |
+| spark.sql.iceberg.aggregate-push-down.enabled          | true                                                           | Enables pushdown of aggregate functions (MAX, MIN, COUNT)                                                                       |
+| spark.sql.iceberg.distribution-mode                    | See [Spark Writes](spark-writes.md#writing-distribution-modes) | Controls distribution strategy during writes                                                                                    |
+| spark.wap.id                                           | null                                                           | [Write-Audit-Publish](branching.md#audit-branch) snapshot staging ID                                                            |
+| spark.wap.branch                                       | null                                                           | WAP branch name for snapshot commit                                                                                             |
+| spark.sql.iceberg.compression-codec                    | Table default                                                  | Write compression codec (e.g., `zstd`, `snappy`)                                                                                |
+| spark.sql.iceberg.compression-level                    | Table default                                                  | Compression level for Parquet/Avro                                                                                              |
+| spark.sql.iceberg.compression-strategy                 | Table default                                                  | Compression strategy for ORC                                                                                                    |
+| spark.sql.iceberg.data-planning-mode                   | AUTO                                                           | Scan planning mode for data files (`AUTO`, `LOCAL`, `DISTRIBUTED`)                                                              |
+| spark.sql.iceberg.delete-planning-mode                 | AUTO                                                           | Scan planning mode for delete files (`AUTO`, `LOCAL`, `DISTRIBUTED`)                                                            |
+| spark.sql.iceberg.advisory-partition-size              | Table default                                                  | Advisory size (bytes) used for writing to the Table when Spark's Adaptive Query Execution is enabled. Used to size output files |
+| spark.sql.iceberg.locality.enabled                     | false                                                          | Report locality information for Spark task placement on executors                                                               |
+| spark.sql.iceberg.executor-cache.enabled               | true                                                           | Enables cache for executor-side (currently used to cache Delete Files)                                                          |
+| spark.sql.iceberg.executor-cache.timeout               | 10                                                             | Timeout in minutes for executor cache entries                                                                                   |
+| spark.sql.iceberg.executor-cache.max-entry-size        | 67108864 (64MB)                                                | Max size per cache entry (bytes)                                                                                                |
+| spark.sql.iceberg.executor-cache.max-total-size        | 134217728 (128MB)                                              | Max total executor cache size (bytes)                                                                                           |
+| spark.sql.iceberg.executor-cache.locality.enabled      | false                                                          | Enables locality-aware executor cache usage                                                                                     |
+| spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds columns missing columns                                 |
+| spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
+
 ### Read options
 
 Spark read options are passed when configuring the DataFrameReader, like this:
@@ -154,27 +211,29 @@ spark.read
     .table("catalog.db.table")
 ```
 
-| Spark option    | Default               | Description                                                                               |
-| --------------- | --------------------- | ----------------------------------------------------------------------------------------- |
-| snapshot-id     | (latest)              | Snapshot ID of the table snapshot to read                                                 |
-| as-of-timestamp | (latest)              | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time. |
-| split-size      | As per table property | Overrides this table's read.split.target-size and read.split.metadata-target-size         |
-| lookback        | As per table property | Overrides this table's read.split.planning-lookback                                       |
-| file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                          |
-| vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                          |
-| batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
-| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
+| Spark option    | Default               | Description                                                                                                                                                                   |
+| --------------- | --------------------- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| snapshot-id     | (latest)              | Snapshot ID of the table snapshot to read                                                                                                                                     |
+| as-of-timestamp | (latest)              | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time.                                                                                     |
+| split-size      | As per table property | Overrides this table's read.split.target-size and read.split.metadata-target-size                                                                                             |
+| lookback        | As per table property | Overrides this table's read.split.planning-lookback                                                                                                                           |
+| file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                                                                                                              |
+| vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                                                                                                     |
+| batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                                                                                                  |
+| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used                                                             |
+| streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch                                                                                                                                        |
+| streaming-max-rows-per-micro-batch  | INT_MAX | "Soft maximum" number of rows per microbatch; always includes all rows in next unprocessed file, excludes additional files if their inclusion would exceed the soft max limit |
 
 ### Write options
 
-Spark write options are passed when configuring the DataFrameWriter, like this:
+Spark write options are passed when configuring the DataFrameWriterV2, like this:
 
 ```scala
 // write with Avro instead of Parquet
-df.write
+df.writeTo("catalog.db.table")
     .option("write-format", "avro")
     .option("snapshot-property.key", "value")
-    .insertInto("catalog.db.table")
+    .append()
 ```
 
 | Spark option           | Default                    | Description                                                  |
@@ -191,6 +250,7 @@ df.write
 | compression-level      | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write |
 | compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write |
 | distribution-mode | See [Spark Writes](spark-writes.md#writing-distribution-modes) for defaults | Override this table's distribution mode for this write |
+| delete-granularity | file | Override this table's delete granularity for this write |
 
 CommitMetadata provides an interface to add custom metadata to a snapshot summary during a SQL execution, which can be beneficial for purposes such as auditing or change tracking. If properties start with `snapshot-property.`, then that prefix will be removed from each property. Here is an example:
 

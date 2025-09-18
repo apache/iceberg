@@ -34,13 +34,13 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FatalExitExceptionHandler;
 import org.apache.flink.util.FlinkRuntimeException;
-import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.ThrowableCatchingRunnable;
 import org.apache.flink.util.function.ThrowingRunnable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
@@ -277,9 +277,9 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     if (globalStatistics != null) {
       runInCoordinatorThread(
           () -> {
-            if (event.signature() != null && event.signature() != globalStatistics.hashCode()) {
+            if (event.signature() != null && event.signature() == globalStatistics.hashCode()) {
               LOG.debug(
-                  "Skip responding to statistics request from subtask {}, as hashCode matches or not included in the request",
+                  "Skip responding to statistics request from subtask {}, as the operator task already holds the same global statistics",
                   subtask);
             } else {
               LOG.info(
@@ -370,7 +370,8 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
         "Restoring data statistic coordinator {} from checkpoint {}", operatorName, checkpointId);
     this.completedStatistics =
         StatisticsUtil.deserializeCompletedStatistics(
-            checkpointData, completedStatisticsSerializer);
+            checkpointData, (CompletedStatisticsSerializer) completedStatisticsSerializer);
+
     // recompute global statistics in case downstream parallelism changed
     this.globalStatistics =
         globalStatistics(

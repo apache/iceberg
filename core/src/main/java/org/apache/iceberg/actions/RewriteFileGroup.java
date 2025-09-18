@@ -23,34 +23,33 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 
 /**
  * Container class representing a set of files to be rewritten by a RewriteAction and the new files
  * which have been written by the action.
  */
-public class RewriteFileGroup {
-  private final FileGroupInfo info;
-  private final List<FileScanTask> fileScanTasks;
-
+public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTask, DataFile> {
+  private final int outputSpecId;
   private DataFileSet addedFiles = DataFileSet.create();
 
-  public RewriteFileGroup(FileGroupInfo info, List<FileScanTask> fileScanTasks) {
-    this.info = info;
-    this.fileScanTasks = fileScanTasks;
-  }
-
-  public FileGroupInfo info() {
-    return info;
-  }
-
-  public List<FileScanTask> fileScans() {
-    return fileScanTasks;
+  public RewriteFileGroup(
+      FileGroupInfo info,
+      List<FileScanTask> fileScanTasks,
+      int outputSpecId,
+      long writeMaxFileSize,
+      long inputSplitSize,
+      int expectedOutputFiles) {
+    super(info, fileScanTasks, writeMaxFileSize, inputSplitSize, expectedOutputFiles);
+    this.outputSpecId = outputSpecId;
   }
 
   public void setOutputFiles(Set<DataFile> files) {
@@ -58,9 +57,15 @@ public class RewriteFileGroup {
   }
 
   public Set<DataFile> rewrittenFiles() {
-    return fileScans().stream()
+    return fileScanTasks().stream()
         .map(FileScanTask::file)
         .collect(Collectors.toCollection(DataFileSet::create));
+  }
+
+  public Set<DeleteFile> danglingDVs() {
+    return fileScanTasks().stream()
+        .flatMap(task -> task.deletes().stream().filter(ContentFileUtil::isDV))
+        .collect(Collectors.toCollection(DeleteFileSet::create));
   }
 
   public Set<DataFile> addedFiles() {
@@ -70,43 +75,45 @@ public class RewriteFileGroup {
   public RewriteDataFiles.FileGroupRewriteResult asResult() {
     Preconditions.checkState(addedFiles != null, "Cannot get result, Group was never rewritten");
     return ImmutableRewriteDataFiles.FileGroupRewriteResult.builder()
-        .info(info)
+        .info(info())
         .addedDataFilesCount(addedFiles.size())
-        .rewrittenDataFilesCount(fileScanTasks.size())
-        .rewrittenBytesCount(sizeInBytes())
+        .rewrittenDataFilesCount(fileScanTasks().size())
+        .rewrittenBytesCount(inputFilesSizeInBytes())
+        .removedDeleteFilesCount(danglingDVs().size())
         .build();
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("info", info)
-        .add("numRewrittenFiles", fileScanTasks.size())
+        .add("info", info())
+        .add("numRewrittenFiles", fileScanTasks().size())
         .add(
             "numAddedFiles",
             addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
-        .add("numRewrittenBytes", sizeInBytes())
+        .add("numRewrittenBytes", inputFilesSizeInBytes())
+        .add("maxOutputFileSize", maxOutputFileSize())
+        .add("inputSplitSize", inputSplitSize())
+        .add("expectedOutputFiles", expectedOutputFiles())
+        .add("outputSpecId", outputSpecId)
         .toString();
   }
 
-  public long sizeInBytes() {
-    return fileScanTasks.stream().mapToLong(FileScanTask::length).sum();
-  }
-
-  public int numFiles() {
-    return fileScanTasks.size();
+  public int outputSpecId() {
+    return outputSpecId;
   }
 
   public static Comparator<RewriteFileGroup> comparator(RewriteJobOrder rewriteJobOrder) {
     switch (rewriteJobOrder) {
       case BYTES_ASC:
-        return Comparator.comparing(RewriteFileGroup::sizeInBytes);
+        return Comparator.comparing(RewriteFileGroup::inputFilesSizeInBytes);
       case BYTES_DESC:
-        return Comparator.comparing(RewriteFileGroup::sizeInBytes, Comparator.reverseOrder());
+        return Comparator.comparing(
+            RewriteFileGroup::inputFilesSizeInBytes, Comparator.reverseOrder());
       case FILES_ASC:
-        return Comparator.comparing(RewriteFileGroup::numFiles);
+        return Comparator.comparing(RewriteFileGroup::inputFileNum);
       case FILES_DESC:
-        return Comparator.comparing(RewriteFileGroup::numFiles, Comparator.reverseOrder());
+        return Comparator.comparing(RewriteFileGroup::inputFileNum, Comparator.reverseOrder());
       default:
         return (unused, unused2) -> 0;
     }

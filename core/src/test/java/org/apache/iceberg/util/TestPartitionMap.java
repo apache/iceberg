@@ -231,7 +231,9 @@ public class TestPartitionMap {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testNullKey() {
+    // no check on the underlying error msg as it might be missing based on the JDK version
     PartitionMap<String> map = PartitionMap.create(SPECS);
     assertThatThrownBy(() -> map.put(null, "value")).isInstanceOf(NullPointerException.class);
     assertThatThrownBy(() -> map.get(null)).isInstanceOf(NullPointerException.class);
@@ -253,15 +255,20 @@ public class TestPartitionMap {
     map.put(BY_DATA_SPEC.specId(), Row.of("bbb"), "v2");
 
     assertThatThrownBy(() -> map.keySet().add(Pair.of(1, null)))
-        .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(null);
     assertThatThrownBy(() -> map.values().add("other"))
-        .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(null);
     assertThatThrownBy(() -> map.entrySet().add(null))
-        .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(null);
     assertThatThrownBy(() -> map.entrySet().iterator().next().setValue("other"))
-        .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot set value");
     assertThatThrownBy(() -> map.entrySet().iterator().remove())
-        .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(null);
   }
 
   @Test

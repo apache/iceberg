@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RewriteFiles;
@@ -35,6 +36,7 @@ import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkDeleteFile;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -73,6 +75,7 @@ class RemoveDanglingDeletesSparkAction
     return this;
   }
 
+  @Override
   public Result execute() {
     if (table.specs().size() == 1 && table.spec().isUnpartitioned()) {
       // ManifestFilterManager already performs this table-wide delete on each commit
@@ -88,9 +91,12 @@ class RemoveDanglingDeletesSparkAction
 
   Result doExecute() {
     RewriteFiles rewriteFiles = table.newRewrite();
-    List<DeleteFile> danglingDeletes = findDanglingDeletes();
+    DeleteFileSet danglingDeletes = DeleteFileSet.create();
+    danglingDeletes.addAll(findDanglingDeletes());
+    danglingDeletes.addAll(findDanglingDvs());
+
     for (DeleteFile deleteFile : danglingDeletes) {
-      LOG.debug("Removing dangling delete file {}", deleteFile.path());
+      LOG.debug("Removing dangling delete file {}", deleteFile.location());
       rewriteFiles.deleteFile(deleteFile);
     }
 
@@ -145,7 +151,7 @@ class RemoveDanglingDeletesSparkAction
 
     Column filterOnDanglingDeletes =
         col("min_data_sequence_number")
-            // delete fies without any data files in partition
+            // delete files without any data files in partition
             .isNull()
             // position delete files without any applicable data files in partition
             .or(
@@ -166,6 +172,27 @@ class RemoveDanglingDeletesSparkAction
     return danglingDeletes.collectAsList().stream()
         // map on driver because SparkDeleteFile is not serializable
         .map(row -> deleteFileWrapper(danglingDeletes.schema(), row))
+        .collect(Collectors.toList());
+  }
+
+  private List<DeleteFile> findDanglingDvs() {
+    Dataset<Row> dvs =
+        loadMetadataTable(table, MetadataTableType.DELETE_FILES)
+            .where(col("file_format").equalTo(FileFormat.PUFFIN.name()));
+    Dataset<Row> dataFiles = loadMetadataTable(table, MetadataTableType.DATA_FILES);
+
+    // a DV not pointing to a valid data file path is implicitly a dangling delete
+    List<Row> danglingDvs =
+        dvs.join(
+                dataFiles,
+                dvs.col("referenced_data_file").equalTo(dataFiles.col("file_path")),
+                "leftouter")
+            .filter(dataFiles.col("file_path").isNull())
+            .select(dvs.col("*"))
+            .collectAsList();
+    return danglingDvs.stream()
+        // map on driver because SparkDeleteFile is not serializable
+        .map(row -> deleteFileWrapper(dvs.schema(), row))
         .collect(Collectors.toList());
   }
 

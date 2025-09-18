@@ -73,7 +73,7 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
     Table table = catalog.createTable(TableIdentifier.of(databaseName, name), schema, spec, props);
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
-    ops.commit(meta, meta.upgradeToFormatVersion(2));
+    ops.commit(meta, meta.upgradeToFormatVersion(formatVersion));
 
     return table;
   }

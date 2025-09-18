@@ -70,9 +70,11 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       // force upgrades for dependencies with known vulnerabilities...
       resolutionStrategy {
         force 'org.codehaus.jettison:jettison:1.5.4'
-        force 'org.xerial.snappy:snappy-java:1.1.10.7'
-        force 'org.apache.commons:commons-compress:1.27.1'
-        force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.3.0'
+        force 'org.xerial.snappy:snappy-java:1.1.10.8'
+        force 'org.apache.commons:commons-compress:1.28.0'
+        force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.4.0'
+        force 'com.fasterxml.woodstox:woodstox-core:6.7.0'
+        force 'commons-beanutils:commons-beanutils:1.11.0'
       }
     }
   }
@@ -91,12 +93,12 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
 
   dependencies {
     implementation project(':iceberg-kafka-connect:iceberg-kafka-connect')
+    implementation project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms')
     implementation(libs.hadoop3.common) {
       exclude group: 'log4j'
       exclude group: 'org.slf4j'
       exclude group: 'ch.qos.reload4j'
       exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'com.fasterxml.woodstox'
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf'
       exclude group: 'org.apache.curator'
@@ -105,7 +107,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       exclude group: 'org.apache.hadoop', module: 'hadoop-auth'
       exclude group: 'org.apache.commons', module: 'commons-configuration2'
       exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
-      exclude group: 'org.codehaus.woodstox'
       exclude group: 'org.eclipse.jetty'
     }
     implementation project(':iceberg-orc')
@@ -126,8 +127,11 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation 'software.amazon.awssdk:lakeformation'
 
     implementation project(':iceberg-gcp')
+    implementation project(':iceberg-bigquery')
     implementation platform(libs.google.libraries.bom)
     implementation 'com.google.cloud:google-cloud-storage'
+    implementation 'com.google.cloud:google-cloud-bigquery'
+    implementation 'com.google.cloud:google-cloud-core'
 
     implementation project(':iceberg-azure')
     implementation platform(libs.azuresdk.bom)
@@ -175,6 +179,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     integrationImplementation libs.testcontainers
     integrationImplementation libs.httpcomponents.httpclient5
     integrationImplementation libs.awaitility
+    integrationImplementation libs.analyticsaccelerator.s3
   }
 
   task integrationTest(type: Test) {
@@ -198,8 +203,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.runtimeClasspath
         }
         into('doc/') {
-          from "$projectDir/LICENSE"
-          from "$projectDir/NOTICE"
+          from "$projectDir/main/LICENSE"
+          from "$projectDir/main/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
@@ -213,8 +218,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.hive
         }
         into('doc/') {
-          from "$projectDir/LICENSE"
-          from "$projectDir/NOTICE"
+          from "$projectDir/hive/LICENSE"
+          from "$projectDir/hive/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
@@ -242,4 +247,20 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   check.dependsOn integrationTest
 
   assemble.dependsOn distZip, hiveDistZip
+}
+
+project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation libs.bson
+    implementation libs.slf4j.api
+    compileOnly libs.kafka.clients
+    compileOnly libs.kafka.connect.api
+    compileOnly libs.kafka.connect.json
+    compileOnly libs.kafka.connect.transforms
+  }
+
+  test {
+    useJUnitPlatform()
+  }
 }

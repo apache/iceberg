@@ -32,12 +32,13 @@ on:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/workflows/api-binary-compatibility.yml'
     - '.github/workflows/delta-conversion-ci.yml'
+    - '.github/workflows/docs-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.github/workflows/java-ci.yml'
     - '.github/workflows/jmh-benchmarks-ci.yml'
     - '.github/workflows/kafka-connect-ci.yml'
     - '.github/workflows/labeler.yml'
-    - '.github/workflows/licence-check.yml'
+    - '.github/workflows/license-check.yml'
     - '.github/workflows/open-api.yml'
     - '.github/workflows/publish-snapshot.yml'
     - '.github/workflows/recurring-jmh-benchmarks.yml'
@@ -45,24 +46,21 @@ on:
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/stale.yml'
     - '.gitignore'
-    - '.asf.yml'
+    - '.asf.yaml'
     - 'dev/**'
+    - 'docker/**'
     - 'mr/**'
-    - 'hive3/**'
-    - 'hive3-orc-bundle/**'
-    - 'hive-runtime/**'
     - 'kafka-connect/**'
     - 'spark/**'
-    - 'pig/**'
     - 'docs/**'
     - 'site/**'
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
-    - 'README.md'
+    - '**/README.md'
     - 'CONTRIBUTING.md'
-    - 'LICENSE'
-    - 'NOTICE'
+    - '**/LICENSE'
+    - '**/NOTICE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -76,7 +74,7 @@ jobs:
     strategy:
       matrix:
         jvm: [11, 17, 21]
-        flink: ['1.18', '1.19', '1.20']
+        flink: ['1.19', '1.20', '2.0']
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -93,7 +91,7 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew -DsparkVersions= -DhiveVersions= -DkafkaVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -Pquick=true -x javadoc
+    - run: ./gradlew -DsparkVersions= -DkafkaVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -Pquick=true -x javadoc
     - uses: actions/upload-artifact@v4
       if: failure()
       with:

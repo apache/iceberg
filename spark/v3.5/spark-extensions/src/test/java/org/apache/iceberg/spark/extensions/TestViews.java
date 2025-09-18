@@ -21,12 +21,16 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -35,6 +39,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -46,6 +51,7 @@ import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewHistoryEntry;
 import org.apache.iceberg.view.ViewProperties;
+import org.apache.iceberg.view.ViewUtil;
 import org.apache.iceberg.view.ViewVersion;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -61,21 +67,30 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestViews extends ExtensionsTestBase {
   private static final Namespace NAMESPACE = Namespace.of("default");
+  private static final String SPARK_CATALOG = "spark_catalog";
   private final String tableName = "table";
 
   @BeforeEach
+  @Override
   public void before() {
     super.before();
     spark.conf().set("spark.sql.defaultCatalog", catalogName);
     sql("USE %s", catalogName);
     sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
-    sql("CREATE TABLE %s (id INT, data STRING)", tableName);
+    sql(
+        "CREATE TABLE IF NOT EXISTS %s.%s (id INT, data STRING)%s",
+        NAMESPACE, tableName, catalogName.equals(SPARK_CATALOG) ? " USING iceberg" : "");
+    sql("USE %s.%s", catalogName, NAMESPACE);
   }
 
   @AfterEach
   public void removeTable() {
     sql("USE %s", catalogName);
-    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s.%s", NAMESPACE, tableName);
+
+    // reset spark session catalog
+    spark.sessionState().catalogManager().reset();
+    spark.conf().unset("spark.sql.catalog.spark_catalog");
   }
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
@@ -85,6 +100,14 @@ public class TestViews extends ExtensionsTestBase {
         SparkCatalogConfig.SPARK_WITH_VIEWS.catalogName(),
         SparkCatalogConfig.SPARK_WITH_VIEWS.implementation(),
         SparkCatalogConfig.SPARK_WITH_VIEWS.properties()
+      },
+      {
+        SparkCatalogConfig.SPARK_SESSION_WITH_VIEWS.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION_WITH_VIEWS.implementation(),
+        ImmutableMap.builder()
+            .putAll(SparkCatalogConfig.SPARK_SESSION_WITH_VIEWS.properties())
+            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+            .build()
       }
     };
   }
@@ -502,11 +525,20 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThat(sql(sql)).hasSize(1).containsExactly(row(5.5));
 
+    String expectedErrorMsg =
+        String.format("Cannot load function: %s.%s.%s", catalogName, NAMESPACE, functionName);
+    if (SPARK_CATALOG.equals(catalogName)) {
+      // spark session catalog tries to load a V1 function and has a different error msg
+      expectedErrorMsg =
+          String.format(
+              "[ROUTINE_NOT_FOUND] The function `%s`.`%s` cannot be found",
+              NAMESPACE, functionName);
+    }
+
     // reading from a view that references a TEMP FUNCTION shouldn't be possible
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageStartingWith(
-            String.format("Cannot load function: %s.%s.%s", catalogName, NAMESPACE, functionName));
+        .hasMessageStartingWith(expectedErrorMsg);
   }
 
   @TestTemplate
@@ -533,7 +565,44 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void readFromViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(3);
+    insertRows(2);
+    String viewName = viewName("viewWithGroupByOrdinal");
+    String sql = String.format("SELECT id, count(1) FROM %s GROUP BY 1", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 2L), row(2, 2L), row(3, 1L));
+  }
+
+  @TestTemplate
+  public void createViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(3);
+    insertRows(2);
+    String viewName = viewName("createViewWithGroupByOrdinal");
+    sql("CREATE VIEW %s AS SELECT id, count(1) FROM %s GROUP BY 1", viewName, tableName);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 2L), row(2, 2L), row(3, 1L));
+  }
+
+  @TestTemplate
   public void rewriteFunctionIdentifier() {
+    assumeThat(catalogName)
+        .as("system namespace doesn't exist in SparkSessionCatalog")
+        .isNotEqualTo(SPARK_CATALOG);
     String viewName = viewName("rewriteFunctionIdentifier");
     String sql = "SELECT iceberg_version() AS version";
 
@@ -579,6 +648,9 @@ public class TestViews extends ExtensionsTestBase {
 
   @TestTemplate
   public void rewriteFunctionIdentifierWithNamespace() {
+    assumeThat(catalogName)
+        .as("system namespace doesn't exist in SparkSessionCatalog")
+        .isNotEqualTo(SPARK_CATALOG);
     String viewName = viewName("rewriteFunctionIdentifierWithNamespace");
     String sql = "SELECT system.bucket(100, 'a') AS bucket_result, 'a' AS value";
 
@@ -596,8 +668,7 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql(sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function")
-        .hasMessageContaining("`system`.`bucket`");
+        .hasMessageContaining("Cannot resolve function `system`.`bucket`");
 
     assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasSize(1)
@@ -606,6 +677,9 @@ public class TestViews extends ExtensionsTestBase {
 
   @TestTemplate
   public void fullFunctionIdentifier() {
+    assumeThat(catalogName)
+        .as("system namespace doesn't exist in SparkSessionCatalog")
+        .isNotEqualTo(SPARK_CATALOG);
     String viewName = viewName("fullFunctionIdentifier");
     String sql =
         String.format(
@@ -754,10 +828,19 @@ public class TestViews extends ExtensionsTestBase {
         .withSchema(schema(sql))
         .create();
 
-    assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO spark_catalog.%s", viewName, renamedView))
+    String targetCatalog =
+        catalogName.equals(SPARK_CATALOG)
+            ? SparkCatalogConfig.SPARK_WITH_VIEWS.catalogName()
+            : SPARK_CATALOG;
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER VIEW %s RENAME TO %s.%s.%s",
+                    viewName, targetCatalog, NAMESPACE, renamedView))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            "Cannot move view between catalogs: from=spark_with_views and to=spark_catalog");
+            "Cannot move view between catalogs: from=%s and to=%s", catalogName, targetCatalog);
   }
 
   @TestTemplate
@@ -813,7 +896,9 @@ public class TestViews extends ExtensionsTestBase {
         .withSchema(schema(sql))
         .create();
 
-    sql("CREATE TABLE %s (id INT, data STRING)", target);
+    sql(
+        "CREATE TABLE %s.%s.%s (id INT, data STRING)%s",
+        catalogName, NAMESPACE, target, catalogName.equals(SPARK_CATALOG) ? " USING iceberg" : "");
     assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO %s", viewName, target))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
@@ -893,30 +978,6 @@ public class TestViews extends ExtensionsTestBase {
 
     sql("DROP VIEW %s", tempView);
     assertThat(v1SessionCatalog().getTempView(tempView).isDefined()).isFalse();
-  }
-
-  /** The purpose of this test is mainly to make sure that normal view deletion isn't messed up */
-  @TestTemplate
-  public void dropV1View() {
-    String v1View = viewName("v1ViewToBeDropped");
-    sql("USE spark_catalog");
-    sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
-    sql("CREATE TABLE %s (id INT, data STRING)", tableName);
-    sql("CREATE VIEW %s AS SELECT id FROM %s", v1View, tableName);
-    sql("USE %s", catalogName);
-    assertThat(
-            v1SessionCatalog()
-                .tableExists(new org.apache.spark.sql.catalyst.TableIdentifier(v1View)))
-        .isTrue();
-
-    sql("DROP VIEW spark_catalog.%s.%s", NAMESPACE, v1View);
-    assertThat(
-            v1SessionCatalog()
-                .tableExists(new org.apache.spark.sql.catalyst.TableIdentifier(v1View)))
-        .isFalse();
-
-    sql("USE spark_catalog");
-    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
   private SessionCatalog v1SessionCatalog() {
@@ -1316,11 +1377,13 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(5));
 
-    sql("USE spark_catalog");
+    if (!catalogName.equals(SPARK_CATALOG)) {
+      sql("USE spark_catalog");
 
-    assertThatThrownBy(() -> sql(sql))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+      assertThatThrownBy(() -> sql(sql))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+    }
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
     assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
@@ -1341,11 +1404,13 @@ public class TestViews extends ExtensionsTestBase {
         .hasSize(3)
         .containsExactly(row(3), row(3), row(3));
 
-    sql("USE spark_catalog");
+    if (!catalogName.equals(SPARK_CATALOG)) {
+      sql("USE spark_catalog");
 
-    assertThatThrownBy(() -> sql(sql))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+      assertThatThrownBy(() -> sql(sql))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+    }
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
     assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
@@ -1370,6 +1435,7 @@ public class TestViews extends ExtensionsTestBase {
     sql(
         "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') COMMENT 'view comment' AS %s",
         viewName, sql);
+    String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
     assertThat(sql("DESCRIBE EXTENDED %s", viewName))
         .contains(
             row("new_id", "int", "ID"),
@@ -1382,8 +1448,70 @@ public class TestViews extends ExtensionsTestBase {
             row(
                 "View Properties",
                 String.format(
-                    "['format-version' = '1', 'location' = '/%s/%s', 'provider' = 'iceberg']",
-                    NAMESPACE, viewName),
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg']",
+                    location),
+                ""));
+  }
+
+  @TestTemplate
+  public void createAndDescribeViewInDefaultNamespace() {
+    String viewName = viewName("createViewInDefaultNamespace");
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql("CREATE VIEW %s (id, data) AS %s", viewName, sql);
+    TableIdentifier identifier = TableIdentifier.of(NAMESPACE, viewName);
+    View view = viewCatalog().loadView(identifier);
+    assertThat(view.currentVersion().defaultCatalog()).isNull();
+    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalogName, identifier));
+    assertThat(view.currentVersion().defaultNamespace()).isEqualTo(NAMESPACE);
+
+    String location = viewCatalog().loadView(identifier).location();
+    assertThat(sql("DESCRIBE EXTENDED %s.%s", NAMESPACE, viewName))
+        .contains(
+            row("id", "int", ""),
+            row("data", "string", ""),
+            row("", "", ""),
+            row("# Detailed View Information", "", ""),
+            row("Comment", "", ""),
+            row("View Catalog and Namespace", String.format("%s.%s", catalogName, NAMESPACE), ""),
+            row("View Query Output Columns", "[id, data]", ""),
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg']",
+                    location),
+                ""));
+  }
+
+  @TestTemplate
+  public void createAndDescribeViewWithoutCurrentNamespace() {
+    String viewName = viewName("createViewWithoutCurrentNamespace");
+    Namespace namespace = Namespace.of("test_namespace");
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", namespace);
+    sql("CREATE VIEW %s.%s (id, data) AS %s", namespace, viewName, sql);
+    TableIdentifier identifier = TableIdentifier.of(namespace, viewName);
+    View view = viewCatalog().loadView(identifier);
+    assertThat(view.currentVersion().defaultCatalog()).isNull();
+    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalogName, identifier));
+    assertThat(view.currentVersion().defaultNamespace()).isEqualTo(NAMESPACE);
+
+    String location = viewCatalog().loadView(identifier).location();
+    assertThat(sql("DESCRIBE EXTENDED %s.%s", namespace, viewName))
+        .contains(
+            row("id", "int", ""),
+            row("data", "string", ""),
+            row("", "", ""),
+            row("# Detailed View Information", "", ""),
+            row("Comment", "", ""),
+            row("View Catalog and Namespace", String.format("%s.%s", catalogName, namespace), ""),
+            row("View Query Output Columns", "[id, data]", ""),
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg']",
+                    location),
                 ""));
   }
 
@@ -1434,39 +1562,39 @@ public class TestViews extends ExtensionsTestBase {
 
     // spark stores temp views case-insensitive by default
     Object[] tempView = row("", tempViewForListing.toLowerCase(Locale.ROOT), true);
-    assertThat(sql("SHOW VIEWS"))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+    Object[] v1Row = row(NAMESPACE.toString(), v1, false);
+    Object[] v2Row = row(NAMESPACE.toString(), prefixV2, false);
+    Object[] v3Row = row(NAMESPACE.toString(), prefixV3, false);
+    assertThat(sql("SHOW VIEWS")).contains(v2Row, v3Row, v1Row, tempView);
 
-    assertThat(sql("SHOW VIEWS IN %s", catalogName))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+    if (!"rest".equals(catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE))) {
+      // REST catalog requires a namespace
+      assertThat(sql("SHOW VIEWS IN %s", catalogName))
+          .contains(tempView)
+          .doesNotContain(v1Row, v2Row, v3Row);
+    }
 
     assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, NAMESPACE))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+        .contains(v2Row, v3Row, v1Row, tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'pref*'"))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false), row(NAMESPACE.toString(), prefixV3, false));
+        .contains(v2Row, v3Row)
+        .doesNotContain(v1Row, tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'non-existing'")).isEmpty();
 
-    assertThat(sql("SHOW VIEWS IN spark_catalog.default")).contains(tempView);
+    if (!catalogName.equals(SPARK_CATALOG)) {
+      sql("CREATE NAMESPACE IF NOT EXISTS spark_catalog.%s", NAMESPACE);
+      assertThat(sql("SHOW VIEWS IN spark_catalog.%s", NAMESPACE))
+          .contains(tempView)
+          .doesNotContain(v1Row, v2Row, v3Row);
+    }
 
     assertThat(sql("SHOW VIEWS IN global_temp"))
         .contains(
             // spark stores temp views case-insensitive by default
-            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView);
+            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView)
+        .doesNotContain(v1Row, v2Row, v3Row);
 
     sql("USE spark_catalog");
     assertThat(sql("SHOW VIEWS")).contains(tempView);
@@ -1512,6 +1640,7 @@ public class TestViews extends ExtensionsTestBase {
 
     sql("CREATE VIEW %s AS %s", viewName, sql);
 
+    String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
     String expected =
         String.format(
             "CREATE VIEW %s.%s.%s (\n"
@@ -1519,10 +1648,10 @@ public class TestViews extends ExtensionsTestBase {
                 + "  data)\n"
                 + "TBLPROPERTIES (\n"
                 + "  'format-version' = '1',\n"
-                + "  'location' = '/%s/%s',\n"
+                + "  'location' = '%s',\n"
                 + "  'provider' = 'iceberg')\n"
                 + "AS\n%s\n",
-            catalogName, NAMESPACE, viewName, NAMESPACE, viewName, sql);
+            catalogName, NAMESPACE, viewName, location, sql);
     assertThat(sql("SHOW CREATE TABLE %s", viewName)).containsExactly(row(expected));
   }
 
@@ -1536,6 +1665,7 @@ public class TestViews extends ExtensionsTestBase {
             + "COMMENT 'view comment' TBLPROPERTIES ('key1'='val1', 'key2'='val2') AS %s",
         viewName, sql);
 
+    String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
     String expected =
         String.format(
             "CREATE VIEW %s.%s.%s (\n"
@@ -1546,10 +1676,10 @@ public class TestViews extends ExtensionsTestBase {
                 + "  'format-version' = '1',\n"
                 + "  'key1' = 'val1',\n"
                 + "  'key2' = 'val2',\n"
-                + "  'location' = '/%s/%s',\n"
+                + "  'location' = '%s',\n"
                 + "  'provider' = 'iceberg')\n"
                 + "AS\n%s\n",
-            catalogName, NAMESPACE, viewName, NAMESPACE, viewName, sql);
+            catalogName, NAMESPACE, viewName, location, sql);
     assertThat(sql("SHOW CREATE TABLE %s", viewName)).containsExactly(row(expected));
   }
 
@@ -1897,6 +2027,7 @@ public class TestViews extends ExtensionsTestBase {
 
   @TestTemplate
   public void createViewWithRecursiveCycleToV1View() {
+    assumeThat(catalogName).isNotEqualTo(SPARK_CATALOG);
     String viewOne = viewName("view_one");
     String viewTwo = viewName("view_two");
 
@@ -1908,7 +2039,7 @@ public class TestViews extends ExtensionsTestBase {
     sql("USE %s", catalogName);
     // viewOne points to viewTwo points to viewOne, creating a recursive cycle
     String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
-    String view2 = String.format("%s.%s.%s", "spark_catalog", NAMESPACE, viewTwo);
+    String view2 = String.format("%s.%s.%s", SPARK_CATALOG, NAMESPACE, viewTwo);
     String cycle = String.format("%s -> %s -> %s", view1, view2, view1);
     assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, view2))
         .isInstanceOf(AnalysisException.class)
@@ -1961,6 +2092,26 @@ public class TestViews extends ExtensionsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
+  }
+
+  @TestTemplate
+  public void createViewWithCustomMetadataLocation() {
+    String viewName = viewName("v");
+    String customMetadataLocation =
+        Paths.get(temp.toUri().toString(), "custom-metadata-location").toString();
+    sql(
+        "CREATE VIEW %s TBLPROPERTIES ('%s'='%s') AS SELECT * FROM %s",
+        viewName, ViewProperties.WRITE_METADATA_LOCATION, customMetadataLocation, tableName);
+    String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
+
+    assertThat(sql("DESCRIBE EXTENDED %s", viewName))
+        .contains(
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg', 'write.metadata.path' = '%s']",
+                    location, customMetadataLocation),
+                ""));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

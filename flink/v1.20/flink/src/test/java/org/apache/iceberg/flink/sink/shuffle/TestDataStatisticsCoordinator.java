@@ -152,6 +152,80 @@ public class TestDataStatisticsCoordinator {
     }
   }
 
+  @ParameterizedTest
+  @EnumSource(StatisticsType.class)
+  public void testDataStatisticsEventHandlingWithNullValue(StatisticsType type) throws Exception {
+    try (DataStatisticsCoordinator dataStatisticsCoordinator = createCoordinator(type)) {
+      dataStatisticsCoordinator.start();
+      tasksReady(dataStatisticsCoordinator);
+
+      SortKey nullSortKey = Fixtures.SORT_KEY.copy();
+      nullSortKey.set(0, null);
+
+      StatisticsEvent checkpoint1Subtask0DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              type,
+              Fixtures.TASK_STATISTICS_SERIALIZER,
+              1L,
+              nullSortKey,
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("c"),
+              CHAR_KEYS.get("c"),
+              CHAR_KEYS.get("c"));
+      StatisticsEvent checkpoint1Subtask1DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              type,
+              Fixtures.TASK_STATISTICS_SERIALIZER,
+              1L,
+              nullSortKey,
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("c"),
+              CHAR_KEYS.get("c"));
+      // Handle events from operators for checkpoint 1
+      dataStatisticsCoordinator.handleEventFromOperator(
+          0, 0, checkpoint1Subtask0DataStatisticEvent);
+      dataStatisticsCoordinator.handleEventFromOperator(
+          1, 0, checkpoint1Subtask1DataStatisticEvent);
+
+      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+
+      Map<SortKey, Long> keyFrequency =
+          ImmutableMap.of(nullSortKey, 2L, CHAR_KEYS.get("b"), 3L, CHAR_KEYS.get("c"), 5L);
+      MapAssignment mapAssignment =
+          MapAssignment.fromKeyFrequency(NUM_SUBTASKS, keyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
+
+      CompletedStatistics completedStatistics = dataStatisticsCoordinator.completedStatistics();
+      assertThat(completedStatistics.checkpointId()).isEqualTo(1L);
+      assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(completedStatistics.keyFrequency()).isEqualTo(keyFrequency);
+      } else {
+        assertThat(completedStatistics.keySamples())
+            .containsExactly(
+                nullSortKey,
+                nullSortKey,
+                CHAR_KEYS.get("b"),
+                CHAR_KEYS.get("b"),
+                CHAR_KEYS.get("b"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"));
+      }
+
+      GlobalStatistics globalStatistics = dataStatisticsCoordinator.globalStatistics();
+      assertThat(globalStatistics.checkpointId()).isEqualTo(1L);
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(mapAssignment);
+      } else {
+        assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("b"));
+      }
+    }
+  }
+
   @Test
   public void testRequestGlobalStatisticsEventHandling() throws Exception {
     try (DataStatisticsCoordinator dataStatisticsCoordinator =
@@ -202,6 +276,59 @@ public class TestDataStatisticsCoordinator {
           .isInstanceOf(StatisticsEvent.class);
       assertThat(receivingTasks.getSentEventsForSubtask(1).get(1))
           .isInstanceOf(StatisticsEvent.class);
+    }
+  }
+
+  @Test
+  public void testMultipleRequestGlobalStatisticsEvents() throws Exception {
+    try (DataStatisticsCoordinator dataStatisticsCoordinator =
+        createCoordinator(StatisticsType.Map)) {
+      dataStatisticsCoordinator.start();
+      tasksReady(dataStatisticsCoordinator);
+
+      StatisticsEvent checkpoint1Subtask0DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              StatisticsType.Map, Fixtures.TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("a"));
+      StatisticsEvent checkpoint1Subtask1DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              StatisticsType.Map, Fixtures.TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("b"));
+
+      dataStatisticsCoordinator.handleEventFromOperator(
+          0, 0, checkpoint1Subtask0DataStatisticEvent);
+      dataStatisticsCoordinator.handleEventFromOperator(
+          1, 0, checkpoint1Subtask1DataStatisticEvent);
+
+      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+
+      // signature is null
+      dataStatisticsCoordinator.handleEventFromOperator(0, 0, new RequestGlobalStatisticsEvent());
+
+      // Checkpoint StatisticEvent + RequestGlobalStatisticsEvent
+      Awaitility.await("wait for first statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(0).size() == 2);
+
+      // Simulate the scenario where a subtask send global statistics request with the same hash
+      // code. The coordinator would skip the response after comparing the request contained hash
+      // code with latest global statistics hash code.
+      int correctSignature = dataStatisticsCoordinator.globalStatistics().hashCode();
+      dataStatisticsCoordinator.handleEventFromOperator(
+          0, 0, new RequestGlobalStatisticsEvent(correctSignature));
+
+      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+      // Checkpoint StatisticEvent + RequestGlobalStatisticsEvent
+      assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(2);
+
+      // signature is different
+      dataStatisticsCoordinator.handleEventFromOperator(
+          0, 0, new RequestGlobalStatisticsEvent(correctSignature + 1));
+
+      // Checkpoint StatisticEvent + RequestGlobalStatisticsEvent + RequestGlobalStatisticsEvent
+      Awaitility.await("wait for second statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(0).size() == 3);
     }
   }
 

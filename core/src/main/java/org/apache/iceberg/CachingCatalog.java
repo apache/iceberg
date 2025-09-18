@@ -144,14 +144,16 @@ public class CachingCatalog implements Catalog {
       return cached;
     }
 
-    if (MetadataTableUtils.hasMetadataTableName(canonicalized)) {
+    Table table = tableCache.get(canonicalized, catalog::loadTable);
+
+    if (table instanceof BaseMetadataTable) {
+      // Cache underlying table
       TableIdentifier originTableIdentifier =
           TableIdentifier.of(canonicalized.namespace().levels());
       Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
 
-      // share TableOperations instance of origin table for all metadata tables, so that metadata
-      // table instances are
-      // also refreshed as well when origin table instance is refreshed.
+      // Share TableOperations instance of origin table for all metadata tables, so that metadata
+      // table instances are refreshed as well when origin table instance is refreshed.
       if (originTable instanceof HasTableOperations) {
         TableOperations ops = ((HasTableOperations) originTable).operations();
         MetadataTableType type = MetadataTableType.from(canonicalized.name());
@@ -164,7 +166,7 @@ public class CachingCatalog implements Catalog {
       }
     }
 
-    return tableCache.get(canonicalized, catalog::loadTable);
+    return table;
   }
 
   @Override

@@ -36,12 +36,16 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
@@ -64,7 +68,9 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -103,7 +109,9 @@ public class TestRewriteManifestsAction extends TestBase {
       new Object[] {"true", "true", false, 1},
       new Object[] {"false", "true", true, 1},
       new Object[] {"true", "false", false, 2},
-      new Object[] {"false", "false", false, 2}
+      new Object[] {"false", "false", false, 2},
+      new Object[] {"true", "false", false, 3},
+      new Object[] {"false", "false", false, 3}
     };
   }
 
@@ -121,11 +129,70 @@ public class TestRewriteManifestsAction extends TestBase {
   private String tableLocation = null;
 
   @TempDir private Path temp;
+  @TempDir private File tableDir;
 
   @BeforeEach
   public void setupTableLocation() throws Exception {
-    File tableDir = temp.resolve("junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPreservesOptionalFields() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    DataFile dataFile1 = newDataFile(table, "c1=0");
+    DataFile dataFile2 = newDataFile(table, "c1=0");
+    DataFile dataFile3 = newDataFile(table, "c1=0");
+    table
+        .newFastAppend()
+        .appendFile(dataFile1)
+        .appendFile(dataFile2)
+        .appendFile(dataFile3)
+        .commit();
+
+    DeleteFile deleteFile1 = newDeletes(table, dataFile1);
+    assertDeletes(dataFile1, deleteFile1);
+    table.newRowDelta().addDeletes(deleteFile1).commit();
+
+    DeleteFile deleteFile2 = newDeletes(table, dataFile2);
+    assertDeletes(dataFile2, deleteFile2);
+    table.newRowDelta().addDeletes(deleteFile2).commit();
+
+    DeleteFile deleteFile3 = newDeletes(table, dataFile3);
+    assertDeletes(dataFile3, deleteFile3);
+    table.newRowDelta().addDeletes(deleteFile3).commit();
+
+    SparkActions actions = SparkActions.get();
+
+    actions
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    table.refresh();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask fileTask : tasks) {
+        DataFile dataFile = fileTask.file();
+        DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
+        if (dataFile.location().equals(dataFile1.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile1.referencedDataFile());
+          assertEqual(deleteFile, deleteFile1);
+        } else if (dataFile.location().equals(dataFile2.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+          assertEqual(deleteFile, deleteFile2);
+        } else {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile3.referencedDataFile());
+          assertEqual(deleteFile, deleteFile3);
+        }
+      }
+    }
   }
 
   @TestTemplate
@@ -335,7 +402,6 @@ public class TestRewriteManifestsAction extends TestBase {
     table.refresh();
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-
     assertThat(newManifests).as("Should have 2 manifests after rewrite").hasSize(2);
 
     assertThat(newManifests.get(0).existingFilesCount()).isEqualTo(4);
@@ -464,6 +530,115 @@ public class TestRewriteManifestsAction extends TestBase {
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     assertThat(newManifests).hasSizeGreaterThanOrEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPartitionedTableWithInvalidSortingColumns() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").bucket("c3", 10).build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    SparkActions actions = org.apache.iceberg.spark.actions.SparkActions.get();
+
+    List<String> nonexistentFields = ImmutableList.of("c1", "c2");
+    assertThatThrownBy(
+            () ->
+                actions
+                    .rewriteManifests(table)
+                    .rewriteIf(manifest -> true)
+                    .sortBy(nonexistentFields)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set manifest sorting because specified field(s) [c2] were not found in "
+                + "current partition spec [\n"
+                + "  1000: c1: identity(1)\n"
+                + "  1001: c3_bucket: bucket[10](3)\n"
+                + "]. Spec ID 0");
+
+    // c3_bucket is the correct internal partition name to use, c3 is the untransformed column name,
+    // sortBy() expects the hidden partition column names
+    List<String> hasIncorrectPartitionFieldNames = ImmutableList.of("c1", "c3");
+    assertThatThrownBy(
+            () ->
+                actions
+                    .rewriteManifests(table)
+                    .rewriteIf(manifest -> true)
+                    .sortBy(hasIncorrectPartitionFieldNames)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set manifest sorting because specified field(s) [c3] were not found in "
+                + "current partition spec [\n"
+                + "  1000: c1: identity(1)\n"
+                + "  1001: c3_bucket: bucket[10](3)\n"
+                + "]. Spec ID 0");
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPartitionedTableWithCustomSorting() throws IOException {
+    Random random = new Random(4141912);
+
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 3).bucket("c3", 10).build();
+    Table table = TABLES.create(SCHEMA, spec, tableLocation);
+
+    // write a large number of random records so the rewrite will split into multiple manifests
+    List<DataFile> dataFiles = Lists.newArrayList();
+    for (int i = 0; i < 1000; i++) {
+      dataFiles.add(
+          newDataFile(
+              table,
+              TestHelpers.Row.of(i, String.valueOf(random.nextInt() * 100), random.nextInt(10))));
+    }
+    ManifestFile appendManifest = writeManifest(table, dataFiles);
+    table.newFastAppend().appendManifest(appendManifest).commit();
+
+    // force manifest splitting
+    table
+        .updateProperties()
+        .set(
+            TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(appendManifest.length() / 2))
+        .commit();
+
+    List<String> clusterKeys = ImmutableList.of("c3_bucket", "c2_trunc", "c1");
+    SparkActions actions = SparkActions.get();
+    actions
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .sortBy(clusterKeys)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    table.refresh();
+
+    // Read the manifests metadata table. The partition_summaries column contains
+    // an array of structs with lower_bound and upper_bound as strings
+    Dataset<Row> manifestsDf = spark.read().format("iceberg").load(tableLocation + "#manifests");
+
+    List<Integer> bounds = Lists.newArrayList();
+    for (Row row : manifestsDf.select("partition_summaries").collectAsList()) {
+      // partition_summaries is an array of structs;
+      // index 2 corresponds to c3_bucket since it is the third ordinal field in the table
+      List<Row> summaries = row.getList(0);
+      Row c3Summary = summaries.get(2);
+      // lower_bound and upper_bound are at positions 2 and 3 of the summary struct
+      String lower = c3Summary.getString(2);
+      String upper = c3Summary.getString(3);
+      bounds.add(Integer.valueOf(lower));
+      bounds.add(Integer.valueOf(upper));
+    }
+
+    // Ensure that the list of bounds is sorted; if custom sorting is working,
+    // the lower/upper bounds should form a non‑decreasing sequence. AKA [0, 4, 4, 9]
+    assertThat(bounds)
+        .as("Manifest boundaries should be sorted")
+        .isSortedAccordingTo(Integer::compareTo);
+
+    // Make sure we have at least two manifests, otherwise the test misses the point
+    assertThat(manifestsDf.count()).as("There should be at least 2 manifests").isGreaterThan(1L);
   }
 
   @TestTemplate
@@ -656,7 +831,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
   @TestTemplate
   public void testRewriteSmallDeleteManifestsNonPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
@@ -729,7 +904,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
   @TestTemplate
   public void testRewriteSmallDeleteManifestsPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
@@ -832,7 +1007,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
   @TestTemplate
   public void testRewriteLargeDeleteManifestsPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
@@ -891,6 +1066,62 @@ public class TestRewriteManifestsAction extends TestBase {
     // the current snapshot must return the correct number of delete manifests
     List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests(table.io());
     assertThat(deleteManifests).hasSizeGreaterThanOrEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsAfterUpgradeToV3() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+    Map<String, String> options = ImmutableMap.of(TableProperties.FORMAT_VERSION, "2");
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    DataFile dataFile1 = newDataFile(table, "c1=1");
+    DeleteFile deleteFile1 = newDeletes(table, dataFile1);
+    table.newRowDelta().addRows(dataFile1).addDeletes(deleteFile1).commit();
+
+    DataFile dataFile2 = newDataFile(table, "c1=1");
+    DeleteFile deleteFile2 = newDeletes(table, dataFile2);
+    table.newRowDelta().addRows(dataFile2).addDeletes(deleteFile2).commit();
+
+    // upgrade the table to enable DVs
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    DataFile dataFile3 = newDataFile(table, "c1=1");
+    DeleteFile dv3 = newDV(table, dataFile3);
+    table.newRowDelta().addRows(dataFile3).addDeletes(dv3).commit();
+
+    SparkActions actions = SparkActions.get();
+
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
+
+    assertThat(result.rewrittenManifests()).as("Action should rewrite 6 manifests").hasSize(6);
+    assertThat(result.addedManifests()).as("Action should add 2 manifests").hasSize(2);
+    assertManifestsLocation(result.addedManifests());
+
+    table.refresh();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask fileTask : tasks) {
+        DataFile dataFile = fileTask.file();
+        DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
+        if (dataFile.location().equals(dataFile1.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile1.referencedDataFile());
+          assertEqual(deleteFile, deleteFile1);
+        } else if (dataFile.location().equals(dataFile2.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+          assertEqual(deleteFile, deleteFile2);
+        } else {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(dv3.referencedDataFile());
+          assertEqual(deleteFile, dv3);
+        }
+      }
+    }
   }
 
   private List<ThreeColumnRecord> actualRecords() {
@@ -976,14 +1207,36 @@ public class TestRewriteManifestsAction extends TestBase {
         .withRecordCount(1);
   }
 
+  private DeleteFile newDeletes(Table table, DataFile dataFile) {
+    return formatVersion >= 3 ? newDV(table, dataFile) : newDeleteFileWithRef(table, dataFile);
+  }
+
+  private DeleteFile newDeleteFileWithRef(Table table, DataFile dataFile) {
+    return FileGenerationUtil.generatePositionDeleteFileWithRef(table, dataFile);
+  }
+
+  private DeleteFile newDV(Table table, DataFile dataFile) {
+    return FileGenerationUtil.generateDV(table, dataFile);
+  }
+
   private DeleteFile newDeleteFile(Table table, String partitionPath) {
-    return FileMetadata.deleteFileBuilder(table.spec())
-        .ofPositionDeletes()
-        .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".parquet")
-        .withFileSizeInBytes(5)
-        .withPartitionPath(partitionPath)
-        .withRecordCount(1)
-        .build();
+    return formatVersion >= 3
+        ? FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".puffin")
+            .withFileSizeInBytes(5)
+            .withPartitionPath(partitionPath)
+            .withRecordCount(1)
+            .withContentOffset(ThreadLocalRandom.current().nextInt())
+            .withContentSizeInBytes(ThreadLocalRandom.current().nextInt())
+            .build()
+        : FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".parquet")
+            .withFileSizeInBytes(5)
+            .withPartitionPath(partitionPath)
+            .withRecordCount(1)
+            .build();
   }
 
   private List<Pair<CharSequence, Long>> generatePosDeletes(String predicate) {
@@ -1014,7 +1267,7 @@ public class TestRewriteManifestsAction extends TestBase {
       Table table, StructLike partition, List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     OutputFile outputFile = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
-    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes);
+    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes, formatVersion);
   }
 
   private DeleteFile writeEqDeletes(Table table, String key, Object... values) throws IOException {
@@ -1033,5 +1286,27 @@ public class TestRewriteManifestsAction extends TestBase {
 
     OutputFile outputFile = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
     return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes, deleteSchema);
+  }
+
+  private void assertDeletes(DataFile dataFile, DeleteFile deleteFile) {
+    assertThat(deleteFile.referencedDataFile()).isEqualTo(dataFile.location());
+    if (formatVersion >= 3) {
+      assertThat(deleteFile.contentOffset()).isNotNull();
+      assertThat(deleteFile.contentSizeInBytes()).isNotNull();
+    } else {
+      assertThat(deleteFile.contentOffset()).isNull();
+      assertThat(deleteFile.contentSizeInBytes()).isNull();
+    }
+  }
+
+  private void assertEqual(DeleteFile deleteFile1, DeleteFile deleteFile2) {
+    assertThat(deleteFile1.location()).isEqualTo(deleteFile2.location());
+    assertThat(deleteFile1.content()).isEqualTo(deleteFile2.content());
+    assertThat(deleteFile1.specId()).isEqualTo(deleteFile2.specId());
+    assertThat(deleteFile1.partition()).isEqualTo(deleteFile2.partition());
+    assertThat(deleteFile1.format()).isEqualTo(deleteFile2.format());
+    assertThat(deleteFile1.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+    assertThat(deleteFile1.contentOffset()).isEqualTo(deleteFile2.contentOffset());
+    assertThat(deleteFile1.contentSizeInBytes()).isEqualTo(deleteFile2.contentSizeInBytes());
   }
 }

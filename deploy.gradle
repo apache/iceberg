@@ -17,8 +17,8 @@
  * under the License.
  */
 
-if (project.hasProperty('release') && jdkVersion != '11') {
-  throw new GradleException("Releases must be built with Java 11")
+if (project.hasProperty('release') && jdkVersion != '17') {
+  throw new GradleException("Releases must be built with Java 17")
 }
 
 subprojects {
@@ -75,6 +75,7 @@ subprojects {
           } else if (isOpenApi) {
             artifact testJar
             artifact testFixturesJar
+            artifact shadowJar
           } else {
             if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
               from components.java

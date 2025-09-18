@@ -33,15 +33,16 @@ include 'arrow'
 include 'parquet'
 include 'bundled-guava'
 include 'spark'
-include 'pig'
 include 'hive-metastore'
 include 'nessie'
 include 'gcp'
 include 'gcp-bundle'
+include 'bigquery'
 include 'dell'
 include 'snowflake'
 include 'delta-lake'
 include 'open-api'
+include 'mr'
 
 project(':bom').name = 'iceberg-bom'
 project(':api').name = 'iceberg-api'
@@ -58,20 +59,20 @@ project(':arrow').name = 'iceberg-arrow'
 project(':parquet').name = 'iceberg-parquet'
 project(':bundled-guava').name = 'iceberg-bundled-guava'
 project(':spark').name = 'iceberg-spark'
-project(':pig').name = 'iceberg-pig'
 project(':hive-metastore').name = 'iceberg-hive-metastore'
 project(':nessie').name = 'iceberg-nessie'
 project(':gcp').name = 'iceberg-gcp'
 project(':gcp-bundle').name = 'iceberg-gcp-bundle'
+project(':bigquery').name = 'iceberg-bigquery'
 project(':dell').name = 'iceberg-dell'
 project(':snowflake').name = 'iceberg-snowflake'
 project(':delta-lake').name = 'iceberg-delta-lake'
 project(':open-api').name = 'iceberg-open-api'
+project(':mr').name = 'iceberg-mr'
 
 if (null != System.getProperty("allModules")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
   System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
-  System.setProperty("hiveVersions", System.getProperty("knownHiveVersions"))
   System.setProperty("kafkaVersions", System.getProperty("knownKafkaVersions"))
 }
 
@@ -81,14 +82,6 @@ List<String> flinkVersions = flinkVersionsString != null && !flinkVersionsString
 
 if (!knownFlinkVersions.containsAll(flinkVersions)) {
   throw new GradleException("Found unsupported Flink versions: " + (flinkVersions - knownFlinkVersions))
-}
-
-List<String> knownHiveVersions = System.getProperty("knownHiveVersions").split(",")
-String hiveVersionsString = System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")
-List<String> hiveVersions = hiveVersionsString != null && !hiveVersionsString.isEmpty() ? hiveVersionsString.split(",") : []
-
-if (!knownHiveVersions.containsAll(hiveVersions)) {
-  throw new GradleException("Found unsupported Hive versions: " + (hiveVersions - knownHiveVersions))
 }
 
 List<String> knownSparkVersions = System.getProperty("knownSparkVersions").split(",")
@@ -119,15 +112,6 @@ if (!flinkVersions.isEmpty()) {
   project(':flink').name = 'iceberg-flink'
 }
 
-if (flinkVersions.contains("1.18")) {
-  include ":iceberg-flink:flink-1.18"
-  include ":iceberg-flink:flink-runtime-1.18"
-  project(":iceberg-flink:flink-1.18").projectDir = file('flink/v1.18/flink')
-  project(":iceberg-flink:flink-1.18").name = "iceberg-flink-1.18"
-  project(":iceberg-flink:flink-runtime-1.18").projectDir = file('flink/v1.18/flink-runtime')
-  project(":iceberg-flink:flink-runtime-1.18").name = "iceberg-flink-runtime-1.18"
-}
-
 if (flinkVersions.contains("1.19")) {
   include ":iceberg-flink:flink-1.19"
   include ":iceberg-flink:flink-runtime-1.19"
@@ -146,16 +130,13 @@ if (flinkVersions.contains("1.20")) {
   project(":iceberg-flink:flink-runtime-1.20").name = "iceberg-flink-runtime-1.20"
 }
 
-if (sparkVersions.contains("3.3")) {
-  include ":iceberg-spark:spark-3.3_${scalaVersion}"
-  include ":iceberg-spark:spark-extensions-3.3_${scalaVersion}"
-  include ":iceberg-spark:spark-runtime-3.3_${scalaVersion}"
-  project(":iceberg-spark:spark-3.3_${scalaVersion}").projectDir = file('spark/v3.3/spark')
-  project(":iceberg-spark:spark-3.3_${scalaVersion}").name = "iceberg-spark-3.3_${scalaVersion}"
-  project(":iceberg-spark:spark-extensions-3.3_${scalaVersion}").projectDir = file('spark/v3.3/spark-extensions')
-  project(":iceberg-spark:spark-extensions-3.3_${scalaVersion}").name = "iceberg-spark-extensions-3.3_${scalaVersion}"
-  project(":iceberg-spark:spark-runtime-3.3_${scalaVersion}").projectDir = file('spark/v3.3/spark-runtime')
-  project(":iceberg-spark:spark-runtime-3.3_${scalaVersion}").name = "iceberg-spark-runtime-3.3_${scalaVersion}"
+if (flinkVersions.contains("2.0")) {
+  include ":iceberg-flink:flink-2.0"
+  include ":iceberg-flink:flink-runtime-2.0"
+  project(":iceberg-flink:flink-2.0").projectDir = file('flink/v2.0/flink')
+  project(":iceberg-flink:flink-2.0").name = "iceberg-flink-2.0"
+  project(":iceberg-flink:flink-runtime-2.0").projectDir = file('flink/v2.0/flink-runtime')
+  project(":iceberg-flink:flink-runtime-2.0").name = "iceberg-flink-runtime-2.0"
 }
 
 if (sparkVersions.contains("3.4")) {
@@ -182,20 +163,16 @@ if (sparkVersions.contains("3.5")) {
   project(":iceberg-spark:spark-runtime-3.5_${scalaVersion}").name = "iceberg-spark-runtime-3.5_${scalaVersion}"
 }
 
-// hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled
-if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
-  include 'mr'
-  include 'hive-runtime'
-
-  project(':mr').name = 'iceberg-mr'
-  project(':hive-runtime').name = 'iceberg-hive-runtime'
-}
-
-if (hiveVersions.contains("3")) {
-  include 'hive3'
-  include 'hive3-orc-bundle'
-  project(':hive3').name = 'iceberg-hive3'
-  project(':hive3-orc-bundle').name = 'iceberg-hive3-orc-bundle'
+if (sparkVersions.contains("4.0")) {
+  include ":iceberg-spark:spark-4.0_2.13"
+  include ":iceberg-spark:spark-extensions-4.0_2.13"
+  include ":iceberg-spark:spark-runtime-4.0_2.13"
+  project(":iceberg-spark:spark-4.0_2.13").projectDir = file('spark/v4.0/spark')
+  project(":iceberg-spark:spark-4.0_2.13").name = "iceberg-spark-4.0_2.13"
+  project(":iceberg-spark:spark-extensions-4.0_2.13").projectDir = file('spark/v4.0/spark-extensions')
+  project(":iceberg-spark:spark-extensions-4.0_2.13").name = "iceberg-spark-extensions-4.0_2.13"
+  project(":iceberg-spark:spark-runtime-4.0_2.13").projectDir = file('spark/v4.0/spark-runtime')
+  project(":iceberg-spark:spark-runtime-4.0_2.13").name = "iceberg-spark-runtime-4.0_2.13"
 }
 
 if (kafkaVersions.contains("3")) {
@@ -213,4 +190,8 @@ if (kafkaVersions.contains("3")) {
   include ":iceberg-kafka-connect:kafka-connect-runtime"
   project(":iceberg-kafka-connect:kafka-connect-runtime").projectDir = file('kafka-connect/kafka-connect-runtime')
   project(":iceberg-kafka-connect:kafka-connect-runtime").name = "iceberg-kafka-connect-runtime"
+
+  include ":iceberg-kafka-connect:kafka-connect-transforms"
+  project(":iceberg-kafka-connect:kafka-connect-transforms").projectDir = file('kafka-connect/kafka-connect-transforms')
+  project(":iceberg-kafka-connect:kafka-connect-transforms").name = "iceberg-kafka-connect-transforms"
 }

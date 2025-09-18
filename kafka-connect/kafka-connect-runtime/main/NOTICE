@@ -1,0 +1,323 @@
+
+Apache Iceberg
+Copyright 2017-2025 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
+This project includes code from Kite, developed at Cloudera, Inc. with
+the following copyright notice:
+
+| Copyright 2013 Cloudera Inc.
+|
+| Licensed under the Apache License, Version 2.0 (the "License");
+| you may not use this file except in compliance with the License.
+| You may obtain a copy of the License at
+|
+|   http://www.apache.org/licenses/LICENSE-2.0
+|
+| Unless required by applicable law or agreed to in writing, software
+| distributed under the License is distributed on an "AS IS" BASIS,
+| WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+| See the License for the specific language governing permissions and
+| limitations under the License.
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains code from the following projects:
+
+--------------------------------------------------------------------------------
+
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.71.0
+
+Notice: 
+|                             The Netty Project
+|                             =================
+| 
+| Please visit the Netty web site for more information:
+| 
+|   * http://netty.io/
+| 
+| Copyright 2016 The Netty Project
+| 
+| The Netty Project licenses this file to you under the Apache License,
+| version 2.0 (the "License"); you may not use this file except in compliance
+| with the License. You may obtain a copy of the License at:
+| 
+|   http://www.apache.org/licenses/LICENSE-2.0
+| 
+| Unless required by applicable law or agreed to in writing, software
+| distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+| WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+| License for the specific language governing permissions and limitations
+| under the License.
+| 
+| -------------------------------------------------------------------------------
+| This product contains a forked and modified version of Tomcat Native
+| 
+|   * LICENSE:
+|     * license/LICENSE.tomcat-native.txt (Apache License 2.0)
+|   * HOMEPAGE:
+|     * http://tomcat.apache.org/native-doc/
+|     * https://svn.apache.org/repos/asf/tomcat/native/
+| 
+| This product contains the Maven wrapper scripts from 'Maven Wrapper', that provides an easy way to ensure a user has everything necessary to run the Maven build.
+| 
+|   * LICENSE:
+|     * license/LICENSE.mvn-wrapper.txt (Apache License 2.0)
+|   * HOMEPAGE:
+|     * https://github.com/takari/maven-wrapper
+| 
+| This product contains small piece of code to support AIX, taken from netbsd.
+| 
+|   * LICENSE:
+|     * license/LICENSE.aix-netbsd.txt (OpenSSL License)
+|   * HOMEPAGE:
+|     * https://ftp.netbsd.org/pub/NetBSD/NetBSD-current/src/crypto/external/bsd/openssl/dist
+| 
+| 
+| This product contains code from boringssl.
+| 
+|   * LICENSE (Combination ISC and OpenSSL license)
+|     * license/LICENSE.boringssl.txt (Combination ISC and OpenSSL license)
+|   * HOMEPAGE:
+|     * https://boringssl.googlesource.com/boringssl/
+
+--------------------------------------------------------------------------------
+
+Group: jakarta.activation  Name: jakarta.activation-api  Version: 1.2.1
+
+Notice: 
+| # Notices for Jakarta Activation
+| 
+| This content is produced and maintained by Jakarta Activation project.
+| 
+| * Project home: https://projects.eclipse.org/projects/ee4j.jaf
+| 
+| ## Copyright
+| 
+| All content is the property of the respective authors or their employers. For
+| more information regarding authorship of content, please consult the listed
+| source code repository logs.
+| 
+| ## Declared Project Licenses
+| 
+| This program and the accompanying materials are made available under the terms
+| of the Eclipse Distribution License v. 1.0,
+| which is available at http://www.eclipse.org/org/documents/edl-v10.php.
+| 
+| SPDX-License-Identifier: BSD-3-Clause
+| 
+| ## Source Code
+| 
+| The project maintains the following source code repositories:
+| 
+| * https://github.com/eclipse-ee4j/jaf
+| 
+| ## Third-party Content
+| 
+| This project leverages the following third party content.
+| 
+| JUnit (4.12)
+| 
+| * License: Eclipse Public License
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: annotations  Version: 2.33.0
+Group: software.amazon.awssdk  Name: apache-client  Version: 2.33.0
+Group: software.amazon.awssdk  Name: arns  Version: 2.33.0
+Group: software.amazon.awssdk  Name: auth  Version: 2.33.0
+Group: software.amazon.awssdk  Name: aws-core  Version: 2.33.0
+Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.33.0
+Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.33.0
+Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.33.0
+Group: software.amazon.awssdk  Name: checksums  Version: 2.33.0
+Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: crt-core  Version: 2.33.0
+Group: software.amazon.awssdk  Name: dynamodb  Version: 2.33.0
+Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: glue  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth-aws-crt  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: iam  Version: 2.33.0
+Group: software.amazon.awssdk  Name: identity-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: json-utils  Version: 2.33.0
+Group: software.amazon.awssdk  Name: kms  Version: 2.33.0
+Group: software.amazon.awssdk  Name: lakeformation  Version: 2.33.0
+Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.33.0
+Group: software.amazon.awssdk  Name: profiles  Version: 2.33.0
+Group: software.amazon.awssdk  Name: protocol-core  Version: 2.33.0
+Group: software.amazon.awssdk  Name: regions  Version: 2.33.0
+Group: software.amazon.awssdk  Name: retries  Version: 2.33.0
+Group: software.amazon.awssdk  Name: retries-spi  Version: 2.33.0
+Group: software.amazon.awssdk  Name: s3  Version: 2.33.0
+Group: software.amazon.awssdk  Name: sdk-core  Version: 2.33.0
+Group: software.amazon.awssdk  Name: sso  Version: 2.33.0
+Group: software.amazon.awssdk  Name: sts  Version: 2.33.0
+Group: software.amazon.awssdk  Name: utils  Version: 2.33.0
+
+Notice: 
+| AWS SDK for Java 2.0
+| Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+| 
+| This product includes software developed by
+| Amazon Technologies, Inc (http://www.amazon.com/).
+| 
+| **********************
+| THIRD PARTY COMPONENTS
+| **********************
+| This software includes third party software subject to the following copyrights:
+| - XML parsing and utility functions from JetS3t - Copyright 2006-2009 James Murty.
+| - PKCS#1 PEM encoded private key parsing and utility functions from oauth.googlecode.com - Copyright 1998-2010 AOL Inc.
+| - Apache Commons Lang - https://github.com/apache/commons-lang
+| - Netty Reactive Streams - https://github.com/playframework/netty-reactive-streams
+| - Jackson-core - https://github.com/FasterXML/jackson-core
+| - Jackson-dataformat-cbor - https://github.com/FasterXML/jackson-dataformats-binary
+| 
+| The licenses for these third party components are included in LICENSE.txt
+| 
+| - For Apache Commons Lang see also this required NOTICE:
+|   Apache Commons Lang
+|   Copyright 2001-2020 The Apache Software Foundation
+|   
+|   This product includes software developed at
+|   The Apache Software Foundation (https://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
+Group: jakarta.activation  Name: jakarta.activation-api  Version: 1.2.1
+
+Notice: 
+| # Notices for Eclipse Project for JAF
+| 
+| This content is produced and maintained by the Eclipse Project for JAF project.
+| 
+| * Project home: https://projects.eclipse.org/projects/ee4j.jaf
+| 
+| ## Copyright
+| 
+| All content is the property of the respective authors or their employers. For
+| more information regarding authorship of content, please consult the listed
+| source code repository logs.
+| 
+| ## Declared Project Licenses
+| 
+| This program and the accompanying materials are made available under the terms
+| of the Eclipse Distribution License v. 1.0,
+| which is available at http://www.eclipse.org/org/documents/edl-v10.php.
+| 
+| SPDX-License-Identifier: BSD-3-Clause
+| 
+| ## Source Code
+| 
+| The project maintains the following source code repositories:
+| 
+| * https://github.com/eclipse-ee4j/jaf
+| 
+| ## Third-party Content
+| 
+| This project leverages the following third party content.
+| 
+| JUnit (4.12)
+| 
+| * License: Eclipse Public License
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.19.2
+Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.33.0
+
+Notice: 
+| # Jackson JSON processor
+| 
+| Jackson is a high-performance, Free/Open Source JSON processing library.
+| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+| been in development since 2007.
+| It is currently developed by a community of developers.
+| 
+| ## Copyright
+| 
+| Copyright 2007-, Tatu Saloranta (tatu.saloranta@iki.fi)
+| 
+| ## Licensing
+| 
+| Jackson 2.x core and extension components are licensed under Apache License 2.0
+| To find the details that apply to this artifact see the accompanying LICENSE file.
+| 
+| ## Credits
+| 
+| A list of contributors may be found from CREDITS(-2.x) file, which is included
+| in some artifacts (usually source distributions); but is always available
+| from the source code management (SCM) system project uses.
+| 
+| ## FastDoubleParser
+| 
+| jackson-core bundles a shaded copy of FastDoubleParser <https://github.com/wrandelshofer/FastDoubleParser>.
+| That code is available under an MIT license <https://github.com/wrandelshofer/FastDoubleParser/blob/main/LICENSE>
+| under the following copyright.
+| 
+| Copyright © 2023 Werner Randelshofer, Switzerland. MIT License.
+| 
+| See FastDoubleParser-NOTICE for details of other source code included in FastDoubleParser
+| and the licenses and copyrights that apply to that code.
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.19.2
+
+Notice: 
+| # Jackson JSON processor
+| 
+| Jackson is a high-performance, Free/Open Source JSON processing library.
+| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+| been in development since 2007.
+| It is currently developed by a community of developers.
+| 
+| ## Licensing
+| 
+| Jackson components are licensed under Apache (Software) License, version 2.0,
+| as per accompanying LICENSE file.
+| 
+| ## Credits
+| 
+| A list of contributors may be found from CREDITS file, which is included
+| in some artifacts (usually source distributions); but is always available
+| from the source code management (SCM) system project uses.
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.19.2
+Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.19.2
+
+Notice: 
+| # Jackson JSON processor
+| 
+| Jackson is a high-performance, Free/Open Source JSON processing library.
+| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+| been in development since 2007.
+| It is currently developed by a community of developers.
+| 
+| ## Copyright
+| 
+| Copyright 2007-, Tatu Saloranta (tatu.saloranta@iki.fi)
+| 
+| ## Licensing
+| 
+| Jackson 2.x core and extension components are licensed under Apache License 2.0
+| To find the details that apply to this artifact see the accompanying LICENSE file.
+| 
+| ## Credits
+| 
+| A list of contributors may be found from CREDITS(-2.x) file, which is included
+| in some artifacts (usually source distributions); but is always available
+| from the source code management (SCM) system project uses.
+
+--------------------------------------------------------------------------------

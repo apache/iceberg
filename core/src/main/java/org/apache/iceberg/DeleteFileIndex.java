@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
@@ -70,6 +71,7 @@ class DeleteFileIndex {
   private final PartitionMap<EqualityDeletes> eqDeletesByPartition;
   private final PartitionMap<PositionDeletes> posDeletesByPartition;
   private final Map<String, PositionDeletes> posDeletesByPath;
+  private final Map<String, DeleteFile> dvByPath;
   private final boolean hasEqDeletes;
   private final boolean hasPosDeletes;
   private final boolean isEmpty;
@@ -78,13 +80,16 @@ class DeleteFileIndex {
       EqualityDeletes globalDeletes,
       PartitionMap<EqualityDeletes> eqDeletesByPartition,
       PartitionMap<PositionDeletes> posDeletesByPartition,
-      Map<String, PositionDeletes> posDeletesByPath) {
+      Map<String, PositionDeletes> posDeletesByPath,
+      Map<String, DeleteFile> dvByPath) {
     this.globalDeletes = globalDeletes;
     this.eqDeletesByPartition = eqDeletesByPartition;
     this.posDeletesByPartition = posDeletesByPartition;
     this.posDeletesByPath = posDeletesByPath;
+    this.dvByPath = dvByPath;
     this.hasEqDeletes = globalDeletes != null || eqDeletesByPartition != null;
-    this.hasPosDeletes = posDeletesByPartition != null || posDeletesByPath != null;
+    this.hasPosDeletes =
+        posDeletesByPartition != null || posDeletesByPath != null || dvByPath != null;
     this.isEmpty = !hasEqDeletes && !hasPosDeletes;
   }
 
@@ -125,6 +130,10 @@ class DeleteFileIndex {
       }
     }
 
+    if (dvByPath != null) {
+      deleteFiles = Iterables.concat(deleteFiles, dvByPath.values());
+    }
+
     return deleteFiles;
   }
 
@@ -143,9 +152,16 @@ class DeleteFileIndex {
 
     DeleteFile[] global = findGlobalDeletes(sequenceNumber, file);
     DeleteFile[] eqPartition = findEqPartitionDeletes(sequenceNumber, file);
-    DeleteFile[] posPartition = findPosPartitionDeletes(sequenceNumber, file);
-    DeleteFile[] posPath = findPathDeletes(sequenceNumber, file);
-    return concat(global, eqPartition, posPartition, posPath);
+    DeleteFile dv = findDV(sequenceNumber, file);
+    if (dv != null && global == null && eqPartition == null) {
+      return new DeleteFile[] {dv};
+    } else if (dv != null) {
+      return concat(global, eqPartition, new DeleteFile[] {dv});
+    } else {
+      DeleteFile[] posPartition = findPosPartitionDeletes(sequenceNumber, file);
+      DeleteFile[] posPath = findPathDeletes(sequenceNumber, file);
+      return concat(global, eqPartition, posPartition, posPath);
+    }
   }
 
   private DeleteFile[] findGlobalDeletes(long seq, DataFile dataFile) {
@@ -178,6 +194,22 @@ class DeleteFileIndex {
 
     PositionDeletes deletes = posDeletesByPath.get(dataFile.location());
     return deletes == null ? EMPTY_DELETES : deletes.filter(seq);
+  }
+
+  private DeleteFile findDV(long seq, DataFile dataFile) {
+    if (dvByPath == null) {
+      return null;
+    }
+
+    DeleteFile dv = dvByPath.get(dataFile.location());
+    if (dv != null) {
+      ValidationException.check(
+          dv.dataSequenceNumber() >= seq,
+          "DV data sequence number (%s) must be greater than or equal to data file sequence number (%s)",
+          dv.dataSequenceNumber(),
+          seq);
+    }
+    return dv;
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -340,6 +372,7 @@ class DeleteFileIndex {
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
+    private boolean ignoreResiduals = false;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -399,6 +432,11 @@ class DeleteFileIndex {
       return this;
     }
 
+    Builder ignoreResiduals() {
+      this.ignoreResiduals = true;
+      return this;
+    }
+
     private Iterable<DeleteFile> filterDeleteFiles() {
       return Iterables.filter(deleteFiles, file -> file.dataSequenceNumber() > minSequenceNumber);
     }
@@ -416,8 +454,14 @@ class DeleteFileIndex {
                 try (CloseableIterable<ManifestEntry<DeleteFile>> reader = deleteFile) {
                   for (ManifestEntry<DeleteFile> entry : reader) {
                     if (entry.dataSequenceNumber() > minSequenceNumber) {
+                      DeleteFile file = entry.file();
+                      // keep minimum stats to avoid memory pressure
+                      Set<Integer> columns =
+                          file.content() == FileContent.POSITION_DELETES
+                              ? Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId())
+                              : Set.copyOf(file.equalityFieldIds());
                       // copy with stats for better filtering against data file stats
-                      files.add(entry.file().copy());
+                      files.add(ContentFileUtil.copy(file, true, columns));
                     }
                   }
                 } catch (IOException e) {
@@ -434,11 +478,16 @@ class DeleteFileIndex {
       PartitionMap<EqualityDeletes> eqDeletesByPartition = PartitionMap.create(specsById);
       PartitionMap<PositionDeletes> posDeletesByPartition = PartitionMap.create(specsById);
       Map<String, PositionDeletes> posDeletesByPath = Maps.newHashMap();
+      Map<String, DeleteFile> dvByPath = Maps.newHashMap();
 
       for (DeleteFile file : files) {
         switch (file.content()) {
           case POSITION_DELETES:
-            add(posDeletesByPath, posDeletesByPartition, file);
+            if (ContentFileUtil.isDV(file)) {
+              add(dvByPath, file);
+            } else {
+              add(posDeletesByPath, posDeletesByPartition, file);
+            }
             break;
           case EQUALITY_DELETES:
             add(globalDeletes, eqDeletesByPartition, file);
@@ -453,7 +502,18 @@ class DeleteFileIndex {
           globalDeletes.isEmpty() ? null : globalDeletes,
           eqDeletesByPartition.isEmpty() ? null : eqDeletesByPartition,
           posDeletesByPartition.isEmpty() ? null : posDeletesByPartition,
-          posDeletesByPath.isEmpty() ? null : posDeletesByPath);
+          posDeletesByPath.isEmpty() ? null : posDeletesByPath,
+          dvByPath.isEmpty() ? null : dvByPath);
+    }
+
+    private void add(Map<String, DeleteFile> dvByPath, DeleteFile dv) {
+      String path = dv.referencedDataFile();
+      DeleteFile existingDV = dvByPath.putIfAbsent(path, dv);
+      if (existingDV != null) {
+        throw new ValidationException(
+            "Can't index multiple DVs for %s: %s and %s",
+            path, ContentFileUtil.dvDesc(dv), ContentFileUtil.dvDesc(existingDV));
+      }
     }
 
     private void add(
@@ -493,6 +553,18 @@ class DeleteFileIndex {
     }
 
     private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
+      Expression entryFilter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
+
+      LoadingCache<Integer, Expression> partExprCache =
+          specsById == null
+              ? null
+              : Caffeine.newBuilder()
+                  .build(
+                      specId -> {
+                        PartitionSpec spec = specsById.get(specId);
+                        return Projections.inclusive(spec, caseSensitive).project(dataFilter);
+                      });
+
       LoadingCache<Integer, ManifestEvaluator> evalCache =
           specsById == null
               ? null
@@ -501,9 +573,7 @@ class DeleteFileIndex {
                       specId -> {
                         PartitionSpec spec = specsById.get(specId);
                         return ManifestEvaluator.forPartitionFilter(
-                            Expressions.and(
-                                partitionFilter,
-                                Projections.inclusive(spec, caseSensitive).project(dataFilter)),
+                            Expressions.and(partitionFilter, partExprCache.get(specId)),
                             spec,
                             caseSensitive);
                       });
@@ -527,8 +597,10 @@ class DeleteFileIndex {
           matchingManifests,
           manifest ->
               ManifestFiles.readDeleteManifest(manifest, io, specsById)
-                  .filterRows(dataFilter)
-                  .filterPartitions(partitionFilter)
+                  .filterRows(entryFilter)
+                  .filterPartitions(
+                      Expressions.and(
+                          partitionFilter, partExprCache.get(manifest.partitionSpecId())))
                   .filterPartitions(partitionSet)
                   .caseSensitive(caseSensitive)
                   .scanMetrics(scanMetrics)

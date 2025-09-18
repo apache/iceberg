@@ -56,15 +56,16 @@ public final class TaskCheckHelper {
         .isEqualTo(expected.start());
 
     // simplify comparison on residual expression via comparing toString
-    assertThat(actual.residual().toString())
+    assertThat(actual.residual())
+        .asString()
         .as("Residual expression doesn't match")
         .isEqualTo(expected.residual().toString());
   }
 
   public static void assertEquals(DataFile expected, DataFile actual) {
-    assertThat(actual.path())
+    assertThat(actual.location())
         .as("Should match the serialized record path")
-        .isEqualTo(expected.path());
+        .isEqualTo(expected.location());
     assertThat(actual.format())
         .as("Should match the serialized record format")
         .isEqualTo(expected.format());
@@ -95,16 +96,13 @@ public final class TaskCheckHelper {
     assertThat(actual.splitOffsets())
         .as("Should match the serialized record offsets")
         .isEqualTo(expected.splitOffsets());
-    assertThat(actual.keyMetadata())
-        .as("Should match the serialized record offsets")
-        .isEqualTo(expected.keyMetadata());
   }
 
   private static List<FileScanTask> getFileScanTasksInFilePathOrder(
       ScanTaskGroup<FileScanTask> taskGroup) {
     return taskGroup.tasks().stream()
         // use file path + start position to differentiate the tasks
-        .sorted(Comparator.comparing(o -> o.file().path().toString() + "##" + o.start()))
+        .sorted(Comparator.comparing(o -> o.file().location() + "##" + o.start()))
         .collect(Collectors.toList());
   }
 }

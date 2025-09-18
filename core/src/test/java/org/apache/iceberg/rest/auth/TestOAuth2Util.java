@@ -18,9 +18,20 @@
  */
 package org.apache.iceberg.rest.auth;
 
+import static org.apache.hadoop.hdfs.web.oauth2.OAuth2Constants.BEARER;
+import static org.apache.hadoop.hdfs.web.oauth2.OAuth2Constants.CLIENT_CREDENTIALS;
+import static org.apache.hadoop.hdfs.web.oauth2.OAuth2Constants.GRANT_TYPE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.argThat;
 
+import java.io.IOException;
+import java.util.Map;
+import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 public class TestOAuth2Util {
   @Test
@@ -73,6 +84,7 @@ public class TestOAuth2Util {
   public void testExpiresAt() {
     assertThat(OAuth2Util.expiresAtMillis(null)).isNull();
     assertThat(OAuth2Util.expiresAtMillis("not a token")).isNull();
+    assertThat(OAuth2Util.expiresAtMillis("a.b.c")).isNull();
 
     // expires at epoch second = 1
     String token =
@@ -88,5 +100,39 @@ public class TestOAuth2Util {
     token =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
     assertThat(OAuth2Util.expiresAtMillis(token)).isNull();
+  }
+
+  @Test
+  public void testCredentialFlowForSessionRefresh() throws IOException {
+    AuthConfig authConfig =
+        ImmutableAuthConfig.builder()
+            .keepRefreshed(true)
+            .exchangeEnabled(false)
+            .token("test_token")
+            .credential("testClientId:testClientSecret")
+            .oauth2ServerUri("/v1/token")
+            .expiresAtMillis(System.currentTimeMillis())
+            .build();
+
+    OAuthTokenResponse response =
+        OAuthTokenResponse.builder().withToken("refreshed_token").withTokenType(BEARER).build();
+
+    try (RESTClient client = Mockito.mock(RESTClient.class);
+        OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(Map.of(), authConfig); ) {
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any())).thenReturn(response);
+
+      session.refresh(client);
+
+      Mockito.verify(client)
+          .postForm(
+              any(),
+              argThat(
+                  formData ->
+                      formData.containsKey(GRANT_TYPE)
+                          && formData.get(GRANT_TYPE).equals(CLIENT_CREDENTIALS)),
+              Mockito.eq(OAuthTokenResponse.class),
+              anyMap(),
+              any());
+    }
   }
 }

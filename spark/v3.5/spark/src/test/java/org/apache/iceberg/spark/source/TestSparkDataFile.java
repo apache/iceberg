@@ -24,8 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -121,7 +121,11 @@ public class TestSparkDataFile {
 
   @BeforeAll
   public static void startSpark() {
-    TestSparkDataFile.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestSparkDataFile.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
     TestSparkDataFile.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
@@ -133,12 +137,11 @@ public class TestSparkDataFile {
     currentSpark.stop();
   }
 
-  @TempDir private Path temp;
+  @TempDir private File tableDir;
   private String tableLocation = null;
 
   @BeforeEach
-  public void setupTableLocation() throws Exception {
-    File tableDir = temp.toFile();
+  public void setupTableLocation() {
     this.tableLocation = tableDir.toURI().toString();
   }
 
@@ -281,7 +284,7 @@ public class TestSparkDataFile {
 
   private void checkContentFile(ContentFile<?> expected, ContentFile<?> actual) {
     assertThat(actual.content()).isEqualTo(expected.content());
-    assertThat(actual.path()).isEqualTo(expected.path());
+    assertThat(actual.location()).isEqualTo(expected.location());
     assertThat(actual.format()).isEqualTo(expected.format());
     assertThat(actual.recordCount()).isEqualTo(expected.recordCount());
     assertThat(actual.fileSizeInBytes()).isEqualTo(expected.fileSizeInBytes());
@@ -319,10 +322,10 @@ public class TestSparkDataFile {
                 null, // no NaN counts
                 ImmutableMap.of(
                     MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.path())),
+                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.location())),
                 ImmutableMap.of(
                     MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.path()))))
+                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.location()))))
         .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(35))
         .build();
   }

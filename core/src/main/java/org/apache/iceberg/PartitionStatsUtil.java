@@ -35,6 +35,11 @@ import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
+/**
+ * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
+ *     org.apache.iceberg.PartitionStatsHandler} directly
+ */
+@Deprecated
 public class PartitionStatsUtil {
 
   private PartitionStatsUtil() {}
@@ -96,7 +101,10 @@ public class PartitionStatsUtil {
         StructLike key = keyTemplate.copyFor(coercedPartition);
         Snapshot snapshot = table.snapshot(entry.snapshotId());
         PartitionStats stats =
-            statsMap.computeIfAbsent(specId, key, () -> new PartitionStats(key, specId));
+            statsMap.computeIfAbsent(
+                specId,
+                ((PartitionData) file.partition()).copy(),
+                () -> new PartitionStats(key, specId));
         if (entry.isLive()) {
           stats.liveEntry(file, snapshot);
         } else {

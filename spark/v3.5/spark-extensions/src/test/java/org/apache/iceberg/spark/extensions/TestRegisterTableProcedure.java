@@ -19,11 +19,12 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.atIndex;
 
 import java.util.List;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
@@ -64,21 +65,21 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     long originalFileCount = (long) scalarSql("SELECT COUNT(*) from %s.files", tableName);
     long currentSnapshotId = table.currentSnapshot().snapshotId();
-    String metadataJson =
-        (((HasTableOperations) table).operations()).current().metadataFileLocation();
+    String metadataJson = TableUtil.metadataFileLocation(table);
 
     List<Object[]> result =
         sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);
-    assertThat(result.get(0)[0]).as("Current Snapshot is not correct").isEqualTo(currentSnapshotId);
+    assertThat(result.get(0))
+        .as("Current Snapshot is not correct")
+        .contains(currentSnapshotId, atIndex(0));
 
     List<Object[]> original = sql("SELECT * FROM %s", tableName);
     List<Object[]> registered = sql("SELECT * FROM %s", targetName);
     assertEquals("Registered table rows should match original table rows", original, registered);
-    assertThat(result.get(0)[1])
+    assertThat(result.get(0))
         .as("Should have the right row count in the procedure result")
-        .isEqualTo(numRows);
-    assertThat(result.get(0)[2])
+        .contains(numRows, atIndex(1))
         .as("Should have the right datafile count in the procedure result")
-        .isEqualTo(originalFileCount);
+        .contains(originalFileCount, atIndex(2));
   }
 }

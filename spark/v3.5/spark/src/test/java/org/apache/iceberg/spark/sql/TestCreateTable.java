@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -26,11 +28,13 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.UUID;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
@@ -39,7 +43,9 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestCreateTable extends CatalogTestBase {
 
   @AfterEach
@@ -106,10 +112,8 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.schema().asStruct())
         .as("Should have the expected schema")
         .isEqualTo(expectedSchema);
-    assertThat(table.spec().fields()).as("Should not be partitioned").hasSize(0);
-    assertThat(table.properties().get(TableProperties.DEFAULT_FILE_FORMAT))
-        .as("Should not have the default format set")
-        .isNull();
+    assertThat(table.spec().fields()).as("Should not be partitioned").isEmpty();
+    assertThat(table.properties()).doesNotContainKey(TableProperties.DEFAULT_FILE_FORMAT);
   }
 
   @TestTemplate
@@ -131,7 +135,7 @@ public class TestCreateTable extends CatalogTestBase {
 
     sql("INSERT INTO %s VALUES('%s')", tableName, uuid);
 
-    assertThat(sql("SELECT uuid FROM %s", tableName)).hasSize(1).element(0).isEqualTo(row(uuid));
+    assertThat(sql("SELECT uuid FROM %s", tableName)).singleElement().isEqualTo(row(uuid));
   }
 
   @TestTemplate
@@ -169,10 +173,8 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.schema().asStruct())
         .as("Should have the expected schema")
         .isEqualTo(expectedSchema);
-    assertThat(table.spec().fields()).as("Should not be partitioned").hasSize(0);
-    assertThat(table.properties().get(TableProperties.DEFAULT_FILE_FORMAT))
-        .as("Should not have default format parquet")
-        .isEqualTo("parquet");
+    assertThat(table.spec().fields()).as("Should not be partitioned").isEmpty();
+    assertThat(table.properties()).containsEntry(TableProperties.DEFAULT_FILE_FORMAT, "parquet");
 
     assertThatThrownBy(
             () ->
@@ -216,10 +218,7 @@ public class TestCreateTable extends CatalogTestBase {
             .day("created_at")
             .build();
     assertThat(table.spec()).as("Should be partitioned correctly").isEqualTo(expectedSpec);
-
-    assertThat(table.properties().get(TableProperties.DEFAULT_FILE_FORMAT))
-        .as("Should not have the default format set")
-        .isNull();
+    assertThat(table.properties()).doesNotContainKey(TableProperties.DEFAULT_FILE_FORMAT);
   }
 
   @TestTemplate
@@ -244,10 +243,8 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.schema().asStruct())
         .as("Should have the expected schema")
         .isEqualTo(expectedSchema);
-    assertThat(table.spec().fields()).as("Should not be partitioned").hasSize(0);
-    assertThat(table.properties().get(TableProperties.DEFAULT_FILE_FORMAT))
-        .as("Should not have the default format set")
-        .isNull();
+    assertThat(table.spec().fields()).as("Should not be partitioned").isEmpty();
+    assertThat(table.properties()).doesNotContainKey(TableProperties.DEFAULT_FILE_FORMAT);
   }
 
   @TestTemplate
@@ -273,13 +270,10 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.schema().asStruct())
         .as("Should have the expected schema")
         .isEqualTo(expectedSchema);
-    assertThat(table.spec().fields()).as("Should not be partitioned").hasSize(0);
-    assertThat(table.properties().get(TableProperties.DEFAULT_FILE_FORMAT))
-        .as("Should not have the default format set")
-        .isNull();
-    assertThat(table.properties().get(TableCatalog.PROP_COMMENT))
-        .as("Should have the table comment set in properties")
-        .isEqualTo("Table doc");
+    assertThat(table.spec().fields()).as("Should not be partitioned").isEmpty();
+    assertThat(table.properties())
+        .doesNotContainKey(TableProperties.DEFAULT_FILE_FORMAT)
+        .containsEntry(TableCatalog.PROP_COMMENT, "Table doc");
   }
 
   @TestTemplate
@@ -314,10 +308,8 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.schema().asStruct())
         .as("Should have the expected schema")
         .isEqualTo(expectedSchema);
-    assertThat(table.spec().fields()).as("Should not be partitioned").hasSize(0);
-    assertThat(table.properties().get(TableProperties.DEFAULT_FILE_FORMAT))
-        .as("Should not have the default format set")
-        .isNull();
+    assertThat(table.spec().fields()).as("Should not be partitioned").isEmpty();
+    assertThat(table.properties()).doesNotContainKey(TableProperties.DEFAULT_FILE_FORMAT);
     assertThat(table.location()).as("Should have a custom table location").isEqualTo(location);
   }
 
@@ -344,8 +336,53 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.schema().asStruct())
         .as("Should have the expected schema")
         .isEqualTo(expectedSchema);
-    assertThat(table.spec().fields()).as("Should not be partitioned").hasSize(0);
+    assertThat(table.spec().fields()).as("Should not be partitioned").isEmpty();
     assertThat(table.properties()).containsEntry("p1", "2").containsEntry("p2", "x");
+  }
+
+  @TestTemplate
+  public void testCreateTableCommitProperties() {
+    assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE))
+        .as(
+            "need to fix https://github.com/apache/iceberg/issues/11554 before enabling this for the REST catalog")
+        .isNotEqualTo(ICEBERG_CATALOG_TYPE_REST);
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE TABLE %s "
+                        + "(id BIGINT NOT NULL, data STRING) "
+                        + "USING iceberg "
+                        + "TBLPROPERTIES ('commit.retry.num-retries'='x', p2='x')",
+                    tableName))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Table property commit.retry.num-retries must have integer value");
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE TABLE %s "
+                        + "(id BIGINT NOT NULL, data STRING) "
+                        + "USING iceberg "
+                        + "TBLPROPERTIES ('commit.retry.max-wait-ms'='-1')",
+                    tableName))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Table property commit.retry.max-wait-ms must have non negative integer value");
+
+    sql(
+        "CREATE TABLE %s "
+            + "(id BIGINT NOT NULL, data STRING) "
+            + "USING iceberg "
+            + "TBLPROPERTIES ('commit.retry.num-retries'='1', 'commit.retry.max-wait-ms'='3000')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.properties())
+        .containsEntry(TableProperties.COMMIT_NUM_RETRIES, "1")
+        .containsEntry(TableProperties.COMMIT_MAX_RETRY_WAIT_MS, "3000");
   }
 
   @TestTemplate

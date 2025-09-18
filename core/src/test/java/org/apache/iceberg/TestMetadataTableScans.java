@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -59,14 +58,14 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
       if (transactional) {
         table
             .newRowDelta()
-            .addDeletes(FILE_A_DELETES)
-            .addDeletes(FILE_B_DELETES)
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes())
             .addDeletes(FILE_C2_DELETES)
             .addDeletes(FILE_D2_DELETES)
             .commit();
       } else {
-        table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
-        table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
+        table.newRowDelta().addDeletes(fileADeletes()).commit();
+        table.newRowDelta().addDeletes(fileBDeletes()).commit();
         table.newRowDelta().addDeletes(FILE_C2_DELETES).commit();
         table.newRowDelta().addDeletes(FILE_D2_DELETES).commit();
       }
@@ -722,7 +721,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     table.newFastAppend().appendFile(FILE_A).commit();
 
-    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).addDeletes(FILE_A2_DELETES).commit();
 
     Table deleteFilesTable = new DeleteFilesTable(table);
 
@@ -1066,7 +1065,6 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   @TestTemplate
   public void testPartitionColumnNamedPartition() throws Exception {
     TestTables.clearTables();
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
 
     Schema schema =
         new Schema(
@@ -1409,12 +1407,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 0);
-    assertThat(posDeleteTask.file().path())
+    assertThat(posDeleteTask.file().location())
         .as("Expected correct delete file on task")
-        .isEqualTo(FILE_B_DELETES.path());
+        .isEqualTo(fileBDeletes().location());
     assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), FILE_B_DELETES.path().toString());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), fileBDeletes().location());
   }
 
   @TestTemplate
@@ -1479,19 +1477,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 0);
-    assertThat(posDeleteTask.file().path())
+    assertThat(posDeleteTask.file().location())
         .as("Expected correct delete file on task")
-        .isEqualTo(FILE_A_DELETES.path());
+        .isEqualTo(fileADeletes().location());
     assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), FILE_A_DELETES.path().toString());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), fileADeletes().location());
   }
 
   @TestTemplate
   public void testPositionDeletesWithBaseTableFilterNot() {
-    assumeThat(formatVersion)
-        .as("Position deletes are not supported by V1 Tables")
-        .isNotEqualTo(1); // use identity rather than bucket partition spec,
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isEqualTo(2);
+    // use identity rather than bucket partition spec,
     // as bucket.project does not support projecting notEq
     table.updateSpec().removeField("data_bucket").addField("id").commit();
     PartitionSpec spec = table.spec();
@@ -1563,7 +1560,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         .as("Expected correct partition spec id on constant column")
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 1);
 
-    assertThat(posDeleteTask.file().path())
+    assertThat(posDeleteTask.file().location())
         .as("Expected correct delete file on task")
         .isEqualTo(path1);
     assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
@@ -1621,20 +1618,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .build();
     table.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
 
-    DeleteFile delete1 =
-        FileMetadata.deleteFileBuilder(table.spec())
-            .ofPositionDeletes()
-            .withPath("/path/to/delete1.parquet")
-            .withFileSizeInBytes(10)
-            .withRecordCount(1)
-            .build();
-    DeleteFile delete2 =
-        FileMetadata.deleteFileBuilder(table.spec())
-            .ofPositionDeletes()
-            .withPath("/path/to/delete2.parquet")
-            .withFileSizeInBytes(10)
-            .withRecordCount(1)
-            .build();
+    DeleteFile delete1 = newDeletes(dataFile1);
+    DeleteFile delete2 = newDeletes(dataFile2);
     table.newRowDelta().addDeletes(delete1).addDeletes(delete2).commit();
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1657,16 +1642,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         .isEqualTo(1);
 
     assertThat(scanTasks).hasSize(2);
-    scanTasks.sort(Comparator.comparing(f -> f.file().path().toString()));
-    assertThat(scanTasks.get(0).file().path().toString()).isEqualTo("/path/to/delete1.parquet");
-    assertThat(scanTasks.get(1).file().path().toString()).isEqualTo("/path/to/delete2.parquet");
+    scanTasks.sort(Comparator.comparing(f -> f.file().pos()));
+    assertThat(scanTasks.get(0).file().location()).isEqualTo(delete1.location());
+    assertThat(scanTasks.get(1).file().location()).isEqualTo(delete2.location());
 
     Types.StructType partitionType = Partitioning.partitionType(table);
 
     assertThat((Map<Integer, String>) constantsMap(scanTasks.get(0), partitionType))
-        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), "/path/to/delete1.parquet");
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), delete1.location());
     assertThat((Map<Integer, String>) constantsMap(scanTasks.get(1), partitionType))
-        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), "/path/to/delete2.parquet");
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), delete2.location());
     assertThat((Map<Integer, Integer>) constantsMap(scanTasks.get(0), partitionType))
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 1);
     assertThat((Map<Integer, Integer>) constantsMap(scanTasks.get(1), partitionType))
@@ -1714,24 +1699,17 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .build();
     table.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
 
-    DeleteFile delete1 =
-        FileMetadata.deleteFileBuilder(table.spec())
-            .ofPositionDeletes()
-            .withPath("/path/to/delete1.parquet")
-            .withFileSizeInBytes(10)
-            .withRecordCount(1)
-            .build();
-    DeleteFile delete2 =
-        FileMetadata.deleteFileBuilder(table.spec())
-            .ofPositionDeletes()
-            .withPath("/path/to/delete2.parquet")
-            .withFileSizeInBytes(10)
-            .withRecordCount(1)
-            .build();
+    DeleteFile delete1 = newDeletes(dataFile1);
+    DeleteFile delete2 = newDeletes(dataFile2);
     table.newRowDelta().addDeletes(delete1).addDeletes(delete2).commit();
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
-    assertThat(TypeUtil.indexById(positionDeletesTable.schema().asStruct()).size()).isEqualTo(2010);
+    int expectedIds =
+        formatVersion >= 3
+            ? 2012 // partition col + 8 columns + 2003 ids inside the deleted row column
+            : 2010; // partition col + 6 columns + 2003 ids inside the deleted row column
+    assertThat(TypeUtil.indexById(positionDeletesTable.schema().asStruct()).size())
+        .isEqualTo(expectedIds);
 
     BatchScan scan = positionDeletesTable.newBatchScan();
     assertThat(scan).isInstanceOf(PositionDeletesTable.PositionDeletesBatchScan.class);
@@ -1747,9 +1725,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                   return (PositionDeletesScanTask) task;
                 }));
     assertThat(scanTasks).hasSize(2);
-    scanTasks.sort(Comparator.comparing(f -> f.file().path().toString()));
-    assertThat(scanTasks.get(0).file().path().toString()).isEqualTo("/path/to/delete1.parquet");
-    assertThat(scanTasks.get(1).file().path().toString()).isEqualTo("/path/to/delete2.parquet");
+    scanTasks.sort(Comparator.comparing(f -> f.file().pos()));
+    assertThat(scanTasks.get(0).file().location()).isEqualTo(delete1.location());
+    assertThat(scanTasks.get(1).file().location()).isEqualTo(delete2.location());
   }
 
   @TestTemplate
@@ -1760,7 +1738,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertEstimatedRowCount(new AllDataFilesTable(table), 4);
     assertEstimatedRowCount(new AllFilesTable(table), 4);
 
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertEstimatedRowCount(new DeleteFilesTable(table), 4);
       assertEstimatedRowCount(new AllDeleteFilesTable(table), 4);
     }
@@ -1779,8 +1757,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       List<FileScanTask> taskList = Lists.newArrayList(tasks);
-      assertThat(taskList.size()).isGreaterThan(0);
-      taskList.forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(size));
+      assertThat(taskList)
+          .isNotEmpty()
+          .allSatisfy(task -> assertThat(task.estimatedRowsCount()).isEqualTo(size));
     }
   }
 }

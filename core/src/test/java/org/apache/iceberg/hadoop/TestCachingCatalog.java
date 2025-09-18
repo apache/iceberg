@@ -27,11 +27,11 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.MetadataTableType;
@@ -41,6 +41,7 @@ import org.apache.iceberg.TestableCachingCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.FakeTicker;
@@ -167,6 +168,43 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void testNonExistingTable() throws Exception {
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog());
+
+    TableIdentifier tableIdent = TableIdentifier.of("otherDB", "otherTbl");
+
+    assertThatThrownBy(() -> catalog.loadTable(tableIdent))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Table does not exist: otherDB.otherTbl");
+  }
+
+  @Test
+  public void testTableWithMetadataTableName() throws Exception {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "partitions");
+    TableIdentifier metaTableIdent =
+        TableIdentifier.of("db", "ns1", "ns2", "partitions", "partitions");
+
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+    catalog.cache().invalidateAll();
+
+    Table table = catalog.loadTable(tableIdent);
+    assertThat(table.name()).isEqualTo("hadoop.db.ns1.ns2.partitions");
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(catalog.cache().asMap()).doesNotContainKey(metaTableIdent);
+
+    catalog.cache().invalidateAll();
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+
+    Table metaTable = catalog.loadTable(metaTableIdent);
+    assertThat(metaTable).isInstanceOf(BaseMetadataTable.class);
+    assertThat(metaTable.name()).isEqualTo("hadoop.db.ns1.ns2.partitions.partitions");
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(catalog.cache().asMap()).containsKey(metaTableIdent);
+  }
+
+  @Test
   public void testTableExpiresAfterInterval() throws IOException {
     TestableCachingCatalog catalog =
         TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
@@ -262,7 +300,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
     assertThat(catalog.remainingAgeFor(tableIdent))
         .as("Loading a non-cached metadata table should refresh the main table's age")
-        .isEqualTo(Optional.of(EXPIRATION_TTL));
+        .contains(EXPIRATION_TTL);
 
     // Move time forward and access already cached metadata tables.
     ticker.advance(HALF_OF_EXPIRATION);
@@ -273,7 +311,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
     assertThat(catalog.remainingAgeFor(tableIdent))
         .as("Accessing a cached metadata table should not affect the main table's age")
-        .isEqualTo(Optional.of(HALF_OF_EXPIRATION));
+        .contains(HALF_OF_EXPIRATION);
 
     // Move time forward so the data table drops.
     ticker.advance(HALF_OF_EXPIRATION);

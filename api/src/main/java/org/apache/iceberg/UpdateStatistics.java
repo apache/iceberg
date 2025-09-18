@@ -27,8 +27,22 @@ public interface UpdateStatistics extends PendingUpdate<List<StatisticsFile>> {
    * the snapshot if any exists.
    *
    * @return this for method chaining
+   * @deprecated since 1.8.0, will be removed in 2.0.0, use {@link #setStatistics(StatisticsFile)}.
    */
-  UpdateStatistics setStatistics(long snapshotId, StatisticsFile statisticsFile);
+  @Deprecated
+  default UpdateStatistics setStatistics(long snapshotId, StatisticsFile statisticsFile) {
+    return setStatistics(statisticsFile);
+  }
+
+  /**
+   * Set the table's statistics file for given snapshot, replacing the previous statistics file for
+   * the snapshot if any exists. The snapshot id of the statistics file will be used.
+   *
+   * @return this for method chaining
+   */
+  default UpdateStatistics setStatistics(StatisticsFile statisticsFile) {
+    throw new UnsupportedOperationException("Setting statistics is not supported");
+  }
 
   /**
    * Remove the table's statistics file for given snapshot.

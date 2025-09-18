@@ -32,12 +32,13 @@ on:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/workflows/api-binary-compatibility.yml'
     - '.github/workflows/delta-conversion-ci.yml'
+    - '.github/workflows/docs-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.github/workflows/java-ci.yml'
     - '.github/workflows/jmh-benchmarks-ci.yml'
     - '.github/workflows/labeler.yml'
-    - '.github/workflows/licence-check.yml'
+    - '.github/workflows/license-check.yml'
     - '.github/workflows/open-api.yml'
     - '.github/workflows/publish-snapshot.yml'
     - '.github/workflows/recurring-jmh-benchmarks.yml'
@@ -45,24 +46,21 @@ on:
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/stale.yml'
     - '.gitignore'
-    - '.asf.yml'
+    - '.asf.yaml'
     - 'dev/**'
+    - 'docker/**'
     - 'mr/**'
     - 'flink/**'
-    - 'hive3/**'
-    - 'hive3-orc-bundle/**'
-    - 'hive-runtime/**'
     - 'spark/**'
-    - 'pig/**'
     - 'docs/**'
     - 'site/**'
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
-    - 'README.md'
+    - '**/README.md'
     - 'CONTRIBUTING.md'
-    - 'LICENSE'
-    - 'NOTICE'
+    - '**/LICENSE'
+    - '**/NOTICE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -92,8 +90,9 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: |
-        ./gradlew -DsparkVersions= -DhiveVersions= -DflinkVersions= -DkafkaVersions=3 \
+        ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions=3 \
           :iceberg-kafka-connect:iceberg-kafka-connect-events:check \
+          :iceberg-kafka-connect:iceberg-kafka-connect-transforms:check \
           :iceberg-kafka-connect:iceberg-kafka-connect:check \
           :iceberg-kafka-connect:iceberg-kafka-connect-runtime:check \
           -Pquick=true -x javadoc

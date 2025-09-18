@@ -24,10 +24,23 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PropertyUtil {
+  private static final Logger LOG = LoggerFactory.getLogger(PropertyUtil.class);
+
+  private static final Set<String> COMMIT_PROPERTIES =
+      ImmutableSet.of(
+          TableProperties.COMMIT_NUM_RETRIES,
+          TableProperties.COMMIT_MIN_RETRY_WAIT_MS,
+          TableProperties.COMMIT_MAX_RETRY_WAIT_MS,
+          TableProperties.COMMIT_TOTAL_RETRY_TIME_MS);
 
   private PropertyUtil() {}
 
@@ -55,6 +68,20 @@ public class PropertyUtil {
       return Double.parseDouble(value);
     }
     return defaultValue;
+  }
+
+  public static int propertyTryAsInt(
+      Map<String, String> properties, String property, int defaultValue) {
+    String value = properties.get(property);
+    if (value == null) {
+      return defaultValue;
+    }
+    try {
+      return Integer.parseInt(value);
+    } catch (NumberFormatException e) {
+      LOG.warn("Failed to parse value of {} as integer, default to {}", property, defaultValue, e);
+      return defaultValue;
+    }
   }
 
   public static int propertyAsInt(
@@ -98,6 +125,29 @@ public class PropertyUtil {
       return value;
     }
     return defaultValue;
+  }
+
+  /**
+   * Validate the table commit related properties to have non-negative integer on table creation to
+   * prevent commit failure
+   */
+  public static void validateCommitProperties(Map<String, String> properties) {
+    for (String commitProperty : COMMIT_PROPERTIES) {
+      String value = properties.get(commitProperty);
+      if (value != null) {
+        int parsedValue;
+        try {
+          parsedValue = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+          throw new ValidationException(
+              "Table property %s must have integer value", commitProperty);
+        }
+        ValidationException.check(
+            parsedValue >= 0,
+            "Table property %s must have non negative integer value",
+            commitProperty);
+      }
+    }
   }
 
   /**

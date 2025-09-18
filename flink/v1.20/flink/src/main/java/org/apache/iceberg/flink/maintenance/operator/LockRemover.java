@@ -22,10 +22,14 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.iceberg.flink.maintenance.api.TaskResult;
+import org.apache.iceberg.flink.maintenance.api.Trigger;
+import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -64,6 +68,7 @@ public class LockRemover extends AbstractStreamOperator<Void>
     implements OneInputStreamOperator<TaskResult, Void> {
   private static final Logger LOG = LoggerFactory.getLogger(LockRemover.class);
 
+  private final String tableName;
   private final TriggerLockFactory lockFactory;
   private final List<String> maintenanceTaskNames;
 
@@ -74,12 +79,14 @@ public class LockRemover extends AbstractStreamOperator<Void>
   private transient TriggerLockFactory.Lock recoveryLock;
   private transient long lastProcessedTaskStartEpoch = 0L;
 
-  public LockRemover(TriggerLockFactory lockFactory, List<String> maintenanceTaskNames) {
+  public LockRemover(
+      String tableName, TriggerLockFactory lockFactory, List<String> maintenanceTaskNames) {
     Preconditions.checkNotNull(lockFactory, "Lock factory should no be null");
     Preconditions.checkArgument(
         maintenanceTaskNames != null && !maintenanceTaskNames.isEmpty(),
         "Invalid maintenance task names: null or empty");
 
+    this.tableName = tableName;
     this.lockFactory = lockFactory;
     this.maintenanceTaskNames = maintenanceTaskNames;
   }
@@ -91,25 +98,20 @@ public class LockRemover extends AbstractStreamOperator<Void>
         Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
     this.failedTaskResultCounters = Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
     this.taskLastRunDurationMs = Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
-    for (String name : maintenanceTaskNames) {
+    for (int taskIndex = 0; taskIndex < maintenanceTaskNames.size(); ++taskIndex) {
+      MetricGroup taskMetricGroup =
+          TableMaintenanceMetrics.groupFor(
+              getRuntimeContext(), tableName, maintenanceTaskNames.get(taskIndex), taskIndex);
       succeededTaskResultCounters.add(
-          getRuntimeContext()
-              .getMetricGroup()
-              .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
-              .counter(TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER));
+          taskMetricGroup.counter(TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER));
       failedTaskResultCounters.add(
-          getRuntimeContext()
-              .getMetricGroup()
-              .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
-              .counter(TableMaintenanceMetrics.FAILED_TASK_COUNTER));
+          taskMetricGroup.counter(TableMaintenanceMetrics.FAILED_TASK_COUNTER));
       AtomicLong duration = new AtomicLong(0);
       taskLastRunDurationMs.add(duration);
-      getRuntimeContext()
-          .getMetricGroup()
-          .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
-          .gauge(TableMaintenanceMetrics.LAST_RUN_DURATION_MS, duration::get);
+      taskMetricGroup.gauge(TableMaintenanceMetrics.LAST_RUN_DURATION_MS, duration::get);
     }
 
+    lockFactory.open();
     this.lock = lockFactory.createLock();
     this.recoveryLock = lockFactory.createRecoveryLock();
   }

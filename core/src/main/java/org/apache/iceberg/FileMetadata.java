@@ -28,6 +28,7 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class FileMetadata {
@@ -56,9 +57,13 @@ public class FileMetadata {
     private Map<Integer, Long> nanValueCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private Map<Integer, Type> originalTypes = null;
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
     private List<Long> splitOffsets = null;
+    private String referencedDataFile = null;
+    private Long contentOffset = null;
+    private Long contentSizeInBytes = null;
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -91,7 +96,7 @@ public class FileMetadata {
         this.partitionData = DataFiles.copyPartitionData(spec, toCopy.partition(), partitionData);
       }
       this.content = toCopy.content();
-      this.filePath = toCopy.path().toString();
+      this.filePath = toCopy.location();
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
       this.fileSizeInBytes = toCopy.fileSizeInBytes();
@@ -192,6 +197,7 @@ public class FileMetadata {
       this.nanValueCounts = metrics.nanValueCounts();
       this.lowerBounds = metrics.lowerBounds();
       this.upperBounds = metrics.upperBounds();
+      this.originalTypes = metrics.originalTypes();
       return this;
     }
 
@@ -220,6 +226,25 @@ public class FileMetadata {
       return this;
     }
 
+    public Builder withReferencedDataFile(CharSequence newReferencedDataFile) {
+      if (newReferencedDataFile != null) {
+        this.referencedDataFile = newReferencedDataFile.toString();
+      } else {
+        this.referencedDataFile = null;
+      }
+      return this;
+    }
+
+    public Builder withContentOffset(long newContentOffset) {
+      this.contentOffset = newContentOffset;
+      return this;
+    }
+
+    public Builder withContentSizeInBytes(long newContentSizeInBytes) {
+      this.contentSizeInBytes = newContentSizeInBytes;
+      return this;
+    }
+
     public DeleteFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -229,6 +254,17 @@ public class FileMetadata {
       Preconditions.checkArgument(format != null, "File format is required");
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
+
+      if (format == FileFormat.PUFFIN) {
+        Preconditions.checkArgument(contentOffset != null, "Content offset is required for DV");
+        Preconditions.checkArgument(contentSizeInBytes != null, "Content size is required for DV");
+        Preconditions.checkArgument(
+            referencedDataFile != null, "Referenced data file is required for DV");
+      } else {
+        Preconditions.checkArgument(contentOffset == null, "Content offset can only be set for DV");
+        Preconditions.checkArgument(
+            contentSizeInBytes == null, "Content size can only be set for DV");
+      }
 
       switch (content) {
         case POSITION_DELETES:
@@ -258,11 +294,15 @@ public class FileMetadata {
               nullValueCounts,
               nanValueCounts,
               lowerBounds,
-              upperBounds),
+              upperBounds,
+              originalTypes),
           equalityFieldIds,
           sortOrderId,
           splitOffsets,
-          keyMetadata);
+          keyMetadata,
+          referencedDataFile,
+          contentOffset,
+          contentSizeInBytes);
     }
   }
 }

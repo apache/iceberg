@@ -22,16 +22,14 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.RandomVariants;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -88,52 +86,17 @@ public class RandomAvroData {
 
     @Override
     public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
-
-      List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
-      for (int i = 0; i < numElements; i += 1) {
-        // return null 5% of the time when the value is optional
-        if (list.isElementOptional() && random.nextInt(20) == 1) {
-          result.add(null);
-        } else {
-          result.add(elementResult.get());
-        }
-      }
-
-      return result;
+      return RandomUtil.generateList(random, list, elementResult);
     }
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      return RandomUtil.generateMap(random, map, keyResult, valueResult);
+    }
 
-      Map<Object, Object> result = Maps.newLinkedHashMap();
-      Supplier<Object> keyFunc;
-      if (map.keyType() == Types.StringType.get()) {
-        keyFunc = () -> keyResult.get().toString();
-      } else {
-        keyFunc = keyResult;
-      }
-
-      Set<Object> keySet = Sets.newHashSet();
-      for (int i = 0; i < numEntries; i += 1) {
-        Object key = keyFunc.get();
-        // ensure no collisions
-        while (keySet.contains(key)) {
-          key = keyFunc.get();
-        }
-
-        keySet.add(key);
-
-        // return null 5% of the time when the value is optional
-        if (map.isValueOptional() && random.nextInt(20) == 1) {
-          result.put(key, null);
-        } else {
-          result.put(key, valueResult.get());
-        }
-      }
-
-      return result;
+    @Override
+    public Object variant(Types.VariantType variant) {
+      return RandomVariants.randomVariant(random);
     }
 
     @Override

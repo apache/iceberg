@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -311,7 +312,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     } catch (Exception e) {
       if (e instanceof CleanableFailure) {
         LOG.warn("Failed to commit rewrite, cleaning up rewritten files", e);
-        Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
+        Tasks.foreach(Iterables.transform(addedDataFiles, ContentFile::location))
             .noRetry()
             .suppressFailureWhenFinished()
             .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))

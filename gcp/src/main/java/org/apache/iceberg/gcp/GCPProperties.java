@@ -22,7 +22,10 @@ import java.io.Serializable;
 import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class GCPProperties implements Serializable {
@@ -43,6 +46,12 @@ public class GCPProperties implements Serializable {
   public static final String GCS_OAUTH2_TOKEN_EXPIRES_AT = "gcs.oauth2.token-expires-at";
   // Boolean to explicitly configure "no authentication" for testing purposes using a GCS emulator
   public static final String GCS_NO_AUTH = "gcs.no-auth";
+  public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT =
+      "gcs.oauth2.refresh-credentials-endpoint";
+
+  /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
+  public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED =
+      "gcs.oauth2.refresh-credentials-enabled";
 
   /** Configure the batch size used when deleting multiple files from a given GCS bucket */
   public static final String GCS_DELETE_BATCH_SIZE = "gcs.delete.batch-size";
@@ -52,6 +61,8 @@ public class GCPProperties implements Serializable {
    * a number below that. https://cloud.google.com/storage/docs/batch
    */
   public static final int GCS_DELETE_BATCH_SIZE_DEFAULT = 50;
+
+  private final Map<String, String> allProperties;
 
   private String projectId;
   private String clientLibToken;
@@ -67,13 +78,18 @@ public class GCPProperties implements Serializable {
   private boolean gcsNoAuth;
   private String gcsOAuth2Token;
   private Date gcsOAuth2TokenExpiresAt;
+  private String gcsOauth2RefreshCredentialsEndpoint;
+  private boolean gcsOauth2RefreshCredentialsEnabled;
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
 
-  public GCPProperties() {}
+  public GCPProperties() {
+    this.allProperties = ImmutableMap.of();
+  }
 
   @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   public GCPProperties(Map<String, String> properties) {
+    this.allProperties = ImmutableMap.copyOf(properties);
     projectId = properties.get(GCS_PROJECT_ID);
     clientLibToken = properties.get(GCS_CLIENT_LIB_TOKEN);
     serviceHost = properties.get(GCS_SERVICE_HOST);
@@ -95,6 +111,13 @@ public class GCPProperties implements Serializable {
       gcsOAuth2TokenExpiresAt =
           new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
     }
+
+    gcsOauth2RefreshCredentialsEndpoint =
+        RESTUtil.resolveEndpoint(
+            properties.get(CatalogProperties.URI),
+            properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT));
+    gcsOauth2RefreshCredentialsEnabled =
+        PropertyUtil.propertyAsBoolean(properties, GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED, true);
     gcsNoAuth = Boolean.parseBoolean(properties.getOrDefault(GCS_NO_AUTH, "false"));
     Preconditions.checkState(
         !(gcsOAuth2Token != null && gcsNoAuth),
@@ -153,5 +176,17 @@ public class GCPProperties implements Serializable {
 
   public int deleteBatchSize() {
     return gcsDeleteBatchSize;
+  }
+
+  public Optional<String> oauth2RefreshCredentialsEndpoint() {
+    return Optional.ofNullable(gcsOauth2RefreshCredentialsEndpoint);
+  }
+
+  public boolean oauth2RefreshCredentialsEnabled() {
+    return gcsOauth2RefreshCredentialsEnabled;
+  }
+
+  public Map<String, String> properties() {
+    return allProperties;
   }
 }

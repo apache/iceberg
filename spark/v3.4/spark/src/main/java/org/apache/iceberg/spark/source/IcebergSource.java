@@ -32,12 +32,14 @@ import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableCache;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.SessionConfigSupport;
 import org.apache.spark.sql.connector.catalog.SupportsCatalogOptions;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -61,7 +63,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>The above list is in order of priority. For example: a matching catalog will take priority
  * over any namespace resolution.
  */
-public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
+public class IcebergSource
+    implements DataSourceRegister, SupportsCatalogOptions, SessionConfigSupport {
   private static final String DEFAULT_CATALOG_NAME = "default_iceberg";
   private static final String DEFAULT_CACHE_CATALOG_NAME = "default_cache_iceberg";
   private static final String DEFAULT_CATALOG = "spark.sql.catalog." + DEFAULT_CATALOG_NAME;
@@ -71,6 +74,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
   private static final String SNAPSHOT_ID = "snapshot_id_";
   private static final String BRANCH_PREFIX = "branch_";
   private static final String TAG_PREFIX = "tag_";
+  private static final String REWRITE_SELECTOR = "rewrite";
   private static final String[] EMPTY_NAMESPACE = new String[0];
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
@@ -78,6 +82,11 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
   @Override
   public String shortName() {
     return "iceberg";
+  }
+
+  @Override
+  public String keyPrefix() {
+    return shortName();
   }
 
   @Override
@@ -154,6 +163,14 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
     if (tag != null) {
       selector = TAG_PREFIX + tag;
+    }
+
+    String groupId =
+        options.getOrDefault(
+            SparkReadOptions.SCAN_TASK_SET_ID,
+            options.get(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID));
+    if (groupId != null) {
+      selector = REWRITE_SELECTOR;
     }
 
     CatalogManager catalogManager = spark.sessionState().catalogManager();

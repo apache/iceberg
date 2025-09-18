@@ -24,6 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.util.NaNUtil;
 
 /** Factory methods for creating {@link Expression expressions}. */
 public class Expressions {
@@ -99,6 +100,10 @@ public class Expressions {
 
   public static <T> UnboundTerm<T> truncate(String name, int width) {
     return new UnboundTransform<>(ref(name), Transforms.truncate(width));
+  }
+
+  public static <T> UnboundTerm<T> extract(String name, String path, String type) {
+    return new UnboundExtract<>(ref(name), path, type);
   }
 
   public static <T> UnboundPredicate<T> isNull(String name) {
@@ -245,6 +250,9 @@ public class Expressions {
             && op != Operation.NOT_NAN,
         "Cannot create %s predicate inclusive a value",
         op);
+    Preconditions.checkArgument(
+        !NaNUtil.isNaN(lit.value()),
+        "Invalid expression literal: NaN, use isNaN or notNaN instead");
     return new UnboundPredicate<T>(op, ref(name), lit);
   }
 
@@ -321,8 +329,42 @@ public class Expressions {
     return Literals.from(value);
   }
 
+  /**
+   * Create a {@link Literal} from a microsecond value.
+   *
+   * @param micros a timestamp in microseconds from the unix epoch
+   * @return a literal representing the timestamp
+   */
+  public static Literal<Long> micros(long micros) {
+    return new Literals.TimestampLiteral(micros);
+  }
+
+  /**
+   * Create a {@link Literal} from a millisecond value.
+   *
+   * @param millis a timestamp in milliseconds from the unix epoch
+   * @return a literal representing the timestamp
+   */
+  public static Literal<Long> millis(long millis) {
+    return new Literals.TimestampLiteral(millis * 1000);
+  }
+
+  /**
+   * Create a {@link Literal} from a nanosecond value.
+   *
+   * @param nanos a timestamp in nanoseconds from the unix epoch
+   * @return a literal representing the timestamp
+   */
+  public static Literal<Long> nanos(long nanos) {
+    return new Literals.TimestampNanoLiteral(nanos);
+  }
+
   public static <T> UnboundAggregate<T> count(String name) {
     return new UnboundAggregate<>(Operation.COUNT, ref(name));
+  }
+
+  public static <T> UnboundAggregate<T> countNull(String name) {
+    return new UnboundAggregate<>(Operation.COUNT_NULL, ref(name));
   }
 
   public static <T> UnboundAggregate<T> countStar() {

@@ -25,16 +25,17 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructProjection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,9 +46,6 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   @BeforeEach
   public void createTable() throws IOException {
     TestTables.clearTables();
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    tableDir.delete();
-
     Schema schema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
@@ -163,7 +161,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @TestTemplate
   public void testPositionDeletesPartitionSpecRemoval() {
-    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isEqualTo(2);
     table.updateSpec().removeField("id").commit();
 
     DeleteFile deleteFile = newDeleteFile(table.ops().current().spec().specId(), "nested.id=1");
@@ -207,12 +205,28 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), table.ops().current().spec().specId());
-    assertThat(posDeleteTask.file().path())
+    assertThat(posDeleteTask.file().location())
         .as("Expected correct delete file on task")
-        .isEqualTo(deleteFile.path());
+        .isEqualTo(deleteFile.location());
     assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), deleteFile.path().toString());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), deleteFile.location());
+  }
+
+  @TestTemplate
+  public void testPartitionSpecEvolutionSourceFieldMissing() throws IOException {
+    // Drop partition field
+    table.updateSpec().removeField("id").commit();
+
+    // Drop the source field
+    table.updateSchema().deleteColumn("id").commit();
+
+    BaseFilesTable filesTable = new AllFilesTable(table);
+    TableScan scan = filesTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      assertThat(tasks).hasSize(2);
+    }
   }
 
   @TestTemplate
@@ -244,6 +258,90 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
                 StructLike partition = entry.file().partition();
                 assertThat(partition.get(0, Object.class)).isNull();
               });
+    }
+  }
+
+  @TestTemplate
+  public void testPartitionSpecEvolutionNullValues() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "company_id", Types.IntegerType.get()),
+            required(2, "dept_id", Types.IntegerType.get()),
+            required(3, "team_id", Types.IntegerType.get()));
+
+    table =
+        TestTables.create(
+            tableDir,
+            metadataDir,
+            "nulltest",
+            schema,
+            PartitionSpec.builderFor(schema).identity("company_id").build(),
+            SortOrder.unsorted(),
+            formatVersion);
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(new Object[] {null}))).commit();
+
+    table.updateSpec().addField("dept_id").commit();
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(null, null))).commit();
+
+    table.updateSpec().addField("team_id").commit();
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(null, null, null))).commit();
+
+    assertPartitions(
+        "company_id=null",
+        "company_id=null/dept_id=null",
+        "company_id=null/dept_id=null/team_id=null");
+  }
+
+  @TestTemplate
+  public void testPartitionSpecRenameFields() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "data", Types.StringType.get()),
+            required(2, "category", Types.StringType.get()));
+
+    table =
+        TestTables.create(
+            tableDir,
+            metadataDir,
+            "renametest",
+            schema,
+            PartitionSpec.builderFor(schema).identity("data").identity("category").build(),
+            SortOrder.unsorted(),
+            formatVersion);
+    table
+        .newFastAppend()
+        .appendFile(newDataFile(TestHelpers.Row.of("c1", "d1")))
+        .appendFile(newDataFile(TestHelpers.Row.of("c2", "d2")))
+        .commit();
+
+    table.updateSpec().renameField("category", "category_another_name").commit();
+    table
+        .newFastAppend()
+        .appendFile(newDataFile(TestHelpers.Row.of("c1", "d1")))
+        .appendFile(newDataFile(TestHelpers.Row.of("c2", "d2")))
+        .commit();
+
+    assertPartitions("data=c1/category_another_name=d1", "data=c2/category_another_name=d2");
+  }
+
+  private void assertPartitions(String... expected) throws IOException {
+    PartitionsTable partitionsTable = new PartitionsTable(table);
+
+    try (CloseableIterable<FileScanTask> fileScanTasks = partitionsTable.newScan().planFiles()) {
+      List<String> partitions =
+          FluentIterable.from(fileScanTasks)
+              .transformAndConcat(task -> task.asDataTask().rows())
+              .transform(
+                  row -> {
+                    StructLike data = row.get(0, StructProjection.class);
+                    PartitionSpec spec = table.specs().get(row.get(1, Integer.class));
+
+                    PartitionData keyTemplate = new PartitionData(spec.partitionType());
+                    return spec.partitionToPath(keyTemplate.copyFor((data)));
+                  })
+              .toList();
+
+      assertThat(partitions).containsExactlyInAnyOrder(expected);
     }
   }
 

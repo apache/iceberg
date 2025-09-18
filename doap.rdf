@@ -36,14 +36,15 @@
     <programming-language>Python</programming-language>
     <programming-language>Go</programming-language>
     <programming-language>Rust</programming-language>
+    <programming-language>C++</programming-language>
     <category rdf:resource="https://projects.apache.org/category/big-data" />
     <category rdf:resource="https://projects.apache.org/category/database" />
     <category rdf:resource="https://projects.apache.org/category/data-engineering" />
     <release>
       <Version>
-        <name>1.6.1</name>
-        <created>2024-08-27</created>
-        <revision>1.6.1</revision>
+        <name>1.10.0</name>
+        <created>2025-09-11</created>
+        <revision>1.10.0</revision>
       </Version>
     </release>
     <repository>

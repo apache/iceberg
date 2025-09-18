@@ -49,18 +49,20 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
   private final HadoopTables tables = new HadoopTables(conf);
   private TestHelper helper;
 
-  @Parameter(index = 1)
+  @Parameter(index = 2)
   private String inputFormat;
 
-  @Parameters(name = "fileFormat = {0}, inputFormat = {1}")
+  @Parameters(name = "fileFormat = {0}, formatVersion = {1}, inputFormat = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {FileFormat.PARQUET, "IcebergInputFormat"},
-      {FileFormat.AVRO, "IcebergInputFormat"},
-      {FileFormat.ORC, "IcebergInputFormat"},
-      {FileFormat.PARQUET, "MapredIcebergInputFormat"},
-      {FileFormat.AVRO, "MapredIcebergInputFormat"},
-      {FileFormat.ORC, "MapredIcebergInputFormat"},
+      {FileFormat.PARQUET, 2, "IcebergInputFormat"},
+      {FileFormat.AVRO, 2, "IcebergInputFormat"},
+      {FileFormat.ORC, 2, "IcebergInputFormat"},
+      {FileFormat.PARQUET, 2, "MapredIcebergInputFormat"},
+      {FileFormat.AVRO, 2, "MapredIcebergInputFormat"},
+      {FileFormat.ORC, 2, "MapredIcebergInputFormat"},
+      {FileFormat.PARQUET, 3, "IcebergInputFormat"},
+      {FileFormat.PARQUET, 3, "MapredIcebergInputFormat"},
     };
   }
 
@@ -82,7 +84,7 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
 
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
-    ops.commit(meta, meta.upgradeToFormatVersion(2));
+    ops.commit(meta, meta.upgradeToFormatVersion(formatVersion));
 
     return table;
   }

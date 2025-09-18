@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -27,7 +28,6 @@ import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -49,11 +49,6 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
   @Override
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
   public void cleanFiles(TableMetadata beforeExpiration, TableMetadata afterExpiration) {
-    if (afterExpiration.refs().size() > 1) {
-      throw new UnsupportedOperationException(
-          "Cannot incrementally clean files for tables with more than 1 ref");
-    }
-
     // clean up the expired snapshots:
     // 1. Get a list of the snapshots that were removed
     // 2. Delete any data files that were deleted by those snapshots and are not in the table
@@ -80,12 +75,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
       return;
     }
 
-    SnapshotRef branchToCleanup = Iterables.getFirst(beforeExpiration.refs().values(), null);
-    if (branchToCleanup == null) {
+    Snapshot latest = beforeExpiration.currentSnapshot();
+    if (latest == null) {
       return;
     }
 
-    Snapshot latest = beforeExpiration.snapshot(branchToCleanup.snapshotId());
     List<Snapshot> snapshots = afterExpiration.snapshots();
 
     // this is the set of ancestors of the current table state. when removing snapshots, this must
@@ -109,14 +103,15 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
     // find manifests to clean up that are still referenced by a valid snapshot, but written by an
     // expired snapshot
-    Set<String> validManifests = Sets.newHashSet();
-    Set<ManifestFile> manifestsToScan = Sets.newHashSet();
+    Set<String> validManifests = ConcurrentHashMap.newKeySet();
+    Set<ManifestFile> manifestsToScan = ConcurrentHashMap.newKeySet();
 
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
     Tasks.foreach(snapshots)
         .retry(3)
         .suppressFailureWhenFinished()
+        .executeWith(planExecutorService)
         .onFailure(
             (snapshot, exc) ->
                 LOG.warn(
@@ -158,12 +153,13 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     // find manifests to clean up that were only referenced by snapshots that have expired
-    Set<String> manifestListsToDelete = Sets.newHashSet();
-    Set<String> manifestsToDelete = Sets.newHashSet();
-    Set<ManifestFile> manifestsToRevert = Sets.newHashSet();
+    Set<String> manifestListsToDelete = ConcurrentHashMap.newKeySet();
+    Set<String> manifestsToDelete = ConcurrentHashMap.newKeySet();
+    Set<ManifestFile> manifestsToRevert = ConcurrentHashMap.newKeySet();
     Tasks.foreach(beforeExpiration.snapshots())
         .retry(3)
         .suppressFailureWhenFinished()
+        .executeWith(planExecutorService)
         .onFailure(
             (snapshot, exc) ->
                 LOG.warn(
@@ -256,7 +252,8 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     Set<String> filesToDelete =
-        findFilesToDelete(manifestsToScan, manifestsToRevert, validIds, afterExpiration);
+        findFilesToDelete(
+            manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());
 
     deleteFiles(filesToDelete, "data");
     deleteFiles(manifestsToDelete, "manifest");
@@ -273,7 +270,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
       Set<ManifestFile> manifestsToScan,
       Set<ManifestFile> manifestsToRevert,
       Set<Long> validIds,
-      TableMetadata current) {
+      Map<Integer, PartitionSpec> specsById) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3)
@@ -285,15 +282,14 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
         .run(
             manifest -> {
               // the manifest has deletes, scan it to find files to delete
-              try (ManifestReader<?> reader =
-                  ManifestFiles.open(manifest, fileIO, current.specsById())) {
+              try (ManifestReader<?> reader = ManifestFiles.open(manifest, fileIO, specsById)) {
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // if the snapshot ID of the DELETE entry is no longer valid, the data can be
                   // deleted
                   if (entry.status() == ManifestEntry.Status.DELETED
                       && !validIds.contains(entry.snapshotId())) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().path().toString());
+                    filesToDelete.add(entry.file().location());
                   }
                 }
               } catch (IOException e) {
@@ -311,13 +307,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
         .run(
             manifest -> {
               // the manifest has deletes, scan it to find files to delete
-              try (ManifestReader<?> reader =
-                  ManifestFiles.open(manifest, fileIO, current.specsById())) {
+              try (ManifestReader<?> reader = ManifestFiles.open(manifest, fileIO, specsById)) {
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // delete any ADDED file from manifests that were reverted
                   if (entry.status() == ManifestEntry.Status.ADDED) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().path().toString());
+                    filesToDelete.add(entry.file().location());
                   }
                 }
               } catch (IOException e) {

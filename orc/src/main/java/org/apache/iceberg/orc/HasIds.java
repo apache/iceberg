@@ -41,6 +41,11 @@ class HasIds extends OrcSchemaVisitor<Boolean> {
   }
 
   @Override
+  public Boolean variant(TypeDescription variant, Boolean metadata, Boolean value) {
+    return ORCSchemaUtil.icebergID(variant).isPresent();
+  }
+
+  @Override
   public Boolean primitive(TypeDescription primitive) {
     return ORCSchemaUtil.icebergID(primitive).isPresent();
   }

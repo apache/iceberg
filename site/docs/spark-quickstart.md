@@ -36,7 +36,6 @@ which contains a local Spark cluster with a configured Iceberg catalog. To use t
 Once you have those, save the yaml below into a file named `docker-compose.yml`:
 
 ```yaml
-version: "3"
 
 services:
   spark-iceberg:
@@ -61,7 +60,7 @@ services:
       - 10000:10000
       - 10001:10001
   rest:
-    image: tabulario/iceberg-rest
+    image: apache/iceberg-rest-fixture
     container_name: iceberg-rest
     networks:
       iceberg_net:
@@ -100,9 +99,9 @@ services:
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
       - AWS_REGION=us-east-1
-    entrypoint: >
+    entrypoint: |
       /bin/sh -c "
-      until (/usr/bin/mc config host add minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
+      until (/usr/bin/mc alias set minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
       /usr/bin/mc rm -r --force minio/warehouse;
       /usr/bin/mc mb minio/warehouse;
       /usr/bin/mc policy set public minio/warehouse;
@@ -140,8 +139,7 @@ You can then run any of the following commands to start a Spark session.
 
 !!! note
 
-    You can also launch a notebook server by running `docker exec -it spark-iceberg notebook`.
-    The notebook server will be available at [http://localhost:8888](http://localhost:8888)
+    You can also use the notebook server available at [http://localhost:8888](http://localhost:8888)
 
 ### Creating a table
 
