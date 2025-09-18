@@ -19,30 +19,47 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InputStream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
+@ExtendWith(MockitoExtension.class)
 public final class TestS3InputStream {
+
+  @Mock private S3Client s3Client;
+  @Mock private InputStream inputStream;
+
+  private S3InputStream s3InputStream;
+
+  @BeforeEach
+  void before() {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenReturn(inputStream);
+    s3InputStream = new S3InputStream(s3Client, mock());
+  }
 
   @Test
   void testReadFullyClosesTheStream() throws IOException {
-    S3Client s3Client = mock(S3Client.class);
-    InputStream inputStream = mock(InputStream.class);
-    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
-        .thenReturn(inputStream);
-    when(inputStream.read(any(), anyInt(), anyInt())).thenReturn(-1);
-
-    S3InputStream s3InputStream = new S3InputStream(s3Client, new S3URI("http://dummy_host:9000"));
     s3InputStream.readFully(0, new byte[0]);
+
+    verify(inputStream).close();
+  }
+
+  @Test
+  void testReadTailClosesTheStream() throws IOException {
+    s3InputStream.readTail(new byte[0], 0, 0);
+
     verify(inputStream).close();
   }
 }
