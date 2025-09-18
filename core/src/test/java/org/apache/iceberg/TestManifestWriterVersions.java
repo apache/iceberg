@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -476,7 +477,7 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestFile writeDeleteManifest(int formatVersion) throws IOException {
-    String filename = FileFormat.AVRO.addExtension("manifest");
+    String filename = manifestFormat(formatVersion).addExtension("manifest");
     EncryptedOutputFile manifestFile = encryptionManager().encrypt(io.newOutputFile(filename));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
@@ -490,10 +491,18 @@ public class TestManifestWriterVersions {
 
   private ManifestEntry<DeleteFile> readDeleteManifest(ManifestFile manifest) throws IOException {
     try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
-        ManifestFiles.readDeleteManifest(manifest, io, null).entries()) {
+        ManifestFiles.readDeleteManifest(manifest, io, Map.of(0, SPEC)).entries()) {
       List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
       assertThat(entries).hasSize(1);
       return entries.get(0);
+    }
+  }
+
+  private FileFormat manifestFormat(int formatVersion) {
+    if (formatVersion <= 3) {
+      return FileFormat.AVRO;
+    } else {
+      return FileFormat.PARQUET;
     }
   }
 }

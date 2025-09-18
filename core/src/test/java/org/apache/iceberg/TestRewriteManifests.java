@@ -68,7 +68,11 @@ public class TestRewriteManifests extends TestBase {
     assertThat(manifests).hasSize(1);
 
     validateManifestEntries(
-        manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(0),
+        ids(appendId),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -133,7 +137,8 @@ public class TestRewriteManifests extends TestBase {
     // get the correct file order
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       if (reader.iterator().next().location().equals(FILE_A.location())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(manifestAppendId, fileAppendId);
@@ -147,7 +152,8 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids.iterator(),
         files.iterator(),
-        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -167,9 +173,17 @@ public class TestRewriteManifests extends TestBase {
     manifests.sort(Comparator.comparing(ManifestFile::path));
 
     validateManifestEntries(
-        manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(0),
+        ids(appendId),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendId), files(FILE_B), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(1),
+        ids(appendId),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -193,7 +207,8 @@ public class TestRewriteManifests extends TestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       if (reader.iterator().next().location().equals(FILE_A.location())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
@@ -207,7 +222,8 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids.iterator(),
         files.iterator(),
-        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -232,7 +248,8 @@ public class TestRewriteManifests extends TestBase {
         .clusterBy(file -> "file")
         .rewriteIf(
             manifest -> {
-              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
+              try (ManifestReader<DataFile> reader =
+                  ManifestFiles.read(manifest, table.io(), table.specs())) {
                 return !reader.iterator().next().location().equals(FILE_A.location());
               } catch (IOException x) {
                 throw new RuntimeIOException(x);
@@ -246,7 +263,8 @@ public class TestRewriteManifests extends TestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       if (reader.iterator().next().location().equals(FILE_B.location())) {
         files = Arrays.asList(FILE_B, FILE_C);
         ids = Arrays.asList(appendIdB, appendIdC);
@@ -260,9 +278,14 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids.iterator(),
         files.iterator(),
-        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING),
+        table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.ADDED));
+        manifests.get(1),
+        ids(appendIdA),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.ADDED),
+        table.specs());
   }
 
   @TestTemplate
@@ -284,9 +307,17 @@ public class TestRewriteManifests extends TestBase {
     manifests.sort(Comparator.comparing(ManifestFile::path));
 
     validateManifestEntries(
-        manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(0),
+        ids(appendId),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendId), files(FILE_B), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(1),
+        ids(appendId),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -307,7 +338,8 @@ public class TestRewriteManifests extends TestBase {
         .clusterBy(file -> "file")
         .rewriteIf(
             manifest -> {
-              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
+              try (ManifestReader<DataFile> reader =
+                  ManifestFiles.read(manifest, table.io(), table.specs())) {
                 return !reader.iterator().next().location().equals(FILE_A.location());
               } catch (IOException x) {
                 throw new RuntimeIOException(x);
@@ -327,7 +359,8 @@ public class TestRewriteManifests extends TestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       if (reader.iterator().next().location().equals(FILE_A.location())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
@@ -341,7 +374,8 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids.iterator(),
         files.iterator(),
-        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -371,9 +405,17 @@ public class TestRewriteManifests extends TestBase {
     assertThat(manifests).hasSize(2);
 
     validateManifestEntries(
-        manifests.get(0), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(0),
+        ids(appendIdA),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendIdB), files(FILE_B), statuses(ManifestEntry.Status.ADDED));
+        manifests.get(1),
+        ids(appendIdB),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.ADDED),
+        table.specs());
   }
 
   @TestTemplate
@@ -401,9 +443,17 @@ public class TestRewriteManifests extends TestBase {
     // last append should be the first in the list
 
     validateManifestEntries(
-        manifests.get(0), ids(appendIdB), files(FILE_B), statuses(ManifestEntry.Status.ADDED));
+        manifests.get(0),
+        ids(appendIdB),
+        files(FILE_B),
+        statuses(ManifestEntry.Status.ADDED),
+        table.specs());
     validateManifestEntries(
-        manifests.get(1), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
+        manifests.get(1),
+        ids(appendIdA),
+        files(FILE_A),
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -422,11 +472,11 @@ public class TestRewriteManifests extends TestBase {
 
     ManifestFile firstNewManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            "manifest-file-1",
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
     ManifestFile secondNewManifest =
         writeManifest(
-            "manifest-file-2.avro",
+            "manifest-file-2",
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_B));
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
@@ -453,19 +503,22 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(secondSnapshot.snapshotId(), secondSnapshot.snapshotId()),
         files(FILE_C, FILE_D),
-        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED),
+        table.specs());
   }
 
   @TestTemplate
@@ -512,19 +565,22 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(secondSnapshot.snapshotId(), secondSnapshot.snapshotId()),
         files(FILE_C, FILE_D),
-        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED),
+        table.specs());
 
     // validate that any subsequent operation does not fail
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
@@ -702,19 +758,22 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(secondSnapshot.snapshotId(), secondSnapshot.snapshotId()),
         files(FILE_C, FILE_D),
-        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
+        statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED),
+        table.specs());
   }
 
   @TestTemplate
@@ -762,19 +821,22 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(thirdSnapshotId, secondSnapshotId),
         files(FILE_C, FILE_D),
-        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
@@ -845,7 +907,8 @@ public class TestRewriteManifests extends TestBase {
         .clusterBy(dataFile -> "const-value")
         .rewriteIf(
             manifest -> {
-              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
+              try (ManifestReader<DataFile> reader =
+                  ManifestFiles.read(manifest, table.io(), table.specs())) {
                 return !reader.iterator().next().location().equals(FILE_B.location());
               } catch (IOException x) {
                 throw new RuntimeIOException(x);
@@ -863,13 +926,15 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(2),
         ids(secondSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.ADDED));
+        statuses(ManifestEntry.Status.ADDED),
+        table.specs());
   }
 
   @TestTemplate
@@ -922,13 +987,15 @@ public class TestRewriteManifests extends TestBase {
         manifests.get(0),
         ids(secondSnapshot.snapshotId()),
         files(FILE_B),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
 
     validateManifestEntries(
         manifests.get(1),
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
-        statuses(ManifestEntry.Status.EXISTING));
+        statuses(ManifestEntry.Status.EXISTING),
+        table.specs());
   }
 
   @TestTemplate
