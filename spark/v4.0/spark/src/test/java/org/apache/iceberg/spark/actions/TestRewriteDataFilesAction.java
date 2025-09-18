@@ -2645,4 +2645,50 @@ public class TestRewriteDataFilesAction extends TestBase {
       return groupIDs.contains(argument.info().globalIndex());
     }
   }
+
+  @TestTemplate
+  public void testZOrderWithDateColumn() {
+    spark.conf().set("spark.sql.ansi.enabled", "false");  // <-- Here
+    Table table = createTypeTestTable();
+    basicRewrite(table).zOrder("dateCol").execute();
+  }
+
+  @TestTemplate
+  public void testZOrderWithDateInMultipleColumns() {
+    spark.conf().set("spark.sql.ansi.enabled", "false");  // <-- Here
+    Table table = createTypeTestTable();
+    basicRewrite(table).zOrder("longCol", "dateCol", "stringCol").execute();
+  }
+
+  @TestTemplate
+  public void testZOrderWithDateColumnRewriteAll() {
+    spark.conf().set("spark.sql.ansi.enabled", "false");  // <-- Here
+    Table table = createTypeTestTable();
+    basicRewrite(table)
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .zOrder("dateCol")
+            .execute();
+  }
+
+  @TestTemplate
+  public void testZOrderWithNullDateValues() {
+    Schema dateSchema = new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "dateCol", Types.DateType.get()),
+            optional(3, "stringCol", Types.StringType.get())
+    );
+    Map<String, String> options = ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    Table table = TABLES.create(dateSchema, PartitionSpec.unpartitioned(), options, tableLocation);
+
+    spark.range(0, 4, 1, 2)
+            .withColumnRenamed("id", "id")
+            .withColumn("dateCol", expr("CASE WHEN id % 2 = 0 THEN DATE '2025-01-01' ELSE NULL END"))
+            .withColumn("stringCol", expr("CAST(id AS STRING)"))
+            .write()
+            .format("iceberg")
+            .mode("append")
+            .save(tableLocation);
+
+    basicRewrite(table).zOrder("dateCol", "stringCol").execute();
+  }
 }
