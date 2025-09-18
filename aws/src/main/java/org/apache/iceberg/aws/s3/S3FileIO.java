@@ -122,7 +122,7 @@ public class S3FileIO
    * @param s3 s3 supplier
    */
   public S3FileIO(SerializableSupplier<S3Client> s3) {
-    this(s3, /* s3Async= */ null);
+    this(s3, null);
   }
 
   /**
