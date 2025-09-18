@@ -88,8 +88,16 @@ abstract class BaseParquetReaders<T> {
     return createStructReader(fieldReaders, structType);
   }
 
-  protected abstract ParquetValueReader<T> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
+  /**
+   * @deprecated will be removed in 1.11.0. Subclasses should override {@link
+   *     #createStructReader(List, Types.StructType, Integer)} instead
+   */
+  @Deprecated
+  protected ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType) {
+    throw new UnsupportedOperationException(
+        "Deprecated method is not used in this implementation, only createStructReader(list, Types.Struct, Integer) should be used");
+  }
 
   protected abstract ParquetValueReader<?> fixedReader(ColumnDescriptor desc);
 

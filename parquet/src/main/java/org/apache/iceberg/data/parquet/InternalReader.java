@@ -42,14 +42,14 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
 
   @SuppressWarnings("unchecked")
   public static <T extends StructLike> ParquetValueReader<T> create(
-      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
-    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
+      Schema expectedSchema, MessageType fileSchema) {
+    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema);
   }
 
   @SuppressWarnings("unchecked")
   public static <T extends StructLike> ParquetValueReader<T> create(
-      Schema expectedSchema, MessageType fileSchema) {
-    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema);
+      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
+    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
   public static Parquet.ReadBuilder.ReaderFunction readerFunction() {
@@ -81,17 +81,10 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
         if (rootType != null) {
           reader.typesById.put(ROOT_ID, rootType);
         }
+
         return this;
       }
     };
-  }
-
-  @Override
-  protected ParquetValueReader<T> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    throw new UnsupportedOperationException(
-        "createStructReader(List<ParquetValueReader<?>>, StructType) is not supported because "
-            + "InternalReader needs the fieldId to determine the type of struct to return");
   }
 
   @Override

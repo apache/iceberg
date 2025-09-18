@@ -136,13 +136,14 @@ public class TestInternalData {
       Object expectedNested = expected.get(1);
       Object actualNested = actual.get(1);
 
-      if (expectedNested == null && actualNested == null) {
-        continue;
-      }
-
-      if (actualNested != null) {
+      if (expectedNested == null) {
+        // Expected nested struct is null, so actual should also be null
+        assertThat(actualNested).isNull();
+      } else {
+        // Expected nested struct is not null, so actual should be a CustomRow
+        assertThat(actualNested).isNotNull();
         assertThat(actualNested)
-            .as("Custom type should be TestCustomRow, but was: " + actualNested.getClass())
+            .as("Custom type should be TestHelpers.CustomRow but was: " + actualNested.getClass())
             .isInstanceOf(TestHelpers.CustomRow.class);
         TestHelpers.CustomRow customRow = (TestHelpers.CustomRow) actualNested;
         Record expectedRecord = (Record) expectedNested;
