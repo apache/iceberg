@@ -411,6 +411,7 @@ public class TestManifestWriterVersions {
         ManifestLists.write(
             formatVersion,
             manifestList,
+            PlaintextEncryptionManager.instance(),
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
             formatVersion > 1 ? SEQUENCE_NUMBER : 0,

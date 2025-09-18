@@ -30,6 +30,9 @@ import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -273,10 +276,16 @@ public class RewriteTablePathUtil {
                 mf.path(),
                 sourcePrefix));
 
+    EncryptionManager encryptionManager =
+        (io instanceof EncryptingFileIO)
+            ? ((EncryptingFileIO) io).encryptionManager()
+            : PlaintextEncryptionManager.instance();
+
     try (FileAppender<ManifestFile> writer =
         ManifestLists.write(
             tableMetadata.formatVersion(),
             outputFile,
+            encryptionManager,
             snapshot.snapshotId(),
             snapshot.parentId(),
             snapshot.sequenceNumber(),

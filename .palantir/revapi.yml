@@ -1363,6 +1363,12 @@ acceptedBreaks:
       old: "method org.apache.iceberg.parquet.ParquetValueWriters.StructWriter<org.apache.iceberg.data.Record>\
         \ org.apache.iceberg.data.parquet.GenericParquetWriter::createStructWriter(java.util.List<org.apache.iceberg.parquet.ParquetValueWriter<?>>)"
       justification: "Removing deprecations for 1.10.0"
+  "1.10.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.encryption.EncryptingFileIO"
+      new: "class org.apache.iceberg.encryption.EncryptingFileIO"
+      justification: "New method for Manifest List reading"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
