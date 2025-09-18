@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.data;
 
-import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
@@ -49,8 +48,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import org.apache.avro.generic.GenericData.Record;
-import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
@@ -59,7 +56,6 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -143,6 +139,11 @@ public class TestMetricsRowGroupFilter {
           optional(16, "_no_nans", Types.DoubleType.get()),
           optional(17, "_some_double_nans", Types.DoubleType.get()));
 
+  private static final Schema VARIANT_SCHEMA =
+      new Schema(
+          required(1, "id", IntegerType.get()),
+          optional(2, "variant_field", Types.VariantType.get()));
+
   private static final String TOO_LONG_FOR_STATS_PARQUET;
 
   static {
@@ -225,40 +226,32 @@ public class TestMetricsRowGroupFilter {
   }
 
   private void createParquetInputFile() throws IOException {
-    File parquetFile = new File(tempDir, "junit" + System.nanoTime());
+    List<GenericRecord> records = Lists.newArrayList();
 
-    // build struct field schema
-    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
-
-    OutputFile outFile = Files.localOutput(parquetFile);
-    try (FileAppender<Record> appender = Parquet.write(outFile).schema(FILE_SCHEMA).build()) {
-      GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
-      // create 50 records
-      for (int i = 0; i < INT_MAX_VALUE - INT_MIN_VALUE + 1; i += 1) {
-        builder.set("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
-        builder.set(
-            "_no_stats_parquet",
-            TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
-        // in Parquet
-        builder.set("_required", "req"); // required, always non-null
-        builder.set("_all_nulls", null); // never non-null
-        builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
-        builder.set("_no_nulls", ""); // optional, but always non-null
-        builder.set("_all_nans", Double.NaN); // never non-nan
-        builder.set("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
-        builder.set(
-            "_some_double_nans", (i % 10 == 0) ? Double.NaN : 2D); // includes some nan values
-        builder.set("_no_nans", 3D); // optional, but always non-nan
-        builder.set("_str", i + "str" + i);
-
-        Record structNotNull = new Record(structSchema);
-        structNotNull.put("_int_field", INT_MIN_VALUE + i);
-        builder.set("_struct_not_null", structNotNull); // struct with int
-
-        appender.add(builder.build());
-      }
+    for (int i = 0; i < INT_MAX_VALUE - INT_MIN_VALUE + 1; i += 1) {
+      GenericRecord builder = GenericRecord.create(FILE_SCHEMA);
+      builder.setField("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
+      builder.setField(
+          "_no_stats_parquet",
+          TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
+      // in Parquet
+      builder.setField("_required", "req"); // required, always non-null
+      builder.setField("_all_nulls", null); // never non-null
+      builder.setField("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
+      builder.setField("_no_nulls", ""); // optional, but always non-null
+      builder.setField("_all_nans", Double.NaN); // never non-nan
+      builder.setField("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
+      builder.setField(
+          "_some_double_nans", (i % 10 == 0) ? Double.NaN : 2D); // includes some nan values
+      builder.setField("_no_nans", 3D); // optional, but always non-nan
+      builder.setField("_str", i + "str" + i);
+      GenericRecord structNotNull = GenericRecord.create(UNDERSCORE_STRUCT_FIELD_TYPE);
+      structNotNull.setField("_int_field", INT_MIN_VALUE + i);
+      builder.setField("_struct_not_null", structNotNull); // struct with int
+      records.add(builder);
     }
 
+    File parquetFile = writeParquetFile("junit", FILE_SCHEMA, records);
     InputFile inFile = Files.localInput(parquetFile);
     try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
       assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
@@ -267,6 +260,24 @@ public class TestMetricsRowGroupFilter {
     }
 
     parquetFile.deleteOnExit();
+  }
+
+  private File writeParquetFile(String fileName, Schema schema, List<GenericRecord> records)
+      throws IOException {
+    File parquetFile = new File(tempDir, fileName + System.nanoTime());
+
+    OutputFile outFile = Files.localOutput(parquetFile);
+    try (FileAppender<GenericRecord> appender =
+        Parquet.write(outFile)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      for (GenericRecord record : records) {
+        appender.add(record);
+      }
+    }
+    parquetFile.deleteOnExit();
+    return parquetFile;
   }
 
   @TestTemplate
@@ -1082,6 +1093,67 @@ public class TestMetricsRowGroupFilter {
           .isTrue();
     }
     parquetFile.deleteOnExit();
+  }
+
+  @TestTemplate
+  public void testVariantFieldMixedValuesNotNull() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    List<GenericRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      GenericRecord record = GenericRecord.create(VARIANT_SCHEMA);
+      record.setField("id", i);
+      if (i % 2 == 0) {
+        VariantMetadata metadata = Variants.metadata("field");
+        ShreddedObject obj = Variants.object(metadata);
+        obj.put("field", Variants.of("value" + i));
+        Variant variant = Variant.of(metadata, obj);
+        record.setField("variant_field", variant);
+      }
+      records.add(record);
+    }
+
+    File parquetFile = writeParquetFile("test-variant", VARIANT_SCHEMA, records);
+    InputFile inFile = Files.localInput(parquetFile);
+    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
+      BlockMetaData blockMetaData = reader.getRowGroups().get(0);
+      MessageType fileSchema = reader.getFileMetaData().getSchema();
+      ParquetMetricsRowGroupFilter rowGroupFilter =
+          new ParquetMetricsRowGroupFilter(VARIANT_SCHEMA, notNull("variant_field"), true);
+      boolean shouldRead = rowGroupFilter.shouldRead(fileSchema, blockMetaData);
+      assertThat(shouldRead)
+          .as("Should read: variant notNull filters must be evaluated post scan")
+          .isTrue();
+    }
+  }
+
+  @TestTemplate
+  public void testVariantFieldAllNullsNotNull() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    List<GenericRecord> records = Lists.newArrayListWithExpectedSize(10);
+    for (int i = 0; i < 10; i++) {
+      GenericRecord record = GenericRecord.create(VARIANT_SCHEMA);
+      record.setField("id", i);
+      record.setField("variant_field", null);
+      records.add(record);
+    }
+
+    File parquetFile = writeParquetFile("test-variant-nulls", VARIANT_SCHEMA, records);
+    InputFile inFile = Files.localInput(parquetFile);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
+      BlockMetaData blockMetaData = reader.getRowGroups().get(0);
+      MessageType fileSchema = reader.getFileMetaData().getSchema();
+
+      ParquetMetricsRowGroupFilter rowGroupFilter =
+          new ParquetMetricsRowGroupFilter(VARIANT_SCHEMA, notNull("variant_field"), true);
+      boolean shouldRead = rowGroupFilter.shouldRead(fileSchema, blockMetaData);
+
+      assertThat(shouldRead)
+          .as("Should read: variant notNull filters must be evaluated post scan even for all nulls")
+          .isTrue();
+    }
   }
 
   private boolean shouldRead(Expression expression) {
