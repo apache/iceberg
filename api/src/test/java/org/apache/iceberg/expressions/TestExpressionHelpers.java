@@ -50,6 +50,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.concurrent.Callable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -271,6 +273,73 @@ public class TestExpressionHelpers {
     assertInvalidateNaNThrows(() -> notIn(self("a"), 1.0D, 2.0D, Double.NaN));
 
     assertInvalidateNaNThrows(() -> predicate(Expression.Operation.EQ, "a", Double.NaN));
+  }
+
+  @Test
+  public void testRewriteNotForGeospatialPredicates() {
+    // Create a schema with geometry and geography fields
+    StructType struct =
+        StructType.of(
+            NestedField.optional(1, "geom", Types.GeometryType.crs84()),
+            NestedField.optional(2, "geog", Types.GeographyType.crs84()));
+
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    // Test pairs of expressions: (rewritten pred, original pred)
+    Expression[][] expressions =
+        new Expression[][] {
+          // ST_INTERSECTS and its negation (ST_DISJOINT)
+          {
+            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox),
+            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox)
+          },
+          {
+            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox),
+            not(Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox))
+          },
+          {
+            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox),
+            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox)
+          },
+          {
+            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox),
+            not(Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox))
+          },
+          // Same tests with geography type
+          {
+            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox),
+            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox)
+          },
+          {
+            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox),
+            not(Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox))
+          },
+          {
+            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox),
+            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox)
+          },
+          {
+            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox),
+            not(Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox))
+          }
+        };
+
+    for (Expression[] pair : expressions) {
+      // unbound rewrite
+      assertThat(rewriteNot(pair[1]))
+          .as(String.format("rewriteNot(%s) should be %s", pair[1], pair[0]))
+          .hasToString(pair[0].toString());
+
+      // bound rewrite
+      Expression expectedBound = Binder.bind(struct, pair[0]);
+      Expression toRewriteBound = Binder.bind(struct, pair[1]);
+      assertThat(rewriteNot(toRewriteBound))
+          .as(String.format("rewriteNot(%s) should be %s", toRewriteBound, expectedBound))
+          .hasToString(expectedBound.toString());
+    }
   }
 
   private void assertInvalidateNaNThrows(Callable<UnboundPredicate<Double>> callable) {
