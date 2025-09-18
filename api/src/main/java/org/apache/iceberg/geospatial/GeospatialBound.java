@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.geospatial;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
@@ -44,7 +43,7 @@ import java.util.Objects;
  * <p>This class represents a lower or upper geospatial bound and handles serialization and
  * deserialization of these bounds to/from byte arrays, conforming to the Iceberg specification.
  */
-public class GeospatialBound implements Serializable {
+public class GeospatialBound {
   /**
    * Parses a geospatial bound from a byte buffer according to Iceberg spec.
    *
