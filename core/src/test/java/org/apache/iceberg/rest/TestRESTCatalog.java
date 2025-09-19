@@ -3082,14 +3082,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCancelPlanWithNoActivePlan() {
-    RESTCatalog catalog =
-        initCatalog(
-            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
 
     // Cast to RESTTable to access scan functionality
     assertThat(table).isInstanceOf(RESTTable.class);
@@ -3178,10 +3171,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   private static boolean isCancelled(RESTTableScan scan) throws IOException {
-    RESTTableScan restTableScan = scan;
 
-    // Get the iterable and iterator
-    CloseableIterable<FileScanTask> iterable = restTableScan.planFiles();
+      // Get the iterable and iterator
+    CloseableIterable<FileScanTask> iterable = scan.planFiles();
     CloseableIterator<FileScanTask> iterator = iterable.iterator();
 
     // Verify we can close the iterator without exceptions
@@ -3189,8 +3181,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     iterator.close();
 
     // Verify we can still call cancelPlan on the scan
-    boolean cancelled = restTableScan.cancelPlan();
-    return cancelled;
+      return scan.cancelPlan();
   }
 
   @Test
