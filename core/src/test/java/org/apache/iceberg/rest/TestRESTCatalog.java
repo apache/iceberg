@@ -3152,7 +3152,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   public void testRESTScanPlanningWithPositionDeletes() throws IOException {
     Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
 
-    // Add position deletes that correspond to FILE_A (which was added in createRESTTableAndInsertData)
+    // Add position deletes that correspond to FILE_A (which was added in
+    // createRESTTableAndInsertData)
     table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
 
     // Ensure we have a RESTTable with server-side planning enabled
@@ -3170,9 +3171,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(tasks).isNotEmpty();
 
     // Verify that delete files are properly handled in the scan tasks
-    // Note: Delete file handling depends on table format version, but we test that scan planning works
     boolean hasTasksWithDeletes = tasks.stream().anyMatch(task -> !task.deletes().isEmpty());
-    // Don't assert on hasTasksWithDeletes since it depends on format version and backend implementation
+    assertThat(hasTasksWithDeletes).isTrue();
   }
 
   @Test
@@ -3197,9 +3197,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(tasks).isNotEmpty();
 
     // Verify that equality delete files are properly handled
-    // Note: Delete file handling depends on table format version and backend implementation
     boolean hasTasksWithDeletes = tasks.stream().anyMatch(task -> !task.deletes().isEmpty());
-    // Don't assert on hasTasksWithDeletes since it depends on format version and backend implementation
+    assertThat(hasTasksWithDeletes).isTrue();
   }
 
   @Test
@@ -3208,7 +3207,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // Add both position and equality deletes in separate commits
     table.newRowDelta().addDeletes(FILE_A_DELETES).commit(); // Position deletes for FILE_A
-    table.newRowDelta().addDeletes(FILE_B_EQUALITY_DELETES).commit(); // Equality deletes for different partition
+    table
+        .newRowDelta()
+        .addDeletes(FILE_B_EQUALITY_DELETES)
+        .commit(); // Equality deletes for different partition
 
     // Ensure we have a RESTTable with server-side planning enabled
     assertThat(table).isInstanceOf(RESTTable.class);
@@ -3225,8 +3227,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(tasks).isNotEmpty();
 
     // Verify scan planning succeeds with mixed delete types
-    // Note: Delete file association depends on format version and backend implementation
     boolean hasTasksWithDeletes = tasks.stream().anyMatch(task -> !task.deletes().isEmpty());
+    assertThat(hasTasksWithDeletes).isTrue();
   }
 
   @Test
@@ -3259,13 +3261,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(tasks).isNotEmpty();
 
     // Verify that multiple delete files are handled properly in scan planning
-    // Note: Delete file association depends on format version and backend implementation
     int tasksWithDeletes = 0;
     for (FileScanTask task : tasks) {
       if (!task.deletes().isEmpty()) {
         tasksWithDeletes++;
       }
     }
+    assertThat(tasksWithDeletes).isEqualTo(3);
   }
 
   @Test
