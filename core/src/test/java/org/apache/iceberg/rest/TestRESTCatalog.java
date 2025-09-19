@@ -3172,7 +3172,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   private static boolean isCancelled(RESTTableScan scan) throws IOException {
 
-      // Get the iterable and iterator
+    // Get the iterable and iterator
     CloseableIterable<FileScanTask> iterable = scan.planFiles();
     CloseableIterator<FileScanTask> iterator = iterable.iterator();
 
@@ -3181,7 +3181,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     iterator.close();
 
     // Verify we can still call cancelPlan on the scan
-      return scan.cancelPlan();
+    return scan.cancelPlan();
   }
 
   @Test
