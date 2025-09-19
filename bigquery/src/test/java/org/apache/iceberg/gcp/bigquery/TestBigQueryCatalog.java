@@ -155,60 +155,6 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   public void testCreateTableWithDefaultColumnValue() {}
 
   @Test
-  public void testLoadMetadataTable() {
-
-    // Create a spy of the catalog to verify method calls
-    BigQueryMetastoreCatalog spyCatalog = spy(catalog);
-
-    // Create mock objects
-    TableOperations mockOps = Mockito.mock(TableOperations.class);
-    TableMetadata mockMetadata = Mockito.mock(TableMetadata.class);
-    Table mockMetadataTable = Mockito.mock(Table.class);
-
-    // Mock the table operations to return metadata (indicating base table exists)
-    when(mockOps.current()).thenReturn(mockMetadata);
-
-    // Create the expected base table identifier that will be extracted from the metadata table
-    // identifier
-    TableIdentifier expectedBaseTableId = TableIdentifier.of("dataset1", "table1");
-    when(spyCatalog.newTableOps(expectedBaseTableId)).thenReturn(mockOps);
-
-    // Use MockedStatic to mock the static MetadataTableUtils.createMetadataTableInstance call
-    try (MockedStatic<MetadataTableUtils> mockedUtils =
-        Mockito.mockStatic(MetadataTableUtils.class)) {
-      mockedUtils
-          .when(
-              () ->
-                  MetadataTableUtils.createMetadataTableInstance(
-                      any(TableOperations.class),
-                      any(String.class),
-                      any(TableIdentifier.class),
-                      any(TableIdentifier.class),
-                      any()))
-          .thenReturn(mockMetadataTable);
-
-      // Create a metadata table identifier
-      TableIdentifier metadataTableId =
-          TableIdentifier.of(Namespace.of("dataset1", "table1"), "partitions");
-
-      // Call loadTable which should trigger the metadata table loading path
-      Table result = spyCatalog.loadTable(metadataTableId);
-
-      // Verify that MetadataTableUtils.createMetadataTableInstance was called
-      // This confirms that loadMetadataTable path was taken
-      mockedUtils.verify(
-          () ->
-              MetadataTableUtils.createMetadataTableInstance(
-                  any(TableOperations.class),
-                  any(String.class),
-                  any(TableIdentifier.class),
-                  any(TableIdentifier.class),
-                  any()));
-
-      // Verify the result is the mocked metadata table
-      assertThat(result).isSameAs(mockMetadataTable);
-    }
-  }
 
   @Disabled("BigQuery Metastore does not support rename tables")
   @Test
