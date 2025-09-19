@@ -18,3 +18,14 @@
 # under the License.
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yaml"
+CONNECT_URL="http://localhost:8083"
+MINIO_ALIAS="minio"
+MINIO_URL="http://localhost:9000"
+BUCKET="bucket"
+WAREHOUSE="s3://bucket/warehouse/"
+TOPIC="test-topic"
+CONNECTOR_NAME="test-iceberg-sink"
+TEST_DATA='{"id": 1, "name": "test-record"}'
