@@ -17,6 +17,12 @@
 
 site_name: docs/latest
 
+nav:
+  - Home: index.md
+  - User Guide:
+      - Writing Data: writing.md
+
+
 extra:
   version:
     provider: mike
