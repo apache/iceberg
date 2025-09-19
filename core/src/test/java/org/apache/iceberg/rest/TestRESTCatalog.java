@@ -284,6 +284,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsOverwriteRegistration() {
+    return true;
+  }
+
   /* RESTCatalog specific tests */
 
   @Test
