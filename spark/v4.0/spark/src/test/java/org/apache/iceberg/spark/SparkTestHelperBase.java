@@ -81,8 +81,8 @@ public class SparkTestHelperBase {
           assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
         }
       } else if (expectedValue instanceof VariantVal && actualValue instanceof VariantVal) {
-        // Spark VariantVal may have fixed-width padding, so we compare their JSON representation
-        // instead of raw byte arrays.
+        // Spark VariantVal comparison is based on raw byte[] comparison, which can fail
+        // if Spark uses trailing null bytes. so, we compare their JSON representation instead.
         assertThat((actualValue).toString())
             .as("%s contents should match (VariantVal JSON)", context)
             .isEqualTo((expectedValue).toString());
