@@ -19,6 +19,14 @@ INHERIT: ./nav.yml
 
 site_name: "Apache Iceberg™"
 
+extra:
+  version:
+    provider: mike
+    # optional niceties (safe defaults):
+    default: latest
+    alias: true
+
+
 theme:
   custom_dir: overrides
   static_templates:
