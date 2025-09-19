@@ -277,6 +277,7 @@ public class RESTTableScan extends DataTableScan {
   }
 
   @VisibleForTesting
+  @SuppressWarnings("checkstyle:RegexpMultiline")
   public boolean cancelPlan() {
     String planId = currentPlanId;
     if (planId == null) {
@@ -290,6 +291,7 @@ public class RESTTableScan extends DataTableScan {
           null,
           headers.get(),
           ErrorHandlers.defaultErrorHandler());
+      currentPlanId = null;
       return true;
     } catch (Exception e) {
       // Plan might have already completed or failed, which is acceptable
