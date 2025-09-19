@@ -171,27 +171,28 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
 
   @Test
   public void testIsValidIdentifierWithValidSingleLevelNamespace() {
-    TableIdentifier validIdentifier = TableIdentifier.of("dataset1", "table1");
-    assertThat(catalog.isValidIdentifier(validIdentifier)).isTrue();
+    assertThat(catalog.isValidIdentifier(TableIdentifier.of("dataset1", "table1"))).isTrue();
   }
 
   @Test
   public void testIsValidIdentifierWithInvalidMultiLevelNamespace() {
-    TableIdentifier invalidIdentifier =
-        TableIdentifier.of(Namespace.of("level1", "level2"), "table1");
-    assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
+    assertThat(
+            catalog.isValidIdentifier(
+                TableIdentifier.of(Namespace.of("level1", "level2"), "table1")))
+        .isFalse();
   }
 
   @Test
   public void testIsValidIdentifierWithThreeLevelNamespace() {
-    TableIdentifier invalidIdentifier =
-        TableIdentifier.of(Namespace.of("level1", "level2", "level3"), "table1");
-    assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
+    assertThat(
+            catalog.isValidIdentifier(
+                TableIdentifier.of(Namespace.of("level1", "level2", "level3"), "table1")))
+        .isFalse();
   }
 
   @Test
   public void testIsValidIdentifierWithEmptyNamespace() {
-    TableIdentifier invalidIdentifier = TableIdentifier.of(Namespace.empty(), "table1");
-    assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
+    assertThat(catalog.isValidIdentifier(TableIdentifier.of(Namespace.empty(), "table1")))
+        .isFalse();
   }
 }
