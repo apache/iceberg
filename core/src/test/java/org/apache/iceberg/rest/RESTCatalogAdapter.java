@@ -500,6 +500,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 PlanTableScanResponse.builder()
                     .withPlanStatus(PlanStatus.COMPLETED)
                     .withFileScanTasks(fileScanTasks)
+                    .withDeleteFiles(
+                        fileScanTasks.stream()
+                            .flatMap(t -> t.deletes().stream())
+                            .distinct()
+                            .collect(Collectors.toList()))
                     .withSpecsById(table.specs())
                     .build());
           }
@@ -529,6 +534,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 PlanTableScanResponse.builder()
                     .withPlanStatus(PlanStatus.COMPLETED)
                     .withPlanTasks(planTasks)
+                    .withDeleteFiles(
+                        fileScanTasks.stream()
+                            .flatMap(t -> t.deletes().stream())
+                            .distinct()
+                            .collect(Collectors.toList()))
                     .withSpecsById(table.specs())
                     .build());
           }
@@ -552,6 +562,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 responseType,
                 PlanTableScanResponse.builder()
                     .withPlanStatus(PlanStatus.COMPLETED)
+                    .withDeleteFiles(
+                        fileScanTasks.stream()
+                            .flatMap(t -> t.deletes().stream())
+                            .distinct()
+                            .collect(Collectors.toList()))
                     .withPlanTasks(outerPlanTasks)
                     .withSpecsById(table.specs())
                     .build());
