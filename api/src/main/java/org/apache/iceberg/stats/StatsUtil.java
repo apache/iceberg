@@ -40,7 +40,7 @@ public class StatsUtil {
   static final int NUM_STATS_PER_COLUMN = 200;
   static final int RESERVED_FIELD_IDS = 200;
   static final int DATA_SPACE_FIELD_ID_START = 10_000;
-  static final int METADATA_SPACE_FIELD_ID_START = 1_417_000_000;
+  static final int METADATA_SPACE_FIELD_ID_START = 2_147_000_000;
   static final int RESERVED_FIELD_IDS_START = Integer.MAX_VALUE - RESERVED_FIELD_IDS;
 
   private StatsUtil() {}

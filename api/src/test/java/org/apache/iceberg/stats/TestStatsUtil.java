@@ -33,7 +33,7 @@ public class TestStatsUtil {
   @Test
   public void statsIdsForTableColumns() {
     int offset = 0;
-    // 10_000 + 200 * 7_084_950 = 1_417_000_000, which is the starting range for reserved columns
+    // 10_000 + 200 * 10_734_950 = 2_147_000_000, which is the starting range for reserved columns
     int max = (StatsUtil.METADATA_SPACE_FIELD_ID_START - StatsUtil.DATA_SPACE_FIELD_ID_START) / 200;
     for (int id = 0; id < max; id++) {
       int statsFieldId = StatsUtil.statsFieldIdForField(id);
