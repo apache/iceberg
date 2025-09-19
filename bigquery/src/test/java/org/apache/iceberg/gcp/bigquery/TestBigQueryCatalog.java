@@ -154,7 +154,6 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   @Test
   public void testCreateTableWithDefaultColumnValue() {}
 
-
   @Disabled("BigQuery Metastore does not support rename tables")
   @Test
   public void testRenameTable() {
