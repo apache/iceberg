@@ -23,9 +23,39 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [What’s New in Apache Iceberg 1.10.0, and what comes next!](https://www.dremio.com/blog/whats-new-in-apache-iceberg-1-10-0-and-what-comes-next/)
+**Date:** September 12, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Looking back the last year in Lakehouse OSS: Advances in Apache Arrow, Iceberg & Polaris (incubating)](https://www.dremio.com/blog/looking-back-the-last-year-in-lakehouse-oss-advances-in-apache-arrow-iceberg-polaris-incubating/)
+**Date:** September 5, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Scaling Data Lakes: Moving from Raw Parquet to Iceberg Lakehouses](https://www.dremio.com/blog/scaling-data-lakes-moving-from-raw-parquet-to-iceberg-lakehouses/)
+**Date:** September 5, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Kafka to Iceberg - Exploring the Options](https://rmoff.net/2025/08/18/kafka-to-iceberg-exploring-the-options/)
 **Date:** August 18, 2025, **Company**: Confluent
 **Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Optimizing Apache Iceberg Tables – Manual and Automatic](https://www.dremio.com/blog/optimizing-iceberg-tables/)
+**Date:** August 8, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Optimizing Apache Iceberg for Agentic AI](https://www.dremio.com/blog/optimizing-apache-iceberg-for-agentic-ai/)
+**Date:** August 1, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
+
+<!-- markdown-link-check-disable-next-line -->
+### [5 Ways Dremio Makes Apache Iceberg Lakehouses Easy](https://www.dremio.com/blog/5-ways-dremio-makes-apache-iceberg-lakehouses-easy/)
+**Date:** July 29, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
 
 <!-- markdown-link-check-disable-next-line -->
 ### [How to Load Data from MySQL to Iceberg in Real Time](https://doc.bladepipe.com/blog/tech_share/mysql_iceberg_sync)
@@ -38,9 +68,24 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Author**: [Guy Yasoor](https://www.linkedin.com/in/guy-yasoor/)
 
 <!-- markdown-link-check-disable-next-line -->
+### [Quick Start with Apache Iceberg and Apache Polaris on your Laptop (quick setup notebook environment)](https://www.dremio.com/blog/quick-start-with-apache-iceberg-and-apache-polaris-on-your-laptop-quick-setup-notebook-environment/)
+**Date:** July 7, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Query Results Caching on Iceberg Tables](https://www.dremio.com/blog/query-results-caching-on-iceberg-tables/)
+**Date:** July 7, 2025, **Company**: Dremio
+**Author**: [Benny Chow](https://www.dremio.com/authors/benny-chow/)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Writing to Apache Iceberg on S3 using Kafka Connect with Glue catalog](https://rmoff.net/2025/07/04/writing-to-apache-iceberg-on-s3-using-kafka-connect-with-glue-catalog/)
 **Date**: July 4th, 2025, **Company**: Confluent
 **Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Benchmarking Framework for the Apache Iceberg Catalog, Polaris](https://www.dremio.com/blog/query-results-caching-on-iceberg-tables/)
+**Date:** July 1, 2025, **Company**: Dremio
+**Author**: [Pierre Laporte](https://www.dremio.com/authors/pierre-laporte/)
 
 <!-- markdown-link-check-disable-next-line -->
 ### [Writing to Apache Iceberg on S3 using Flink SQL with Glue catalog](https://rmoff.net/2025/06/24/writing-to-apache-iceberg-on-s3-using-flink-sql-with-glue-catalog/)
@@ -53,6 +98,16 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Author**: [Lorenz Hübschle](https://www.linkedin.com/in/lorenzhs)
 
 <!-- markdown-link-check-disable-next-line -->
+### [Extending Apache Iceberg: Best Practices for Storing and Discovering Custom Metadata](https://www.dremio.com/blog/extending-apache-iceberg-best-practices-for-storing-and-discovering-custom-metadata/)
+**Date:** June 9, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Using Dremio with Confluent’s TableFlow for Real-Time Apache Iceberg Analytics](https://www.dremio.com/blog/using-dremio-with-confluents-tableflow-for-real-time-apache-iceberg-analytics/)
+**Date:** May 30, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [What Are Apache Iceberg Tables? Benefits and challenges](https://www.redpanda.com/blog/apache-iceberg-tables-benefits-challenges)
 **Date:** May 21, 2025, **Company**: Redpanda
 **Author**: [Redpanda](https://redpanda.com)
@@ -61,6 +116,31 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 ### [Real-Time Analytics on Apache Iceberg with Tinybird](https://www.tinybird.co/blog-posts/real-time-analytics-on-apache-iceberg-with-tinybird)
 **Date:** May 20, 2025, **Company**: Tinybird
 **Author**: [Alberto Romeu](https://www.linkedin.com/in/alrocar/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Introducing Dremio Auth Manager for Apache Iceberg](https://www.dremio.com/blog/introducing-dremio-auth-manager-for-apache-iceberg/)
+**Date:** May 1, 2025, **Company**: Dremio
+**Author**: [Alex Dutra](https://www.dremio.com/authors/alex-dutra/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [What’s New in Apache Iceberg Format Version 3?](https://www.dremio.com/blog/apache-iceberg-v3/)
+**Date:** April 30, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Dremio’s Apache Iceberg Clustering: Technical Blog](https://www.dremio.com/blog/dremios-apache-iceberg-clustering-technical-blog/)
+**Date:** April 28, 2025, **Company**: Dremio
+**Author**: [Gang Xiao](https://www.dremio.com/authors/gang-xiao/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Credential Vending with Iceberg REST Catalogs in Dremio](https://www.dremio.com/blog/iceberg-credential-vending/)
+**Date:** April 8, 2025, **Company**: Dremio
+**Author**: [Adam Szita](https://www.dremio.com/authors/adam-szita/) & [Tamas mate](https://www.dremio.com/authors/tamas-mate/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Disaster Recovery for Apache Iceberg Tables – Restoring from Backup and Getting Back Online](https://www.dremio.com/blog/disaster-recovery-for-apache-iceberg-tables-restoring-from-backup-and-getting-back-online/)
+**Date:** March 26, 2025, **Company**: Dremio
+**Author**: [Alex Merced](https://www.alexmerced.com/data)
 
 <!-- markdown-link-check-disable-next-line -->
 ### [How to Load Data into Apache Iceberg: A Step-by-Step Tutorial](https://estuary.dev/blog/loading-data-into-apache-iceberg/)
