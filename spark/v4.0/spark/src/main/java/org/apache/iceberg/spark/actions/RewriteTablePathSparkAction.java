@@ -321,11 +321,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     copyPlan.addAll(rewriteManifestResult.copyPlan());
     String fileListLocation = saveFileList(copyPlan);
 
-    return builder
-        .stagingLocation(stagingDir)
-        .fileListLocation(fileListLocation)
-        .latestVersion(RewriteTablePathUtil.fileName(endVersionName))
-        .build();
+    return builder.fileListLocation(fileListLocation).build();
   }
 
   private String saveFileList(Set<Pair<String, String>> filesToMove) {
