@@ -277,6 +277,7 @@ public class RESTTableScan extends DataTableScan {
   }
 
   @VisibleForTesting
+  @SuppressWarnings("checkstyle:RegexpMultiline")
   public boolean cancelPlan() {
     String planId = currentPlanId;
     if (planId == null) {
