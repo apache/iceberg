@@ -276,7 +276,6 @@ public class RESTTableScan extends DataTableScan {
         this::cancelPlan);
   }
 
-
   @VisibleForTesting
   public boolean cancelPlan() {
     String planId = currentPlanId;
