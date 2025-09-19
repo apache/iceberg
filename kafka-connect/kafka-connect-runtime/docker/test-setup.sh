@@ -29,3 +29,24 @@ WAREHOUSE="s3://bucket/warehouse/"
 TOPIC="test-topic"
 CONNECTOR_NAME="test-iceberg-sink"
 TEST_DATA='{"id": 1, "name": "test-record"}'
+
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+log() {
+  echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+error() {
+  echo -e "${RED}[ERROR]${NC} $1" >&2
+  exit 1
+}
+
+cleanup() {
+  log "Cleaning up..."
+  docker compose -f "${COMPOSE_FILE}" down -v || true
+  docker run -it --rm minio/mc alias rm "${MINIO_ALIAS}" >/dev/null 2>&1 || true
+}
