@@ -1416,6 +1416,18 @@ acceptedBreaks:
         \ java.util.Map<java.lang.String, java.lang.String>, java.lang.String, java.lang.String,\
         \ java.lang.String)"
         justification: "Removing deprecated code for 1.11.0"
+      - code: "java.method.visibilityReduced"
+        old: "method void org.apache.iceberg.PartitionStats::liveEntry(org.apache.iceberg.ContentFile<?>, org.apache.iceberg.Snapshot)"
+        new: "method void org.apache.iceberg.PartitionStats::liveEntry(org.apache.iceberg.ContentFile<?>, org.apache.iceberg.Snapshot)"
+        justification: "Changing deprecated code"
+      - code: "java.method.visibilityReduced"
+        old: "method void org.apache.iceberg.PartitionStats::appendStats(org.apache.iceberg.PartitionStats)"
+        new: "method void org.apache.iceberg.PartitionStats::appendStats(org.apache.iceberg.PartitionStats)"
+        justification: "Changing deprecated code"
+      - code: "java.method.visibilityReduced"
+        old: "method void org.apache.iceberg.PartitionStats::deletedEntry(org.apache.iceberg.Snapshot)"
+        new: "method void org.apache.iceberg.PartitionStats::deletedEntry(org.apache.iceberg.Snapshot)"
+        justification: "Changing deprecated code"
     org.apache.iceberg:iceberg-data:
       - code: "java.class.removed"
         old: "class org.apache.iceberg.data.PartitionStatsHandler"
