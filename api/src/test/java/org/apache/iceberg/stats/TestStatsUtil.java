@@ -33,9 +33,7 @@ public class TestStatsUtil {
   @Test
   public void statsIdsForTableColumns() {
     int offset = 0;
-    // 10_000 + 200 * 10_734_950 = 2_147_000_000, which is the starting range for reserved columns
-    int max = (StatsUtil.METADATA_SPACE_FIELD_ID_START - StatsUtil.DATA_SPACE_FIELD_ID_START) / 200;
-    for (int id = 0; id < max; id++) {
+    for (int id = 0; id < StatsUtil.MAX_DATA_FIELD_ID; id++) {
       int statsFieldId = StatsUtil.statsFieldIdForField(id);
       int expected = StatsUtil.DATA_SPACE_FIELD_ID_START + offset;
       assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
@@ -46,17 +44,13 @@ public class TestStatsUtil {
 
   @Test
   public void statsIdsOverflowForTableColumns() {
+    // pick 100 random IDs that are > MAX_FIELD_ID and < METADATA_SPACE_FIELD_ID_START as going over
+    // the entire ID range takes too long
     for (int i = 0; i < 100; i++) {
       int id =
           ThreadLocalRandom.current()
-              .nextInt(StatsUtil.METADATA_SPACE_FIELD_ID_START, StatsUtil.RESERVED_FIELD_IDS_START);
-      int statsFieldId = StatsUtil.statsFieldIdForField(id);
-      int expected = -1;
-      assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
-      assertThat(StatsUtil.fieldIdForStatsField(id)).as("at pos %s", id).isEqualTo(expected);
-      assertThat(StatsUtil.fieldIdForStatsField(statsFieldId))
-          .as("at pos %s", id)
-          .isEqualTo(expected);
+              .nextInt(StatsUtil.MAX_DATA_FIELD_ID + 1, StatsUtil.METADATA_SPACE_FIELD_ID_START);
+      assertThat(StatsUtil.statsFieldIdForField(id)).as("at pos %s", id).isEqualTo(-1);
     }
   }
 
@@ -80,7 +74,7 @@ public class TestStatsUtil {
             required(2, "f", Types.FloatType.get()),
             required(4, "s", Types.StringType.get()),
             required(6, "b", Types.BooleanType.get()),
-            required(250_000, "u", Types.UUIDType.get()));
+            required(1_000_000, "u", Types.UUIDType.get()));
     Schema expectedStatsSchema =
         new Schema(
             optional(
@@ -91,7 +85,8 @@ public class TestStatsUtil {
                     optional(10400, "2", fieldStatsFor(Types.FloatType.get(), 10401)),
                     optional(10800, "4", fieldStatsFor(Types.StringType.get(), 10801)),
                     optional(11200, "6", fieldStatsFor(Types.BooleanType.get(), 11201)),
-                    optional(50010000, "250000", fieldStatsFor(Types.UUIDType.get(), 50010001)))));
+                    optional(
+                        200010000, "1000000", fieldStatsFor(Types.UUIDType.get(), 200010001)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }
@@ -113,7 +108,7 @@ public class TestStatsUtil {
                 "b",
                 Types.MapType.ofOptional(22, 24, Types.IntegerType.get(), Types.StringType.get())),
             required(30, "variant", Types.VariantType.get()),
-            required(250_000, "u", Types.UUIDType.get()));
+            required(100_000, "u", Types.UUIDType.get()));
     Schema expectedStatsSchema =
         new Schema(
             optional(
@@ -126,7 +121,7 @@ public class TestStatsUtil {
                     optional(11600, "8", fieldStatsFor(Types.StringType.get(), 11601)),
                     optional(14400, "22", fieldStatsFor(Types.IntegerType.get(), 14401)),
                     optional(14800, "24", fieldStatsFor(Types.StringType.get(), 14801)),
-                    optional(50010000, "250000", fieldStatsFor(Types.UUIDType.get(), 50010001)))));
+                    optional(20010000, "100000", fieldStatsFor(Types.UUIDType.get(), 20010001)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }

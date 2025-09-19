@@ -42,6 +42,8 @@ public class StatsUtil {
   static final int DATA_SPACE_FIELD_ID_START = 10_000;
   static final int METADATA_SPACE_FIELD_ID_START = 2_147_000_000;
   static final int RESERVED_FIELD_IDS_START = Integer.MAX_VALUE - RESERVED_FIELD_IDS;
+  // support stats for only up to this amount of data field IDs
+  static final int MAX_DATA_FIELD_ID = 1_000_000;
 
   private StatsUtil() {}
 
@@ -53,8 +55,7 @@ public class StatsUtil {
 
   private static int statsFieldIdForDataField(int fieldId) {
     long statsFieldId = DATA_SPACE_FIELD_ID_START + NUM_STATS_PER_COLUMN * (long) fieldId;
-    if (statsFieldId < 0 || statsFieldId >= METADATA_SPACE_FIELD_ID_START) {
-      // ID overflows
+    if (fieldId > MAX_DATA_FIELD_ID || statsFieldId < 0) {
       return -1;
     }
 
