@@ -57,6 +57,7 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -325,13 +326,39 @@ public class CatalogHandlers {
     }
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #loadTable(Catalog,
+   *     TableIdentifier, SnapshotMode)} instead.
+   */
+  @Deprecated
   public static LoadTableResponse loadTable(Catalog catalog, TableIdentifier ident) {
+    return loadTable(catalog, ident, SnapshotMode.ALL);
+  }
+
+  public static LoadTableResponse loadTable(
+      Catalog catalog, TableIdentifier ident, SnapshotMode mode) {
     Table table = catalog.loadTable(ident);
 
     if (table instanceof BaseTable) {
-      return LoadTableResponse.builder()
-          .withTableMetadata(((BaseTable) table).operations().current())
-          .build();
+      TableMetadata loadedMetadata = ((BaseTable) table).operations().current();
+
+      TableMetadata metadata;
+      switch (mode) {
+        case ALL:
+          metadata = loadedMetadata;
+          break;
+        case REFS:
+          metadata =
+              TableMetadata.buildFrom(loadedMetadata)
+                  .withMetadataLocation(loadedMetadata.metadataFileLocation())
+                  .suppressHistoricalSnapshots()
+                  .build();
+          break;
+        default:
+          throw new IllegalArgumentException(String.format("Invalid snapshot mode: %s", mode));
+      }
+
+      return LoadTableResponse.builder().withTableMetadata(metadata).build();
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now
       throw new NoSuchTableException("Table does not exist: %s", ident.toString());
