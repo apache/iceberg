@@ -34,7 +34,7 @@ public interface SortOrderVisitor<T> {
       String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder);
 
   T truncate(
-      String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder);
+      String sourceName, int sourceId, long width, SortDirection direction, NullOrder nullOrder);
 
   T year(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder);
 
@@ -80,7 +80,7 @@ public interface SortOrderVisitor<T> {
             visitor.bucket(
                 sourceName, field.sourceId(), numBuckets, field.direction(), field.nullOrder()));
       } else if (transform instanceof Truncate) {
-        int width = ((Truncate<?>) transform).width();
+        long width = ((Truncate<?>) transform).width();
         results.add(
             visitor.truncate(
                 sourceName, field.sourceId(), width, field.direction(), field.nullOrder()));

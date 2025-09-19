@@ -98,7 +98,7 @@ public class Expressions {
     return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.hour());
   }
 
-  public static <T> UnboundTerm<T> truncate(String name, int width) {
+  public static <T> UnboundTerm<T> truncate(String name, long width) {
     return new UnboundTransform<>(ref(name), Transforms.truncate(width));
   }
 
