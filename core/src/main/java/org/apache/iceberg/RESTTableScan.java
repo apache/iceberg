@@ -25,6 +25,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
@@ -37,7 +38,7 @@ import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
 
-class RESTTableScan extends DataTableScan {
+public class RESTTableScan extends DataTableScan {
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
@@ -275,12 +276,8 @@ class RESTTableScan extends DataTableScan {
         this::cancelPlan);
   }
 
-  /**
-   * Cancels the currently active scan plan if one exists. This method can be called from another
-   * thread to cancel a running scan operation.
-   *
-   * @return true if a plan was cancelled, false if no active plan exists
-   */
+
+  @VisibleForTesting
   public boolean cancelPlan() {
     String planId = currentPlanId;
     if (planId == null) {
@@ -291,6 +288,7 @@ class RESTTableScan extends DataTableScan {
       client.delete(
           resourcePaths.cancelPlan(tableIdentifier, planId),
           Map.of(),
+          null,
           headers.get(),
           ErrorHandlers.defaultErrorHandler());
       return true;
