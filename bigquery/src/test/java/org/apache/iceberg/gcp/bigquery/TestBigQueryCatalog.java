@@ -154,62 +154,9 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   @Test
   public void testCreateTableWithDefaultColumnValue() {}
 
-  @Disabled("BigQuery Metastore does not support multi layer namespaces")
   @Test
-  public void testLoadMetadataTable() {}
+  public void testLoadMetadataTable() {
 
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void testRenameTable() {
-    super.testRenameTable();
-  }
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void testRenameTableDestinationTableAlreadyExists() {
-    super.testRenameTableDestinationTableAlreadyExists();
-  }
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void renameTableNamespaceMissing() {
-    super.renameTableNamespaceMissing();
-  }
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void testRenameTableMissingSourceTable() {
-    super.testRenameTableMissingSourceTable();
-  }
-
-  @Test
-  public void testIsValidIdentifierWithValidSingleLevelNamespace() {
-    TableIdentifier validIdentifier = TableIdentifier.of("dataset1", "table1");
-    assertThat(catalog.isValidIdentifier(validIdentifier)).isTrue();
-  }
-
-  @Test
-  public void testIsValidIdentifierWithInvalidMultiLevelNamespace() {
-    TableIdentifier invalidIdentifier =
-        TableIdentifier.of(Namespace.of("level1", "level2"), "table1");
-    assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
-  }
-
-  @Test
-  public void testIsValidIdentifierWithThreeLevelNamespace() {
-    TableIdentifier invalidIdentifier =
-        TableIdentifier.of(Namespace.of("level1", "level2", "level3"), "table1");
-    assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
-  }
-
-  @Test
-  public void testIsValidIdentifierWithEmptyNamespace() {
-    TableIdentifier invalidIdentifier = TableIdentifier.of(Namespace.empty(), "table1");
-    assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
-  }
-
-  @Test
-  public void testLoadMetadataTableIsCalled() {
     // Create a spy of the catalog to verify method calls
     BigQueryMetastoreCatalog spyCatalog = spy(catalog);
 
@@ -261,5 +208,55 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
       // Verify the result is the mocked metadata table
       assertThat(result).isSameAs(mockMetadataTable);
     }
+  }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void testRenameTable() {
+    super.testRenameTable();
+  }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void testRenameTableDestinationTableAlreadyExists() {
+    super.testRenameTableDestinationTableAlreadyExists();
+  }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void renameTableNamespaceMissing() {
+    super.renameTableNamespaceMissing();
+  }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void testRenameTableMissingSourceTable() {
+    super.testRenameTableMissingSourceTable();
+  }
+
+  @Test
+  public void testIsValidIdentifierWithValidSingleLevelNamespace() {
+    TableIdentifier validIdentifier = TableIdentifier.of("dataset1", "table1");
+    assertThat(catalog.isValidIdentifier(validIdentifier)).isTrue();
+  }
+
+  @Test
+  public void testIsValidIdentifierWithInvalidMultiLevelNamespace() {
+    TableIdentifier invalidIdentifier =
+        TableIdentifier.of(Namespace.of("level1", "level2"), "table1");
+    assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
+  }
+
+  @Test
+  public void testIsValidIdentifierWithThreeLevelNamespace() {
+    TableIdentifier invalidIdentifier =
+        TableIdentifier.of(Namespace.of("level1", "level2", "level3"), "table1");
+    assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
+  }
+
+  @Test
+  public void testIsValidIdentifierWithEmptyNamespace() {
+    TableIdentifier invalidIdentifier = TableIdentifier.of(Namespace.empty(), "table1");
+    assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
   }
 }
