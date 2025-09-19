@@ -21,11 +21,19 @@ package org.apache.iceberg.gcp.bigquery;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_BIGQUERY;
 import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -39,17 +47,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.apache.iceberg.MetadataTableUtils;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.TableMetadata;
 
 public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> {
   @TempDir private File tempFolder;
@@ -191,13 +190,15 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
 
   @Test
   public void testIsValidIdentifierWithInvalidMultiLevelNamespace() {
-    TableIdentifier invalidIdentifier = TableIdentifier.of(Namespace.of("level1", "level2"), "table1");
+    TableIdentifier invalidIdentifier =
+        TableIdentifier.of(Namespace.of("level1", "level2"), "table1");
     assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
   }
 
   @Test
   public void testIsValidIdentifierWithThreeLevelNamespace() {
-    TableIdentifier invalidIdentifier = TableIdentifier.of(Namespace.of("level1", "level2", "level3"), "table1");
+    TableIdentifier invalidIdentifier =
+        TableIdentifier.of(Namespace.of("level1", "level2", "level3"), "table1");
     assertThat(catalog.isValidIdentifier(invalidIdentifier)).isFalse();
   }
 
@@ -220,34 +221,42 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
     // Mock the table operations to return metadata (indicating base table exists)
     when(mockOps.current()).thenReturn(mockMetadata);
 
-    // Create the expected base table identifier that will be extracted from the metadata table identifier
+    // Create the expected base table identifier that will be extracted from the metadata table
+    // identifier
     TableIdentifier expectedBaseTableId = TableIdentifier.of("dataset1", "table1");
     when(spyCatalog.newTableOps(expectedBaseTableId)).thenReturn(mockOps);
 
     // Use MockedStatic to mock the static MetadataTableUtils.createMetadataTableInstance call
-    try (MockedStatic<MetadataTableUtils> mockedUtils = Mockito.mockStatic(MetadataTableUtils.class)) {
-      mockedUtils.when(() -> MetadataTableUtils.createMetadataTableInstance(
-          any(TableOperations.class),
-          any(String.class),
-          any(TableIdentifier.class),
-          any(TableIdentifier.class),
-          any()))
+    try (MockedStatic<MetadataTableUtils> mockedUtils =
+        Mockito.mockStatic(MetadataTableUtils.class)) {
+      mockedUtils
+          .when(
+              () ->
+                  MetadataTableUtils.createMetadataTableInstance(
+                      any(TableOperations.class),
+                      any(String.class),
+                      any(TableIdentifier.class),
+                      any(TableIdentifier.class),
+                      any()))
           .thenReturn(mockMetadataTable);
 
       // Create a metadata table identifier
-      TableIdentifier metadataTableId = TableIdentifier.of(Namespace.of("dataset1", "table1"), "partitions");
+      TableIdentifier metadataTableId =
+          TableIdentifier.of(Namespace.of("dataset1", "table1"), "partitions");
 
       // Call loadTable which should trigger the metadata table loading path
       Table result = spyCatalog.loadTable(metadataTableId);
 
       // Verify that MetadataTableUtils.createMetadataTableInstance was called
       // This confirms that loadMetadataTable path was taken
-      mockedUtils.verify(() -> MetadataTableUtils.createMetadataTableInstance(
-          any(TableOperations.class),
-          any(String.class),
-          any(TableIdentifier.class),
-          any(TableIdentifier.class),
-          any()));
+      mockedUtils.verify(
+          () ->
+              MetadataTableUtils.createMetadataTableInstance(
+                  any(TableOperations.class),
+                  any(String.class),
+                  any(TableIdentifier.class),
+                  any(TableIdentifier.class),
+                  any()));
 
       // Verify the result is the mocked metadata table
       assertThat(result).isSameAs(mockMetadataTable);
