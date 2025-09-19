@@ -16,3 +16,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governed permissions and limitations
 # under the License.
+
+set -euo pipefail
