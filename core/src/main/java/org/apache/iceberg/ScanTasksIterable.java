@@ -214,7 +214,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
                 headers,
                 executorService,
                 specsById,
-                caseSensitive);
+                caseSensitive,
+                cancellationCallback);
         iterableOfScanTaskIterables.add(iterable);
       }
       return new ParallelIterable<>(iterableOfScanTaskIterables, executorService);
@@ -225,7 +226,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       // Cancel the plan if we have a cancellation callback
       if (cancellationCallback != null) {
         try {
-          cancellationCallback.get();
+          @SuppressWarnings("unused")
+          Boolean ignored = cancellationCallback.get();
         } catch (Exception e) {
           // Log but don't fail the close - cancellation failures are not critical
         }

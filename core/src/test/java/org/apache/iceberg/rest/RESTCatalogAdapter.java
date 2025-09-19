@@ -174,6 +174,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         "/v1/{prefix}/namespaces/{namespace}/tables/{table}/tasks",
         FetchScanTasksRequest.class,
         FetchScanTasksResponse.class),
+    CANCEL_PLAN_TABLE_SCAN(HTTPMethod.DELETE, ResourcePaths.V1_TABLE_SCAN_PLAN, null, null),
     REGISTER_TABLE(
         HTTPMethod.POST,
         ResourcePaths.V1_TABLE_REGISTER,

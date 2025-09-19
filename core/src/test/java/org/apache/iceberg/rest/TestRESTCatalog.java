@@ -51,12 +51,16 @@ import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RESTTable;
+import org.apache.iceberg.RESTTableScan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -71,6 +75,8 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -3101,39 +3107,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCancelPlanEndpointSupport() {
-    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-
-    // Mock config response to include cancel endpoint
-    ConfigResponse configWithCancel =
-        ConfigResponse.builder()
-            .withEndpoints(
-                ImmutableList.of(
-                    Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
-                    Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
-                    Endpoint.V1_CANCEL_TABLE_SCAN_PLAN))
-            .build();
-
-    Mockito.doReturn(configWithCancel)
-        .when(adapter)
-        .execute(
-            argThat(req -> req.path().equals(ResourcePaths.config())),
-            eq(ConfigResponse.class),
-            any(),
-            any());
-
-    RESTCatalog catalog =
-        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize(
-        "test",
-        ImmutableMap.of(
-            RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true",
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
 
     // Verify that a RESTTable was created (indicating server-side planning is enabled)
     assertThat(table).isInstanceOf(RESTTable.class);
@@ -3149,16 +3123,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testCancelPlanMethodAvailability() throws IOException {
-    RESTCatalog catalog =
-        initCatalog(
-            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
-
+  public void testCancelPlanMethodAvailability() {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
     // Ensure we have a RESTTable with server-side planning enabled
     assertThat(table).isInstanceOf(RESTTable.class);
     RESTTable restTable = (RESTTable) table;
@@ -3199,15 +3165,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testIteratorCloseTriggersCancel() throws IOException {
-    RESTCatalog catalog =
-        initCatalog(
-            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
-    table.newAppend().appendFile(FILE_A).commit();
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
 
     // Ensure we have a RESTTable with server-side planning enabled
     assertThat(table).isInstanceOf(RESTTable.class);
@@ -3215,7 +3173,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     TableScan scan = restTable.newScan();
     assertThat(scan).isInstanceOf(RESTTableScan.class);
-    RESTTableScan restTableScan = (RESTTableScan) scan;
+    boolean cancelled = isCancelled((RESTTableScan) scan);
+    assertThat(cancelled).isFalse(); // No active plan to cancel
+  }
+
+  private static boolean isCancelled(RESTTableScan scan) throws IOException {
+    RESTTableScan restTableScan = scan;
 
     // Get the iterable and iterator
     CloseableIterable<FileScanTask> iterable = restTableScan.planFiles();
@@ -3227,20 +3190,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // Verify we can still call cancelPlan on the scan
     boolean cancelled = restTableScan.cancelPlan();
-    assertThat(cancelled).isFalse(); // No active plan to cancel
+    return cancelled;
   }
 
   @Test
   public void testIterableCloseTriggersCancel() throws IOException {
-    RESTCatalog catalog =
-        initCatalog(
-            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    Table table = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
-    table.newAppend().appendFile(FILE_A).commit();
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_PLAN_TASK);
 
     // Ensure we have a RESTTable with server-side planning enabled
     assertThat(table).isInstanceOf(RESTTable.class);
