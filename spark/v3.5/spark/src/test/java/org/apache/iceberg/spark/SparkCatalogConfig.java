@@ -61,7 +61,30 @@ public enum SparkCatalogConfig {
   SPARK_SESSION_WITH_VIEWS(
       "spark_catalog",
       SparkSessionCatalog.class.getName(),
-      ImmutableMap.of("type", "rest", "default-namespace", "default", "cache-enabled", "false"));
+      ImmutableMap.of("type", "rest", "default-namespace", "default", "cache-enabled", "false")),
+  SPARK_SESSION_WITH_UNIQUE_LOCATION(
+      "spark_catalog",
+      SparkSessionCatalog.class.getName(),
+      ImmutableMap.of(
+          "type", "hive",
+          "default-namespace", "default",
+          "parquet-enabled", "true",
+          "unique-table-location", "true",
+          "cache-enabled", "false")),
+  HIVE_WITH_UNIQUE_LOCATION(
+      "hive_with_unique_location",
+      SparkCatalog.class.getName(),
+      ImmutableMap.of(
+          "type", "hive",
+          "default-namespace", "default",
+          "unique-table-location", "true")),
+  REST_WITH_UNIQUE_LOCATION(
+      "rest_with_unique_location",
+      SparkCatalog.class.getName(),
+      ImmutableMap.of(
+          "type", "rest",
+          "cache-enabled", "false",
+          "unique-table-location", "true"));
 
   private final String catalogName;
   private final String implementation;

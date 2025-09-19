@@ -88,6 +88,11 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   }
 
   @Override
+  protected boolean supportsTableRename() {
+    return false;
+  }
+
+  @Override
   public BigQueryMetastoreCatalog catalog() {
     return catalog;
   }
@@ -147,28 +152,4 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   @Disabled("BigQuery Metastore does not support multi layer namespaces")
   @Test
   public void testLoadMetadataTable() {}
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void testRenameTable() {
-    super.testRenameTable();
-  }
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void testRenameTableDestinationTableAlreadyExists() {
-    super.testRenameTableDestinationTableAlreadyExists();
-  }
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void renameTableNamespaceMissing() {
-    super.renameTableNamespaceMissing();
-  }
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void testRenameTableMissingSourceTable() {
-    super.testRenameTableMissingSourceTable();
-  }
 }

@@ -65,6 +65,8 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
@@ -190,6 +192,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   protected boolean supportsEmptyNamespace() {
     return false;
+  }
+
+  protected boolean supportsTableRename() {
+    return true;
   }
 
   protected String baseTableLocation(TableIdentifier identifier) {
@@ -961,6 +967,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testRenameTable() {
+    assumeThat(supportsTableRename())
+        .as("Only valid for catalogs that support table rename operation")
+        .isTrue();
+
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -987,7 +997,95 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testCreateTableInUniqueLocation() {
+    assumeThat(supportsTableRename())
+        .as("Only valid for catalogs that support table rename operation")
+        .isTrue();
+
+    ImmutableMap<String, String> additionalProperties =
+        ImmutableMap.of(CatalogProperties.UNIQUE_TABLE_LOCATION, "true");
+    C catalog = initCatalog("uniq_path_catalog", additionalProperties);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    catalog.createTable(TABLE, SCHEMA, PartitionSpec.unpartitioned());
+    catalog.renameTable(TABLE, RENAMED_TABLE);
+    catalog.createTable(TABLE, SCHEMA, PartitionSpec.unpartitioned());
+
+    Table table = catalog.loadTable(TABLE);
+    Table renamedTable = catalog.loadTable(RENAMED_TABLE);
+
+    assertThat(table.location())
+        .as("Tables %s and %s have different location", TABLE, RENAMED_TABLE)
+        .isNotEqualTo(renamedTable.location());
+  }
+
+  @Test
+  public void testDropDoesntCorruptTable() throws IOException {
+    assumeThat(supportsTableRename())
+        .as("Only valid for catalogs that support table rename operation")
+        .isTrue();
+
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+
+    Table initialTable = catalog.createTable(TABLE, SCHEMA, spec);
+    String initialFilePath = initialTable.locationProvider().newDataLocation("data-a.parquet");
+    DataFile dataFile =
+        DataFiles.builder(spec)
+            .withPath(initialFilePath)
+            .withFileSizeInBytes(10)
+            .withRecordCount(2)
+            .build();
+    initialTable.io().newOutputFile(initialFilePath).create().close();
+    initialTable.newAppend().appendFile(dataFile).commit();
+
+    catalog.renameTable(TABLE, RENAMED_TABLE);
+
+    Table newTable = catalog.createTable(TABLE, SCHEMA, spec);
+    String newFilePath = newTable.locationProvider().newDataLocation("data-b.parquet");
+    DataFile anotherFile =
+        DataFiles.builder(spec)
+            .withPath(newFilePath)
+            .withFileSizeInBytes(10)
+            .withRecordCount(2)
+            .build();
+    newTable.io().newOutputFile(newFilePath).create().close();
+    newTable.newAppend().appendFile(anotherFile).commit();
+
+    catalog.dropTable(RENAMED_TABLE, true);
+
+    assertThat(catalog.tableExists(RENAMED_TABLE))
+        .as("After PURGE, %s must not exist", RENAMED_TABLE)
+        .isFalse();
+    assertThat(catalog.tableExists(TABLE)).as("After PURGE, %s must exist", TABLE).isTrue();
+
+    Table table = catalog.loadTable(TABLE);
+    FileIO io = table.io();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      tasks.forEach(
+          task -> {
+            InputFile file = io.newInputFile(task.file().location());
+            assertThat(file.exists())
+                .as("Table %s should remain unaffected by dropping %s", TABLE, RENAMED_TABLE)
+                .isTrue();
+          });
+    }
+  }
+
+  @Test
   public void testRenameTableMissingSourceTable() {
+    assumeThat(supportsTableRename())
+        .as("Only valid for catalogs that support table rename operation")
+        .isTrue();
+
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -1012,6 +1110,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void renameTableNamespaceMissing() {
+    assumeThat(supportsTableRename())
+        .as("Only valid for catalogs that support table rename operation")
+        .isTrue();
+
     TableIdentifier from = TableIdentifier.of("ns", "tbl");
     TableIdentifier to = TableIdentifier.of("non_existing", "renamedTable");
 
@@ -1032,6 +1134,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testRenameTableDestinationTableAlreadyExists() {
+    assumeThat(supportsTableRename())
+        .as("Only valid for catalogs that support table rename operation")
+        .isTrue();
+
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
