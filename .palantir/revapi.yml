@@ -1365,6 +1365,18 @@ acceptedBreaks:
       justification: "Removing deprecations for 1.10.0"
   "1.10.0":
     org.apache.iceberg:iceberg-core:
+      - code: "java.field.constantValueChanged"
+        old: "field org.apache.iceberg.rest.ResourcePaths.V1_TABLE_SCAN_PLAN"
+        new: "field org.apache.iceberg.rest.ResourcePaths.V1_TABLE_SCAN_PLAN"
+        justification: "Plan API is table scoped should include namespace"
+      - code: "java.field.constantValueChanged"
+        old: "field org.apache.iceberg.rest.ResourcePaths.V1_TABLE_SCAN_PLAN_SUBMIT"
+        new: "field org.apache.iceberg.rest.ResourcePaths.V1_TABLE_SCAN_PLAN_SUBMIT"
+        justification: "Plan API is table scoped should include namespace"
+      - code: "java.field.constantValueChanged"
+        old: "field org.apache.iceberg.rest.ResourcePaths.V1_TABLE_SCAN_PLAN_TASKS"
+        new: "field org.apache.iceberg.rest.ResourcePaths.V1_TABLE_SCAN_PLAN_TASKS"
+        justification: "Plan API is table scoped should include namespace"
       - code: "java.class.removed"
         old: "class org.apache.iceberg.PartitionStatsUtil"
         justification: "Removing deprecated code for 1.11.0"
