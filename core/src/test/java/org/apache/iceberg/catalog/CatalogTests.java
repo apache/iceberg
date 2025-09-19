@@ -38,7 +38,9 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
@@ -165,6 +167,52 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .withFileSizeInBytes(10)
           .withPartitionPath("id_bucket=2") // easy way to set partition data for now
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
+          .build();
+
+  // Delete files for testing
+  protected static final DeleteFile FILE_A_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=0") // same partition as FILE_A
+          .withRecordCount(1)
+          .build();
+
+  protected static final DeleteFile FILE_A_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-a-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=0") // same partition as FILE_A
+          .withRecordCount(1)
+          .build();
+
+  protected static final DeleteFile FILE_B_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-b-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=1") // same partition as FILE_B
+          .withRecordCount(1)
+          .build();
+
+  protected static final DeleteFile FILE_B_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-b-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=1") // same partition as FILE_B
+          .withRecordCount(1)
+          .build();
+
+  protected static final DeleteFile FILE_C_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-c-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=2") // same partition as FILE_C
+          .withRecordCount(1)
           .build();
 
   protected abstract C catalog();
