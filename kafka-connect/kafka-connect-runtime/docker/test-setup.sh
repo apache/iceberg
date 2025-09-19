@@ -134,15 +134,6 @@ if ! docker run --rm -v "${SCRIPT_DIR}:/scripts" \
   error "No Iceberg metadata created for table ${TOPIC}"
 fi
 
-if [[ "${SMOKE}" == false ]]; then
-  # Full verification: check for data file (optional, as it may take longer)
-  log "Checking for data file..."
-  if docker run --rm -v "${SCRIPT_DIR}:/scripts" \
-    minio/mc ls --recursive "${MINIO_ALIAS}/${TABLE_PATH}/data/" | grep -q ".parquet"; then
-    log "Data file found - E2E success!"
-  else
-    log "Metadata OK, but no data file yet (may need more time/messages)"
-  fi
-fi
+
 
 log "Test passed! Stack is healthy."
