@@ -20,6 +20,12 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.IntFunction;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * {@code RangeReadable} is an interface that allows for implementations of {@link InputFile}
@@ -76,5 +82,70 @@ public interface RangeReadable extends Closeable {
    */
   default int readTail(byte[] buffer) throws IOException {
     return readTail(buffer, 0, buffer.length);
+  }
+
+  /**
+   * Read fully a list of file ranges asynchronously from this file. As a result of the call, each
+   * range will have FileRange.setData(CompletableFuture) called with a future that when complete
+   * will have a ByteBuffer with the data from the file's range.
+   *
+   * <p>The position returned by getPos() after readVectored() is undefined.
+   *
+   * <p>If a file is changed while the readVectored() operation is in progress, the output is
+   * undefined. Some ranges may have old data, some may have new and some may have both.
+   *
+   * <p>While a readVectored() operation is in progress, normal read api calls may block.
+   *
+   * @param ranges the byte ranges to read
+   * @param allocate the function to allocate ByteBuffer
+   * @throws IOException any IOE.
+   * @throws IllegalArgumentException if the any of ranges are invalid, or they overlap.
+   */
+  default void readVectored(List<FileRange> ranges, IntFunction<ByteBuffer> allocate)
+      throws IOException {
+    List<FileRange> validatedRanges = sortRanges(ranges);
+    for (FileRange range : validatedRanges) {
+      ByteBuffer buffer = allocate.apply(range.length());
+      readFully(range.offset(), buffer.array());
+      range.byteBuffer().complete(buffer);
+    }
+  }
+
+  static List<FileRange> sortRanges(final List<FileRange> input) {
+    Preconditions.checkNotNull(input, "Null input list");
+
+    final List<FileRange> sortedRanges;
+
+    // 2 because the input size can be 0/1, and then we want to skip sorting.
+    if (input.size() < 2) {
+      sortedRanges = input;
+    } else {
+      sortedRanges = sortRangeList(input);
+      FileRange prev = null;
+      for (final FileRange current : sortedRanges) {
+        if (prev != null) {
+          Preconditions.checkArgument(
+              current.offset() >= prev.offset() + prev.length(),
+              "Overlapping ranges %s and %s",
+              prev,
+              current);
+        }
+        prev = current;
+      }
+    }
+
+    return sortedRanges;
+  }
+
+  /**
+   * Sort the input ranges by offset; no validation is done.
+   *
+   * @param input input ranges.
+   * @return a new list of the ranges, sorted by offset.
+   */
+  static List<FileRange> sortRangeList(List<FileRange> input) {
+    final List<FileRange> l = Lists.newArrayList(input);
+    l.sort(Comparator.comparingLong(FileRange::offset));
+    return l;
   }
 }
