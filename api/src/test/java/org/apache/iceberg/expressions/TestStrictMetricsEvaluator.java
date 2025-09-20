@@ -75,223 +75,227 @@ public class TestStrictMetricsEvaluator {
                   Types.NestedField.optional(
                       17, "nested_col_with_stats", Types.IntegerType.get()))));
 
-  private static final int INT_MIN_VALUE = 30;
-  private static final int INT_MAX_VALUE = 79;
+  protected static final int INT_MIN_VALUE = 30;
+  protected static final int INT_MAX_VALUE = 79;
 
-  private static final DataFile FILE =
-      new TestDataFile(
-          "file.avro",
-          Row.of(),
-          50,
-          // any value counts, including nulls
-          ImmutableMap.<Integer, Long>builder()
-              .put(4, 50L)
-              .put(5, 50L)
-              .put(6, 50L)
-              .put(8, 50L)
-              .put(9, 50L)
-              .put(10, 50L)
-              .put(11, 50L)
-              .put(12, 50L)
-              .put(13, 50L)
-              .put(14, 50L)
-              .put(17, 50L)
-              .buildOrThrow(),
-          // null value counts
-          ImmutableMap.<Integer, Long>builder()
-              .put(4, 50L)
-              .put(5, 10L)
-              .put(6, 0L)
-              .put(11, 50L)
-              .put(12, 0L)
-              .put(13, 1L)
-              .put(17, 0L)
-              .buildOrThrow(),
-          // nan value counts
-          ImmutableMap.of(
-              8, 50L,
-              9, 10L,
-              10, 0L),
-          // lower bounds
-          ImmutableMap.of(
-              1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
-              7, toByteBuffer(IntegerType.get(), 5),
-              12, toByteBuffer(Types.FloatType.get(), Float.NaN),
-              13, toByteBuffer(Types.DoubleType.get(), Double.NaN),
-              17, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE)),
-          // upper bounds
-          ImmutableMap.of(
-              1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
-              7, toByteBuffer(IntegerType.get(), 5),
-              12, toByteBuffer(Types.FloatType.get(), Float.NaN),
-              13, toByteBuffer(Types.DoubleType.get(), Double.NaN),
-              17, toByteBuffer(IntegerType.get(), INT_MAX_VALUE)));
+  protected DataFile file() {
+    return new TestDataFile(
+        "file.avro",
+        Row.of(),
+        50,
+        // any value counts, including nulls
+        ImmutableMap.<Integer, Long>builder()
+            .put(4, 50L)
+            .put(5, 50L)
+            .put(6, 50L)
+            .put(8, 50L)
+            .put(9, 50L)
+            .put(10, 50L)
+            .put(11, 50L)
+            .put(12, 50L)
+            .put(13, 50L)
+            .put(14, 50L)
+            .put(17, 50L)
+            .buildOrThrow(),
+        // null value counts
+        ImmutableMap.<Integer, Long>builder()
+            .put(4, 50L)
+            .put(5, 10L)
+            .put(6, 0L)
+            .put(11, 50L)
+            .put(12, 0L)
+            .put(13, 1L)
+            .put(17, 0L)
+            .buildOrThrow(),
+        // nan value counts
+        ImmutableMap.of(
+            8, 50L,
+            9, 10L,
+            10, 0L),
+        // lower bounds
+        ImmutableMap.of(
+            1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+            7, toByteBuffer(IntegerType.get(), 5),
+            12, toByteBuffer(Types.FloatType.get(), Float.NaN),
+            13, toByteBuffer(Types.DoubleType.get(), Double.NaN),
+            17, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE)),
+        // upper bounds
+        ImmutableMap.of(
+            1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
+            7, toByteBuffer(IntegerType.get(), 5),
+            12, toByteBuffer(Types.FloatType.get(), Float.NaN),
+            13, toByteBuffer(Types.DoubleType.get(), Double.NaN),
+            17, toByteBuffer(IntegerType.get(), INT_MAX_VALUE)));
+  }
 
-  private static final DataFile FILE_2 =
-      new TestDataFile(
-          "file_2.avro",
-          Row.of(),
-          50,
-          // any value counts, including nulls
-          ImmutableMap.of(
-              4, 50L,
-              5, 50L,
-              6, 50L,
-              8, 50L),
-          // null value counts
-          ImmutableMap.of(
-              4, 50L,
-              5, 10L,
-              6, 0L),
-          // nan value counts
-          null,
-          // lower bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
-          // upper bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "eee")));
+  protected DataFile file2() {
+    return new TestDataFile(
+        "file_2.avro",
+        Row.of(),
+        50,
+        // any value counts, including nulls
+        ImmutableMap.of(
+            4, 50L,
+            5, 50L,
+            6, 50L,
+            8, 50L),
+        // null value counts
+        ImmutableMap.of(
+            4, 50L,
+            5, 10L,
+            6, 0L),
+        // nan value counts
+        null,
+        // lower bounds
+        ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
+        // upper bounds
+        ImmutableMap.of(5, toByteBuffer(StringType.get(), "eee")));
+  }
 
-  private static final DataFile FILE_3 =
-      new TestDataFile(
-          "file_3.avro",
-          Row.of(),
-          50,
-          // any value counts, including nulls
-          ImmutableMap.of(
-              4, 50L,
-              5, 50L,
-              6, 50L),
-          // null value counts
-          ImmutableMap.of(
-              4, 50L,
-              5, 10L,
-              6, 0L),
-          // nan value counts
-          null,
-          // lower bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
-          // upper bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
+  protected DataFile file3() {
+    return new TestDataFile(
+        "file_3.avro",
+        Row.of(),
+        50,
+        // any value counts, including nulls
+        ImmutableMap.of(
+            4, 50L,
+            5, 50L,
+            6, 50L),
+        // null value counts
+        ImmutableMap.of(
+            4, 50L,
+            5, 10L,
+            6, 0L),
+        // nan value counts
+        null,
+        // lower bounds
+        ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
+        // upper bounds
+        ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
+  }
 
   @Test
   public void testAllNulls() {
-    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("all_nulls")).eval(FILE);
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("all_nulls")).eval(file());
     assertThat(shouldRead).as("Should not match: no non-null value in all null column").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("some_nulls")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("some_nulls")).eval(file());
     assertThat(shouldRead)
         .as("Should not match: column with some nulls contains a non-null value")
         .isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("no_nulls")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("no_nulls")).eval(file());
     assertThat(shouldRead).as("Should match: non-null column contains no null values").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("all_nulls", "a")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("all_nulls", "a")).eval(file());
     assertThat(shouldRead).as("Should match: notEqual on all nulls column").isTrue();
   }
 
   @Test
   public void testNoNulls() {
-    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("all_nulls")).eval(FILE);
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("all_nulls")).eval(file());
     assertThat(shouldRead).as("Should match: all values are null").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("some_nulls")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("some_nulls")).eval(file());
     assertThat(shouldRead).as("Should not match: not all values are null").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("no_nulls")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("no_nulls")).eval(file());
     assertThat(shouldRead).as("Should not match: no values are null").isFalse();
   }
 
   @Test
   public void testSomeNulls() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, lessThan("some_nulls", "ggg")).eval(FILE_2);
+        new StrictMetricsEvaluator(SCHEMA, lessThan("some_nulls", "ggg")).eval(file2());
     assertThat(shouldRead).as("Should not match: lessThan on some nulls column").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("some_nulls", "eee")).eval(FILE_2);
+        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("some_nulls", "eee")).eval(file2());
     assertThat(shouldRead).as("Should not match: lessThanOrEqual on some nulls column").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, greaterThan("some_nulls", "aaa")).eval(FILE_2);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, greaterThan("some_nulls", "aaa")).eval(file2());
     assertThat(shouldRead).as("Should not match: greaterThan on some nulls column").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("some_nulls", "bbb")).eval(FILE_2);
+        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("some_nulls", "bbb")).eval(file2());
     assertThat(shouldRead)
         .as("Should not match: greaterThanOrEqual on some nulls column")
         .isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("some_nulls", "bbb")).eval(FILE_3);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("some_nulls", "bbb")).eval(file3());
     assertThat(shouldRead).as("Should not match: equal on some nulls column").isFalse();
   }
 
   @Test
   public void testIsNaN() {
-    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nans")).eval(FILE);
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nans")).eval(file());
     assertThat(shouldRead).as("Should match: all values are nan").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("some_nans")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("some_nans")).eval(file());
     assertThat(shouldRead)
         .as("Should not match: at least one non-nan value in some nan column")
         .isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("no_nans")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("no_nans")).eval(file());
     assertThat(shouldRead)
         .as("Should not match: at least one non-nan value in no nan column")
         .isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nulls_double")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nulls_double")).eval(file());
     assertThat(shouldRead)
         .as("Should not match: at least one non-nan value in all null column")
         .isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("no_nan_stats")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("no_nan_stats")).eval(file());
     assertThat(shouldRead).as("Should not match: cannot determine without nan stats").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nans_v1_stats")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nans_v1_stats")).eval(file());
     assertThat(shouldRead).as("Should not match: cannot determine without nan stats").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("nan_and_null_only")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("nan_and_null_only")).eval(file());
     assertThat(shouldRead).as("Should not match: null values are not nan").isFalse();
   }
 
   @Test
   public void testNotNaN() {
-    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nans")).eval(FILE);
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nans")).eval(file());
     assertThat(shouldRead).as("Should not match: all values are nan").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("some_nans")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("some_nans")).eval(file());
     assertThat(shouldRead)
         .as("Should not match: at least one nan value in some nan column")
         .isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("no_nans")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("no_nans")).eval(file());
     assertThat(shouldRead).as("Should match: no value is nan").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nulls_double")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nulls_double")).eval(file());
     assertThat(shouldRead).as("Should match: no nan value in all null column").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("no_nan_stats")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("no_nan_stats")).eval(file());
     assertThat(shouldRead).as("Should not match: cannot determine without nan stats").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nans_v1_stats")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nans_v1_stats")).eval(file());
     assertThat(shouldRead).as("Should not match: all values are nan").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("nan_and_null_only")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("nan_and_null_only")).eval(file());
     assertThat(shouldRead).as("Should not match: null values are not nan").isFalse();
   }
 
   @Test
   public void testRequiredColumn() {
-    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("required")).eval(FILE);
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("required")).eval(file());
     assertThat(shouldRead).as("Should match: required columns are always non-null").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("required")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("required")).eval(file());
     assertThat(shouldRead).as("Should not match: required columns never contain null").isFalse();
   }
 
   @Test
   public void testMissingColumn() {
-    assertThatThrownBy(() -> new StrictMetricsEvaluator(SCHEMA, lessThan("missing", 5)).eval(FILE))
+    assertThatThrownBy(
+            () -> new StrictMetricsEvaluator(SCHEMA, lessThan("missing", 5)).eval(file()))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing'");
   }
@@ -350,11 +354,11 @@ public class TestStrictMetricsEvaluator {
   public void testNot() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, not(lessThan("id", INT_MIN_VALUE - 25))).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, not(lessThan("id", INT_MIN_VALUE - 25))).eval(file());
     assertThat(shouldRead).as("Should not match: not(false)").isTrue();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, not(greaterThan("id", INT_MIN_VALUE - 25))).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, not(greaterThan("id", INT_MIN_VALUE - 25))).eval(file());
     assertThat(shouldRead).as("Should match: not(true)").isFalse();
   }
 
@@ -365,7 +369,7 @@ public class TestStrictMetricsEvaluator {
         new StrictMetricsEvaluator(
                 SCHEMA,
                 and(greaterThan("id", INT_MIN_VALUE - 25), lessThanOrEqual("id", INT_MIN_VALUE)))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: range may not overlap data").isFalse();
 
     shouldRead =
@@ -374,7 +378,7 @@ public class TestStrictMetricsEvaluator {
                 and(
                     lessThan("id", INT_MIN_VALUE - 25),
                     greaterThanOrEqual("id", INT_MIN_VALUE - 30)))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: range does not overlap data").isFalse();
 
     shouldRead =
@@ -383,7 +387,7 @@ public class TestStrictMetricsEvaluator {
                 and(
                     lessThan("id", INT_MAX_VALUE + 6),
                     greaterThanOrEqual("id", INT_MIN_VALUE - 30)))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should match: range includes all data").isTrue();
   }
 
@@ -394,7 +398,7 @@ public class TestStrictMetricsEvaluator {
         new StrictMetricsEvaluator(
                 SCHEMA,
                 or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: no matching values").isFalse();
 
     shouldRead =
@@ -403,159 +407,165 @@ public class TestStrictMetricsEvaluator {
                 or(
                     lessThan("id", INT_MIN_VALUE - 25),
                     greaterThanOrEqual("id", INT_MAX_VALUE - 19)))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: some values do not match").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA,
                 or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MIN_VALUE)))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should match: all values match >= 30").isTrue();
   }
 
   @Test
   public void testIntegerLt() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MIN_VALUE)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MIN_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: always false").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MIN_VALUE + 1)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MIN_VALUE + 1)).eval(file());
     assertThat(shouldRead).as("Should not match: 32 and greater not in range").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MAX_VALUE)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MAX_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: 79 not in range").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MAX_VALUE + 1)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MAX_VALUE + 1)).eval(file());
     assertThat(shouldRead).as("Should match: all values in range").isTrue();
   }
 
   @Test
   public void testIntegerLtEq() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE - 1)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE - 1)).eval(file());
     assertThat(shouldRead).as("Should not match: always false").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: 31 and greater not in range").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MAX_VALUE)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MAX_VALUE)).eval(file());
     assertThat(shouldRead).as("Should match: all values in range").isTrue();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MAX_VALUE + 1)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MAX_VALUE + 1)).eval(file());
     assertThat(shouldRead).as("Should match: all values in range").isTrue();
   }
 
   @Test
   public void testIntegerGt() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, greaterThan("id", INT_MAX_VALUE)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, greaterThan("id", INT_MAX_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: always false").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, greaterThan("id", INT_MAX_VALUE - 1)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, greaterThan("id", INT_MAX_VALUE - 1)).eval(file());
     assertThat(shouldRead).as("Should not match: 77 and less not in range").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, greaterThan("id", INT_MIN_VALUE)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, greaterThan("id", INT_MIN_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: 30 not in range").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, greaterThan("id", INT_MIN_VALUE - 1)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, greaterThan("id", INT_MIN_VALUE - 1)).eval(file());
     assertThat(shouldRead).as("Should match: all values in range").isTrue();
   }
 
   @Test
   public void testIntegerGtEq() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE + 1)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE + 1))
+            .eval(file());
     assertThat(shouldRead).as("Should not match: no values in range").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: 78 and lower are not in range").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MIN_VALUE + 1)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MIN_VALUE + 1))
+            .eval(file());
     assertThat(shouldRead).as("Should not match: 30 not in range").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MIN_VALUE)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MIN_VALUE)).eval(file());
     assertThat(shouldRead).as("Should match: all values in range").isTrue();
   }
 
   @Test
   public void testIntegerEq() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MIN_VALUE - 25)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MIN_VALUE - 25)).eval(file());
     assertThat(shouldRead).as("Should not match: all values != 5").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MIN_VALUE)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MIN_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: some values != 30").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MAX_VALUE - 4)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MAX_VALUE - 4)).eval(file());
     assertThat(shouldRead).as("Should not match: some values != 75").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MAX_VALUE)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MAX_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: some values != 79").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MAX_VALUE + 1)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("id", INT_MAX_VALUE + 1)).eval(file());
     assertThat(shouldRead).as("Should not match: some values != 80").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, equal("always_5", INT_MIN_VALUE - 25)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, equal("always_5", INT_MIN_VALUE - 25)).eval(file());
     assertThat(shouldRead).as("Should match: all values == 5").isTrue();
   }
 
   @Test
   public void testIntegerNotEq() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MIN_VALUE - 25)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MIN_VALUE - 25)).eval(file());
     assertThat(shouldRead).as("Should match: no values == 5").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MIN_VALUE - 1)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MIN_VALUE - 1)).eval(file());
     assertThat(shouldRead).as("Should match: no values == 39").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MIN_VALUE)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MIN_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: some value may be == 30").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MAX_VALUE - 4)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MAX_VALUE - 4)).eval(file());
     assertThat(shouldRead).as("Should not match: some value may be == 75").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MAX_VALUE)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MAX_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: some value may be == 79").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MAX_VALUE + 1)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MAX_VALUE + 1)).eval(file());
     assertThat(shouldRead).as("Should match: no values == 80").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MAX_VALUE + 6)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MAX_VALUE + 6)).eval(file());
     assertThat(shouldRead).as("Should read: no values == 85").isTrue();
   }
 
   @Test
   public void testIntegerNotEqRewritten() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MIN_VALUE - 25))).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MIN_VALUE - 25))).eval(file());
     assertThat(shouldRead).as("Should match: no values == 5").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MIN_VALUE - 1))).eval(FILE);
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MIN_VALUE - 1))).eval(file());
     assertThat(shouldRead).as("Should match: no values == 39").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MIN_VALUE))).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MIN_VALUE))).eval(file());
     assertThat(shouldRead).as("Should not match: some value may be == 30").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MAX_VALUE - 4))).eval(FILE);
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MAX_VALUE - 4))).eval(file());
     assertThat(shouldRead).as("Should not match: some value may be == 75").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MAX_VALUE))).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MAX_VALUE))).eval(file());
     assertThat(shouldRead).as("Should not match: some value may be == 79").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MAX_VALUE + 1))).eval(FILE);
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MAX_VALUE + 1))).eval(file());
     assertThat(shouldRead).as("Should match: no values == 80").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MAX_VALUE + 6))).eval(FILE);
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, not(equal("id", INT_MAX_VALUE + 6))).eval(file());
     assertThat(shouldRead).as("Should read: no values == 85").isTrue();
   }
 
@@ -563,37 +573,37 @@ public class TestStrictMetricsEvaluator {
   public void testIntegerIn() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, in("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: all values != 5 and != 6").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, in("id", INT_MIN_VALUE - 1, INT_MIN_VALUE)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, in("id", INT_MIN_VALUE - 1, INT_MIN_VALUE)).eval(file());
     assertThat(shouldRead).as("Should not match: some values != 30 and != 31").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, in("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: some values != 75 and != 76").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, in("id", INT_MAX_VALUE, INT_MAX_VALUE + 1)).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, in("id", INT_MAX_VALUE, INT_MAX_VALUE + 1)).eval(file());
     assertThat(shouldRead).as("Should not match: some values != 78 and != 79").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, in("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: some values != 80 and != 81)").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("always_5", 5, 6)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("always_5", 5, 6)).eval(file());
     assertThat(shouldRead).as("Should match: all values == 5").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("all_nulls", "abc", "def")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("all_nulls", "abc", "def")).eval(file());
     assertThat(shouldRead).as("Should not match: in on all nulls column").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("some_nulls", "abc", "def")).eval(FILE_3);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("some_nulls", "abc", "def")).eval(file3());
     assertThat(shouldRead).as("Should not match: in on some nulls column").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("no_nulls", "abc", "def")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("no_nulls", "abc", "def")).eval(file());
     assertThat(shouldRead).as("Should not match: no_nulls field does not have bounds").isFalse();
   }
 
@@ -601,41 +611,42 @@ public class TestStrictMetricsEvaluator {
   public void testIntegerNotIn() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notIn("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should match: all values !=5 and !=6").isTrue();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notIn("id", INT_MIN_VALUE - 1, INT_MIN_VALUE))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: some values may be == 30").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notIn("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: some value may be == 75 or == 76").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notIn("id", INT_MAX_VALUE, INT_MAX_VALUE + 1))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should not match: some value may be == 79").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notIn("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("Should match: no values == 80 or == 81").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("always_5", 5, 6)).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("always_5", 5, 6)).eval(file());
     assertThat(shouldRead).as("Should not match: all values == 5").isFalse();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("all_nulls", "abc", "def")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("all_nulls", "abc", "def")).eval(file());
     assertThat(shouldRead).as("Should match: notIn on all nulls column").isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("some_nulls", "abc", "def")).eval(FILE_3);
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, notIn("some_nulls", "abc", "def")).eval(file3());
     assertThat(shouldRead)
         .as("Should match: notIn on some nulls column, 'bbb' > 'abc' and 'bbb' < 'def'")
         .isTrue();
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("no_nulls", "abc", "def")).eval(FILE);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("no_nulls", "abc", "def")).eval(file());
     assertThat(shouldRead).as("Should not match: no_nulls field does not have bounds").isFalse();
   }
 
@@ -644,21 +655,21 @@ public class TestStrictMetricsEvaluator {
     boolean shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA, greaterThanOrEqual("struct.nested_col_no_stats", INT_MIN_VALUE))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("greaterThanOrEqual nested column should not match").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA, lessThanOrEqual("struct.nested_col_no_stats", INT_MAX_VALUE))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("lessThanOrEqual nested column should not match").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, isNull("struct.nested_col_no_stats")).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, isNull("struct.nested_col_no_stats")).eval(file());
     assertThat(shouldRead).as("isNull nested column should not match").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_no_stats")).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_no_stats")).eval(file());
     assertThat(shouldRead).as("notNull nested column should not match").isFalse();
   }
 
@@ -667,21 +678,21 @@ public class TestStrictMetricsEvaluator {
     boolean shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA, greaterThanOrEqual("struct.nested_col_with_stats", INT_MIN_VALUE))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("greaterThanOrEqual nested column should not match").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA, lessThanOrEqual("struct.nested_col_with_stats", INT_MAX_VALUE))
-            .eval(FILE);
+            .eval(file());
     assertThat(shouldRead).as("lessThanOrEqual nested column should not match").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, isNull("struct.nested_col_with_stats")).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, isNull("struct.nested_col_with_stats")).eval(file());
     assertThat(shouldRead).as("isNull nested column should not match").isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_with_stats")).eval(FILE);
+        new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_with_stats")).eval(file());
     assertThat(shouldRead).as("notNull nested column should not match").isFalse();
   }
 }
