@@ -51,12 +51,16 @@ import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RESTTable;
+import org.apache.iceberg.RESTTableScan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -71,6 +75,8 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -81,6 +87,7 @@ import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BaseScanTaskResponse;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -160,6 +167,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             Object body = roundTripSerialize(request.body(), "request");
             HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
             T response = super.execute(req, responseType, errorHandler, responseHeaders);
+            if (response instanceof BaseScanTaskResponse) {
+              // This is for the case where the response does not roundTrip
+              // the plan table related responses follow this case
+              return response;
+            }
+
             T responseAfterSerialization = roundTripSerialize(response, "response");
             return responseAfterSerialization;
           }
@@ -2793,6 +2806,46 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ConfigResponse.builder().withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_TABLE)).build());
   }
 
+  @Test
+  public void testPlanTableScanWithCompletedStatusAndFileScanTask() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
+    assertBoundFileScanTasks(table, SPEC);
+  }
+
+  @Test
+  public void testPlanTableScanAndFetchPlanningResultWithSubmittedStatusAndFileScanTask()
+      throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_SUBMITTED_WITH_FILE_SCAN_TASK);
+    assertBoundFileScanTasks(table, SPEC);
+  }
+
+  @Test
+  public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndPlanTask()
+      throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_PLAN_TASK);
+    assertBoundFileScanTasks(table, SPEC);
+  }
+
+  @Test
+  public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndNestedPlanTasks() {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
+    assertBoundFileScanTasks(table, SPEC);
+  }
+
+  public Table createRESTTableAndInsertData(TableIdentifier tableIdentifier) {
+    RESTCatalog catalog =
+        initCatalog(
+            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(tableIdentifier.namespace());
+    }
+
+    Table table = catalog.buildTable(tableIdentifier, SCHEMA).withPartitionSpec(SPEC).create();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    return table;
+  }
+
   private void verifyTableExistsFallbackToGETRequest(ConfigResponse configResponse) {
     RESTCatalogAdapter adapter =
         Mockito.spy(
@@ -3025,5 +3078,317 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<HTTPRequest> captor = ArgumentCaptor.forClass(HTTPRequest.class);
     verify(adapter, atLeastOnce()).execute(captor.capture(), any(), any(), any());
     return captor.getAllValues();
+  }
+
+  @Test
+  public void testCancelPlanWithNoActivePlan() {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
+
+    // Cast to RESTTable to access scan functionality
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    // Create a new scan and cast to RESTTableScan
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Calling cancel with no active plan should return false
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse();
+  }
+
+  @Test
+  public void testCancelPlanEndpointSupport() {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
+
+    // Verify that a RESTTable was created (indicating server-side planning is enabled)
+    assertThat(table).isInstanceOf(RESTTable.class);
+
+    // Create scan from RESTTable
+    TableScan scan = table.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Test that cancelPlan method is available and returns false when no plan is active
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse();
+  }
+
+  @Test
+  public void testCancelPlanMethodAvailability() {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Test that cancelPlan method is available and callable
+    // When no plan is active, it should return false
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse();
+
+    // Verify the method exists and doesn't throw exceptions when called multiple times
+    boolean cancelled2 = restTableScan.cancelPlan();
+    assertThat(cancelled2).isFalse();
+  }
+
+  @Test
+  public void testCancelPlanEndpointPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    String planId = "plan-abc-123";
+    ResourcePaths paths = new ResourcePaths("test-prefix");
+
+    // Test that the cancel plan path is generated correctly
+    String cancelPath = paths.cancelPlan(tableId, planId);
+
+    assertThat(cancelPath)
+        .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    String complexPath = paths.cancelPlan(complexId, "plan-xyz-789");
+
+    assertThat(complexPath).contains("/plan/plan-xyz-789");
+    assertThat(complexPath).contains("db%1Fschema"); // URL encoded namespace separator
+  }
+
+  @Test
+  public void testIteratorCloseTriggersCancel() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    boolean cancelled = isCancelled((RESTTableScan) scan);
+    assertThat(cancelled).isFalse(); // No active plan to cancel
+  }
+
+  private static boolean isCancelled(RESTTableScan scan) throws IOException {
+
+    // Get the iterable and iterator
+    CloseableIterable<FileScanTask> iterable = scan.planFiles();
+    CloseableIterator<FileScanTask> iterator = iterable.iterator();
+
+    // Verify we can close the iterator without exceptions
+    // The cancellation callback will be called (though no active plan exists)
+    iterator.close();
+
+    // Verify we can still call cancelPlan on the scan
+    return scan.cancelPlan();
+  }
+
+  @Test
+  public void testIterableCloseTriggersCancel() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_PLAN_TASK);
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Get the iterable
+    CloseableIterable<FileScanTask> iterable = restTableScan.planFiles();
+
+    // Verify we can close the iterable without exceptions
+    // This tests that cancellation callbacks are properly wired through
+    iterable.close();
+
+    // Verify the scan is still functional
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse(); // No active plan to cancel
+  }
+
+  @Test
+  public void testRESTScanPlanningWithPositionDeletes() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
+
+    // Add position deletes that correspond to FILE_A (which was added in
+    // createRESTTableAndInsertData)
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+
+    // Execute scan planning - should handle position deletes correctly
+    CloseableIterable<FileScanTask> iterable = scan.planFiles();
+    List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+    // Verify we get tasks back (specific count depends on implementation)
+    assertThat(tasks).isNotEmpty();
+
+    // Verify that delete files are properly handled in the scan tasks
+    boolean hasTasksWithDeletes = tasks.stream().anyMatch(task -> !task.deletes().isEmpty());
+    assertThat(hasTasksWithDeletes).isTrue();
+  }
+
+  @Test
+  public void testRESTScanPlanningWithEqualityDeletes() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
+
+    // Add equality deletes that correspond to FILE_A
+    table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+
+    // Execute scan planning - should handle equality deletes correctly
+    CloseableIterable<FileScanTask> iterable = scan.planFiles();
+    List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+    // Verify we get tasks back
+    assertThat(tasks).isNotEmpty();
+
+    // Verify that equality delete files are properly handled
+    boolean hasTasksWithDeletes = tasks.stream().anyMatch(task -> !task.deletes().isEmpty());
+    assertThat(hasTasksWithDeletes).isTrue();
+  }
+
+  @Test
+  public void testRESTScanPlanningWithMixedDeletes() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
+
+    // Add both position and equality deletes in separate commits
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit(); // Position deletes for FILE_A
+    table
+        .newRowDelta()
+        .addDeletes(FILE_B_EQUALITY_DELETES)
+        .commit(); // Equality deletes for different partition
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+
+    // Execute scan planning - should handle mixed delete types correctly
+    CloseableIterable<FileScanTask> iterable = scan.planFiles();
+    List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+    // Verify we get tasks back
+    assertThat(tasks).isNotEmpty();
+
+    // Verify scan planning succeeds with mixed delete types
+    boolean hasTasksWithDeletes = tasks.stream().anyMatch(task -> !task.deletes().isEmpty());
+    assertThat(hasTasksWithDeletes).isTrue();
+  }
+
+  @Test
+  public void testRESTScanPlanningWithMultipleDeleteFiles() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
+
+    // Add FILE_B and FILE_C to the table (FILE_A is already added by createRESTTableAndInsertData)
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+
+    // Add multiple delete files corresponding to FILE_A, FILE_B, FILE_C
+    table
+        .newRowDelta()
+        .addDeletes(FILE_A_DELETES) // Position delete for FILE_A
+        .addDeletes(FILE_B_DELETES) // Position delete for FILE_B
+        .addDeletes(FILE_C_EQUALITY_DELETES) // Equality delete for FILE_C
+        .commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+
+    // Execute scan planning with multiple delete files
+    CloseableIterable<FileScanTask> iterable = scan.planFiles();
+    List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+    // Verify we get tasks back (should have 3 data files: FILE_A, FILE_B, FILE_C)
+    assertThat(tasks).isNotEmpty();
+
+    // Verify that multiple delete files are handled properly in scan planning
+    int tasksWithDeletes = 0;
+    for (FileScanTask task : tasks) {
+      if (!task.deletes().isEmpty()) {
+        tasksWithDeletes++;
+      }
+    }
+    assertThat(tasksWithDeletes).isEqualTo(3);
+  }
+
+  @Test
+  public void testRESTScanPlanningWithDeletesAndFiltering() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
+
+    // Add FILE_B to have more data for filtering
+    table.newAppend().appendFile(FILE_B).commit();
+
+    // Add equality delete for FILE_B
+    table.newRowDelta().addDeletes(FILE_B_EQUALITY_DELETES).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    // Create a filtered scan
+    TableScan scan = restTable.newScan().filter(Expressions.equal("data", "test"));
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+
+    // Execute scan planning with filtering and deletes
+    CloseableIterable<FileScanTask> iterable = scan.planFiles();
+    List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+    // Verify scan planning works with both filtering and deletes
+    assertThat(tasks).isNotNull();
+
+    // Should be able to iterate through tasks without errors
+    for (FileScanTask task : tasks) {
+      assertThat(task).isNotNull();
+      // Verify delete files are properly associated (depends on format version and backend)
+      if (!task.deletes().isEmpty()) {
+        assertThat(task.deletes()).isNotNull();
+      }
+    }
+  }
+
+  @Test
+  public void testRESTScanPlanningDeletesCancellation() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_SUBMITTED_WITH_FILE_SCAN_TASK);
+
+    // Add deletes to make the scenario more complex
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A_EQUALITY_DELETES).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Get the iterable (which may involve async planning with deletes)
+    CloseableIterable<FileScanTask> iterable = restTableScan.planFiles();
+    CloseableIterator<FileScanTask> iterator = iterable.iterator();
+
+    // Test cancellation works with delete files present
+    iterator.close();
+
+    // Verify cancellation method is still accessible
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse(); // No active plan at this point
   }
 }

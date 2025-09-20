@@ -38,9 +38,12 @@ public class ResourcePaths {
   public static final String V1_TABLE_METRICS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";
   public static final String V1_TABLE_RENAME = "/v1/{prefix}/tables/rename";
-  public static final String V1_TABLE_SCAN_PLAN_SUBMIT = "/v1/{prefix}/tables/{table}/plan";
-  public static final String V1_TABLE_SCAN_PLAN = "/v1/{prefix}/tables/{table}/plan/{plan-id}";
-  public static final String V1_TABLE_SCAN_PLAN_TASKS = "/v1/{prefix}/tables/{table}/tasks";
+  public static final String V1_TABLE_SCAN_PLAN_SUBMIT =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/plan";
+  public static final String V1_TABLE_SCAN_PLAN =
+      "/v1/{prefix}/tables/namespaces/{namespace}/{table}/plan/{plan-id}";
+  public static final String V1_TABLE_SCAN_PLAN_TASKS =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/tasks";
   public static final String V1_TRANSACTIONS_COMMIT = "/v1/{prefix}/transactions/commit";
   public static final String V1_VIEWS = "/v1/{prefix}/namespaces/{namespace}/views";
   public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";
@@ -129,5 +132,51 @@ public class ResourcePaths {
 
   public String renameView() {
     return SLASH.join("v1", prefix, "views", "rename");
+  }
+
+  public String planTableScan(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "plan");
+  }
+
+  public String fetchPlanningResult(TableIdentifier ident, String planId) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "plan",
+        planId);
+  }
+
+  public String cancelPlan(TableIdentifier ident, String planId) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "plan",
+        planId);
+  }
+
+  public String fetchScanTasks(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "tasks");
   }
 }
