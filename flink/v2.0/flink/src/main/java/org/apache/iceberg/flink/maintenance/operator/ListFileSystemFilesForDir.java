@@ -31,57 +31,35 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
-import org.apache.iceberg.flink.maintenance.api.Trigger;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.FileInfo;
-import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.FileSystemWalker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Recursively lists the files in the `location` directory. Hidden files, and files younger than the
- * `minAgeMs` are omitted in the result.
+ * Recursively lists the files in the directory. Hidden files, and files younger than the `minAgeMs`
+ * are omitted in the result.
  */
 @Internal
-public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
-  private static final Logger LOG = LoggerFactory.getLogger(ListFileSystemFiles.class);
+public class ListFileSystemFilesForDir
+    extends ProcessFunction<ListFileSystemFilesForDir.OrphanFilesDirTask, String> {
+  private static final Logger LOG = LoggerFactory.getLogger(ListFileSystemFilesForDir.class);
 
   private final String taskName;
   private final int taskIndex;
 
-  private FileIO io;
   private Map<Integer, PartitionSpec> specs;
-  private String location;
-  private final long minAgeMs;
   private transient Counter errorCounter;
   private final TableLoader tableLoader;
-  private final boolean usePrefixListing;
   private transient Configuration configuration;
-  private final int maxListingDepth;
-  private final int maxListingDirectSubDirs;
 
-  public ListFileSystemFiles(
-      String taskName,
-      int taskIndex,
-      TableLoader tableLoader,
-      String location,
-      long minAgeMs,
-      boolean usePrefixListing,
-      int maxListingDepth,
-      int maxListingDirectSubDirs) {
+  public ListFileSystemFilesForDir(String taskName, int taskIndex, TableLoader tableLoader) {
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "TableLoad should no be null");
 
     this.tableLoader = tableLoader;
     this.taskName = taskName;
     this.taskIndex = taskIndex;
-    this.minAgeMs = minAgeMs;
-    this.location = location;
-    this.usePrefixListing = usePrefixListing;
-    this.maxListingDepth = maxListingDepth;
-    this.maxListingDirectSubDirs = maxListingDirectSubDirs;
   }
 
   @Override
@@ -89,8 +67,6 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
     super.open(openContext);
     tableLoader.open();
     Table table = tableLoader.loadTable();
-    this.io = table.io();
-    this.location = location != null ? location : table.location();
     this.specs = table.specs();
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), table.name(), taskName, taskIndex)
@@ -100,35 +76,24 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
   }
 
   @Override
-  public void processElement(Trigger trigger, Context ctx, Collector<String> out) throws Exception {
-    long olderThanTimestamp = trigger.timestamp() - minAgeMs;
-    try {
-      if (usePrefixListing) {
-        Predicate<FileInfo> predicate = fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
-        Preconditions.checkArgument(
-            io instanceof SupportsPrefixOperations,
-            "Cannot use prefix listing with FileIO {} which does not support prefix operations.",
-            io);
+  public void processElement(
+      OrphanFilesDirTask orphanFilesDirTask, Context ctx, Collector<String> out) throws Exception {
 
-        FileSystemWalker.listDirRecursivelyWithFileIO(
-            (SupportsPrefixOperations) io, location, specs, predicate, out::collect);
-      } else {
-        Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
-        FileSystemWalker.listDirRecursivelyWithHadoop(
-            location,
-            specs,
-            predicate,
-            configuration,
-            maxListingDepth,
-            maxListingDirectSubDirs,
-            dir ->
-                ctx.output(
-                    DeleteOrphanFiles.DIR_TASK_STREAM,
-                    new ListFileSystemFilesForDir.OrphanFilesDirTask(dir, olderThanTimestamp)),
-            out::collect);
-      }
+    try {
+      Predicate<FileStatus> predicate =
+          file -> file.getModificationTime() < orphanFilesDirTask.olderThanTimestamp();
+      FileSystemWalker.listDirRecursivelyWithHadoop(
+          orphanFilesDirTask.subDir(),
+          specs,
+          predicate,
+          configuration,
+          Integer.MAX_VALUE,
+          Integer.MAX_VALUE,
+          dir -> {},
+          out::collect);
     } catch (Exception e) {
-      LOG.warn("Exception listing files for {} at {}", location, ctx.timestamp(), e);
+      LOG.warn(
+          "Exception listing files for {} at {}", orphanFilesDirTask.subDir(), ctx.timestamp(), e);
       ctx.output(DeleteOrphanFiles.ERROR_STREAM, e);
       errorCounter.inc();
     }
@@ -138,5 +103,26 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
   public void close() throws Exception {
     super.close();
     tableLoader.close();
+  }
+
+  public static class OrphanFilesDirTask {
+
+    private String dir;
+    private long olderThanTimestamp;
+
+    public OrphanFilesDirTask() {}
+
+    public OrphanFilesDirTask(String dir, long olderThanTimestamp) {
+      this.dir = dir;
+      this.olderThanTimestamp = olderThanTimestamp;
+    }
+
+    public String subDir() {
+      return dir;
+    }
+
+    public long olderThanTimestamp() {
+      return olderThanTimestamp;
+    }
   }
 }
