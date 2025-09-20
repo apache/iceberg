@@ -308,6 +308,19 @@ project(':iceberg-api') {
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.awaitility
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.2'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.15.2'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'org.springframework.boot:spring-boot-starter-web:2.7.15'
+    implementation 'org.springframework.boot:spring-boot-starter:2.7.15'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.7.15'
+    implementation project(':iceberg-core')
+
+
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -604,7 +617,6 @@ project(':iceberg-delta-lake') {
     integrationImplementation.extendsFrom testImplementation
     integrationRuntime.extendsFrom testRuntimeOnly
   }
-
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -648,6 +660,12 @@ project(':iceberg-delta-lake') {
         exclude group: 'org.roaringbitmap'
       }
     }
+
+    // Avoid duplicate annotation APIs
+    configurations.all {
+      exclude group: "javax.annotation", module: "javax.annotation-api"
+    }
+
   }
 
   // The newest version of delta-core uses Spark 3.5.*. The integration test should only be built
@@ -698,6 +716,11 @@ project(':iceberg-bigquery') {
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
+
+    configurations.all {
+    exclude group: 'javax.annotation', module: 'javax.annotation-api'
+}
+
   }
 }
 
@@ -934,6 +957,11 @@ project(':iceberg-arrow') {
     testImplementation libs.arrow.memory.netty
     testImplementation libs.hadoop3.common
     testImplementation libs.hadoop3.mapreduce.client.core
+
+    configurations.all {
+     exclude group: 'javax.annotation', module: 'javax.annotation-api'
+    }
+
   }
 }
 
