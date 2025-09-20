@@ -189,6 +189,21 @@ class SparkBatch implements Batch {
         && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
   }
 
+  private boolean supportsCometBatchReads(ScanTask task) {
+    if (task instanceof ScanTaskGroup) {
+      ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+      return taskGroup.tasks().stream().allMatch(this::supportsCometBatchReads);
+
+    } else if (task.isFileScanTask() && !task.isDataTask()) {
+      FileScanTask fileScanTask = task.asFileScanTask();
+      // Comet can't handle delete files for now
+      return fileScanTask.file().format() == FileFormat.PARQUET;
+
+    } else {
+      return false;
+    }
+  }
+
   // conditions for using ORC batch reads:
   // - ORC vectorization is enabled
   // - all tasks are of type FileScanTask and read only ORC files with no delete files
