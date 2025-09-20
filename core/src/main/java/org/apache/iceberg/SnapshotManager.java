@@ -164,10 +164,13 @@ public class SnapshotManager implements ManageSnapshots {
     return updateSnapshotReferencesOperation;
   }
 
-  private void commitIfRefUpdatesExist() {
+  private Snapshot commitIfRefUpdatesExist() {
     if (updateSnapshotReferencesOperation != null) {
-      updateSnapshotReferencesOperation.commit();
+      Snapshot result = updateSnapshotReferencesOperation.commit();
       updateSnapshotReferencesOperation = null;
+      return result;
+    } else {
+      return null;
     }
   }
 
@@ -177,10 +180,11 @@ public class SnapshotManager implements ManageSnapshots {
   }
 
   @Override
-  public void commit() {
-    commitIfRefUpdatesExist();
+  public Snapshot commit() {
+    Snapshot result = commitIfRefUpdatesExist();
     if (!isExternalTransaction) {
-      transaction.commitTransaction();
+      result = transaction.commitTransaction();
     }
+    return result;
   }
 }

@@ -16,15 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.view;
 
-/** API for setting a table's or view's base location. */
-public interface UpdateLocation extends PendingUpdate<String, Snapshot> {
+import org.apache.iceberg.PendingUpdate;
+
+public interface UpdateViewLocation extends PendingUpdate<String, Void> {
   /**
-   * Set the table's location.
+   * Set the view's location.
    *
    * @param location a String location
    * @return this for method chaining
    */
-  UpdateLocation setLocation(String location);
+  UpdateViewLocation setLocation(String location);
 }

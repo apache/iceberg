@@ -28,7 +28,7 @@ import java.util.Map;
  * <p>When committing, these changes will be applied to the current table metadata. Commit conflicts
  * will be resolved by applying the pending changes to the new table metadata.
  */
-public interface UpdateProperties extends PendingUpdate<Map<String, String>> {
+public interface UpdateProperties extends PendingUpdate<Map<String, String>, Snapshot> {
 
   /**
    * Add a key/value property to the table.
