@@ -666,6 +666,11 @@ public class IcebergSink
 
       FlinkMaintenanceConfig flinkMaintenanceConfig =
           new FlinkMaintenanceConfig(table, writeOptions, readableConfig);
+
+      if (flinkWriteConf.uidSuffix() != null) {
+        uidSuffix = flinkWriteConf.uidSuffix();
+      }
+
       return new IcebergSink(
           tableLoader,
           table,
