@@ -344,26 +344,26 @@ Values for field ids which are not present in a data file must be resolved accor
 
 * Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field and the partition value is present in the `partition` struct on `data_file` object in the manifest. This allows for metadata only migrations of Hive tables.
 * Use `schema.name-mapping.default` metadata to map field id to columns without field id as described below and use the column if it is present.
-* Return the default value if it has a defined `initial-default` (See [Default values](#default-values) section for more details). 
+* Return the default value if it has a defined `initial-default` (See [Default values](#default-values) section for more details).
 * Return `null` in all other cases.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
 Tables may also define a property `schema.name-mapping.default` with a JSON name mapping containing a list of field mapping objects. These mappings provide fallback field ids to be used when a data file does not contain field id information. Each object should contain
 
-* `names`: A required list of 0 or more names for a field. 
+* `names`: A required list of 0 or more names for a field.
 * `field-id`: An optional Iceberg field ID used when a field's name is present in `names`
 * `fields`: An optional list of field mappings for child field of structs, maps, and lists.
 
 Field mapping fields are constrained by the following rules:
 
-* A name may contain `.` but this refers to a literal name, not a nested field. For example, `a.b` refers to a field named `a.b`, not child field `b` of field `a`. 
-* Each child field should be defined with their own field mapping under `fields`. 
+* A name may contain `.` but this refers to a literal name, not a nested field. For example, `a.b` refers to a field named `a.b`, not child field `b` of field `a`.
+* Each child field should be defined with their own field mapping under `fields`.
 * Multiple values for `names` may be mapped to a single field ID to support cases where a field may have different names in different data files. For example, all Avro field aliases should be listed in `names`.
 * Fields which exist only in the Iceberg schema and not in imported data files may use an empty `names` list.
 * Fields that exist in imported files but not in the Iceberg schema may omit `field-id`.
-* List types should contain a mapping in `fields` for `element`. 
-* Map types should contain mappings in `fields` for `key` and `value`. 
+* List types should contain a mapping in `fields` for `element`.
+* Map types should contain mappings in `fields` for `key` and `value`.
 * Struct types should contain mappings in `fields` for their child fields.
 
 For details on serialization, see [Appendix C](#name-mapping-serialization).
@@ -475,7 +475,7 @@ The snapshot then populates the total number of `added-rows` based on the sum of
 When the new snapshot is committed, the table's `next-row-id` must also be updated (even if the new snapshot is not in the main branch). Because 375 rows were in data files in manifests that were assigned a `first_row_id` (`added1` 100+25, `added2` 0+100, `added3` 125+25) the new value is 1,000 + 375 = 1,375.
 
 
-##### Row Lineage for Upgraded Tables 
+##### Row Lineage for Upgraded Tables
 
 When a table is upgraded to v3, its `next-row-id` is initialized to 0 and existing snapshots are not modified (that is, `first-row-id` remains unset or null). For such snapshots without `first-row-id`, `first_row_id` values for data files and data manifests are null, and values for `_row_id` are read as null for all rows. When `first_row_id` is null, inherited row ID values are also null.
 
@@ -592,9 +592,9 @@ A sort order is defined by a sort order id and a list of sort fields. The order 
 
 For details on how to serialize a sort order to JSON, see Appendix C.
 
-Order id `0` is reserved for the unsorted order. 
+Order id `0` is reserved for the unsorted order.
 
-Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons. 
+Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
@@ -643,7 +643,7 @@ When a file is replaced or deleted from the dataset, its manifest entry fields s
 
 Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list.
 The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
-The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number. 
+The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
 The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
 
 Notes:
@@ -710,7 +710,7 @@ Examples of valid field paths using normalized JSON path format are:
 * `$['event_type']` -- the `event_type` field in a Variant object
 * `$['user.name']` -- the `"user.name"` field in a Variant object
 * `$['location']['latitude']` -- the `latitude` field nested within a `location` object
-* `$['tags']` -- the `tags` array 
+* `$['tags']` -- the `tags` array
 * `$['addresses']['zip']` -- the `zip` field in an `addresses` array that contains objects
 
 For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both points of the following coordinates X, Y, Z, and M (see [Appendix G](#appendix-g-geospatial-notes)) which are the lower / upper bound of all objects in the file. For the X values only, xmin may be greater than xmax, in which case an object in this bounding box may match if it contains an X such that `x >= xmin` OR`x <= xmax`. In geographic terminology, the concepts of `xmin`, `xmax`, `ymin`, and `ymax` are also known as `westernmost`, `easternmost`, `southernmost` and `northernmost`, respectively. For `geography` types, these points are further restricted to the canonical ranges of [-180 180] for X and [-90 90] for Y.
@@ -858,7 +858,7 @@ The inclusive projection for an unknown partition transform is _true_ because th
 
 Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
-Data files that match the query filter must be read by the scan. 
+Data files that match the query filter must be read by the scan.
 
 Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
 
@@ -893,7 +893,7 @@ Notes:
 
 ### Snapshot References
 
-Iceberg tables keep track of branches and tags using snapshot references. 
+Iceberg tables keep track of branches and tags using snapshot references.
 Tags are labels for individual snapshots. Branches are mutable named references that can be updated by committing a new snapshot as the branch's referenced snapshot using the [Commit Conflict Resolution and Retry](#commit-conflict-resolution-and-retry) procedures.
 
 The snapshot reference object records all the information of a reference including snapshot ID, reference type and [Snapshot Retention Policy](#snapshot-retention-policy).
@@ -998,7 +998,7 @@ Blob metadata is a struct with the following fields:
 
 #### Partition Statistics
 
-Partition statistics files are based on [partition statistics file spec](#partition-statistics-file). 
+Partition statistics files are based on [partition statistics file spec](#partition-statistics-file).
 Partition statistics are not required for reading or planning and readers may ignore them.
 Each table snapshot may be associated with at most one partition statistics file.
 A writer can optionally write the partition statistics file during each write operation, or it can also be computed on demand.
@@ -1036,8 +1036,8 @@ The schema of the partition statistics file is as follows:
 | _optional_ | _optional_ | _optional_ | **`12 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
 
 Note that partition data tuple's schema is based on the partition spec output using partition field ids for the struct field ids.
-The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
-and sorted by the field ids in ascending order.  
+The unified partition type is a struct containing all fields that have ever been a part of any spec in the table
+and sorted by the field ids in ascending order.
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
 
 For example,
@@ -1176,7 +1176,7 @@ When the deleted row column is present, its schema may be any subset of the tabl
 
 To ensure the accuracy of statistics, all delete entries must include row values, or the column must be omitted (this is why the column type is `required`).
 
-The rows in the delete file must be sorted by `file_path` then `pos` to optimize filtering rows while scanning. 
+The rows in the delete file must be sorted by `file_path` then `pos` to optimize filtering rows while scanning.
 
 *  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
 *  Sorting by `pos` allows filtering rows while scanning, to avoid keeping deletes in memory.
@@ -1537,7 +1537,7 @@ Notes:
 
 Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them.
 
-The following table describes the possible values for the some of the field within sort field: 
+The following table describes the possible values for the some of the field within sort field:
 
 |Field|JSON representation|Possible values|
 |--- |--- |--- |
@@ -1801,7 +1801,7 @@ This section covers topics not required by the specification but recommendations
 
 ### Point in Time Reads (Time Travel)
 
-Iceberg supports two types of histories for tables. A history of previous "current snapshots" stored in ["snapshot-log" table metadata](#table-metadata-fields) and [parent-child lineage stored in "snapshots"](#table-metadata-fields). These two histories 
+Iceberg supports two types of histories for tables. A history of previous "current snapshots" stored in ["snapshot-log" table metadata](#table-metadata-fields) and [parent-child lineage stored in "snapshots"](#table-metadata-fields). These two histories
 might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
@@ -1843,7 +1843,7 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 | **`manifests-created`**             | Number of manifest files created in the snapshot                                                 |
 | **`manifests-kept`**                | Number of manifest files kept in the snapshot                                                    |
 | **`manifests-replaced`**            | Number of manifest files replaced in the snapshot                                                |
-| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                             | 
+| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                             |
 
 #### Other Fields
 
@@ -1865,7 +1865,28 @@ Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers t
 
 ### Naming for GZIP compressed Metadata JSON files
 
-Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
+Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.
+
+### Schema Evolution/Type Promotion
+
+Column projection rules are designed so that the table will remain readable even if writers use an outdated schema. At the beginning of a transaction Writers should load the latest schema (the schema referened by `current-schema-id` from the latest table metadata) and use it for reading and writing data.  Note, that in the common cases of schema evolution (adding nullable columns, adding required columns with an `initial-default`, renaming a column, dropping a column, or doing type promotion), appending data with outdated schemas presents no issues under either SNAPSHOT or SERIALIZABLE isolation levels
+
+However, the less common case of updating default values may need to be handled depending on isolation level. Consider two concurrent transactions:
+
+* **T1** modifies the `write-default` on the column.
+* **T2** writes data write that makes use of `write-default` from the changed column in the first transaction.
+
+If the **T1** commits before **T2** then handling **T2** depends on isolation level.
+
+* **SNAPSHOT**: **T2** may be commited even though it used the old `write-default` (this is a permitted serialization anomaly).
+* **SERIALIZABLE**: **T2** must abort.
+
+When a transaction is aborted, the transaction could be retried after updating to the new schema and rewriting the data using the new `write-default`. One way of ensuring SERIALIZABLE isolation is a two phased approach:
+
+1. Check if there was a schema change (for the REST catalog this can be done with `assert-current-schema-id`) when committing.
+2. If the schema changed, determine if there was a change to a `write-default` value used in the transaction (if there is no such column the transaction may be retried without rewriting data).
+
+Writers must write out all fields with the types specified from the schema loaded at the beginning of the transaction. Writing all fields prevents similar issues as those outlined above but with `initial-default` instead of `write-default` (all nulls can't be distinguished from missing columns that would have initial default substituted).
 
 ### Position Delete Files with Row Data
 
