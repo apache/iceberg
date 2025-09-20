@@ -437,7 +437,6 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
@@ -447,6 +446,7 @@ public class ParquetMetricsRowGroupFilter {
         return ROWS_CANNOT_MATCH;
       }
 
+      @SuppressWarnings("unchecked")
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
         if (allNulls(colStats, valueCount)) {
@@ -486,7 +486,6 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
       Long valueCount = valueCounts.get(id);
@@ -496,6 +495,7 @@ public class ParquetMetricsRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
+      @SuppressWarnings("unchecked")
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
         if (mayContainNull(colStats)) {
