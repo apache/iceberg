@@ -41,8 +41,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
@@ -52,11 +55,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.FieldSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestInclusiveMetricsEvaluatorWithExtract {
   private static final Schema SCHEMA =
@@ -682,5 +689,250 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
                     INT_MAX_VALUE + 7)))
         .as("Should read: id above upper bound (85 > 79, 86 > 79)")
         .isTrue();
+  }
+
+  private static Stream<Arguments> timestampEqParameters() {
+    return Stream.of(
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-03-21T00:00:01.123456789",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-03-21",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampEqParameters")
+  public void testTimestampEq(
+      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+    // lower bounds
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
+    // upper bounds
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
+
+    DataFile file =
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    Expression expr = equal(extract("variant", "$.event_timestamp", variantType), literal);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+  }
+
+  private static Stream<Arguments> timestampNanoEqParameters() {
+    return Stream.of(
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-03-21T00:00:01.123456",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-03-21",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampNanoEqParameters")
+  public void testTimestampNanoEq(
+      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+    // lower bounds
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
+    // upper bounds
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
+
+    DataFile file =
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    Expression expr = equal(extract("variant", "$.event_timestamp", variantType), literal);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+  }
+
+  private static Stream<Arguments> dateEqParameters() {
+    return Stream.of(
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-03-21T00:00:01.123456",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-03-21T00:00:01.123456789",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("dateEqParameters")
+  public void testDateEq(
+      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+    // lower bounds
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
+    // upper bounds
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
+
+    DataFile file =
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    Expression expr = equal(extract("variant", "$.event_timestamp", variantType), literal);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+  }
+
+  private static Stream<Arguments> timestampNotEqParameters() {
+    return Stream.of(
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-03-01T00:00:01.123456",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-03-01",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-04-01",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampNotEqParameters")
+  public void testTimestampNotEq(
+      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+    // lower bounds
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
+    // upper bounds
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
+
+    DataFile file =
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    Expression expr = notEqual(extract("variant", "$.event_timestamp", variantType), literal);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+  }
+
+  private static Stream<Arguments> timestampNanoNotEqParameters() {
+    return Stream.of(
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-03-01T00:00:01.123456",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-03-01",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-04-01",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampNanoNotEqParameters")
+  public void testTimestampNanoNotEq(
+      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+    // lower bounds
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
+    // upper bounds
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
+
+    DataFile file =
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    Expression expr = notEqual(extract("variant", "$.event_timestamp", variantType), literal);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+  }
+
+  private static Stream<Arguments> dateNotEqParameters() {
+    return Stream.of(
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-03-01T00:00:01.123456",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")),
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-03-01T00:00:01.123456789",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456789",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("dateNotEqParameters")
+  public void testDateNotEq(
+      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+    // lower bounds
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", lowerBound)));
+    // upper bounds
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_timestamp']", upperBound)));
+
+    DataFile file =
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    Expression expr = notEqual(extract("variant", "$.event_timestamp", variantType), literal);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+  }
+
+  @Test
+  public void testUUIDEq() {
+    UUID uuid = UUID.randomUUID();
+    // lower bounds
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_uuid']", Variants.ofUUID(uuid))));
+    // upper bounds
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(
+            2, VariantTestUtil.variantBuffer(Map.of("$['event_uuid']", Variants.ofUUID(uuid))));
+    DataFile file =
+        new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
+    Expression expr = equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), uuid);
+    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
   }
 }
