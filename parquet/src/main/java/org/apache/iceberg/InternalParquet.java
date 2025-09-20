@@ -37,6 +37,6 @@ public class InternalParquet {
   }
 
   private static Parquet.ReadBuilder readInternal(InputFile inputFile) {
-    return Parquet.read(inputFile).createReaderFunc(InternalReader::create);
+    return Parquet.read(inputFile).createReaderFunc(InternalReader.readerFunction());
   }
 }
