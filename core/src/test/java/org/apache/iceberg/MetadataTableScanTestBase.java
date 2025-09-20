@@ -21,10 +21,12 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -35,6 +37,29 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class MetadataTableScanTestBase extends TestBase {
+
+  @Parameters(name = "formatVersion = {0}, planningMode = {1}")
+  protected static List<Object[]> parameters() {
+    return TestHelpers.ALL_VERSIONS.stream()
+        .flatMap(
+            v ->
+                Stream.of(PlanningMode.LOCAL, PlanningMode.DISTRIBUTED)
+                    .map(mode -> new Object[] {v, mode}))
+        .collect(Collectors.toList());
+  }
+
+  @Parameter(index = 1)
+  protected PlanningMode planningMode;
+
+  @Override
+  protected TestTables.TestTable create(Schema schema, PartitionSpec spec) {
+    TestTables.TestTable testTable = super.create(schema, spec);
+    testTable
+        .updateProperties()
+        .set(TableProperties.METADATA_PLANNING_MODE, planningMode.modeName())
+        .commit();
+    return testTable;
+  }
 
   protected Set<String> scannedPaths(TableScan scan) {
     return StreamSupport.stream(scan.planFiles().spliterator(), false)
