@@ -923,6 +923,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     // filter any existing manifests
     List<ManifestFile> filtered =
         filterManager.filterManifests(
+            base.schemas(),
             SnapshotUtil.schemaFor(base, targetBranch()),
             snapshot != null ? snapshot.dataManifests(ops().io()) : null);
     long minDataSequenceNumber =
@@ -943,6 +944,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     List<ManifestFile> filteredDeletes =
         deleteFilterManager.filterManifests(
+            base.schemas(),
             SnapshotUtil.schemaFor(base, targetBranch()),
             snapshot != null ? snapshot.deleteManifests(ops().io()) : null);
 
