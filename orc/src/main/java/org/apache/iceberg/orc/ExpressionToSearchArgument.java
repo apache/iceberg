@@ -270,6 +270,22 @@ class ExpressionToSearchArgument
   }
 
   @Override
+  public <T> Action contains(Bound<T> expr, Literal<T> lit) {
+    // Cannot push down CONTAINS operator to ORC, so return TruthValue.YES_NO_NULL which
+    // signifies
+    // that this predicate cannot help with filtering
+    return () -> this.builder.literal(TruthValue.YES_NO_NULL);
+  }
+
+  @Override
+  public <T> Action notContains(Bound<T> expr, Literal<T> lit) {
+    // Cannot push down NOT_CONTAINS operator to ORC, so return TruthValue.YES_NO_NULL which
+    // signifies
+    // that this predicate cannot help with filtering
+    return () -> this.builder.literal(TruthValue.YES_NO_NULL);
+  }
+
+  @Override
   public <T> Action predicate(BoundPredicate<T> pred) {
     if (UNSUPPORTED_TYPES.contains(pred.ref().type().typeId())
         || !(pred.term() instanceof BoundReference)) {
