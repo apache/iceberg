@@ -1029,8 +1029,8 @@ public class TestMetricsRowGroupFilter {
       MessageType fileSchema = reader.getFileMetaData().getSchema();
       ParquetMetricsRowGroupFilter rowGroupFilter =
           new ParquetMetricsRowGroupFilter(VARIANT_SCHEMA, notNull("variant_field"), true);
-      boolean shouldRead = rowGroupFilter.shouldRead(fileSchema, blockMetaData);
-      assertThat(shouldRead)
+
+      assertThat(rowGroupFilter.shouldRead(fileSchema, blockMetaData))
           .as("Should read: variant notNull filters must be evaluated post scan")
           .isTrue();
     }
@@ -1054,12 +1054,10 @@ public class TestMetricsRowGroupFilter {
     try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
       BlockMetaData blockMetaData = reader.getRowGroups().get(0);
       MessageType fileSchema = reader.getFileMetaData().getSchema();
-
       ParquetMetricsRowGroupFilter rowGroupFilter =
           new ParquetMetricsRowGroupFilter(VARIANT_SCHEMA, notNull("variant_field"), true);
-      boolean shouldRead = rowGroupFilter.shouldRead(fileSchema, blockMetaData);
 
-      assertThat(shouldRead)
+      assertThat(rowGroupFilter.shouldRead(fileSchema, blockMetaData))
           .as("Should read: variant notNull filters must be evaluated post scan even for all nulls")
           .isTrue();
     }

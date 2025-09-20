@@ -83,7 +83,8 @@ public class SparkTestHelperBase {
       } else if (expectedValue instanceof VariantVal && actualValue instanceof VariantVal) {
         // Spark VariantVal comparison is based on raw byte[] comparison, which can fail
         // if Spark uses trailing null bytes. so, we compare their JSON representation instead.
-        assertThat((actualValue).toString())
+        assertThat(actualValue)
+            .asString()
             .as("%s contents should match (VariantVal JSON)", context)
             .isEqualTo((expectedValue).toString());
       } else if (expectedValue != ANY) {
