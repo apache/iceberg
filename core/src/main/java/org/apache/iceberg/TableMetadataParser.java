@@ -318,8 +318,16 @@ public class TableMetadataParser {
     return read(io.newInputFile(path));
   }
 
-  public static TableMetadata read(FileIO io, InputFile input) {
-    InputFile file = newInputFile(io, input);
+  public static TableMetadata read(FileIO io, InputFile file) {
+    InputFile wrapped = newInputFile(io, file);
+    return read(wrapped);
+  }
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #read(FileIO, InputFile)} instead.
+   */
+  @Deprecated
+  public static TableMetadata read(InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
