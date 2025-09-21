@@ -22,7 +22,6 @@ import java.lang.reflect.Array;
 import java.util.Map;
 import java.util.function.BiFunction;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
@@ -82,13 +81,13 @@ class ProcedureInput {
     return args.isNullAt(ordinal) ? defaultValue : (Integer) args.getInt(ordinal);
   }
 
-  public long asTimestampLong(ProcedureParameter param) {
-    Long value = asTimestampLong(param, null);
+  public long asTimestampMillis(ProcedureParameter param) {
+    Long value = asTimestampMillis(param, null);
     Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
     return value;
   }
 
-  public Long asTimestampLong(ProcedureParameter param, Long defaultValue) {
+  public Long asTimestampMillis(ProcedureParameter param, Long defaultValue) {
     validateParamType(param, DataTypes.TimestampType);
     int ordinal = ordinal(param);
     Long value = args.isNullAt(ordinal) ? defaultValue : (Long) args.getLong(ordinal);
@@ -110,9 +109,15 @@ class ProcedureInput {
     return args.isNullAt(ordinal) ? defaultValue : (Long) args.getLong(ordinal);
   }
 
-  public Long[] asLongArray(ProcedureParameter param, Long[] defaultValue) {
+  public long[] asLongArray(ProcedureParameter param, Long[] defaultValue) {
     validateParamType(param, DataTypes.createArrayType(DataTypes.LongType));
-    return array(param, (array, ordinal) -> array.getLong(ordinal), Long.class, defaultValue);
+    Long[] source =
+        array(param, (array, ordinal) -> array.getLong(ordinal), Long.class, defaultValue);
+    long[] result = new long[source.length];
+    for (int i = 0; i < source.length; i++) {
+      result[i] = source[i];
+    }
+    return result;
   }
 
   public String asString(ProcedureParameter param) {
@@ -140,13 +145,6 @@ class ProcedureInput {
         (array, ordinal) -> array.getUTF8String(ordinal).toString(),
         String.class,
         defaultValue);
-  }
-
-  public DeleteOrphanFiles.PrefixMismatchMode asPrefixMismatchMode(ProcedureParameter param) {
-    String modeAsString = asString(param, null);
-    return (modeAsString == null)
-        ? null
-        : DeleteOrphanFiles.PrefixMismatchMode.fromString(modeAsString);
   }
 
   @SuppressWarnings("unchecked")

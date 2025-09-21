@@ -87,7 +87,7 @@ class RollbackToTimestampProcedure extends BaseProcedure {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
     // timestamps in Spark have microsecond precision so this conversion is lossy
-    long timestampMillis = input.asTimestampLong(TIMESTAMP_PARAM);
+    long timestampMillis = input.asTimestampMillis(TIMESTAMP_PARAM);
 
     return modifyIcebergTable(
         tableIdent,

@@ -126,7 +126,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
-    Long olderThanMillis = input.asTimestampLong(OLDER_THAN_PARAM, null);
+    Long olderThanMillis = input.asTimestampMillis(OLDER_THAN_PARAM, null);
     String location = input.asString(LOCATION_PARAM, null);
     boolean dryRun = input.asBoolean(DRY_RUN_PARAM, false);
     Integer maxConcurrentDeletes = input.asInt(MAX_CONCURRENT_DELETES_PARAM, null);
@@ -141,22 +141,21 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     Map<String, String> equalAuthorities =
         input.asStringMap(EQUAL_AUTHORITIES_PARAM, ImmutableMap.of());
 
-    PrefixMismatchMode prefixMismatchMode = input.asPrefixMismatchMode(PREFIX_MISMATCH_MODE_PARAM);
+    PrefixMismatchMode prefixMismatchMode = asPrefixMismatchMode(input, PREFIX_MISMATCH_MODE_PARAM);
 
     boolean prefixListing = input.asBoolean(PREFIX_LISTING_PARAM, false);
 
-    Long finalOlderThanMillis = olderThanMillis;
     return withIcebergTable(
         tableIdent,
         table -> {
           DeleteOrphanFilesSparkAction action = actions().deleteOrphanFiles(table);
 
-          if (finalOlderThanMillis != null) {
+          if (olderThanMillis != null) {
             boolean isTesting = Boolean.parseBoolean(spark().conf().get("spark.testing", "false"));
             if (!isTesting) {
-              validateInterval(finalOlderThanMillis);
+              validateInterval(olderThanMillis);
             }
-            action.olderThan(finalOlderThanMillis);
+            action.olderThan(olderThanMillis);
           }
 
           if (location != null) {
@@ -235,5 +234,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   @Override
   public String description() {
     return "RemoveOrphanFilesProcedure";
+  }
+
+  private PrefixMismatchMode asPrefixMismatchMode(ProcedureInput input, ProcedureParameter param) {
+    String modeAsString = input.asString(param, null);
+    return (modeAsString == null) ? null : PrefixMismatchMode.fromString(modeAsString);
   }
 }

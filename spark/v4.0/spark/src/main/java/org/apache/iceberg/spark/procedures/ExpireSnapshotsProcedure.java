@@ -120,11 +120,11 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
-    Long olderThanMillis = input.asTimestampLong(OLDER_THAN_PARAM, null);
+    Long olderThanMillis = input.asTimestampMillis(OLDER_THAN_PARAM, null);
     Integer retainLastNum = input.asInt(RETAIN_LAST_PARAM, null);
     Integer maxConcurrentDeletes = input.asInt(MAX_CONCURRENT_DELETES_PARAM, null);
     boolean streamResult = input.asBoolean(STREAM_RESULTS_PARAM, false);
-    Long[] snapshotIds = input.asLongArray(SNAPSHOT_IDS_PARAM, null);
+    long[] snapshotIds = input.asLongArray(SNAPSHOT_IDS_PARAM, null);
     boolean cleanExpiredMetadata = input.asBoolean(CLEAN_EXPIRED_METADATA_PARAM, false);
 
     Preconditions.checkArgument(
