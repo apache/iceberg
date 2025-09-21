@@ -198,3 +198,23 @@ is available on the Hive Metastore server, if it is backed by MySQL or MariaDB
 Even with `iceberg.engine.hive.lock-enabled` set to `false`, a HiveCatalog can still use locks for individual tables by setting the table property `engine.hive.lock-enabled`=`true`.
 This is useful in the case where other HiveCatalogs cannot be upgraded and set to commit without using Hive locks.
 
+## REST catalog authentication properties
+
+The REST catalog supports multiple authentication mechanisms to secure access to catalog operations. These properties are used to configure authentication for REST catalog clients.
+
+| Property                          | Default            | Description                                            |
+| --------------------------------- | ------------------ | ------------------------------------------------------ |
+| rest.auth.type                    | null               | Authentication type: `none`, `basic`, `oauth2`, `sigv4`, `google` |
+| rest.auth.basic.username          | null               | Username for basic authentication                      |
+| rest.auth.basic.password          | null               | Password for basic authentication                      |
+| oauth2-server-uri                 | null               | OAuth2 server URI for token endpoint                   |
+| token                             | null               | Bearer token for OAuth2 authentication                 |
+| credential                        | null               | Credential to exchange for OAuth2 token                 |
+| token-expires-in-ms               | 3600000 (1 hour)   | Token expiration time in milliseconds                  |
+| token-refresh-enabled             | true               | Whether to refresh tokens when expiration info is available |
+| token-exchange-enabled           | true               | Whether to use token exchange for acquiring new tokens |
+| scope                             | null               | Additional scope for OAuth2                            |
+| audience                          | null               | Optional audience parameter for OAuth2                 |
+| resource                          | null               | Optional resource parameter for OAuth2                 |
+| rest.auth.sigv4.delegate-auth-type| oauth2             | Delegate auth type for SigV4 authentication           |
+
