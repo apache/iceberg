@@ -26,16 +26,12 @@ import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class UpdateViewOperation {
+public class UpdateViewOperation implements Operation {
     private final OperationType operationType = OperationType.UPDATE_VIEW;
     private final TableIdentifier identifier;
     private final String viewUuid;
     private final MetadataUpdate[] updates;
     private final UpdateRequirement[] requirements;
-
-    public UpdateViewOperation(TableIdentifier identifier, String viewUuid, MetadataUpdate[] updates) {
-        this(identifier, viewUuid, updates, null);
-    }
 
     public UpdateViewOperation(TableIdentifier identifier,
                                String viewUuid, MetadataUpdate[] updates,
@@ -44,6 +40,10 @@ public class UpdateViewOperation {
         this.viewUuid = viewUuid;
         this.updates = updates;
         this.requirements = requirements;
+    }
+
+    public UpdateViewOperation(TableIdentifier identifier, String viewUuid, MetadataUpdate[] updates) {
+        this(identifier, viewUuid, updates, null);
     }
 
     public OperationType operationType() {

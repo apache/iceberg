@@ -24,7 +24,7 @@ package org.apache.iceberg.rest.operations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class RenameTableOperation {
+public class RenameTableOperation implements Operation {
     private final OperationType operationType = OperationType.RENAME_TABLE;
     private final TableIdentifier sourceIdentifier;
     private final TableIdentifier targetIdentifier;

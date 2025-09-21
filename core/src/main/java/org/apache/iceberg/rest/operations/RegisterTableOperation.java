@@ -25,20 +25,20 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class RegisterTableOperation {
+public class RegisterTableOperation implements Operation {
     private final OperationType operationType = OperationType.REGISTER_TABLE;
     private final TableIdentifier identifier;
     private final String tableUuid;
     private final MetadataUpdate[] updates;
 
-    public RegisterTableOperation(TableIdentifier identifier, String tableUuid) {
-        this(identifier, tableUuid, null);
-    }
-
     public RegisterTableOperation(TableIdentifier identifier, String tableUuid, MetadataUpdate[] updates) {
         this.identifier = identifier;
         this.tableUuid = tableUuid;
         this.updates = updates;
+    }
+
+    public RegisterTableOperation(TableIdentifier identifier, String tableUuid) {
+        this(identifier, tableUuid, null);
     }
 
     public OperationType operationType() {

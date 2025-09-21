@@ -21,30 +21,5 @@
 
 package org.apache.iceberg.rest.operations;
 
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-
-public class DropNamespaceOperation implements Operation {
-    private final OperationType operationType = OperationType.DROP_NAMESPACE;
-    private final Namespace namespace;
-
-    public DropNamespaceOperation(Namespace namespace) {
-        this.namespace = namespace;
-    }
-
-    public OperationType operationType() {
-        return operationType;
-    }
-
-    public Namespace namespace() {
-        return namespace;
-    }
-
-    @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(this)
-                .add("operationType", operationType)
-                .add("namespace", namespace)
-                .toString();
-    }
-}
+/** Marker interface to be implemented by all catalog object operations. */
+public interface Operation {}

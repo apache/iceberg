@@ -24,7 +24,7 @@ package org.apache.iceberg.rest.operations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class DropViewOperation {
+public class DropViewOperation implements Operation {
     private final OperationType operationType = OperationType.DROP_VIEW;
     private final TableIdentifier identifier;
     private final String viewUuid;

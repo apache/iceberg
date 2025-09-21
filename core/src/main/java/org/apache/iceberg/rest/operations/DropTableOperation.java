@@ -24,20 +24,20 @@ package org.apache.iceberg.rest.operations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class DropTableOperation {
+public class DropTableOperation implements Operation {
     private final OperationType operationType = OperationType.DROP_TABLE;
     private final TableIdentifier identifier;
     private final String tableUuid;
     private final boolean purge;
 
-    public DropTableOperation(TableIdentifier identifier, String tableUuid) {
-        this(identifier, tableUuid, false);
-    }
-
     public DropTableOperation(TableIdentifier identifier, String tableUuid, boolean purge) {
         this.identifier = identifier;
         this.tableUuid = tableUuid;
         this.purge = purge;
+    }
+
+    public DropTableOperation(TableIdentifier identifier, String tableUuid) {
+        this(identifier, tableUuid, false);
     }
 
     public OperationType operationType() {

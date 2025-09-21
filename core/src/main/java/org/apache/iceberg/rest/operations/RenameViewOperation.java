@@ -24,7 +24,7 @@ package org.apache.iceberg.rest.operations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class RenameViewOperation {
+public class RenameViewOperation implements Operation {
     private final OperationType operationType = OperationType.RENAME_VIEW;
     private final TableIdentifier sourceIdentifier;
     private final TableIdentifier targetIdentifier;

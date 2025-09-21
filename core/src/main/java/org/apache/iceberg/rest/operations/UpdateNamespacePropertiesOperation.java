@@ -21,32 +21,31 @@
 
 package org.apache.iceberg.rest.operations;
 
-import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class UpdateNamespacePropertiesOperation {
+public class UpdateNamespacePropertiesOperation implements Operation {
     private final OperationType operationType = OperationType.UPDATE_NAMESPACE_PROPERTIES;
     private final Namespace namespace;
     // List of namespace property keys that were removed
-    private final List<String> removed;
+    private final String[] removed;
     // List of namespace property keys that were added or updated
-    private final List<String> updated;
+    private final String[] updated;
     // List of properties that were requested for removal that were not found in the namespace's properties
-    private final List<String> missing;
-
-    public UpdateNamespacePropertiesOperation(Namespace namespace, List<String> removed, List<String> updated) {
-        this(namespace, removed, updated, null);
-    }
+    private final String[] missing;
 
     public UpdateNamespacePropertiesOperation(Namespace namespace,
-                                              List<String> removed,
-                                              List<String> updated,
-                                              List<String> missing) {
+                                              String[] removed,
+                                              String[] updated,
+                                              String[] missing) {
         this.namespace = namespace;
         this.removed = removed;
         this.updated = updated;
         this.missing = missing;
+    }
+
+    public UpdateNamespacePropertiesOperation(Namespace namespace, String[] removed, String[] updated) {
+        this(namespace, removed, updated, null);
     }
 
     public OperationType operationType() {
@@ -57,15 +56,15 @@ public class UpdateNamespacePropertiesOperation {
         return namespace;
     }
 
-    public List<String> removed() {
+    public String[] removed() {
         return removed;
     }
 
-    public List<String> updated() {
+    public String[] updated() {
         return updated;
     }
 
-    public List<String> missing() {
+    public String[] missing() {
         return missing;
     }
 

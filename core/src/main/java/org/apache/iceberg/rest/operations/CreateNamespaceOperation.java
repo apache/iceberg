@@ -25,7 +25,7 @@ import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class CreateNamespaceOperation {
+public class CreateNamespaceOperation implements Operation {
     private final OperationType operationType = OperationType.CREATE_NAMESPACE;
     private final Namespace namespace;
     private final Map<String, String> properties;

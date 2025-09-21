@@ -26,7 +26,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class CustomOperation {
+public class CustomOperation implements Operation {
     private final OperationType operationType = OperationType.CUSTOM;
     private final OperationType.CustomOperationType customOperationType;
 
@@ -36,10 +36,6 @@ public class CustomOperation {
     private final String tableUuid;
     private final String viewUuid;
     private final Map<String, String> properties;
-
-    public CustomOperation(OperationType.CustomOperationType customOperationType){
-        this(customOperationType, null, null, null, null, null);
-    }
 
     public CustomOperation(
         OperationType.CustomOperationType customOperationType,
@@ -54,6 +50,10 @@ public class CustomOperation {
         this.tableUuid = tableUuid;
         this.viewUuid = viewUuid;
         this.properties = properties;
+    }
+
+    public CustomOperation(OperationType.CustomOperationType customOperationType){
+        this(customOperationType, null, null, null, null, null);
     }
 
     public OperationType operationType() {

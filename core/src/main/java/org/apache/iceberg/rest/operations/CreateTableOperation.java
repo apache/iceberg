@@ -25,7 +25,7 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class CreateTableOperation {
+public class CreateTableOperation implements Operation {
     private final OperationType operationType = OperationType.CREATE_TABLE;
     private TableIdentifier identifier;
     private String tableUuid;
