@@ -21,7 +21,6 @@ package org.apache.iceberg.azure;
 import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.TokenCredential;
 import com.azure.core.credential.TokenRequestContext;
-import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
@@ -49,6 +48,21 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
   public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
   public static final String ADLS_TOKEN = "adls.token";
+
+  /**
+   * Configure the Azure token credential provider used to get {@link TokenCredential}. A fully
+   * qualified concrete class with package that implements the {@link AzureTokenCredentialProvider}
+   * interface is required.
+   *
+   * <p>The implementation class must have a no-arg constructor and will be initialized by calling
+   * the {@link AzureTokenCredentialProvider#initialize(Map)} method with the catalog properties.
+   *
+   * <p>Example: adls.token-credential-provider=com.example.MyCustomTokenCredentialProvider
+   *
+   * <p>When set, the {@link AzureTokenCredentialProviders#from(Map)} method will use this provider
+   * to get Azure credentials instead of using the default.
+   */
+  public static final String ADLS_TOKEN_CREDENTIAL_PROVIDER = "adls.token-credential-provider";
 
   /**
    * When set, the {@link VendedAdlsCredentialProvider} will be used to fetch and refresh vended
@@ -153,7 +167,9 @@ public class AzureProperties implements Serializable {
             };
         builder.credential(tokenCredential);
       } else {
-        builder.credential(new DefaultAzureCredentialBuilder().build());
+        AzureTokenCredentialProvider credentialProvider =
+            AzureTokenCredentialProviders.from(allProperties);
+        builder.credential(credentialProvider.credential());
       }
     }
 
