@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest.operations;
 
+import java.util.List;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -26,10 +27,10 @@ public class RegisterTableOperation implements Operation {
   private final OperationType operationType = OperationType.REGISTER_TABLE;
   private final TableIdentifier identifier;
   private final String tableUuid;
-  private final MetadataUpdate[] updates;
+  private final List<MetadataUpdate> updates;
 
   public RegisterTableOperation(
-      TableIdentifier identifier, String tableUuid, MetadataUpdate[] updates) {
+      TableIdentifier identifier, String tableUuid, List<MetadataUpdate> updates) {
     this.identifier = identifier;
     this.tableUuid = tableUuid;
     this.updates = updates;
@@ -51,7 +52,7 @@ public class RegisterTableOperation implements Operation {
     return tableUuid;
   }
 
-  public MetadataUpdate[] updates() {
+  public List<MetadataUpdate> updates() {
     return updates;
   }
 

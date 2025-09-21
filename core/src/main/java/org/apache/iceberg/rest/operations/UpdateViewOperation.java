@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest.operations;
 
+import java.util.List;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -27,14 +28,14 @@ public class UpdateViewOperation implements Operation {
   private final OperationType operationType = OperationType.UPDATE_VIEW;
   private final TableIdentifier identifier;
   private final String viewUuid;
-  private final MetadataUpdate[] updates;
-  private final UpdateRequirement[] requirements;
+  private final List<MetadataUpdate> updates;
+  private final List<UpdateRequirement> requirements;
 
   public UpdateViewOperation(
       TableIdentifier identifier,
       String viewUuid,
-      MetadataUpdate[] updates,
-      UpdateRequirement[] requirements) {
+      List<MetadataUpdate> updates,
+      List<UpdateRequirement> requirements) {
     this.identifier = identifier;
     this.viewUuid = viewUuid;
     this.updates = updates;
@@ -42,7 +43,7 @@ public class UpdateViewOperation implements Operation {
   }
 
   public UpdateViewOperation(
-      TableIdentifier identifier, String viewUuid, MetadataUpdate[] updates) {
+      TableIdentifier identifier, String viewUuid, List<MetadataUpdate> updates) {
     this(identifier, viewUuid, updates, null);
   }
 
@@ -58,11 +59,11 @@ public class UpdateViewOperation implements Operation {
     return viewUuid;
   }
 
-  public MetadataUpdate[] updates() {
+  public List<MetadataUpdate> updates() {
     return updates;
   }
 
-  public UpdateRequirement[] requirements() {
+  public List<UpdateRequirement> requirements() {
     return requirements;
   }
 
