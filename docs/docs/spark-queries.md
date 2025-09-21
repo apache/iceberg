@@ -22,6 +22,10 @@ title: "Queries"
 
 To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md). Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations.
 
+## Spark SQL Functions for Iceberg Transforms
+
+Iceberg provides specialized SQL functions that correspond to partition transforms. These functions are useful for data partitioning, filtering, and analysis. For detailed documentation of available functions including `years`, `months`, `days`, `hours`, `bucket`, `truncate`, and `iceberg_version`, see [Spark SQL Functions](spark-sql-functions.md).
+
 ## Querying with SQL
 
 In Spark 3, tables use identifiers that include a [catalog name](spark-configuration.md#using-catalogs).
