@@ -82,7 +82,7 @@ public class AzureProperties implements Serializable {
   private String adlsRefreshCredentialsEndpoint;
   private boolean adlsRefreshCredentialsEnabled;
   private String token;
-  private Map<String, String> allProperties;
+  private Map<String, String> allProperties = Collections.emptyMap();
 
   public AzureProperties() {}
 
