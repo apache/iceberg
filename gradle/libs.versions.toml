@@ -50,7 +50,7 @@ flink119 =  { strictly = "1.19.2"}
 flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
 google-libraries-bom = "26.67.0"
-guava = "33.4.8-jre"
+guava = "33.5.0-jre"
 hadoop3 = "3.4.1"
 httpcomponents-httpclient5 = "5.5"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above

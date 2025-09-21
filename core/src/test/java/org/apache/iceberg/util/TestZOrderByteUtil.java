@@ -25,7 +25,6 @@ import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
-import org.apache.iceberg.relocated.com.google.common.primitives.UnsignedBytes;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -184,8 +183,7 @@ public class TestZOrderByteUtil {
       int intCompare = Integer.signum(Integer.compare(aInt, bInt));
       byte[] aBytes = ZOrderByteUtils.intToOrderedBytes(aInt, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.intToOrderedBytes(bInt, bBuffer).array();
-      int byteCompare =
-          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare = Integer.signum(Arrays.compareUnsigned(aBytes, bBytes));
 
       assertThat(byteCompare)
           .as(
@@ -211,8 +209,7 @@ public class TestZOrderByteUtil {
       int longCompare = Integer.signum(Long.compare(aLong, bLong));
       byte[] aBytes = ZOrderByteUtils.longToOrderedBytes(aLong, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.longToOrderedBytes(bLong, bBuffer).array();
-      int byteCompare =
-          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare = Integer.signum(Arrays.compareUnsigned(aBytes, bBytes));
 
       assertThat(byteCompare)
           .as(
@@ -238,8 +235,7 @@ public class TestZOrderByteUtil {
       int longCompare = Integer.signum(Long.compare(aShort, bShort));
       byte[] aBytes = ZOrderByteUtils.shortToOrderedBytes(aShort, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.shortToOrderedBytes(bShort, bBuffer).array();
-      int byteCompare =
-          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare = Integer.signum(Arrays.compareUnsigned(aBytes, bBytes));
 
       assertThat(byteCompare)
           .as(
@@ -265,8 +261,7 @@ public class TestZOrderByteUtil {
       int longCompare = Integer.signum(Long.compare(aByte, bByte));
       byte[] aBytes = ZOrderByteUtils.tinyintToOrderedBytes(aByte, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.tinyintToOrderedBytes(bByte, bBuffer).array();
-      int byteCompare =
-          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare = Integer.signum(Arrays.compareUnsigned(aBytes, bBytes));
 
       assertThat(byteCompare)
           .as(
@@ -292,8 +287,7 @@ public class TestZOrderByteUtil {
       int floatCompare = Integer.signum(Float.compare(aFloat, bFloat));
       byte[] aBytes = ZOrderByteUtils.floatToOrderedBytes(aFloat, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.floatToOrderedBytes(bFloat, bBuffer).array();
-      int byteCompare =
-          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare = Integer.signum(Arrays.compareUnsigned(aBytes, bBytes));
 
       assertThat(byteCompare)
           .as(
@@ -319,8 +313,7 @@ public class TestZOrderByteUtil {
       int doubleCompare = Integer.signum(Double.compare(aDouble, bDouble));
       byte[] aBytes = ZOrderByteUtils.doubleToOrderedBytes(aDouble, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.doubleToOrderedBytes(bDouble, bBuffer).array();
-      int byteCompare =
-          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare = Integer.signum(Arrays.compareUnsigned(aBytes, bBytes));
 
       assertThat(byteCompare)
           .as(
@@ -347,8 +340,7 @@ public class TestZOrderByteUtil {
       int stringCompare = Integer.signum(aString.compareTo(bString));
       byte[] aBytes = ZOrderByteUtils.stringToOrderedBytes(aString, 128, aBuffer, encoder).array();
       byte[] bBytes = ZOrderByteUtils.stringToOrderedBytes(bString, 128, bBuffer, encoder).array();
-      int byteCompare =
-          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare = Integer.signum(Arrays.compareUnsigned(aBytes, bBytes));
 
       assertThat(byteCompare)
           .as(
@@ -371,12 +363,10 @@ public class TestZOrderByteUtil {
     for (int i = 0; i < NUM_TESTS; i++) {
       byte[] aBytesRaw = (byte[]) RandomUtil.generatePrimitive(Types.BinaryType.get(), random);
       byte[] bBytesRaw = (byte[]) RandomUtil.generatePrimitive(Types.BinaryType.get(), random);
-      int stringCompare =
-          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytesRaw, bBytesRaw));
+      int stringCompare = Integer.signum(Arrays.compareUnsigned(aBytesRaw, bBytesRaw));
       byte[] aBytes = ZOrderByteUtils.byteTruncateOrFill(aBytesRaw, 128, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.byteTruncateOrFill(bBytesRaw, 128, bBuffer).array();
-      int byteCompare =
-          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare = Integer.signum(Arrays.compareUnsigned(aBytes, bBytes));
 
       assertThat(byteCompare)
           .as(
