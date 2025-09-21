@@ -697,18 +697,60 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
             Types.TimestampNanoType.withoutZone().toString(),
             "1970-03-21T00:00:01.123456789",
             Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
-            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+            true),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-01-11T00:00:01.123456789",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+            false),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-01-30T00:00:01.123456789",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+            false),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456789",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+            false),
         Arguments.of(
             Types.DateType.get().toString(),
             "1970-03-21",
             Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
-            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456")));
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+            true),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-01-11",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+            false),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-01-30",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+            false),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-04-01",
+            Variants.ofIsoTimestampntz("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntz("1970-03-31T00:00:01.123456"),
+            false));
   }
 
   @ParameterizedTest
   @MethodSource("timestampEqParameters")
   public void testTimestampEq(
-      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+      String variantType,
+      String literal,
+      VariantValue lowerBound,
+      VariantValue upperBound,
+      boolean expected) {
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
         ImmutableMap.of(
@@ -721,7 +763,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     DataFile file =
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
     Expression expr = equal(extract("variant", "$.event_timestamp", variantType), literal);
-    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+    assertThat(shouldRead(expr, file)).isEqualTo(expected);
   }
 
   private static Stream<Arguments> timestampNanoEqParameters() {
@@ -730,18 +772,60 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
             Types.TimestampType.withoutZone().toString(),
             "1970-03-21T00:00:01.123456",
             Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
-            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+            true),
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-01-11T00:00:01.123456",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+            false),
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-01-30T00:00:01.123456",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+            false),
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+            false),
         Arguments.of(
             Types.DateType.get().toString(),
             "1970-03-21",
             Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
-            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456")));
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+            true),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-01-11",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+            false),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-01-30",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+            false),
+        Arguments.of(
+            Types.DateType.get().toString(),
+            "1970-04-01",
+            Variants.ofIsoTimestampntzNanos("1970-01-31T00:00:01.123456"),
+            Variants.ofIsoTimestampntzNanos("1970-03-31T00:00:01.123456"),
+            false));
   }
 
   @ParameterizedTest
   @MethodSource("timestampNanoEqParameters")
   public void testTimestampNanoEq(
-      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+      String variantType,
+      String literal,
+      VariantValue lowerBound,
+      VariantValue upperBound,
+      boolean expected) {
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
         ImmutableMap.of(
@@ -754,7 +838,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     DataFile file =
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
     Expression expr = equal(extract("variant", "$.event_timestamp", variantType), literal);
-    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+    assertThat(shouldRead(expr, file)).isEqualTo(expected);
   }
 
   private static Stream<Arguments> dateEqParameters() {
@@ -763,18 +847,60 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
             Types.TimestampType.withoutZone().toString(),
             "1970-03-21T00:00:01.123456",
             Variants.ofIsoDate("1970-01-31"),
-            Variants.ofIsoDate("1970-03-31")),
+            Variants.ofIsoDate("1970-03-31"),
+            true),
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-01-11T00:00:01.123456",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31"),
+            false),
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-01-30T00:00:01.123456",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31"),
+            false),
+        Arguments.of(
+            Types.TimestampType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31"),
+            false),
         Arguments.of(
             Types.TimestampNanoType.withoutZone().toString(),
             "1970-03-21T00:00:01.123456789",
             Variants.ofIsoDate("1970-01-31"),
-            Variants.ofIsoDate("1970-03-31")));
+            Variants.ofIsoDate("1970-03-31"),
+            true),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-01-11T00:00:01.123456789",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31"),
+            false),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-01-30T00:00:01.123456789",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31"),
+            false),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone().toString(),
+            "1970-04-01T00:00:01.123456789",
+            Variants.ofIsoDate("1970-01-31"),
+            Variants.ofIsoDate("1970-03-31"),
+            false));
   }
 
   @ParameterizedTest
   @MethodSource("dateEqParameters")
   public void testDateEq(
-      String variantType, String literal, VariantValue lowerBound, VariantValue upperBound) {
+      String variantType,
+      String literal,
+      VariantValue lowerBound,
+      VariantValue upperBound,
+      boolean expected) {
     // lower bounds
     Map<Integer, ByteBuffer> lowerBounds =
         ImmutableMap.of(
@@ -787,7 +913,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     DataFile file =
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
     Expression expr = equal(extract("variant", "$.event_timestamp", variantType), literal);
-    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+    assertThat(shouldRead(expr, file)).isEqualTo(expected);
   }
 
   private static Stream<Arguments> timestampNotEqParameters() {
