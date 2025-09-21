@@ -16,22 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 /** Enum representing {@link CatalogObject} type. */
 public enum CatalogObjectType {
-    NAMESPACE("namespace"),
-    TABLE("table"),
-    VIEW("view");
+  NAMESPACE("namespace"),
+  TABLE("table"),
+  VIEW("view");
 
-    private final String type;
+  private final String type;
 
-    CatalogObjectType(String type) {
-        this.type = type;
-    }
+  CatalogObjectType(String type) {
+    this.type = type;
+  }
 
-    public String type() {
-        return type;
-    }
+  public String type() {
+    return type;
+  }
 }

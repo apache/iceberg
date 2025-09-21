@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import java.util.Arrays;
@@ -25,77 +24,79 @@ import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Reference to a named object in a {@link Catalog}, such as {@link Namespace}, {@link org.apache.iceberg.Table}, or
- *  {@link org.apache.iceberg.view.View}. */
+/**
+ * Reference to a named object in a {@link Catalog}, such as {@link Namespace}, {@link
+ * org.apache.iceberg.Table}, or {@link org.apache.iceberg.view.View}.
+ */
 public class CatalogObject {
   private static final CatalogObject EMPTY_CATALOG_OBJECT = new CatalogObject(new String[] {});
-    private static final Joiner DOT = Joiner.on('.');
-    private static final Predicate<String> CONTAINS_NULL_CHARACTER =
-            Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
+  private static final Joiner DOT = Joiner.on('.');
+  private static final Predicate<String> CONTAINS_NULL_CHARACTER =
+      Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
 
-    public static CatalogObject empty() {
-        return EMPTY_CATALOG_OBJECT;
+  public static CatalogObject empty() {
+    return EMPTY_CATALOG_OBJECT;
+  }
+
+  public static CatalogObject of(String... levels) {
+    Preconditions.checkArgument(null != levels, "Cannot create CatalogObject from null array");
+    if (levels.length == 0) {
+      return empty();
     }
 
-    public static CatalogObject of(String... levels) {
-        Preconditions.checkArgument(null != levels, "Cannot create CatalogObject from null array");
-        if (levels.length == 0) {
-            return empty();
-        }
-
-        for (String level : levels) {
-            Preconditions.checkNotNull(level, "Cannot create a CatalogObject with a null level");
-            Preconditions.checkArgument(
-                    !CONTAINS_NULL_CHARACTER.test(level),
-                    "Cannot create a CatalogObject with the null-byte character");
-        }
-
-        return new CatalogObject(levels);
+    for (String level : levels) {
+      Preconditions.checkNotNull(level, "Cannot create a CatalogObject with a null level");
+      Preconditions.checkArgument(
+          !CONTAINS_NULL_CHARACTER.test(level),
+          "Cannot create a CatalogObject with the null-byte character");
     }
 
-    private final String[] levels;
+    return new CatalogObject(levels);
+  }
 
-    private CatalogObject(String[] levels) {
-        this.levels = levels;
+  private final String[] levels;
+
+  private CatalogObject(String[] levels) {
+    this.levels = levels;
+  }
+
+  public String[] levels() {
+    return levels;
+  }
+
+  public String level(int pos) {
+    return levels[pos];
+  }
+
+  public boolean isEmpty() {
+    return levels.length == 0;
+  }
+
+  public int length() {
+    return levels.length;
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
     }
 
-    public String[] levels() {
-        return levels;
+    if (other == null || getClass() != other.getClass()) {
+      return false;
     }
 
-    public String level(int pos) {
-        return levels[pos];
-    }
+    CatalogObject catalogObject = (CatalogObject) other;
+    return Arrays.equals(levels, catalogObject.levels);
+  }
 
-    public boolean isEmpty() {
-        return levels.length == 0;
-    }
+  @Override
+  public int hashCode() {
+    return Arrays.hashCode(levels);
+  }
 
-    public int length() {
-        return levels.length;
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-
-        if (other == null || getClass() != other.getClass()) {
-            return false;
-        }
-
-        CatalogObject catalogObject = (CatalogObject) other;
-        return Arrays.equals(levels, catalogObject.levels);
-    }
-
-    @Override
-    public int hashCode() {
-        return Arrays.hashCode(levels);
-    }
-
-    @Override
-    public String toString() {
-        return DOT.join(levels);
-    }
+  @Override
+  public String toString() {
+    return DOT.join(levels);
+  }
 }

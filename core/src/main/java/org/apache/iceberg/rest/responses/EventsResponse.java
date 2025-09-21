@@ -1,24 +1,21 @@
 /*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *  * Licensed to the Apache Software Foundation (ASF) under one
- *  * or more contributor license agreements.  See the NOTICE file
- *  * distributed with this work for additional information
- *  * regarding copyright ownership.  The ASF licenses this file
- *  * to you under the Apache License, Version 2.0 (the
- *  * "License"); you may not use this file except in compliance
- *  * with the License.  You may obtain a copy of the License at
- *  *
- *  *   http://www.apache.org/licenses/LICENSE-2.0
- *  *
- *  * Unless required by applicable law or agreed to in writing,
- *  * software distributed under the License is distributed on an
- *  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- *  * KIND, either express or implied.  See the License for the
- *  * specific language governing permissions and limitations
- *  * under the License.
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
@@ -27,38 +24,39 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** Standard response body for event queries */
 public class EventsResponse {
-    private final String nextPageToken;
-    private final Long highestProcessedTimestampMs;
-    private final List<Event> events;
+  private final String nextPageToken;
+  private final Long highestProcessedTimestampMs;
+  private final List<Event> events;
 
-    public EventsResponse(String nextPageToken, Long highestProcessedTimestampMs, List<Event> events) {
-        this.nextPageToken = nextPageToken;
-        this.highestProcessedTimestampMs = highestProcessedTimestampMs;
-        this.events = events;
-    }
+  public EventsResponse(
+      String nextPageToken, Long highestProcessedTimestampMs, List<Event> events) {
+    this.nextPageToken = nextPageToken;
+    this.highestProcessedTimestampMs = highestProcessedTimestampMs;
+    this.events = events;
+  }
 
-    public EventsResponse(Long highestProcessedTimestampMs, List<Event> events) {
-        this(null, highestProcessedTimestampMs, events);
-    }
+  public EventsResponse(Long highestProcessedTimestampMs, List<Event> events) {
+    this(null, highestProcessedTimestampMs, events);
+  }
 
-    public String nextPageToken() {
-        return nextPageToken;
-    }
+  public String nextPageToken() {
+    return nextPageToken;
+  }
 
-    public Long highestProcessedTimestampMs() {
-        return highestProcessedTimestampMs;
-    }
+  public Long highestProcessedTimestampMs() {
+    return highestProcessedTimestampMs;
+  }
 
-    public List<Event> events() {
-        return events;
-    }
+  public List<Event> events() {
+    return events;
+  }
 
-    @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(this)
-                .add("nextPageToken", nextPageToken)
-                .add("highestProcessedTimestampMs", highestProcessedTimestampMs)
-                .add("events", events)
-                .toString();
-    }
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("nextPageToken", nextPageToken)
+        .add("highestProcessedTimestampMs", highestProcessedTimestampMs)
+        .add("events", events)
+        .toString();
+  }
 }

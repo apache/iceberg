@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import java.util.Objects;
@@ -24,54 +23,51 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** Identifies a {@link CatalogObject} by UUID. */
 public class CatalogObjectUuid {
-    private final String uuid;
-    private final CatalogObjectType type;
+  private final String uuid;
+  private final CatalogObjectType type;
 
-    public CatalogObjectUuid(String uuid, CatalogObjectType type) {
-        if (uuid == null || uuid.isEmpty()) {
-            throw new IllegalArgumentException("Invalid UUID: null or empty");
-        }
-
-        if (type == null) {
-            throw new IllegalArgumentException("Invalid CatalogObjectType: null");
-        }
-
-        this.uuid = uuid;
-        this.type = type;
+  public CatalogObjectUuid(String uuid, CatalogObjectType type) {
+    if (uuid == null || uuid.isEmpty()) {
+      throw new IllegalArgumentException("Invalid UUID: null or empty");
     }
 
-    public String uuid() {
-        return uuid;
+    if (type == null) {
+      throw new IllegalArgumentException("Invalid CatalogObjectType: null");
     }
 
-    public CatalogObjectType type() {
-        return type;
+    this.uuid = uuid;
+    this.type = type;
+  }
+
+  public String uuid() {
+    return uuid;
+  }
+
+  public CatalogObjectType type() {
+    return type;
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this).add("uuid", uuid).add("type", type.type()).toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
     }
 
-    @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(this)
-                .add("uuid", uuid)
-                .add("type", type.type())
-                .toString();
+    if (o == null || getClass() != o.getClass()) {
+      return false;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
+    CatalogObjectUuid that = (CatalogObjectUuid) o;
+    return uuid.equals(that.uuid) && type == that.type;
+  }
 
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        CatalogObjectUuid that = (CatalogObjectUuid) o;
-        return uuid.equals(that.uuid) && type == that.type;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(uuid, type);
-    }
+  @Override
+  public int hashCode() {
+    return Objects.hash(uuid, type);
+  }
 }
