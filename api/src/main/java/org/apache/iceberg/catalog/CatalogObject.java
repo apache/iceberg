@@ -25,7 +25,8 @@ import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Reference to a named object in a {@link Catalog}, such as {@link Namespace}, Table, or View. */
+/** Reference to a named object in a {@link Catalog}, such as {@link Namespace}, {@link org.apache.iceberg.Table}, or
+ *  {@link org.apache.iceberg.view.View}. */
 public class CatalogObject {
   private static final CatalogObject EMPTY_CATALOG_OBJECT = new CatalogObject(new String[] {});
     private static final Joiner DOT = Joiner.on('.');

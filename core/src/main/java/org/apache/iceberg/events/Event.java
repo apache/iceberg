@@ -36,8 +36,8 @@ public class Event {
     public Event(
             String eventId,
             String requestId,
-            int eventCount,
-            long timestampMs,
+            Integer eventCount,
+            Long timestampMs,
             Operation operation) {
         this(eventId, requestId, eventCount, timestampMs, "", operation);
     }
@@ -45,8 +45,8 @@ public class Event {
     public Event(
         String eventId,
         String requestId,
-        int eventCount,
-        long timestampMs,
+        Integer eventCount,
+        Long timestampMs,
         String actor,
         Operation operation) {
         this.eventId = eventId;

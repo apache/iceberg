@@ -20,6 +20,7 @@
 package org.apache.iceberg.catalog;
 
 import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** Identifies a {@link CatalogObject} by UUID. */
 public class CatalogObjectUuid {
@@ -49,7 +50,10 @@ public class CatalogObjectUuid {
 
     @Override
     public String toString() {
-        return String.format("CatalogObjectUuid{uuid='%s', type=%s}", uuid, type);
+        return MoreObjects.toStringHelper(this)
+                .add("uuid", uuid)
+                .add("type", type.type())
+                .toString();
     }
 
     @Override

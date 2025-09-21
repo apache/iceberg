@@ -21,6 +21,17 @@ package org.apache.iceberg.catalog;
 
 /** Enum representing {@link CatalogObject} type. */
 public enum CatalogObjectType {
-    TABLE,
-    VIEW
+    NAMESPACE("namespace"),
+    TABLE("table"),
+    VIEW("view");
+
+    private final String type;
+
+    CatalogObjectType(String type) {
+        this.type = type;
+    }
+
+    public String type() {
+        return type;
+    }
 }
