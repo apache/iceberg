@@ -113,6 +113,11 @@ class ProcedureInput {
     validateParamType(param, DataTypes.createArrayType(DataTypes.LongType));
     Long[] source =
         array(param, (array, ordinal) -> array.getLong(ordinal), Long.class, defaultValue);
+
+    if (source == null) {
+      return null;
+    }
+
     long[] result = new long[source.length];
     for (int i = 0; i < source.length; i++) {
       result[i] = source[i];
