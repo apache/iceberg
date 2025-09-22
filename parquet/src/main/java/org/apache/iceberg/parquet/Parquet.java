@@ -827,6 +827,11 @@ public class Parquet {
       return this;
     }
 
+    public DataWriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
+      appenderBuilder.variantShreddingFunc(func);
+      return this;
+    }
+
     public DataWriteBuilder withSpec(PartitionSpec newSpec) {
       this.spec = newSpec;
       return this;
