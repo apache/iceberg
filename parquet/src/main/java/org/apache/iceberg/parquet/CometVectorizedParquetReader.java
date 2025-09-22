@@ -244,9 +244,12 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
         throw CometIOException.fromException("Failed to read row group", e);
       }
 
-      model.setRowGroupInfo(
-          (org.apache.parquet.column.page.PageReadStore) pages.getRowGroupReader(),
-          columnChunkMetadata.get(nextRowGroup));
+      try {
+        CometPageReadStore pageReadStore = new CometPageReadStore(pages.getRowGroupReader());
+        model.setRowGroupInfo(pageReadStore, columnChunkMetadata.get(nextRowGroup));
+      } catch (Exception e) {
+        throw CometIOException.fromException("Failed to read row group info", e);
+      }
       try {
         nextRowGroupStart += pages.getRowCount();
       } catch (Exception e) {

@@ -139,9 +139,9 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
    * <p>NOTE: this should be called before reading a new Parquet column chunk, and after {@link
    * CometColumnReader#reset} is called.
    */
-  public void setPageReader(RowGroupReader pageStore) throws IOException {
+  public void setPageReader(Object pageStore) throws IOException {
     Preconditions.checkState(initialized, "Invalid state: 'reset' should be called first");
-    ((ColumnReader) delegate).setRowGroupReader(pageStore, spec);
+    ((ColumnReader) delegate).setRowGroupReader((RowGroupReader) pageStore, spec);
   }
 
   @Override

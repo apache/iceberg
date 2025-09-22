@@ -25,8 +25,11 @@ import java.util.Map;
 import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.IcebergCometBatchReader;
 import org.apache.comet.parquet.RowGroupReader;
+import org.apache.comet.vector.CometSelectionVector;
+import org.apache.comet.vector.CometVector;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.parquet.CometPageReadStore;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -77,7 +80,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
             && !(readers[i] instanceof CometPositionColumnReader)
             && !(readers[i] instanceof CometDeleteColumnReader)) {
           readers[i].reset();
-          readers[i].setPageReader((RowGroupReader) pageStore);
+          readers[i].setPageReader(((CometPageReadStore) pageStore).getCometRowGroupReader());
         }
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to setRowGroupInfo for Comet vectorization", e);
@@ -92,7 +95,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     delegate.init(delegateReaders);
 
     this.rowStartPosInBatch =
-        ((RowGroupReader) pageStore)
+        pageStore
             .getRowIndexOffset()
             .orElseThrow(
                 () ->
@@ -149,8 +152,8 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
         Pair<int[], Integer> pair = buildRowIdMapping(vectors);
         if (pair != null) {
           int[] rowIdMapping = pair.first();
-          numLiveRows = pair.second();
-          for (int i = 0; i < vectors.length; i++) {
+            numLiveRows = pair.second();
+            for (int i = 0; i < vectors.length; i++) {
             vectors[i] = new ColumnVectorWithFilter(vectors[i], rowIdMapping);
           }
         }
