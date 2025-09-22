@@ -212,7 +212,7 @@ The REST catalog supports multiple authentication mechanisms to secure access to
 | credential                        | null               | Credential to exchange for OAuth2 token                 |
 | token-expires-in-ms               | 3600000 (1 hour)   | Token expiration time in milliseconds                  |
 | token-refresh-enabled             | true               | Whether to refresh tokens when expiration info is available |
-| token-exchange-enabled           | true               | Whether to use token exchange for acquiring new tokens |
+| token-exchange-enabled            | true               | Whether to use token exchange for acquiring new tokens |
 | scope                             | null               | Additional scope for OAuth2                            |
 | audience                          | null               | Optional audience parameter for OAuth2                 |
 | resource                          | null               | Optional resource parameter for OAuth2                 |
