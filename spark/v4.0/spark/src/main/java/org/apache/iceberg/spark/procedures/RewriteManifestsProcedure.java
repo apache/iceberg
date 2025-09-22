@@ -94,7 +94,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
-    boolean useCaching = input.asBoolean(USE_CACHING_PARAM, false);
+    Boolean useCaching = input.asBoolean(USE_CACHING_PARAM, false);
     Integer specId = input.asInt(SPEC_ID_PARAM, null);
 
     return modifyIcebergTable(
@@ -102,7 +102,9 @@ class RewriteManifestsProcedure extends BaseProcedure {
         table -> {
           RewriteManifestsSparkAction action = actions().rewriteManifests(table);
 
-          action.option(RewriteManifestsSparkAction.USE_CACHING, Boolean.toString(useCaching));
+          if (useCaching != null) {
+            action.option(RewriteManifestsSparkAction.USE_CACHING, useCaching.toString());
+          }
 
           if (specId != null) {
             action.specId(specId);

@@ -170,7 +170,9 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
                 ExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
           }
 
-          action.cleanExpiredMetadata(cleanExpiredMetadata);
+          if (cleanExpiredMetadata != null) {
+            action.cleanExpiredMetadata(cleanExpiredMetadata);
+          }
 
           ExpireSnapshots.Result result = action.execute();
 
