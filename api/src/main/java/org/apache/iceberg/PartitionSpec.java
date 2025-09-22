@@ -617,6 +617,8 @@ public class PartitionSpec implements Serializable {
     }
 
     Builder add(List<Integer> sourceIds, int fieldId, String name, Transform<?, ?> transform) {
+      Preconditions.checkNotNull(sourceIds, "sourceIds is required");
+      Preconditions.checkNotNull(sourceIds.get(0), "sourceIds needs at least one field");
       // we use the first entry in the source-ids list here
       checkAndAddPartitionName(name, sourceIds.get(0));
       fields.add(new PartitionField(sourceIds, fieldId, name, transform));
@@ -703,7 +705,7 @@ public class PartitionSpec implements Serializable {
         return false;
       }
     }
-    
+
     return true;
   }
 }

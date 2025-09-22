@@ -95,6 +95,7 @@ public class UnboundPartitionSpec {
 
     Builder addField(
         String transformAsString, List<Integer> sourceIds, int partitionId, String name) {
+      Preconditions.checkNotNull(sourceIds, "sourceIds is required");
       fields.add(new UnboundPartitionField(transformAsString, sourceIds, partitionId, name));
       return this;
     }
@@ -104,6 +105,7 @@ public class UnboundPartitionSpec {
     }
 
     Builder addField(String transformAsString, List<Integer> sourceIds, String name) {
+      Preconditions.checkNotNull(sourceIds, "sourceIds is required");
       fields.add(new UnboundPartitionField(transformAsString, sourceIds, null, name));
       return this;
     }
