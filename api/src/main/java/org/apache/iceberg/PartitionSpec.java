@@ -654,11 +654,13 @@ public class PartitionSpec implements Serializable {
       for (int sourceId : field.sourceIds()) {
         sourceTypes.add(schema.findType(sourceId));
       }
+
       Transform<?, ?> transform = field.transform();
       // In the case the underlying field is dropped, we cannot check if they are compatible
-      if (allowMissingFields) {
+      if (allowMissingFields && sourceTypes.isEmpty()) {
         continue;
       }
+
       // In the case of a Version 1 partition-spec field gets deleted,
       // it is replaced with a void transform, see:
       // https://iceberg.apache.org/spec/#partition-transforms
@@ -676,6 +678,7 @@ public class PartitionSpec implements Serializable {
               field,
               sourceType);
         }
+
         ValidationException.check(
             transform.canTransform(sourceTypes),
             "Invalid source type %s for transform: %s",
@@ -700,6 +703,7 @@ public class PartitionSpec implements Serializable {
         return false;
       }
     }
+    
     return true;
   }
 }
