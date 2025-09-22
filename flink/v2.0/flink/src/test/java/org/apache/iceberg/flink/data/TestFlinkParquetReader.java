@@ -245,8 +245,7 @@ public class TestFlinkParquetReader extends DataTestBase {
       for (Record record : iterable) {
         assertThat(rows).hasNext();
         TestHelpers.assertRowData(
-            writeSchema.asStruct(), rowType, record, rows.next(), ID_TO_CONSTANT, pos);
-        pos += 1;
+            writeSchema.asStruct(), rowType, record, rows.next(), ID_TO_CONSTANT, pos++);
       }
 
       assertThat(rows).isExhausted();
