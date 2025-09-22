@@ -20,6 +20,7 @@ package org.apache.iceberg.catalog;
 
 import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** Identifies a {@link CatalogObject} by UUID. */
 public class CatalogObjectUuid {
@@ -27,13 +28,12 @@ public class CatalogObjectUuid {
   private final CatalogObjectType type;
 
   public CatalogObjectUuid(String uuid, CatalogObjectType type) {
-    if (uuid == null || uuid.isEmpty()) {
-      throw new IllegalArgumentException("Invalid UUID: null or empty");
+    Preconditions.checkNotNull(uuid, "Invalid UUID: null");
+    if (uuid.isEmpty()) {
+      throw new IllegalArgumentException("Invalid UUID: empty");
     }
 
-    if (type == null) {
-      throw new IllegalArgumentException("Invalid CatalogObjectType: null");
-    }
+    Preconditions.checkNotNull(type, "Invalid objectType: null");
 
     this.uuid = uuid;
     this.type = type;

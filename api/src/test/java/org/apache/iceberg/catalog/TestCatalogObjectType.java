@@ -16,37 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.catalog;
 
-import java.util.Arrays;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.junit.jupiter.api.Test;
 
-/** Enum representing {@link CatalogObject} type. */
-public enum CatalogObjectType {
-  NAMESPACE("namespace"),
-  TABLE("table"),
-  VIEW("view");
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
-  private final String type;
+public class TestCatalogObjectType {
 
-  CatalogObjectType(String type) {
-    this.type = type;
+  @Test
+  void testFromType() {
+    assertThat(CatalogObjectType.fromType("namespace")).isEqualTo(CatalogObjectType.NAMESPACE);
+
+    assertThatThrownBy(() -> CatalogObjectType.fromType(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid CatalogObjectType: null");
+
+    assertThatThrownBy(() -> CatalogObjectType.fromType("invalid_type"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid CatalogObjectType: invalid_type");
   }
 
-  public String type() {
-    return type;
-  }
-
-  public static CatalogObjectType fromType(String type) {
-    Preconditions.checkNotNull(type, "Invalid CatalogObjectType: null");
-    return Arrays.stream(CatalogObjectType.values())
-        .filter(catalogObjectType -> catalogObjectType.type.equalsIgnoreCase(type))
-        .findFirst()
-        .orElseThrow(() -> new IllegalArgumentException("Invalid CatalogObjectType: " + type));
-  }
-
-  @Override
-  public String toString() {
-    return type;
+  @Test
+  void testToString() {
+    assertThat(CatalogObjectType.TABLE.toString()).isEqualTo("table");
   }
 }
