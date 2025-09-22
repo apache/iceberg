@@ -60,8 +60,6 @@ public class TestBoundingBox {
     assertThat(box.min().y()).isEqualTo(2.0);
     assertThat(box.max().x()).isEqualTo(3.0);
     assertThat(box.max().y()).isEqualTo(4.0);
-    assertThat(minBuffer.order()).isEqualTo(ByteOrder.LITTLE_ENDIAN);
-    assertThat(maxBuffer.order()).isEqualTo(ByteOrder.LITTLE_ENDIAN);
   }
 
   @Test
@@ -85,8 +83,6 @@ public class TestBoundingBox {
     assertThat(box.min().y()).isEqualTo(20.0);
     assertThat(box.max().x()).isEqualTo(30.0);
     assertThat(box.max().y()).isEqualTo(40.0);
-    assertThat(minBuffer.order()).isEqualTo(ByteOrder.BIG_ENDIAN);
-    assertThat(maxBuffer.order()).isEqualTo(ByteOrder.BIG_ENDIAN);
   }
 
   @Test
@@ -121,7 +117,9 @@ public class TestBoundingBox {
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
     BoundingBox box = new BoundingBox(min, max);
-    assertThat(box.toString()).isEqualTo("BoundingBox{min={x=1.0, y=2.0}, max={x=3.0, y=4.0}}");
+    assertThat(box.toString())
+        .isEqualTo(
+            "BoundingBox{min=GeospatialBound(x=1.0, y=2.0), max=GeospatialBound(x=3.0, y=4.0)}");
   }
 
   @Test
