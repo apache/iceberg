@@ -532,6 +532,12 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     try {
       Table sourceTable = load(fromTableReference);
 
+      DatasetReference toDatasetReference =
+          new DatasetReference()
+              .setProjectId(toTableReference.getProjectId())
+              .setDatasetId(toTableReference.getDatasetId());
+      load(toDatasetReference);
+
       Table renamedTable = new Table();
       renamedTable.setTableReference(toTableReference);
       renamedTable.setExternalCatalogTableOptions(sourceTable.getExternalCatalogTableOptions());

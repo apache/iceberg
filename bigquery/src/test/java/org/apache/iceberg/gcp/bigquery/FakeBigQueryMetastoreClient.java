@@ -231,6 +231,15 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
       throw new NoSuchTableException("Table does not exist: %s", fromTableReference);
     }
 
+    DatasetReference toDatasetReference =
+        new DatasetReference()
+            .setProjectId(toTableReference.getProjectId())
+            .setDatasetId(toTableReference.getDatasetId());
+    if (!datasets.containsKey(toDatasetReference)) {
+      throw new NoSuchNamespaceException(
+          "Namespace does not exist: %s", toTableReference.getDatasetId());
+    }
+
     if (tables.containsKey(toTableReference)) {
       throw new AlreadyExistsException("Table already exists: %s", toTableReference);
     }
