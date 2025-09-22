@@ -21,6 +21,10 @@ help: # Show help for each of the Makefile recipes.
 serve: # Clean, build, and run the docs site locally.
 	dev/serve.sh
 
+.PHONY: serve-local
+serve-local: # Clean, build, and run the docs site locally.
+	dev/serve.sh
+
 .PHONY: build
 build: # Clean and build the docs site locally.
 	dev/build.sh
