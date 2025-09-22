@@ -67,7 +67,7 @@ public class TestLoadTableResponseParser {
             .assignUUID(uuid)
             .setLocation("location")
             .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
@@ -148,7 +148,7 @@ public class TestLoadTableResponseParser {
             .assignUUID(uuid)
             .setLocation("location")
             .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
@@ -218,7 +218,7 @@ public class TestLoadTableResponseParser {
             .assignUUID(uuid)
             .setLocation("location")
             .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
@@ -287,7 +287,7 @@ public class TestLoadTableResponseParser {
             .assignUUID(uuid)
             .setLocation("location")
             .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
@@ -364,7 +364,7 @@ public class TestLoadTableResponseParser {
             .assignUUID(uuid)
             .setLocation("location")
             .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
