@@ -134,7 +134,6 @@ public class TestGeospatialPredicateEvaluators {
         GeospatialPredicateEvaluators.create(geometryType);
 
     // Two boxes with Z coordinates that overlap in X and Y but not in Z
-    // Note: The current implementation only checks X and Y coordinates
     GeospatialBound min1 = GeospatialBound.createXYZ(0.0, 0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXYZ(2.0, 2.0, 1.0);
     BoundingBox box1 = new BoundingBox(min1, max1);
@@ -143,9 +142,16 @@ public class TestGeospatialPredicateEvaluators {
     GeospatialBound max2 = GeospatialBound.createXYZ(3.0, 3.0, 3.0);
     BoundingBox box2 = new BoundingBox(min2, max2);
 
-    // They should intersect because the current implementation only checks X and Y
-    assertThat(evaluator.intersects(box1, box2)).isTrue();
-    assertThat(evaluator.intersects(box2, box1)).isTrue();
+    GeospatialBound min3 = GeospatialBound.createXYZ(1.0, 1.0, 1.0);
+    GeospatialBound max3 = GeospatialBound.createXYZ(3.0, 3.0, 3.0);
+    BoundingBox box3 = new BoundingBox(min3, max3);
+
+    assertThat(evaluator.intersects(box1, box2)).isFalse();
+    assertThat(evaluator.intersects(box2, box1)).isFalse();
+    assertThat(evaluator.intersects(box1, box3)).isTrue();
+    assertThat(evaluator.intersects(box3, box1)).isTrue();
+    assertThat(evaluator.intersects(box2, box3)).isTrue();
+    assertThat(evaluator.intersects(box3, box2)).isTrue();
   }
 
   @Test
@@ -155,7 +161,6 @@ public class TestGeospatialPredicateEvaluators {
         GeospatialPredicateEvaluators.create(geometryType);
 
     // Two boxes with M coordinates that overlap in X and Y but not in M
-    // Note: The current implementation only checks X and Y coordinates
     GeospatialBound min1 = GeospatialBound.createXYM(0.0, 0.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXYM(2.0, 2.0, 1.0);
     BoundingBox box1 = new BoundingBox(min1, max1);
@@ -164,9 +169,16 @@ public class TestGeospatialPredicateEvaluators {
     GeospatialBound max2 = GeospatialBound.createXYM(3.0, 3.0, 3.0);
     BoundingBox box2 = new BoundingBox(min2, max2);
 
-    // They should intersect because the current implementation only checks X and Y
-    assertThat(evaluator.intersects(box1, box2)).isTrue();
-    assertThat(evaluator.intersects(box2, box1)).isTrue();
+    GeospatialBound min3 = GeospatialBound.createXYM(1.0, 1.0, 1.0);
+    GeospatialBound max3 = GeospatialBound.createXYM(3.0, 3.0, 3.0);
+    BoundingBox box3 = new BoundingBox(min3, max3);
+
+    assertThat(evaluator.intersects(box1, box2)).isFalse();
+    assertThat(evaluator.intersects(box2, box1)).isFalse();
+    assertThat(evaluator.intersects(box1, box3)).isTrue();
+    assertThat(evaluator.intersects(box3, box1)).isTrue();
+    assertThat(evaluator.intersects(box2, box3)).isTrue();
+    assertThat(evaluator.intersects(box3, box2)).isTrue();
   }
 
   @Test
@@ -408,6 +420,106 @@ public class TestGeospatialPredicateEvaluators {
     assertThat(evaluator.intersects(box3, box1)).isTrue();
     assertThat(evaluator.intersects(box2, box3)).isTrue();
     assertThat(evaluator.intersects(box3, box2)).isTrue();
+  }
+
+  @Test
+  public void testBoxesWithXYZMCoordinates() {
+    Type geometryType = Types.GeometryType.crs84();
+    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
+        GeospatialPredicateEvaluators.create(geometryType);
+
+    // Two boxes with all XYZM coordinates that overlap in X, Y, Z but not in M
+    GeospatialBound min1 = GeospatialBound.createXYZM(0.0, 0.0, 0.0, 0.0);
+    GeospatialBound max1 = GeospatialBound.createXYZM(2.0, 2.0, 2.0, 1.0);
+    BoundingBox box1 = new BoundingBox(min1, max1);
+
+    GeospatialBound min2 = GeospatialBound.createXYZM(1.0, 1.0, 1.0, 2.0);
+    GeospatialBound max2 = GeospatialBound.createXYZM(3.0, 3.0, 3.0, 3.0);
+    BoundingBox box2 = new BoundingBox(min2, max2);
+
+    // They should NOT intersect because M dimensions don't overlap
+    assertThat(evaluator.intersects(box1, box2)).isFalse();
+    assertThat(evaluator.intersects(box2, box1)).isFalse();
+  }
+
+  @Test
+  public void testBoxesWithXYZMCoordinatesIntersecting() {
+    Type geometryType = Types.GeometryType.crs84();
+    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
+        GeospatialPredicateEvaluators.create(geometryType);
+
+    // Two boxes with all XYZM coordinates that overlap in all dimensions
+    GeospatialBound min1 = GeospatialBound.createXYZM(0.0, 0.0, 0.0, 0.0);
+    GeospatialBound max1 = GeospatialBound.createXYZM(2.0, 2.0, 2.0, 2.0);
+    BoundingBox box1 = new BoundingBox(min1, max1);
+
+    GeospatialBound min2 = GeospatialBound.createXYZM(1.0, 1.0, 1.0, 1.0);
+    GeospatialBound max2 = GeospatialBound.createXYZM(3.0, 3.0, 3.0, 3.0);
+    BoundingBox box2 = new BoundingBox(min2, max2);
+
+    // They should intersect because all dimensions overlap
+    assertThat(evaluator.intersects(box1, box2)).isTrue();
+    assertThat(evaluator.intersects(box2, box1)).isTrue();
+  }
+
+  @Test
+  public void testMixedDimensionsXYvsXYZ() {
+    Type geometryType = Types.GeometryType.crs84();
+    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
+        GeospatialPredicateEvaluators.create(geometryType);
+
+    // One box with XY coordinates, another with XYZ coordinates
+    GeospatialBound min1 = GeospatialBound.createXY(0.0, 0.0);
+    GeospatialBound max1 = GeospatialBound.createXY(2.0, 2.0);
+    BoundingBox box1 = new BoundingBox(min1, max1);
+
+    GeospatialBound min2 = GeospatialBound.createXYZ(1.0, 1.0, 100.0);
+    GeospatialBound max2 = GeospatialBound.createXYZ(3.0, 3.0, 200.0);
+    BoundingBox box2 = new BoundingBox(min2, max2);
+
+    // They should intersect because Z dimension is ignored when not present in both
+    assertThat(evaluator.intersects(box1, box2)).isTrue();
+    assertThat(evaluator.intersects(box2, box1)).isTrue();
+  }
+
+  @Test
+  public void testMixedDimensionsXYvsXYM() {
+    Type geometryType = Types.GeometryType.crs84();
+    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
+        GeospatialPredicateEvaluators.create(geometryType);
+
+    // One box with XY coordinates, another with XYM coordinates
+    GeospatialBound min1 = GeospatialBound.createXY(0.0, 0.0);
+    GeospatialBound max1 = GeospatialBound.createXY(2.0, 2.0);
+    BoundingBox box1 = new BoundingBox(min1, max1);
+
+    GeospatialBound min2 = GeospatialBound.createXYM(1.0, 1.0, 100.0);
+    GeospatialBound max2 = GeospatialBound.createXYM(3.0, 3.0, 200.0);
+    BoundingBox box2 = new BoundingBox(min2, max2);
+
+    // They should intersect because M dimension is ignored when not present in both
+    assertThat(evaluator.intersects(box1, box2)).isTrue();
+    assertThat(evaluator.intersects(box2, box1)).isTrue();
+  }
+
+  @Test
+  public void testMixedDimensionsXYZvsXYM() {
+    Type geometryType = Types.GeometryType.crs84();
+    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
+        GeospatialPredicateEvaluators.create(geometryType);
+
+    // One box with XYZ coordinates, another with XYM coordinates
+    GeospatialBound min1 = GeospatialBound.createXYZ(0.0, 0.0, 0.0);
+    GeospatialBound max1 = GeospatialBound.createXYZ(2.0, 2.0, 2.0);
+    BoundingBox box1 = new BoundingBox(min1, max1);
+
+    GeospatialBound min2 = GeospatialBound.createXYM(1.0, 1.0, 100.0);
+    GeospatialBound max2 = GeospatialBound.createXYM(3.0, 3.0, 200.0);
+    BoundingBox box2 = new BoundingBox(min2, max2);
+
+    // They should intersect because both Z and M dimensions are ignored when not present in both
+    assertThat(evaluator.intersects(box1, box2)).isTrue();
+    assertThat(evaluator.intersects(box2, box1)).isTrue();
   }
 
   @Test
