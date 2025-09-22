@@ -209,7 +209,7 @@ The REST catalog supports multiple authentication mechanisms to secure access to
 | rest.auth.basic.password          | null               | Password for basic authentication                      |
 | oauth2-server-uri                 | null               | OAuth2 server URI for token endpoint                   |
 | token                             | null               | Bearer token for OAuth2 authentication                 |
-| credential                        | null               | Credential to exchange for OAuth2 token                 |
+| credential                        | null               | Credential to exchange for OAuth2 token                |
 | token-expires-in-ms               | 3600000 (1 hour)   | Token expiration time in milliseconds                  |
 | token-refresh-enabled             | true               | Whether to refresh tokens when expiration info is available |
 | token-exchange-enabled            | true               | Whether to use token exchange for acquiring new tokens |
