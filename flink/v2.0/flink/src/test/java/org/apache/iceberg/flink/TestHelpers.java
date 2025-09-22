@@ -187,7 +187,7 @@ public class TestHelpers {
       StructLike expectedRecord,
       RowData actualRowData,
       Map<Integer, Object> idToConstant,
-      int pos) {
+      int rowPosition) {
     if (expectedRecord == null && actualRowData == null) {
       return;
     }
@@ -203,15 +203,15 @@ public class TestHelpers {
     if (expectedRecord instanceof Record) {
       Record expected = (Record) expectedRecord;
       Types.StructType expectedType = expected.struct();
-      int redPos = 0;
+      int pos = 0;
       for (Types.NestedField field : structType.fields()) {
         Types.NestedField expectedField = expectedType.field(field.fieldId());
-        LogicalType logicalType = ((RowType) rowType).getTypeAt(redPos);
+        LogicalType logicalType = ((RowType) rowType).getTypeAt(pos);
         Object actualValue =
-            FlinkRowData.createFieldGetter(logicalType, redPos).getFieldOrNull(actualRowData);
+            FlinkRowData.createFieldGetter(logicalType, pos).getFieldOrNull(actualRowData);
         Object expectedValue;
         if (expectedField != null) {
-          expectedValue = getExpectedValue(idToConstant, pos, expectedField, expected);
+          expectedValue = getExpectedValue(idToConstant, rowPosition, expectedField, expected);
         } else {
           // convert the initial value to generic because that is the data model used to generate
           // the expected records
@@ -219,7 +219,7 @@ public class TestHelpers {
         }
 
         assertEquals(field.type(), logicalType, expectedValue, actualValue);
-        redPos++;
+        pos++;
       }
     } else {
       for (int i = 0; i < types.size(); i += 1) {
@@ -244,7 +244,6 @@ public class TestHelpers {
       if (expectedValue == null && idToConstant != null) {
         expectedValue = (Long) idToConstant.get(id) + pos;
       }
-
     } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
       expectedValue = expected.getField(expectedField.name());
       if (expectedValue == null && idToConstant != null) {
@@ -253,6 +252,7 @@ public class TestHelpers {
     } else {
       expectedValue = expected.getField(expectedField.name());
     }
+
     return expectedValue;
   }
 
