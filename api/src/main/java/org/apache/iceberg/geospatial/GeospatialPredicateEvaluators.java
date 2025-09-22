@@ -101,24 +101,71 @@ public class GeospatialPredicateEvaluators {
      * @return true if the bounding boxes intersect
      */
     static boolean intersectsWithWrapAround(BoundingBox bbox1, BoundingBox bbox2) {
-      // Let's check y first, and if y does not intersect, we can return false
-      if (bbox1.min().y() > bbox2.max().y() || bbox1.max().y() < bbox2.min().y()) {
+      // Check Z dimension (elevation) if both boxes have Z coordinates - no wrap-around
+      if (bbox1.min().hasZ() && bbox1.max().hasZ() && bbox2.min().hasZ() && bbox2.max().hasZ()) {
+        if (!intersects(bbox1.min().z(), bbox1.max().z(), bbox2.min().z(), bbox2.max().z())) {
+          return false;
+        }
+      }
+
+      // Check M dimension (measure) if both boxes have M coordinates - no wrap-around
+      if (bbox1.min().hasM() && bbox1.max().hasM() && bbox2.min().hasM() && bbox2.max().hasM()) {
+        if (!intersects(bbox1.min().m(), bbox1.max().m(), bbox2.min().m(), bbox2.max().m())) {
+          return false;
+        }
+      }
+
+      // Check Y dimension (latitude/northing) - no wrap-around
+      if (!intersects(bbox1.min().y(), bbox1.max().y(), bbox2.min().y(), bbox2.max().y())) {
         return false;
       }
 
-      // Now check x, need to take wrap-around into account
-      if (bbox1.min().x() <= bbox1.max().x() && bbox2.min().x() <= bbox2.max().x()) {
-        // No wrap-around
-        return bbox1.min().x() <= bbox2.max().x() && bbox1.max().x() >= bbox2.min().x();
-      } else if (bbox1.min().x() > bbox1.max().x() && bbox2.min().x() <= bbox2.max().x()) {
-        // bbox1 wraps around the antimeridian, bbox2 does not
-        return bbox1.min().x() <= bbox2.max().x() || bbox1.max().x() >= bbox2.min().x();
-      } else if (bbox1.min().x() <= bbox1.max().x() && bbox2.min().x() > bbox2.max().x()) {
-        // bbox2 wraps around the antimeridian, bbox1 does not
-        return bbox2.min().x() <= bbox1.max().x() || bbox2.max().x() >= bbox1.min().x();
-      } else {
-        // Both wrap around the antimeridian, they must intersect
+      // Check X dimension (longitude/easting) - with wrap-around support
+      return intersectsWithWrapAround(
+          bbox1.min().x(), bbox1.max().x(), bbox2.min().x(), bbox2.max().x());
+    }
+
+    /**
+     * Check if two intervals intersect using regular interval logic. Two intervals [min1, max1] and
+     * [min2, max2] intersect if min1 <= max2 AND max1 >= min2.
+     *
+     * @param min1 minimum of first interval
+     * @param max1 maximum of first interval
+     * @param min2 minimum of second interval
+     * @param max2 maximum of second interval
+     * @return true if the intervals intersect
+     */
+    private static boolean intersects(double min1, double max1, double min2, double max2) {
+      return min1 <= max2 && max1 >= min2;
+    }
+
+    /**
+     * Check if two intervals intersect with wrap-around support for longitude/X dimension. Handles
+     * antimeridian crossing where min > max indicates wrapping around the globe.
+     *
+     * @param min1 minimum of first interval (may be > max1 if wrapping)
+     * @param max1 maximum of first interval (may be < min1 if wrapping)
+     * @param min2 minimum of second interval (may be > max2 if wrapping)
+     * @param max2 maximum of second interval (may be < min2 if wrapping)
+     * @return true if the intervals intersect
+     */
+    private static boolean intersectsWithWrapAround(
+        double min1, double max1, double min2, double max2) {
+      boolean interval1WrapsAround = min1 > max1;
+      boolean interval2WrapsAround = min2 > max2;
+
+      if (!interval1WrapsAround && !interval2WrapsAround) {
+        // No wrap-around in either interval - use regular intersection
+        return intersects(min1, max1, min2, max2);
+      } else if (interval1WrapsAround && interval2WrapsAround) {
+        // Both intervals wrap around - they must intersect somewhere
         return true;
+      } else if (interval1WrapsAround) {
+        // interval1 wraps around, interval2 does not
+        return min1 <= max2 || max1 >= min2;
+      } else {
+        // interval2 wraps around, interval1 does not
+        return min2 <= max1 || max2 >= min1;
       }
     }
   }
