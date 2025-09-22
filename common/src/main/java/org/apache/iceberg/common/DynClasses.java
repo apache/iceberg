@@ -66,7 +66,7 @@ public class DynClasses {
 
       try {
         this.foundClass = Class.forName(className, true, loader);
-      } catch (ClassNotFoundException e) {
+      } catch (ClassNotFoundException | NoClassDefFoundError e) {
         // not the right implementation
       }
 
