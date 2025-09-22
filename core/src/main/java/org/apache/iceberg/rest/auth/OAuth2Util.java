@@ -34,6 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -43,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.ErrorHandlers;
+import org.apache.iceberg.rest.HTTPChallenge;
 import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.HTTPRequest;
 import org.apache.iceberg.rest.ImmutableHTTPRequest;
@@ -416,6 +418,9 @@ public class OAuth2Util {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
+    private static final String BEARER_SCHEME = "Bearer";
+    private static final String HTTP_CHALLENGE_ERROR_PARAM = "error";
+    private static final String INVALID_TOKEN = "invalid_token";
     private volatile Map<String, String> headers;
     private volatile AuthConfig config;
 
@@ -430,6 +435,22 @@ public class OAuth2Util {
       return newHeaders.equals(request.headers())
           ? request
           : ImmutableHTTPRequest.builder().from(request).headers(newHeaders).build();
+    }
+
+    @Nullable
+    @Override
+    public HTTPRequest processChallenge(
+        RESTClient restClient, HTTPRequest request, HTTPChallenge challenge, int retryAttempt) {
+      if (retryAttempt > 1
+          || !BEARER_SCHEME.equals(challenge.scheme())
+          || !INVALID_TOKEN.equals(challenge.params().get(HTTP_CHALLENGE_ERROR_PARAM))) {
+        return null;
+      }
+      refresh(restClient);
+      return ImmutableHTTPRequest.builder()
+          .from(request)
+          .headers(request.headers().merge(HTTPHeaders.of(headers())))
+          .build();
     }
 
     public Map<String, String> headers() {

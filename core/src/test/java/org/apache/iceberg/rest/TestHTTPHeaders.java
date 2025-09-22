@@ -121,6 +121,34 @@ class TestHTTPHeaders {
   }
 
   @Test
+  void merge() {
+    HTTPHeaders actual = headers.merge(HTTPHeaders.of(HTTPHeader.of("Header1", "value1c")));
+    assertThat(actual)
+        .isEqualTo(
+            HTTPHeaders.of(
+                HTTPHeader.of("Header1", "value1c"), HTTPHeader.of("header2", "value2")));
+
+    actual =
+        headers.merge(
+            ImmutableHTTPHeaders.builder()
+                .addEntry(HTTPHeader.of("Header1", "value1c"))
+                .addEntry(HTTPHeader.of("HEADER1", "value1d"))
+                .addEntry(HTTPHeader.of("header3", "value3"))
+                .build());
+    assertThat(actual)
+        .isEqualTo(
+            HTTPHeaders.of(
+                HTTPHeader.of("Header1", "value1c"),
+                HTTPHeader.of("HEADER1", "value1d"),
+                HTTPHeader.of("header2", "value2"),
+                HTTPHeader.of("header3", "value3")));
+
+    assertThatThrownBy(() -> headers.merge(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("headers");
+  }
+
+  @Test
   void ofMap() {
     HTTPHeaders actual =
         HTTPHeaders.of(

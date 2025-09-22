@@ -25,9 +25,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.times;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
+import org.apache.iceberg.rest.HTTPChallenge;
+import org.apache.iceberg.rest.HTTPHeaders;
+import org.apache.iceberg.rest.HTTPRequest;
+import org.apache.iceberg.rest.ImmutableHTTPRequest;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.Test;
@@ -124,6 +130,62 @@ public class TestOAuth2Util {
       session.refresh(client);
 
       Mockito.verify(client)
+          .postForm(
+              any(),
+              argThat(
+                  formData ->
+                      formData.containsKey(GRANT_TYPE)
+                          && formData.get(GRANT_TYPE).equals(CLIENT_CREDENTIALS)),
+              Mockito.eq(OAuthTokenResponse.class),
+              anyMap(),
+              any());
+    }
+  }
+
+  @Test
+  public void testOnUnauthorized() throws IOException {
+    AuthConfig authConfig =
+        ImmutableAuthConfig.builder()
+            .keepRefreshed(true)
+            .exchangeEnabled(false)
+            .token("test_token")
+            .credential("testClientId:testClientSecret")
+            .oauth2ServerUri("/v1/token")
+            .build();
+
+    HTTPRequest request =
+        ImmutableHTTPRequest.builder()
+            .method(HTTPRequest.HTTPMethod.GET)
+            .baseUri(URI.create("http://localhost/"))
+            .path("v1/config")
+            .headers(
+                HTTPHeaders.of(
+                    HTTPHeaders.HTTPHeader.of("Content-Type", "application/json"),
+                    HTTPHeaders.HTTPHeader.of("Authorization", "Bearer test_token")))
+            .build();
+
+    OAuthTokenResponse response =
+        OAuthTokenResponse.builder().withToken("refreshed_token").withTokenType(BEARER).build();
+
+    try (RESTClient client = Mockito.mock(RESTClient.class);
+        OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(Map.of(), authConfig); ) {
+
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any())).thenReturn(response);
+
+      HTTPChallenge challenge = HTTPChallenge.of("Bearer", null, Map.of("error", "invalid_token"));
+
+      HTTPRequest newRequest = session.processChallenge(client, request, challenge, 1);
+      assertThat(newRequest).isNotNull();
+      assertThat(newRequest.headers())
+          .isEqualTo(
+              HTTPHeaders.of(
+                  HTTPHeaders.HTTPHeader.of("Content-Type", "application/json"),
+                  HTTPHeaders.HTTPHeader.of("Authorization", "Bearer refreshed_token")));
+
+      newRequest = session.processChallenge(client, request, challenge, 2);
+      assertThat(newRequest).isNull();
+
+      Mockito.verify(client, times(1))
           .postForm(
               any(),
               argThat(

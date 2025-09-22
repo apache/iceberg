@@ -82,6 +82,17 @@ public interface HTTPHeaders {
         : ImmutableHTTPHeaders.builder().from(this).addAllEntries(newHeaders).build();
   }
 
+  /**
+   * Merges the given headers into the current group. If there are entries with the same name in
+   * both groups, the values from the given headers take precedence.
+   */
+  default HTTPHeaders merge(HTTPHeaders headers) {
+    Preconditions.checkNotNull(headers, "headers");
+    ImmutableHTTPHeaders.Builder builder = ImmutableHTTPHeaders.builder().from(headers);
+    entries().stream().filter(e -> !headers.contains(e.name())).forEach(builder::addEntry);
+    return builder.build();
+  }
+
   static HTTPHeaders of(HTTPHeader... headers) {
     return ImmutableHTTPHeaders.builder().addEntries(headers).build();
   }
