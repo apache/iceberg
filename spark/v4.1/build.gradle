@@ -17,12 +17,12 @@
  * under the License.
  */
 
-String sparkMajorVersion = '4.0'
+String sparkMajorVersion = '4.1'
 String scalaVersion = '2.13'
 
 JavaVersion javaVersion = JavaVersion.current()
 if (javaVersion != JavaVersion.VERSION_17 && javaVersion != JavaVersion.VERSION_21) {
-  throw new GradleException("Spark 4.0 build requires JDK 17 or 21 but was executed with JDK " + javaVersion)
+  throw new GradleException("Spark 4.1 build requires JDK 17 or 21 but was executed with JDK " + javaVersion)
 }
 
 def sparkProjects = [
@@ -47,6 +47,14 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   apply plugin: 'scala'
   apply plugin: 'com.github.alisiikh.scalastyle'
 
+  // Set target to JDK17 for Spark 4.1 to fix following error
+  // "spark/v4.1/spark/src/main/scala/org/apache/spark/sql/stats/ThetaSketchAgg.scala:52:12: Class java.lang.Record not found"
+  tasks.withType(ScalaCompile.class) {
+    sourceCompatibility = "17"
+    targetCompatibility = "17"
+    scalaCompileOptions.additionalParameters.add("-release:17")
+  }
+
   sourceSets {
     main {
       scala.srcDirs = ['src/main/scala', 'src/main/java']
@@ -70,7 +78,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark40.get()}") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark41.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
