@@ -21,9 +21,13 @@ package org.apache.iceberg.aws;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
@@ -42,9 +46,26 @@ class ApacheHttpClientConfigurations {
   private ApacheHttpClientConfigurations() {}
 
   public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
-    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
-    configureApacheHttpClientBuilder(apacheHttpClientBuilder);
-    awsClientBuilder.httpClientBuilder(apacheHttpClientBuilder);
+    configureHttpClientBuilder(awsClientBuilder, Maps.newHashMap());
+  }
+
+  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(
+      T awsClientBuilder, Map<String, String> properties) {
+
+    String cacheKey = generateHttpClientCacheKey();
+
+    SdkHttpClient managedHttpClient =
+        ManagedHttpClientRegistry.getInstance()
+            .getOrCreateClient(
+                cacheKey,
+                () -> {
+                  ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
+                  configureApacheHttpClientBuilder(apacheHttpClientBuilder);
+                  return apacheHttpClientBuilder.build();
+                },
+                properties);
+
+    awsClientBuilder.httpClient(managedHttpClient);
   }
 
   private void initialize(Map<String, String> httpClientProperties) {
@@ -113,6 +134,31 @@ class ApacheHttpClientConfigurations {
       apacheHttpClientBuilder.proxyConfiguration(
           ProxyConfiguration.builder().endpoint(URI.create(proxyEndpoint)).build());
     }
+  }
+
+  /**
+   * Generate a cache key based on HTTP client configuration. This ensures clients with identical
+   * configurations share the same HTTP client instance.
+   */
+  private String generateHttpClientCacheKey() {
+
+    Map<String, Object> keyComponents = Maps.newTreeMap();
+
+    keyComponents.put("type", "apache");
+    keyComponents.put("connectionTimeoutMs", connectionTimeoutMs);
+    keyComponents.put("socketTimeoutMs", socketTimeoutMs);
+    keyComponents.put("acquisitionTimeoutMs", acquisitionTimeoutMs);
+    keyComponents.put("connectionMaxIdleTimeMs", connectionMaxIdleTimeMs);
+    keyComponents.put("connectionTimeToLiveMs", connectionTimeToLiveMs);
+    keyComponents.put("expectContinueEnabled", expectContinueEnabled);
+    keyComponents.put("maxConnections", maxConnections);
+    keyComponents.put("tcpKeepAliveEnabled", tcpKeepAliveEnabled);
+    keyComponents.put("useIdleConnectionReaperEnabled", useIdleConnectionReaperEnabled);
+    keyComponents.put("proxyEndpoint", proxyEndpoint);
+
+    return keyComponents.entrySet().stream()
+        .map(entry -> entry.getKey() + "=" + Objects.toString(entry.getValue(), "null"))
+        .collect(Collectors.joining(",", "apache[", "]"));
   }
 
   public static ApacheHttpClientConfigurations create(Map<String, String> properties) {
