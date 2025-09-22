@@ -113,15 +113,13 @@ public abstract class ScanTestBase extends AvroDataTestBase {
     if (!expectedSchema.sameSchema(table.schema())) {
       Schema expectedSchemaWithTableIds =
           TypeUtil.reassignOrRefreshIds(expectedSchema, table.schema());
-      int highestFieldId =
-          Math.max(table.schema().highestFieldId(), expectedSchema.highestFieldId());
 
       // don't use the table API because tests cover incompatible update cases
       TableOperations ops = ((BaseTable) table).operations();
       TableMetadata builder =
           TableMetadata.buildFrom(ops.current())
               .upgradeFormatVersion(3)
-              .setCurrentSchema(expectedSchemaWithTableIds, highestFieldId)
+              .setCurrentSchema(expectedSchemaWithTableIds)
               .build();
       ops.commit(ops.current(), builder);
     }
