@@ -20,13 +20,14 @@ package org.apache.iceberg.geospatial;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 public class GeospatialPredicateEvaluators {
   private GeospatialPredicateEvaluators() {}
 
   public interface GeospatialPredicateEvaluator {
     /**
-     * Test whether this bounding box intersects with another.
+     * Determines whether the two bounding boxes intersect.
      *
      * @param bbox1 the first bounding box
      * @param bbox2 the second bounding box
@@ -35,18 +36,42 @@ public class GeospatialPredicateEvaluators {
     boolean intersects(BoundingBox bbox1, BoundingBox bbox2);
   }
 
+  /**
+   * Create an evaluator for evaluating bounding box relationship for the given geospatial type.
+   *
+   * @param type the geospatial type, should be one of Type.TypeID.GEOMETRY or Type.TypeID.GEOGRAPHY
+   * @return the evaluator
+   */
   public static GeospatialPredicateEvaluator create(Type type) {
     switch (type.typeId()) {
       case GEOMETRY:
-        return new GeometryEvaluator();
+        return create((Types.GeometryType) type);
       case GEOGRAPHY:
-        return new GeographyEvaluator();
+        return create((Types.GeographyType) type);
       default:
         throw new UnsupportedOperationException("Unsupported type for BoundingBox: " + type);
     }
   }
 
-  static class GeometryEvaluator implements GeospatialPredicateEvaluator {
+  /**
+   * Create an evaluator for evaluating bounding box relationship for planar geometries
+   *
+   * @return the evaluator
+   */
+  public static GeometryEvaluator create(Types.GeometryType type) {
+    return new GeometryEvaluator();
+  }
+
+  /**
+   * Create an evaluator for evaluating bounding box relationship for geographies
+   *
+   * @return the evaluator
+   */
+  public static GeographyEvaluator create(Types.GeographyType type) {
+    return new GeographyEvaluator();
+  }
+
+  public static class GeometryEvaluator implements GeospatialPredicateEvaluator {
     @Override
     public boolean intersects(BoundingBox bbox1, BoundingBox bbox2) {
       return intersectsWithWrapAround(bbox1, bbox2);
@@ -90,7 +115,7 @@ public class GeospatialPredicateEvaluators {
         return bbox1.min().x() <= bbox2.max().x() || bbox1.max().x() >= bbox2.min().x();
       } else if (bbox1.min().x() <= bbox1.max().x() && bbox2.min().x() > bbox2.max().x()) {
         // bbox2 wraps around the antimeridian, bbox1 does not
-        return intersectsWithWrapAround(bbox2, bbox1);
+        return bbox2.min().x() <= bbox1.max().x() || bbox2.max().x() >= bbox1.min().x();
       } else {
         // Both wrap around the antimeridian, they must intersect
         return true;
@@ -98,7 +123,7 @@ public class GeospatialPredicateEvaluators {
     }
   }
 
-  static class GeographyEvaluator implements GeospatialPredicateEvaluator {
+  public static class GeographyEvaluator implements GeospatialPredicateEvaluator {
     @Override
     public boolean intersects(BoundingBox bbox1, BoundingBox bbox2) {
       validateBoundingBox(bbox1);
@@ -115,12 +140,12 @@ public class GeospatialPredicateEvaluators {
      */
     private void validateBoundingBox(BoundingBox bbox) {
       Preconditions.checkArgument(
-          bbox.min().y() >= -90 && bbox.max().y() <= 90, "Latitude out of range: %s", bbox);
+          bbox.min().y() >= -90.0d && bbox.max().y() <= 90.0d, "Latitude out of range: %s", bbox);
       Preconditions.checkArgument(
-          bbox.min().x() >= -180
-              && bbox.min().x() <= 180
-              && bbox.max().x() >= -180
-              && bbox.max().x() <= 180,
+          bbox.min().x() >= -180.0d
+              && bbox.min().x() <= 180.0d
+              && bbox.max().x() >= -180.0d
+              && bbox.max().x() <= 180.0d,
           "Longitude out of range: %s",
           bbox);
     }

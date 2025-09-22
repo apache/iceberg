@@ -21,6 +21,7 @@ package org.apache.iceberg.geospatial;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Represents a geospatial bound (minimum or maximum) for Iceberg tables.
@@ -59,39 +60,31 @@ public class GeospatialBound {
    */
   public static GeospatialBound fromByteBuffer(ByteBuffer buffer) {
     // Save original position and byte order to restore them later
-    int originalPosition = buffer.position();
-    ByteOrder originalOrder = buffer.order();
+    buffer.order(ByteOrder.LITTLE_ENDIAN);
+    int size = buffer.remaining();
+    Preconditions.checkArgument(
+        size == 2 * Double.BYTES || size == 3 * Double.BYTES || size == 4 * Double.BYTES,
+        "Invalid geo spatial bound buffer size: %s. Valid sizes are 16, 24, or 32 bytes.",
+        size);
 
-    try {
-      buffer.order(ByteOrder.LITTLE_ENDIAN);
-      int size = buffer.remaining();
-
-      if (size == 2 * Double.BYTES) {
-        // x:y format (2 doubles)
-        double coordX = buffer.getDouble();
-        double coordY = buffer.getDouble();
-        return createXY(coordX, coordY);
-      } else if (size == 3 * Double.BYTES) {
-        // x:y:z format (3 doubles)
-        double coordX = buffer.getDouble();
-        double coordY = buffer.getDouble();
-        double coordZ = buffer.getDouble();
-        return createXYZ(coordX, coordY, coordZ);
-      } else if (size == 4 * Double.BYTES) {
-        // x:y:z:m format (4 doubles) - z might be NaN
-        double coordX = buffer.getDouble();
-        double coordY = buffer.getDouble();
-        double coordZ = buffer.getDouble();
-        double coordM = buffer.getDouble();
-        return new GeospatialBound(coordX, coordY, coordZ, coordM);
-      } else {
-        throw new IllegalArgumentException(
-            "Invalid buffer size for GeospatialBound: expected 16, 24, or 32 bytes, got " + size);
-      }
-    } finally {
-      // Restore original position and byte order
-      buffer.position(originalPosition);
-      buffer.order(originalOrder);
+    if (size == 2 * Double.BYTES) {
+      // x:y format (2 doubles)
+      double coordX = buffer.getDouble();
+      double coordY = buffer.getDouble();
+      return createXY(coordX, coordY);
+    } else if (size == 3 * Double.BYTES) {
+      // x:y:z format (3 doubles)
+      double coordX = buffer.getDouble();
+      double coordY = buffer.getDouble();
+      double coordZ = buffer.getDouble();
+      return createXYZ(coordX, coordY, coordZ);
+    } else {
+      // x:y:z:m format (4 doubles) - z might be NaN
+      double coordX = buffer.getDouble();
+      double coordY = buffer.getDouble();
+      double coordZ = buffer.getDouble();
+      double coordM = buffer.getDouble();
+      return new GeospatialBound(coordX, coordY, coordZ, coordM);
     }
   }
 
@@ -103,13 +96,6 @@ public class GeospatialBound {
    * @throws IllegalArgumentException if the byte array has an invalid length
    */
   public static GeospatialBound fromByteArray(byte[] bytes) {
-    int length = bytes.length;
-    if (length != 2 * Double.BYTES && length != 3 * Double.BYTES && length != 4 * Double.BYTES) {
-      throw new IllegalArgumentException(
-          "Invalid byte array length for GeospatialBound: expected 16, 24, or 32 bytes, got "
-              + length);
-    }
-
     return fromByteBuffer(ByteBuffer.wrap(bytes));
   }
 
@@ -322,6 +308,6 @@ public class GeospatialBound {
 
   @Override
   public int hashCode() {
-    return Objects.hash(GeospatialBound.class, x, y, z, m);
+    return Objects.hash(x, y, z, m);
   }
 }

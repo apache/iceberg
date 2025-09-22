@@ -21,6 +21,7 @@ package org.apache.iceberg.geospatial;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * Represents a geospatial bounding box composed of minimum and maximum bounds.
@@ -49,38 +50,18 @@ public class BoundingBox {
    * @return a BoundingBox instance
    */
   public static BoundingBox fromByteBuffer(ByteBuffer buffer) {
-    int originalPosition = buffer.position();
-    ByteOrder originalOrder = buffer.order();
+    buffer.order(ByteOrder.LITTLE_ENDIAN);
 
-    try {
-      buffer.order(ByteOrder.LITTLE_ENDIAN);
+    int minLen = buffer.getInt();
+    ByteBuffer min = buffer.slice();
+    min.limit(minLen);
+    buffer.position(buffer.position() + minLen);
 
-      int minLen = buffer.getInt();
-      ByteBuffer min = buffer.slice();
-      min.limit(minLen);
-      buffer.position(buffer.position() + minLen);
+    int maxLen = buffer.getInt();
+    ByteBuffer max = buffer.slice();
+    max.limit(maxLen);
 
-      int maxLen = buffer.getInt();
-      ByteBuffer max = buffer.slice();
-      max.limit(maxLen);
-
-      return fromByteBuffers(min, max);
-    } finally {
-      // Restore original position and byte order
-      buffer.position(originalPosition);
-      buffer.order(originalOrder);
-    }
-  }
-
-  /**
-   * Create an empty bounding box
-   *
-   * @return an empty bounding box
-   */
-  public static BoundingBox empty() {
-    return new BoundingBox(
-        GeospatialBound.createXY(Double.NaN, Double.NaN),
-        GeospatialBound.createXY(Double.NaN, Double.NaN));
+    return fromByteBuffers(min, max);
   }
 
   public BoundingBox(GeospatialBound min, GeospatialBound max) {
@@ -149,6 +130,6 @@ public class BoundingBox {
 
   @Override
   public String toString() {
-    return "BoundingBox{min={" + min.simpleString() + "}, max={" + max.simpleString() + "}}";
+    return MoreObjects.toStringHelper(BoundingBox.class).add("min", min).add("max", max).toString();
   }
 }
