@@ -39,7 +39,11 @@ class UrlConnectionHttpClientConfigurations {
     UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
         UrlConnectionHttpClient.builder();
     configureUrlConnectionHttpClientBuilder(urlConnectionHttpClientBuilder);
-    awsClientBuilder.httpClientBuilder(urlConnectionHttpClientBuilder);
+    // Use httpClient(<client>) method in AWS SDKv2 to prevent shared connection pools from closing
+    // prematurely.
+    // See:
+    // https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/client/builder/SdkAsyncClientBuilder.html#httpClient(software.amazon.awssdk.http.async.SdkAsyncHttpClient)
+    awsClientBuilder.httpClient(urlConnectionHttpClientBuilder.build());
   }
 
   private void initialize(Map<String, String> httpClientProperties) {

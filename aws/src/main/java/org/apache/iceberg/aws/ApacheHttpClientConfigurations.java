@@ -44,7 +44,11 @@ class ApacheHttpClientConfigurations {
   public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
     configureApacheHttpClientBuilder(apacheHttpClientBuilder);
-    awsClientBuilder.httpClientBuilder(apacheHttpClientBuilder);
+    // Use httpClient(<client>) method in AWS SDKv2 to prevent shared connection pools from closing
+    // prematurely.
+    // See:
+    // https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/client/builder/SdkAsyncClientBuilder.html#httpClient(software.amazon.awssdk.http.async.SdkAsyncHttpClient)
+    awsClientBuilder.httpClient(apacheHttpClientBuilder.build());
   }
 
   private void initialize(Map<String, String> httpClientProperties) {
