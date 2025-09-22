@@ -224,6 +224,29 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
         .collect(Collectors.toList());
   }
 
+  @Override
+  public void rename(TableReference fromTableReference, TableReference toTableReference) {
+    Table sourceTable = tables.get(fromTableReference);
+    if (sourceTable == null) {
+      throw new NoSuchTableException("Table does not exist: %s", fromTableReference);
+    }
+
+    if (tables.containsKey(toTableReference)) {
+      throw new AlreadyExistsException("Table already exists: %s", toTableReference);
+    }
+
+    // Copy the table to the new location
+    Table renamedTable = sourceTable.clone();
+    renamedTable.setTableReference(toTableReference);
+    renamedTable.setEtag(generateEtag());
+
+    // Add to tables map with new reference
+    tables.put(toTableReference, renamedTable);
+
+    // Remove the source table
+    tables.remove(fromTableReference);
+  }
+
   public Dataset updateDataset(Dataset dataset) {
     DatasetReference datasetReference = dataset.getDatasetReference();
     if (!datasets.containsKey(datasetReference)) {

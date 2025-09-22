@@ -527,6 +527,51 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     }
   }
 
+  @Override
+  public void rename(TableReference fromTableReference, TableReference toTableReference) {
+    try {
+      Table sourceTable = load(fromTableReference);
+
+      Table renamedTable = new Table();
+      renamedTable.setTableReference(toTableReference);
+      renamedTable.setExternalCatalogTableOptions(sourceTable.getExternalCatalogTableOptions());
+      renamedTable.setSchema(sourceTable.getSchema());
+
+      try {
+        HttpResponse createResponse =
+            client
+                .tables()
+                .insert(
+                    toTableReference.getProjectId(), toTableReference.getDatasetId(), renamedTable)
+                .executeUnparsed();
+
+        convertExceptionIfUnsuccessful(createResponse);
+
+      } catch (Exception createException) {
+        throw new RuntimeIOException(
+            "Failed to create new table %s during rename: %s",
+            toTableReference, createException.getMessage());
+      }
+
+      try {
+        delete(fromTableReference);
+      } catch (Exception deleteException) {
+        client
+            .tables()
+            .delete(
+                toTableReference.getProjectId(),
+                toTableReference.getDatasetId(),
+                toTableReference.getTableId())
+            .executeUnparsed();
+      }
+
+    } catch (IOException e) {
+      throw new RuntimeIOException(
+          "Failed to rename table from %s to %s: %s",
+          fromTableReference, toTableReference, e.getMessage());
+    }
+  }
+
   private Dataset internalUpdate(Dataset dataset) {
     Preconditions.checkArgument(
         dataset.getDatasetReference() != null, "Dataset Reference can not be null!");
