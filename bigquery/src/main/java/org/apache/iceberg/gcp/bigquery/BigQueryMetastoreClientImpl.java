@@ -541,7 +541,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       Table renamedTable = new Table();
       renamedTable.setTableReference(toTableReference);
       renamedTable.setExternalCatalogTableOptions(sourceTable.getExternalCatalogTableOptions());
-      renamedTable.setSchema(sourceTable.getSchema());
 
       try {
         HttpResponse createResponse =
