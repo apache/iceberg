@@ -586,9 +586,7 @@ public class TableMetadata implements Serializable {
 
   /** Updates the schema */
   public TableMetadata updateSchema(Schema newSchema) {
-    return new Builder(this)
-        .setCurrentSchema(newSchema)
-        .build();
+    return new Builder(this).setCurrentSchema(newSchema).build();
   }
 
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
@@ -1594,7 +1592,7 @@ public class TableMetadata implements Serializable {
     }
 
     private int addSchemaInternal(Schema schema) {
-        int newLastColumnId = schema.highestFieldId();
+      int newLastColumnId = schema.highestFieldId();
       Schema.checkCompatibility(schema, formatVersion);
 
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
