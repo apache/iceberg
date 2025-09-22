@@ -61,6 +61,17 @@ abstract class BaseCatalog
   }
 
   @Override
+  public Identifier[] listProcedures(String[] namespace) {
+    if (isSystemNamespace(namespace)) {
+      return SparkProcedures.names().stream()
+          .map(name -> Identifier.of(namespace, name))
+          .toArray(Identifier[]::new);
+    } else {
+      return new Identifier[0];
+    }
+  }
+
+  @Override
   public boolean isFunctionNamespace(String[] namespace) {
     // Allow for empty namespace, as Spark's storage partitioned joins look up
     // the corresponding functions to generate transforms for partitioning
