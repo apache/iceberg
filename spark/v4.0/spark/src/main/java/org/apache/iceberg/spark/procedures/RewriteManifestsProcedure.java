@@ -94,7 +94,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
   public Iterator<Scan> call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
-    Boolean useCaching = input.asBoolean(USE_CACHING_PARAM, false);
+    Boolean useCaching = input.asBoolean(USE_CACHING_PARAM, null);
     Integer specId = input.asInt(SPEC_ID_PARAM, null);
 
     return modifyIcebergTable(
