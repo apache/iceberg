@@ -42,7 +42,6 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -987,10 +986,8 @@ public class TestS3FileIO {
     }
 
     try (InputStream inputStream = inputFile.newStream()) {
-      assertThat(inputStream instanceof RangeReadable);
+      assertThat(inputStream).isInstanceOf(RangeReadable.class);
       RangeReadable in = (RangeReadable) inputStream;
-
-      IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
 
       List<FileRange> ranges = Lists.newArrayList();
       CompletableFuture<ByteBuffer> future1 = new CompletableFuture<>();
@@ -1012,7 +1009,7 @@ public class TestS3FileIO {
       int range3Length = 1024;
       ranges.add(new FileRange(future3, range3Offset, range3Length));
 
-      in.readVectored(ranges, allocate);
+      in.readVectored(ranges, ByteBuffer::allocate);
 
       ByteBuffer buffer1 = future1.get();
       ByteBuffer buffer2 = future2.get();
@@ -1029,10 +1026,16 @@ public class TestS3FileIO {
       byte[] range1Data = new byte[range1Length];
       byte[] range2Data = new byte[range2Length];
       byte[] range3Data = new byte[range3Length];
-
       buffer1.get(range1Data);
       buffer2.get(range2Data);
       buffer3.get(range3Data);
+
+      assertThat(range1Data)
+          .isEqualTo(Arrays.copyOfRange(expected, range1Offset, range1Offset + range1Length));
+      assertThat(range2Data)
+          .isEqualTo(Arrays.copyOfRange(expected, range2Offset, range2Offset + range2Length));
+      assertThat(range3Data)
+          .isEqualTo(Arrays.copyOfRange(expected, range3Offset, range3Offset + range3Length));
     }
   }
 
@@ -1054,7 +1057,7 @@ public class TestS3FileIO {
     }
 
     try (InputStream inputStream = inputFile.newStream()) {
-      assertThat(inputStream instanceof RangeReadable);
+      assertThat(inputStream).isInstanceOf(RangeReadable.class);
       RangeReadable in = (RangeReadable) inputStream;
       List<FileRange> ranges = Lists.newArrayList();
       CompletableFuture<ByteBuffer> future1 = new CompletableFuture<>();
@@ -1071,8 +1074,7 @@ public class TestS3FileIO {
       ranges.add(new FileRange(future2, range2Offset, range2Length));
 
       // Call readVectored
-      IntFunction<ByteBuffer> allocate = ByteBuffer::allocate;
-      in.readVectored(ranges, allocate);
+      in.readVectored(ranges, ByteBuffer::allocate);
 
       // Verify the buffers have the expected content
       ByteBuffer buffer1 = future1.get();
