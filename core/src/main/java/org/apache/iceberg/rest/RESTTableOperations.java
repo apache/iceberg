@@ -152,7 +152,7 @@ class RESTTableOperations implements TableOperations {
         builder.addEncryptionKey(entry.getValue());
       }
       metadataToCommit = builder.build();
-      // TODO(smaheshwar): Think about requirements.
+      // TODO(smaheshwar-pltr): Think about requirements
     }
 
     switch (updateType) {
@@ -246,7 +246,7 @@ class RESTTableOperations implements TableOperations {
   }
 
   private void encryptionPropsFromMetadata(TableMetadata metadata) {
-    // TODO(smaheshwar): Check generally for changed encryption-related properties!
+    // TODO(smaheshwar-pltr): Check generally for changed encryption-related properties
     if (metadata == null || metadata.properties() == null) {
       return;
     }
