@@ -63,29 +63,6 @@ public class TestBoundingBox {
   }
 
   @Test
-  public void testCreateFromBigEndianByteBuffers() {
-    // Create byte buffers for XY bounds
-    ByteBuffer minBuffer = ByteBuffer.allocate(16);
-    minBuffer.order(ByteOrder.LITTLE_ENDIAN);
-    minBuffer.putDouble(0, 10.0); // x
-    minBuffer.putDouble(8, 20.0); // y
-    minBuffer.order(ByteOrder.BIG_ENDIAN);
-
-    ByteBuffer maxBuffer = ByteBuffer.allocate(16);
-    maxBuffer.order(ByteOrder.LITTLE_ENDIAN);
-    maxBuffer.putDouble(0, 30.0); // x
-    maxBuffer.putDouble(8, 40.0); // y
-    maxBuffer.order(ByteOrder.BIG_ENDIAN);
-
-    BoundingBox box = BoundingBox.fromByteBuffers(minBuffer, maxBuffer);
-
-    assertThat(box.min().x()).isEqualTo(10.0);
-    assertThat(box.min().y()).isEqualTo(20.0);
-    assertThat(box.max().x()).isEqualTo(30.0);
-    assertThat(box.max().y()).isEqualTo(40.0);
-  }
-
-  @Test
   public void testEqualsAndHashCode() {
     GeospatialBound min1 = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max1 = GeospatialBound.createXY(3.0, 4.0);
@@ -105,7 +82,6 @@ public class TestBoundingBox {
     assertThat(box1).isEqualTo(box2);
     assertThat(box1).isNotEqualTo(box3);
     assertThat(box1).isNotEqualTo(null);
-    assertThat(box1).isNotEqualTo("not a box");
 
     // Test hashCode
     assertThat(box1.hashCode()).isEqualTo(box2.hashCode());

@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Represents a geospatial bounding box composed of minimum and maximum bounds.
@@ -50,18 +51,39 @@ public class BoundingBox {
    * @return a BoundingBox instance
    */
   public static BoundingBox fromByteBuffer(ByteBuffer buffer) {
-    buffer.order(ByteOrder.LITTLE_ENDIAN);
+    Preconditions.checkArgument(buffer.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
 
     int minLen = buffer.getInt();
-    ByteBuffer min = buffer.slice();
+    ByteBuffer min = buffer.slice().order(ByteOrder.LITTLE_ENDIAN);
     min.limit(minLen);
     buffer.position(buffer.position() + minLen);
 
     int maxLen = buffer.getInt();
-    ByteBuffer max = buffer.slice();
+    ByteBuffer max = buffer.slice().order(ByteOrder.LITTLE_ENDIAN);
     max.limit(maxLen);
 
     return fromByteBuffers(min, max);
+  }
+
+  /**
+   * Serializes this bounding box to a byte buffer. The serialized byte buffer could be deserialized
+   * using {@link #fromByteBuffer(ByteBuffer)}.
+   *
+   * @return a byte buffer containing the serialized bounding box
+   */
+  public ByteBuffer toByteBuffer() {
+    ByteBuffer minBuffer = min.toByteBuffer();
+    ByteBuffer maxBuffer = max.toByteBuffer();
+
+    int totalSize = Integer.BYTES + minBuffer.remaining() + Integer.BYTES + maxBuffer.remaining();
+    ByteBuffer buffer = ByteBuffer.allocate(totalSize).order(ByteOrder.LITTLE_ENDIAN);
+
+    buffer.putInt(minBuffer.remaining());
+    buffer.put(minBuffer);
+    buffer.putInt(maxBuffer.remaining());
+    buffer.put(maxBuffer);
+    buffer.flip();
+    return buffer;
   }
 
   public BoundingBox(GeospatialBound min, GeospatialBound max) {
@@ -88,27 +110,6 @@ public class BoundingBox {
    */
   public GeospatialBound max() {
     return max;
-  }
-
-  /**
-   * Serializes this bounding box to a byte buffer. The serialized byte buffer could be deserialized
-   * using {@link #fromByteBuffer(ByteBuffer)}.
-   *
-   * @return a byte buffer containing the serialized bounding box
-   */
-  public ByteBuffer toByteBuffer() {
-    ByteBuffer minBuffer = min.toByteBuffer();
-    ByteBuffer maxBuffer = max.toByteBuffer();
-
-    int totalSize = Integer.BYTES + minBuffer.remaining() + Integer.BYTES + maxBuffer.remaining();
-    ByteBuffer buffer = ByteBuffer.allocate(totalSize).order(ByteOrder.LITTLE_ENDIAN);
-
-    buffer.putInt(minBuffer.remaining());
-    buffer.put(minBuffer);
-    buffer.putInt(maxBuffer.remaining());
-    buffer.put(maxBuffer);
-    buffer.flip();
-    return buffer;
   }
 
   @Override

@@ -59,8 +59,7 @@ public class GeospatialBound {
    * @throws IllegalArgumentException if the buffer has an invalid size
    */
   public static GeospatialBound fromByteBuffer(ByteBuffer buffer) {
-    // Save original position and byte order to restore them later
-    buffer.order(ByteOrder.LITTLE_ENDIAN);
+    Preconditions.checkArgument(buffer.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
     int size = buffer.remaining();
     Preconditions.checkArgument(
         size == 2 * Double.BYTES || size == 3 * Double.BYTES || size == 4 * Double.BYTES,
@@ -89,6 +88,47 @@ public class GeospatialBound {
   }
 
   /**
+   * Serializes this geospatial bound to a byte buffer according to Iceberg spec.
+   *
+   * <p>Following the Iceberg spec, the bound is serialized based on which coordinates are set: -
+   * x:y (2 doubles) when both z and m are unset - x:y:z (3 doubles) when only m is unset -
+   * x:y:NaN:m (4 doubles) when only z is unset - x:y:z:m (4 doubles) when all coordinates are set
+   *
+   * @return A ByteBuffer containing the serialized geospatial bound
+   */
+  public ByteBuffer toByteBuffer() {
+    // Calculate size based on which coordinates are present
+    int size;
+    if (!hasZ() && !hasM()) {
+      // Just x and y
+      size = 2 * Double.BYTES;
+    } else if (hasZ() && !hasM()) {
+      // x, y, and z (no m)
+      size = 3 * Double.BYTES;
+    } else {
+      // x, y, z (or NaN), and m
+      size = 4 * Double.BYTES;
+    }
+
+    ByteBuffer buffer = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
+    buffer.putDouble(x);
+    buffer.putDouble(y);
+
+    if (hasZ() || hasM()) {
+      // If we have z or m or both, we need to include z (could be NaN)
+      buffer.putDouble(z);
+    }
+
+    if (hasM()) {
+      // If we have m, include it
+      buffer.putDouble(m);
+    }
+
+    buffer.flip();
+    return buffer;
+  }
+
+  /**
    * Parses a geospatial bound from a byte array according to Iceberg spec.
    *
    * @param bytes the byte array containing the serialized geospatial bound
@@ -96,7 +136,7 @@ public class GeospatialBound {
    * @throws IllegalArgumentException if the byte array has an invalid length
    */
   public static GeospatialBound fromByteArray(byte[] bytes) {
-    return fromByteBuffer(ByteBuffer.wrap(bytes));
+    return fromByteBuffer(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN));
   }
 
   /**
@@ -228,47 +268,6 @@ public class GeospatialBound {
    */
   public boolean hasM() {
     return !Double.isNaN(m);
-  }
-
-  /**
-   * Serializes this geospatial bound to a byte buffer according to Iceberg spec.
-   *
-   * <p>Following the Iceberg spec, the bound is serialized based on which coordinates are set: -
-   * x:y (2 doubles) when both z and m are unset - x:y:z (3 doubles) when only m is unset -
-   * x:y:NaN:m (4 doubles) when only z is unset - x:y:z:m (4 doubles) when all coordinates are set
-   *
-   * @return A ByteBuffer containing the serialized geospatial bound
-   */
-  public ByteBuffer toByteBuffer() {
-    // Calculate size based on which coordinates are present
-    int size;
-    if (!hasZ() && !hasM()) {
-      // Just x and y
-      size = 2 * Double.BYTES;
-    } else if (hasZ() && !hasM()) {
-      // x, y, and z (no m)
-      size = 3 * Double.BYTES;
-    } else {
-      // x, y, z (or NaN), and m
-      size = 4 * Double.BYTES;
-    }
-
-    ByteBuffer buffer = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
-    buffer.putDouble(x);
-    buffer.putDouble(y);
-
-    if (hasZ() || hasM()) {
-      // If we have z or m or both, we need to include z (could be NaN)
-      buffer.putDouble(z);
-    }
-
-    if (hasM()) {
-      // If we have m, include it
-      buffer.putDouble(m);
-    }
-
-    buffer.flip();
-    return buffer;
   }
 
   @Override
