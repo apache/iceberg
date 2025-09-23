@@ -22,13 +22,13 @@ title: "SQL UDF Spec"
 
 ## Background and Motivation
 
-A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters, executes a function body,
-and returns either:
+A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters, executes a function body.
+Depending on the function type, the result can be:
 
-* **Scalar functions (UDFs):** return a single value.
-* **Table functions (UDTFs):** return a table with one or more rows and columns.
+- **UDFs** – return a single value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
+- **Table functions (UDTFs)** – return a table, i.e., a table with zero or more rows and columns.
 
-Most compute engines (e.g., Spark, Trino) already support UDFs, but in different and incompatible ways. Without a common
+Many compute engines (e.g., Spark, Trino) already support UDFs, but in different and incompatible ways. Without a common
 standard, UDFs cannot be reliably shared across engines or reused in multi-engine environments.
 
 This specification introduces a standardized metadata format for UDFs in Iceberg. 
@@ -57,7 +57,7 @@ The UDF metadata file has the following fields:
 |-------------|------------------------------|------------------------------------------------------------------|
 | *required*  | `function-uuid`              | A UUID that identifies the function, generated once at creation. |
 | *required*  | `format-version`             | Metadata format version (must be `1`).                           |
-| *required*  | `definition`                 | List of function overloads.                                      |
+| *required*  | `definitions`                | List of function overloads.                                      |
 | *required*  | `definition-versions`        | List of versioned function definitions.                          |
 | *required*  | `current-definition-version` | Identifier of the current definition version.                    |
 | *optional*  | `location`                   | The storage location of metadata files.                          | 
@@ -65,19 +65,25 @@ The UDF metadata file has the following fields:
 | *optional*  | `secure`                     | Whether it is a secure function. Default: `false`.               |
 | *optional*  | `doc`                        | Documentation string.                                            |
 
+Notes:
+1. When `secure` is `true`,
+    - Engines **SHOULD NOT** expose the function definition through any inspection (e.g., `SHOW FUNCTIONS`).
+    - Engines **SHOULD** ensure that execution does not leak sensitive information through any channels, such as error messages, logs, or query plans.
+   
 ### Overload
 
 Function overloads allow multiple implementations of the same function name with different signatures. Each overload has
 the following fields:
 
-| Requirement | Field name      | Description                                                                                                                                                                                        |
-|-------------|-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| *required*  | `overload-uuid` | A UUID that identifies this function overload.                                                                                                                                                     |
-| *required*  | `parameters`    | Ordered list of function parameter definitions (name, type, optional doc). The order of parameters in this list **must exactly match** the order of arguments provided when invoking the function. |
-| *required*  | `return-type`   | Return type (scalar or struct). Example: `"string"` or `"struct<...>"`                                                                                                                             |
-| *required*  | `versions`      | List of overload versions.                                                                                                                                                                         |
-| *optional*  | `udtf`          | Whether this overload returns a table, default to `false`. If `true`, the `return-type` must be a `struct` describing the output schema.                                                           | 
-| *optional*  | `doc`           | Documentation string.                                                                                                                                                                              |
+| Requirement | Field name                 | Description                                                                                                                                                                                        |
+|-------------|----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| *required*  | `overload-uuid`            | A UUID that identifies this function overload.                                                                                                                                                     |
+| *required*  | `parameters`               | Ordered list of function parameter definitions (name, type, optional doc). The order of parameters in this list **must exactly match** the order of arguments provided when invoking the function. |
+| *required*  | `return-type`              | Return type (any primitive type or non-primitive type supported by Iceberg). Example: `"string"` or `"struct<...>"`                                                                                |
+| *required*  | `versions`                 | List of overload versions.                                                                                                                                                                         |
+| *required*  | `current-overload-version` | Identifier of the current overload version.                                                                                                                                                        |
+| *optional*  | `function-type`            | `udf` or `udtf`, default to `udf`. If `udtf`, the `return-type` must be a `struct` describing the output schema.                                                                                   | 
+| *optional*  | `doc`                      | Documentation string.                                                                                                                                                                              |
 
 Notes:
 1. The `name` and `type` of `parameters` are immutable. To change them, a new overload must be created. Only the optional documentation field (`doc`) can be updated in-place.
@@ -118,7 +124,7 @@ Resolution rule is decided by engines, but engines SHOULD:
 2. Allow numeric widening (e.g., `INT` --> `BIGINT/FLOAT`) by default.
 3. Require explicit casts for risky conversions (e.g., `STRING` --> `DATE`).
 
-## Appendix A: Example
+## Appendix A: UDF Example
 
 SQL statement:
 
@@ -219,3 +225,12 @@ RETURN x + 1.0;
 }
 ```
 
+## Appendix B: UDTF Example
+SQL statement:
+
+```sql
+CREATE FUNCTION fruits_by_color(c VARCHAR COMMENT 'Color of fruits')
+    COMMENT 'Return fruits of specific color from fruits table'
+RETURNS TABLE (name VARCHAR, color VARCHAR)
+RETURN SELECT name, color FROM fruits WHERE color = c;
+```
