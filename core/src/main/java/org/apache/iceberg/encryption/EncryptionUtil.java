@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class EncryptionUtil {
@@ -97,5 +101,47 @@ public class EncryptionUtil {
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
     return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
+  }
+
+  /**
+   * Decrypt the key metadata for a manifest list.
+   *
+   * @param manifestList a ManifestListFile
+   * @param em the table's EncryptionManager
+   * @return a decrypted key metadata buffer
+   */
+  public static ByteBuffer decryptManifestListKeyMetadata(
+      ManifestListFile manifestList, EncryptionManager em) {
+    Preconditions.checkState(
+        em instanceof StandardEncryptionManager,
+        "Snapshot key metadata encryption requires a StandardEncryptionManager");
+    StandardEncryptionManager sem = (StandardEncryptionManager) em;
+    String manifestListKeyId = manifestList.encryptionKeyID();
+    ByteBuffer keyEncryptionKey = sem.encryptedByKey(manifestListKeyId);
+    ByteBuffer encryptedKeyMetadata = sem.encryptedKeyMetadata(manifestListKeyId);
+
+    Ciphers.AesGcmDecryptor decryptor =
+        new Ciphers.AesGcmDecryptor(ByteBuffers.toByteArray(keyEncryptionKey));
+    byte[] keyMetadataBytes = ByteBuffers.toByteArray(encryptedKeyMetadata);
+    byte[] decryptedKeyMetadata =
+        decryptor.decrypt(keyMetadataBytes, manifestListKeyId.getBytes(StandardCharsets.UTF_8));
+    return ByteBuffer.wrap(decryptedKeyMetadata);
+  }
+
+  /**
+   * Encrypts the key metadata for a manifest list.
+   *
+   * @param key key encryption key bytes
+   * @param keyId ID of the manifest list key
+   * @param keyMetadata manifest list key metadata
+   * @return encrypted key metadata
+   */
+  static ByteBuffer encryptManifestListKeyMetadata(
+      ByteBuffer key, String keyId, EncryptionKeyMetadata keyMetadata) {
+    Ciphers.AesGcmEncryptor encryptor = new Ciphers.AesGcmEncryptor(ByteBuffers.toByteArray(key));
+    byte[] keyMetadataBytes = ByteBuffers.toByteArray(keyMetadata.buffer());
+    byte[] encryptedKeyMetadata =
+        encryptor.encrypt(keyMetadataBytes, keyId.getBytes(StandardCharsets.UTF_8));
+    return ByteBuffer.wrap(encryptedKeyMetadata);
   }
 }

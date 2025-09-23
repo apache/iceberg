@@ -29,9 +29,9 @@ aircompressor = "0.27"
 apiguardian = "1.1.2"
 arrow = "15.0.2"
 avro = "1.12.0"
-assertj-core = "3.27.4"
+assertj-core = "3.27.5"
 awaitility = "4.3.0"
-awssdk-bom = "2.33.9"
+awssdk-bom = "2.34.0"
 azuresdk-bom = "1.2.38"
 awssdk-s3accessgrants = "2.3.0"
 bson-ver = "4.11.5"
@@ -50,7 +50,7 @@ flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
 flink21 = { strictly = "2.1.0"}
 google-libraries-bom = "26.68.0"
-guava = "33.4.8-jre"
+guava = "33.5.0-jre"
 hadoop3 = "3.4.2"
 httpcomponents-httpclient5 = "5.5"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above

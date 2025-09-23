@@ -32,6 +32,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -72,7 +73,13 @@ public class ManifestReadBenchmark {
 
     try (ManifestListWriter listWriter =
         ManifestLists.write(
-            1, org.apache.iceberg.Files.localOutput(manifestListFile), 0, 1L, 0, 0L)) {
+            1,
+            org.apache.iceberg.Files.localOutput(manifestListFile),
+            PlaintextEncryptionManager.instance(),
+            0,
+            1L,
+            0,
+            0L)) {
       for (int i = 0; i < NUM_FILES; i++) {
         OutputFile manifestFile =
             org.apache.iceberg.Files.localOutput(
