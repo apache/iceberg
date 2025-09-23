@@ -160,18 +160,17 @@ They support Basic, OAuth2, SigV4, and Google authentication, in addition to the
 ### OAuth2 auth properties
 Required and Optional properties to include while using OAuth2 authentication
 
-| Property                | Default          | Description                                                                                                                 |
-|-------------------------|------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `token`                 | null             | A Bearer token to interact with the server. Required.                                                                       |
-| `credential`            | null             | Credential string (client_id:client_secret) to exchange a token in the OAuth2 client credentials flow. Required.            |
-| `oauth2-server-uri`     | null             | OAuth2 token endpoint URI. Required if the REST catalog is not the OAuth2 authentication server. Required.                  |
-| `token-expires-in-ms`   | 3600000 (1 hour) | Time in milliseconds after which a bearer token is considered expired. Used to decide when to refresh or re-exchange a token. |
-| `token-refresh-enabled` | true             | Determines whether tokens are automatically refreshed when expiration details are available.                                |
-| `token-exchange-enabled`| true             | Determines whether to exchange tokens to acquire new tokens.                                                                |
-| `scope`                 | null             | Additional scope for `oauth2`.                                                                                              |
-| `audience`              | null             | Optional param to specify token `audience`                                                                                  |
-| `resource`              | null             | Optional param to specify `resource`                                                                                        |
-| `catalog`               | null             | Scope string(s) used when requesting `oauth2` tokens for the Iceberg REST catalog.                                          |
+| Property                | Default           | Description                                                                                                                 |
+|-------------------------|-------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `token`                 | null              | A Bearer token to interact with the server. Required.                                                                       |
+| `credential`            | null              | Credential string (client_id:client_secret) to exchange a token in the OAuth2 client credentials flow. Required.            |
+| `oauth2-server-uri`     | `v1/oauth/tokens` | OAuth2 token endpoint URI. Required if the REST catalog is not the OAuth2 authentication server. Required.                  |
+| `token-expires-in-ms`   | 3600000 (1 hour)  | Time in milliseconds after which a bearer token is considered expired. Used to decide when to refresh or re-exchange a token. |
+| `token-refresh-enabled` | true              | Determines whether tokens are automatically refreshed when expiration details are available.                                |
+| `token-exchange-enabled`| true              | Determines whether to exchange tokens to acquire new tokens.                                                                |
+| `scope`                 | `catalog`           | Additional scope for `oauth2`.                                                                                              |
+| `audience`              | null              | Optional param to specify token `audience`                                                                                  |
+| `resource`              | null              | Optional param to specify `resource`                                                                                        |
 
 ### Google auth properties
 Required and Optional properties to include while using Google authentication
