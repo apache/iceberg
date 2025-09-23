@@ -208,14 +208,10 @@ public class TestHelpers {
         LogicalType logicalType = ((RowType) rowType).getTypeAt(pos);
         Object actualValue =
             FlinkRowData.createFieldGetter(logicalType, pos).getFieldOrNull(actualRowData);
-        Object expectedValue;
-        if (expectedField != null) {
-          expectedValue = getExpectedValue(idToConstant, rowPosition, expectedField, expected);
-        } else {
-          // convert the initial value to generic because that is the data model used to generate
-          // the expected records
-          expectedValue = GenericDataUtil.internalToGeneric(field.type(), field.initialDefault());
-        }
+        Object expectedValue =
+            expectedField != null
+                ? getExpectedValue(idToConstant, rowPosition, expectedField, expected)
+                : GenericDataUtil.internalToGeneric(field.type(), field.initialDefault());
 
         assertEquals(field.type(), logicalType, expectedValue, actualValue);
         pos++;
