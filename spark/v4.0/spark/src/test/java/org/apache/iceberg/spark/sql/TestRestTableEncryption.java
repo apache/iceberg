@@ -53,7 +53,7 @@ import org.junit.jupiter.api.TestTemplate;
 
 // TODO(smaheshwar-pltr): This test is taken from https://github.com/apache/iceberg/pull/13066, with
 // the exception of testCtas, but adapted for the REST catalog. When that merges, we can directly
-// use those tests for the REST catalog as well by  adding to the parameters method there, to have
+// use those tests for the REST catalog as well by adding to the parameters method there, to have
 // a single test class for table encryption.
 public class TestRestTableEncryption extends CatalogTestBase {
   private static Map<String, String> appendCatalogEncryptionProperties(Map<String, String> props) {
