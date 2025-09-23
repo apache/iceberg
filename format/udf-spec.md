@@ -142,86 +142,86 @@ RETURN x + 1.0;
 
 ```json
 {
-  "function-uuid": "42fd3f91-bc10-41c1-8a52-92b57dd0a9b2",
-  "format-version": 1,
-  "definition": [
-    {
-      "overload-uuid": "d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111",
-      "parameters": [
-        { "name": "x", "type": "int", "doc": "Input integer" }
-      ],
-      "return-type": "int",
-      "doc": "Add one to the input integer",
-      "versions": [
-        {
-          "overload-version-id": 1,
-          "deterministic": true,
-          "representations": [
+   "function-uuid": "42fd3f91-bc10-41c1-8a52-92b57dd0a9b2",
+   "format-version": 1,
+   "definitions": [
+      {
+         "overload-uuid": "d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111",
+         "parameters": [
+            { "name": "x", "type": "int", "doc": "Input integer" }
+         ],
+         "return-type": "int",
+         "doc": "Add one to the input integer",
+         "versions": [
             {
-              "type": "sql",
-              "dialect": "trino",
-              "body": "x + 2"
-            }
-          ],
-          "timestamp-ms": 1734507000123
-        },
-        {
-          "overload-version-id": 2,
-          "deterministic": true,
-          "representations": [
+               "overload-version-id": 1,
+               "deterministic": true,
+               "representations": [
+                  {
+                     "dialect": "trino",
+                     "body": "x + 2"
+                  }
+               ],
+               "timestamp-ms": 1734507000123
+            },
             {
-              "type": "sql",
-              "dialect": "trino",
-              "body": "x + 1"
+               "overload-version-id": 2,
+               "deterministic": true,
+               "representations": [
+                  {
+                     "dialect": "trino",
+                     "body": "x + 1"
+                  }
+               ],
+               "timestamp-ms": 1735507000124
             }
-          ],
-          "timestamp-ms": 1735507000124
-        }
-      ]
-    },
-    {
-      "overload-uuid": "7c9f93b1-28b4-4ef5-90f5-70c73cda2222",
-      "parameters": [
-        { "name": "x", "type": "float", "doc": "Input float" }
-      ],
-      "return-type": "float",
-      "doc": "Add one to the input float",
-      "versions": [
-        {
-          "overload-version-id": 1,
-          "deterministic": true,
-          "representations": [
+         ],
+         "current-overload-version": 2
+      },
+      {
+         "overload-uuid": "7c9f93b1-28b4-4ef5-90f5-70c73cda2222",
+         "parameters": [
+            { "name": "x", "type": "float", "doc": "Input float" }
+         ],
+         "return-type": "float",
+         "doc": "Add one to the input float",
+         "versions": [
             {
-              "dialect": "trino",
-              "body": "x + 1.0"
+               "overload-version-id": 1,
+               "deterministic": true,
+               "representations": [
+                  {
+                     "dialect": "trino",
+                     "body": "x + 1.0"
+                  }
+               ],
+               "timestamp-ms": 1734507001123
             }
-          ],
-          "timestamp-ms": 1734507001123
-        }
-      ]
-    }
-  ],
-  "definition-versions": [
-    {
-      "definition-version-id": 2,
-      "timestamp-ms": 1734507001456,
-      "body": [
-        ["d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", 2],
-        ["7c9f93b1-28b4-4ef5-90f5-70c73cda2222", 1]
-      ]
-    },
-    {
-      "definition-version-id": 1,
-      "timestamp-ms": 1724507001456,
-      "body": [
-        ["d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", 1],
-        ["7c9f93b1-28b4-4ef5-90f5-70c73cda2222", 1]
-      ]
-    }
-  ],
-  "current-definition-version": 2,
-  "doc": "Overloaded scalar UDF for integer and float inputs",
-  "secure": false
+         ],
+         "current-overload-version": 1
+      }
+   ],
+   "definition-versions": [
+      {
+         "definition-version-id": 2,
+         "timestamp-ms": 1735507000124,
+         "body": [
+            ["d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", 2],
+            ["7c9f93b1-28b4-4ef5-90f5-70c73cda2222", 1]
+         ]
+      },
+      {
+         "definition-version-id": 1,
+         "timestamp-ms": 1734507001123,
+         "body": [
+            ["d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", 1],
+            ["7c9f93b1-28b4-4ef5-90f5-70c73cda2222", 1]
+         ]
+      }
+   ],
+   "current-definition-version": 2,
+   "doc": "Overloaded scalar UDF for integer and float inputs",
+   "secure": false
 }
 ```
 
@@ -233,4 +233,58 @@ CREATE FUNCTION fruits_by_color(c VARCHAR COMMENT 'Color of fruits')
     COMMENT 'Return fruits of specific color from fruits table'
 RETURNS TABLE (name VARCHAR, color VARCHAR)
 RETURN SELECT name, color FROM fruits WHERE color = c;
+```
+
+```json
+{
+  "function-uuid": "8a7fa39a-6d8f-4a2f-9d8d-3f3a8f3c2a10",
+  "format-version": 1,
+  "definitions": [
+    {
+      "overload-uuid": "1f2c9b5b-1b7c-4a36-a9b0-6d3a0f4b7c21",
+      "parameters": [
+        { "name": "c", "type": "string", "doc": "Color of fruits" }
+      ],
+      "return-type": {
+         "type": "struct",
+         "fields": [
+            { "id": 1, "name": "name", "type": "string" },
+            { "id": 2, "name": "color", "type": "string" }
+         ]
+      },
+      "function-type": "udtf",
+      "doc": "Return fruits of a specific color from the fruits table",
+      "versions": [
+        {
+          "overload-version-id": 1,
+          "deterministic": true,
+          "representations": [
+            {
+              "dialect": "trino",
+              "body": "SELECT name, color FROM fruits WHERE color = c"
+            },
+            {
+              "dialect": "spark",
+              "body": "SELECT name, color FROM fruits WHERE color = c"
+            }
+          ],
+          "timestamp-ms": 1734508000123
+        }
+      ],
+      "current-overload-version": 1
+    }
+  ],
+  "definition-versions": [
+    {
+      "definition-version-id": 1,
+      "timestamp-ms": 1734508000123,
+      "body": [
+        ["1f2c9b5b-1b7c-4a36-a9b0-6d3a0f4b7c21", 1]
+      ]
+    }
+  ],
+  "current-definition-version": 1,
+  "doc": "UDTF returning (name, color) rows filtered by the given color",
+  "secure": false
+}
 ```
