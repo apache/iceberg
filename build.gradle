@@ -36,7 +36,7 @@ buildscript {
     classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.4.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.14.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.15.0'
   }
 }
 
@@ -136,7 +136,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.9.0"
+      oldVersion = "1.10.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -869,6 +869,8 @@ project(':iceberg-orc') {
 }
 
 project(':iceberg-parquet') {
+  apply plugin: 'java-test-fixtures'
+
   test {
     useJUnitPlatform()
   }

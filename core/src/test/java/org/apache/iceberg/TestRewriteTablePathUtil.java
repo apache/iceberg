@@ -50,9 +50,10 @@ public class TestRewriteTablePathUtil {
   public void testStagingPathBackwardCompatibility() {
     // Test that the deprecated method still works
     String originalPath = "/some/path/file.parquet";
+    String sourcePrefix = "/some/path";
     String stagingDir = "/staging/";
 
-    String result = RewriteTablePathUtil.stagingPath(originalPath, stagingDir);
+    String result = RewriteTablePathUtil.stagingPath(originalPath, sourcePrefix, stagingDir);
 
     assertThat(result).isEqualTo("/staging/file.parquet");
   }
@@ -75,16 +76,8 @@ public class TestRewriteTablePathUtil {
     String stagingDir = "/staging/";
     String fileDirectlyUnderPrefix = "/source/table/file.parquet";
 
-    // Test new method
     String newMethodResult =
         RewriteTablePathUtil.stagingPath(fileDirectlyUnderPrefix, sourcePrefix, stagingDir);
-
-    // Test old deprecated method
-    String oldMethodResult = RewriteTablePathUtil.stagingPath(fileDirectlyUnderPrefix, stagingDir);
-
-    // Both methods should behave the same when there's no middle part
     assertThat(newMethodResult).isEqualTo("/staging/file.parquet");
-    assertThat(oldMethodResult).isEqualTo("/staging/file.parquet");
-    assertThat(newMethodResult).isEqualTo(oldMethodResult);
   }
 }

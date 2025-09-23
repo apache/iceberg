@@ -109,6 +109,10 @@ Firebolt is also available as [Firebolt Core](https://docs.firebolt.io/firebolt-
 
 Learn more about querying Iceberg with Firebolt [here](https://www.firebolt.io/blog/querying-apache-iceberg-with-sub-second-performance).
 
+### [Fivetran](https://www.fivetran.com)
+[Fivetran](https://www.fivetran.com), the global leader in data movement, is trusted by Enterprises to centralize data from SaaS applications and databases into cloud destinations, including [Managed Data Lakes](https://fivetran.com/docs/destinations/managed-data-lake-service). Fivetran Managed Data Lakes provides a fully managed Iceberg Data Lake for users. Users can connect any of the 700+ connections that Fivetran supports and write them directly into a Storage Location of their choice. Fivetran Managed Data Lake Service handles the ingestion and maintenance of their Iceberg tables and hosts a Iceberg Rest Complaint catalog endpoint for downstream consumption.
+
+
 ### [IBM watsonx.data](https://www.ibm.com/products/watsonx-data)
 
 [IBM watsonx.data](https://www.ibm.com/products/watsonx-data) is an open data lakehouse for AI and analytics. It uses Apache Iceberg as a core table format, providing features like schema evolution, time travel, and partitioning. This allows developers to easily work with large, complex data sets while ensuring efficient performance and flexibility. watsonx.data simplifies the integration of Iceberg tables, making it easy to manage data across different environments and query historical data without disruption. 
@@ -159,6 +163,10 @@ The Stackable Data Platform is completely open source, providing maximum portabi
 ### [Starburst](https://starburst.io)
 
 Starburst is a commercial offering for the [Trino query engine](https://trino.io). Trino is a distributed MPP SQL query engine that can query data in Iceberg at interactive speeds. Trino also enables you to join Iceberg tables with an [array of other systems](https://trino.io/docs/current/connector.html). Starburst offers both an [enterprise deployment](https://www.starburst.io/platform/starburst-enterprise/) and a [fully managed service](https://www.starburst.io/platform/starburst-galaxy/) to make managing and scaling Trino a flawless experience. Starburst also provides customer support and houses many of the original contributors to the open-source project that know Trino best. Learn more about [the Starburst Iceberg connector](https://docs.starburst.io/latest/connector/iceberg.html).
+
+### [StreamNative](https://streamnative.io)
+
+StreamNative provides a data streaming platform powered by [Ursa](https://streamnative.io/products/ursa), a Kafka‑compatible, leaderless, lakehouse‑native streaming engine. Ursa writes directly to Apache Iceberg tables on cloud object storage—removing the need for bespoke connectors—and automatically compacts and commits data, so it’s immediately queryable by engines such as Spark, Trino, and Flink. Learn more in the [Ursa VLDB paper](https://www.vldb.org/pvldb/vol18/p5184-guo.pdf).
 
 ### [Tinybird](https://tinybird.co)
 

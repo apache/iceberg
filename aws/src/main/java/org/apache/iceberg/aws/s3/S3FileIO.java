@@ -122,7 +122,7 @@ public class S3FileIO
    * @param s3 s3 supplier
    */
   public S3FileIO(SerializableSupplier<S3Client> s3) {
-    this(s3, null, new S3FileIOProperties());
+    this(s3, null);
   }
 
   /**
@@ -134,45 +134,10 @@ public class S3FileIO
    * @param s3Async s3Async supplier
    */
   public S3FileIO(SerializableSupplier<S3Client> s3, SerializableSupplier<S3AsyncClient> s3Async) {
-    this(s3, s3Async, new S3FileIOProperties());
-  }
-
-  /**
-   * Constructor with custom s3 supplier and S3FileIO properties.
-   *
-   * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
-   *
-   * @param s3 s3 supplier
-   * @param s3FileIOProperties S3 FileIO properties
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     S3FileIO#S3FileIO(SerializableSupplier)} with {@link S3FileIO#initialize(Map)} instead
-   */
-  @Deprecated
-  public S3FileIO(SerializableSupplier<S3Client> s3, S3FileIOProperties s3FileIOProperties) {
-    this(s3, null, s3FileIOProperties);
-  }
-
-  /**
-   * Constructor with custom s3 supplier, s3Async supplier and S3FileIO properties.
-   *
-   * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
-   *
-   * @param s3 s3 supplier
-   * @param s3Async s3Async supplier
-   * @param s3FileIOProperties S3 FileIO properties
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     S3FileIO#S3FileIO(SerializableSupplier, SerializableSupplier)} with {@link
-   *     S3FileIO#initialize(Map)} instead
-   */
-  @Deprecated
-  public S3FileIO(
-      SerializableSupplier<S3Client> s3,
-      SerializableSupplier<S3AsyncClient> s3Async,
-      S3FileIOProperties s3FileIOProperties) {
     this.s3 = s3;
     this.s3Async = s3Async;
     this.createStack = Thread.currentThread().getStackTrace();
-    this.properties = SerializableMap.copyOf(s3FileIOProperties.properties());
+    this.properties = SerializableMap.copyOf(Maps.newHashMap());
   }
 
   @Override

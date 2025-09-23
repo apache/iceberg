@@ -102,9 +102,11 @@ Inheriting the sequence number from manifest metadata allows writing a new manif
 
 Row-level deletes are stored in delete files.
 
-There are two types of row-level deletes:
-* _Position deletes_ mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
-* _Equality deletes_ mark a row deleted by one or more column values, like `id = 5`. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
+There are two types of row-level deletes: 
+
+* **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
+
+* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -754,8 +756,8 @@ A snapshot consists of the following fields:
 | _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below)                         |
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage)        |
+|            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
 |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
-
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -782,6 +784,10 @@ A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on 
 
 The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
 
+The snapshot's `added-rows` captures the upper bound of the number of rows with assigned row IDs.
+It can be used safely to increment the table's `next-row-id` during a commit.
+It can be more than the number of rows added in this snapshot and include some existing rows,
+see [Row Lineage Example](#row-lineage-example).
 
 ### Manifest Lists
 
@@ -1860,6 +1866,10 @@ Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers t
 ### Naming for GZIP compressed Metadata JSON files
 
 Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
+
+### Position Delete Files with Row Data
+
+Although the spec allows for including the deleted row itself (in addition to the path and position of the row in the data file) in v2 position delete files, writing the row is optional and no implementation currently writes it. The ability to write and read the row is supported in the Java implementation but is deprecated in version 1.11.0.
 
 ## Appendix G: Geospatial Notes
 

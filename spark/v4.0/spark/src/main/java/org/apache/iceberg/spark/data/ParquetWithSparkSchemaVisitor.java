@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -154,11 +155,15 @@ public class ParquetWithSparkSchemaVisitor<T> {
         } finally {
           visitor.fieldNames.pop();
         }
-      } else if (sType instanceof VariantType) {
-        // TODO: Use LogicalTypeAnnotation.variantType().equals(annotation) when VARIANT type is
-        // added to Parquet
-        // Preconditions.checkArgument(
-        //  sType instanceof VariantType, "Invalid variant: %s is not a VariantType", sType);
+      } else if (LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION).equals(annotation)
+          || sType instanceof VariantType) {
+        // For the Variant we both check the Parquet LogicalTypeAnnotation, and we rely on the
+        // Iceberg schema, since there are engines like Spark that produce VariantTypes without the
+        // annotation.
+        Preconditions.checkArgument(
+            sType instanceof VariantType,
+            "Invalid variant: Spark type %s is not a variant type",
+            sType);
         VariantType variant = (VariantType) sType;
 
         return visitor.variant(variant, group);
