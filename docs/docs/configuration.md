@@ -157,7 +157,7 @@ They support Basic, OAuth2, SigV4, and Google authentication, in addition to the
 | `rest.auth.basic.password`           | null             | Password for Basic authentication. Required if `rest.auth.type` is `basic`.                                                                       |
 | `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after SigV4 signing. Defaults to `oauth2`.                                                                               |
 
-### OAuth2 Properties
+### OAuth2 auth properties
 Required and Optional properties to include while using OAuth2 authentication
 
 | Property                | Default          | Description                                                                                                                                     |
@@ -180,7 +180,6 @@ Required and Optional properties to include while using Google authentication
 |------------------------------|------------------|---------------------------------------------------------------------------------------------------------------|
 | `"gcp.auth.credentials-path"`| null             | Path to a service account JSON key file. If not set, Application Default Credentials will be used.            |
 | `gcp.auth.scopes`            | null             | Comma-separated list of OAuth scopes to request. Defaults to `https://www.googleapis.com/auth/cloud-platform`. |
-
 
 ### Lock catalog properties
 
