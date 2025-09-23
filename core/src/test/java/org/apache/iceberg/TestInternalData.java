@@ -43,8 +43,8 @@ public class TestInternalData {
   private FileFormat format;
 
   @Parameters(name = " format = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(new Object[] {FileFormat.AVRO}, new Object[] {FileFormat.PARQUET});
+  protected static List<FileFormat> parameters() {
+    return Arrays.asList(FileFormat.AVRO, FileFormat.PARQUET);
   }
 
   private static final Schema SIMPLE_SCHEMA =
@@ -90,7 +90,7 @@ public class TestInternalData {
       }
     }
 
-    assertThat(readRecords).hasSize(testData.size());
+    assertThat(readRecords).hasSameSizeAs(testData);
 
     for (int i = 0; i < testData.size(); i++) {
       Record expected = testData.get(i);
@@ -125,7 +125,7 @@ public class TestInternalData {
       }
     }
 
-    assertThat(readRecords).hasSize(testData.size());
+    assertThat(readRecords).hasSameSizeAs(testData.size());
 
     for (int i = 0; i < testData.size(); i++) {
       Record expected = testData.get(i);

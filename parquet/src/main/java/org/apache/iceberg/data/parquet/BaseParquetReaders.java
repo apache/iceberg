@@ -79,17 +79,7 @@ abstract class BaseParquetReaders<T> {
   }
 
   /**
-   * This method can be overridden to provide a custom implementation which also uses the fieldId of
-   * the Schema when creating the struct reader
-   */
-  protected ParquetValueReader<T> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType, Integer fieldId) {
-    // Fallback to the signature without fieldId if not overridden
-    return createStructReader(fieldReaders, structType);
-  }
-
-  /**
-   * @deprecated will be removed in 1.11.0. Subclasses should override {@link
+   * @deprecated will be removed in 1.12.0. Subclasses should override {@link
    *     #createStructReader(List, Types.StructType, Integer)} instead
    */
   @Deprecated
@@ -97,6 +87,16 @@ abstract class BaseParquetReaders<T> {
       List<ParquetValueReader<?>> fieldReaders, Types.StructType structType) {
     throw new UnsupportedOperationException(
         "Deprecated method is not used in this implementation, only createStructReader(list, Types.Struct, Integer) should be used");
+  }
+
+  /**
+   * This method can be overridden to provide a custom implementation which also uses the fieldId of
+   * the Schema when creating the struct reader
+   */
+  protected ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType, Integer fieldId) {
+    // Fallback to the signature without fieldId if not overridden
+    return createStructReader(fieldReaders, structType);
   }
 
   protected abstract ParquetValueReader<?> fixedReader(ColumnDescriptor desc);
