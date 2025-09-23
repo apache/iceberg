@@ -1333,38 +1333,6 @@ acceptedBreaks:
         \ java.util.List<org.apache.iceberg.PositionDeletesScanTask>)"
       justification: "Removing deprecations for 1.10.0"
     org.apache.iceberg:iceberg-parquet:
-    - code: "java.method.parameterTypeChanged"
-      old: "parameter org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.InternalReader<T\
-        \ extends org.apache.iceberg.StructLike>::createStructReader(java.util.List<org.apache.parquet.schema.Type>,\
-        \ ===java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>===,\
-        \ org.apache.iceberg.types.Types.StructType)"
-      new: "parameter org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.InternalReader<T\
-        \ extends org.apache.iceberg.StructLike>::createStructReader(java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>,\
-        \ ===org.apache.iceberg.types.Types.StructType===, java.lang.Integer)"
-      justification: "Modification of Internal API to Enable InternalData Implementation"
-    - code: "java.method.parameterTypeChanged"
-      old: "parameter org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.InternalReader<T\
-        \ extends org.apache.iceberg.StructLike>::createStructReader(java.util.List<org.apache.parquet.schema.Type>,\
-        \ java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>, ===org.apache.iceberg.types.Types.StructType===)"
-      new: "parameter org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.InternalReader<T\
-        \ extends org.apache.iceberg.StructLike>::createStructReader(java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>,\
-        \ org.apache.iceberg.types.Types.StructType, ===java.lang.Integer===)"
-      justification: "Modification of Internal API to Enable InternalData Implementation"
-    - code: "java.method.parameterTypeChanged"
-      old: "parameter org.apache.iceberg.parquet.ParquetValueReader<org.apache.iceberg.data.Record>\
-        \ org.apache.iceberg.data.parquet.GenericParquetReaders::createStructReader(java.util.List<org.apache.parquet.schema.Type>,\
-        \ ===java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>===,\
-        \ org.apache.iceberg.types.Types.StructType)"
-      new: "parameter org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.BaseParquetReaders<T>::createStructReader(java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>,\
-        \ ===org.apache.iceberg.types.Types.StructType===, java.lang.Integer) @ org.apache.iceberg.data.parquet.GenericParquetReaders"
-      justification: "Modification of Internal API to Enable InternalData Implementation"
-    - code: "java.method.parameterTypeChanged"
-      old: "parameter org.apache.iceberg.parquet.ParquetValueReader<org.apache.iceberg.data.Record>\
-        \ org.apache.iceberg.data.parquet.GenericParquetReaders::createStructReader(java.util.List<org.apache.parquet.schema.Type>,\
-        \ java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>, ===org.apache.iceberg.types.Types.StructType===)"
-      new: "parameter org.apache.iceberg.parquet.ParquetValueReader<T> org.apache.iceberg.data.parquet.BaseParquetReaders<T>::createStructReader(java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>,\
-        \ org.apache.iceberg.types.Types.StructType, ===java.lang.Integer===) @ org.apache.iceberg.data.parquet.GenericParquetReaders"
-      justification: "Modification of Internal API to Enable InternalData Implementation"
     - code: "java.method.removed"
       old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.parquet.ParquetValueWriter<T>\
         \ org.apache.iceberg.data.parquet.InternalWriter<T extends org.apache.iceberg.StructLike>::create(org.apache.parquet.schema.MessageType)"
