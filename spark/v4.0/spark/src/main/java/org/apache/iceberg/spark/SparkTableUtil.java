@@ -880,7 +880,7 @@ public class SparkTableUtil {
 
     final Long snapshotId;
     if (formatVersion == 1 && !snapshotIdInheritanceEnabled) {
-      snapshotId = ops.newSnapshotId();
+      snapshotId = -1L;
     } else {
       snapshotId = null;
     }

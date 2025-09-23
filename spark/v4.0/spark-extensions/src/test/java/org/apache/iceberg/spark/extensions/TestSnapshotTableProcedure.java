@@ -27,10 +27,20 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.generic.GenericData;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.avro.GenericAvroReader;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -41,7 +51,6 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
   private static final String SOURCE_NAME = "spark_catalog.default.source";
 
   // Currently we can only Snapshot only out of the Spark Session Catalog
-
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
@@ -265,6 +274,14 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
         .hasMessage("Parallelism should be larger than 0");
   }
 
+  private static final Schema SNAPSHOT_ID_READ_SCHEMA =
+      new Schema(
+          Types.NestedField.required("snapshot_id")
+              .withId(1)
+              .ofType(Types.LongType.get())
+              .asOptional()
+              .build());
+
   @TestTemplate
   public void testSnapshotPartitionedWithParallelism() throws IOException {
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
@@ -281,5 +298,61 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row("a", 1L), row("b", 2L)),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    for (ManifestFile manifest :
+        createdTable.currentSnapshot().dataManifests(new HadoopFileIO(new Configuration()))) {
+      try (AvroIterable<GenericData.Record> reader =
+          Avro.read(org.apache.iceberg.Files.localInput(manifest.path()))
+              .project(SNAPSHOT_ID_READ_SCHEMA)
+              .createResolvingReader(GenericAvroReader::create)
+              .build()) {
+
+        assertThat(reader.getMetadata().get("format-version")).isEqualTo("2");
+
+        List<GenericData.Record> records = Lists.newArrayList(reader.iterator());
+        for (GenericData.Record row : records) {
+          assertThat(row.get(0)).as("Field-ID should be inherited").isNull();
+        }
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testSnapshotPartitionedWithParallelismV1() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", SOURCE_NAME);
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d, properties => map('format-version', '1'))",
+            catalogName, SOURCE_NAME, tableName, 2);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L)), result);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row("a", 1L), row("b", 2L)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    for (ManifestFile manifest :
+        createdTable.currentSnapshot().dataManifests(new HadoopFileIO(new Configuration()))) {
+      try (AvroIterable<GenericData.Record> reader =
+          Avro.read(org.apache.iceberg.Files.localInput(manifest.path()))
+              .project(SNAPSHOT_ID_READ_SCHEMA)
+              .createResolvingReader(GenericAvroReader::create)
+              .build()) {
+
+        assertThat(reader.getMetadata().get("format-version")).isEqualTo("1");
+
+        List<GenericData.Record> records = Lists.newArrayList(reader.iterator());
+        for (GenericData.Record row : records) {
+          assertThat(row.get(0)).as("Field-ID should not be inherited").isNotNull();
+        }
+      }
+    }
   }
 }
