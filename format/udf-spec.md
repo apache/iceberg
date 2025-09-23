@@ -112,11 +112,11 @@ Note: The `body` must be valid SQL in the specified dialect; validation is the r
 
 ### Definition-Version
 
-| Requirement | Field name              | Description                                                                                |
-|-------------|-------------------------|--------------------------------------------------------------------------------------------|
-| *required*  | `definition-version-id` | Unique identifier of the definition version, a monotonically increasing long. Example: `2` |
-| *required*  | `timestamp-ms`          | Timestamp when the definition was created or updated. Example: `1734506000456`             |
-| *required*  | `body`                  | List of mapping of overload uuids to their current version ids.                            |
+| Requirement | Field name              | Description                                                                                                                                                      |
+|-------------|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| *required*  | `definition-version-id` | Unique identifier of the definition version, a monotonically increasing long. Example: `2`                                                                       |
+| *required*  | `timestamp-ms`          | Timestamp when the definition was created or updated. Example: `1734506000456`                                                                                   |
+| *required*  | `overload-versions`     | List of mapping of overload uuids to their current version ids. Example: `[{"overload-uuid": "1f2c9b5b-1b7c-4a36-a9b0-6d3a0f4b7c21", "overload-version-id": 1}]` |
 
 ## Function Resolution in Engines
 Resolution rule is decided by engines, but engines SHOULD:
@@ -205,17 +205,17 @@ RETURN x + 1.0;
       {
          "definition-version-id": 2,
          "timestamp-ms": 1735507000124,
-         "body": [
-            ["d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", 2],
-            ["7c9f93b1-28b4-4ef5-90f5-70c73cda2222", 1]
+         "overload-versions": [
+            {"overload-uuid": "d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", "overload-version-id": 2},
+            {"overload-uuid": "7c9f93b1-28b4-4ef5-90f5-70c73cda2222", "overload-version-id": 1}
          ]
       },
       {
          "definition-version-id": 1,
          "timestamp-ms": 1734507001123,
-         "body": [
-            ["d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", 1],
-            ["7c9f93b1-28b4-4ef5-90f5-70c73cda2222", 1]
+         "overload-versions": [
+            {"overload-uuid": "d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", "overload-version-id": 1},
+            {"overload-uuid": "7c9f93b1-28b4-4ef5-90f5-70c73cda2222", "overload-version-id": 1}
          ]
       }
    ],
@@ -278,8 +278,8 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
     {
       "definition-version-id": 1,
       "timestamp-ms": 1734508000123,
-      "body": [
-        ["1f2c9b5b-1b7c-4a36-a9b0-6d3a0f4b7c21", 1]
+      "overload-versions": [
+        {"overload-uuid": "1f2c9b5b-1b7c-4a36-a9b0-6d3a0f4b7c21", "overload-version-id": 1}
       ]
     }
   ],
