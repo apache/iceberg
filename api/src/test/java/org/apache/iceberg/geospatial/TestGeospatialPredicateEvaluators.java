@@ -38,7 +38,25 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testOverlappingBoxesIntersect() {
+  public void testSphericalGeographyType() {
+    Type geographyType = Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL);
+    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
+        GeospatialPredicateEvaluators.create(geographyType);
+
+    assertThat(evaluator).isInstanceOf(GeospatialPredicateEvaluators.GeographyEvaluator.class);
+  }
+
+  @Test
+  public void testUnsupportedType() {
+    Type stringType = Types.StringType.get();
+
+    assertThatThrownBy(() -> GeospatialPredicateEvaluators.create(stringType))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Unsupported type for BoundingBox");
+  }
+
+  @Test
+  public void testOverlappingGeometryBoxesIntersect() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
@@ -56,7 +74,7 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testNonOverlappingBoxesDontIntersect() {
+  public void testNonOverlappingGeometryBoxesDontIntersect() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
@@ -74,7 +92,7 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testBoxesTouchingAtCornerIntersect() {
+  public void testGeometryBoxesTouchingAtCornerIntersect() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
@@ -92,7 +110,7 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testBoxesTouchingAtEdgeIntersect() {
+  public void testGeometryBoxesTouchingAtEdgeIntersect() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
@@ -110,7 +128,7 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testBoxContainedWithinAnotherIntersects() {
+  public void testGeometryBoxContainedWithinAnotherIntersects() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
@@ -128,7 +146,7 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testBoxesWithZCoordinate() {
+  public void testGeometryBoxesWithZCoordinate() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
@@ -155,7 +173,7 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testBoxesWithMCoordinate() {
+  public void testGeometryBoxesWithMCoordinate() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
@@ -237,7 +255,7 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testBothGeometryWrappingAround() {
+  public void testBothGeometriesWrappingAround() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
@@ -390,7 +408,7 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testExtremeLongitudeBoundaries() {
+  public void testExtremeGeographyLongitudeBoundaries() {
     // Tests valid boxes at the extreme boundaries of longitude
     Type geographyType = Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL);
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
@@ -520,23 +538,5 @@ public class TestGeospatialPredicateEvaluators {
     // They should intersect because both Z and M dimensions are ignored when not present in both
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
-  }
-
-  @Test
-  public void testSphericalGeographyType() {
-    Type geographyType = Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL);
-    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
-        GeospatialPredicateEvaluators.create(geographyType);
-
-    assertThat(evaluator).isInstanceOf(GeospatialPredicateEvaluators.GeographyEvaluator.class);
-  }
-
-  @Test
-  public void testUnsupportedType() {
-    Type stringType = Types.StringType.get();
-
-    assertThatThrownBy(() -> GeospatialPredicateEvaluators.create(stringType))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("Unsupported type for BoundingBox");
   }
 }
