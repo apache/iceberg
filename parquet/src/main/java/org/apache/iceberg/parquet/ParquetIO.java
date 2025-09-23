@@ -37,6 +37,7 @@ import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.DelegatingOutputStream;
 import org.apache.iceberg.io.FileRange;
 import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.hadoop.util.HadoopStreams;
 import org.apache.parquet.io.DelegatingPositionOutputStream;
@@ -101,9 +102,11 @@ class ParquetIO {
         return HadoopStreams.wrap((FSDataInputStream) wrapped);
       }
     }
+
     if (stream instanceof RangeReadable) {
       return new ParquetRangeReadableInputStreamAdapter(stream);
     }
+
     return new ParquetInputStreamAdapter(stream);
   }
 
@@ -136,12 +139,13 @@ class ParquetIO {
     }
   }
 
-  private static class ParquetRangeReadableInputStreamAdapter<
+  @VisibleForTesting
+  static class ParquetRangeReadableInputStreamAdapter<
           T extends org.apache.iceberg.io.SeekableInputStream & RangeReadable>
       extends DelegatingSeekableInputStream implements RangeReadable {
     private final T delegate;
 
-    private ParquetRangeReadableInputStreamAdapter(T delegate) {
+    ParquetRangeReadableInputStreamAdapter(T delegate) {
       super(delegate);
       this.delegate = delegate;
     }

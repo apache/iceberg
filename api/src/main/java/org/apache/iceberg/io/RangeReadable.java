@@ -24,8 +24,8 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * {@code RangeReadable} is an interface that allows for implementations of {@link InputFile}
@@ -99,7 +99,7 @@ public interface RangeReadable extends Closeable {
    * @param ranges the byte ranges to read
    * @param allocate the function to allocate ByteBuffer
    * @throws IOException any IOE.
-   * @throws IllegalArgumentException if the any of ranges are invalid, or they overlap.
+   * @throws IllegalArgumentException if any of ranges are invalid, or they overlap.
    */
   default void readVectored(List<FileRange> ranges, IntFunction<ByteBuffer> allocate)
       throws IOException {
@@ -112,7 +112,7 @@ public interface RangeReadable extends Closeable {
   }
 
   static List<FileRange> sortRanges(final List<FileRange> input) {
-    Preconditions.checkNotNull(input, "Null input list");
+    Preconditions.checkNotNull(input, "Input list can't be null");
 
     final List<FileRange> sortedRanges;
 
@@ -120,7 +120,10 @@ public interface RangeReadable extends Closeable {
     if (input.size() < 2) {
       sortedRanges = input;
     } else {
-      sortedRanges = sortRangeList(input);
+      sortedRanges =
+          input.stream()
+              .sorted(Comparator.comparingLong(FileRange::offset))
+              .collect(Collectors.toList());
       FileRange prev = null;
       for (final FileRange current : sortedRanges) {
         if (prev != null) {
@@ -130,22 +133,11 @@ public interface RangeReadable extends Closeable {
               prev,
               current);
         }
+
         prev = current;
       }
     }
 
     return sortedRanges;
-  }
-
-  /**
-   * Sort the input ranges by offset; no validation is done.
-   *
-   * @param input input ranges.
-   * @return a new list of the ranges, sorted by offset.
-   */
-  static List<FileRange> sortRangeList(List<FileRange> input) {
-    final List<FileRange> l = Lists.newArrayList(input);
-    l.sort(Comparator.comparingLong(FileRange::offset));
-    return l;
   }
 }
