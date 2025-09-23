@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -38,7 +40,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static final long UNASSIGNED_SEQ = -1L;
 
   private final OutputFile file;
-  private final ByteBuffer keyMetadataBuffer;
+  private final EncryptionKeyMetadata keyMetadata;
   private final int specId;
   private final FileAppender<ManifestEntry<F>> writer;
   private final Long snapshotId;
@@ -65,7 +67,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         new GenericManifestEntry<>(V1Metadata.entrySchema(spec.partitionType()).asStruct());
     this.stats = new PartitionSummary(spec);
     this.firstRowId = firstRowId;
-    this.keyMetadataBuffer = (file.keyMetadata() == null) ? null : file.keyMetadata().buffer();
+    this.keyMetadata = file.keyMetadata();
   }
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
@@ -192,6 +194,18 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
+
+    ByteBuffer keyMetadataBuffer;
+    if (keyMetadata instanceof NativeEncryptionKeyMetadata) {
+      // File length is required by AES GCM Stream encryption, to prevent file truncation attacks
+      keyMetadataBuffer =
+          ((NativeEncryptionKeyMetadata) keyMetadata).copyWithLength(length()).buffer();
+    } else if (keyMetadata != null) {
+      keyMetadataBuffer = keyMetadata.buffer();
+    } else {
+      keyMetadataBuffer = null;
+    }
+
     // if the minSequenceNumber is null, then no manifests with a sequence number have been written,
     // so the min data sequence number is the one that will be assigned when this is committed.
     // pass UNASSIGNED_SEQ to inherit it.
