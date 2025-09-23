@@ -59,7 +59,8 @@ public class GeospatialBound {
    * @throws IllegalArgumentException if the buffer has an invalid size
    */
   public static GeospatialBound fromByteBuffer(ByteBuffer buffer) {
-    Preconditions.checkArgument(buffer.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
+    Preconditions.checkArgument(
+        buffer.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
     int size = buffer.remaining();
     Preconditions.checkArgument(
         size == 2 * Double.BYTES || size == 3 * Double.BYTES || size == 4 * Double.BYTES,
