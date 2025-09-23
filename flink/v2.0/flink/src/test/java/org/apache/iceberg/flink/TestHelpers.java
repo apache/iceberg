@@ -70,7 +70,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.jetbrains.annotations.Nullable;
 
 public class TestHelpers {
   private TestHelpers() {}
@@ -232,7 +231,7 @@ public class TestHelpers {
     }
   }
 
-  private static @Nullable Object getExpectedValue(
+  private static Object getExpectedValue(
       Map<Integer, Object> idToConstant,
       int pos,
       Types.NestedField expectedField,
