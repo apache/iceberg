@@ -209,7 +209,11 @@ public class FlinkWriteConf {
   }
 
   public String uidSuffix() {
-    return confParser.stringConf().option(FlinkWriteOptions.UID_SUFFIX.key()).parseOptional();
+    return confParser
+        .stringConf()
+        .option(FlinkWriteOptions.UID_SUFFIX.key())
+        .defaultValue(FlinkWriteOptions.UID_SUFFIX.defaultValue())
+        .parse();
   }
 
   public Integer writeParallelism() {

@@ -90,5 +90,5 @@ public class FlinkWriteOptions {
 
   //  specify the uidSuffix to be used for the underlying IcebergSink
   public static final ConfigOption<String> UID_SUFFIX =
-      ConfigOptions.key("uid-suffix").stringType().noDefaultValue();
+      ConfigOptions.key("uid-suffix").stringType().defaultValue("");
 }
