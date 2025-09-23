@@ -71,6 +71,7 @@ import org.slf4j.LoggerFactory;
 class DynamicCommitter implements Committer<DynamicCommittable> {
 
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
+  private static final String MAX_WRITE_RESULT_INDEX = "flink.max-write-result-index";
   private static final Logger LOG = LoggerFactory.getLogger(DynamicCommitter.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
   private static final WriteResult EMPTY_WRITE_RESULT =
@@ -80,6 +81,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           .build();
 
   private static final long INITIAL_CHECKPOINT_ID = -1L;
+  private static final int INITIAL_WRITE_RESULT_INDEX = -1;
 
   @VisibleForTesting
   static final String MAX_CONTINUOUS_EMPTY_COMMITS = "flink.max-continuous-empty-commits";
@@ -137,28 +139,54 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
         commitRequestMap.entrySet()) {
       Table table = catalog.loadTable(TableIdentifier.parse(entry.getKey().tableName()));
       DynamicCommittable last = entry.getValue().lastEntry().getValue().get(0).getCommittable();
-      long maxCommittedCheckpointId =
+
+      CheckpointInfo maxCommittedCheckpointIds =
           getMaxCommittedCheckpointId(
               table, last.jobId(), last.operatorId(), entry.getKey().branch());
       // Mark the already committed FilesCommittable(s) as finished
       entry
           .getValue()
-          .headMap(maxCommittedCheckpointId, true)
+          .headMap(maxCommittedCheckpointIds.maxProcessedCheckpointId, false)
           .values()
           .forEach(list -> list.forEach(CommitRequest::signalAlreadyCommitted));
+      // Filter out all committables until the last checkpoint id, which may be partially committed.
       NavigableMap<Long, List<CommitRequest<DynamicCommittable>>> uncommitted =
-          entry.getValue().tailMap(maxCommittedCheckpointId, false);
+          entry.getValue().tailMap(maxCommittedCheckpointIds.maxProcessedCheckpointId, true);
+
       if (!uncommitted.isEmpty()) {
         commitPendingRequests(
-            table, entry.getKey().branch(), uncommitted, last.jobId(), last.operatorId());
+            table,
+            entry.getKey().branch(),
+            uncommitted,
+            last.jobId(),
+            last.operatorId(),
+            maxCommittedCheckpointIds);
       }
     }
   }
 
-  private static long getMaxCommittedCheckpointId(
+  private static class CheckpointInfo {
+    private final long maxProcessedCheckpointId;
+    private final int maxCommittedWriteResultIndex;
+
+    private CheckpointInfo(long maxProcessedCheckpointId, int maxCommittedWriteResultIndex) {
+      this.maxProcessedCheckpointId = maxProcessedCheckpointId;
+      this.maxCommittedWriteResultIndex = maxCommittedWriteResultIndex;
+    }
+
+    int writeResultIndexFor(long checkpointId) {
+      if (checkpointId == this.maxProcessedCheckpointId) {
+        return this.maxCommittedWriteResultIndex;
+      }
+      return -1;
+    }
+  }
+
+  private static CheckpointInfo getMaxCommittedCheckpointId(
       Table table, String flinkJobId, String operatorId, String branch) {
     Snapshot snapshot = table.snapshot(branch);
     long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
+    int writeResultIndex = INITIAL_WRITE_RESULT_INDEX;
 
     while (snapshot != null) {
       Map<String, String> summary = snapshot.summary();
@@ -166,9 +194,13 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String snapshotOperatorId = summary.get(OPERATOR_ID);
       if (flinkJobId.equals(snapshotFlinkJobId)
           && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
-        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
-        if (value != null) {
-          lastCommittedCheckpointId = Long.parseLong(value);
+        String maxCheckpointIdString = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
+        if (maxCheckpointIdString != null) {
+          lastCommittedCheckpointId = Long.parseLong(maxCheckpointIdString);
+          String writeResultIndexString = summary.get(MAX_WRITE_RESULT_INDEX);
+          if (writeResultIndexString != null) {
+            writeResultIndex = Integer.parseInt(writeResultIndexString);
+          }
           break;
         }
       }
@@ -177,7 +209,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
     }
 
-    return lastCommittedCheckpointId;
+    return new CheckpointInfo(lastCommittedCheckpointId, writeResultIndex);
   }
 
   /**
@@ -196,24 +228,29 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String branch,
       NavigableMap<Long, List<CommitRequest<DynamicCommittable>>> commitRequestMap,
       String newFlinkJobId,
-      String operatorId)
+      String operatorId,
+      CheckpointInfo checkpointInfo)
       throws IOException {
-    long checkpointId = commitRequestMap.lastKey();
     List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, List<WriteResult>> pendingResults = Maps.newTreeMap();
     for (Map.Entry<Long, List<CommitRequest<DynamicCommittable>>> e : commitRequestMap.entrySet()) {
-      for (CommitRequest<DynamicCommittable> committable : e.getValue()) {
+      long currentCheckpointId = e.getKey();
+      List<CommitRequest<DynamicCommittable>> commitRequests = e.getValue();
+      for (int i = checkpointInfo.writeResultIndexFor(currentCheckpointId) + 1;
+          i < commitRequests.size();
+          i++) {
+        CommitRequest<DynamicCommittable> committable = commitRequests.get(i);
+        List<WriteResult> writeResults =
+            pendingResults.computeIfAbsent(e.getKey(), unused -> Lists.newArrayList());
         if (Arrays.equals(EMPTY_MANIFEST_DATA, committable.getCommittable().manifest())) {
-          pendingResults
-              .computeIfAbsent(e.getKey(), unused -> Lists.newArrayList())
-              .add(EMPTY_WRITE_RESULT);
+          writeResults.add(EMPTY_WRITE_RESULT);
         } else {
           DeltaManifests deltaManifests =
               SimpleVersionedSerialization.readVersionAndDeSerialize(
                   DeltaManifestsSerializer.INSTANCE, committable.getCommittable().manifest());
-          pendingResults
-              .computeIfAbsent(e.getKey(), unused -> Lists.newArrayList())
-              .add(FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
+          WriteResult writeResult =
+              FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
+          writeResults.add(writeResult);
           manifests.addAll(deltaManifests.manifests());
         }
       }
@@ -221,11 +258,13 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
     CommitSummary summary = new CommitSummary();
     summary.addAll(pendingResults);
-    commitPendingResult(table, branch, pendingResults, summary, newFlinkJobId, operatorId);
+    commitPendingResult(
+        table, branch, pendingResults, summary, newFlinkJobId, operatorId, checkpointInfo);
     if (committerMetrics != null) {
       committerMetrics.updateCommitSummary(table.name(), summary);
     }
 
+    long checkpointId = commitRequestMap.lastKey();
     FlinkManifestUtil.deleteCommittedManifests(table, manifests, newFlinkJobId, checkpointId);
   }
 
@@ -235,7 +274,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       NavigableMap<Long, List<WriteResult>> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
-      String operatorId) {
+      String operatorId,
+      CheckpointInfo checkpointInfo) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     TableKey key = new TableKey(table.name(), branch);
     int continuousEmptyCheckpoints =
@@ -255,11 +295,12 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       if (replacePartitions) {
         replacePartitions(table, branch, pendingResults, summary, newFlinkJobId, operatorId);
       } else {
-        commitDeltaTxn(table, branch, pendingResults, summary, newFlinkJobId, operatorId);
+        commitDeltaTxn(
+            table, branch, pendingResults, summary, newFlinkJobId, operatorId, checkpointInfo);
       }
 
       continuousEmptyCheckpoints = 0;
-    } else {
+    } else if (!pendingResults.isEmpty()) {
       long checkpointId = pendingResults.lastKey();
       LOG.info("Skip commit for checkpoint {} due to no data files or delete files.", checkpointId);
     }
@@ -275,14 +316,14 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String newFlinkJobId,
       String operatorId) {
     for (Map.Entry<Long, List<WriteResult>> e : pendingResults.entrySet()) {
-      // We don't commit the merged result into a single transaction because for the sequential
-      // transaction txn1 and txn2, the equality-delete files of txn2 are required to be applied
-      // to data files from txn1. Committing the merged one will lead to the incorrect delete
-      // semantic.
+      ReplacePartitions dynamicOverwrite = null;
       for (WriteResult result : e.getValue()) {
-        ReplacePartitions dynamicOverwrite =
-            table.newReplacePartitions().scanManifestsWith(workerPool);
+        if (dynamicOverwrite == null) {
+          dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
+        }
         Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
+      }
+      if (dynamicOverwrite != null) {
         commitOperation(
             table,
             branch,
@@ -291,7 +332,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
             "dynamic partition overwrite",
             newFlinkJobId,
             operatorId,
-            e.getKey());
+            e.getKey(),
+            INITIAL_WRITE_RESULT_INDEX);
       }
     }
   }
@@ -302,13 +344,23 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       NavigableMap<Long, List<WriteResult>> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
-      String operatorId) {
+      String operatorId,
+      CheckpointInfo checkpointInfo) {
     for (Map.Entry<Long, List<WriteResult>> e : pendingResults.entrySet()) {
-      // We don't commit the merged result into a single transaction because for the sequential
-      // transaction txn1 and txn2, the equality-delete files of txn2 are required to be applied
-      // to data files from txn1. Committing the merged one will lead to the incorrect delete
-      // semantic.
-      for (WriteResult result : e.getValue()) {
+      long checkpointId = e.getKey();
+      List<WriteResult> writeResults = e.getValue();
+      // For append-only WriteResults, we commit all append-only WriteResults into a single
+      // transaction.
+      // For WriteResults with delete files, we issue a separate transaction because for the
+      // sequential transactions txn1 and txn2, the equality-delete files of txn2 are required to be
+      // applied to data files from txn1. Committing the merged one will lead to the incorrect
+      // delete semantic.
+      boolean deletesPresent;
+      RowDelta rowDelta = null;
+      for (int i = checkpointInfo.writeResultIndexFor(checkpointId) + 1;
+          i < writeResults.size();
+          i++) {
+        WriteResult result = writeResults.get(i);
         // Row delta validations are not needed for streaming changes that write equality deletes.
         // Equality deletes are applied to data in all previous sequence numbers, so retries may
         // push deletes further in the future, but do not affect correctness. Position deletes
@@ -316,12 +368,39 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
         // being added in this commit. There is no way for data files added along with the delete
         // files to be concurrently removed, so there is no need to validate the files referenced by
         // the position delete files that are being committed.
-        RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+        deletesPresent = result.deleteFiles().length > 0;
+        if (rowDelta == null) {
+          rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+        } else if (deletesPresent) {
+          commitOperation(
+              table,
+              branch,
+              rowDelta,
+              summary,
+              "rowDelta",
+              newFlinkJobId,
+              operatorId,
+              checkpointId,
+              i);
+          rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+        }
 
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-        commitOperation(
-            table, branch, rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, e.getKey());
+
+        if (i == writeResults.size() - 1) {
+          // Final WriteResult, we need to commit.
+          commitOperation(
+              table,
+              branch,
+              rowDelta,
+              summary,
+              "rowDelta",
+              newFlinkJobId,
+              operatorId,
+              checkpointId,
+              i);
+        }
       }
     }
   }
@@ -335,7 +414,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String description,
       String newFlinkJobId,
       String operatorId,
-      long checkpointId) {
+      long checkpointId,
+      int maxWriteResultIndex) {
 
     LOG.info(
         "Committing {} for checkpoint {} to table {} branch {} with summary: {}",
@@ -348,6 +428,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
+    operation.set(MAX_WRITE_RESULT_INDEX, Integer.toString(maxWriteResultIndex));
     operation.set(FLINK_JOB_ID, newFlinkJobId);
     operation.set(OPERATOR_ID, operatorId);
     operation.toBranch(branch);
