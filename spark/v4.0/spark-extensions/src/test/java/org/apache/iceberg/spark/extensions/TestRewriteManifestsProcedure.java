@@ -326,7 +326,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot handle an empty identifier for argument table");
+        .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
 
   @TestTemplate
