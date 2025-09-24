@@ -456,7 +456,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             Map::of,
             tableFileIO(context, tableConf, response.credentials()),
             tableMetadata,
-            endpoints);
+            endpoints,
+            snapshotModeToParam(snapshotMode));
 
     trackFileIO(ops);
 
@@ -535,7 +536,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             Map::of,
             tableFileIO(context, tableConf, response.credentials()),
             response.tableMetadata(),
-            endpoints);
+            endpoints,
+            ImmutableMap.of());
 
     trackFileIO(ops);
 
@@ -794,7 +796,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               Map::of,
               tableFileIO(context, tableConf, response.credentials()),
               response.tableMetadata(),
-              endpoints);
+              endpoints,
+              ImmutableMap.of());
 
       trackFileIO(ops);
 
@@ -823,7 +826,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
-              endpoints);
+              endpoints,
+              ImmutableMap.of());
 
       trackFileIO(ops);
 
@@ -886,7 +890,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,
-              endpoints);
+              endpoints,
+              ImmutableMap.of());
 
       trackFileIO(ops);
 
