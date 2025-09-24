@@ -158,7 +158,7 @@ They support Basic, OAuth2, SigV4, and Google authentication.
 | `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after `sigv4` signing.                                                                   |
 
 ### OAuth2 auth properties
-Required and Optional properties to include while using OAuth2 authentication
+Required and optional properties to include while using `oauth2` authentication
 
 | Property                | Default           | Description                                                                                                                                                           |
 |-------------------------|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
