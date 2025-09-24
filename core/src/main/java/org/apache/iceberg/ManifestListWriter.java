@@ -101,9 +101,9 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         return wrapper.wrap(manifest, null);
       } else {
         Preconditions.checkState(
-                manifest.existingRowsCount() != null && manifest.addedRowsCount() != null,
-                "Cannot include manifest with missing existing or added rows count to a Table with row lineage enabled. Manifest path: %s",
-                manifest.path());
+            manifest.existingRowsCount() != null && manifest.addedRowsCount() != null,
+            "Cannot include manifest with missing existing or added rows count to a Table with row lineage enabled. Manifest path: %s",
+            manifest.path());
         // assign first-row-id and update the next to assign
         wrapper.wrap(manifest, nextRowId);
         // leave space for existing and added rows, in case any of the existing data files do not
@@ -163,9 +163,9 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         return wrapper.wrap(manifest, null);
       } else {
         Preconditions.checkState(
-                manifest.existingRowsCount() != null && manifest.addedRowsCount() != null,
-                "Cannot include v1 manifest with missing existing or added rows count to a Table with row lineage enabled. Manifest path: %s",
-                manifest.path());
+            manifest.existingRowsCount() != null && manifest.addedRowsCount() != null,
+            "Cannot include v1 manifest with missing existing or added rows count to a Table with row lineage enabled. Manifest path: %s",
+            manifest.path());
         // assign first-row-id and update the next to assign
         wrapper.wrap(manifest, nextRowId);
         // leave space for existing and added rows, in case any of the existing data files do not
