@@ -70,11 +70,28 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       Map<Integer, ?> idToConstant,
       Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
       BiFunction<org.apache.iceberg.types.Type, Object, Object> convert) {
+    this(
+        expectedSchema,
+        parquetSchema,
+        setArrowValidityVector,
+        idToConstant,
+        readerFactory,
+        convert,
+        ArrowAllocation.rootAllocator());
+  }
+
+  protected VectorizedReaderBuilder(
+      Schema expectedSchema,
+      MessageType parquetSchema,
+      boolean setArrowValidityVector,
+      Map<Integer, ?> idToConstant,
+      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
+      BiFunction<org.apache.iceberg.types.Type, Object, Object> convert,
+      BufferAllocator bufferAllocator) {
     this.parquetSchema = parquetSchema;
     this.icebergSchema = expectedSchema;
     this.rootAllocator =
-        ArrowAllocation.rootAllocator()
-            .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+        bufferAllocator.newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
     this.setArrowValidityVector = setArrowValidityVector;
     this.idToConstant = idToConstant;
     this.readerFactory = readerFactory;

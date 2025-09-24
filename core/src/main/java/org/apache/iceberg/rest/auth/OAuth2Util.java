@@ -48,7 +48,6 @@ import org.apache.iceberg.rest.HTTPRequest;
 import org.apache.iceberg.rest.ImmutableHTTPRequest;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
-import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
@@ -157,29 +156,42 @@ public class OAuth2Util {
 
   private static OAuthTokenResponse refreshToken(
       RESTClient client,
+      AuthConfig config,
       Map<String, String> headers,
       String subjectToken,
       String subjectTokenType,
-      String scope,
-      String oauth2ServerUri,
       Map<String, String> optionalOAuthParams) {
-    Map<String, String> request =
-        tokenExchangeRequest(
-            subjectToken,
-            subjectTokenType,
-            scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
-            optionalOAuthParams);
+    if (config.exchangeEnabled()) {
+      Map<String, String> request =
+          tokenExchangeRequest(
+              subjectToken,
+              subjectTokenType,
+              config.scope() != null ? ImmutableList.of(config.scope()) : ImmutableList.of(),
+              optionalOAuthParams);
 
-    OAuthTokenResponse response =
-        client.postForm(
-            oauth2ServerUri,
-            request,
-            OAuthTokenResponse.class,
-            headers,
-            ErrorHandlers.oauthErrorHandler());
-    response.validate();
+      OAuthTokenResponse response =
+          client.postForm(
+              config.oauth2ServerUri(),
+              request,
+              OAuthTokenResponse.class,
+              headers,
+              ErrorHandlers.oauthErrorHandler());
+      response.validate();
 
-    return response;
+      return response;
+    } else {
+      if (null == config.credential()) {
+        return null;
+      }
+
+      return fetchToken(
+          client,
+          Map.of(),
+          config.credential(),
+          config.scope(),
+          config.oauth2ServerUri(),
+          ImmutableMap.of());
+    }
   }
 
   public static OAuthTokenResponse exchangeToken(
@@ -213,59 +225,6 @@ public class OAuth2Util {
     return response;
   }
 
-  /**
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     OAuth2Util#exchangeToken(RESTClient, Map, String, String, String, String, String, String,
-   *     Map)} instead.
-   */
-  @Deprecated
-  public static OAuthTokenResponse exchangeToken(
-      RESTClient client,
-      Map<String, String> headers,
-      String subjectToken,
-      String subjectTokenType,
-      String actorToken,
-      String actorTokenType,
-      String scope) {
-    return exchangeToken(
-        client,
-        headers,
-        subjectToken,
-        subjectTokenType,
-        actorToken,
-        actorTokenType,
-        scope,
-        ResourcePaths.tokens(),
-        ImmutableMap.of());
-  }
-
-  /**
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     OAuth2Util#exchangeToken(RESTClient, Map, String, String, String, String, String, String,
-   *     Map)} instead.
-   */
-  @Deprecated
-  public static OAuthTokenResponse exchangeToken(
-      RESTClient client,
-      Map<String, String> headers,
-      String subjectToken,
-      String subjectTokenType,
-      String actorToken,
-      String actorTokenType,
-      String scope,
-      String oauth2ServerUri) {
-    return exchangeToken(
-        client,
-        headers,
-        subjectToken,
-        subjectTokenType,
-        actorToken,
-        actorTokenType,
-        scope,
-        oauth2ServerUri,
-        ImmutableMap.of());
-  }
-
   public static OAuthTokenResponse fetchToken(
       RESTClient client,
       Map<String, String> headers,
@@ -289,33 +248,6 @@ public class OAuth2Util {
     response.validate();
 
     return response;
-  }
-
-  /**
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     OAuth2Util#fetchToken(RESTClient, Map, String, String, String, Map)} instead.
-   */
-  @Deprecated
-  public static OAuthTokenResponse fetchToken(
-      RESTClient client, Map<String, String> headers, String credential, String scope) {
-
-    return fetchToken(
-        client, headers, credential, scope, ResourcePaths.tokens(), ImmutableMap.of());
-  }
-
-  /**
-   * @deprecated since 1.10.0, will be removed in 1.11.0; use {@link
-   *     OAuth2Util#fetchToken(RESTClient, Map, String, String, String, Map)} instead.
-   */
-  @Deprecated
-  public static OAuthTokenResponse fetchToken(
-      RESTClient client,
-      Map<String, String> headers,
-      String credential,
-      String scope,
-      String oauth2ServerUri) {
-
-    return fetchToken(client, headers, credential, scope, oauth2ServerUri, ImmutableMap.of());
   }
 
   private static Map<String, String> tokenExchangeRequest(
@@ -615,32 +547,24 @@ public class OAuth2Util {
         return refreshExpiredToken(client);
       } else {
         // attempt a normal refresh
-        return refreshToken(
-            client,
-            headers(),
-            token(),
-            tokenType(),
-            scope(),
-            oauth2ServerUri(),
-            optionalOAuthParams());
+        return refreshToken(client, config, headers(), token(), tokenType(), optionalOAuthParams());
       }
     }
 
     private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
-      if (credential() != null) {
+      if (credential() == null) {
+        return null;
+      }
+
+      if (config.exchangeEnabled()) {
         Map<String, String> basicHeaders =
             RESTUtil.merge(headers(), basicAuthHeaders(credential()));
         return refreshToken(
-            client,
-            basicHeaders,
-            token(),
-            tokenType(),
-            scope(),
-            oauth2ServerUri(),
-            optionalOAuthParams());
+            client, config, basicHeaders, token(), tokenType(), optionalOAuthParams());
+      } else {
+        return fetchToken(
+            client, Map.of(), credential(), scope(), oauth2ServerUri(), ImmutableMap.of());
       }
-
-      return null;
     }
 
     /**

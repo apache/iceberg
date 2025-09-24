@@ -113,16 +113,23 @@ table.updateSchema()
 Available operations to update a table are:
 
 * `updateSchema` -- update the table schema
+* `updateSpec` -- modify a table's partition spec
+* `updateStatistics` -- update statistics files of a table
+* `updatePartitionStatistics` -- update statistics for a specific partition in table
 * `updateProperties` -- update table properties
 * `updateLocation` -- update the table's base location
+* `expireSnapshots` -- used to remove old snapshots from table
+* `manageSnapshots` -- used to manage table snapshots
 * `newAppend` -- used to append data files
 * `newFastAppend` -- used to append data files, will not compact metadata
 * `newOverwrite` -- used to append data files and remove files that are overwritten
 * `newDelete` -- used to delete data files
 * `newRewrite` -- used to rewrite data files; will replace existing files with new versions
+* `newRowDelta` -- used to remove or replace rows in existing data files
 * `newTransaction` -- create a new table-level transaction
 * `rewriteManifests` -- rewrite manifest data by clustering files, for faster scan planning
-* `rollback` -- rollback the table state to a specific snapshot
+* `replaceSortOrder` -- for replacing table sort order with a newly created order
+* `newReplacePartitions` -- used to dynamically overwrite partitions in the table with new data
 
 ### Transactions
 
@@ -247,7 +254,6 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 
 * `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
 * `iceberg-flink` is an implementation of Flink's Table and DataStream API for Iceberg (use iceberg-flink-runtime for a shaded version)
-* `iceberg-hive3` is an implementation of Hive 3 specific SerDe's for Timestamp, TimestampWithZone, and Date object inspectors (use iceberg-hive-runtime for a shaded version).
 * `iceberg-mr` is an implementation of MapReduce and Hive InputFormats and SerDes for Iceberg (use iceberg-hive-runtime for a shaded version for use with Hive)
 * `iceberg-nessie` is a module used to integrate Iceberg table metadata history and operations with [Project Nessie](https://projectnessie.org/)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications

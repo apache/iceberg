@@ -73,9 +73,12 @@ import org.slf4j.LoggerFactory;
  *   <li>Iceberg: {@link Types.LongType}, Arrow: {@link MinorType#BIGINT}
  *   <li>Iceberg: {@link Types.FloatType}, Arrow: {@link MinorType#FLOAT4}
  *   <li>Iceberg: {@link Types.DoubleType}, Arrow: {@link MinorType#FLOAT8}
+ *   <li>Iceberg: {@link Types.DecimalType}, Arrow: {@link MinorType#DECIMAL}
  *   <li>Iceberg: {@link Types.StringType}, Arrow: {@link MinorType#VARCHAR}
  *   <li>Iceberg: {@link Types.TimestampType} (both with and without timezone), Arrow: {@link
- *       MinorType#TIMEMICRO}
+ *       MinorType#TIMESTAMPMICRO} and {@link MinorType#TIMESTAMPMICROTZ}
+ *   <li>Iceberg: {@link Types.TimestampNanoType} (both with and without timezone), Arrow: {@link
+ *       MinorType#TIMESTAMPNANO} and {@link MinorType#TIMESTAMPNANOTZ}
  *   <li>Iceberg: {@link Types.BinaryType}, Arrow: {@link MinorType#VARBINARY}
  *   <li>Iceberg: {@link Types.FixedType}, Arrow: {@link MinorType#FIXEDSIZEBINARY}
  *   <li>Iceberg: {@link Types.DateType}, Arrow: {@link MinorType#DATEDAY}
@@ -89,11 +92,8 @@ import org.slf4j.LoggerFactory;
  *   <li>Type promotion: In case of type promotion, the Arrow vector corresponding to the data type
  *       in the parquet file is returned instead of the data type in the latest schema. See
  *       https://github.com/apache/iceberg/issues/2483.
- *   <li>Columns with constant values are physically encoded as a dictionary. The Arrow vector type
- *       is int32 instead of the type as per the schema. See
- *       https://github.com/apache/iceberg/issues/2484.
- *   <li>Data types: {@link Types.ListType}, {@link Types.MapType}, {@link Types.StructType}, and
- *       {@link Types.DecimalType} See https://github.com/apache/iceberg/issues/2485 and
+ *   <li>Data types: {@link Types.ListType}, {@link Types.MapType} and {@link Types.StructType} See
+ *       https://github.com/apache/iceberg/issues/2485 and
  *       https://github.com/apache/iceberg/issues/2486.
  *   <li>Delete files are not supported. See https://github.com/apache/iceberg/issues/2487.
  * </ul>
@@ -115,7 +115,8 @@ public class ArrowReader extends CloseableGroup {
           TypeID.UUID,
           TypeID.TIME,
           TypeID.DECIMAL,
-          TypeID.FIXED);
+          TypeID.FIXED,
+          TypeID.TIMESTAMP_NANO);
 
   private final Schema schema;
   private final FileIO io;

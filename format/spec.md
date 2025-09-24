@@ -102,9 +102,11 @@ Inheriting the sequence number from manifest metadata allows writing a new manif
 
 Row-level deletes are stored in delete files.
 
-There are two types of row-level deletes:
-* _Position deletes_ mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
-* _Equality deletes_ mark a row deleted by one or more column values, like `id = 5`. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
+There are two types of row-level deletes: 
+
+* **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
+
+* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -190,10 +192,12 @@ A **`variant`** is a value that stores semi-structured data. The structure and d
 Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary, and decimals.
 
 Variant values may contain nested types:
+
 1. An array is an ordered collection of variant values.
 2. An object is a collection of fields that are a string key and a variant value.
 
 As a semi-structured type, there are important differences between variant and Iceberg's other types:
+
 1. Variant arrays are similar to lists, but may contain any variant value rather than a fixed element type.
 2. Variant objects are similar to structs, but may contain variable fields identified by name and field values may be any variant value rather than a fixed field type.
 
@@ -607,14 +611,14 @@ A manifest stores files for a single partition spec. When a table’s partition 
 
 A manifest file must store the partition spec and other metadata as properties in the Avro file's key-value metadata:
 
-| v1         | v2         | Key                 | Value                                                                        |
-|------------|------------|---------------------|------------------------------------------------------------------------------|
-| _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written |
-| _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                      |
-| _required_ | _required_ | `partition-spec`    | JSON fields representation of the partition spec used to write the manifest  |
-| _optional_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string              |
-| _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                      |
-|            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"           |
+| v1         | v2         | Key                 | Value                                                                                                                                       |
+|------------|------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written                                                                |
+| _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
+| _required_ | _required_ | `partition-spec`    | JSON representation of only the partition fields array of the partition spec used to write the manifest. See [Appendix C](#partition-specs) |
+| _optional_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string                                                                             |
+| _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
+|            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
 
 The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
 
@@ -695,7 +699,7 @@ Notes:
 
 For Variant, values in the `lower_bounds` and `upper_bounds` maps store serialized Variant objects that contain lower or upper bounds respectively. The object keys for the bound-variants are normalized JSON path expressions that uniquely identify a field. The object values are primitive Variant representations of the lower or upper bound for that field. Including bounds for any field is optional and upper and lower bounds must have the same Variant type.
 
-Bounds for a field must be accurate for all non-null values of the field in a data file. Bounds for values within arrays must be accurate all values in the array. Bounds must not be written to describe values with mixed Variant types (other than null). For example, a "measurement" field that contains int64 and null values may have bounds, but if the field also contained a string value such as "n/a" or "0" then the field may not have bounds.
+Bounds for a field must be accurate for all non-null values of the field in a data file. Bounds for values within arrays must be accurate for all values in the array. Bounds must not be written to describe values with mixed Variant types (other than null). For example, a **measurement** field that contains int64 and null values may have bounds, but if the field also contained a string value such as **n/a** or **0** then the field may not have bounds.
 
 The Variant bounds objects are serialized by concatenating the [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) of the metadata (containing the normalized field paths) and the bounds object.
 Field paths follow the JSON path format to use normalized path, such as `$['location']['latitude']` or `$['user.name']`. The special path `$` represents bounds for the variant root, indicating that the variant data consists of uniform primitive types, such as strings.
@@ -752,8 +756,8 @@ A snapshot consists of the following fields:
 | _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below)                         |
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage)        |
+|            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
 |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
-
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -780,6 +784,10 @@ A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on 
 
 The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
 
+The snapshot's `added-rows` captures the upper bound of the number of rows with assigned row IDs.
+It can be used safely to increment the table's `next-row-id` during a commit.
+It can be more than the number of rows added in this snapshot and include some existing rows,
+see [Row Lineage Example](#row-lineage-example).
 
 ### Manifest Lists
 
@@ -1858,6 +1866,10 @@ Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers t
 ### Naming for GZIP compressed Metadata JSON files
 
 Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
+
+### Position Delete Files with Row Data
+
+Although the spec allows for including the deleted row itself (in addition to the path and position of the row in the data file) in v2 position delete files, writing the row is optional and no implementation currently writes it. The ability to write and read the row is supported in the Java implementation but is deprecated in version 1.11.0.
 
 ## Appendix G: Geospatial Notes
 

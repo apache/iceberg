@@ -28,6 +28,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -108,13 +109,21 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
   }
 
+  @Override
+  public InputFile newInputFile(ManifestListFile manifestList) {
+    if (manifestList.encryptionKeyID() != null) {
+      ByteBuffer keyMetadata = manifestList.decryptKeyMetadata(em);
+      return newDecryptingInputFile(manifestList.location(), keyMetadata);
+    } else {
+      return newInputFile(manifestList.location());
+    }
+  }
+
   public InputFile newDecryptingInputFile(String path, ByteBuffer buffer) {
     return em.decrypt(wrap(io.newInputFile(path), buffer));
   }
 
   public InputFile newDecryptingInputFile(String path, long length, ByteBuffer buffer) {
-    // TODO: is the length correct for the encrypted file? It may be the length of the plaintext
-    // stream
     return em.decrypt(wrap(io.newInputFile(path, length), buffer));
   }
 

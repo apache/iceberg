@@ -206,7 +206,7 @@ public class TestSerializedObject {
   @MethodSource("provideInputsForTestMultiByteOffsets")
   public void testMultiByteOffsets(int multiByteOffset, int offsetSize) {
     String randomString = RandomUtil.generateString(multiByteOffset, random);
-    SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
+    VariantPrimitive<?> bigString = VariantTestUtil.createString(randomString);
 
     // note that order doesn't matter. fields are sorted by name
     Map<String, VariantValue> data = ImmutableMap.of("big", bigString, "a", I1, "b", I2, "c", I3);
@@ -232,7 +232,7 @@ public class TestSerializedObject {
   @ValueSource(booleans = {true, false})
   @SuppressWarnings({"unchecked", "rawtypes"})
   public void testLargeObject(boolean sortFieldNames) {
-    Map<String, SerializedPrimitive> fields = Maps.newHashMap();
+    Map<String, VariantPrimitive<?>> fields = Maps.newHashMap();
     for (int i = 0; i < 10_000; i += 1) {
       fields.put(
           RandomUtil.generateString(10, random),
@@ -248,7 +248,7 @@ public class TestSerializedObject {
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(object.numFields()).isEqualTo(10_000);
 
-    for (Map.Entry<String, SerializedPrimitive> entry : fields.entrySet()) {
+    for (Map.Entry<String, VariantPrimitive<?>> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
       assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
       assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());

@@ -101,25 +101,6 @@ public class PartitionStatsHandler {
           .build();
 
   /**
-   * Generates the partition stats file schema based on a combined partition type which considers
-   * all specs in a table.
-   *
-   * <p>Use this only for format version 1 and 2. For version 3 and above use {@link
-   * #schema(StructType, int)}
-   *
-   * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
-   *     Partitioning#partitionType(Table)}.
-   * @return a schema that corresponds to the provided unified partition type.
-   * @deprecated since 1.10.0, will be removed in 1.11.0. Use {@link #schema(StructType, int)}
-   *     instead.
-   */
-  @Deprecated
-  public static Schema schema(StructType unifiedPartitionType) {
-    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
-    return v2Schema(unifiedPartitionType);
-  }
-
-  /**
    * Generates the partition stats file schema for a given format version based on a combined
    * partition type which considers all specs in a table.
    *

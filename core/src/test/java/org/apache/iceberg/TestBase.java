@@ -29,8 +29,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -65,7 +67,9 @@ public class TestBase {
   public static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).bucket("data", BUCKETS_NUMBER).build();
 
-  static final DataFile FILE_A =
+  public static final Map<Integer, PartitionSpec> PARTITION_SPECS_BY_ID = Map.of(0, SPEC);
+
+  public static final DataFile FILE_A =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
@@ -79,7 +83,7 @@ public class TestBase {
           .withPartitionPath("data_bucket=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DeleteFile FILE_A_DELETES =
+  public static final DeleteFile FILE_A_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
           .withPath("/path/to/data-a-deletes.parquet")
@@ -781,16 +785,32 @@ public class TestBase {
     return Iterators.forArray(statuses);
   }
 
+  static Iterator<ManifestEntry.Status> statusesRepeat(ManifestEntry.Status status, int count) {
+    return Iterators.limit(Iterators.cycle(Collections.singletonList(status)), count);
+  }
+
   static Iterator<Long> dataSeqs(Long... seqs) {
     return Iterators.forArray(seqs);
+  }
+
+  static Iterator<Long> dataSeqsRepeat(Long value, int count) {
+    return Iterators.limit(Iterators.cycle(Collections.singletonList(value)), count);
   }
 
   static Iterator<Long> fileSeqs(Long... seqs) {
     return Iterators.forArray(seqs);
   }
 
+  static Iterator<Long> fileSeqsRepeat(Long value, int count) {
+    return Iterators.limit(Iterators.cycle(Collections.singletonList(value)), count);
+  }
+
   static Iterator<Long> ids(Long... ids) {
     return Iterators.forArray(ids);
+  }
+
+  static Iterator<Long> idsRepeat(Long value, int count) {
+    return Iterators.limit(Iterators.cycle(Collections.singletonList(value)), count);
   }
 
   static Iterator<DataFile> files(DataFile... files) {
