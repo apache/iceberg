@@ -102,7 +102,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
       } else {
         Preconditions.checkState(
                 manifest.existingRowsCount() != null && manifest.addedRowsCount() != null,
-                "Cannot include v1 manifest with missing existing or added rows count to a Table with row lineage enabled. Manifest path: %s",
+                "Cannot include manifest with missing existing or added rows count to a Table with row lineage enabled. Manifest path: %s",
                 manifest.path());
         // assign first-row-id and update the next to assign
         wrapper.wrap(manifest, nextRowId);
