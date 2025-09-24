@@ -173,7 +173,7 @@ Required and Optional properties to include while using OAuth2 authentication
 | `resource`              | null              | Optional param to specify `resource`                                                                                                                                  |
 
 ### Google auth properties
-Required and Optional properties to include while using Google authentication
+Required and optional properties to include while using `google` authentication
 
 | Property                   | Default                                          | Description                                      |
 |----------------------------|--------------------------------------------------|--------------------------------------------------|
