@@ -63,28 +63,33 @@ public class CatalogUtil {
    * following type to implementation mappings are supported:
    *
    * <ul>
-   *   <li>hive: org.apache.iceberg.hive.HiveCatalog
+   *   <li>bigquery: org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog
+   *   <li>glue: org.apache.iceberg.aws.glue.GlueCatalog
    *   <li>hadoop: org.apache.iceberg.hadoop.HadoopCatalog
+   *   <li>hive: org.apache.iceberg.hive.HiveCatalog
+   *   <li>jdbc: org.apache.iceberg.jdbc.JdbcCatalog
+   *   <li>nessie: org.apache.iceberg.nessie.NessieCatalog
+   *   <li>rest: org.apache.iceberg.rest.RESTCatalog
    * </ul>
    */
   public static final String ICEBERG_CATALOG_TYPE = "type";
 
+  public static final String ICEBERG_CATALOG_TYPE_BIGQUERY = "bigquery";
+  public static final String ICEBERG_CATALOG_TYPE_GLUE = "glue";
   public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
   public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
-  public static final String ICEBERG_CATALOG_TYPE_REST = "rest";
-  public static final String ICEBERG_CATALOG_TYPE_GLUE = "glue";
-  public static final String ICEBERG_CATALOG_TYPE_NESSIE = "nessie";
   public static final String ICEBERG_CATALOG_TYPE_JDBC = "jdbc";
-  public static final String ICEBERG_CATALOG_TYPE_BIGQUERY = "bigquery";
+  public static final String ICEBERG_CATALOG_TYPE_NESSIE = "nessie";
+  public static final String ICEBERG_CATALOG_TYPE_REST = "rest";
 
-  public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
-  public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
-  public static final String ICEBERG_CATALOG_REST = "org.apache.iceberg.rest.RESTCatalog";
-  public static final String ICEBERG_CATALOG_GLUE = "org.apache.iceberg.aws.glue.GlueCatalog";
-  public static final String ICEBERG_CATALOG_NESSIE = "org.apache.iceberg.nessie.NessieCatalog";
-  public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.jdbc.JdbcCatalog";
   public static final String ICEBERG_CATALOG_BIGQUERY =
       "org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog";
+  public static final String ICEBERG_CATALOG_GLUE = "org.apache.iceberg.aws.glue.GlueCatalog";
+  public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
+  public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
+  public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.jdbc.JdbcCatalog";
+  public static final String ICEBERG_CATALOG_NESSIE = "org.apache.iceberg.nessie.NessieCatalog";
+  public static final String ICEBERG_CATALOG_REST = "org.apache.iceberg.rest.RESTCatalog";
 
   private CatalogUtil() {}
 
@@ -300,26 +305,26 @@ public class CatalogUtil {
       String catalogType =
           PropertyUtil.propertyAsString(options, ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
       switch (catalogType.toLowerCase(Locale.ENGLISH)) {
-        case ICEBERG_CATALOG_TYPE_HIVE:
-          catalogImpl = ICEBERG_CATALOG_HIVE;
-          break;
-        case ICEBERG_CATALOG_TYPE_HADOOP:
-          catalogImpl = ICEBERG_CATALOG_HADOOP;
-          break;
-        case ICEBERG_CATALOG_TYPE_REST:
-          catalogImpl = ICEBERG_CATALOG_REST;
+        case ICEBERG_CATALOG_TYPE_BIGQUERY:
+          catalogImpl = ICEBERG_CATALOG_BIGQUERY;
           break;
         case ICEBERG_CATALOG_TYPE_GLUE:
           catalogImpl = ICEBERG_CATALOG_GLUE;
           break;
-        case ICEBERG_CATALOG_TYPE_NESSIE:
-          catalogImpl = ICEBERG_CATALOG_NESSIE;
+        case ICEBERG_CATALOG_TYPE_HADOOP:
+          catalogImpl = ICEBERG_CATALOG_HADOOP;
+          break;
+        case ICEBERG_CATALOG_TYPE_HIVE:
+          catalogImpl = ICEBERG_CATALOG_HIVE;
           break;
         case ICEBERG_CATALOG_TYPE_JDBC:
           catalogImpl = ICEBERG_CATALOG_JDBC;
           break;
-        case ICEBERG_CATALOG_TYPE_BIGQUERY:
-          catalogImpl = ICEBERG_CATALOG_BIGQUERY;
+        case ICEBERG_CATALOG_TYPE_NESSIE:
+          catalogImpl = ICEBERG_CATALOG_NESSIE;
+          break;
+        case ICEBERG_CATALOG_TYPE_REST:
+          catalogImpl = ICEBERG_CATALOG_REST;
           break;
         default:
           throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
