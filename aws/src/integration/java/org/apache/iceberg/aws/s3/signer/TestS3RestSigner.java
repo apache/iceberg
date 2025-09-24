@@ -31,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import org.apache.iceberg.aws.s3.MinioUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -39,7 +40,6 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -343,7 +343,7 @@ public class TestS3RestSigner {
       return awsResult;
     }
 
-    @NotNull
+    @Nonnull
     private SdkHttpFullRequest signWithAwsSigner(
         SdkHttpFullRequest request, AwsS3V4SignerParams signerParams) {
       // we need to filter out the unsigned headers for the AWS signer and re-append those headers

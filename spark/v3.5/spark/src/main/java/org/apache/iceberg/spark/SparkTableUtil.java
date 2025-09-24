@@ -39,6 +39,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
@@ -105,8 +107,6 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Function2;
@@ -1079,7 +1079,7 @@ public class SparkTableUtil {
       getService().shutdown();
     }
 
-    @NotNull
+    @Nonnull
     @Override
     public List<Runnable> shutdownNow() {
       return getService().shutdownNow();
@@ -1096,60 +1096,60 @@ public class SparkTableUtil {
     }
 
     @Override
-    public boolean awaitTermination(long timeout, @NotNull TimeUnit unit)
+    public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit)
         throws InterruptedException {
       return getService().awaitTermination(timeout, unit);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public <T> Future<T> submit(@NotNull Callable<T> task) {
+    public <T> Future<T> submit(@Nonnull Callable<T> task) {
       return getService().submit(task);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public <T> Future<T> submit(@NotNull Runnable task, T result) {
+    public <T> Future<T> submit(@Nonnull Runnable task, T result) {
       return getService().submit(task, result);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public Future<?> submit(@NotNull Runnable task) {
+    public Future<?> submit(@Nonnull Runnable task) {
       return getService().submit(task);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks)
+    public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks)
         throws InterruptedException {
       return getService().invokeAll(tasks);
     }
 
-    @NotNull
+    @Nonnull
     @Override
     public <T> List<Future<T>> invokeAll(
-        @NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit)
+        @Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit)
         throws InterruptedException {
       return getService().invokeAll(tasks, timeout, unit);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks)
+    public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks)
         throws InterruptedException, ExecutionException {
       return getService().invokeAny(tasks);
     }
 
     @Override
     public <T> T invokeAny(
-        @NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit)
+        @Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit)
         throws InterruptedException, ExecutionException, TimeoutException {
       return getService().invokeAny(tasks, timeout, unit);
     }
 
     @Override
-    public void execute(@NotNull Runnable command) {
+    public void execute(@Nonnull Runnable command) {
       getService().execute(command);
     }
 
