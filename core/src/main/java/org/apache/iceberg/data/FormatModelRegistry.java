@@ -215,18 +215,15 @@ public final class FormatModelRegistry {
    * DeleteFile} that can be used for table operations.
    *
    * @param format the file format used for writing
-   * @param type the input type
    * @param outputFile destination for the written data
-   * @param <D> the type of data records contained in the {@link PositionDelete} that the writer
-   *     will accept
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  public static <D, S> PositionDeleteWriteBuilder<D, S> positionDeleteWriteBuilder(
-      FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
-    FormatModel<D, S> factory = factoryFor(format, type);
-    WriteBuilder<PositionDelete<D>, S> writeBuilder =
+  public static PositionDeleteWriteBuilder positionDeleteWriteBuilder(
+      FileFormat format, EncryptedOutputFile outputFile) {
+    FormatModel<PositionDelete<?>, Object> factory = factoryForPositionDelete(format);
+    WriteBuilder<PositionDelete<?>, Object> writeBuilder =
         factory
-            .positionDeleteWriteBuilder(outputFile.encryptingOutputFile())
+            .writeBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.POSITION_DELETES);
     return ContentFileWriteBuilderImpl.forPositionDelete(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
@@ -235,5 +232,13 @@ public final class FormatModelRegistry {
   @SuppressWarnings("unchecked")
   private static <D, S> FormatModel<D, S> factoryFor(FileFormat format, Class<D> type) {
     return ((FormatModel<D, S>) FORMAT_MODELS.get(Pair.of(format, type)));
+  }
+
+  @SuppressWarnings("unchecked")
+  private static FormatModel<PositionDelete<?>, Object> factoryForPositionDelete(
+      FileFormat format) {
+    // Registry should use Pair<FileFormat, Class<?>> as key, so use PositionDelete.class
+    return (FormatModel<PositionDelete<?>, Object>)
+        FORMAT_MODELS.get(Pair.of(format, PositionDelete.class));
   }
 }

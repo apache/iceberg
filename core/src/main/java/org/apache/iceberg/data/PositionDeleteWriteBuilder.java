@@ -28,11 +28,9 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
  *
  * <p>This builder extends the generic {@link ContentFileWriteBuilder} interface with functionality
  * specific to creating {@link PositionDeleteWriter} instances.
- *
- * @param <D> the type of data records the writer will accept
  */
-public interface PositionDeleteWriteBuilder<D, S>
-    extends ContentFileWriteBuilder<PositionDeleteWriteBuilder<D, S>, S> {
+public interface PositionDeleteWriteBuilder
+    extends ContentFileWriteBuilder<PositionDeleteWriteBuilder> {
 
   /**
    * Creates a position-based delete file writer configured with the current builder settings.
@@ -41,8 +39,10 @@ public interface PositionDeleteWriteBuilder<D, S>
    * by their file path and position, generating proper {@link DeleteFile} metadata on completion.
    * The writer expects {@link PositionDelete} records as input.
    *
+   * @param <D> Only kept for backwards compatibility, the writer expects {@link PositionDelete}
+   *     records as input, and the actual row data is not used.
    * @return a fully configured {@link PositionDeleteWriter} instance
    * @throws IOException if the writer cannot be created due to I/O errors
    */
-  PositionDeleteWriter<D> build() throws IOException;
+  <D> PositionDeleteWriter<D> build() throws IOException;
 }

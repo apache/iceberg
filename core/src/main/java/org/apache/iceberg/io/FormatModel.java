@@ -20,7 +20,6 @@ package org.apache.iceberg.io;
 
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.data.FormatModelRegistry;
-import org.apache.iceberg.deletes.PositionDelete;
 
 /**
  * Interface that provides a unified abstraction for converting between data file formats and
@@ -70,17 +69,6 @@ public interface FormatModel<D, S> {
    * @return configured writer builder
    */
   WriteBuilder<D, S> writeBuilder(OutputFile outputFile);
-
-  /**
-   * Creates a writer builder for position delete files.
-   *
-   * <p>The returned {@link WriteBuilder} configures and creates a writer that converts {@link
-   * PositionDelete} objects into the file format supported by this factory.
-   *
-   * @param outputFile destination for the written data
-   * @return configured position delete writer builder
-   */
-  WriteBuilder<PositionDelete<D>, S> positionDeleteWriteBuilder(OutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.
