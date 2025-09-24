@@ -218,7 +218,12 @@ class Snapshot(BaseModel):
     first_row_id: Optional[int] = Field(
         None,
         alias='first-row-id',
-        description='The first _row_id assigned to the first row in the first data file in the first manifest',
+        description='The first _row_id assigned to the first row in the first data file in the first manifest.',
+    )
+    added_rows: Optional[int] = Field(
+        None,
+        alias='added-rows',
+        description='The upper bound of the number of rows with assigned row IDs.',
     )
     summary: Summary
     schema_id: Optional[int] = Field(None, alias='schema-id')
