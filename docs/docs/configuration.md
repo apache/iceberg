@@ -152,7 +152,7 @@ They support Basic, OAuth2, SigV4, and Google authentication, in addition to the
 
 | Property                             | Default          | Description                                                                                                       |
 |--------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------|
-| `rest.auth.type`                     | none             | Authentication mechanism for REST catalog access. Supported values: `none`, `basic`, `oauth2`, `sigv4`, `google`. |
+| `rest.auth.type`                     | `none`             | Authentication mechanism for REST catalog access. Supported values: `none`, `basic`, `oauth2`, `sigv4`, `google`. |
 | `rest.auth.basic.username`           | null             | Username for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
 | `rest.auth.basic.password`           | null             | Password for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
 | `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after `sigv4` signing.                                                                   |
