@@ -148,7 +148,7 @@ Flink passes in catalog properties through `CREATE CATALOG` statement, see more 
 The following catalog properties configure authentication for the REST catalog.
 They support Basic, OAuth2, SigV4, and Google authentication.
 
-### REST auth properties
+#### REST auth properties
 
 | Property                             | Default          | Description                                                                                                       |
 |--------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------|
