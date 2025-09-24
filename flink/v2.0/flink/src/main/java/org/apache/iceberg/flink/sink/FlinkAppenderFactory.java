@@ -172,8 +172,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       EncryptedOutputFile outputFile, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
     try {
-      PositionDeleteWriteBuilder<RowData, RowType> builder =
-          FormatModelRegistry.positionDeleteWriteBuilder(format, RowData.class, outputFile);
+      PositionDeleteWriteBuilder builder =
+          FormatModelRegistry.positionDeleteWriteBuilder(format, outputFile);
       return builder
           .overwrite()
           .set(props)

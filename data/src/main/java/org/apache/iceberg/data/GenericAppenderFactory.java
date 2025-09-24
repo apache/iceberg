@@ -233,8 +233,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
             : MetricsConfig.fromProperties(config);
 
     try {
-      PositionDeleteWriteBuilder<Record, Types.StructType> builder =
-          FormatModelRegistry.positionDeleteWriteBuilder(format, Record.class, file);
+      PositionDeleteWriteBuilder builder =
+          FormatModelRegistry.positionDeleteWriteBuilder(format, file);
       return builder
           .partition(partition)
           .overwrite()

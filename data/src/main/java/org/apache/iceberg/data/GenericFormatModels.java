@@ -25,6 +25,7 @@ import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
 import org.slf4j.Logger;
@@ -50,6 +51,8 @@ public class GenericFormatModels {
                     GenericParquetReaders::buildReader,
                     (schema, messageType, inputType) ->
                         GenericParquetWriter.create(schema, messageType))));
+    logAngIgnoreNoClassDefFoundError(
+        () -> FormatModelRegistry.register(new ParquetFormatModel<>(PositionDelete.class)));
   }
 
   private static void registerAvro() {
@@ -60,6 +63,8 @@ public class GenericFormatModels {
                     Record.class,
                     PlannedDataReader::create,
                     (schema, inputSchema) -> DataWriter.create(schema))));
+    logAngIgnoreNoClassDefFoundError(
+        () -> FormatModelRegistry.register(new AvroFormatModel<>(PositionDelete.class)));
   }
 
   private static void registerOrc() {
@@ -71,6 +76,8 @@ public class GenericFormatModels {
                     GenericOrcReader::buildReader,
                     (schema, typeDescription, unused) ->
                         GenericOrcWriter.buildWriter(schema, typeDescription))));
+    logAngIgnoreNoClassDefFoundError(
+        () -> FormatModelRegistry.register(new ORCFormatModel<>(PositionDelete.class)));
   }
 
   private GenericFormatModels() {}

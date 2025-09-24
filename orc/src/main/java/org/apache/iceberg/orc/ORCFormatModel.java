@@ -21,11 +21,9 @@ package org.apache.iceberg.orc;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FormatModel;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.WriteBuilder;
 import org.apache.orc.TypeDescription;
 
 public class ORCFormatModel<D, S> implements FormatModel<D, S> {
@@ -54,6 +52,10 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
     this(type, null, batchReaderFunction, null);
   }
 
+  public ORCFormatModel(Class<D> type) {
+    this(type, null, null, null);
+  }
+
   @Override
   public FileFormat format() {
     return FileFormat.ORC;
@@ -67,11 +69,6 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   @Override
   public org.apache.iceberg.io.WriteBuilder<D, S> writeBuilder(OutputFile outputFile) {
     return new ORC.WriteBuilderImpl<D, S>(outputFile).writerFunction(writerFunction);
-  }
-
-  @Override
-  public WriteBuilder<PositionDelete<D>, S> positionDeleteWriteBuilder(OutputFile outputFile) {
-    return new ORC.WriteBuilderImpl<PositionDelete<D>, S>(outputFile).deleteWriter();
   }
 
   @Override

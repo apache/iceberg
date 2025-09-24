@@ -153,8 +153,8 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      PositionDeleteWriteBuilder<T, S> builder =
-          FormatModelRegistry.positionDeleteWriteBuilder(deleteFileFormat, inputType, file);
+      PositionDeleteWriteBuilder builder =
+          FormatModelRegistry.positionDeleteWriteBuilder(deleteFileFormat, file);
       return builder
           .set(properties)
           .set(writeProperties)

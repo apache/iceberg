@@ -694,9 +694,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       StructLike partition,
       Schema rowSchema)
       throws IOException {
-    PositionDeleteWriteBuilder<Record, Types.StructType> builder =
+    PositionDeleteWriteBuilder builder =
         FormatModelRegistry.positionDeleteWriteBuilder(
-            format, Record.class, EncryptedFiles.plainAsEncryptedOutput(outputFile));
+            format, EncryptedFiles.plainAsEncryptedOutput(outputFile));
     return builder.partition(partition).spec(spec).build();
   }
 

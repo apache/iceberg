@@ -46,7 +46,7 @@ import org.apache.iceberg.io.DataWriter;
  *
  * @param <B> the concrete builder type for method chaining
  */
-interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B, S>, S> {
+interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
 
   /**
    * Set a writer configuration property which affects the writer behavior.

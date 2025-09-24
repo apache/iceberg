@@ -237,13 +237,6 @@ public class Avro {
       return this;
     }
 
-    WriteBuilderImpl<D, S> deleteWriter() {
-      Preconditions.checkState(
-          writerFunction == null, "Cannot set multiple writer builder functions");
-      this.createWriterFunc = unused -> new Avro.PositionDatumWriter();
-      return this;
-    }
-
     @Override
     public WriteBuilderImpl<D, S> content(FileContent newContent) {
       this.content = newContent;
@@ -317,6 +310,7 @@ public class Avro {
           case POSITION_DELETES:
             this.schema = DeleteSchemaUtil.pathPosSchema();
             this.createContextFunc = Context::deleteContext;
+            this.createWriterFunc = unused -> new Avro.PositionDatumWriter();
             break;
           default:
             throw new IllegalArgumentException("Not supported content: " + content);
@@ -540,9 +534,9 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
-   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
-   *     EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, EncryptedOutputFile)} and {@link
+   *     FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)}
+   *     instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
@@ -551,9 +545,9 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
-   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
-   *     EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, EncryptedOutputFile)} and {@link
+   *     FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)}
+   *     instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
@@ -562,9 +556,9 @@ public class Avro {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
-   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
-   *     EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, EncryptedOutputFile)} and {@link
+   *     FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)}
+   *     instead.
    */
   @Deprecated
   public static class DeleteWriteBuilder {

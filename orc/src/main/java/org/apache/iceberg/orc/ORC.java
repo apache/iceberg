@@ -228,17 +228,6 @@ public class ORC {
       return this;
     }
 
-    WriteBuilderImpl<D, S> deleteWriter() {
-      Preconditions.checkState(
-          writerFunction == null, "Cannot set multiple writer builder functions");
-      this.createWriterFunc =
-          (icebergSchema, typeDescription) ->
-              GenericOrcWriters.positionDelete(
-                  GenericOrcWriter.buildWriter(icebergSchema, typeDescription),
-                  Function.identity());
-      return this;
-    }
-
     @Override
     public WriteBuilderImpl<D, S> set(String property, String value) {
       config.put(property, value);
@@ -314,6 +303,11 @@ public class ORC {
           case POSITION_DELETES:
             this.schema = DeleteSchemaUtil.pathPosSchema();
             this.createContextFunc = Context::deleteContext;
+            this.createWriterFunc =
+                (icebergSchema, typeDescription) ->
+                    GenericOrcWriters.positionDelete(
+                        GenericOrcWriter.buildWriter(icebergSchema, typeDescription),
+                        Function.identity());
             break;
           default:
             throw new IllegalArgumentException("Not supported content: " + content);
@@ -648,9 +642,9 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
-   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
-   *     EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, EncryptedOutputFile)} and {@link
+   *     FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)}
+   *     instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
@@ -659,9 +653,9 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
-   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
-   *     EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, EncryptedOutputFile)} and {@link
+   *     FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)}
+   *     instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
@@ -672,9 +666,9 @@ public class ORC {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
-   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
-   *     EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, EncryptedOutputFile)} and {@link
+   *     FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)}
+   *     instead.
    */
   @Deprecated
   public static class DeleteWriteBuilder {

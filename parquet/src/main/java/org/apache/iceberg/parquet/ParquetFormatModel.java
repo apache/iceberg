@@ -21,11 +21,9 @@ package org.apache.iceberg.parquet;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FormatModel;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.WriteBuilder;
 import org.apache.parquet.schema.MessageType;
 
 public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
@@ -43,6 +41,10 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
     this.readerFunction = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
     this.writerFunction = writerFunction;
+  }
+
+  public ParquetFormatModel(Class<D> type) {
+    this(type, null, null, null);
   }
 
   public ParquetFormatModel(
@@ -67,11 +69,6 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
   @Override
   public org.apache.iceberg.io.WriteBuilder<D, S> writeBuilder(OutputFile outputFile) {
     return new Parquet.WriteBuilderImpl<D, S>(outputFile).writerFunction(writerFunction);
-  }
-
-  @Override
-  public WriteBuilder<PositionDelete<D>, S> positionDeleteWriteBuilder(OutputFile outputFile) {
-    return new Parquet.WriteBuilderImpl<PositionDelete<D>, S>(outputFile).deleteWriter();
   }
 
   @Override

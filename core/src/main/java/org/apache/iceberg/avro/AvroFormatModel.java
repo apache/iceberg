@@ -24,16 +24,18 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FormatModel;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.WriteBuilder;
 
 public class AvroFormatModel<D, S> implements FormatModel<D, S> {
   private final Class<D> type;
   private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
   private final BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction;
+
+  public AvroFormatModel(Class<D> type) {
+    this(type, null, null);
+  }
 
   public AvroFormatModel(
       Class<D> type,
@@ -57,11 +59,6 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
   @Override
   public org.apache.iceberg.io.WriteBuilder<D, S> writeBuilder(OutputFile outputFile) {
     return new Avro.WriteBuilderImpl<D, S>(outputFile).writerFunction(writerFunction);
-  }
-
-  @Override
-  public WriteBuilder<PositionDelete<D>, S> positionDeleteWriteBuilder(OutputFile outputFile) {
-    return new Avro.WriteBuilderImpl<PositionDelete<D>, S>(outputFile).deleteWriter();
   }
 
   @Override

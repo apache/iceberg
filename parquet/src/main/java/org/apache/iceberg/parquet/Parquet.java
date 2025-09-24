@@ -347,17 +347,6 @@ public class Parquet {
       return this;
     }
 
-    WriteBuilderImpl<D, S> deleteWriter() {
-      Preconditions.checkState(
-          writerFunction == null, "Cannot set multiple writer builder functions");
-      this.createWriterFunc =
-          (icebergSchema, messageType) ->
-              new PositionDeleteStructWriter<D>(
-                  (StructWriter<?>) GenericParquetWriter.create(icebergSchema, messageType),
-                  Function.identity());
-      return this;
-    }
-
     @Override
     public WriteBuilderImpl<D, S> content(FileContent newContent) {
       this.content = newContent;
@@ -505,6 +494,11 @@ public class Parquet {
           case POSITION_DELETES:
             this.schema = DeleteSchemaUtil.pathPosSchema();
             this.createContextFunc = Context::deleteContext;
+            this.createWriterFunc =
+                (icebergSchema, messageType) ->
+                    new PositionDeleteStructWriter<D>(
+                        (StructWriter<?>) GenericParquetWriter.create(icebergSchema, messageType),
+                        Function.identity());
             break;
           default:
             throw new IllegalArgumentException("Not supported content: " + content);
@@ -1056,9 +1050,9 @@ public class Parquet {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
-   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
-   *     EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, EncryptedOutputFile)} and {@link
+   *     FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)}
+   *     instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
@@ -1067,9 +1061,9 @@ public class Parquet {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
-   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
-   *     EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, EncryptedOutputFile)} and {@link
+   *     FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)}
+   *     instead.
    */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
@@ -1085,9 +1079,9 @@ public class Parquet {
 
   /**
    * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
-   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)} and
-   *     {@link FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class,
-   *     EncryptedOutputFile)} instead.
+   *     FormatModelRegistry#positionDeleteWriteBuilder(FileFormat, EncryptedOutputFile)} and {@link
+   *     FormatModelRegistry#equalityDeleteWriteBuilder(FileFormat, Class, EncryptedOutputFile)}
+   *     instead.
    */
   @Deprecated
   public static class DeleteWriteBuilder {
@@ -1441,7 +1435,7 @@ public class Parquet {
         impl.readerFuncWithSchema =
             (s, m) -> (ParquetValueReader<Object>) newReaderFunction.apply(s, m);
       } else {
-        impl.readerFunc = null;
+        impl.readerFuncWithSchema = null;
       }
 
       return this;
@@ -1458,7 +1452,7 @@ public class Parquet {
       if (newReaderFunction != null) {
         impl.batchedReaderFunc = m -> (VectorizedReader<Object>) newReaderFunction.apply(m);
       } else {
-        impl.readerFunc = null;
+        impl.batchedReaderFunc = null;
       }
 
       return this;

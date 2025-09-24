@@ -60,9 +60,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * @param <S> the type of the schema for the input data
  * @param <D> the type of data records the writer will accept
  */
-@SuppressWarnings("unchecked")
-abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, S>, D, S>
-    implements ContentFileWriteBuilder<B, S> {
+abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>, D, S>
+    implements ContentFileWriteBuilder<B> {
   private final WriteBuilder<D, S> writeBuilder;
   private final String location;
   private final FileFormat format;
@@ -81,9 +80,9 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
     return new EqualityDeleteFileWriteBuilder<>(writeBuilder, location, format);
   }
 
-  static <D, S> PositionDeleteWriteBuilder<D, S> forPositionDelete(
-      WriteBuilder<PositionDelete<D>, S> writeBuilder, String location, FileFormat format) {
-    return new PositionDeleteFileWriteBuilder<>(writeBuilder, location, format);
+  static PositionDeleteWriteBuilder forPositionDelete(
+      WriteBuilder<PositionDelete<?>, Object> writeBuilder, String location, FileFormat format) {
+    return new PositionDeleteFileWriteBuilder(writeBuilder, location, format);
   }
 
   private ContentFileWriteBuilderImpl(
@@ -268,22 +267,22 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
     }
   }
 
-  private static class PositionDeleteFileWriteBuilder<D, S>
-      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder<D, S>, PositionDelete<D>, S>
-      implements PositionDeleteWriteBuilder<D, S> {
+  private static class PositionDeleteFileWriteBuilder
+      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder, PositionDelete<?>, Object>
+      implements PositionDeleteWriteBuilder {
 
     private PositionDeleteFileWriteBuilder(
-        WriteBuilder<PositionDelete<D>, S> writeBuilder, String location, FileFormat format) {
+        WriteBuilder<PositionDelete<?>, Object> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
     }
 
     @Override
-    public PositionDeleteFileWriteBuilder<D, S> self() {
+    public PositionDeleteFileWriteBuilder self() {
       return this;
     }
 
     @Override
-    public PositionDeleteWriter<D> build() throws IOException {
+    public PositionDeleteWriter<?> build() throws IOException {
       Preconditions.checkArgument(
           super.spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(
@@ -291,7 +290,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
           "Partition must not be null for partitioned writes");
 
       return new PositionDeleteWriter<>(
-          new PositionDeleteFileAppender<>(
+          new PositionDeleteFileAppender(
               super.writeBuilder.meta("delete-type", "position").build()),
           super.format,
           super.location,
@@ -301,16 +300,16 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B, 
     }
   }
 
-  private static class PositionDeleteFileAppender<D> implements FileAppender<StructLike> {
-    private final FileAppender<PositionDelete<D>> appender;
+  private static class PositionDeleteFileAppender implements FileAppender<StructLike> {
+    private final FileAppender<PositionDelete<?>> appender;
 
-    PositionDeleteFileAppender(FileAppender<PositionDelete<D>> appender) {
+    PositionDeleteFileAppender(FileAppender<PositionDelete<?>> appender) {
       this.appender = appender;
     }
 
     @Override
     public void add(StructLike positionDelete) {
-      appender.add((PositionDelete<D>) positionDelete);
+      appender.add((PositionDelete<?>) positionDelete);
     }
 
     @Override
