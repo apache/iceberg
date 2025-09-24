@@ -1538,7 +1538,7 @@ public class Parquet {
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
-    private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
+    private Map<Integer, ?> constantValues = ImmutableMap.of();
     private F deleteFilter = null;
     private int maxRecordsPerBatch = MAX_RECORDS_PER_BATCH_DEFAULT;
 
@@ -1650,8 +1650,8 @@ public class Parquet {
     }
 
     @Override
-    public ReadBuilderImpl<D, S, F> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
-      this.constantFieldAccessors = newConstantFieldAccessors;
+    public ReadBuilderImpl<D, S, F> constantValues(Map<Integer, ?> newConstantValues) {
+      this.constantValues = newConstantValues;
       return this;
     }
 
@@ -1774,7 +1774,7 @@ public class Parquet {
                 ? batchedReaderFunc
                 : fileType ->
                     batchReaderFunction.read(
-                        schema, fileType, constantFieldAccessors, deleteFilter, properties),
+                        schema, fileType, constantValues, deleteFilter, properties),
             mapping,
             filter,
             reuseContainers,
@@ -1786,7 +1786,7 @@ public class Parquet {
                 ? fileType -> readerFuncWithSchema.apply(schema, fileType)
                 : readerFunc != null
                     ? readerFunc
-                    : fileType -> readerFunction.read(schema, fileType, constantFieldAccessors);
+                    : fileType -> readerFunction.read(schema, fileType, constantValues);
         return new org.apache.iceberg.parquet.ParquetReader<>(
             file,
             schema,

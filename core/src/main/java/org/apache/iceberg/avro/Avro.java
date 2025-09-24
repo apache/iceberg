@@ -924,7 +924,7 @@ public class Avro {
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
     private Function<org.apache.iceberg.Schema, DatumReader<?>> createResolvingReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<?>> readerFunction;
-    private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
+    private Map<Integer, ?> constantValues = ImmutableMap.of();
 
     @SuppressWarnings("UnnecessaryLambda")
     private final Function<org.apache.iceberg.Schema, DatumReader<D>> defaultCreateReaderFunc =
@@ -981,8 +981,8 @@ public class Avro {
     }
 
     @Override
-    public ReadBuilderImpl<D, S> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
-      this.constantFieldAccessors = newConstantFieldAccessors;
+    public ReadBuilderImpl<D, S> constantValues(Map<Integer, ?> newConstantValues) {
+      this.constantValues = newConstantValues;
       return this;
     }
 
@@ -1007,13 +1007,14 @@ public class Avro {
 
     @Override
     public ReadBuilderImpl<D, S> caseSensitive(boolean newCaseSensitive) {
-      // Filtering is not supported in Avro reader
+      // Filtering is not supported in Avro reader, so case sensitivity does not matter
       return this;
     }
 
     @Override
     public ReadBuilderImpl<D, S> filter(Expression newFilter) {
-      // Filtering is not supported in Avro reader
+      // Filtering is not supported in Avro reader, so ignore the filter since it is best-effort and
+      // optional
       return this;
     }
 
@@ -1046,7 +1047,7 @@ public class Avro {
       } else if (createResolvingReaderFunc != null) {
         reader = (DatumReader<D>) createResolvingReaderFunc.apply(schema);
       } else if (readerFunction != null) {
-        reader = (DatumReader<D>) readerFunction.apply(schema, constantFieldAccessors);
+        reader = (DatumReader<D>) readerFunction.apply(schema, constantValues);
       } else {
         reader = defaultCreateReaderFunc.apply(schema);
       }

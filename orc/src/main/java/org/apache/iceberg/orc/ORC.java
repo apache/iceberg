@@ -966,7 +966,7 @@ public class ORC {
     private Function<TypeDescription, OrcBatchReader<D>> batchedReaderFunc;
     private ORCFormatModel.ReaderFunction<D> readerFunction;
     private ORCFormatModel.BatchReaderFunction<D> batchReaderFunction;
-    private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
+    private Map<Integer, ?> constantValues = ImmutableMap.of();
     private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
 
     protected ReadBuilderImpl(InputFile file) {
@@ -1046,8 +1046,8 @@ public class ORC {
     }
 
     @Override
-    public ReadBuilderImpl<D, S> constantValues(Map<Integer, ?> newConstantFieldAccessors) {
-      this.constantFieldAccessors = newConstantFieldAccessors;
+    public ReadBuilderImpl<D, S> constantValues(Map<Integer, ?> newConstantValues) {
+      this.constantValues = newConstantValues;
       return this;
     }
 
@@ -1081,13 +1081,13 @@ public class ORC {
           readerFunc != null
               ? readerFunc
               : readerFunction != null
-                  ? fileType -> readerFunction.read(schema, fileType, constantFieldAccessors)
+                  ? fileType -> readerFunction.read(schema, fileType, constantValues)
                   : null;
       Function<TypeDescription, OrcBatchReader<D>> batchReader =
           batchedReaderFunc != null
               ? batchedReaderFunc
               : batchReaderFunction != null
-                  ? fileType -> batchReaderFunction.read(schema, fileType, constantFieldAccessors)
+                  ? fileType -> batchReaderFunction.read(schema, fileType, constantValues)
                   : null;
       return new OrcIterable<>(
           file,
@@ -1095,8 +1095,7 @@ public class ORC {
           // This is a behavioral change. Previously there were an error if constant columns were
           // present in the schema, now they are removed and the correct reader is created
           TypeUtil.selectNot(
-              schema,
-              Sets.union(constantFieldAccessors.keySet(), MetadataColumns.metadataFieldIds())),
+              schema, Sets.union(constantValues.keySet(), MetadataColumns.metadataFieldIds())),
           nameMapping,
           start,
           length,
