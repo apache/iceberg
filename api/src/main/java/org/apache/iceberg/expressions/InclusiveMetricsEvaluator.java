@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.stats.ContentStats;
+import org.apache.iceberg.stats.FieldStats;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -55,19 +57,13 @@ public class InclusiveMetricsEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
 
   private final Expression expr;
-  private final Schema schema;
-  private final Expression unboundExpression;
-  private final boolean caseSensitive;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
   }
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
-    this.schema = schema;
     this.expr = Binder.bind(schema.asStruct(), rewriteNot(unbound), caseSensitive);
-    this.unboundExpression = unbound;
-    this.caseSensitive = caseSensitive;
   }
 
   /**
@@ -90,6 +86,7 @@ public class InclusiveMetricsEvaluator {
     private Map<Integer, Long> nanCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private ContentStats stats = null;
 
     private boolean eval(ContentFile<?> file) {
       if (file.recordCount() == 0) {
@@ -110,7 +107,7 @@ public class InclusiveMetricsEvaluator {
       this.upperBounds = file.upperBounds();
 
       if (null != file.contentStats() && !file.contentStats().fieldStats().isEmpty()) {
-        return new InclusiveStatsEvaluator(schema, unboundExpression, caseSensitive).eval(file);
+        this.stats = file.contentStats();
       }
 
       return ExpressionVisitors.visitEvaluator(expr, this);
@@ -183,7 +180,7 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      if (nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0) {
+      if (containsNoNaNs(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -480,22 +477,52 @@ public class InclusiveMetricsEvaluator {
     }
 
     private boolean mayContainNull(Integer id) {
-      return nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0;
+      if (null != stats) {
+        FieldStats stat = stats.statsFor(id);
+        return null == stat || null == stat.nullValueCount() || stat.nullValueCount() != 0;
+      } else {
+        return nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0;
+      }
     }
 
     private boolean containsNullsOnly(Integer id) {
-      return valueCounts != null
-          && valueCounts.containsKey(id)
-          && nullCounts != null
-          && nullCounts.containsKey(id)
-          && valueCounts.get(id) - nullCounts.get(id) == 0;
+      if (null != stats) {
+        FieldStats stat = stats.statsFor(id);
+        return null != stat
+            && null != stat.valueCount()
+            && null != stat.nullValueCount()
+            && stat.valueCount() - stat.nullValueCount() == 0;
+      } else {
+        return valueCounts != null
+            && valueCounts.containsKey(id)
+            && nullCounts != null
+            && nullCounts.containsKey(id)
+            && valueCounts.get(id) - nullCounts.get(id) == 0;
+      }
+    }
+
+    private boolean containsNoNaNs(Integer id) {
+      if (null != stats) {
+        FieldStats stat = stats.statsFor(id);
+        return null != stat && null != stat.nanValueCount() && stat.nanValueCount() == 0;
+      } else {
+        return nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0;
+      }
     }
 
     private boolean containsNaNsOnly(Integer id) {
-      return nanCounts != null
-          && nanCounts.containsKey(id)
-          && valueCounts != null
-          && nanCounts.get(id).equals(valueCounts.get(id));
+      if (null != stats) {
+        FieldStats stat = stats.statsFor(id);
+        return null != stat
+            && null != stat.nanValueCount()
+            && null != stat.valueCount()
+            && stat.nanValueCount().equals(stat.valueCount());
+      } else {
+        return nanCounts != null
+            && nanCounts.containsKey(id)
+            && valueCounts != null
+            && nanCounts.get(id).equals(valueCounts.get(id));
+      }
     }
 
     private <T> T lowerBound(Bound<T> term) {
@@ -524,7 +551,13 @@ public class InclusiveMetricsEvaluator {
 
     private <T> T parseLowerBound(BoundReference<T> ref) {
       int id = ref.fieldId();
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
+      if (null != stats) {
+        FieldStats stat = stats.statsFor(id);
+        if (null != stat && null != stat.lowerBound()) {
+          // FIXME: check if type helps here
+          return (T) stat.lowerBound();
+        }
+      } else if (lowerBounds != null && lowerBounds.containsKey(id)) {
         return Conversions.fromByteBuffer(ref.ref().type(), lowerBounds.get(id));
       }
 
@@ -533,7 +566,12 @@ public class InclusiveMetricsEvaluator {
 
     private <T> T parseUpperBound(BoundReference<T> ref) {
       int id = ref.fieldId();
-      if (upperBounds != null && upperBounds.containsKey(id)) {
+      if (null != stats) {
+        FieldStats stat = stats.statsFor(id);
+        if (null != stat && null != stat.upperBound()) {
+          return (T) stat.upperBound();
+        }
+      } else if (upperBounds != null && upperBounds.containsKey(id)) {
         return Conversions.fromByteBuffer(ref.ref().type(), upperBounds.get(id));
       }
 
@@ -562,8 +600,17 @@ public class InclusiveMetricsEvaluator {
 
     private <T> T extractLowerBound(BoundExtract<T> bound) {
       int id = bound.ref().fieldId();
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        VariantObject fieldLowerBounds = parseBounds(lowerBounds.get(id));
+      VariantObject fieldLowerBounds = null;
+      if (null != stats) {
+        FieldStats stat = stats.statsFor(id);
+        if (null != stat && null != stat.upperBound()) {
+          fieldLowerBounds = parseBounds((ByteBuffer) stat.lowerBound());
+        }
+      } else if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        fieldLowerBounds = parseBounds(lowerBounds.get(id));
+      }
+
+      if (null != fieldLowerBounds) {
         return VariantExpressionUtil.castTo(fieldLowerBounds.get(bound.path()), bound.type());
       }
 
@@ -572,8 +619,17 @@ public class InclusiveMetricsEvaluator {
 
     private <T> T extractUpperBound(BoundExtract<T> bound) {
       int id = bound.ref().fieldId();
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        VariantObject fieldUpperBounds = parseBounds(upperBounds.get(id));
+      VariantObject fieldUpperBounds = null;
+      if (null != stats) {
+        FieldStats stat = stats.statsFor(id);
+        if (null != stat && null != stat.upperBound()) {
+          fieldUpperBounds = parseBounds((ByteBuffer) stat.upperBound());
+        }
+      } else if (upperBounds != null && upperBounds.containsKey(id)) {
+        fieldUpperBounds = parseBounds(upperBounds.get(id));
+      }
+
+      if (null != fieldUpperBounds) {
         return VariantExpressionUtil.castTo(fieldUpperBounds.get(bound.path()), bound.type());
       }
 
