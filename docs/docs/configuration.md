@@ -157,7 +157,7 @@ They support Basic, OAuth2, SigV4, and Google authentication.
 | `rest.auth.basic.password`           | null             | Password for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
 | `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after `sigv4` signing.                                                                   |
 
-### OAuth2 auth properties
+#### OAuth2 auth properties
 Required and optional properties to include while using `oauth2` authentication
 
 | Property                | Default           | Description                                                                                                                                                           |
@@ -172,12 +172,12 @@ Required and optional properties to include while using `oauth2` authentication
 | `audience`              | null              | Optional param to specify token `audience`                                                                                                                            |
 | `resource`              | null              | Optional param to specify `resource`                                                                                                                                  |
 
-### Google auth properties
+#### Google auth properties
 Required and optional properties to include while using `google` authentication
 
 | Property                   | Default                                          | Description                                      |
 |----------------------------|--------------------------------------------------|--------------------------------------------------|
-| `gcp.auth.credentials-path`| Application Default Credentials (ADC)                 | Path to a service account JSON key file.         |
+| `gcp.auth.credentials-path`| Application Default Credentials (ADC)            | Path to a service account JSON key file.         |
 | `gcp.auth.scopes`          | `https://www.googleapis.com/auth/cloud-platform` | Comma-separated list of OAuth scopes to request. |
 
 ### Lock catalog properties
