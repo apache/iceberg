@@ -445,7 +445,8 @@ class TestOAuth2Manager {
 
   @Test
   void standaloneTableSessionEmptyProperties() {
-    Map<String, String> properties = Map.of();
+    Map<String, String> properties =
+        Map.of(OAuth2Properties.OAUTH2_SERVER_URI, "https://auth-server.com/v1/token");
     try (OAuth2Manager manager = new OAuth2Manager("test");
         OAuth2Util.AuthSession tableSession =
             (OAuth2Util.AuthSession) manager.tableSession(client, properties)) {
@@ -462,7 +463,12 @@ class TestOAuth2Manager {
 
   @Test
   void standaloneTableSessionTokenProvided() {
-    Map<String, String> tableProperties = Map.of(OAuth2Properties.TOKEN, "table-token");
+    Map<String, String> tableProperties =
+        Map.of(
+            OAuth2Properties.OAUTH2_SERVER_URI,
+            "https://auth-server.com/v1/token",
+            OAuth2Properties.TOKEN,
+            "table-token");
     try (OAuth2Manager manager = new OAuth2Manager("test");
         OAuth2Util.AuthSession tableSession =
             (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {
@@ -479,7 +485,10 @@ class TestOAuth2Manager {
 
   @Test
   void standaloneTableSessionCredentialProvided() {
-    Map<String, String> tableProperties = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
+    Map<String, String> tableProperties =
+        Map.of(
+            OAuth2Properties.OAUTH2_SERVER_URI, "https://auth-server.com/v1/token",
+            OAuth2Properties.CREDENTIAL, "client:secret");
     try (OAuth2Manager manager = new OAuth2Manager("test");
         OAuth2Util.AuthSession tableSession =
             (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties)) {

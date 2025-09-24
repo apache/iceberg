@@ -28,6 +28,7 @@ import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -176,14 +177,17 @@ public class OAuth2Manager implements AuthManager {
       sessionCache = newSessionCache(name, properties);
     }
 
+    String oauth2ServerUri = properties.get(OAuth2Properties.OAUTH2_SERVER_URI);
+    Preconditions.checkArgument(oauth2ServerUri != null, "Invalid OAuth2 server URI: null");
     if (config.token() != null) {
+      String cacheKey = oauth2ServerUri + ":" + config.token();
       return sessionCache.cachedSession(
-          config.token(), k -> newSessionFromAccessToken(config.token(), properties, parent));
+          cacheKey, k -> newSessionFromAccessToken(config.token(), properties, parent));
     }
 
     if (config.credential() != null && !config.credential().isEmpty()) {
-      return sessionCache.cachedSession(
-          config.credential(), k -> newSessionFromTokenResponse(config, parent));
+      String cacheKey = oauth2ServerUri + ":" + config.credential();
+      return sessionCache.cachedSession(cacheKey, k -> newSessionFromTokenResponse(config, parent));
     }
 
     return parent;
