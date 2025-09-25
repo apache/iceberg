@@ -35,6 +35,8 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -96,6 +98,23 @@ class TestDynamicCommitter {
                   ImmutableMap.of(1, ByteBuffer.allocate(1)), // lower bounds
                   ImmutableMap.of(1, ByteBuffer.allocate(1)) // upper bounds
                   ))
+          .build();
+
+  private static final DeleteFile DELETE_FILE =
+      FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+          .withPath("/path/to/data-3.parquet")
+          .withFileSizeInBytes(0)
+          .withMetrics(
+              new Metrics(
+                  24L,
+                  null, // no column sizes
+                  ImmutableMap.of(1, 3L), // value count
+                  ImmutableMap.of(1, 0L), // null count
+                  null,
+                  ImmutableMap.of(1, ByteBuffer.allocate(1)), // lower bounds
+                  ImmutableMap.of(1, ByteBuffer.allocate(1)) // upper bounds
+                  ))
+          .ofPositionDeletes()
           .build();
 
   @BeforeEach
@@ -326,116 +345,11 @@ class TestDynamicCommitter {
     aggregatorHarness.open();
 
     WriteTarget writeTarget1 =
-        new WriteTarget(TABLE1, "branch", 42, 0, true, Sets.newHashSet(1, 2));
+        new WriteTarget(TABLE1, "branch1", 42, 0, true, Sets.newHashSet(1, 2));
     // writeTarget2 has a different schema
-    WriteTarget writeTarget2 = new WriteTarget(TABLE1, "branch", 23, 0, true, Sets.newHashSet());
+    WriteTarget writeTarget2 = new WriteTarget(TABLE1, "branch1", 23, 0, true, Sets.newHashSet());
     // Different branch for writeTarget3
     WriteTarget writeTarget3 = new WriteTarget(TABLE1, "branch2", 23, 0, true, Sets.newHashSet());
-
-    WriteResult writeResult1 = WriteResult.builder().addDataFiles(DATA_FILE).build();
-    WriteResult writeResult2 = WriteResult.builder().addDataFiles(DATA_FILE_2).build();
-
-    final String jobId = JobID.generate().toHexString();
-    final String operatorId = new OperatorID().toHexString();
-    final int checkpointId = 10;
-
-    byte[] deltaManifest1 =
-        aggregator.writeToManifest(
-            writeTarget1, Sets.newHashSet(new DynamicWriteResult(writeTarget1, writeResult1)), 0);
-
-    CommitRequest<DynamicCommittable> commitRequest1 =
-        new MockCommitRequest<>(
-            new DynamicCommittable(writeTarget1, deltaManifest1, jobId, operatorId, checkpointId));
-
-    byte[] deltaManifest2 =
-        aggregator.writeToManifest(
-            writeTarget2, Sets.newHashSet(new DynamicWriteResult(writeTarget2, writeResult2)), 0);
-
-    CommitRequest<DynamicCommittable> commitRequest2 =
-        new MockCommitRequest<>(
-            new DynamicCommittable(writeTarget2, deltaManifest2, jobId, operatorId, checkpointId));
-
-    byte[] deltaManifest3 =
-        aggregator.writeToManifest(
-            writeTarget3, Sets.newHashSet(new DynamicWriteResult(writeTarget3, writeResult2)), 0);
-
-    CommitRequest<DynamicCommittable> commitRequest3 =
-        new MockCommitRequest<>(
-            new DynamicCommittable(writeTarget3, deltaManifest3, jobId, operatorId, checkpointId));
-
-    boolean overwriteMode = false;
-    int workerPoolSize = 1;
-    String sinkId = "sinkId";
-    UnregisteredMetricsGroup metricGroup = new UnregisteredMetricsGroup();
-    DynamicCommitterMetrics committerMetrics = new DynamicCommitterMetrics(metricGroup);
-    DynamicCommitter dynamicCommitter =
-        new DynamicCommitter(
-            CATALOG_EXTENSION.catalog(),
-            Maps.newHashMap(),
-            overwriteMode,
-            workerPoolSize,
-            sinkId,
-            committerMetrics);
-
-    dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2, commitRequest3));
-
-    table.refresh();
-    // Three committables, but only two snapshots! One snapshot for all append-only WriteResults,
-    // one snapshot for all WriteResults containing delete files.
-    assertThat(table.snapshots()).hasSize(2);
-
-    Snapshot snapshot1 = Iterables.getFirst(table.snapshots(), null);
-    assertThat(snapshot1.summary())
-        .containsAllEntriesOf(
-            ImmutableMap.<String, String>builder()
-                .put("added-data-files", "2")
-                .put("added-records", "66")
-                .put("changed-partition-count", "1")
-                .put("flink.job-id", jobId)
-                .put("flink.max-committed-checkpoint-id", "" + checkpointId)
-                .put("flink.operator-id", operatorId)
-                .put("total-data-files", "2")
-                .put("total-delete-files", "0")
-                .put("total-equality-deletes", "0")
-                .put("total-files-size", "0")
-                .put("total-position-deletes", "0")
-                .put("total-records", "66")
-                .build());
-
-    Snapshot snapshot2 = Iterables.get(table.snapshots(), 1);
-    assertThat(snapshot2.summary())
-        .containsAllEntriesOf(
-            ImmutableMap.<String, String>builder()
-                .put("added-data-files", "1")
-                .put("added-records", "24")
-                .put("changed-partition-count", "1")
-                .put("flink.job-id", jobId)
-                .put("flink.max-committed-checkpoint-id", "" + checkpointId)
-                .put("flink.operator-id", operatorId)
-                .put("total-data-files", "1")
-                .put("total-delete-files", "0")
-                .put("total-equality-deletes", "0")
-                .put("total-files-size", "0")
-                .put("total-position-deletes", "0")
-                .put("total-records", "24")
-                .build());
-  }
-
-  @Test
-  void testTableBranchAtomicCommitWithFailures() throws Exception {
-    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
-    assertThat(table.snapshots()).isEmpty();
-
-    DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
-    OneInputStreamOperatorTestHarness aggregatorHarness =
-        new OneInputStreamOperatorTestHarness(aggregator);
-    aggregatorHarness.open();
-
-    WriteTarget writeTarget1 =
-        new WriteTarget(TABLE1, "branch", 42, 0, true, Sets.newHashSet(1, 2));
-    // writeTarget2 has a different schema
-    WriteTarget writeTarget2 = new WriteTarget(TABLE1, "branch", 23, 0, true, Sets.newHashSet());
 
     WriteResult writeResult1 = WriteResult.builder().addDataFiles(DATA_FILE).build();
     WriteResult writeResult2 = WriteResult.builder().addDataFiles(DATA_FILE_2).build();
@@ -465,6 +379,130 @@ class TestDynamicCommitter {
         new MockCommitRequest<>(
             new DynamicCommittable(writeTarget2, deltaManifest2, jobId, operatorId, checkpointId2));
 
+    byte[] deltaManifest3 =
+        aggregator.writeToManifest(
+            writeTarget3,
+            Sets.newHashSet(new DynamicWriteResult(writeTarget3, writeResult2)),
+            checkpointId1);
+
+    CommitRequest<DynamicCommittable> commitRequest3 =
+        new MockCommitRequest<>(
+            new DynamicCommittable(writeTarget3, deltaManifest3, jobId, operatorId, checkpointId1));
+
+    boolean overwriteMode = false;
+    int workerPoolSize = 1;
+    String sinkId = "sinkId";
+    UnregisteredMetricsGroup metricGroup = new UnregisteredMetricsGroup();
+    DynamicCommitterMetrics committerMetrics = new DynamicCommitterMetrics(metricGroup);
+    DynamicCommitter dynamicCommitter =
+        new DynamicCommitter(
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            overwriteMode,
+            workerPoolSize,
+            sinkId,
+            committerMetrics);
+
+    dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2, commitRequest3));
+
+    table.refresh();
+    // Three committables, but only two snapshots! One snapshot for each table / branch.
+    assertThat(table.snapshots()).hasSize(2);
+
+    Snapshot snapshot1 = Iterables.getFirst(table.snapshots(), null);
+    assertThat(snapshot1.snapshotId()).isEqualTo(table.refs().get("branch1").snapshotId());
+    assertThat(snapshot1.summary())
+        .containsAllEntriesOf(
+            ImmutableMap.<String, String>builder()
+                .put("added-data-files", "2")
+                .put("added-records", "66")
+                .put("changed-partition-count", "1")
+                .put("flink.job-id", jobId)
+                .put("flink.max-committed-checkpoint-id", "" + checkpointId2)
+                .put("flink.operator-id", operatorId)
+                .put("total-data-files", "2")
+                .put("total-delete-files", "0")
+                .put("total-equality-deletes", "0")
+                .put("total-files-size", "0")
+                .put("total-position-deletes", "0")
+                .put("total-records", "66")
+                .build());
+
+    Snapshot snapshot2 = Iterables.get(table.snapshots(), 1);
+    assertThat(snapshot2.snapshotId()).isEqualTo(table.refs().get("branch2").snapshotId());
+    assertThat(snapshot2.summary())
+        .containsAllEntriesOf(
+            ImmutableMap.<String, String>builder()
+                .put("added-data-files", "1")
+                .put("added-records", "24")
+                .put("changed-partition-count", "1")
+                .put("flink.job-id", jobId)
+                .put("flink.max-committed-checkpoint-id", "" + checkpointId1)
+                .put("flink.operator-id", operatorId)
+                .put("total-data-files", "1")
+                .put("total-delete-files", "0")
+                .put("total-equality-deletes", "0")
+                .put("total-files-size", "0")
+                .put("total-position-deletes", "0")
+                .put("total-records", "24")
+                .build());
+  }
+
+  @Test
+  void testTableBranchAtomicCommitWithFailures() throws Exception {
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    WriteTarget writeTarget1 = new WriteTarget(TABLE1, "branch", 42, 0, false, Sets.newHashSet());
+    // writeTarget2 has a different schema
+    WriteTarget writeTarget2 = new WriteTarget(TABLE1, "branch", 23, 0, false, Sets.newHashSet());
+    WriteTarget writeTarget3 = new WriteTarget(TABLE1, "branch", 23, 0, false, Sets.newHashSet());
+
+    WriteResult writeResult1 = WriteResult.builder().addDataFiles(DATA_FILE).build();
+    WriteResult writeResult2 = WriteResult.builder().addDeleteFiles(DELETE_FILE).build();
+    WriteResult writeResult3 = WriteResult.builder().addDataFiles(DATA_FILE).build();
+
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int checkpointId1 = 1;
+    final int checkpointId2 = 2;
+
+    byte[] deltaManifest1 =
+        aggregator.writeToManifest(
+            writeTarget1,
+            Sets.newHashSet(new DynamicWriteResult(writeTarget1, writeResult1)),
+            checkpointId1);
+
+    CommitRequest<DynamicCommittable> commitRequest1 =
+        new MockCommitRequest<>(
+            new DynamicCommittable(writeTarget1, deltaManifest1, jobId, operatorId, checkpointId1));
+
+    byte[] deltaManifest2 =
+        aggregator.writeToManifest(
+            writeTarget2,
+            Sets.newHashSet(new DynamicWriteResult(writeTarget2, writeResult2)),
+            checkpointId2);
+
+    CommitRequest<DynamicCommittable> commitRequest2 =
+        new MockCommitRequest<>(
+            new DynamicCommittable(writeTarget2, deltaManifest2, jobId, operatorId, checkpointId2));
+
+    byte[] deltaManifest3 =
+        aggregator.writeToManifest(
+            writeTarget3,
+            Sets.newHashSet(new DynamicWriteResult(writeTarget3, writeResult3)),
+            checkpointId2);
+
+    CommitRequest<DynamicCommittable> commitRequest3 =
+        new MockCommitRequest<>(
+            new DynamicCommittable(writeTarget3, deltaManifest3, jobId, operatorId, checkpointId2));
+
     boolean overwriteMode = false;
     int workerPoolSize = 1;
     String sinkId = "sinkId";
@@ -484,7 +522,9 @@ class TestDynamicCommitter {
             committerMetrics);
 
     ThrowingCallable commitExecutable =
-        () -> dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2));
+        () ->
+            dynamicCommitter.commit(
+                Sets.newHashSet(commitRequest1, commitRequest2, commitRequest3));
 
     // First fail pre-commit
     assertThatThrownBy(commitExecutable);
@@ -507,7 +547,9 @@ class TestDynamicCommitter {
     }
 
     table.refresh();
-    // Two committables. One per checkpoint.
+    // Three committables, but only two snapshots! WriteResults from different checkpoints are not
+    // getting
+    // combined due to one writeResult2 containing a delete file.
     assertThat(table.snapshots()).hasSize(2);
 
     Snapshot snapshot1 = Iterables.getFirst(table.snapshots(), null);
@@ -519,7 +561,6 @@ class TestDynamicCommitter {
                 .put("changed-partition-count", "1")
                 .put("flink.job-id", jobId)
                 .put("flink.max-committed-checkpoint-id", "" + checkpointId1)
-                .put("flink.max-write-result-index", "0")
                 .put("flink.operator-id", operatorId)
                 .put("total-data-files", "1")
                 .put("total-delete-files", "0")
@@ -534,18 +575,17 @@ class TestDynamicCommitter {
         .containsAllEntriesOf(
             ImmutableMap.<String, String>builder()
                 .put("added-data-files", "1")
-                .put("added-records", "24")
+                .put("added-records", "42")
                 .put("changed-partition-count", "1")
                 .put("flink.job-id", jobId)
                 .put("flink.max-committed-checkpoint-id", "" + checkpointId2)
-                .put("flink.max-write-result-index", "0")
                 .put("flink.operator-id", operatorId)
                 .put("total-data-files", "2")
-                .put("total-delete-files", "0")
+                .put("total-delete-files", "1")
                 .put("total-equality-deletes", "0")
                 .put("total-files-size", "0")
-                .put("total-position-deletes", "0")
-                .put("total-records", "66")
+                .put("total-position-deletes", "24")
+                .put("total-records", "84")
                 .build());
   }
 
@@ -715,18 +755,9 @@ class TestDynamicCommitter {
         String description,
         String newFlinkJobId,
         String operatorId,
-        long checkpointId,
-        int maxWriteResultIndex) {
+        long checkpointId) {
       super.commitOperation(
-          table,
-          branch,
-          operation,
-          summary,
-          description,
-          newFlinkJobId,
-          operatorId,
-          checkpointId,
-          maxWriteResultIndex);
+          table, branch, operation, summary, description, newFlinkJobId, operatorId, checkpointId);
       commitHook.duringCommit();
     }
   }
