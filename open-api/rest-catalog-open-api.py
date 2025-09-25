@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Extra, Field
@@ -1074,19 +1074,18 @@ class SetStatisticsUpdate(BaseUpdate):
 class UnaryExpression(BaseModel):
     type: ExpressionType
     term: Term
-    value: Dict[str, Any]
 
 
 class LiteralExpression(BaseModel):
     type: ExpressionType
     term: Term
-    value: Dict[str, Any]
+    value: PrimitiveTypeValue
 
 
 class SetExpression(BaseModel):
     type: ExpressionType
     term: Term
-    values: List[Dict[str, Any]]
+    values: List[PrimitiveTypeValue]
 
 
 class StructField(BaseModel):
