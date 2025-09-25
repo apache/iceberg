@@ -20,8 +20,8 @@ package org.apache.iceberg.expressions;
 
 import java.util.Comparator;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
 
@@ -44,9 +44,9 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
     if (containsNan(file, fieldId)) {
       return false;
     }
-    boolean hasBound = safeContainsKey(file.upperBounds(), fieldId);
-    Long valueCount = safeGet(file.valueCounts(), fieldId);
-    Long nullCount = safeGet(file.nullValueCounts(), fieldId);
+    boolean hasBound = null != StatsUtil.upperBound(file, fieldId);
+    Long valueCount = StatsUtil.valueCount(file, fieldId);
+    Long nullCount = StatsUtil.nullValueCount(file, fieldId);
     boolean boundAllNull =
         valueCount != null
             && valueCount > 0
@@ -57,7 +57,7 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected Object evaluateRef(DataFile file) {
-    return Conversions.fromByteBuffer(type, safeGet(file.upperBounds(), fieldId));
+    return StatsUtil.upperBound(file, type, fieldId);
   }
 
   @Override
