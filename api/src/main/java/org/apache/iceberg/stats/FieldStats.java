@@ -21,7 +21,7 @@ package org.apache.iceberg.stats;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
-public interface FieldStats extends StructLike {
+public interface FieldStats<T> extends StructLike {
   int fieldId();
 
   Type type();
@@ -34,7 +34,7 @@ public interface FieldStats extends StructLike {
 
   Long nanValueCount();
 
-  Object lowerBound();
+  T lowerBound();
 
-  Object upperBound();
+  T upperBound();
 }
