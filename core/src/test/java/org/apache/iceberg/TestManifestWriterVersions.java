@@ -86,7 +86,7 @@ public class TestManifestWriterVersions {
   private static final ContentStats CONTENT_STATS =
       BaseContentStats.builder()
           .withFieldStats(
-              BaseFieldStats.builder()
+              BaseFieldStats.<Integer>builder()
                   .fieldId(1)
                   .type(Types.IntegerType.get())
                   .columnSize(15L)
@@ -96,7 +96,7 @@ public class TestManifestWriterVersions {
                   .upperBound(1)
                   .build())
           .withFieldStats(
-              BaseFieldStats.builder()
+              BaseFieldStats.<Long>builder()
                   .fieldId(2)
                   .type(Types.TimestampType.withZone())
                   .columnSize(122L)
@@ -104,7 +104,7 @@ public class TestManifestWriterVersions {
                   .nullValueCount(0L)
                   .build())
           .withFieldStats(
-              BaseFieldStats.builder()
+              BaseFieldStats.<String>builder()
                   .fieldId(3)
                   .type(Types.StringType.get())
                   .columnSize(4021L)
@@ -112,7 +112,7 @@ public class TestManifestWriterVersions {
                   .nullValueCount(0L)
                   .build())
           .withFieldStats(
-              BaseFieldStats.builder()
+              BaseFieldStats.<String>builder()
                   .fieldId(4)
                   .type(Types.StringType.get())
                   .columnSize(9411L)
@@ -120,7 +120,7 @@ public class TestManifestWriterVersions {
                   .nullValueCount(0L)
                   .build())
           .withFieldStats(
-              BaseFieldStats.builder()
+              BaseFieldStats.<Double>builder()
                   .fieldId(5)
                   .type(Types.DoubleType.get())
                   .columnSize(15L)

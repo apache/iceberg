@@ -35,8 +35,8 @@ import org.apache.iceberg.types.Types;
 
 public class BaseContentStats implements ContentStats, StructLike, Serializable {
 
-  private final List<FieldStats> fieldStats;
-  private final Map<Integer, FieldStats> fieldStatsById;
+  private final List<FieldStats<?>> fieldStats;
+  private final Map<Integer, FieldStats<?>> fieldStatsById;
 
   public BaseContentStats(Types.StructType projection) {
     this.fieldStats = Lists.newArrayListWithCapacity(projection.fields().size());
@@ -60,25 +60,26 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
     }
   }
 
-  private BaseContentStats(List<FieldStats> fieldStats) {
+  private BaseContentStats(List<FieldStats<?>> fieldStats) {
     this.fieldStats = Lists.newArrayList(fieldStats);
     this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(fieldStats.size());
   }
 
   @Override
-  public List<FieldStats> fieldStats() {
+  public List<FieldStats<?>> fieldStats() {
     return fieldStats;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public FieldStats statsFor(int columnId) {
+  public <T> FieldStats<T> statsFor(int columnId) {
     if (fieldStatsById.isEmpty() && !fieldStats.isEmpty()) {
       fieldStats.stream()
           .filter(Objects::nonNull)
           .forEach(stat -> fieldStatsById.put(stat.fieldId(), stat));
     }
 
-    return fieldStatsById.get(columnId);
+    return (FieldStats<T>) fieldStatsById.get(columnId);
   }
 
   @Override
@@ -95,11 +96,12 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
     return javaClass.cast(fieldStats.get(pos));
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public <T> void set(int pos, T value) {
     if (value instanceof GenericRecord) {
       GenericRecord record = (GenericRecord) value;
-      BaseFieldStats stat = (BaseFieldStats) fieldStats.get(pos);
+      FieldStats<?> stat = fieldStats.get(pos);
       BaseFieldStats.Builder builder = BaseFieldStats.buildFrom(stat);
       Type type = stat.type();
       if (null != record.getField("column_size")) {
@@ -118,25 +120,19 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
         builder.nullValueCount((Long) record.getField("null_value_count"));
       }
 
-      if (null != record.getField("lower_bound")) {
-        Object lowerBound = record.getField("lower_bound");
-        if (null != type) {
-          builder.lowerBound(type.typeId().javaClass().cast(lowerBound));
-        }
+      if (null != record.getField("lower_bound") && null != type) {
+        builder.lowerBound(type.typeId().javaClass().cast(record.getField("lower_bound")));
       }
 
-      if (null != record.getField("upper_bound")) {
-        Object upperBound = record.getField("upper_bound");
-        if (null != type) {
-          builder.upperBound(type.typeId().javaClass().cast(upperBound));
-        }
+      if (null != record.getField("upper_bound") && null != type) {
+        builder.upperBound(type.typeId().javaClass().cast(record.getField("upper_bound")));
       }
 
-      BaseFieldStats newStat = builder.build();
+      BaseFieldStats<?> newStat = builder.build();
       fieldStats.set(pos, newStat);
       fieldStatsById.put(newStat.fieldId(), newStat);
     } else {
-      fieldStats.set(pos, (FieldStats) value);
+      fieldStats.set(pos, (FieldStats<?>) value);
     }
   }
 
@@ -181,16 +177,16 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
   }
 
   public static class Builder {
-    private final List<FieldStats> stats = Lists.newArrayList();
+    private final List<FieldStats<?>> stats = Lists.newArrayList();
 
     private Builder() {}
 
-    public Builder withFieldStats(FieldStats fieldStats) {
+    public Builder withFieldStats(FieldStats<?> fieldStats) {
       stats.add(fieldStats);
       return this;
     }
 
-    public Builder withFieldStats(List<FieldStats> fieldStats) {
+    public Builder withFieldStats(List<FieldStats<?>> fieldStats) {
       stats.addAll(fieldStats);
       return this;
     }

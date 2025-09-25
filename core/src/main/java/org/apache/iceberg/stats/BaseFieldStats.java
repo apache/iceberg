@@ -25,15 +25,15 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
-public class BaseFieldStats implements FieldStats, StructLike, Serializable {
+public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializable {
   private final transient int fieldId;
   private final transient Type type;
   private final Long columnSize;
   private final Long valueCount;
   private final Long nullValueCount;
   private final Long nanValueCount;
-  private final Object lowerBound;
-  private final Object upperBound;
+  private final T lowerBound;
+  private final T upperBound;
 
   BaseFieldStats(
       int fieldId,
@@ -42,8 +42,8 @@ public class BaseFieldStats implements FieldStats, StructLike, Serializable {
       Long valueCount,
       Long nullValueCount,
       Long nanValueCount,
-      Object lowerBound,
-      Object upperBound) {
+      T lowerBound,
+      T upperBound) {
     this.fieldId = fieldId;
     this.type = type;
     this.columnSize = columnSize;
@@ -85,12 +85,12 @@ public class BaseFieldStats implements FieldStats, StructLike, Serializable {
   }
 
   @Override
-  public Object lowerBound() {
+  public T lowerBound() {
     return lowerBound;
   }
 
   @Override
-  public Object upperBound() {
+  public T upperBound() {
     return upperBound;
   }
 
@@ -100,7 +100,7 @@ public class BaseFieldStats implements FieldStats, StructLike, Serializable {
   }
 
   @Override
-  public Object get(int pos, Class javaClass) {
+  public <X> X get(int pos, Class<X> javaClass) {
     switch (pos) {
       case StatsUtil.COLUMN_SIZE_OFFSET:
         return javaClass.cast(columnSize);
@@ -144,7 +144,7 @@ public class BaseFieldStats implements FieldStats, StructLike, Serializable {
       return false;
     }
 
-    BaseFieldStats that = (BaseFieldStats) o;
+    BaseFieldStats<?> that = (BaseFieldStats<?>) o;
     return fieldId == that.fieldId
         && Objects.equals(type, that.type)
         && Objects.equals(columnSize, that.columnSize)
@@ -168,13 +168,13 @@ public class BaseFieldStats implements FieldStats, StructLike, Serializable {
         upperBound);
   }
 
-  public static Builder builder() {
-    return new Builder();
+  public static <X> Builder<X> builder() {
+    return new Builder<>();
   }
 
-  public static Builder buildFrom(BaseFieldStats value) {
+  public static <X> Builder<X> buildFrom(FieldStats<X> value) {
     Preconditions.checkArgument(null != value, "Invalid column stats: null");
-    return BaseFieldStats.builder()
+    return BaseFieldStats.<X>builder()
         .columnSize(value.columnSize())
         .valueCount(value.valueCount())
         .nanValueCount(value.nanValueCount())
@@ -185,60 +185,60 @@ public class BaseFieldStats implements FieldStats, StructLike, Serializable {
         .upperBound(value.upperBound());
   }
 
-  public static class Builder {
+  public static class Builder<T> {
     private int fieldId;
     private Type type;
     private Long columnSize;
     private Long valueCount;
     private Long nullValueCount;
     private Long nanValueCount;
-    private Object lowerBound;
-    private Object upperBound;
+    private T lowerBound;
+    private T upperBound;
 
     private Builder() {}
 
-    public Builder type(Type newType) {
+    public Builder<T> type(Type newType) {
       this.type = newType;
       return this;
     }
 
-    public Builder columnSize(Long newColumnSize) {
+    public Builder<T> columnSize(Long newColumnSize) {
       this.columnSize = newColumnSize;
       return this;
     }
 
-    public Builder valueCount(Long newValueCount) {
+    public Builder<T> valueCount(Long newValueCount) {
       this.valueCount = newValueCount;
       return this;
     }
 
-    public Builder nullValueCount(Long newNullValueCount) {
+    public Builder<T> nullValueCount(Long newNullValueCount) {
       this.nullValueCount = newNullValueCount;
       return this;
     }
 
-    public Builder nanValueCount(Long newNanValueCount) {
+    public Builder<T> nanValueCount(Long newNanValueCount) {
       this.nanValueCount = newNanValueCount;
       return this;
     }
 
-    public Builder lowerBound(Object newLowerBound) {
+    public Builder<T> lowerBound(T newLowerBound) {
       this.lowerBound = newLowerBound;
       return this;
     }
 
-    public Builder upperBound(Object newUpperBound) {
+    public Builder<T> upperBound(T newUpperBound) {
       this.upperBound = newUpperBound;
       return this;
     }
 
-    public Builder fieldId(int newFieldId) {
+    public Builder<T> fieldId(int newFieldId) {
       this.fieldId = newFieldId;
       return this;
     }
 
-    public BaseFieldStats build() {
-      return new BaseFieldStats(
+    public BaseFieldStats<T> build() {
+      return new BaseFieldStats<>(
           fieldId,
           type,
           columnSize,

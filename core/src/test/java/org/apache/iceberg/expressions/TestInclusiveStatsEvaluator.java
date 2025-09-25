@@ -35,7 +35,7 @@ public class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator {
         50,
         BaseContentStats.builder()
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<Integer>builder()
                     .fieldId(1)
                     .type(Types.IntegerType.get())
                     .lowerBound(INT_MIN_VALUE)
@@ -56,7 +56,7 @@ public class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator {
             .withFieldStats(
                 BaseFieldStats.builder().fieldId(10).valueCount(50L).nullValueCount(50L).build())
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<Float>builder()
                     .fieldId(11)
                     .valueCount(50L)
                     .nullValueCount(0L)
@@ -65,7 +65,7 @@ public class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator {
                     .upperBound(Float.NaN)
                     .build())
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<Double>builder()
                     .fieldId(12)
                     .valueCount(50L)
                     .nullValueCount(1L)
@@ -75,7 +75,7 @@ public class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator {
                     .build())
             .withFieldStats(BaseFieldStats.builder().fieldId(13).valueCount(50L).build())
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<String>builder()
                     .fieldId(14)
                     .valueCount(50L)
                     .nullValueCount(0L)
@@ -94,7 +94,7 @@ public class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator {
         50,
         BaseContentStats.builder()
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<String>builder()
                     .fieldId(3)
                     .valueCount(50L)
                     .nullValueCount(0L)
@@ -113,7 +113,7 @@ public class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator {
         50,
         BaseContentStats.builder()
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<String>builder()
                     .fieldId(3)
                     .valueCount(50L)
                     .nullValueCount(0L)
@@ -132,7 +132,7 @@ public class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator {
         50,
         BaseContentStats.builder()
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<String>builder()
                     .fieldId(3)
                     .valueCount(50L)
                     .nullValueCount(0L)
@@ -151,7 +151,7 @@ public class TestInclusiveStatsEvaluator extends TestInclusiveMetricsEvaluator {
         50,
         BaseContentStats.builder()
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<String>builder()
                     .fieldId(3)
                     .valueCount(50L)
                     .nullValueCount(0L)
