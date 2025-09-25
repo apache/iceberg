@@ -1030,7 +1030,7 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 | `start_version`    |           | first metadata.json in table's metadata log    | string | The name or path of the chronologically first metadata.json to rewrite |
 | `end_version`      |           | latest metadata.json in table's metadata log   | string | The name or path of the chronologically last metadata.json to rewrite  |
 | `staging_location` |           | new directory under table's metadata directory | string | The output location for newly rewritten metadata files                 |
-
+| `create_file_list` |           | true                                           | boolean | Whether to generate a file list containing the paths of rewritten metadata |
 
 #### Modes of operation
 
@@ -1045,6 +1045,8 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 |----------------------|--------|-------------------------------------------------------------------|
 | `latest_version`     | string | Name of the latest metadata file rewritten by this procedure      |
 | `file_list_location` | string | Path to a CSV file containing a mapping of source to target paths |
+| `rewritten_manifest_file_paths_count` | int    | Number of manifest files with rewritten paths   |
+| `rewritten_delete_file_paths_count`   | int    | Number of delete files with rewritten paths     |
 
 ##### File List
 The file contains the copy plan for all files added to the table between `start_version` and `end_version`.
