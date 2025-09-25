@@ -1045,8 +1045,8 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 |----------------------|--------|-------------------------------------------------------------------|
 | `latest_version`     | string | Name of the latest metadata file rewritten by this procedure      |
 | `file_list_location` | string | Path to a CSV file containing a mapping of source to target paths |
-| `rewritten_manifest_file_paths_count` | int    | The number of manifest file paths that were rewritten             |
-| `rewritten_delete_file_paths_count`   | int    | The number of delete file paths that were rewritten               |
+| `rewritten_manifest_file_paths_count` | int    | Number of manifest files with rewritten paths   |
+| `rewritten_delete_file_paths_count`   | int    | Number of delete files with rewritten paths     |
 
 ##### File List
 The file contains the copy plan for all files added to the table between `start_version` and `end_version`.
