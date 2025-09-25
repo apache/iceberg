@@ -64,7 +64,7 @@ public class TestDeleteFiles extends TestBase {
           .withContentStats(
               BaseContentStats.builder()
                   .withFieldStats(
-                      BaseFieldStats.builder()
+                      BaseFieldStats.<Integer>builder()
                           .fieldId(1)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
@@ -73,7 +73,7 @@ public class TestDeleteFiles extends TestBase {
                           .upperBound(2)
                           .build())
                   .withFieldStats(
-                      BaseFieldStats.builder()
+                      BaseFieldStats.<Integer>builder()
                           .fieldId(2)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
@@ -100,7 +100,7 @@ public class TestDeleteFiles extends TestBase {
           .withContentStats(
               BaseContentStats.builder()
                   .withFieldStats(
-                      BaseFieldStats.builder()
+                      BaseFieldStats.<Integer>builder()
                           .fieldId(1)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)
@@ -109,7 +109,7 @@ public class TestDeleteFiles extends TestBase {
                           .upperBound(10)
                           .build())
                   .withFieldStats(
-                      BaseFieldStats.builder()
+                      BaseFieldStats.<Integer>builder()
                           .fieldId(2)
                           .type(Types.IntegerType.get())
                           .valueCount(5L)

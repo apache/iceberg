@@ -36,7 +36,7 @@ public class TestStrictStatsEvaluator extends TestStrictMetricsEvaluator {
         50,
         BaseContentStats.builder()
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<Integer>builder()
                     .fieldId(1)
                     .type(Types.IntegerType.get())
                     .lowerBound(INT_MIN_VALUE)
@@ -49,7 +49,7 @@ public class TestStrictStatsEvaluator extends TestStrictMetricsEvaluator {
             .withFieldStats(
                 BaseFieldStats.builder().fieldId(6).valueCount(50L).nullValueCount(0L).build())
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<Integer>builder()
                     .fieldId(7)
                     .type(IntegerType.get())
                     .lowerBound(5)
@@ -69,7 +69,7 @@ public class TestStrictStatsEvaluator extends TestStrictMetricsEvaluator {
             .withFieldStats(
                 BaseFieldStats.builder().fieldId(11).valueCount(50L).nullValueCount(50L).build())
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<Float>builder()
                     .fieldId(12)
                     .valueCount(50L)
                     .nullValueCount(0L)
@@ -78,7 +78,7 @@ public class TestStrictStatsEvaluator extends TestStrictMetricsEvaluator {
                     .upperBound(Float.NaN)
                     .build())
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<Double>builder()
                     .fieldId(13)
                     .valueCount(50L)
                     .nullValueCount(1L)
@@ -88,7 +88,7 @@ public class TestStrictStatsEvaluator extends TestStrictMetricsEvaluator {
                     .build())
             .withFieldStats(BaseFieldStats.builder().fieldId(14).valueCount(50L).build())
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<Integer>builder()
                     .fieldId(17)
                     .valueCount(50L)
                     .nullValueCount(0L)
@@ -109,7 +109,7 @@ public class TestStrictStatsEvaluator extends TestStrictMetricsEvaluator {
             .withFieldStats(
                 BaseFieldStats.builder().fieldId(4).valueCount(50L).nullValueCount(50L).build())
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<String>builder()
                     .fieldId(5)
                     .valueCount(50L)
                     .nullValueCount(10L)
@@ -133,7 +133,7 @@ public class TestStrictStatsEvaluator extends TestStrictMetricsEvaluator {
             .withFieldStats(
                 BaseFieldStats.builder().fieldId(4).valueCount(50L).nullValueCount(50L).build())
             .withFieldStats(
-                BaseFieldStats.builder()
+                BaseFieldStats.<String>builder()
                     .fieldId(5)
                     .valueCount(50L)
                     .nullValueCount(10L)

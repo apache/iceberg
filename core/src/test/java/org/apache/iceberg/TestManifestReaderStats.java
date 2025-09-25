@@ -52,8 +52,8 @@ public class TestManifestReaderStats extends TestBase {
       new Metrics(
           3L, null, VALUE_COUNT, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS);
   private static final String FILE_PATH = "/path/to/data-a.parquet";
-  private static final FieldStats STAT =
-      BaseFieldStats.builder()
+  private static final FieldStats<Integer> STAT =
+      BaseFieldStats.<Integer>builder()
           .type(Types.IntegerType.get())
           .fieldId(1)
           .valueCount(3L)
@@ -62,8 +62,7 @@ public class TestManifestReaderStats extends TestBase {
           .lowerBound(2)
           .upperBound(4)
           .build();
-  private static final BaseContentStats STATS =
-      BaseContentStats.builder().withFieldStats(STAT).build();
+  private static final ContentStats STATS = BaseContentStats.builder().withFieldStats(STAT).build();
 
   private DataFile dataFile() {
     DataFiles.Builder builder =
@@ -202,7 +201,7 @@ public class TestManifestReaderStats extends TestBase {
 
         assertThat(entry.location()).isEqualTo(FILE_PATH);
         assertThat(entry.contentStats()).isNotNull();
-        FieldStats stat = entry.contentStats().statsFor(1);
+        FieldStats<?> stat = entry.contentStats().statsFor(1);
         assertThat(stat).isNotNull();
         assertThat(stat.valueCount()).isEqualTo(STAT.valueCount());
         assertThat(stat.nullValueCount()).isNull();
@@ -263,7 +262,7 @@ public class TestManifestReaderStats extends TestBase {
               .select(ImmutableList.of("file_path", "content_stats.1.value_count"))) {
         DataFile dataFile = reader.iterator().next();
         assertThat(dataFile.contentStats()).isNotNull();
-        FieldStats stat = dataFile.contentStats().statsFor(1);
+        FieldStats<?> stat = dataFile.contentStats().statsFor(1);
         assertThat(stat).isNotNull();
 
         // selected fields are populated
