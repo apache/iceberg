@@ -3404,15 +3404,12 @@ components:
             2. Row filters MUST be evaluated against the original, untransformed column values.
               Required projections MUST be applied only after row filters are applied.
       
-            2. If the catalog supports multiple row access filters for the table, it is
+            3. If the catalog supports multiple row access filters for the table, it is
               the catalog's responsibility to combine them using the appropriate logic (e.g., AND, OR).
       
-            3. If a client cannot interpret or evaluate a provided filter expression, it
-              MUST NOT return partially filtered results and MUST fail.
+            4. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.
       
-            4. If the required-row-filter property is absent or empty, no mandatory
-              filtering is imposed, and a reader MAY return any subset of rows,
-              including all rows.
+            5. If the required-row-filter property is absent or empty, no mandatory filtering is imposed.
           $ref: '#/components/schemas/Expression'
 
     LoadCredentialsResponse:
