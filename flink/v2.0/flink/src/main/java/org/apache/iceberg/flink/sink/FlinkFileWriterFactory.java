@@ -63,11 +63,17 @@ class FlinkFileWriterFactory extends RegistryBasedFileWriterFactory<RowData, Row
         equalityDeleteSortOrder,
         ImmutableMap.of(),
         dataFlinkType == null ? FlinkSchemaUtil.convert(dataSchema) : dataFlinkType,
-        equalityDeleteFlinkType == null
-            ? equalityDeleteRowSchema == null
-                ? null
-                : FlinkSchemaUtil.convert(equalityDeleteRowSchema)
-            : equalityDeleteFlinkType);
+        equalityDeleteInputSchema(equalityDeleteFlinkType, equalityDeleteRowSchema));
+  }
+
+  private static RowType equalityDeleteInputSchema(RowType rowType, Schema rowSchema) {
+    if (rowType != null) {
+      return rowType;
+    } else if (rowSchema != null) {
+      return FlinkSchemaUtil.convert(rowSchema);
+    } else {
+      return null;
+    }
   }
 
   static Builder builderFor(Table table) {

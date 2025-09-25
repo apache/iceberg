@@ -39,7 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 /**
  * A base writer factory to be extended by query engine integrations.
  *
- * @param <T> type of the engine specific records
+ * @param <T> row type
  */
 public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriterFactory<T> {
   private final Table table;

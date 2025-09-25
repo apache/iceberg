@@ -24,7 +24,6 @@ import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
@@ -33,9 +32,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.Metadata;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow, StructType> {
@@ -215,40 +211,6 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
           positionDeleteRowSchema,
           positionDeleteSparkType,
           writeProperties);
-    }
-  }
-
-  private static StructType calculateSparkTypeForDelete(StructType sparkType, Schema schema) {
-    if (sparkType != null) {
-      // The delete types need to have the correct metadata columns.
-      if (sparkType.fields().length < 3) {
-        return PATH_POS_TYPE;
-      } else {
-        StructField rowField =
-            sparkType.fields()[sparkType.fieldIndex(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME)];
-        return new StructType(
-            new StructField[] {
-              new StructField(
-                  MetadataColumns.DELETE_FILE_PATH.name(),
-                  DataTypes.StringType,
-                  false,
-                  Metadata.empty()),
-              new StructField(
-                  MetadataColumns.DELETE_FILE_POS.name(),
-                  DataTypes.LongType,
-                  false,
-                  Metadata.empty()),
-              new StructField(
-                  MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
-                  rowField.dataType(),
-                  false,
-                  Metadata.empty())
-            });
-      }
-    } else if (schema != null) {
-      return SparkSchemaUtil.convert(schema);
-    } else {
-      return null;
     }
   }
 

@@ -57,6 +57,10 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
   private RowType eqDeleteFlinkSchema = null;
 
+  /**
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. Use {@link #FlinkAppenderFactory(Table,
+   *     Schema, RowType, Map, PartitionSpec, int[], Schema)} instead.
+   */
   @Deprecated
   public FlinkAppenderFactory(
       Table table,
