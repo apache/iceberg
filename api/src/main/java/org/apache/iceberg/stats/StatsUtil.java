@@ -20,15 +20,18 @@ package org.apache.iceberg.stats;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -211,5 +214,78 @@ public class StatsUtil {
     public Types.NestedField variant(Types.VariantType variant) {
       return null;
     }
+  }
+
+  public static Long columnSize(ContentFile<?> file, int fieldId) {
+    if (null != file.contentStats() && null != file.contentStats().statsFor(fieldId)) {
+      return file.contentStats().statsFor(fieldId).columnSize();
+    }
+
+    return null != file.columnSizes() ? file.columnSizes().getOrDefault(fieldId, null) : null;
+  }
+
+  public static Long valueCount(ContentFile<?> file, int fieldId) {
+    if (null != file.contentStats() && null != file.contentStats().statsFor(fieldId)) {
+      return file.contentStats().statsFor(fieldId).valueCount();
+    }
+
+    return null != file.valueCounts() ? file.valueCounts().getOrDefault(fieldId, null) : null;
+  }
+
+  public static Long nullValueCount(ContentFile<?> file, int fieldId, Long defaultValue) {
+    if (null != file.contentStats() && null != file.contentStats().statsFor(fieldId)) {
+      return file.contentStats().statsFor(fieldId).nullValueCount();
+    }
+
+    return null != file.nullValueCounts()
+        ? file.nullValueCounts().getOrDefault(fieldId, defaultValue)
+        : null;
+  }
+
+  public static Long nullValueCount(ContentFile<?> file, int fieldId) {
+    return nullValueCount(file, fieldId, null);
+  }
+
+  public static Long nanValueCount(ContentFile<?> file, int fieldId) {
+    if (null != file.contentStats() && null != file.contentStats().statsFor(fieldId)) {
+      return file.contentStats().statsFor(fieldId).nanValueCount();
+    }
+
+    return null != file.nanValueCounts() ? file.nanValueCounts().getOrDefault(fieldId, null) : null;
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> T lowerBound(ContentFile<?> file, Type type, int fieldId) {
+    if (null != file.contentStats() && null != file.contentStats().statsFor(fieldId)) {
+      return (T) file.contentStats().statsFor(fieldId).lowerBound();
+    }
+
+    if (null != file.lowerBounds() && file.lowerBounds().containsKey(fieldId)) {
+      ByteBuffer lowerBound = file.lowerBounds().get(fieldId);
+      return null != type ? Conversions.fromByteBuffer(type, lowerBound) : (T) lowerBound;
+    }
+
+    return null;
+  }
+
+  public static <T> T lowerBound(ContentFile<?> file, int fieldId) {
+    return lowerBound(file, null, fieldId);
+  }
+
+  public static <T> T upperBound(ContentFile<?> file, Type type, int fieldId) {
+    if (null != file.contentStats() && null != file.contentStats().statsFor(fieldId)) {
+      return (T) file.contentStats().statsFor(fieldId).upperBound();
+    }
+
+    if (null != file.upperBounds() && file.upperBounds().containsKey(fieldId)) {
+      ByteBuffer upperBound = file.upperBounds().get(fieldId);
+      return null != type ? Conversions.fromByteBuffer(type, upperBound) : (T) upperBound;
+    }
+
+    return null;
+  }
+
+  public static <T> T upperBound(ContentFile<?> file, int fieldId) {
+    return upperBound(file, null, fieldId);
   }
 }

@@ -20,16 +20,14 @@ package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.stats.StatsUtil;
 
 public class CountNonNull<T> extends CountAggregate<T> {
   private final int fieldId;
-  private final Types.NestedField field;
 
   protected CountNonNull(BoundTerm<T> term) {
     super(Operation.COUNT, term);
-    this.field = term.ref().field();
-    this.fieldId = field.fieldId();
+    this.fieldId = term.ref().field().fieldId();
   }
 
   @Override
@@ -39,14 +37,14 @@ public class CountNonNull<T> extends CountAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
-    return safeContainsKey(file.valueCounts(), fieldId)
-        && safeContainsKey(file.nullValueCounts(), fieldId);
+    return null != StatsUtil.valueCount(file, fieldId)
+        && null != StatsUtil.nullValueCount(file, fieldId);
   }
 
   @Override
   protected Long countFor(DataFile file) {
     return safeSubtract(
-        safeGet(file.valueCounts(), fieldId), safeGet(file.nullValueCounts(), fieldId, 0L));
+        StatsUtil.valueCount(file, fieldId), StatsUtil.nullValueCount(file, fieldId, 0L));
   }
 
   private Long safeSubtract(Long left, Long right) {

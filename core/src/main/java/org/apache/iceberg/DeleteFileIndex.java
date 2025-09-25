@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,8 +46,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -215,19 +214,6 @@ class DeleteFileIndex {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static boolean canContainEqDeletesForFile(
       DataFile dataFile, EqualityDeleteFile deleteFile) {
-    Map<Integer, ByteBuffer> dataLowers = dataFile.lowerBounds();
-    Map<Integer, ByteBuffer> dataUppers = dataFile.upperBounds();
-
-    // whether to check data ranges or to assume that the ranges match
-    // if upper/lower bounds are missing, null counts may still be used to determine delete files
-    // can be skipped
-    boolean checkRanges =
-        dataLowers != null && dataUppers != null && deleteFile.hasLowerAndUpperBounds();
-
-    Map<Integer, Long> dataNullCounts = dataFile.nullValueCounts();
-    Map<Integer, Long> dataValueCounts = dataFile.valueCounts();
-    Map<Integer, Long> deleteNullCounts = deleteFile.nullValueCounts();
-    Map<Integer, Long> deleteValueCounts = deleteFile.valueCounts();
 
     for (Types.NestedField field : deleteFile.equalityFields()) {
       if (!field.type().isPrimitiveType()) {
@@ -235,34 +221,28 @@ class DeleteFileIndex {
         continue;
       }
 
-      if (containsNull(dataNullCounts, field) && containsNull(deleteNullCounts, field)) {
+      if (containsNull(dataFile, field) && containsNull(deleteFile.wrapped(), field)) {
         // the data has null values and null has been deleted, so the deletes must be applied
         continue;
       }
 
-      if (allNull(dataNullCounts, dataValueCounts, field) && allNonNull(deleteNullCounts, field)) {
+      if (allNull(dataFile, field) && allNonNull(deleteFile.wrapped(), field)) {
         // the data file contains only null values for this field, but there are no deletes for null
         // values
         return false;
       }
 
-      if (allNull(deleteNullCounts, deleteValueCounts, field)
-          && allNonNull(dataNullCounts, field)) {
+      if (allNull(deleteFile.wrapped(), field) && allNonNull(dataFile, field)) {
         // the delete file removes only null rows with null for this field, but there are no data
         // rows with null
         return false;
       }
 
-      if (!checkRanges) {
-        // some upper and lower bounds are missing, assume they match
-        continue;
-      }
-
       int id = field.fieldId();
-      ByteBuffer dataLower = dataLowers.get(id);
-      ByteBuffer dataUpper = dataUppers.get(id);
-      Object deleteLower = deleteFile.lowerBound(id);
-      Object deleteUpper = deleteFile.upperBound(id);
+      Object dataLower = StatsUtil.lowerBound(dataFile, field.type(), id);
+      Object dataUpper = StatsUtil.upperBound(dataFile, field.type(), id);
+      Object deleteLower = StatsUtil.lowerBound(deleteFile.wrapped(), field.type(), id);
+      Object deleteUpper = StatsUtil.upperBound(deleteFile.wrapped(), field.type(), id);
       if (dataLower == null || dataUpper == null || deleteLower == null || deleteUpper == null) {
         // at least one bound is not known, assume the delete file may match
         continue;
@@ -278,20 +258,14 @@ class DeleteFileIndex {
   }
 
   private static <T> boolean rangesOverlap(
-      Types.NestedField field,
-      ByteBuffer dataLowerBuf,
-      ByteBuffer dataUpperBuf,
-      T deleteLower,
-      T deleteUpper) {
+      Types.NestedField field, T dataLower, T dataUpper, T deleteLower, T deleteUpper) {
     Type.PrimitiveType type = field.type().asPrimitiveType();
     Comparator<T> comparator = Comparators.forType(type);
 
-    T dataLower = Conversions.fromByteBuffer(type, dataLowerBuf);
     if (comparator.compare(dataLower, deleteUpper) > 0) {
       return false;
     }
 
-    T dataUpper = Conversions.fromByteBuffer(type, dataUpperBuf);
     if (comparator.compare(deleteLower, dataUpper) > 0) {
       return false;
     }
@@ -299,16 +273,12 @@ class DeleteFileIndex {
     return true;
   }
 
-  private static boolean allNonNull(Map<Integer, Long> nullValueCounts, Types.NestedField field) {
+  private static boolean allNonNull(ContentFile<?> file, Types.NestedField field) {
     if (field.isRequired()) {
       return true;
     }
 
-    if (nullValueCounts == null) {
-      return false;
-    }
-
-    Long nullValueCount = nullValueCounts.get(field.fieldId());
+    Long nullValueCount = StatsUtil.nullValueCount(file, field.fieldId());
     if (nullValueCount == null) {
       return false;
     }
@@ -316,18 +286,13 @@ class DeleteFileIndex {
     return nullValueCount <= 0;
   }
 
-  private static boolean allNull(
-      Map<Integer, Long> nullValueCounts, Map<Integer, Long> valueCounts, Types.NestedField field) {
+  private static boolean allNull(ContentFile<?> file, Types.NestedField field) {
     if (field.isRequired()) {
       return false;
     }
 
-    if (nullValueCounts == null || valueCounts == null) {
-      return false;
-    }
-
-    Long nullValueCount = nullValueCounts.get(field.fieldId());
-    Long valueCount = valueCounts.get(field.fieldId());
+    Long nullValueCount = StatsUtil.nullValueCount(file, field.fieldId());
+    Long valueCount = StatsUtil.valueCount(file, field.fieldId());
     if (nullValueCount == null || valueCount == null) {
       return false;
     }
@@ -335,16 +300,12 @@ class DeleteFileIndex {
     return nullValueCount.equals(valueCount);
   }
 
-  private static boolean containsNull(Map<Integer, Long> nullValueCounts, Types.NestedField field) {
+  private static boolean containsNull(ContentFile<?> file, Types.NestedField field) {
     if (field.isRequired()) {
       return false;
     }
 
-    if (nullValueCounts == null) {
-      return true;
-    }
-
-    Long nullValueCount = nullValueCounts.get(field.fieldId());
+    Long nullValueCount = StatsUtil.nullValueCount(file, field.fieldId());
     if (nullValueCount == null) {
       return true;
     }
@@ -805,8 +766,6 @@ class DeleteFileIndex {
     private final DeleteFile wrapped;
     private final long applySequenceNumber;
     private volatile List<Types.NestedField> equalityFields = null;
-    private volatile Map<Integer, Object> convertedLowerBounds = null;
-    private volatile Map<Integer, Object> convertedUpperBounds = null;
 
     EqualityDeleteFile(PartitionSpec spec, DeleteFile file) {
       this.spec = spec;
@@ -837,71 +796,6 @@ class DeleteFileIndex {
       }
 
       return equalityFields;
-    }
-
-    public Map<Integer, Long> valueCounts() {
-      return wrapped.valueCounts();
-    }
-
-    public Map<Integer, Long> nullValueCounts() {
-      return wrapped.nullValueCounts();
-    }
-
-    public boolean hasLowerAndUpperBounds() {
-      return wrapped.lowerBounds() != null && wrapped.upperBounds() != null;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T> T lowerBound(int id) {
-      return (T) lowerBounds().get(id);
-    }
-
-    private Map<Integer, Object> lowerBounds() {
-      if (convertedLowerBounds == null) {
-        synchronized (this) {
-          if (convertedLowerBounds == null) {
-            this.convertedLowerBounds = convertBounds(wrapped.lowerBounds());
-          }
-        }
-      }
-
-      return convertedLowerBounds;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T> T upperBound(int id) {
-      return (T) upperBounds().get(id);
-    }
-
-    private Map<Integer, Object> upperBounds() {
-      if (convertedUpperBounds == null) {
-        synchronized (this) {
-          if (convertedUpperBounds == null) {
-            this.convertedUpperBounds = convertBounds(wrapped.upperBounds());
-          }
-        }
-      }
-
-      return convertedUpperBounds;
-    }
-
-    private Map<Integer, Object> convertBounds(Map<Integer, ByteBuffer> bounds) {
-      Map<Integer, Object> converted = Maps.newHashMap();
-
-      if (bounds != null) {
-        for (Types.NestedField field : equalityFields()) {
-          int id = field.fieldId();
-          Type type = spec.schema().findField(id).type();
-          if (type.isPrimitiveType()) {
-            ByteBuffer bound = bounds.get(id);
-            if (bound != null) {
-              converted.put(id, Conversions.fromByteBuffer(type, bound));
-            }
-          }
-        }
-      }
-
-      return converted;
     }
   }
 }

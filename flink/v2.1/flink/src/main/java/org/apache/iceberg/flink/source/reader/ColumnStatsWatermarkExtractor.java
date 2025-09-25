@@ -26,7 +26,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 
@@ -81,16 +81,15 @@ public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, S
     return split.task().files().stream()
         .map(
             scanTask -> {
+              Long lowerBound =
+                  StatsUtil.lowerBound(scanTask.file(), Types.LongType.get(), eventTimeFieldId);
               Preconditions.checkArgument(
-                  scanTask.file().lowerBounds() != null
-                      && scanTask.file().lowerBounds().get(eventTimeFieldId) != null,
+                  null != lowerBound,
                   "Missing statistics for column name = %s in file = %s",
                   eventTimeFieldName,
                   eventTimeFieldId,
                   scanTask.file());
-              return timeUnit.toMillis(
-                  Conversions.fromByteBuffer(
-                      Types.LongType.get(), scanTask.file().lowerBounds().get(eventTimeFieldId)));
+              return timeUnit.toMillis(lowerBound);
             })
         .min(Comparator.comparingLong(l -> l))
         .get();

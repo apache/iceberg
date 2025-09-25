@@ -32,7 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -142,53 +142,37 @@ public class MetricsUtil {
               "Total size on disk",
               DataFile.COLUMN_SIZES,
               field -> Types.LongType.get(),
-              (file, field) ->
-                  file.columnSizes() == null ? null : file.columnSizes().get(field.fieldId())),
+              (file, field) -> StatsUtil.columnSize(file, field.fieldId())),
           new ReadableMetricColDefinition(
               "value_count",
               "Total count, including null and NaN",
               DataFile.VALUE_COUNTS,
               field -> Types.LongType.get(),
-              (file, field) ->
-                  file.valueCounts() == null ? null : file.valueCounts().get(field.fieldId())),
+              (file, field) -> StatsUtil.valueCount(file, field.fieldId())),
           new ReadableMetricColDefinition(
               "null_value_count",
               "Null value count",
               DataFile.NULL_VALUE_COUNTS,
               field -> Types.LongType.get(),
-              (file, field) ->
-                  file.nullValueCounts() == null
-                      ? null
-                      : file.nullValueCounts().get(field.fieldId())),
+              (file, field) -> StatsUtil.nullValueCount(file, field.fieldId())),
           new ReadableMetricColDefinition(
               "nan_value_count",
               "NaN value count",
               DataFile.NAN_VALUE_COUNTS,
               field -> Types.LongType.get(),
-              (file, field) ->
-                  file.nanValueCounts() == null
-                      ? null
-                      : file.nanValueCounts().get(field.fieldId())),
+              (file, field) -> StatsUtil.nanValueCount(file, field.fieldId())),
           new ReadableMetricColDefinition(
               "lower_bound",
               "Lower bound",
               DataFile.LOWER_BOUNDS,
               Types.NestedField::type,
-              (file, field) ->
-                  file.lowerBounds() == null
-                      ? null
-                      : Conversions.fromByteBuffer(
-                          field.type(), file.lowerBounds().get(field.fieldId()))),
+              (file, field) -> StatsUtil.lowerBound(file, field.type(), field.fieldId())),
           new ReadableMetricColDefinition(
               "upper_bound",
               "Upper bound",
               DataFile.UPPER_BOUNDS,
               Types.NestedField::type,
-              (file, field) ->
-                  file.upperBounds() == null
-                      ? null
-                      : Conversions.fromByteBuffer(
-                          field.type(), file.upperBounds().get(field.fieldId()))));
+              (file, field) -> StatsUtil.upperBound(file, field.type(), field.fieldId())));
 
   public static final String READABLE_METRICS = "readable_metrics";
 
