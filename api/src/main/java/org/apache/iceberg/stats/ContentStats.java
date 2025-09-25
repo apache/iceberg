@@ -22,5 +22,5 @@ import java.util.List;
 import org.apache.iceberg.StructLike;
 
 public interface ContentStats extends StructLike {
-  List<FieldStats> fieldStats();
+  List<FieldStats<?>> fieldStats();
 }
