@@ -122,6 +122,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
             action.stagingLocation(stagingLocation);
           }
 
+          action.createFileList(createFileList);
           return toOutputRows(action.rewriteLocationPrefix(sourcePrefix, targetPrefix).execute());
         });
   }
