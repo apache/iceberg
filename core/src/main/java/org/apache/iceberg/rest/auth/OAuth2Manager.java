@@ -26,7 +26,6 @@ import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -174,8 +173,8 @@ public class OAuth2Manager extends RefreshingAuthManager {
       sessionCache = newSessionCache(name, properties);
     }
 
-    String oauth2ServerUri = properties.get(OAuth2Properties.OAUTH2_SERVER_URI);
-    Preconditions.checkArgument(oauth2ServerUri != null, "Invalid OAuth2 server URI: null");
+    String oauth2ServerUri =
+        properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
     if (config.token() != null) {
       String cacheKey = oauth2ServerUri + ":" + config.token();
       return sessionCache.cachedSession(
