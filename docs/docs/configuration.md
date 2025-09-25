@@ -143,7 +143,7 @@ The properties can be manually constructed or passed in from a compute engine li
 Spark uses its session properties as catalog properties, see more details in the [Spark configuration](spark-configuration.md#catalog-configuration) section.
 Flink passes in catalog properties through `CREATE CATALOG` statement, see more details in the [Flink](flink.md#adding-catalogs) section.
 
-### Catalog REST auth properties
+### REST Catalog auth properties
 
 The following catalog properties configure authentication for the REST catalog.
 They support Basic, OAuth2, SigV4, and Google authentication.
