@@ -1022,14 +1022,14 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
     This procedure only stages rewritten metadata files and prepares a list of files to copy. The actual file copy is not included in this procedure.
 
 
-| Argument Name      | Required? | default                                        | Type    | Description                                                                |
-|--------------------|-----------|------------------------------------------------|---------|----------------------------------------------------------------------------|
-| `table`            | ✔️        |                                                | string  | Name of the table                                                          |
-| `source_prefix`    | ✔️        |                                                | string  | The existing prefix to be replaced                                         |
-| `target_prefix`    | ✔️        |                                                | string  | The replacement prefix for `source_prefix`                                 |
-| `start_version`    |           | first metadata.json in table's metadata log    | string  | The name or path of the chronologically first metadata.json to rewrite     |
-| `end_version`      |           | latest metadata.json in table's metadata log   | string  | The name or path of the chronologically last metadata.json to rewrite      |
-| `staging_location` |           | new directory under table's metadata directory | string  | The output location for newly rewritten metadata files                     |
+| Argument Name      | Required? | default                                        | Type   | Description                                                            |
+|--------------------|-----------|------------------------------------------------|--------|------------------------------------------------------------------------|
+| `table`            | ✔️        |                                                | string | Name of the table                                                      |
+| `source_prefix`    | ✔️        |                                                | string | The existing prefix to be replaced                                     |
+| `target_prefix`    | ✔️        |                                                | string | The replacement prefix for `source_prefix`                             |
+| `start_version`    |           | first metadata.json in table's metadata log    | string | The name or path of the chronologically first metadata.json to rewrite |
+| `end_version`      |           | latest metadata.json in table's metadata log   | string | The name or path of the chronologically last metadata.json to rewrite  |
+| `staging_location` |           | new directory under table's metadata directory | string | The output location for newly rewritten metadata files                 |
 | `create_file_list` |           | true                                           | boolean | Whether to generate a file list containing the paths of rewritten metadata |
 
 #### Modes of operation
@@ -1041,10 +1041,10 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 
 #### Output
 
-| Output Name                           | Type   | Description                                                       |
-|---------------------------------------|--------|-------------------------------------------------------------------|
-| `latest_version`                      | string | Name of the latest metadata file rewritten by this procedure      |
-| `file_list_location`                  | string | Path to a CSV file containing a mapping of source to target paths |
+| Output Name          | Type   | Description                                                       |
+|----------------------|--------|-------------------------------------------------------------------|
+| `latest_version`     | string | Name of the latest metadata file rewritten by this procedure      |
+| `file_list_location` | string | Path to a CSV file containing a mapping of source to target paths |
 | `rewritten_manifest_file_paths_count` | int    | The number of manifest file paths that were rewritten             |
 | `rewritten_delete_file_paths_count`   | int    | The number of delete file paths that were rewritten               |
 
