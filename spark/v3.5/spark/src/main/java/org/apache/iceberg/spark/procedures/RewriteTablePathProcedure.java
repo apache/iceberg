@@ -131,7 +131,9 @@ public class RewriteTablePathProcedure extends BaseProcedure {
     return new InternalRow[] {
       newInternalRow(
           UTF8String.fromString(result.latestVersion()),
-          UTF8String.fromString(result.fileListLocation()))
+          UTF8String.fromString(result.fileListLocation()),
+          result.rewrittenManifestFilePathsCount(),
+          result.rewrittenDeleteFilePathsCount())
     };
   }
 
