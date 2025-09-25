@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -52,6 +53,9 @@ import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -132,6 +136,21 @@ public class TestParquetDataWriter {
 
     for (int i = 0; i < records.size(); i++) {
       InternalTestHelpers.assertEquals(schema.asStruct(), records.get(i), writtenRecords.get(i));
+    }
+
+    // Check physical Parquet schema if variant shredding function is provided
+    Optional<Types.NestedField> variantField =
+        schema.columns().stream()
+            .filter(field -> field.type().equals(Types.VariantType.get()))
+            .findFirst();
+
+    if (variantField.isPresent() && variantShreddingFunc != null) {
+      try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file.toInputFile()))) {
+        MessageType parquetSchema = reader.getFooter().getFileMetaData().getSchema();
+        GroupType variantType = parquetSchema.getType(variantField.get().name()).asGroupType();
+
+        assertThat(variantType.containsField("typed_value")).isTrue();
+      }
     }
   }
 
