@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
@@ -39,6 +39,9 @@ class ErrorModel(BaseModel):
         ..., description='HTTP response code', example=404, ge=400, le=600
     )
     stack: Optional[List[str]] = None
+    subtype: Optional[Literal['request_in_progress']] = Field(
+        None, description='Machine-readable error subtype (used for idempotency cases).'
+    )
 
 
 class CatalogConfig(BaseModel):
@@ -64,6 +67,11 @@ class CatalogConfig(BaseModel):
             'GET /v1/{prefix}/namespaces/{namespace}/tables/{table}',
             'GET /v1/{prefix}/namespaces/{namespace}/views/{view}',
         ],
+    )
+    idempotencyKeyLifetime: Optional[timedelta] = Field(
+        None,
+        description='Minimum retention window for Idempotency-Key tokens (ISO-8601 duration, e.g., PT30M, PT24H). Presence of this field indicates the server supports Idempotency-Key semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.\n',
+        example='PT30M',
     )
 
 
