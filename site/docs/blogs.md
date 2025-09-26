@@ -23,6 +23,11 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [Iceberg v3 + Starburst](https://www.starburst.io/blog/iceberg-v3/)
+**Date:** September 4, 2025, **Company**: Starburst
+**Author**: [Starburst](https://starburst.io)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Kafka to Iceberg - Exploring the Options](https://rmoff.net/2025/08/18/kafka-to-iceberg-exploring-the-options/)
 **Date:** August 18, 2025, **Company**: Confluent
 **Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
