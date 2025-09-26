@@ -87,4 +87,8 @@ public class FlinkWriteOptions {
   @Experimental
   public static final ConfigOption<Duration> TABLE_REFRESH_INTERVAL =
       ConfigOptions.key("table-refresh-interval").durationType().noDefaultValue();
+
+  //  specify the uidSuffix to be used for the underlying IcebergSink
+  public static final ConfigOption<String> UID_SUFFIX =
+      ConfigOptions.key("uid-suffix").stringType().defaultValue("");
 }
