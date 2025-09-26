@@ -221,8 +221,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
     CommitSummary summary = new CommitSummary();
     summary.addAll(pendingResults);
-    commitPendingResult(
-        table, branch, pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
+    commitPendingResult(table, branch, pendingResults, summary, newFlinkJobId, operatorId);
     if (committerMetrics != null) {
       committerMetrics.updateCommitSummary(table.name(), summary);
     }
@@ -236,8 +235,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       NavigableMap<Long, List<WriteResult>> pendingResults,
       CommitSummary summary,
       String newFlinkJobId,
-      String operatorId,
-      long checkpointId) {
+      String operatorId) {
     long totalFiles = summary.dataFilesCount() + summary.deleteFilesCount();
     TableKey key = new TableKey(table.name(), branch);
     int continuousEmptyCheckpoints =
@@ -262,6 +260,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
       continuousEmptyCheckpoints = 0;
     } else {
+      long checkpointId = pendingResults.lastKey();
       LOG.info("Skip commit for checkpoint {} due to no data files or delete files.", checkpointId);
     }
 
