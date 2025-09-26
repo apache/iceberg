@@ -303,33 +303,11 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       CommitSummary summary,
       String newFlinkJobId,
       String operatorId) {
-    // For append-only WriteResults, we commit all append-only WriteResults into a single
-    // transaction.
-    // For WriteResults with delete files, we issue a separate transaction because for the
-    // sequential transactions txn1 and txn2, the equality-delete files of txn2 are required to be
-    // applied to data files from txn1. Committing the merged one will lead to the incorrect delete
-    // semantic.
-    RowDelta rowDelta = null;
-    long checkpointId = -1;
-
     for (Map.Entry<Long, List<WriteResult>> e : pendingResults.entrySet()) {
+      long checkpointId = e.getKey();
       List<WriteResult> writeResults = e.getValue();
 
-      // This branch will only get triggered from the second iteration onward.
-      if (rowDelta != null
-          && writeResults.stream().anyMatch(writeResult -> writeResult.deleteFiles().length > 0)) {
-        // Deletes detected with already accumulated append-only WriteResults. We need to commit the
-        // append-only data first.
-        commitOperation(
-            table, branch, rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, checkpointId);
-        rowDelta = null;
-      }
-
-      checkpointId = e.getKey();
-      if (rowDelta == null) {
-        rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
-      }
-
+      RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
       for (WriteResult result : writeResults) {
         // Row delta validations are not needed for streaming changes that write equality deletes.
         // Equality deletes are applied to data in all previous sequence numbers, so retries may
@@ -341,10 +319,15 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
       }
+
+      // Every Flink checkpoint contains a set of independent changes which can be committed
+      // together. While it is technically feasible to combine append-only data across checkpoints,
+      // for the sake of simplicity, we do not implement this (premature) optimization. Multiple
+      // pending checkpoints here are very rare to occur, i.e. only with very short checkpoint
+      // intervals or when concurrent checkpointing is enabled.
+      commitOperation(
+          table, branch, rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, checkpointId);
     }
-    // Final commit which will be the only commit in case of solely append-only WriteResults.
-    commitOperation(
-        table, branch, rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, checkpointId);
   }
 
   @VisibleForTesting

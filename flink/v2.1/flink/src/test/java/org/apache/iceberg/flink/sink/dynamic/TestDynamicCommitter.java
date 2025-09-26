@@ -373,21 +373,21 @@ class TestDynamicCommitter {
         aggregator.writeToManifest(
             writeTarget2,
             Sets.newHashSet(new DynamicWriteResult(writeTarget2, writeResult2)),
-            checkpointId2);
+            checkpointId1);
 
     CommitRequest<DynamicCommittable> commitRequest2 =
         new MockCommitRequest<>(
-            new DynamicCommittable(writeTarget2, deltaManifest2, jobId, operatorId, checkpointId2));
+            new DynamicCommittable(writeTarget2, deltaManifest2, jobId, operatorId, checkpointId1));
 
     byte[] deltaManifest3 =
         aggregator.writeToManifest(
             writeTarget3,
             Sets.newHashSet(new DynamicWriteResult(writeTarget3, writeResult2)),
-            checkpointId1);
+            checkpointId2);
 
     CommitRequest<DynamicCommittable> commitRequest3 =
         new MockCommitRequest<>(
-            new DynamicCommittable(writeTarget3, deltaManifest3, jobId, operatorId, checkpointId1));
+            new DynamicCommittable(writeTarget3, deltaManifest3, jobId, operatorId, checkpointId2));
 
     boolean overwriteMode = false;
     int workerPoolSize = 1;
@@ -406,7 +406,7 @@ class TestDynamicCommitter {
     dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2, commitRequest3));
 
     table.refresh();
-    // Three committables, but only two snapshots! One snapshot for each table / branch.
+    // Two committables, one for each snapshot / table / branch.
     assertThat(table.snapshots()).hasSize(2);
 
     Snapshot snapshot1 = Iterables.getFirst(table.snapshots(), null);
@@ -418,7 +418,7 @@ class TestDynamicCommitter {
                 .put("added-records", "66")
                 .put("changed-partition-count", "1")
                 .put("flink.job-id", jobId)
-                .put("flink.max-committed-checkpoint-id", "" + checkpointId2)
+                .put("flink.max-committed-checkpoint-id", "" + checkpointId1)
                 .put("flink.operator-id", operatorId)
                 .put("total-data-files", "2")
                 .put("total-delete-files", "0")
@@ -437,7 +437,7 @@ class TestDynamicCommitter {
                 .put("added-records", "24")
                 .put("changed-partition-count", "1")
                 .put("flink.job-id", jobId)
-                .put("flink.max-committed-checkpoint-id", "" + checkpointId1)
+                .put("flink.max-committed-checkpoint-id", "" + checkpointId2)
                 .put("flink.operator-id", operatorId)
                 .put("total-data-files", "1")
                 .put("total-delete-files", "0")
