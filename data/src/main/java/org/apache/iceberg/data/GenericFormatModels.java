@@ -88,7 +88,7 @@ public class GenericFormatModels {
       runnable.run();
     } catch (NoClassDefFoundError e) {
       // Log the exception and ignore it
-      LOG.info("Exception occurred when trying to register object models: {}", e.getMessage());
+      LOG.info("Exception occurred when trying to register format models: {}", e.getMessage());
     }
   }
 }

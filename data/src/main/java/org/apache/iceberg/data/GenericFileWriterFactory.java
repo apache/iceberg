@@ -168,7 +168,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
   private void throwUnsupportedOperationException() {
     throw new UnsupportedOperationException(
         "Method is deprecated and should not be called. "
-            + "Configuration is already done by the ObjectModelRegistry.");
+            + "Configuration is already done by the registry.");
   }
 
   @Override

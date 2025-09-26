@@ -1415,7 +1415,8 @@ public class Parquet {
               && impl.batchReaderFunction == null,
           "Cannot set multiple read builder functions");
       if (newReaderFunction != null) {
-        impl.readerFunc = m -> (ParquetValueReader<Object>) newReaderFunction.apply(m);
+        impl.readerFunc =
+            messageType -> (ParquetValueReader<Object>) newReaderFunction.apply(messageType);
       } else {
         impl.readerFunc = null;
       }
@@ -1681,7 +1682,7 @@ public class Parquet {
           || batchedReaderFunc != null
           || readerFunction != null
           || batchReaderFunction != null) {
-        return buildFunctionBasedReader(options(fileDecryptionProperties));
+        return buildFromReaderFunction(options(fileDecryptionProperties));
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
@@ -1755,7 +1756,7 @@ public class Parquet {
       return new ParquetIterable<>(builder);
     }
 
-    private CloseableIterable<D> buildFunctionBasedReader(ParquetReadOptions options) {
+    private CloseableIterable<D> buildFromReaderFunction(ParquetReadOptions options) {
       NameMapping mapping;
       if (nameMapping != null) {
         mapping = nameMapping;

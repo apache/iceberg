@@ -81,6 +81,7 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
     }
   }
 
+  @FunctionalInterface
   public interface ReaderFunction<D> {
     ParquetValueReader<D> read(
         Schema schema, MessageType messageType, Map<Integer, ?> constantFieldAccessors);
@@ -90,6 +91,7 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
     void deleteFilter(F deleteFilter);
   }
 
+  @FunctionalInterface
   public interface BatchReaderFunction<D, F> {
     VectorizedReader<D> read(
         Schema schema,
@@ -99,6 +101,7 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
         Map<String, String> config);
   }
 
+  @FunctionalInterface
   public interface WriterFunction<D, S> {
     ParquetValueWriter<D> write(Schema icebergSchema, MessageType messageType, S engineSchema);
   }

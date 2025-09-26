@@ -81,7 +81,6 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
       SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema,
       Map<String, String> writeProperties) {
-
     super(
         table,
         dataFileFormat,

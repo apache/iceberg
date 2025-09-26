@@ -80,16 +80,19 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
     }
   }
 
+  @FunctionalInterface
   public interface ReaderFunction<D> {
     OrcRowReader<D> read(
         Schema schema, TypeDescription messageType, Map<Integer, ?> constantFieldAccessors);
   }
 
+  @FunctionalInterface
   public interface BatchReaderFunction<D> {
     OrcBatchReader<D> read(
         Schema schema, TypeDescription messageType, Map<Integer, ?> constantFieldAccessors);
   }
 
+  @FunctionalInterface
   public interface WriterFunction<E> {
     OrcRowWriter<?> write(Schema schema, TypeDescription messageType, E nativeSchema);
   }
