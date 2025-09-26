@@ -147,6 +147,7 @@ paths:
                   "defaults": {
                     "clients": "4"
                   },
+                  "idempotencyKeyLifetime": "PT30M",
                   "endpoints": [
                     "GET /v1/{prefix}/namespaces/{namespace}",
                     "GET /v1/{prefix}/namespaces",
@@ -296,6 +297,8 @@ paths:
       tags:
         - Catalog API
       summary: Create a namespace
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Create a namespace, with an optional set of properties.
         The server might also add properties, such as `last_modified_time` etc.
@@ -406,6 +409,8 @@ paths:
         - Catalog API
       summary: Drop a namespace from the catalog. Namespace must be empty.
       operationId: dropNamespace
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       responses:
         204:
           description: Success, no content
@@ -450,6 +455,8 @@ paths:
         - Catalog API
       summary: Set or remove properties on a namespace
       operationId: updateProperties
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Set and/or remove properties on a namespace.
         The request body specifies a list of properties to remove and a map
@@ -562,6 +569,7 @@ paths:
       operationId: createTable
       parameters:
         - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         required: true
         content:
@@ -866,6 +874,8 @@ paths:
       tags:
         - Catalog API
       summary: Register a table in the given namespace using given metadata file location
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Register a table using given metadata file location.
 
@@ -995,6 +1005,8 @@ paths:
         - Catalog API
       summary: Commit updates to a table
       operationId: updateTable
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Commit updates to a table.
 
@@ -1115,6 +1127,7 @@ paths:
       operationId: dropTable
       description: Remove a table from the catalog
       parameters:
+        - $ref: '#/components/parameters/idempotency-key'
         - name: purgeRequested
           in: query
           required: false
@@ -1227,6 +1240,8 @@ paths:
       tags:
         - Catalog API
       summary: Rename a table from its current name to a new name
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Rename a table from one identifier to another. It's valid to move a table
         across namespaces, but the server implementation is not required to support it.
@@ -1334,6 +1349,8 @@ paths:
         - Catalog API
       summary: Commit updates to multiple tables in an atomic operation
       operationId: commitTransaction
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         description:
           Commit updates to multiple tables in an atomic operation
@@ -1583,6 +1600,8 @@ paths:
         - Catalog API
       summary: Replace a view
       operationId: replaceView
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Commit updates to a view.
       requestBody:
@@ -1684,6 +1703,8 @@ paths:
       summary: Drop a view from the catalog
       operationId: dropView
       description: Remove a view from the catalog
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       responses:
         204:
           description: Success, no content
@@ -1745,6 +1766,8 @@ paths:
         Rename a view from one identifier to another. It's valid to move a view
         across namespaces, but the server implementation is not required to support it.
       operationId: renameView
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         description: Current view identifier to rename and new view identifier to rename to
         content:
@@ -1903,6 +1926,39 @@ components:
       schema:
         type: string
 
+    idempotency-key:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+        example: "550e8400-e29b-41d4-a716-446655440000"
+      description: |
+        Optional client-provided idempotency key for safe request retries.
+
+        When present, the server ensures no additional effects for requests that carry the same
+        Idempotency-Key within the same operation/resource scope. If a prior request with this key
+        has been finalized, the server returns the previously finalized response instead of
+        re-executing the mutation.
+
+        Finalization rules:
+        - Finalize & replay: 200, 201, 204, and deterministic terminal 4xx
+        - Do not finalize (not stored/replayed): 5xx, 409 request_in_progress
+
+        Key Requirements:
+        - Must be unique per client mutation operation (e.g., updateTable, createTable)
+        - Key format: UUID (V7 preferred)
+        - Scoped to operation type and resource path
+        - Catalogs may expire keys according to the advertised token lifetime.
+
+        Best Practices:
+        - Use UUID.randomUUID() or equivalent
+        - Reuse the same key for retries of the same logical operation
+        - Generate new keys for new operations
+
   ##############################
   # Application Schema Objects #
   ##############################
@@ -1933,6 +1989,10 @@ components:
           type: array
           items:
             type: string
+        subtype:
+          type: string
+          description: Machine-readable error subtype (used for idempotency cases).
+          enum: [ request_in_progress ]
 
     CatalogConfig:
       type: object
@@ -1966,6 +2026,15 @@ components:
               "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
               "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
             ]
+        idempotencyKeyLifetime:
+          type: string
+          format: duration
+          description: >
+            Minimum retention window for Idempotency-Key tokens (ISO-8601 duration,
+            e.g., PT30M, PT24H). Presence of this field indicates the server supports
+            Idempotency-Key semantics for mutation endpoints. If absent, clients MUST
+            assume idempotency is not supported.
+          example: PT30M
 
     CreateNamespaceRequest:
       type: object
@@ -4567,6 +4636,24 @@ components:
                 "message": "The server does not support this operation",
                 "type": "UnsupportedOperationException",
                 "code": 406
+              }
+            }
+
+    IdempotencyInProgressResponse:
+      description: |
+        Conflict - A request with the same Idempotency-Key for the same (operation, resource)
+        is already in progress. Servers MAY include Retry-After or block and replay the final
+        result.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IcebergErrorResponse'
+          example: {
+              "error": {
+                "message": "A request with this Idempotency-Key is still in progress",
+                "type": "CommitFailedException",
+                "subtype": "request_in_progress",
+                "code": 409
               }
             }
 
