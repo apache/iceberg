@@ -23,6 +23,11 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [How Apache Iceberg Branching transforms Data Management](https://www.starburst.io/blog/iceberg-branching-data-management/)
+**Date:** September 9, 2025, **Company**: Starburst
+**Author**: [Starburst](https://starburst.io)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Iceberg v3 + Starburst](https://www.starburst.io/blog/iceberg-v3/)
 **Date:** September 4, 2025, **Company**: Starburst
 **Author**: [Starburst](https://starburst.io)
