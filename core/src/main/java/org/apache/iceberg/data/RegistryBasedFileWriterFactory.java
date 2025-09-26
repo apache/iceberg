@@ -34,6 +34,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileWriterFactory;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
@@ -93,6 +94,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
   @Override
   public DataWriter<T> newDataWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
+    Preconditions.checkNotNull(dataSchema, "Data schema must not be null");
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
@@ -120,6 +122,8 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
   @Override
   public EqualityDeleteWriter<T> newEqualityDeleteWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
+    Preconditions.checkNotNull(equalityDeleteRowSchema, "Equality delete schema must not be null");
+
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
