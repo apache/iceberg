@@ -39,8 +39,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TestBase;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.BaseDeleteLoader;
+import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
@@ -49,6 +53,7 @@ import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.DeleteGranularity;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -74,12 +79,16 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
   @Parameter(index = 1)
   protected FileFormat format;
 
-  @Parameters(name = "formatVersion = {0}, FileFormat = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {FORMAT_V2, FileFormat.AVRO},
-        new Object[] {FORMAT_V2, FileFormat.ORC},
-        new Object[] {FORMAT_V2, FileFormat.PARQUET});
+  @Parameters(name = "formatVersion = {0}, FileFormat = {1}")
+  protected static List<Object[]> parameters() {
+    List<Object[]> parameters = Lists.newArrayList();
+    for (FileFormat format :
+        new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
+      for (int version : TestHelpers.V2_AND_ABOVE) {
+        parameters.add(new Object[] {version, format});
+      }
+    }
+    return parameters;
   }
 
   @Override
@@ -190,15 +199,25 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
                 createRecord(2, "ggg"),
                 createRecord(1, "hhh")));
 
-    // Check records in the pos-delete file.
-    Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
-    assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.location()))
-        .isEqualTo(
-            ImmutableList.of(
-                posRecord.copy("file_path", dataFile.location(), "pos", 0L),
-                posRecord.copy("file_path", dataFile.location(), "pos", 1L),
-                posRecord.copy("file_path", dataFile.location(), "pos", 2L),
-                posRecord.copy("file_path", dataFile.location(), "pos", 3L)));
+    if (formatVersion == FORMAT_V2) {
+      // Check records in the pos-delete file.
+      Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
+      assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.location()))
+          .isEqualTo(
+              ImmutableList.of(
+                  posRecord.copy("file_path", dataFile.location(), "pos", 0L),
+                  posRecord.copy("file_path", dataFile.location(), "pos", 1L),
+                  posRecord.copy("file_path", dataFile.location(), "pos", 2L),
+                  posRecord.copy("file_path", dataFile.location(), "pos", 3L)));
+    } else {
+      assertThat(posDeleteFile.format()).isEqualTo(FileFormat.PUFFIN);
+      PositionDeleteIndex positionDeleteIndex = readDVFile(table, posDeleteFile);
+      assertThat(positionDeleteIndex.cardinality()).isEqualTo(4);
+      assertThat(positionDeleteIndex.isDeleted(0L)).isTrue();
+      assertThat(positionDeleteIndex.isDeleted(1L)).isTrue();
+      assertThat(positionDeleteIndex.isDeleted(2L)).isTrue();
+      assertThat(positionDeleteIndex.isDeleted(3L)).isTrue();
+    }
   }
 
   @TestTemplate
@@ -229,10 +248,17 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     assertThat(readRecordsAsList(table.schema(), dataFile.location()))
         .isEqualTo(ImmutableList.of(record, record));
 
-    // Check records in the pos-delete file.
     DeleteFile posDeleteFile = result.deleteFiles()[0];
-    assertThat(readRecordsAsList(DeleteSchemaUtil.pathPosSchema(), posDeleteFile.location()))
-        .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.location(), "pos", 0L)));
+    if (formatVersion == FORMAT_V2) {
+      // Check records in the pos-delete file.
+      assertThat(readRecordsAsList(DeleteSchemaUtil.pathPosSchema(), posDeleteFile.location()))
+          .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.location(), "pos", 0L)));
+    } else {
+      assertThat(posDeleteFile.format()).isEqualTo(FileFormat.PUFFIN);
+      PositionDeleteIndex positionDeleteIndex = readDVFile(table, posDeleteFile);
+      assertThat(positionDeleteIndex.cardinality()).isEqualTo(1);
+      assertThat(positionDeleteIndex.isDeleted(0L)).isTrue();
+    }
 
     deltaWriter =
         createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema, DeleteGranularity.PARTITION);
@@ -328,8 +354,16 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     DeleteFile posDeleteFile = result.deleteFiles()[1];
     Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
     assertThat(posDeleteFile.content()).isEqualTo(FileContent.POSITION_DELETES);
-    assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.location()))
-        .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.location(), "pos", 0L)));
+
+    if (formatVersion == FORMAT_V2) {
+      assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.location()))
+          .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.location(), "pos", 0L)));
+    } else {
+      assertThat(posDeleteFile.format()).isEqualTo(FileFormat.PUFFIN);
+      PositionDeleteIndex positionDeleteIndex = readDVFile(table, posDeleteFile);
+      assertThat(positionDeleteIndex.cardinality()).isEqualTo(1);
+      assertThat(positionDeleteIndex.isDeleted(0L)).isTrue();
+    }
   }
 
   @TestTemplate
@@ -414,8 +448,15 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     DeleteFile posDeleteFile = result.deleteFiles()[1];
     Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
     assertThat(posDeleteFile.content()).isEqualTo(FileContent.POSITION_DELETES);
-    assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.location()))
-        .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.location(), "pos", 0L)));
+    if (formatVersion == FORMAT_V2) {
+      assertThat(readRecordsAsList(posDeleteSchema, posDeleteFile.location()))
+          .isEqualTo(ImmutableList.of(posRecord.copy("file_path", dataFile.location(), "pos", 0L)));
+    } else {
+      assertThat(posDeleteFile.format()).isEqualTo(FileFormat.PUFFIN);
+      PositionDeleteIndex positionDeleteIndex = readDVFile(table, posDeleteFile);
+      assertThat(positionDeleteIndex.cardinality()).isEqualTo(1);
+      assertThat(positionDeleteIndex.isDeleted(0L)).isTrue();
+    }
   }
 
   @TestTemplate
@@ -462,9 +503,12 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
     // Should have 2 files, as BaseRollingWriter checks the size on every 1000 rows (ROWS_DIVISOR)
     assertThat(result.dataFiles()).as("Should have 2 data files.").hasSize(2);
-    assertThat(result.deleteFiles())
-        .as("Should have correct number of pos-delete files")
-        .hasSize(granularity.equals(DeleteGranularity.FILE) ? 2 : 1);
+    if (formatVersion == FORMAT_V2) {
+      assertThat(result.deleteFiles())
+          .as("Should have correct number of pos-delete files")
+          .hasSize(granularity.equals(DeleteGranularity.FILE) ? 2 : 1);
+    }
+
     assertThat(Arrays.stream(result.deleteFiles()).mapToLong(delete -> delete.recordCount()).sum())
         .isEqualTo(expectedDeleteCount);
 
@@ -523,6 +567,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     }
     Schema deleteSchema = table.schema().select(columns);
 
+    boolean useDv = formatVersion > 2;
     return new GenericTaskDeltaWriter(
         table.schema(),
         deleteSchema,
@@ -532,7 +577,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         fileFactory,
         table.io(),
         TARGET_FILE_SIZE,
-        deleteGranularity);
+        deleteGranularity,
+        useDv);
   }
 
   private static class GenericTaskDeltaWriter extends BaseTaskWriter<Record> {
@@ -547,10 +593,11 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         OutputFileFactory fileFactory,
         FileIO io,
         long targetFileSize,
-        DeleteGranularity deleteGranularity) {
+        DeleteGranularity deleteGranularity,
+        boolean useDv) {
       super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
       this.deltaWriter =
-          new GenericEqualityDeltaWriter(null, schema, deleteSchema, deleteGranularity);
+          new GenericEqualityDeltaWriter(null, schema, deleteSchema, deleteGranularity, useDv);
     }
 
     @Override
@@ -577,8 +624,9 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
           PartitionKey partition,
           Schema schema,
           Schema eqDeleteSchema,
-          DeleteGranularity deleteGranularity) {
-        super(partition, schema, eqDeleteSchema, deleteGranularity);
+          DeleteGranularity deleteGranularity,
+          boolean useDv) {
+        super(partition, schema, eqDeleteSchema, deleteGranularity, useDv);
       }
 
       @Override
@@ -630,5 +678,13 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     try (CloseableIterable<Record> closeableIterable = iterable) {
       return Lists.newArrayList(closeableIterable);
     }
+  }
+
+  private PositionDeleteIndex readDVFile(Table table, DeleteFile dvFile) {
+    BaseDeleteLoader deleteLoader =
+        new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile.location()));
+    PositionDeleteIndex index =
+        deleteLoader.loadPositionDeletes(List.of(dvFile), dvFile.referencedDataFile());
+    return index;
   }
 }

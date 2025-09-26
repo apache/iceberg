@@ -56,6 +56,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestBase;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -80,11 +81,15 @@ public class TestDeltaTaskWriter extends TestBase {
   private FileFormat format;
 
   @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {2, FileFormat.AVRO},
-        new Object[] {2, FileFormat.ORC},
-        new Object[] {2, FileFormat.PARQUET});
+  protected static List<Object[]> parameters() {
+    List<Object[]> parameters = Lists.newArrayList();
+    for (FileFormat format :
+        new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
+      for (int version : TestHelpers.V2_AND_ABOVE) {
+        parameters.add(new Object[] {version, format});
+      }
+    }
+    return parameters;
   }
 
   @Override
