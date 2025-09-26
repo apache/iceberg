@@ -68,48 +68,49 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
           optional(5, "no_stats", IntegerType.get()),
           optional(6, "str", Types.StringType.get()));
 
-  private static final int INT_MIN_VALUE = 30;
-  private static final int INT_MAX_VALUE = 79;
+  protected static final int INT_MIN_VALUE = 30;
+  protected static final int INT_MAX_VALUE = 79;
 
-  private static final long TS_MIN_VALUE =
+  protected static final long TS_MIN_VALUE =
       DateTimeUtil.microsFromTimestamptz(
           DateTimeUtil.dateFromDays(30).atStartOfDay().atOffset(ZoneOffset.UTC));
-  private static final long TS_MAX_VALUE =
+  protected static final long TS_MAX_VALUE =
       DateTimeUtil.microsFromTimestamptz(
           DateTimeUtil.dateFromDays(79).atStartOfDay().atOffset(ZoneOffset.UTC));
 
-  private static final DataFile FILE =
-      new TestDataFile(
-          "file.avro",
-          Row.of(),
-          50,
-          // any value counts, including nulls
-          ImmutableMap.<Integer, Long>builder()
-              .put(1, 50L)
-              .put(2, 50L)
-              .put(3, 50L)
-              .put(4, 50L)
-              .buildOrThrow(),
-          // null value counts
-          ImmutableMap.<Integer, Long>builder()
-              .put(1, 0L)
-              .put(2, 0L)
-              .put(3, 50L) // all_nulls
-              .put(4, 50L) // all_nulls_str
-              .buildOrThrow(),
-          // nan value counts
-          null,
-          // lower bounds
-          ImmutableMap.of(
-              2, Conversions.toByteBuffer(Types.TimestampType.withZone(), TS_MIN_VALUE),
-              6, Conversions.toByteBuffer(Types.StringType.get(), "abc")),
-          // upper bounds
-          ImmutableMap.of(
-              2, Conversions.toByteBuffer(Types.TimestampType.withZone(), TS_MAX_VALUE),
-              6, Conversions.toByteBuffer(Types.StringType.get(), "abe")));
+  protected DataFile file() {
+    return new TestDataFile(
+        "file.avro",
+        Row.of(),
+        50,
+        // any value counts, including nulls
+        ImmutableMap.<Integer, Long>builder()
+            .put(1, 50L)
+            .put(2, 50L)
+            .put(3, 50L)
+            .put(4, 50L)
+            .buildOrThrow(),
+        // null value counts
+        ImmutableMap.<Integer, Long>builder()
+            .put(1, 0L)
+            .put(2, 0L)
+            .put(3, 50L) // all_nulls
+            .put(4, 50L) // all_nulls_str
+            .buildOrThrow(),
+        // nan value counts
+        null,
+        // lower bounds
+        ImmutableMap.of(
+            2, Conversions.toByteBuffer(Types.TimestampType.withZone(), TS_MIN_VALUE),
+            6, Conversions.toByteBuffer(Types.StringType.get(), "abc")),
+        // upper bounds
+        ImmutableMap.of(
+            2, Conversions.toByteBuffer(Types.TimestampType.withZone(), TS_MAX_VALUE),
+            6, Conversions.toByteBuffer(Types.StringType.get(), "abe")));
+  }
 
   private boolean shouldRead(Expression expr) {
-    return shouldRead(expr, FILE);
+    return shouldRead(expr, file());
   }
 
   private boolean shouldRead(Expression expr, DataFile file) {
@@ -117,7 +118,7 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
   }
 
   private boolean shouldReadCaseInsensitive(Expression expr) {
-    return shouldRead(expr, FILE, false);
+    return shouldRead(expr, file(), false);
   }
 
   private boolean shouldRead(Expression expr, DataFile file, boolean caseSensitive) {

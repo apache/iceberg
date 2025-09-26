@@ -537,9 +537,9 @@ public class InclusiveMetricsEvaluator {
       int id = bound.ref().fieldId();
       VariantObject lowerBound = null;
       if (null != file.contentStats()) {
-        FieldStats<?> stat = file.contentStats().statsFor(id);
+        FieldStats<VariantObject> stat = file.contentStats().statsFor(id);
         if (null != stat && null != stat.upperBound()) {
-          lowerBound = parseBounds((ByteBuffer) stat.lowerBound());
+          lowerBound = stat.lowerBound();
         }
       } else if (file.lowerBounds() != null && file.lowerBounds().containsKey(id)) {
         lowerBound = parseBounds(file.lowerBounds().get(id));
@@ -556,9 +556,9 @@ public class InclusiveMetricsEvaluator {
       int id = bound.ref().fieldId();
       VariantObject upperBound = null;
       if (null != file.contentStats()) {
-        FieldStats<?> stat = file.contentStats().statsFor(id);
+        FieldStats<VariantObject> stat = file.contentStats().statsFor(id);
         if (null != stat && null != stat.upperBound()) {
-          upperBound = parseBounds((ByteBuffer) stat.upperBound());
+          upperBound = stat.upperBound();
         }
       } else if (file.upperBounds() != null && file.upperBounds().containsKey(id)) {
         upperBound = parseBounds(file.upperBounds().get(id));
