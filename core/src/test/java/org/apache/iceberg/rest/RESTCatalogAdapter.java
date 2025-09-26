@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
@@ -279,8 +280,16 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                   tableIdentFromPathVars(vars),
                   snapshotModeFromQueryParams(httpRequest.queryParameters()));
 
-          responseHeaders.accept(
-              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+          Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
+              httpRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH);
+
+          String eTag = ETagProvider.of(response.metadataLocation());
+
+          if (ifNoneMatchHeader.isPresent() && eTag.equals(ifNoneMatchHeader.get().value())) {
+            return null;
+          }
+
+          responseHeaders.accept(ImmutableMap.of(HttpHeaders.ETAG, eTag));
 
           return castResponse(responseType, response);
         }

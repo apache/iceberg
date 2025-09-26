@@ -114,6 +114,15 @@ public class RESTCatalogServlet extends HttpServlet {
 
       if (responseBody != null) {
         RESTObjectMapper.mapper().writeValue(response.getWriter(), responseBody);
+      } else {
+        Pair<Route, Map<String, String>> routeAndVars =
+            Route.from(request.method(), request.path());
+        if (routeAndVars != null) {
+          Route route = routeAndVars.first();
+          if (route == Route.LOAD_TABLE) {
+            response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+          }
+        }
       }
     } catch (RESTException e) {
       LOG.error("Error processing REST request", e);

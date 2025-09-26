@@ -123,6 +123,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private RESTCatalog restCatalog;
   private InMemoryCatalog backendCatalog;
   private Server httpServer;
+  private RESTCatalogAdapter adapterForRESTServer;
 
   @BeforeEach
   public void createCatalog() throws Exception {
@@ -148,34 +149,36 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 "test-header",
                 "test-value"));
 
-    RESTCatalogAdapter adaptor =
-        new RESTCatalogAdapter(backendCatalog) {
-          @Override
-          public <T extends RESTResponse> T execute(
-              HTTPRequest request,
-              Class<T> responseType,
-              Consumer<ErrorResponse> errorHandler,
-              Consumer<Map<String, String>> responseHeaders) {
-            // this doesn't use a Mockito spy because this is used for catalog tests, which have
-            // different method calls
-            if (!ResourcePaths.tokens().equals(request.path())) {
-              if (ResourcePaths.config().equals(request.path())) {
-                assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
-              } else {
-                assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
+    adapterForRESTServer =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                // this doesn't use a Mockito spy because this is used for catalog tests, which have
+                // different method calls
+                if (!ResourcePaths.tokens().equals(request.path())) {
+                  if (ResourcePaths.config().equals(request.path())) {
+                    assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
+                  } else {
+                    assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
+                  }
+                }
+                Object body = roundTripSerialize(request.body(), "request");
+                HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
+                T response = super.execute(req, responseType, errorHandler, responseHeaders);
+                T responseAfterSerialization = roundTripSerialize(response, "response");
+                return responseAfterSerialization;
               }
-            }
-            Object body = roundTripSerialize(request.body(), "request");
-            HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
-            T response = super.execute(req, responseType, errorHandler, responseHeaders);
-            T responseAfterSerialization = roundTripSerialize(response, "response");
-            return responseAfterSerialization;
-          }
-        };
+            });
 
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
-    servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
+    servletContext.addServlet(
+        new ServletHolder(new RESTCatalogServlet(adapterForRESTServer)), "/*");
     servletContext.setHandler(new GzipHandler());
 
     this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
@@ -3023,6 +3026,73 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
 
     assertThat(tracker.estimatedSize()).isEqualTo(2);
+  }
+
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
+  @Test
+  public void testNotModified() {
+    catalog().createNamespace(TABLE.namespace());
+
+    Table table = catalog().createTable(TABLE, SCHEMA);
+
+    String eTag =
+        ETagProvider.of(((BaseTable) table).operations().current().metadataFileLocation());
+
+    Mockito.doAnswer(
+            invocation -> {
+              HTTPRequest originalRequest = invocation.getArgument(0);
+
+              HTTPHeaders extendedHeaders =
+                  ImmutableHTTPHeaders.copyOf(originalRequest.headers())
+                      .putIfAbsent(
+                          ImmutableHTTPHeader.builder()
+                              .name(HttpHeaders.IF_NONE_MATCH)
+                              .value(eTag)
+                              .build());
+
+              ImmutableHTTPRequest extendedRequest =
+                  ImmutableHTTPRequest.builder()
+                      .from(originalRequest)
+                      .headers(extendedHeaders)
+                      .build();
+
+              return adapterForRESTServer.execute(
+                  extendedRequest,
+                  LoadTableResponse.class,
+                  invocation.getArgument(2),
+                  invocation.getArgument(3),
+                  ParserContext.builder().build());
+            })
+        .when(adapterForRESTServer)
+        .execute(
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    // TODO: This won't throw when client side of freshness-aware loading is implemented
+    assertThatThrownBy(() -> catalog().loadTable(TABLE)).isInstanceOf(NullPointerException.class);
+
+    TableIdentifier metadataTableIdentifier =
+        TableIdentifier.of(TABLE.namespace().toString(), TABLE.name(), "partitions");
+
+    // TODO: This won't throw when client side of freshness-aware loading is implemented
+    assertThatThrownBy(() -> catalog().loadTable(metadataTableIdentifier))
+        .isInstanceOf(NullPointerException.class);
+
+    Mockito.verify(adapterForRESTServer, times(2))
+        .execute(
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    verify(adapterForRESTServer)
+        .execute(
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(metadataTableIdentifier)),
+            any(),
+            any(),
+            any());
   }
 
   private RESTCatalog catalogWithResponseHeaders(Map<String, String> respHeaders) {
