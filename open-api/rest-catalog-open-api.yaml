@@ -2434,6 +2434,10 @@ components:
           type: integer
           format: int64
           description: The first _row_id assigned to the first row in the first data file in the first manifest
+        added-rows:
+          type: integer
+          format: int64
+          description: The upper bound of the number of rows with assigned row IDs
         summary:
           type: object
           required:
