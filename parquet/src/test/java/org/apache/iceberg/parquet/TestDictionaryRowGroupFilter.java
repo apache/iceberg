@@ -111,7 +111,8 @@ public class TestDictionaryRowGroupFilter {
               14,
               "decimal_fixed",
               DecimalType.of(20, 10)), // >18 precision to enforce FIXED_LEN_BYTE_ARRAY
-          optional(15, "_nans_and_nulls", DoubleType.get()));
+          optional(15, "_nans_and_nulls", DoubleType.get()),
+          optional(16, "uuid_col", Types.UUIDType.get()));
 
   private static final Types.StructType UNDERSCORE_STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(9, "_int_field", IntegerType.get()));
@@ -133,7 +134,8 @@ public class TestDictionaryRowGroupFilter {
               14,
               "_decimal_fixed",
               DecimalType.of(20, 10)), // >18 precision to enforce FIXED_LEN_BYTE_ARRAY
-          optional(15, "_nans_and_nulls", DoubleType.get()));
+          optional(15, "_nans_and_nulls", DoubleType.get()),
+          optional(16, "_uuid_col", Types.UUIDType.get()));
 
   private static final String TOO_LONG_FOR_STATS;
 
@@ -152,6 +154,11 @@ public class TestDictionaryRowGroupFilter {
       new BigDecimal("1234567890.0987654321")
           .subtract(DECIMAL_MIN_VALUE)
           .divide(new BigDecimal(INT_MAX_VALUE - INT_MIN_VALUE), RoundingMode.HALF_UP);
+
+  private static final UUID UUID_WITH_ZEROS =
+      UUID.fromString("00000000-0000-0000-0000-000000000000");
+  private static final UUID UUID_WITH_ONES =
+      UUID.fromString("11111111-1111-1111-1111-111111111111");
 
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
@@ -202,6 +209,9 @@ public class TestDictionaryRowGroupFilter {
           Record structNotNull = new Record(structSchema);
           structNotNull.put("_int_field", INT_MIN_VALUE + i);
           builder.set("_struct_not_null", structNotNull); // struct with int
+
+          builder.set(
+              "_uuid_col", (i % 3 == 0) ? UUID_WITH_ZEROS : (i % 3 == 1) ? UUID_WITH_ONES : null);
 
           appender.add(builder.build());
         }
@@ -1265,6 +1275,23 @@ public class TestDictionaryRowGroupFilter {
     assertThat(shouldRead)
         .as("Should read: filter contains non-reference evaluate as True")
         .isTrue();
+  }
+
+  @TestTemplate
+  public void testUUIDDictionaryFilter() {
+    assumeThat(getColumnForName(rowGroupMetadata, "_uuid_col").getEncodings())
+        .contains(Encoding.RLE_DICTIONARY);
+
+    boolean shouldReadExisting =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, equal("uuid_col", UUID_WITH_ZEROS))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldReadExisting).as("Should read: Dictionary contains a matching entry").isTrue();
+
+    UUID nonExistentUUID = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    boolean shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, equal("uuid_col", nonExistentUUID))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: UUID not found in dictionary").isFalse();
   }
 
   private ColumnChunkMetaData getColumnForName(BlockMetaData rowGroup, String columnName) {
