@@ -48,7 +48,7 @@ public class DynamicRecord {
    * @param rowData The data matching the provided schema.
    * @param partitionSpec The target table {@link PartitionSpec}.
    * @param distributionMode The {@link DistributionMode}.
-   * @param writeParallelism The number of parallel writers. If set to <= 0, will automatically
+   * @param writeParallelism The number of parallel writers. If set to {@literal <= 0}, will automatically
    *     configure the maximum available write parallelism.
    */
   public DynamicRecord(
