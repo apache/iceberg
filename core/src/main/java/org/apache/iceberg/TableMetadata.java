@@ -1229,6 +1229,21 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    Builder removeSortOrders(Iterable<Integer> sortIds) {
+      Set<Integer> sortIdsToRemove = Sets.newHashSet(sortIds);
+      Preconditions.checkArgument(
+          !sortIdsToRemove.contains(defaultSortOrderId), "Cannot remove the default sort-id");
+
+      if (!sortIdsToRemove.isEmpty()) {
+        this.sortOrders =
+            sortOrders.stream()
+                .filter(s -> !sortIdsToRemove.contains(s.orderId()))
+                .collect(Collectors.toList());
+        changes.add(new MetadataUpdate.RemoveSortOrders(sortIdsToRemove));
+      }
+      return this;
+    }
+
     public Builder addSnapshot(Snapshot snapshot) {
       if (snapshot == null) {
         // change is a noop

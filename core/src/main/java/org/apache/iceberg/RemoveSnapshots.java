@@ -38,10 +38,12 @@ import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP_DEFAULT;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -224,16 +226,31 @@ class RemoveSnapshots implements ExpireSnapshots {
       reachableSpecs.add(base.defaultSpecId());
       Set<Integer> reachableSchemas = Sets.newConcurrentHashSet();
       reachableSchemas.add(base.currentSchemaId());
+      Set<Integer> reachableSortOrders = Sets.newConcurrentHashSet();
+      reachableSortOrders.add(base.defaultSortOrderId());
 
       Tasks.foreach(idsToRetain)
           .executeWith(planExecutorService())
           .run(
               snapshotId -> {
                 Snapshot snapshot = base.snapshot(snapshotId);
-                snapshot.allManifests(ops.io()).stream()
-                    .map(ManifestFile::partitionSpecId)
-                    .forEach(reachableSpecs::add);
+                List<ManifestFile> manifests = snapshot.allManifests(ops.io());
+
+                // Collect partition spec IDs
+                manifests.stream().map(ManifestFile::partitionSpecId).forEach(reachableSpecs::add);
+
                 reachableSchemas.add(snapshot.schemaId());
+
+                // Collect sort order IDs from live entries
+                manifests.stream()
+                    .map(manifestFile -> ManifestFiles.open(manifestFile, ops.io()))
+                    .map(ManifestReader::entries)
+                    .flatMap(entries -> StreamSupport.stream(entries.spliterator(), false))
+                    .filter(ManifestEntry::isLive)
+                    .map(ManifestEntry::file)
+                    .map(ContentFile::sortOrderId)
+                    .filter(Objects::nonNull)
+                    .forEach(reachableSortOrders::add);
               });
 
       Set<Integer> specsToRemove =
@@ -249,6 +266,13 @@ class RemoveSnapshots implements ExpireSnapshots {
               .filter(schemaId -> !reachableSchemas.contains(schemaId))
               .collect(Collectors.toSet());
       updatedMetaBuilder.removeSchemas(schemasToRemove);
+
+      Set<Integer> sortOrdersToRemove =
+          base.sortOrders().stream()
+              .map(SortOrder::orderId)
+              .filter(sortId -> !reachableSortOrders.contains(sortId))
+              .collect(Collectors.toSet());
+      updatedMetaBuilder.removeSortOrders(sortOrdersToRemove);
     }
 
     return updatedMetaBuilder.build();
