@@ -33,8 +33,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>This class also implements AutoCloseable to avoid leaking resources upon broadcasting.
  * Broadcast variables are destroyed and cleaned up on the driver and executors once they are
- * garbage collected on the driver. The implementation ensures only resources used by copies of the
- * main table are released.
+ * garbage collected on the driver. The implementation should avoid closing deserialized copies of
+ * shared resources like FileIO, as they may use a shared connection pool. Shutting down the pool
+ * during garbage collection can cause issues if other instances are still using it.
  */
 public class SerializableTableWithSize extends SerializableTable
     implements KnownSizeEstimation, AutoCloseable {
@@ -65,8 +66,7 @@ public class SerializableTableWithSize extends SerializableTable
   @Override
   public void close() throws Exception {
     if (serializationMarker == null) {
-      LOG.info("Releasing resources");
-      io().close();
+      LOG.info("Executor-side cleanup: closing deserialized table resources");
     }
     invalidateCache(name());
   }
@@ -92,8 +92,7 @@ public class SerializableTableWithSize extends SerializableTable
     @Override
     public void close() throws Exception {
       if (serializationMarker == null) {
-        LOG.info("Releasing resources");
-        io().close();
+        LOG.info("Executor-side cleanup: closing deserialized table resources");
       }
       invalidateCache(name());
     }
