@@ -93,7 +93,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
         equalityDeleteSortOrder,
         writeProperties,
         calculateSparkType(dataSparkType, dataSchema),
-        calculateSparkType(equalityDeleteSparkType, equalityDeleteRowSchema));
+        calculateSparkTypeForEqualityDelete(equalityDeleteSparkType, equalityDeleteRowSchema));
   }
 
   static Builder builderFor(Table table) {
@@ -214,6 +214,16 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
   }
 
   private static StructType calculateSparkType(StructType sparkType, Schema schema) {
+    if (sparkType != null) {
+      return sparkType;
+    } else {
+      Preconditions.checkNotNull(schema, "Data schema must not be null");
+      return SparkSchemaUtil.convert(schema);
+    }
+  }
+
+  private static StructType calculateSparkTypeForEqualityDelete(
+      StructType sparkType, Schema schema) {
     if (sparkType != null) {
       return sparkType;
     } else if (schema != null) {
