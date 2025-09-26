@@ -20,18 +20,15 @@ package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
-import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.stats.FieldStats;
-import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 
@@ -79,28 +76,14 @@ public class StrictMetricsEvaluator {
   private static final boolean ROWS_MIGHT_NOT_MATCH = false;
 
   private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
-    private Map<Integer, Long> valueCounts = null;
-    private Map<Integer, Long> nullCounts = null;
-    private Map<Integer, Long> nanCounts = null;
-    private Map<Integer, ByteBuffer> lowerBounds = null;
-    private Map<Integer, ByteBuffer> upperBounds = null;
-    private ContentStats stats = null;
+    private ContentFile<?> file;
 
-    private boolean eval(ContentFile<?> file) {
-      if (file.recordCount() <= 0) {
+    private boolean eval(ContentFile<?> contentFile) {
+      if (contentFile.recordCount() <= 0) {
         return ROWS_MUST_MATCH;
       }
 
-      this.valueCounts = file.valueCounts();
-      this.nullCounts = file.nullValueCounts();
-      this.nanCounts = file.nanValueCounts();
-      this.lowerBounds = file.lowerBounds();
-      this.upperBounds = file.upperBounds();
-
-      if (null != file.contentStats() && !file.contentStats().fieldStats().isEmpty()) {
-        this.stats = file.contentStats();
-      }
-
+      this.file = contentFile;
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
@@ -470,99 +453,48 @@ public class StrictMetricsEvaluator {
     }
 
     private boolean canContainNulls(int id) {
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
+      if (null != file.contentStats()) {
+        FieldStats<?> stat = file.contentStats().statsFor(id);
         return null == stat || (null != stat.nullValueCount() && stat.nullValueCount() > 0);
       } else {
-        return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) > 0);
+        return file.nullValueCounts() == null
+            || (file.nullValueCounts().containsKey(id) && file.nullValueCounts().get(id) > 0);
       }
     }
 
     private boolean canContainNaNs(int id) {
       // nan counts might be null for early version writers when nan counters are not populated.
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
-        return null != stat && null != stat.nanValueCount() && stat.nanValueCount() > 0;
-      } else {
-        return nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) > 0;
-      }
+      Long nanValueCount = StatsUtil.nanValueCount(file, id);
+      return null != nanValueCount && nanValueCount > 0;
     }
 
     private boolean containsNullsOnly(int id) {
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
-        return null != stat
-            && null != stat.valueCount()
-            && null != stat.nullValueCount()
-            && stat.valueCount() - stat.nullValueCount() == 0;
-      } else {
-        return valueCounts != null
-            && valueCounts.containsKey(id)
-            && nullCounts != null
-            && nullCounts.containsKey(id)
-            && valueCounts.get(id) - nullCounts.get(id) == 0;
-      }
+      Long valueCount = StatsUtil.valueCount(file, id);
+      Long nullValueCount = StatsUtil.nullValueCount(file, id);
+      return null != valueCount && null != nullValueCount && valueCount - nullValueCount == 0L;
     }
 
     private boolean containsNaNsOnly(int id) {
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
-        return null != stat
-            && null != stat.nanValueCount()
-            && null != stat.valueCount()
-            && stat.nanValueCount().equals(stat.valueCount());
-      } else {
-        return nanCounts != null
-            && nanCounts.containsKey(id)
-            && valueCounts != null
-            && nanCounts.get(id).equals(valueCounts.get(id));
-      }
+      Long nanValueCount = StatsUtil.nanValueCount(file, id);
+      return null != nanValueCount && nanValueCount.equals(StatsUtil.valueCount(file, id));
     }
 
     private boolean containsNoNulls(int id) {
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
-        return null != stat && null != stat.nullValueCount() && stat.nullValueCount() == 0;
-      } else {
-        return nullCounts != null && nullCounts.containsKey(id) && nullCounts.get(id) == 0;
-      }
+      Long nullValueCount = StatsUtil.nullValueCount(file, id);
+      return null != nullValueCount && nullValueCount == 0L;
     }
 
     private boolean containsNoNaNs(int id) {
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
-        return null != stat && null != stat.nanValueCount() && stat.nanValueCount() == 0;
-      } else {
-        return nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0;
-      }
+      Long nanValueCount = StatsUtil.nanValueCount(file, id);
+      return null != nanValueCount && nanValueCount == 0L;
     }
 
     private <T> T lowerBound(BoundReference<T> ref) {
-      int id = ref.fieldId();
-      if (null != stats) {
-        FieldStats<T> stat = stats.statsFor(id);
-        if (null != stat && null != stat.lowerBound()) {
-          return stat.lowerBound();
-        }
-      } else if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        return Conversions.fromByteBuffer(ref.ref().type(), lowerBounds.get(id));
-      }
-
-      return null;
+      return StatsUtil.lowerBound(file, ref.ref().type(), ref.fieldId());
     }
 
     private <T> T upperBound(BoundReference<T> ref) {
-      int id = ref.fieldId();
-      if (null != stats) {
-        FieldStats<T> stat = stats.statsFor(id);
-        if (null != stat && null != stat.upperBound()) {
-          return stat.upperBound();
-        }
-      } else if (upperBounds != null && upperBounds.containsKey(id)) {
-        return Conversions.fromByteBuffer(ref.ref().type(), upperBounds.get(id));
-      }
-
-      return null;
+      return StatsUtil.upperBound(file, ref.ref().type(), ref.fieldId());
     }
   }
 }
