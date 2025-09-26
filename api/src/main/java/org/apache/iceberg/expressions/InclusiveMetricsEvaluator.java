@@ -23,17 +23,15 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.stats.FieldStats;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
@@ -81,35 +79,21 @@ public class InclusiveMetricsEvaluator {
   private static final boolean ROWS_CANNOT_MATCH = false;
 
   private class MetricsEvalVisitor extends ExpressionVisitors.BoundVisitor<Boolean> {
-    private Map<Integer, Long> valueCounts = null;
-    private Map<Integer, Long> nullCounts = null;
-    private Map<Integer, Long> nanCounts = null;
-    private Map<Integer, ByteBuffer> lowerBounds = null;
-    private Map<Integer, ByteBuffer> upperBounds = null;
-    private ContentStats stats = null;
+    private ContentFile<?> file;
 
-    private boolean eval(ContentFile<?> file) {
-      if (file.recordCount() == 0) {
+    private boolean eval(ContentFile<?> contentFile) {
+      if (contentFile.recordCount() == 0) {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (file.recordCount() < 0) {
+      if (contentFile.recordCount() < 0) {
         // we haven't implemented parsing record count from avro file and thus set record count -1
         // when importing avro tables to iceberg tables. This should be updated once we implemented
         // and set correct record count.
         return ROWS_MIGHT_MATCH;
       }
 
-      this.valueCounts = file.valueCounts();
-      this.nullCounts = file.nullValueCounts();
-      this.nanCounts = file.nanValueCounts();
-      this.lowerBounds = file.lowerBounds();
-      this.upperBounds = file.upperBounds();
-
-      if (null != file.contentStats() && !file.contentStats().fieldStats().isEmpty()) {
-        this.stats = file.contentStats();
-      }
-
+      this.file = contentFile;
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
@@ -476,53 +460,25 @@ public class InclusiveMetricsEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
+    private boolean containsNoNaNs(int id) {
+      Long nanValueCount = StatsUtil.nanValueCount(file, id);
+      return null != nanValueCount && nanValueCount == 0L;
+    }
+
     private boolean mayContainNull(int id) {
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
-        return null == stat || null == stat.nullValueCount() || stat.nullValueCount() != 0;
-      } else {
-        return nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0;
-      }
+      Long nullValueCount = StatsUtil.nullValueCount(file, id);
+      return null == nullValueCount || nullValueCount != 0L;
     }
 
     private boolean containsNullsOnly(int id) {
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
-        return null != stat
-            && null != stat.valueCount()
-            && null != stat.nullValueCount()
-            && stat.valueCount() - stat.nullValueCount() == 0;
-      } else {
-        return valueCounts != null
-            && valueCounts.containsKey(id)
-            && nullCounts != null
-            && nullCounts.containsKey(id)
-            && valueCounts.get(id) - nullCounts.get(id) == 0;
-      }
-    }
-
-    private boolean containsNoNaNs(int id) {
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
-        return null != stat && null != stat.nanValueCount() && stat.nanValueCount() == 0;
-      } else {
-        return nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0;
-      }
+      Long valueCount = StatsUtil.valueCount(file, id);
+      Long nullValueCount = StatsUtil.nullValueCount(file, id);
+      return null != valueCount && null != nullValueCount && valueCount - nullValueCount == 0L;
     }
 
     private boolean containsNaNsOnly(int id) {
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
-        return null != stat
-            && null != stat.nanValueCount()
-            && null != stat.valueCount()
-            && stat.nanValueCount().equals(stat.valueCount());
-      } else {
-        return nanCounts != null
-            && nanCounts.containsKey(id)
-            && valueCounts != null
-            && nanCounts.get(id).equals(valueCounts.get(id));
-      }
+      Long nanValueCount = StatsUtil.nanValueCount(file, id);
+      return null != nanValueCount && nanValueCount.equals(StatsUtil.valueCount(file, id));
     }
 
     private <T> T lowerBound(Bound<T> term) {
@@ -550,31 +506,11 @@ public class InclusiveMetricsEvaluator {
     }
 
     private <T> T parseLowerBound(BoundReference<T> ref) {
-      int id = ref.fieldId();
-      if (null != stats) {
-        FieldStats<T> stat = stats.statsFor(id);
-        if (null != stat && null != stat.lowerBound()) {
-          return stat.lowerBound();
-        }
-      } else if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        return Conversions.fromByteBuffer(ref.ref().type(), lowerBounds.get(id));
-      }
-
-      return null;
+      return StatsUtil.lowerBound(file, ref.ref().type(), ref.fieldId());
     }
 
     private <T> T parseUpperBound(BoundReference<T> ref) {
-      int id = ref.fieldId();
-      if (null != stats) {
-        FieldStats<T> stat = stats.statsFor(id);
-        if (null != stat && null != stat.upperBound()) {
-          return stat.upperBound();
-        }
-      } else if (upperBounds != null && upperBounds.containsKey(id)) {
-        return Conversions.fromByteBuffer(ref.ref().type(), upperBounds.get(id));
-      }
-
-      return null;
+      return StatsUtil.upperBound(file, ref.ref().type(), ref.fieldId());
     }
 
     private <S, T> T transformLowerBound(BoundTransform<S, T> boundTransform) {
@@ -599,18 +535,18 @@ public class InclusiveMetricsEvaluator {
 
     private <T> T extractLowerBound(BoundExtract<T> bound) {
       int id = bound.ref().fieldId();
-      VariantObject fieldLowerBounds = null;
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
+      VariantObject lowerBound = null;
+      if (null != file.contentStats()) {
+        FieldStats<?> stat = file.contentStats().statsFor(id);
         if (null != stat && null != stat.upperBound()) {
-          fieldLowerBounds = parseBounds((ByteBuffer) stat.lowerBound());
+          lowerBound = parseBounds((ByteBuffer) stat.lowerBound());
         }
-      } else if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        fieldLowerBounds = parseBounds(lowerBounds.get(id));
+      } else if (file.lowerBounds() != null && file.lowerBounds().containsKey(id)) {
+        lowerBound = parseBounds(file.lowerBounds().get(id));
       }
 
-      if (null != fieldLowerBounds) {
-        return VariantExpressionUtil.castTo(fieldLowerBounds.get(bound.path()), bound.type());
+      if (null != lowerBound) {
+        return VariantExpressionUtil.castTo(lowerBound.get(bound.path()), bound.type());
       }
 
       return null;
@@ -618,18 +554,18 @@ public class InclusiveMetricsEvaluator {
 
     private <T> T extractUpperBound(BoundExtract<T> bound) {
       int id = bound.ref().fieldId();
-      VariantObject fieldUpperBounds = null;
-      if (null != stats) {
-        FieldStats<?> stat = stats.statsFor(id);
+      VariantObject upperBound = null;
+      if (null != file.contentStats()) {
+        FieldStats<?> stat = file.contentStats().statsFor(id);
         if (null != stat && null != stat.upperBound()) {
-          fieldUpperBounds = parseBounds((ByteBuffer) stat.upperBound());
+          upperBound = parseBounds((ByteBuffer) stat.upperBound());
         }
-      } else if (upperBounds != null && upperBounds.containsKey(id)) {
-        fieldUpperBounds = parseBounds(upperBounds.get(id));
+      } else if (file.upperBounds() != null && file.upperBounds().containsKey(id)) {
+        upperBound = parseBounds(file.upperBounds().get(id));
       }
 
-      if (null != fieldUpperBounds) {
-        return VariantExpressionUtil.castTo(fieldUpperBounds.get(bound.path()), bound.type());
+      if (null != upperBound) {
+        return VariantExpressionUtil.castTo(upperBound.get(bound.path()), bound.type());
       }
 
       return null;
