@@ -140,6 +140,7 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
     private long valuesRead = 0;
     private T last = null;
     private final FileReader cometReader;
+    private ReadConf conf;
 
     FileIterator(
         ReadConf conf,
@@ -164,6 +165,7 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
               length,
               fileEncryptionKey,
               fileAADPrefix);
+      this.conf = conf;
     }
 
     private FileReader newCometReader(
@@ -250,6 +252,9 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
     public void close() throws IOException {
       model.close();
       cometReader.close();
+      if (conf != null && conf.reader() != null) {
+        conf.reader().close();
+      }
     }
   }
 }
