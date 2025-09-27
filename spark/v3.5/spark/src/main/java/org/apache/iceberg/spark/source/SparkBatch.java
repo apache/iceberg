@@ -151,7 +151,7 @@ class SparkBatch implements Batch {
   // - Parquet vectorization is enabled
   // - only primitives or metadata columns are projected
   // - all tasks are of FileScanTask type and read only Parquet files
-  private boolean useParquetBatchReads() {
+  protected boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
         && expectedSchema.columns().stream().allMatch(this::supportsParquetBatchReads)
         && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
@@ -175,19 +175,7 @@ class SparkBatch implements Batch {
     return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
   }
 
-  private boolean useCometBatchReads() {
-    return readConf.parquetVectorizationEnabled()
-        && readConf.parquetReaderType() == ParquetReaderType.COMET
-        && expectedSchema.columns().stream().allMatch(this::supportsCometBatchReads)
-        && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
-  }
-
-  private boolean supportsCometBatchReads(Types.NestedField field) {
-    return field.type().isPrimitiveType()
-        && !field.type().typeId().equals(Type.TypeID.UUID)
-        && field.fieldId() != MetadataColumns.ROW_ID.fieldId()
-        && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
-  }
+q
 
   // conditions for using ORC batch reads:
   // - ORC vectorization is enabled
