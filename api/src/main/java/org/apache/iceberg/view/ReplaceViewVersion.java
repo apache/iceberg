@@ -29,4 +29,4 @@ import org.apache.iceberg.PendingUpdate;
  * will be resolved by applying the pending changes to the new view metadata.
  */
 public interface ReplaceViewVersion
-    extends PendingUpdate<ViewVersion>, VersionBuilder<ReplaceViewVersion> {}
+    extends PendingUpdate<ViewVersion, Void>, VersionBuilder<ReplaceViewVersion> {}
