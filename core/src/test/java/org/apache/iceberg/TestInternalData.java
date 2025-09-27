@@ -125,7 +125,7 @@ public class TestInternalData {
       }
     }
 
-    assertThat(readRecords).hasSameSizeAs(testData.size());
+    assertThat(readRecords).hasSameSizeAs(testData);
 
     for (int i = 0; i < testData.size(); i++) {
       Record expected = testData.get(i);
