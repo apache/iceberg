@@ -46,8 +46,7 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTestBase {
   private static final int NUM_RECORDS = 200;
 
   private void writeAndValidate(Schema schema, List<Record> expectedRecords) throws IOException {
-    final File originalFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(originalFile.delete()).as("Delete should succeed").isTrue();
+    final File originalFile = temp.resolve("original.orc").toFile();
 
     // Write few generic records into the original test file.
     try (FileAppender<Record> writer =
@@ -69,8 +68,7 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTestBase {
       assertEqualsUnsafe(schema.asStruct(), expectedRecords, reader, expectedRecords.size());
     }
 
-    final File anotherFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(anotherFile.delete()).as("Delete should succeed").isTrue();
+    final File anotherFile = temp.resolve("another.orc").toFile();
 
     // Write those spark InternalRows into a new file again.
     try (FileAppender<InternalRow> writer =
