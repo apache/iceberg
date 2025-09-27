@@ -24,7 +24,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.immutables.value.Value;
 
 @Value.Immutable
-interface RegisterTableOperation extends Operation {
+public interface RegisterTableOperation extends Operation {
+  @Value.Default
+  @Override
   default OperationType operationType() {
     return OperationType.REGISTER_TABLE;
   }

@@ -22,14 +22,16 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.immutables.value.Value;
 
 @Value.Immutable
-interface RenameViewOperation extends Operation {
+public interface RenameViewOperation extends Operation {
+  @Value.Default
+  @Override
   default OperationType operationType() {
     return OperationType.RENAME_VIEW;
   }
 
   TableIdentifier sourceIdentifier();
 
-  TableIdentifier targetIdentifier();
+  TableIdentifier destIdentifier();
 
   String viewUuid();
 }

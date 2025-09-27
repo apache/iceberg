@@ -23,7 +23,9 @@ import org.apache.iceberg.catalog.Namespace;
 import org.immutables.value.Value;
 
 @Value.Immutable
-interface UpdateNamespacePropertiesOperation extends Operation {
+public interface UpdateNamespacePropertiesOperation extends Operation {
+  @Value.Default
+  @Override
   default OperationType operationType() {
     return OperationType.UPDATE_NAMESPACE_PROPERTIES;
   }

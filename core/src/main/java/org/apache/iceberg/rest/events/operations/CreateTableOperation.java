@@ -24,7 +24,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.immutables.value.Value;
 
 @Value.Immutable
-interface CreateTableOperation extends Operation {
+public interface CreateTableOperation extends Operation {
+  @Value.Default
+  @Override
   default OperationType operationType() {
     return OperationType.CREATE_TABLE;
   }

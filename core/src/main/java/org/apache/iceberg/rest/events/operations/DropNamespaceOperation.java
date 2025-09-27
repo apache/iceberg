@@ -22,8 +22,10 @@ import org.apache.iceberg.catalog.Namespace;
 import org.immutables.value.Value;
 
 @Value.Immutable
-interface DropNamespaceOperation extends Operation {
-  default OperationType operationType(){
+public interface DropNamespaceOperation extends Operation {
+  @Value.Default
+  @Override
+  default OperationType operationType() {
     return OperationType.DROP_NAMESPACE;
   }
 

@@ -25,14 +25,18 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.immutables.value.Value;
 
 @Value.Immutable
-interface UpdateViewOperation extends Operation {
-  default OperationType operationType(){
+public interface UpdateViewOperation extends Operation {
+  @Value.Default
+  @Override
+  default OperationType operationType() {
     return OperationType.UPDATE_VIEW;
   }
 
   TableIdentifier identifier();
+
   String viewUuid();
 
   List<MetadataUpdate> updates();
+
   List<UpdateRequirement> requirements();
 }

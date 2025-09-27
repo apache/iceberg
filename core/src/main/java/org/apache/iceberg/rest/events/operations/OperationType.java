@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.rest.events.operations;
 
+import java.util.Arrays;
 import java.util.regex.Pattern;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Enum representing the type of operation performed on a {@link
@@ -49,6 +51,19 @@ public enum OperationType {
     return type;
   }
 
+  public static OperationType fromType(String type) {
+    Preconditions.checkNotNull(type, "Invalid OperationType: null");
+    return Arrays.stream(OperationType.values())
+        .filter(operationType -> operationType.type.equalsIgnoreCase(type))
+        .findFirst()
+        .orElseThrow(() -> new IllegalArgumentException("Invalid OperationType: " + type));
+  }
+
+  @Override
+  public String toString() {
+    return type;
+  }
+
   /** Custom operation type for catalog-specific extensions. */
   public static class CustomOperationType {
     private final Pattern PATTERN = Pattern.compile("^x-[a-zA-Z0-9-_.]+$");
@@ -64,6 +79,11 @@ public enum OperationType {
     }
 
     public String type() {
+      return type;
+    }
+
+    @Override
+    public String toString() {
       return type;
     }
   }

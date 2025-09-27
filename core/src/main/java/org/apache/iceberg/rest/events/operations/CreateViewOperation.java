@@ -19,12 +19,13 @@
 package org.apache.iceberg.rest.events.operations;
 
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.immutables.value.Value;
 
 @Value.Immutable
-interface CreateViewOperation extends Operation {
-  default OperationType OperationType() {
+public interface CreateViewOperation extends Operation {
+  @Value.Default
+  @Override
+  default OperationType operationType() {
     return OperationType.CREATE_VIEW;
   }
 

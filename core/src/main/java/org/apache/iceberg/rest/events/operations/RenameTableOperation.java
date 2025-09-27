@@ -22,15 +22,16 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.immutables.value.Value;
 
 @Value.Immutable
-interface RenameTableOperation extends Operation {
-
+public interface RenameTableOperation extends Operation {
+  @Value.Default
+  @Override
   default OperationType operationType() {
     return OperationType.RENAME_TABLE;
   }
 
   TableIdentifier sourceIdentifier();
 
-  TableIdentifier targetIdentifier();
+  TableIdentifier destIdentifier();
 
   String tableUuid();
 }

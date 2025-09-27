@@ -24,7 +24,7 @@ import org.immutables.value.Value;
 
 /** An event to record an operation on {@link org.apache.iceberg.catalog.CatalogObject}. */
 @Value.Immutable
-interface Event {
+public interface Event {
   String eventId();
 
   String requestId();

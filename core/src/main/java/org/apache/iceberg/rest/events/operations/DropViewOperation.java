@@ -22,7 +22,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.immutables.value.Value;
 
 @Value.Immutable
-interface DropViewOperation extends Operation {
+public interface DropViewOperation extends Operation {
+  @Value.Default
+  @Override
   default OperationType operationType() {
     return OperationType.DROP_VIEW;
   }

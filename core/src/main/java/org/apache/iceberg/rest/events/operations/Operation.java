@@ -19,4 +19,6 @@
 package org.apache.iceberg.rest.events.operations;
 
 /** Marker interface to be implemented by all catalog object operations. */
-public interface Operation {}
+public interface Operation {
+  OperationType operationType();
+}
