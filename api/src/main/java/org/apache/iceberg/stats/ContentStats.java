@@ -16,32 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.expressions;
+package org.apache.iceberg.stats;
 
-import org.apache.iceberg.DataFile;
+import java.util.List;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.stats.StatsUtil;
 
-public class CountNull<T> extends CountAggregate<T> {
-  private final int fieldId;
+public interface ContentStats extends StructLike {
+  List<FieldStats<?>> fieldStats();
 
-  protected CountNull(BoundTerm<T> term) {
-    super(Operation.COUNT_NULL, term);
-    this.fieldId = term.ref().field().fieldId();
-  }
-
-  @Override
-  protected Long countFor(StructLike row) {
-    return term().eval(row) == null ? 1L : 0L;
-  }
-
-  @Override
-  protected Long countFor(DataFile file) {
-    return StatsUtil.nullValueCount(file, fieldId, 0L);
-  }
-
-  @Override
-  protected boolean hasValue(DataFile file) {
-    return null != StatsUtil.nullValueCount(file, fieldId);
-  }
+  <T> FieldStats<T> statsFor(int columnId);
 }
