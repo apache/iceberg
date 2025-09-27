@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -276,6 +278,18 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         return term() + " startsWith \"" + literal() + "\"";
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal() + "\"";
+      case ST_INTERSECTS:
+        return "st_intersects("
+            + term()
+            + ", "
+            + BoundingBox.fromByteBuffer((ByteBuffer) literal().value())
+            + ")";
+      case ST_DISJOINT:
+        return "st_disjoint("
+            + term()
+            + ", "
+            + BoundingBox.fromByteBuffer((ByteBuffer) literal().value())
+            + ")";
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:
