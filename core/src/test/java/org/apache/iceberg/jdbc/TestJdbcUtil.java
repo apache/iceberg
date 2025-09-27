@@ -41,13 +41,16 @@ public class TestJdbcUtil {
     input.put("jdbc.user", "bar");
     input.put("jdbc.pass", "secret");
     input.put("jdbc.jdbc.abcxyz", "abcxyz");
+    input.put("jdbc.strict-mode", "foo");
+    input.put("jdbc.schema-version", "bar");
+    input.put("jdbc.init-catalog-tables", "baz");
 
     Properties expected = new Properties();
     expected.put("user", "bar");
     expected.put("pass", "secret");
     expected.put("jdbc.abcxyz", "abcxyz");
 
-    Properties actual = JdbcUtil.filterAndRemovePrefix(input, "jdbc.");
+    Properties actual = JdbcUtil.prepareJdbcDriverProperties(input);
 
     assertThat(actual).isEqualTo(expected);
   }
