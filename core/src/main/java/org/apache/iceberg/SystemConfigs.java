@@ -71,7 +71,20 @@ public class SystemConfigs {
 
   /**
    * Maximum number of distinct {@link org.apache.iceberg.io.FileIO} that is allowed to have
-   * associated {@link org.apache.iceberg.io.ContentCache} in memory at a time.
+   * associated {@link org.apache.iceberg.io.ContentCache} in memory at a time in the table metadata
+   * cache.
+   */
+  public static final ConfigEntry<Integer> IO_TABLE_METADATA_CACHE_MAX_FILEIO =
+          new ConfigEntry<>(
+                  "iceberg.io.table-metadata.cache.fileio-max",
+                  "ICEBERG_IO_TABLE_METADATA_CACHE_FILEIO_MAX",
+                  8,
+                  Integer::parseUnsignedInt);
+
+  /**
+   * Maximum number of distinct {@link org.apache.iceberg.io.FileIO} that is allowed to have
+   * associated {@link org.apache.iceberg.io.ContentCache} in memory at a time in the manifest
+   * cache.
    */
   public static final ConfigEntry<Integer> IO_MANIFEST_CACHE_MAX_FILEIO =
       new ConfigEntry<>(
