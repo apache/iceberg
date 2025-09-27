@@ -22,59 +22,17 @@ import java.util.List;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class UpdateViewOperation implements Operation {
-  private final OperationType operationType = OperationType.UPDATE_VIEW;
-  private final TableIdentifier identifier;
-  private final String viewUuid;
-  private final List<MetadataUpdate> updates;
-  private final List<UpdateRequirement> requirements;
-
-  public UpdateViewOperation(
-      TableIdentifier identifier,
-      String viewUuid,
-      List<MetadataUpdate> updates,
-      List<UpdateRequirement> requirements) {
-    this.identifier = identifier;
-    this.viewUuid = viewUuid;
-    this.updates = updates;
-    this.requirements = requirements;
+@Value.Immutable
+interface UpdateViewOperation extends Operation {
+  default OperationType operationType(){
+    return OperationType.UPDATE_VIEW;
   }
 
-  public UpdateViewOperation(
-      TableIdentifier identifier, String viewUuid, List<MetadataUpdate> updates) {
-    this(identifier, viewUuid, updates, null);
-  }
+  TableIdentifier identifier();
+  String viewUuid();
 
-  public OperationType operationType() {
-    return operationType;
-  }
-
-  public TableIdentifier identifier() {
-    return identifier;
-  }
-
-  public String viewUuid() {
-    return viewUuid;
-  }
-
-  public List<MetadataUpdate> updates() {
-    return updates;
-  }
-
-  public List<UpdateRequirement> requirements() {
-    return requirements;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("identifier", identifier)
-        .add("viewUuid", viewUuid)
-        .add("updates", updates)
-        .add("requirements", requirements)
-        .toString();
-  }
+  List<MetadataUpdate> updates();
+  List<UpdateRequirement> requirements();
 }

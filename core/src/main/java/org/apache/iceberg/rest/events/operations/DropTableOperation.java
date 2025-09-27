@@ -18,48 +18,20 @@
  */
 package org.apache.iceberg.rest.events.operations;
 
+import javax.annotation.Nullable;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class DropTableOperation implements Operation {
-  private final OperationType operationType = OperationType.DROP_TABLE;
-  private final TableIdentifier identifier;
-  private final String tableUuid;
-  private final Boolean purge;
-
-  public DropTableOperation(TableIdentifier identifier, String tableUuid, Boolean purge) {
-    this.identifier = identifier;
-    this.tableUuid = tableUuid;
-    this.purge = purge;
+@Value.Immutable
+interface DropTableOperation extends Operation {
+  default OperationType operationType() {
+    return OperationType.DROP_TABLE;
   }
 
-  public DropTableOperation(TableIdentifier identifier, String tableUuid) {
-    this(identifier, tableUuid, false);
-  }
+  TableIdentifier identifier();
 
-  public OperationType operationType() {
-    return operationType;
-  }
+  String tableUuid();
 
-  public TableIdentifier identifier() {
-    return identifier;
-  }
-
-  public String tableUuid() {
-    return tableUuid;
-  }
-
-  public Boolean purge() {
-    return purge;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("identifier", identifier)
-        .add("tableUuid", tableUuid)
-        .add("purge", purge)
-        .toString();
-  }
+  @Nullable
+  Boolean purge();
 }

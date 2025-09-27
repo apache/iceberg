@@ -19,78 +19,30 @@
 package org.apache.iceberg.rest.events.operations;
 
 import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class CustomOperation implements Operation {
-  private final OperationType operationType = OperationType.CUSTOM;
-  private final OperationType.CustomOperationType customOperationType;
-
-  // Common optional properties
-  private final TableIdentifier identifier;
-  private final Namespace namespace;
-  private final String tableUuid;
-  private final String viewUuid;
-  private final Map<String, String> properties;
-
-  public CustomOperation(
-      OperationType.CustomOperationType customOperationType,
-      org.apache.iceberg.catalog.TableIdentifier identifier,
-      org.apache.iceberg.catalog.Namespace namespace,
-      String tableUuid,
-      String viewUuid,
-      Map<String, String> properties) {
-    this.customOperationType = customOperationType;
-    this.identifier = identifier;
-    this.namespace = namespace;
-    this.tableUuid = tableUuid;
-    this.viewUuid = viewUuid;
-    this.properties = properties;
+@Value.Immutable
+interface CustomOperation extends Operation {
+  default OperationType operationType() {
+    return OperationType.CUSTOM;
   }
 
-  public CustomOperation(OperationType.CustomOperationType customOperationType) {
-    this(customOperationType, null, null, null, null, null);
-  }
+  OperationType.CustomOperationType customOperationType();
 
-  public OperationType operationType() {
-    return operationType;
-  }
+  @Nullable
+  TableIdentifier identifier();
 
-  public OperationType.CustomOperationType customOperationType() {
-    return customOperationType;
-  }
+  @Nullable
+  Namespace namespace();
 
-  public TableIdentifier identifier() {
-    return identifier;
-  }
+  @Nullable
+  String tableUuid();
 
-  public Namespace namespace() {
-    return namespace;
-  }
+  @Nullable
+  String viewUuid();
 
-  public String tableUuid() {
-    return tableUuid;
-  }
-
-  public String viewUuid() {
-    return viewUuid;
-  }
-
-  public Map<String, String> properties() {
-    return properties;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("customOperationType", customOperationType)
-        .add("identifier", identifier)
-        .add("namespace", namespace)
-        .add("tableUuid", tableUuid)
-        .add("viewUuid", viewUuid)
-        .add("properties", properties)
-        .toString();
-  }
+  Map<String, String> properties();
 }

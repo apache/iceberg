@@ -20,60 +20,23 @@ package org.apache.iceberg.rest.events.operations;
 
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class UpdateNamespacePropertiesOperation implements Operation {
-  private final OperationType operationType = OperationType.UPDATE_NAMESPACE_PROPERTIES;
-  private final Namespace namespace;
+@Value.Immutable
+interface UpdateNamespacePropertiesOperation extends Operation {
+  default OperationType operationType() {
+    return OperationType.UPDATE_NAMESPACE_PROPERTIES;
+  }
+
+  Namespace namespace();
+
   // List of namespace property keys that were removed
-  private final List<String> removed;
+  List<String> removed();
+
   // List of namespace property keys that were added or updated
-  private final List<String> updated;
+  List<String> updated();
+
   // List of properties that were requested for removal that were not found in the namespace's
   // properties
-  private final List<String> missing;
-
-  public UpdateNamespacePropertiesOperation(
-      Namespace namespace, List<String> removed, List<String> updated, List<String> missing) {
-    this.namespace = namespace;
-    this.removed = removed;
-    this.updated = updated;
-    this.missing = missing;
-  }
-
-  public UpdateNamespacePropertiesOperation(
-      Namespace namespace, List<String> removed, List<String> updated) {
-    this(namespace, removed, updated, null);
-  }
-
-  public OperationType operationType() {
-    return operationType;
-  }
-
-  public Namespace namespace() {
-    return namespace;
-  }
-
-  public List<String> removed() {
-    return removed;
-  }
-
-  public List<String> updated() {
-    return updated;
-  }
-
-  public List<String> missing() {
-    return missing;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("namespace", namespace)
-        .add("removed", removed)
-        .add("updated", updated)
-        .add("missing", missing)
-        .toString();
-  }
+  List<String> missing();
 }

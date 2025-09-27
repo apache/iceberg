@@ -19,44 +19,18 @@
 package org.apache.iceberg.rest.events.operations;
 
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class RenameTableOperation implements Operation {
-  private final OperationType operationType = OperationType.RENAME_TABLE;
-  private final TableIdentifier sourceIdentifier;
-  private final TableIdentifier targetIdentifier;
-  private final String tableUuid;
+@Value.Immutable
+interface RenameTableOperation extends Operation {
 
-  public RenameTableOperation(
-      TableIdentifier sourceIdentifier, TableIdentifier targetIdentifier, String tableUuid) {
-    this.sourceIdentifier = sourceIdentifier;
-    this.targetIdentifier = targetIdentifier;
-    this.tableUuid = tableUuid;
+  default OperationType operationType() {
+    return OperationType.RENAME_TABLE;
   }
 
-  public OperationType operationType() {
-    return operationType;
-  }
+  TableIdentifier sourceIdentifier();
 
-  public TableIdentifier sourceIdentifier() {
-    return sourceIdentifier;
-  }
+  TableIdentifier targetIdentifier();
 
-  public TableIdentifier targetIdentifier() {
-    return targetIdentifier;
-  }
-
-  public String tableUuid() {
-    return tableUuid;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("sourceIdentifier", sourceIdentifier)
-        .add("targetIdentifier", targetIdentifier)
-        .add("tableUuid", tableUuid)
-        .toString();
-  }
+  String tableUuid();
 }

@@ -19,36 +19,15 @@
 package org.apache.iceberg.rest.events.operations;
 
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class DropViewOperation implements Operation {
-  private final OperationType operationType = OperationType.DROP_VIEW;
-  private final TableIdentifier identifier;
-  private final String viewUuid;
-
-  public DropViewOperation(TableIdentifier identifier, String viewUuid) {
-    this.identifier = identifier;
-    this.viewUuid = viewUuid;
+@Value.Immutable
+interface DropViewOperation extends Operation {
+  default OperationType operationType() {
+    return OperationType.DROP_VIEW;
   }
 
-  public OperationType OperationType() {
-    return operationType;
-  }
+  TableIdentifier identifier();
 
-  public TableIdentifier identifier() {
-    return identifier;
-  }
-
-  public String viewUuid() {
-    return viewUuid;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("identifier", identifier)
-        .add("viewUuid", viewUuid)
-        .toString();
-  }
+  String viewUuid();
 }

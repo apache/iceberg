@@ -21,44 +21,17 @@ package org.apache.iceberg.rest.events.operations;
 import java.util.List;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class CreateTableOperation implements Operation {
-  private final OperationType operationType = OperationType.CREATE_TABLE;
-  private TableIdentifier identifier;
-  private String tableUuid;
-  private List<MetadataUpdate> updates;
-
-  public CreateTableOperation(
-      TableIdentifier identifier, String tableUuid, List<MetadataUpdate> updates) {
-    this.identifier = identifier;
-    this.tableUuid = tableUuid;
-    this.updates = updates;
+@Value.Immutable
+interface CreateTableOperation extends Operation {
+  default OperationType operationType() {
+    return OperationType.CREATE_TABLE;
   }
 
-  public OperationType operationType() {
-    return operationType;
-  }
+  TableIdentifier identifier();
 
-  public TableIdentifier identifier() {
-    return identifier;
-  }
+  String tableUuid();
 
-  public String tableUuid() {
-    return tableUuid;
-  }
-
-  public List<MetadataUpdate> updates() {
-    return updates;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("identifier", identifier)
-        .add("tableUuid", tableUuid)
-        .add("updates", updates)
-        .toString();
-  }
+  List<MetadataUpdate> updates();
 }

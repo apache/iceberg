@@ -20,35 +20,15 @@ package org.apache.iceberg.rest.events.operations;
 
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class CreateViewOperation implements Operation {
-  private final OperationType operationType = OperationType.CREATE_VIEW;
-  private final TableIdentifier identifier;
-  private final String viewUuid;
-
-  public CreateViewOperation(TableIdentifier identifier, String viewUuid) {
-    this.identifier = identifier;
-    this.viewUuid = viewUuid;
+@Value.Immutable
+interface CreateViewOperation extends Operation {
+  default OperationType OperationType() {
+    return OperationType.CREATE_VIEW;
   }
 
-  public OperationType OperationType() {
-    return operationType;
-  }
+  TableIdentifier identifier();
 
-  public TableIdentifier identifier() {
-    return identifier;
-  }
-
-  public String viewUuid() {
-    return viewUuid;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("identifier", identifier)
-        .add("viewUuid", viewUuid)
-        .toString();
-  }
+  String viewUuid();
 }

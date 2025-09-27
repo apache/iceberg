@@ -20,36 +20,15 @@ package org.apache.iceberg.rest.events.operations;
 
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class CreateNamespaceOperation implements Operation {
-  private final OperationType operationType = OperationType.CREATE_NAMESPACE;
-  private final Namespace namespace;
-  private final Map<String, String> properties;
-
-  public CreateNamespaceOperation(Namespace namespace, Map<String, String> properties) {
-    this.namespace = namespace;
-    this.properties = properties;
+@Value.Immutable
+interface CreateNamespaceOperation extends Operation {
+  default OperationType operationType() {
+    return OperationType.CREATE_NAMESPACE;
   }
 
-  public OperationType operationType() {
-    return operationType;
-  }
+  Namespace namespace();
 
-  public Namespace namespace() {
-    return namespace;
-  }
-
-  public Map<String, String> properties() {
-    return properties;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("namespace", namespace)
-        .add("properties", properties)
-        .toString();
-  }
+  Map<String, String> properties();
 }

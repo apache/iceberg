@@ -18,71 +18,23 @@
  */
 package org.apache.iceberg.rest.events;
 
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.rest.operations.Operation;
+import javax.annotation.Nullable;
+import org.apache.iceberg.rest.events.operations.Operation;
+import org.immutables.value.Value;
 
 /** An event to record an operation on {@link org.apache.iceberg.catalog.CatalogObject}. */
-public class Event {
-  private final String eventId;
-  private final String requestId;
-  private final Integer eventCount;
-  private final Long timestampMs;
-  private final String actor;
-  private final Operation operation;
+@Value.Immutable
+interface Event {
+  String eventId();
 
-  public Event(
-      String eventId, String requestId, Integer eventCount, Long timestampMs, Operation operation) {
-    this(eventId, requestId, eventCount, timestampMs, "", operation);
-  }
+  String requestId();
 
-  public Event(
-      String eventId,
-      String requestId,
-      Integer eventCount,
-      Long timestampMs,
-      String actor,
-      Operation operation) {
-    this.eventId = eventId;
-    this.requestId = requestId;
-    this.eventCount = eventCount;
-    this.timestampMs = timestampMs;
-    this.actor = actor;
-    this.operation = operation;
-  }
+  Integer eventCount();
 
-  public String eventId() {
-    return eventId;
-  }
+  Long timestampMs();
 
-  public String requestId() {
-    return requestId;
-  }
+  @Nullable
+  String actor();
 
-  public int eventCount() {
-    return eventCount;
-  }
-
-  public long timestampMs() {
-    return timestampMs;
-  }
-
-  public String actor() {
-    return actor;
-  }
-
-  public Operation operation() {
-    return operation;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("eventId", eventId)
-        .add("requestId", requestId)
-        .add("eventCount", eventCount)
-        .add("timestampMs", timestampMs)
-        .add("actor", actor)
-        .add("operation", operation)
-        .toString();
-  }
+  Operation operation();
 }

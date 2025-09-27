@@ -19,29 +19,13 @@
 package org.apache.iceberg.rest.events.operations;
 
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class DropNamespaceOperation implements Operation {
-  private final OperationType operationType = OperationType.DROP_NAMESPACE;
-  private final Namespace namespace;
-
-  public DropNamespaceOperation(Namespace namespace) {
-    this.namespace = namespace;
+@Value.Immutable
+interface DropNamespaceOperation extends Operation {
+  default OperationType operationType(){
+    return OperationType.DROP_NAMESPACE;
   }
 
-  public OperationType operationType() {
-    return operationType;
-  }
-
-  public Namespace namespace() {
-    return namespace;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("namespace", namespace)
-        .toString();
-  }
+  Namespace namespace();
 }

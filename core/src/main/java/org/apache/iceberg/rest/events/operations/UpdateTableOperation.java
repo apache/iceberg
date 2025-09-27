@@ -22,59 +22,19 @@ import java.util.List;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class UpdateTableOperation implements Operation {
-  private final OperationType operationType = OperationType.UPDATE_TABLE;
-  private final TableIdentifier identifier;
-  private final String tableUuid;
-  private final List<MetadataUpdate> updates;
-  private final List<UpdateRequirement> requirements;
-
-  public UpdateTableOperation(
-      TableIdentifier identifier,
-      String tableUuid,
-      List<MetadataUpdate> updates,
-      List<UpdateRequirement> requirements) {
-    this.identifier = identifier;
-    this.tableUuid = tableUuid;
-    this.updates = updates;
-    this.requirements = requirements;
+@Value.Immutable
+interface UpdateTableOperation extends Operation {
+  default OperationType operationType() {
+    return OperationType.UPDATE_TABLE;
   }
 
-  public UpdateTableOperation(
-      TableIdentifier identifier, String tableUuid, List<MetadataUpdate> updates) {
-    this(identifier, tableUuid, updates, null);
-  }
+  TableIdentifier identifier();
 
-  public OperationType operationType() {
-    return operationType;
-  }
+  String tableUuid();
 
-  public TableIdentifier identifier() {
-    return identifier;
-  }
+  List<MetadataUpdate> updates();
 
-  public String tableUuid() {
-    return tableUuid;
-  }
-
-  public List<MetadataUpdate> updates() {
-    return updates;
-  }
-
-  public List<UpdateRequirement> requirements() {
-    return requirements;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("identifier", identifier)
-        .add("tableUuid", tableUuid)
-        .add("updates", updates)
-        .add("requirements", requirements)
-        .toString();
-  }
+  List<UpdateRequirement> requirements();
 }

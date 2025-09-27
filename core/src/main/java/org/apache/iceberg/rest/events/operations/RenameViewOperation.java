@@ -19,44 +19,17 @@
 package org.apache.iceberg.rest.events.operations;
 
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.immutables.value.Value;
 
-public class RenameViewOperation implements Operation {
-  private final OperationType operationType = OperationType.RENAME_VIEW;
-  private final TableIdentifier sourceIdentifier;
-  private final TableIdentifier targetIdentifier;
-  private final String viewUuid;
-
-  public RenameViewOperation(
-      TableIdentifier sourceIdentifier, TableIdentifier targetIdentifier, String viewUuid) {
-    this.sourceIdentifier = sourceIdentifier;
-    this.targetIdentifier = targetIdentifier;
-    this.viewUuid = viewUuid;
+@Value.Immutable
+interface RenameViewOperation extends Operation {
+  default OperationType operationType() {
+    return OperationType.RENAME_VIEW;
   }
 
-  public OperationType operationType() {
-    return operationType;
-  }
+  TableIdentifier sourceIdentifier();
 
-  public TableIdentifier sourceIdentifier() {
-    return sourceIdentifier;
-  }
+  TableIdentifier targetIdentifier();
 
-  public TableIdentifier targetIdentifier() {
-    return targetIdentifier;
-  }
-
-  public String viewUuid() {
-    return viewUuid;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("operationType", operationType)
-        .add("sourceIdentifier", sourceIdentifier)
-        .add("targetIdentifier", targetIdentifier)
-        .add("viewUuid", viewUuid)
-        .toString();
-  }
+  String viewUuid();
 }
