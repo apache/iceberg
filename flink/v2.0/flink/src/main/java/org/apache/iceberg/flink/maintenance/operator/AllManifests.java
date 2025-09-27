@@ -24,7 +24,6 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -32,19 +31,19 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Lists the metadata files referenced by the table. */
+/** Loading the table's manifest files and filtering them based on the partition spec ID. */
 @Internal
-public class ListMetadataFiles extends ProcessFunction<Trigger, String> {
-  private static final Logger LOG = LoggerFactory.getLogger(ListMetadataFiles.class);
+public class AllManifests extends ProcessFunction<Trigger, ManifestFile> {
+  private static final Logger LOG = LoggerFactory.getLogger(AllManifests.class);
+
+  private transient Counter errorCounter;
+  private transient Table table;
+  private final TableLoader tableLoader;
 
   private final String taskName;
   private final int taskIndex;
-  private transient Counter errorCounter;
-  private final TableLoader tableLoader;
-  private transient Table table;
 
-  public ListMetadataFiles(String taskName, int taskIndex, TableLoader tableLoader) {
-    Preconditions.checkNotNull(taskName, "Task name should no be null");
+  public AllManifests(TableLoader tableLoader, String taskName, int taskIndex) {
     Preconditions.checkNotNull(tableLoader, "TableLoader should no be null");
     this.tableLoader = tableLoader;
     this.taskName = taskName;
@@ -54,7 +53,10 @@ public class ListMetadataFiles extends ProcessFunction<Trigger, String> {
   @Override
   public void open(OpenContext openContext) throws Exception {
     super.open(openContext);
-    tableLoader.open();
+    if (!this.tableLoader.isOpen()) {
+      tableLoader.open();
+    }
+
     this.table = tableLoader.loadTable();
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), table.name(), taskName, taskIndex)
@@ -62,31 +64,26 @@ public class ListMetadataFiles extends ProcessFunction<Trigger, String> {
   }
 
   @Override
-  public void processElement(Trigger trigger, Context ctx, Collector<String> collector)
+  public void processElement(Trigger trigger, Context ctx, Collector<ManifestFile> out)
       throws Exception {
     try {
-      table
-          .snapshots()
-          .forEach(
-              snapshot -> {
-                // Manifest lists
-                collector.collect(snapshot.manifestListLocation());
-                // Snapshot JSONs
-                ReachableFileUtil.metadataFileLocations(table, false).forEach(collector::collect);
-                // Statistics files
-                ReachableFileUtil.statisticsFilesLocations(table).forEach(collector::collect);
-                // Version hint file for Hadoop catalogs
-                collector.collect(ReachableFileUtil.versionHintLocation(table));
-
-                // Emit the manifest file locations
-                snapshot.allManifests(table.io()).stream()
-                    .map(ManifestFile::path)
-                    .forEach(collector::collect);
-              });
+      table.currentSnapshot().allManifests(table.io()).stream()
+          .filter(m -> m.partitionSpecId() == table.spec().specId())
+          .forEach(out::collect);
     } catch (Exception e) {
-      LOG.error("Exception listing metadata files for {} at {}", table, ctx.timestamp(), e);
+      LOG.error("Exception fetching manifests for {} at {}", table, ctx.timestamp(), e);
       ctx.output(TaskResultAggregator.ERROR_STREAM, e);
       errorCounter.inc();
+    }
+  }
+
+  @Override
+  public void close() throws Exception {
+    super.close();
+
+    if (tableLoader != null) {
+      tableLoader.close();
+      this.table = null;
     }
   }
 }
