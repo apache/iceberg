@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -53,6 +55,9 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 abstract class BaseParquetReaders<T> {
+  // Root ID is used for the top-level struct in the Parquet Schema
+  private static final int ROOT_ID = 1;
+
   protected BaseParquetReaders() {}
 
   protected ParquetValueReader<T> createReader(Schema expectedSchema, MessageType fileSchema) {
@@ -73,6 +78,38 @@ abstract class BaseParquetReaders<T> {
               fileSchema,
               new FallbackReadBuilder(fileSchema, idToConstant));
     }
+  }
+
+  protected ParquetValueReader<T> createReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant,
+      Map<Integer, Class<? extends StructLike>> customTypesById) {
+    if (ParquetSchemaUtil.hasIds(fileSchema)) {
+      return (ParquetValueReader<T>)
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
+              new ReadBuilder(fileSchema, idToConstant, customTypesById));
+    } else {
+      return (ParquetValueReader<T>)
+          TypeWithSchemaVisitor.visit(
+              expectedSchema.asStruct(),
+              fileSchema,
+              new FallbackReadBuilder(fileSchema, idToConstant));
+    }
+  }
+
+  /**
+   * This method can be overridden to provide a custom implementation which also uses the fieldId of
+   * the Schema when creating the struct reader
+   */
+  protected ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders,
+      Types.StructType structType,
+      Class<? extends StructLike> fieldClass) {
+    // Fallback to the signature without fieldId if not overridden
+    return createStructReader(fieldReaders, structType);
   }
 
   protected abstract ParquetValueReader<T> createStructReader(
@@ -99,8 +136,9 @@ abstract class BaseParquetReaders<T> {
     @Override
     public ParquetValueReader<?> message(
         Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
-      // the top level matches by ID, but the remaining IDs are missing
-      return super.struct(expected, message, fieldReaders);
+      // The top level matches by ID, but the remaining IDs are missing
+      // Mark the top-level struct with the ROOT_ID
+      return super.struct(expected, message.withId(ROOT_ID), fieldReaders);
     }
 
     @Override
@@ -119,7 +157,8 @@ abstract class BaseParquetReaders<T> {
         }
       }
 
-      return createStructReader(newFields, expected);
+      Integer id = struct.getId() != null ? struct.getId().intValue() : null;
+      return createStructReader(newFields, expected, getOrDefault(id));
     }
   }
 
@@ -207,23 +246,37 @@ abstract class BaseParquetReaders<T> {
   private class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
     private final Map<Integer, ?> idToConstant;
+    private final Map<Integer, Class<? extends StructLike>> customTypesById;
 
     private ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+      this(type, idToConstant, ImmutableMap.of());
+    }
+
+    private ReadBuilder(
+        MessageType type,
+        Map<Integer, ?> idToConstant,
+        Map<Integer, Class<? extends StructLike>> customTypesById) {
       this.type = type;
       this.idToConstant = idToConstant;
+      this.customTypesById = customTypesById;
     }
 
     @Override
     public ParquetValueReader<?> message(
         Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
-      return struct(expected, message.asGroupType(), fieldReaders);
+      return struct(expected, message.asGroupType().withId(ROOT_ID), fieldReaders);
+    }
+
+    Class<? extends StructLike> getOrDefault(Integer fieldId) {
+      return customTypesById.getOrDefault(fieldId, Record.class);
     }
 
     @Override
     public ParquetValueReader<?> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       if (null == expected) {
-        return createStructReader(ImmutableList.of(), null);
+        Integer id = struct.getId() != null ? struct.getId().intValue() : null;
+        return createStructReader(ImmutableList.of(), null, getOrDefault(id));
       }
 
       // match the expected struct's order
@@ -252,7 +305,8 @@ abstract class BaseParquetReaders<T> {
         reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
       }
 
-      return createStructReader(reorderedFields, expected);
+      Integer id = struct.getId() != null ? struct.getId().intValue() : null;
+      return createStructReader(reorderedFields, expected, getOrDefault(id));
     }
 
     private ParquetValueReader<?> defaultReader(
