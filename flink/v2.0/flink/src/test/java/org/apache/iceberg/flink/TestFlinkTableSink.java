@@ -263,4 +263,59 @@ public class TestFlinkTableSink extends CatalogTestBase {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }
   }
+
+  // Test multiple IcebergSink instances writing to the same table in separate DAG branches.
+  // This ensures the v2 sink can handle multiple sink operators for the same table
+  // without naming collisions or operator conflicts when using statement set execution.
+  @TestTemplate
+  public void testIcebergSinkDifferentDAG() throws Exception {
+    assumeThat(useV2Sink).isTrue();
+
+    // Disable sink reuse optimization to force creation of two separate IcebergSink instances
+    getTableEnv()
+        .getConfig()
+        .getConfiguration()
+        .setString("table.optimizer.reuse-sink-enabled", "false");
+
+    // Register the rows into a temporary table.
+    getTableEnv()
+        .createTemporaryView(
+            "sourceTable",
+            getTableEnv()
+                .fromValues(
+                    SimpleDataUtil.FLINK_SCHEMA.toSourceRowDataType(),
+                    Expressions.row(1, "hello"),
+                    Expressions.row(2, "world"),
+                    Expressions.row(3, (String) null),
+                    Expressions.row(null, "bar")));
+
+    getTableEnv()
+        .createTemporaryView(
+            "sourceTable1",
+            getTableEnv()
+                .fromValues(
+                    SimpleDataUtil.FLINK_SCHEMA.toSourceRowDataType(),
+                    Expressions.row(1, "hello"),
+                    Expressions.row(2, "world"),
+                    Expressions.row(3, (String) null),
+                    Expressions.row(null, "bar")));
+
+    // Redirect the records from source table to destination table.
+    sql(
+        "EXECUTE STATEMENT SET\n"
+            + "BEGIN\n"
+            + "INSERT INTO %s /*+ OPTIONS('uid-suffix'='source1') */ SELECT id,data from sourceTable;\n"
+            + "INSERT INTO %s /*+ OPTIONS('uid-suffix'='source2') */ SELECT id,data from sourceTable1;\n"
+            + "END;",
+        TABLE_NAME, TABLE_NAME);
+
+    // Assert the table records as expected.
+    SimpleDataUtil.assertTableRecords(
+        icebergTable,
+        Lists.newArrayList(
+            SimpleDataUtil.createRecord(1, "hello"),
+            SimpleDataUtil.createRecord(2, "world"),
+            SimpleDataUtil.createRecord(3, null),
+            SimpleDataUtil.createRecord(null, "bar")));
+  }
 }

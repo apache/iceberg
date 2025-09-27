@@ -362,6 +362,8 @@ public class SparkTableUtil {
   }
 
   private static Iterator<ManifestFile> buildManifest(
+      int formatVersion,
+      Long snapshotId,
       SerializableConfiguration conf,
       PartitionSpec spec,
       String basePath,
@@ -379,7 +381,8 @@ public class SparkTableUtil {
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
-      ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile);
+      ManifestWriter<DataFile> writer =
+          ManifestFiles.write(formatVersion, spec, outputFile, snapshotId);
 
       try (ManifestWriter<DataFile> writerRef = writer) {
         fileTuples.forEachRemaining(fileTuple -> writerRef.add(fileTuple._2));
@@ -867,6 +870,21 @@ public class SparkTableUtil {
               DUPLICATE_FILE_MESSAGE, Joiner.on(",").join((String[]) duplicates.take(10))));
     }
 
+    TableOperations ops = ((HasTableOperations) targetTable).operations();
+    int formatVersion = ops.current().formatVersion();
+    boolean snapshotIdInheritanceEnabled =
+        PropertyUtil.propertyAsBoolean(
+            targetTable.properties(),
+            TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
+            TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+
+    final Long snapshotId;
+    if (formatVersion == 1 && !snapshotIdInheritanceEnabled) {
+      snapshotId = -1L;
+    } else {
+      snapshotId = null;
+    }
+
     List<ManifestFile> manifests =
         filesToImport
             .repartition(numShufflePartitions)
@@ -877,18 +895,18 @@ public class SparkTableUtil {
             .orderBy(col("_1"))
             .mapPartitions(
                 (MapPartitionsFunction<Tuple2<String, DataFile>, ManifestFile>)
-                    fileTuple -> buildManifest(serializableConf, spec, stagingDir, fileTuple),
+                    fileTuple ->
+                        buildManifest(
+                            formatVersion,
+                            snapshotId,
+                            serializableConf,
+                            spec,
+                            stagingDir,
+                            fileTuple),
                 Encoders.javaSerialization(ManifestFile.class))
             .collectAsList();
 
     try {
-      TableOperations ops = ((HasTableOperations) targetTable).operations();
-      int formatVersion = ops.current().formatVersion();
-      boolean snapshotIdInheritanceEnabled =
-          PropertyUtil.propertyAsBoolean(
-              targetTable.properties(),
-              TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
-              TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
 
       AppendFiles append = targetTable.newAppend();
       manifests.forEach(append::appendManifest);

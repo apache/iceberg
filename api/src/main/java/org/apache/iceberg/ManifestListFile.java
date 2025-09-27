@@ -16,30 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.actions;
+package org.apache.iceberg;
 
-import org.immutables.value.Value;
+import java.nio.ByteBuffer;
+import org.apache.iceberg.encryption.EncryptionManager;
 
-@Value.Enclosing
-@SuppressWarnings("ImmutablesStyle")
-@Value.Style(
-    typeImmutableEnclosing = "ImmutableRewriteTablePath",
-    visibilityString = "PUBLIC",
-    builderVisibilityString = "PUBLIC")
-interface BaseRewriteTablePath extends RewriteTablePath {
+public interface ManifestListFile {
 
-  @Value.Immutable
-  interface Result extends RewriteTablePath.Result {
-    @Override
-    @Value.Default
-    default int rewrittenDeleteFilePathsCount() {
-      return RewriteTablePath.Result.super.rewrittenDeleteFilePathsCount();
-    }
+  /** Location of manifest list file. */
+  String location();
 
-    @Override
-    @Value.Default
-    default int rewrittenManifestFilePathsCount() {
-      return RewriteTablePath.Result.super.rewrittenManifestFilePathsCount();
-    }
-  }
+  /** The manifest list key metadata can be encrypted. Returns ID of encryption key */
+  String encryptionKeyID();
+
+  /** Decrypt and return the manifest list key metadata */
+  ByteBuffer decryptKeyMetadata(EncryptionManager em);
 }

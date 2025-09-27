@@ -16,30 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.actions;
+package org.apache.iceberg;
 
-import org.immutables.value.Value;
+import java.io.Serializable;
+import java.nio.ByteBuffer;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
 
-@Value.Enclosing
-@SuppressWarnings("ImmutablesStyle")
-@Value.Style(
-    typeImmutableEnclosing = "ImmutableRewriteTablePath",
-    visibilityString = "PUBLIC",
-    builderVisibilityString = "PUBLIC")
-interface BaseRewriteTablePath extends RewriteTablePath {
+class BaseManifestListFile implements ManifestListFile, Serializable {
+  private final String location;
+  private final String encryptionKeyID;
 
-  @Value.Immutable
-  interface Result extends RewriteTablePath.Result {
-    @Override
-    @Value.Default
-    default int rewrittenDeleteFilePathsCount() {
-      return RewriteTablePath.Result.super.rewrittenDeleteFilePathsCount();
-    }
+  BaseManifestListFile(String location, String encryptionKeyID) {
+    this.location = location;
+    this.encryptionKeyID = encryptionKeyID;
+  }
 
-    @Override
-    @Value.Default
-    default int rewrittenManifestFilePathsCount() {
-      return RewriteTablePath.Result.super.rewrittenManifestFilePathsCount();
-    }
+  @Override
+  public String location() {
+    return location;
+  }
+
+  @Override
+  public String encryptionKeyID() {
+    return encryptionKeyID;
+  }
+
+  @Override
+  public ByteBuffer decryptKeyMetadata(EncryptionManager em) {
+    return EncryptionUtil.decryptManifestListKeyMetadata(this, em);
   }
 }
