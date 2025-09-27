@@ -219,6 +219,8 @@ class ProjectionUtil {
         // there is no predicate that guarantees equality because adjacent values transform to the
         // same partition
         return null;
+      case NOT_STARTS_WITH:
+        return predicate(Expression.Operation.NOT_STARTS_WITH, name, transform.apply(boundary));
       default:
         return null;
     }
