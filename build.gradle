@@ -182,6 +182,7 @@ subprojects {
       exclude group: 'com.sun.jersey'
       exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
+      exclude group: 'org.jetbrains', module: 'annotations'
     }
 
     testArtifacts
