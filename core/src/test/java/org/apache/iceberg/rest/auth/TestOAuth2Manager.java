@@ -583,6 +583,38 @@ class TestOAuth2Manager {
   }
 
   @Test
+  void standaloneTableSessionCredentialProvidedMultipleAuthServers() {
+    Map<String, String> tableProperties1 = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
+    Map<String, String> tableProperties2 =
+        Map.of(
+            OAuth2Properties.OAUTH2_SERVER_URI, "https://auth-server2.com/v1/token",
+            OAuth2Properties.CREDENTIAL, "client:secret");
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession tableSession1 =
+            (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties1);
+        OAuth2Util.AuthSession tableSession2 =
+            (OAuth2Util.AuthSession) manager.tableSession(client, tableProperties2)) {
+      assertThat(tableSession1.headers()).containsOnly(entry("Authorization", "Bearer test"));
+      assertThat(tableSession2.headers()).containsOnly(entry("Authorization", "Bearer test"));
+      assertThat(tableSession1).isNotSameAs(tableSession2);
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verify(client, times(2))
+        .postForm(
+            any(),
+            eq(
+                Map.of(
+                    "grant_type", "client_credentials",
+                    "client_id", "client",
+                    "client_secret", "secret",
+                    "scope", "catalog")),
+            eq(OAuthTokenResponse.class),
+            eq(Map.of()),
+            any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
   void close() {
     Map<String, String> catalogProperties = Map.of();
     SessionCatalog.SessionContext context =

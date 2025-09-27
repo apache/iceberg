@@ -173,14 +173,17 @@ public class OAuth2Manager extends RefreshingAuthManager {
       sessionCache = newSessionCache(name, properties);
     }
 
+    String oauth2ServerUri =
+        properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
     if (config.token() != null) {
+      String cacheKey = oauth2ServerUri + ":" + config.token();
       return sessionCache.cachedSession(
-          config.token(), k -> newSessionFromAccessToken(config.token(), properties, parent));
+          cacheKey, k -> newSessionFromAccessToken(config.token(), properties, parent));
     }
 
     if (config.credential() != null && !config.credential().isEmpty()) {
-      return sessionCache.cachedSession(
-          config.credential(), k -> newSessionFromTokenResponse(config, parent));
+      String cacheKey = oauth2ServerUri + ":" + config.credential();
+      return sessionCache.cachedSession(cacheKey, k -> newSessionFromTokenResponse(config, parent));
     }
 
     return parent;
