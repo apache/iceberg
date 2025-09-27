@@ -233,7 +233,8 @@ public class TestReplacePartitions extends TestBase {
     assertThat(TestTables.metadataVersion("allvoidUnpartitioned")).isEqualTo(2);
     TableMetadata replaceMetadata = TestTables.readMetadata("allvoidUnpartitioned");
     long replaceId = latestSnapshot(replaceMetadata, branch).snapshotId();
-    List<ManifestFile> manifestFiles = latestSnapshot(replaceMetadata, branch).allManifests(tableVoid.io());
+    List<ManifestFile> manifestFiles =
+        latestSnapshot(replaceMetadata, branch).allManifests(tableVoid.io());
 
     assertThat(manifestFiles).hasSize(2);
 
