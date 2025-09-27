@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
@@ -49,6 +50,7 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -122,7 +124,6 @@ public class OperatorTestBase {
   }
 
   protected static Table createTable() {
-    // only test V2 tables as compaction doesn't support V3 with row lineage
     return createTable("2");
   }
 
@@ -152,7 +153,7 @@ public class OperatorTestBase {
             ImmutableMap.of("format-version", "2", "write.upsert.enabled", "true"));
   }
 
-  protected static Table createPartitionedTable() {
+  protected static Table createPartitionedTable(String formatVersion) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -160,12 +161,22 @@ public class OperatorTestBase {
             SimpleDataUtil.SCHEMA,
             PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build(),
             null,
-            ImmutableMap.of("format-version", "2", "flink.max-continuous-empty-commits", "100000"));
+            ImmutableMap.of(
+                "format-version", formatVersion, "flink.max-continuous-empty-commits", "100000"));
+  }
+
+  protected static Table createPartitionedTable() {
+    return createPartitionedTable("2");
   }
 
   protected void insert(Table table, Integer id, String data) throws IOException {
     new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
         .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data)));
+    table.refresh();
+  }
+
+  protected void insert(Table table, List<Record> records) throws IOException {
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir).appendToTable(records);
     table.refresh();
   }
 
@@ -234,6 +245,13 @@ public class OperatorTestBase {
         .appendToTable(
             TestHelpers.Row.of(data, id),
             Lists.newArrayList(SimpleDataUtil.createRecord(id, data)));
+    table.refresh();
+  }
+
+  protected void insertPartitioned(Table table, List<Record> records, String partition)
+      throws IOException {
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+        .appendToTable(TestHelpers.Row.of(partition), records);
     table.refresh();
   }
 
