@@ -81,6 +81,7 @@ nav:
         - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
         - RisingWave: integrations/risingwave.md
         - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
+        - Starburst: https://docs.starburst.io/latest/connector/iceberg.html
         - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
         - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
         - Trino: https://trino.io/docs/current/connector/iceberg.html
