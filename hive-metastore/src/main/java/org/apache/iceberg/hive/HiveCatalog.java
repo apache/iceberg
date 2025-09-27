@@ -20,6 +20,7 @@ package org.apache.iceberg.hive;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
@@ -209,6 +210,28 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   @Override
   public String name() {
     return name;
+  }
+
+  @Override
+  protected void setAsCurrent(TableIdentifier identifier, String metadataLocation) {
+    String database = identifier.namespace().level(0);
+    try {
+      Table tbl = clients.run(client -> client.getTable(database, identifier.name()));
+      Map<String, String> parameters =
+          Optional.ofNullable(tbl.getParameters()).orElseGet(Maps::newHashMap);
+      parameters.put(BaseMetastoreTableOperations.METADATA_LOCATION_PROP, metadataLocation);
+      clients.run(
+          client -> {
+            MetastoreUtil.alterTable(client, database, identifier.name(), tbl, ImmutableMap.of());
+            return null;
+          });
+    } catch (TException e) {
+      throw new RuntimeException(
+          String.format("Failed to set %s as current in %s", metadataLocation, identifier), e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted in call to setAsCurrent", e);
+    }
   }
 
   @Override
