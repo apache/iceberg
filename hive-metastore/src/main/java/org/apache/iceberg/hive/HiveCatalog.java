@@ -42,6 +42,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.catalog.IsolateClassloaderConfigurable;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -61,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.IsolatedClassLoader;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.View;
@@ -72,7 +74,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class HiveCatalog extends BaseMetastoreViewCatalog
-    implements SupportsNamespaces, Configurable {
+    implements SupportsNamespaces, Configurable, IsolateClassloaderConfigurable {
   public static final String LIST_ALL_TABLES = "list-all-tables";
   public static final String LIST_ALL_TABLES_DEFAULT = "false";
 
@@ -91,6 +93,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
+  private IsolatedClassLoader isolatedClassLoader;
 
   public HiveCatalog() {}
 
@@ -122,7 +125,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
             ? new HadoopFileIO(conf)
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
-    this.clients = new CachedClientPool(conf, properties);
+    this.clients = new CachedClientPool(conf, properties, isolatedClassLoader);
   }
 
   @Override
@@ -818,6 +821,11 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   @VisibleForTesting
   void setListAllTables(boolean listAllTables) {
     this.listAllTables = listAllTables;
+  }
+
+  @Override
+  public void setIsolatedClassLoader(IsolatedClassLoader isolatedClassLoader) {
+    this.isolatedClassLoader = isolatedClassLoader;
   }
 
   @VisibleForTesting

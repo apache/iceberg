@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hive;
 
+import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaHookLoader;
@@ -49,11 +50,16 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
 
   private final HiveConf hiveConf;
 
-  public HiveClientPool(int poolSize, Configuration conf) {
+  public HiveClientPool(int poolSize, Configuration conf, Optional<ClassLoader> classLoader) {
     // Do not allow retry by default as we rely on RetryingHiveClient
     super(poolSize, TTransportException.class, false);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
     this.hiveConf.addResource(conf);
+    classLoader.ifPresent(this.hiveConf::setClassLoader);
+  }
+
+  public HiveClientPool(int poolSize, Configuration conf) {
+    this(poolSize, conf, Optional.empty());
   }
 
   @Override
