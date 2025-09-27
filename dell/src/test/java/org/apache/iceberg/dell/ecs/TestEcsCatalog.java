@@ -174,6 +174,7 @@ public class TestEcsCatalog {
 
   @Test
   public void testRegisterTable() {
+    ecsCatalog.createNamespace(Namespace.of("a"));
     TableIdentifier identifier = TableIdentifier.of("a", "t1");
     ecsCatalog.createTable(identifier, SCHEMA);
     Table registeringTable = ecsCatalog.loadTable(identifier);
@@ -191,6 +192,7 @@ public class TestEcsCatalog {
 
   @Test
   public void testRegisterExistingTable() {
+    ecsCatalog.createNamespace(Namespace.of("a"));
     TableIdentifier identifier = TableIdentifier.of("a", "t1");
     ecsCatalog.createTable(identifier, SCHEMA);
     Table registeringTable = ecsCatalog.loadTable(identifier);
@@ -200,5 +202,16 @@ public class TestEcsCatalog {
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
     assertThat(ecsCatalog.dropTable(identifier, true)).isTrue();
+  }
+
+  @Test
+  public void testRegisterTableToNonExistingNamespace() {
+    TableIdentifier targetIdentifier = TableIdentifier.of("non-existing", "table");
+    assertThatThrownBy(
+            () ->
+                ecsCatalog.registerTable(
+                    targetIdentifier, "table_metadata_loc_from_different_catalogs"))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageStartingWith("Cannot register table");
   }
 }
