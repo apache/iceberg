@@ -417,7 +417,7 @@ class TestTableMaintenance extends OperatorTestBase {
     }
 
     @Override
-    String maintenanceTaskName() {
+    public String maintenanceTaskName() {
       return MAINTENANCE_TASK_NAME;
     }
 
@@ -451,7 +451,8 @@ class TestTableMaintenance extends OperatorTestBase {
           trigger.taskId(),
           trigger.timestamp(),
           success,
-          success ? Collections.emptyList() : Lists.newArrayList(new Exception("Testing error")));
+          success ? Collections.emptyList() : Lists.newArrayList(new Exception("Testing error")),
+          null);
     }
 
     @Override
