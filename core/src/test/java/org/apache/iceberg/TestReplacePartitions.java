@@ -216,7 +216,7 @@ public class TestReplacePartitions extends TestBase {
   }
 
   @TestTemplate
-  public void testReplaceAllVoidUnpartitionedTable() throws IOException {
+  public void testReplaceAllVoidUnpartitionedTable() {
     Table tableVoid =
         TestTables.create(tableDir, "allvoidUnpartitioned", SCHEMA, SPEC_ALL_VOID, formatVersion);
 
@@ -233,17 +233,18 @@ public class TestReplacePartitions extends TestBase {
     assertThat(TestTables.metadataVersion("allvoidUnpartitioned")).isEqualTo(2);
     TableMetadata replaceMetadata = TestTables.readMetadata("allvoidUnpartitioned");
     long replaceId = latestSnapshot(replaceMetadata, branch).snapshotId();
+    List<ManifestFile> manifestFiles = latestSnapshot(replaceMetadata, branch).allManifests(tableVoid.io());
 
-    assertThat(latestSnapshot(replaceMetadata, branch).allManifests(tableVoid.io())).hasSize(2);
+    assertThat(manifestFiles).hasSize(2);
 
     validateManifestEntries(
-        latestSnapshot(replaceMetadata, branch).allManifests(tableVoid.io()).get(0),
+        manifestFiles.get(0),
         ids(replaceId),
         files(FILE_ALL_VOID_UNPARTITIONED_B),
         statuses(Status.ADDED));
 
     validateManifestEntries(
-        latestSnapshot(replaceMetadata, branch).allManifests(tableVoid.io()).get(1),
+        manifestFiles.get(1),
         ids(replaceId),
         files(FILE_ALL_VOID_UNPARTITIONED_A),
         statuses(Status.DELETED));
