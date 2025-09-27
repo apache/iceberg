@@ -291,8 +291,7 @@ public abstract class DeleteFilter<T> {
       return requestedSchema;
     }
 
-    // TODO: support adding nested columns. this will currently fail when finding nested columns to
-    // add
+    // Add missing columns required for delete operations, including nested columns
     List<Types.NestedField> columns = Lists.newArrayList(requestedSchema.columns());
     for (int fieldId : missingIds) {
       if (fieldId == MetadataColumns.ROW_POSITION.fieldId()
@@ -300,7 +299,7 @@ public abstract class DeleteFilter<T> {
         continue; // add _pos and _deleted at the end
       }
 
-      Types.NestedField field = tableSchema.asStruct().field(fieldId);
+      Types.NestedField field = getFieldFromTableSchema(tableSchema, fieldId);
       Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
 
       columns.add(field);
@@ -315,5 +314,13 @@ public abstract class DeleteFilter<T> {
     }
 
     return new Schema(columns);
+  }
+
+  /**
+   * Get field from table schema by ID, supporting both top-level and nested fields.
+   * This replaces the previous tableSchema.asStruct().field(fieldId) which only worked for top-level fields.
+   */
+  private static Types.NestedField getFieldFromTableSchema(Schema tableSchema, int fieldId) {
+    return tableSchema.findField(fieldId);
   }
 }
