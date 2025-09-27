@@ -50,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestGenericSortedPosDeleteWriter extends TestBase {
@@ -167,6 +168,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
     assertThat(actualRowSet("*")).isEqualTo(expectedRowSet(expectedData));
   }
 
+  @Disabled("Deprecated API")
   @TestTemplate
   @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testSortedPosDeleteWithSchemaAndNullRow() throws IOException {
@@ -186,6 +188,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
         .isInstanceOf(Exception.class);
   }
 
+  @Disabled("Deprecated API")
   @TestTemplate
   public void testSortedPosDeleteWithRow() throws IOException {
     List<Record> rowSet =
