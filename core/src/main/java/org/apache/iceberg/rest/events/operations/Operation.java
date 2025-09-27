@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
 /** Marker interface to be implemented by all catalog object operations. */
 public interface Operation {}

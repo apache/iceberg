@@ -16,39 +16,40 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
-import org.apache.iceberg.catalog.TableIdentifier;
+import java.util.Map;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class DropViewOperation implements Operation {
-  private final OperationType operationType = OperationType.DROP_VIEW;
-  private final TableIdentifier identifier;
-  private final String viewUuid;
+public class CreateNamespaceOperation implements Operation {
+  private final OperationType operationType = OperationType.CREATE_NAMESPACE;
+  private final Namespace namespace;
+  private final Map<String, String> properties;
 
-  public DropViewOperation(TableIdentifier identifier, String viewUuid) {
-    this.identifier = identifier;
-    this.viewUuid = viewUuid;
+  public CreateNamespaceOperation(Namespace namespace, Map<String, String> properties) {
+    this.namespace = namespace;
+    this.properties = properties;
   }
 
-  public OperationType OperationType() {
+  public OperationType operationType() {
     return operationType;
   }
 
-  public TableIdentifier identifier() {
-    return identifier;
+  public Namespace namespace() {
+    return namespace;
   }
 
-  public String viewUuid() {
-    return viewUuid;
+  public Map<String, String> properties() {
+    return properties;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("operationType", operationType)
-        .add("identifier", identifier)
-        .add("viewUuid", viewUuid)
+        .add("namespace", namespace)
+        .add("properties", properties)
         .toString();
   }
 }

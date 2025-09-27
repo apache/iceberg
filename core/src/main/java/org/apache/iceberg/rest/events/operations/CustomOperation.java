@@ -16,50 +16,81 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
+import java.util.Map;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class DropTableOperation implements Operation {
-  private final OperationType operationType = OperationType.DROP_TABLE;
-  private final TableIdentifier identifier;
-  private final String tableUuid;
-  private final Boolean purge;
+public class CustomOperation implements Operation {
+  private final OperationType operationType = OperationType.CUSTOM;
+  private final OperationType.CustomOperationType customOperationType;
 
-  public DropTableOperation(TableIdentifier identifier, String tableUuid, Boolean purge) {
+  // Common optional properties
+  private final TableIdentifier identifier;
+  private final Namespace namespace;
+  private final String tableUuid;
+  private final String viewUuid;
+  private final Map<String, String> properties;
+
+  public CustomOperation(
+      OperationType.CustomOperationType customOperationType,
+      org.apache.iceberg.catalog.TableIdentifier identifier,
+      org.apache.iceberg.catalog.Namespace namespace,
+      String tableUuid,
+      String viewUuid,
+      Map<String, String> properties) {
+    this.customOperationType = customOperationType;
     this.identifier = identifier;
+    this.namespace = namespace;
     this.tableUuid = tableUuid;
-    this.purge = purge;
+    this.viewUuid = viewUuid;
+    this.properties = properties;
   }
 
-  public DropTableOperation(TableIdentifier identifier, String tableUuid) {
-    this(identifier, tableUuid, false);
+  public CustomOperation(OperationType.CustomOperationType customOperationType) {
+    this(customOperationType, null, null, null, null, null);
   }
 
   public OperationType operationType() {
     return operationType;
   }
 
+  public OperationType.CustomOperationType customOperationType() {
+    return customOperationType;
+  }
+
   public TableIdentifier identifier() {
     return identifier;
+  }
+
+  public Namespace namespace() {
+    return namespace;
   }
 
   public String tableUuid() {
     return tableUuid;
   }
 
-  public Boolean purge() {
-    return purge;
+  public String viewUuid() {
+    return viewUuid;
+  }
+
+  public Map<String, String> properties() {
+    return properties;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("operationType", operationType)
+        .add("customOperationType", customOperationType)
         .add("identifier", identifier)
+        .add("namespace", namespace)
         .add("tableUuid", tableUuid)
-        .add("purge", purge)
+        .add("viewUuid", viewUuid)
+        .add("properties", properties)
         .toString();
   }
 }

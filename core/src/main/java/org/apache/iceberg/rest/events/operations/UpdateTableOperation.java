@@ -16,81 +16,65 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
-import java.util.Map;
-import org.apache.iceberg.catalog.Namespace;
+import java.util.List;
+import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class CustomOperation implements Operation {
-  private final OperationType operationType = OperationType.CUSTOM;
-  private final OperationType.CustomOperationType customOperationType;
-
-  // Common optional properties
+public class UpdateTableOperation implements Operation {
+  private final OperationType operationType = OperationType.UPDATE_TABLE;
   private final TableIdentifier identifier;
-  private final Namespace namespace;
   private final String tableUuid;
-  private final String viewUuid;
-  private final Map<String, String> properties;
+  private final List<MetadataUpdate> updates;
+  private final List<UpdateRequirement> requirements;
 
-  public CustomOperation(
-      OperationType.CustomOperationType customOperationType,
-      org.apache.iceberg.catalog.TableIdentifier identifier,
-      org.apache.iceberg.catalog.Namespace namespace,
+  public UpdateTableOperation(
+      TableIdentifier identifier,
       String tableUuid,
-      String viewUuid,
-      Map<String, String> properties) {
-    this.customOperationType = customOperationType;
+      List<MetadataUpdate> updates,
+      List<UpdateRequirement> requirements) {
     this.identifier = identifier;
-    this.namespace = namespace;
     this.tableUuid = tableUuid;
-    this.viewUuid = viewUuid;
-    this.properties = properties;
+    this.updates = updates;
+    this.requirements = requirements;
   }
 
-  public CustomOperation(OperationType.CustomOperationType customOperationType) {
-    this(customOperationType, null, null, null, null, null);
+  public UpdateTableOperation(
+      TableIdentifier identifier, String tableUuid, List<MetadataUpdate> updates) {
+    this(identifier, tableUuid, updates, null);
   }
 
   public OperationType operationType() {
     return operationType;
   }
 
-  public OperationType.CustomOperationType customOperationType() {
-    return customOperationType;
-  }
-
   public TableIdentifier identifier() {
     return identifier;
-  }
-
-  public Namespace namespace() {
-    return namespace;
   }
 
   public String tableUuid() {
     return tableUuid;
   }
 
-  public String viewUuid() {
-    return viewUuid;
+  public List<MetadataUpdate> updates() {
+    return updates;
   }
 
-  public Map<String, String> properties() {
-    return properties;
+  public List<UpdateRequirement> requirements() {
+    return requirements;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("operationType", operationType)
-        .add("customOperationType", customOperationType)
         .add("identifier", identifier)
-        .add("namespace", namespace)
         .add("tableUuid", tableUuid)
-        .add("viewUuid", viewUuid)
-        .add("properties", properties)
+        .add("updates", updates)
+        .add("requirements", requirements)
         .toString();
   }
 }

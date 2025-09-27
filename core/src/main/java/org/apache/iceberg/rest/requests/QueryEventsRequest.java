@@ -24,10 +24,11 @@ import org.apache.iceberg.catalog.CatalogObject;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.rest.RESTRequest;
 import org.apache.iceberg.rest.operations.OperationType;
 
 /** Standard request body for querying events. */
-public class QueryEventsRequest {
+public class QueryEventsRequest implements RESTRequest {
   private final String pageToken;
   private final Integer pageSize;
   private final Long afterTimestampMs;

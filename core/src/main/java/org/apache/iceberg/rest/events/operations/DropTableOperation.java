@@ -16,22 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class CreateViewOperation implements Operation {
-  private final OperationType operationType = OperationType.CREATE_VIEW;
+public class DropTableOperation implements Operation {
+  private final OperationType operationType = OperationType.DROP_TABLE;
   private final TableIdentifier identifier;
-  private final String viewUuid;
+  private final String tableUuid;
+  private final Boolean purge;
 
-  public CreateViewOperation(TableIdentifier identifier, String viewUuid) {
+  public DropTableOperation(TableIdentifier identifier, String tableUuid, Boolean purge) {
     this.identifier = identifier;
-    this.viewUuid = viewUuid;
+    this.tableUuid = tableUuid;
+    this.purge = purge;
   }
 
-  public OperationType OperationType() {
+  public DropTableOperation(TableIdentifier identifier, String tableUuid) {
+    this(identifier, tableUuid, false);
+  }
+
+  public OperationType operationType() {
     return operationType;
   }
 
@@ -39,8 +45,12 @@ public class CreateViewOperation implements Operation {
     return identifier;
   }
 
-  public String viewUuid() {
-    return viewUuid;
+  public String tableUuid() {
+    return tableUuid;
+  }
+
+  public Boolean purge() {
+    return purge;
   }
 
   @Override
@@ -48,7 +58,8 @@ public class CreateViewOperation implements Operation {
     return MoreObjects.toStringHelper(this)
         .add("operationType", operationType)
         .add("identifier", identifier)
-        .add("viewUuid", viewUuid)
+        .add("tableUuid", tableUuid)
+        .add("purge", purge)
         .toString();
   }
 }

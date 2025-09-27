@@ -16,47 +16,39 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class RenameTableOperation implements Operation {
-  private final OperationType operationType = OperationType.RENAME_TABLE;
-  private final TableIdentifier sourceIdentifier;
-  private final TableIdentifier targetIdentifier;
-  private final String tableUuid;
+public class CreateViewOperation implements Operation {
+  private final OperationType operationType = OperationType.CREATE_VIEW;
+  private final TableIdentifier identifier;
+  private final String viewUuid;
 
-  public RenameTableOperation(
-      TableIdentifier sourceIdentifier, TableIdentifier targetIdentifier, String tableUuid) {
-    this.sourceIdentifier = sourceIdentifier;
-    this.targetIdentifier = targetIdentifier;
-    this.tableUuid = tableUuid;
+  public CreateViewOperation(TableIdentifier identifier, String viewUuid) {
+    this.identifier = identifier;
+    this.viewUuid = viewUuid;
   }
 
-  public OperationType operationType() {
+  public OperationType OperationType() {
     return operationType;
   }
 
-  public TableIdentifier sourceIdentifier() {
-    return sourceIdentifier;
+  public TableIdentifier identifier() {
+    return identifier;
   }
 
-  public TableIdentifier targetIdentifier() {
-    return targetIdentifier;
-  }
-
-  public String tableUuid() {
-    return tableUuid;
+  public String viewUuid() {
+    return viewUuid;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("operationType", operationType)
-        .add("sourceIdentifier", sourceIdentifier)
-        .add("targetIdentifier", targetIdentifier)
-        .add("tableUuid", tableUuid)
+        .add("identifier", identifier)
+        .add("viewUuid", viewUuid)
         .toString();
   }
 }

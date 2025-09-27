@@ -16,49 +16,47 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
-import java.util.List;
-import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class CreateTableOperation implements Operation {
-  private final OperationType operationType = OperationType.CREATE_TABLE;
-  private TableIdentifier identifier;
-  private String tableUuid;
-  private List<MetadataUpdate> updates;
+public class RenameViewOperation implements Operation {
+  private final OperationType operationType = OperationType.RENAME_VIEW;
+  private final TableIdentifier sourceIdentifier;
+  private final TableIdentifier targetIdentifier;
+  private final String viewUuid;
 
-  public CreateTableOperation(
-      TableIdentifier identifier, String tableUuid, List<MetadataUpdate> updates) {
-    this.identifier = identifier;
-    this.tableUuid = tableUuid;
-    this.updates = updates;
+  public RenameViewOperation(
+      TableIdentifier sourceIdentifier, TableIdentifier targetIdentifier, String viewUuid) {
+    this.sourceIdentifier = sourceIdentifier;
+    this.targetIdentifier = targetIdentifier;
+    this.viewUuid = viewUuid;
   }
 
   public OperationType operationType() {
     return operationType;
   }
 
-  public TableIdentifier identifier() {
-    return identifier;
+  public TableIdentifier sourceIdentifier() {
+    return sourceIdentifier;
   }
 
-  public String tableUuid() {
-    return tableUuid;
+  public TableIdentifier targetIdentifier() {
+    return targetIdentifier;
   }
 
-  public List<MetadataUpdate> updates() {
-    return updates;
+  public String viewUuid() {
+    return viewUuid;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("operationType", operationType)
-        .add("identifier", identifier)
-        .add("tableUuid", tableUuid)
-        .add("updates", updates)
+        .add("sourceIdentifier", sourceIdentifier)
+        .add("targetIdentifier", targetIdentifier)
+        .add("viewUuid", viewUuid)
         .toString();
   }
 }

@@ -19,7 +19,7 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
-import org.apache.iceberg.events.Event;
+import org.apache.iceberg.rest.events.Event;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** Standard response body for event queries */

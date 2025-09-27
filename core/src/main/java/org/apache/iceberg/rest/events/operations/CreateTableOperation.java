@@ -16,28 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
 import java.util.List;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class RegisterTableOperation implements Operation {
-  private final OperationType operationType = OperationType.REGISTER_TABLE;
-  private final TableIdentifier identifier;
-  private final String tableUuid;
-  private final List<MetadataUpdate> updates;
+public class CreateTableOperation implements Operation {
+  private final OperationType operationType = OperationType.CREATE_TABLE;
+  private TableIdentifier identifier;
+  private String tableUuid;
+  private List<MetadataUpdate> updates;
 
-  public RegisterTableOperation(
+  public CreateTableOperation(
       TableIdentifier identifier, String tableUuid, List<MetadataUpdate> updates) {
     this.identifier = identifier;
     this.tableUuid = tableUuid;
     this.updates = updates;
-  }
-
-  public RegisterTableOperation(TableIdentifier identifier, String tableUuid) {
-    this(identifier, tableUuid, null);
   }
 
   public OperationType operationType() {

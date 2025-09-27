@@ -16,40 +16,47 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
-import java.util.Map;
-import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class CreateNamespaceOperation implements Operation {
-  private final OperationType operationType = OperationType.CREATE_NAMESPACE;
-  private final Namespace namespace;
-  private final Map<String, String> properties;
+public class RenameTableOperation implements Operation {
+  private final OperationType operationType = OperationType.RENAME_TABLE;
+  private final TableIdentifier sourceIdentifier;
+  private final TableIdentifier targetIdentifier;
+  private final String tableUuid;
 
-  public CreateNamespaceOperation(Namespace namespace, Map<String, String> properties) {
-    this.namespace = namespace;
-    this.properties = properties;
+  public RenameTableOperation(
+      TableIdentifier sourceIdentifier, TableIdentifier targetIdentifier, String tableUuid) {
+    this.sourceIdentifier = sourceIdentifier;
+    this.targetIdentifier = targetIdentifier;
+    this.tableUuid = tableUuid;
   }
 
   public OperationType operationType() {
     return operationType;
   }
 
-  public Namespace namespace() {
-    return namespace;
+  public TableIdentifier sourceIdentifier() {
+    return sourceIdentifier;
   }
 
-  public Map<String, String> properties() {
-    return properties;
+  public TableIdentifier targetIdentifier() {
+    return targetIdentifier;
+  }
+
+  public String tableUuid() {
+    return tableUuid;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("operationType", operationType)
-        .add("namespace", namespace)
-        .add("properties", properties)
+        .add("sourceIdentifier", sourceIdentifier)
+        .add("targetIdentifier", targetIdentifier)
+        .add("tableUuid", tableUuid)
         .toString();
   }
 }

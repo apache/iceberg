@@ -16,38 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.operations;
+package org.apache.iceberg.rest.events.operations;
 
-import java.util.List;
-import org.apache.iceberg.MetadataUpdate;
-import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-public class UpdateTableOperation implements Operation {
-  private final OperationType operationType = OperationType.UPDATE_TABLE;
+public class DropViewOperation implements Operation {
+  private final OperationType operationType = OperationType.DROP_VIEW;
   private final TableIdentifier identifier;
-  private final String tableUuid;
-  private final List<MetadataUpdate> updates;
-  private final List<UpdateRequirement> requirements;
+  private final String viewUuid;
 
-  public UpdateTableOperation(
-      TableIdentifier identifier,
-      String tableUuid,
-      List<MetadataUpdate> updates,
-      List<UpdateRequirement> requirements) {
+  public DropViewOperation(TableIdentifier identifier, String viewUuid) {
     this.identifier = identifier;
-    this.tableUuid = tableUuid;
-    this.updates = updates;
-    this.requirements = requirements;
+    this.viewUuid = viewUuid;
   }
 
-  public UpdateTableOperation(
-      TableIdentifier identifier, String tableUuid, List<MetadataUpdate> updates) {
-    this(identifier, tableUuid, updates, null);
-  }
-
-  public OperationType operationType() {
+  public OperationType OperationType() {
     return operationType;
   }
 
@@ -55,16 +39,8 @@ public class UpdateTableOperation implements Operation {
     return identifier;
   }
 
-  public String tableUuid() {
-    return tableUuid;
-  }
-
-  public List<MetadataUpdate> updates() {
-    return updates;
-  }
-
-  public List<UpdateRequirement> requirements() {
-    return requirements;
+  public String viewUuid() {
+    return viewUuid;
   }
 
   @Override
@@ -72,9 +48,7 @@ public class UpdateTableOperation implements Operation {
     return MoreObjects.toStringHelper(this)
         .add("operationType", operationType)
         .add("identifier", identifier)
-        .add("tableUuid", tableUuid)
-        .add("updates", updates)
-        .add("requirements", requirements)
+        .add("viewUuid", viewUuid)
         .toString();
   }
 }
