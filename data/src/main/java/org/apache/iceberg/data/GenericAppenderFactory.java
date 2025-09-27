@@ -175,6 +175,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     return new org.apache.iceberg.io.DataWriter<>(
         newAppender(file, format),
         format,
+        schema.schemaId(),
         file.encryptingOutputFile().location(),
         spec,
         partition,
