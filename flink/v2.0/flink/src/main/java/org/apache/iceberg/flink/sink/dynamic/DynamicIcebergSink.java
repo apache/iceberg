@@ -168,7 +168,7 @@ public class DynamicIcebergSink
         .transform(
             prefixIfNotNull(uidPrefix, sinkId + " Pre Commit"),
             typeInformation,
-            new DynamicWriteResultAggregator(catalogLoader))
+            new DynamicWriteResultAggregator())
         .uid(prefixIfNotNull(uidPrefix, sinkId + "-pre-commit-topology"));
   }
 

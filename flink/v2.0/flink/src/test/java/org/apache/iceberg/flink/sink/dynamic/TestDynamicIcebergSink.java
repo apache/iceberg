@@ -424,6 +424,26 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
             new DynamicIcebergDataImpl(SimpleDataUtil.SCHEMA, "t1", "main", spec2));
 
     runTest(rows);
+
+    // Validate the table has expected partition specs
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1"));
+
+    Map<Integer, PartitionSpec> tableSpecs = table.specs();
+    List<PartitionSpec> expectedSpecs = List.of(spec1, spec2, PartitionSpec.unpartitioned());
+
+    assertThat(tableSpecs).hasSize(expectedSpecs.size());
+    expectedSpecs.forEach(
+        expectedSpec ->
+            assertThat(
+                    tableSpecs.values().stream()
+                        // TODO: Fix PartitionSpecEvolution#evolve to re-use PartitionField names of
+                        // the target spec,
+                        //       which would allow us to compare specs with
+                        // PartitionSpec#compatibleWith here.
+                        .anyMatch(
+                            spec -> PartitionSpecEvolution.checkCompatibility(spec, expectedSpec)))
+                .withFailMessage("Table spec not found: %s.", expectedSpec)
+                .isTrue());
   }
 
   @Test
@@ -764,7 +784,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     @Override
     public void commit(Collection<CommitRequest<DynamicCommittable>> commitRequests)
-        throws IOException, InterruptedException {
+        throws InterruptedException {
       commitHook.beforeCommit();
       super.commit(commitRequests);
       commitHook.afterCommit();
