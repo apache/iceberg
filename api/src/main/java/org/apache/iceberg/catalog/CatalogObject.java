@@ -54,6 +54,12 @@ public class CatalogObject {
     return new CatalogObject(levels);
   }
 
+  public static CatalogObject of(String name) {
+    Preconditions.checkNotNull(name, "Cannot create CatalogObject from null name");
+
+    return of(name.split(DOT.toString()));
+  }
+
   private final String[] levels;
 
   private CatalogObject(String[] levels) {
