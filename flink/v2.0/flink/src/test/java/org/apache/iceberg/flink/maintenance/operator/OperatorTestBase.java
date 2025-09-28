@@ -124,10 +124,10 @@ public class OperatorTestBase {
   }
 
   protected static Table createTable() {
-    return createTable("2");
+    return createTable(2);
   }
 
-  protected static Table createTable(String formatVersion) {
+  protected static Table createTable(int formatVersion) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -137,7 +137,7 @@ public class OperatorTestBase {
             null,
             ImmutableMap.of(
                 TableProperties.FORMAT_VERSION,
-                formatVersion,
+                String.valueOf(formatVersion),
                 "flink.max-continuous-empty-commits",
                 "100000"));
   }
@@ -153,7 +153,7 @@ public class OperatorTestBase {
             ImmutableMap.of("format-version", "2", "write.upsert.enabled", "true"));
   }
 
-  protected static Table createPartitionedTable(String formatVersion) {
+  protected static Table createPartitionedTable(int formatVersion) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -162,11 +162,14 @@ public class OperatorTestBase {
             PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build(),
             null,
             ImmutableMap.of(
-                "format-version", formatVersion, "flink.max-continuous-empty-commits", "100000"));
+                "format-version",
+                String.valueOf(formatVersion),
+                "flink.max-continuous-empty-commits",
+                "100000"));
   }
 
   protected static Table createPartitionedTable() {
-    return createPartitionedTable("2");
+    return createPartitionedTable(2);
   }
 
   protected void insert(Table table, Integer id, String data) throws IOException {

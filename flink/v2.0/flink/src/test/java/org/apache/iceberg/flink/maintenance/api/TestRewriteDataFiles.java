@@ -84,7 +84,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
   @Test
   void testRewriteUnpartitionedPreserveLineage() throws Exception {
-    Table table = createTable("3");
+    Table table = createTable(3);
     insert(table, 1, "a");
     insert(table, 2, "b");
     insert(table, 3, "c");
@@ -124,7 +124,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
   @Test
   void testRewriteTheSameFilePreserveLineage() throws Exception {
-    Table table = createTable("3");
+    Table table = createTable(3);
     insert(table, 1, "a");
     insert(table, 2, "b");
     // Create a file with two lines of data to verify that the rowid is read correctly.
@@ -168,7 +168,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
   @Test
   void testRewritePartitionedPreserveLineage() throws Exception {
-    Table table = createPartitionedTable("3");
+    Table table = createPartitionedTable(3);
     insertPartitioned(table, 1, "p1");
     insertPartitioned(table, 2, "p1");
     insertPartitioned(table, 3, "p2");
