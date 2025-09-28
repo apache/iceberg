@@ -21,6 +21,7 @@ package org.apache.iceberg.rest.events.parsers;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.events.operations.CreateNamespaceOperation;
 import org.apache.iceberg.rest.events.operations.CreateTableOperation;
 import org.apache.iceberg.rest.events.operations.CreateViewOperation;
@@ -42,6 +43,8 @@ public class OperationParser {
   private OperationParser() {}
 
   public static void toJson(Operation operation, JsonGenerator gen) throws IOException {
+    Preconditions.checkNotNull(operation, "Invalid operation: null");
+
     switch (operation.operationType()) {
       case CREATE_NAMESPACE:
         CreateNamespaceOperationParser.toJson((CreateNamespaceOperation) operation, gen);
@@ -89,6 +92,8 @@ public class OperationParser {
   }
 
   public static Operation fromJson(JsonNode json) {
+    Preconditions.checkNotNull(json, "Invalid json object: null");
+
     OperationType operationType = OperationType.fromType(JsonUtil.getString("operation-type", json));
     switch (operationType) {
       case CREATE_NAMESPACE:

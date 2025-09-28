@@ -48,7 +48,7 @@ public class DropNamespaceOperationParser {
 
   public static void toJson(DropNamespaceOperation operation, JsonGenerator gen)
       throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid drop namespace operation: null");
+    Preconditions.checkNotNull(operation, "Invalid drop namespace operation: null");
 
     gen.writeStartObject();
     gen.writeStringField(OPERATION_TYPE, operation.operationType().type());
@@ -62,8 +62,7 @@ public class DropNamespaceOperationParser {
   }
 
   public static DropNamespaceOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(
-        null != json, "Cannot parse drop namespace operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse drop namespace operation from null object");
 
     Namespace namespace = Namespace.of(JsonUtil.getStringArray(JsonUtil.get(NAMESPACE, json)));
 

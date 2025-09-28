@@ -52,8 +52,7 @@ public class UpdateNamespacePropertiesOperationParser {
 
   public static void toJson(UpdateNamespacePropertiesOperation operation, JsonGenerator gen)
       throws IOException {
-    Preconditions.checkNotNull(
-        null != operation, "Invalid update namespace properties operation: null");
+    Preconditions.checkNotNull(operation, "Invalid update namespace properties operation: null");
 
     gen.writeStartObject();
     gen.writeStringField(OPERATION_TYPE, operation.operationType().type());
@@ -73,8 +72,7 @@ public class UpdateNamespacePropertiesOperationParser {
   }
 
   public static UpdateNamespacePropertiesOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(
-        null != json, "Cannot parse update namespace properties operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse update namespace properties operation from null object");
 
     Namespace namespace = Namespace.of(JsonUtil.getStringArray(JsonUtil.get(NAMESPACE, json)));
     List<String> updated = JsonUtil.getStringList(UPDATED, json);

@@ -54,7 +54,7 @@ public class CustomOperationParser {
   }
 
   public static void toJson(CustomOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid custom operation: null");
+    Preconditions.checkNotNull(operation, "Invalid custom operation: null");
 
     gen.writeStartObject();
 
@@ -86,7 +86,7 @@ public class CustomOperationParser {
   }
 
   public static CustomOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(null != json, "Cannot parse custom operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse custom operation from null object");
 
     OperationType.CustomOperationType customOperationType =
         new OperationType.CustomOperationType(JsonUtil.getString(CUSTOM_OPERATION_TYPE, json));

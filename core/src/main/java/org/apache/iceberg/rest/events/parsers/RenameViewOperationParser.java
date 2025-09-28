@@ -49,7 +49,7 @@ public class RenameViewOperationParser {
   }
 
   public static void toJson(RenameViewOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid rename view operation: null");
+    Preconditions.checkNotNull(operation, "Invalid rename view operation: null");
 
     gen.writeStartObject();
 
@@ -62,8 +62,6 @@ public class RenameViewOperationParser {
     gen.writeFieldName(DEST_IDENTIFIER);
     TableIdentifierParser.toJson(operation.destIdentifier(), gen);
 
-    gen.writeEndArray();
-
     gen.writeEndObject();
   }
 
@@ -72,7 +70,7 @@ public class RenameViewOperationParser {
   }
 
   public static RenameViewOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(null != json, "Cannot parse rename view operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse rename view operation from null object");
 
     String viewUuid = JsonUtil.getString(VIEW_UUID, json);
     TableIdentifier sourceIdentifier =

@@ -49,7 +49,7 @@ public class RenameTableOperationParser {
   }
 
   public static void toJson(RenameTableOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid rename table operation: null");
+    Preconditions.checkNotNull(operation, "Invalid rename table operation: null");
 
     gen.writeStartObject();
 
@@ -62,8 +62,6 @@ public class RenameTableOperationParser {
     gen.writeFieldName(DEST_IDENTIFIER);
     TableIdentifierParser.toJson(operation.destIdentifier(), gen);
 
-    gen.writeEndArray();
-
     gen.writeEndObject();
   }
 
@@ -73,7 +71,7 @@ public class RenameTableOperationParser {
 
   public static RenameTableOperation fromJson(JsonNode json) {
     Preconditions.checkNotNull(
-        null != json, "Cannot parse rename table operation from null object");
+        json, "Cannot parse rename table operation from null object");
 
     String tableUuid = JsonUtil.getString(TABLE_UUID, json);
     TableIdentifier sourceIdentifier =

@@ -50,7 +50,7 @@ public class EventParser {
   }
 
   public static void toJson(Event event, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != event, "Invalid event: null");
+    Preconditions.checkNotNull(event, "Invalid event: null");
 
     gen.writeStartObject();
 
@@ -74,7 +74,7 @@ public class EventParser {
   }
 
   public static Event fromJson(JsonNode json) {
-    Preconditions.checkNotNull(null != json, "Cannot parse event from null object");
+    Preconditions.checkNotNull(json, "Cannot parse event from null object");
 
     String eventId = JsonUtil.getString(EVENT_ID, json);
     String requestId = JsonUtil.getString(REQUEST_ID, json);

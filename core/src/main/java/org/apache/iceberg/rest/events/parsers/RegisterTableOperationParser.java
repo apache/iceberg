@@ -52,7 +52,7 @@ public class RegisterTableOperationParser {
 
   public static void toJson(RegisterTableOperation operation, JsonGenerator gen)
       throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid register table operation: null");
+    Preconditions.checkNotNull(operation, "Invalid register table operation: null");
 
     gen.writeStartObject();
 
@@ -79,8 +79,7 @@ public class RegisterTableOperationParser {
   }
 
   public static RegisterTableOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(
-        null != json, "Cannot parse register table operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse register table operation from null object");
 
     TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
     String tableUuid = JsonUtil.getString(TABLE_UUID, json);

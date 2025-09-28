@@ -52,7 +52,7 @@ public class CreateTableOperationParser {
   }
 
   public static void toJson(CreateTableOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid create table operation: null");
+    Preconditions.checkNotNull(operation, "Invalid create table operation: null");
 
     gen.writeStartObject();
 
@@ -77,8 +77,7 @@ public class CreateTableOperationParser {
   }
 
   public static CreateTableOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(
-        null != json, "Cannot parse create table operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse create table operation from null object");
 
     TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
     String tableUuid = JsonUtil.getString(TABLE_UUID, json);

@@ -48,7 +48,7 @@ public class CreateViewOperationParser {
   }
 
   public static void toJson(CreateViewOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid create view operation: null");
+    Preconditions.checkNotNull(operation, "Invalid create view operation: null");
 
     gen.writeStartObject();
 
@@ -67,7 +67,7 @@ public class CreateViewOperationParser {
   }
 
   public static CreateViewOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(null != json, "Cannot parse create view operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse create view operation from null object");
 
     TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
     String viewUuid = JsonUtil.getString(VIEW_UUID, json);

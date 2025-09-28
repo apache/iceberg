@@ -55,7 +55,7 @@ public class UpdateTableOperationParser {
   }
 
   public static void toJson(UpdateTableOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid update table operation: null");
+    Preconditions.checkNotNull(operation, "Invalid update table operation: null");
 
     gen.writeStartObject();
 
@@ -88,8 +88,7 @@ public class UpdateTableOperationParser {
   }
 
   public static UpdateTableOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(
-        null != json, "Cannot parse update table operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse update table operation from null object");
 
     TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
     String tableUuid = JsonUtil.getString(TABLE_UUID, json);

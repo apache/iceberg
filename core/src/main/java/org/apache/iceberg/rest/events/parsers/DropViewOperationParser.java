@@ -48,7 +48,7 @@ public class DropViewOperationParser {
   }
 
   public static void toJson(DropViewOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid drop view operation: null");
+    Preconditions.checkNotNull(operation, "Invalid drop view operation: null");
 
     gen.writeStartObject();
 
@@ -67,7 +67,7 @@ public class DropViewOperationParser {
   }
 
   public static DropViewOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(null != json, "Cannot parse drop view operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse drop view operation from null object");
 
     TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
     String viewUuid = JsonUtil.getString(VIEW_UUID, json);

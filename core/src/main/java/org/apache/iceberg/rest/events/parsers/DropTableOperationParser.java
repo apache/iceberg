@@ -49,7 +49,7 @@ public class DropTableOperationParser {
   }
 
   public static void toJson(DropTableOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid drop table operation: null");
+    Preconditions.checkNotNull(operation, "Invalid drop table operation: null");
 
     gen.writeStartObject();
 
@@ -72,7 +72,7 @@ public class DropTableOperationParser {
   }
 
   public static DropTableOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(null != json, "Cannot parse drop table operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse drop table operation from null object");
 
     TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
     String tableUuid = JsonUtil.getString(TABLE_UUID, json);

@@ -55,7 +55,7 @@ public class UpdateViewOperationParser {
   }
 
   public static void toJson(UpdateViewOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid update view operation: null");
+    Preconditions.checkNotNull(operation, "Invalid update view operation: null");
 
     gen.writeStartObject();
 
@@ -88,7 +88,7 @@ public class UpdateViewOperationParser {
   }
 
   public static UpdateViewOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(null != json, "Cannot parse update view operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse update view operation from null object");
 
     TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
     String viewUuid = JsonUtil.getString(VIEW_UUID, json);
@@ -101,7 +101,7 @@ public class UpdateViewOperationParser {
             .viewUuid(viewUuid)
             .updates(updates);
 
-    if (!json.has(REQUIREMENTS)) {
+    if (json.has(REQUIREMENTS)) {
       builder.requirements(
           JsonUtil.getObjectList(REQUIREMENTS, json, UpdateRequirementParser::fromJson));
     }

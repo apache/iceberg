@@ -49,7 +49,7 @@ public class CreateNamespaceOperationParser {
 
   public static void toJson(CreateNamespaceOperation operation, JsonGenerator gen)
       throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid create namespace operation: null");
+    Preconditions.checkNotNull(operation, "Invalid create namespace operation: null");
 
     gen.writeStartObject();
     gen.writeStringField(OPERATION_TYPE, operation.operationType().type());
@@ -67,8 +67,7 @@ public class CreateNamespaceOperationParser {
   }
 
   public static CreateNamespaceOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(
-        null != json, "Cannot parse create namespace operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse create namespace operation from null object");
 
     Namespace namespace = Namespace.of(JsonUtil.getStringArray(JsonUtil.get(NAMESPACE, json)));
 
