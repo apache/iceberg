@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.events.operations;
+package org.apache.iceberg.rest.events.parsers;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -26,6 +26,9 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.events.operations.CustomOperation;
+import org.apache.iceberg.rest.events.operations.ImmutableCustomOperation;
+import org.apache.iceberg.rest.events.operations.OperationType;
 import org.apache.iceberg.util.JsonUtil;
 
 public class CustomOperationParser {

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.events.operations;
+package org.apache.iceberg.rest.events.parsers;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,31 +29,33 @@ import org.apache.iceberg.UpdateRequirementParser;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.events.operations.ImmutableUpdateViewOperation;
+import org.apache.iceberg.rest.events.operations.UpdateViewOperation;
 import org.apache.iceberg.util.JsonUtil;
 
-public class UpdateTableOperationParser {
+public class UpdateViewOperationParser {
   private static final String OPERATION_TYPE = "operation-type";
   private static final String IDENTIFIER = "identifier";
-  private static final String TABLE_UUID = "table-uuid";
+  private static final String VIEW_UUID = "view-uuid";
   private static final String UPDATES = "updates";
   private static final String REQUIREMENTS = "requirements";
 
-  private UpdateTableOperationParser() {}
+  private UpdateViewOperationParser() {}
 
-  public static String toJson(UpdateTableOperation operation) {
+  public static String toJson(UpdateViewOperation operation) {
     return toJson(operation, false);
   }
 
-  public static String toJsonPretty(UpdateTableOperation operation) {
+  public static String toJsonPretty(UpdateViewOperation operation) {
     return toJson(operation, true);
   }
 
-  private static String toJson(UpdateTableOperation operation, boolean pretty) {
+  private static String toJson(UpdateViewOperation operation, boolean pretty) {
     return JsonUtil.generate(gen -> toJson(operation, gen), pretty);
   }
 
-  public static void toJson(UpdateTableOperation operation, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(null != operation, "Invalid update table operation: null");
+  public static void toJson(UpdateViewOperation operation, JsonGenerator gen) throws IOException {
+    Preconditions.checkNotNull(null != operation, "Invalid update view operation: null");
 
     gen.writeStartObject();
 
@@ -62,7 +64,7 @@ public class UpdateTableOperationParser {
     gen.writeFieldName(IDENTIFIER);
     TableIdentifierParser.toJson(operation.identifier(), gen);
 
-    gen.writeStringField(TABLE_UUID, operation.tableUuid());
+    gen.writeStringField(VIEW_UUID, operation.viewUuid());
 
     gen.writeArrayFieldStart(UPDATES);
     for (MetadataUpdate update : operation.updates()) {
@@ -81,26 +83,25 @@ public class UpdateTableOperationParser {
     gen.writeEndObject();
   }
 
-  public static UpdateTableOperation fromJson(String json) {
-    return JsonUtil.parse(json, UpdateTableOperationParser::fromJson);
+  public static UpdateViewOperation fromJson(String json) {
+    return JsonUtil.parse(json, UpdateViewOperationParser::fromJson);
   }
 
-  public static UpdateTableOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(
-        null != json, "Cannot parse update table operation from null object");
+  public static UpdateViewOperation fromJson(JsonNode json) {
+    Preconditions.checkNotNull(null != json, "Cannot parse update view operation from null object");
 
     TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
-    String tableUuid = JsonUtil.getString(TABLE_UUID, json);
+    String viewUuid = JsonUtil.getString(VIEW_UUID, json);
     List<MetadataUpdate> updates =
         JsonUtil.getObjectList(UPDATES, json, MetadataUpdateParser::fromJson);
 
-    ImmutableUpdateTableOperation.Builder builder =
-        ImmutableUpdateTableOperation.builder()
+    ImmutableUpdateViewOperation.Builder builder =
+        ImmutableUpdateViewOperation.builder()
             .identifier(identifier)
-            .tableUuid(tableUuid)
+            .viewUuid(viewUuid)
             .updates(updates);
 
-    if (json.has(REQUIREMENTS)) {
+    if (!json.has(REQUIREMENTS)) {
       builder.requirements(
           JsonUtil.getObjectList(REQUIREMENTS, json, UpdateRequirementParser::fromJson));
     }

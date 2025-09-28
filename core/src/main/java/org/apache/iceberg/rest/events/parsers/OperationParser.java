@@ -16,14 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.events.operations;
+package org.apache.iceberg.rest.events.parsers;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import org.apache.iceberg.rest.events.operations.CreateNamespaceOperation;
+import org.apache.iceberg.rest.events.operations.CreateTableOperation;
+import org.apache.iceberg.rest.events.operations.CreateViewOperation;
+import org.apache.iceberg.rest.events.operations.CustomOperation;
+import org.apache.iceberg.rest.events.operations.DropNamespaceOperation;
+import org.apache.iceberg.rest.events.operations.DropTableOperation;
+import org.apache.iceberg.rest.events.operations.DropViewOperation;
+import org.apache.iceberg.rest.events.operations.Operation;
+import org.apache.iceberg.rest.events.operations.OperationType;
+import org.apache.iceberg.rest.events.operations.RegisterTableOperation;
+import org.apache.iceberg.rest.events.operations.RenameTableOperation;
+import org.apache.iceberg.rest.events.operations.RenameViewOperation;
+import org.apache.iceberg.rest.events.operations.UpdateNamespacePropertiesOperation;
+import org.apache.iceberg.rest.events.operations.UpdateTableOperation;
+import org.apache.iceberg.rest.events.operations.UpdateViewOperation;
 import org.apache.iceberg.util.JsonUtil;
 
 public class OperationParser {
+  private OperationParser() {}
+
   public static void toJson(Operation operation, JsonGenerator gen) throws IOException {
     switch (operation.operationType()) {
       case CREATE_NAMESPACE:
@@ -72,33 +89,33 @@ public class OperationParser {
   }
 
   public static Operation fromJson(JsonNode json) {
-    String operationType = JsonUtil.getString("operation-type", json);
+    OperationType operationType = OperationType.fromType(JsonUtil.getString("operation-type", json));
     switch (operationType) {
-      case "CREATE_NAMESPACE":
+      case CREATE_NAMESPACE:
         return CreateNamespaceOperationParser.fromJson(json);
-      case "CREATE_TABLE":
+      case CREATE_TABLE:
         return CreateTableOperationParser.fromJson(json);
-      case "CREATE_VIEW":
+      case CREATE_VIEW:
         return CreateViewOperationParser.fromJson(json);
-      case "DROP_NAMESPACE":
+      case DROP_NAMESPACE:
         return DropNamespaceOperationParser.fromJson(json);
-      case "DROP_TABLE":
+      case DROP_TABLE:
         return DropTableOperationParser.fromJson(json);
-      case "DROP_VIEW":
+      case DROP_VIEW:
         return DropViewOperationParser.fromJson(json);
-      case "REGISTER_TABLE":
+      case REGISTER_TABLE:
         return RegisterTableOperationParser.fromJson(json);
-      case "RENAME_TABLE":
+      case RENAME_TABLE:
         return RenameTableOperationParser.fromJson(json);
-      case "RENAME_VIEW":
+      case RENAME_VIEW:
         return RenameViewOperationParser.fromJson(json);
-      case "UPDATE_NAMESPACE_PROPERTIES":
+      case UPDATE_NAMESPACE_PROPERTIES:
         return UpdateNamespacePropertiesOperationParser.fromJson(json);
-      case "UPDATE_TABLE":
+      case UPDATE_TABLE:
         return UpdateTableOperationParser.fromJson(json);
-      case "UPDATE_VIEW":
+      case UPDATE_VIEW:
         return UpdateViewOperationParser.fromJson(json);
-      case "CUSTOM":
+      case CUSTOM:
         return CustomOperationParser.fromJson(json);
       default:
         throw new IllegalArgumentException("Unknown operation type: " + operationType);

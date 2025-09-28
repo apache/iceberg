@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.events.operations;
+package org.apache.iceberg.rest.events.parsers;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.events.operations.DropNamespaceOperation;
+import org.apache.iceberg.rest.events.operations.ImmutableDropNamespaceOperation;
 import org.apache.iceberg.util.JsonUtil;
 
 public class DropNamespaceOperationParser {

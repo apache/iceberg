@@ -16,76 +16,67 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.events.operations;
+package org.apache.iceberg.rest.events.parsers;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.events.operations.CreateNamespaceOperation;
+import org.apache.iceberg.rest.events.operations.ImmutableCreateNamespaceOperation;
 import org.apache.iceberg.util.JsonUtil;
 
-public class UpdateNamespacePropertiesOperationParser {
+public class CreateNamespaceOperationParser {
   private static final String OPERATION_TYPE = "operation-type";
   private static final String NAMESPACE = "namespace";
-  private static final String UPDATED = "updated";
-  private static final String REMOVED = "removed";
-  private static final String MISSING = "missing";
+  private static final String PROPERTIES = "properties";
 
-  private UpdateNamespacePropertiesOperationParser() {}
+  private CreateNamespaceOperationParser() {}
 
-  public static String toJson(UpdateNamespacePropertiesOperation operation) {
+  public static String toJson(CreateNamespaceOperation operation) {
     return toJson(operation, false);
   }
 
-  public static String toJsonPretty(UpdateNamespacePropertiesOperation operation) {
+  public static String toJsonPretty(CreateNamespaceOperation operation) {
     return toJson(operation, true);
   }
 
-  private static String toJson(UpdateNamespacePropertiesOperation operation, boolean pretty) {
+  private static String toJson(CreateNamespaceOperation operation, boolean pretty) {
     return JsonUtil.generate(gen -> toJson(operation, gen), pretty);
   }
 
-  public static void toJson(UpdateNamespacePropertiesOperation operation, JsonGenerator gen)
+  public static void toJson(CreateNamespaceOperation operation, JsonGenerator gen)
       throws IOException {
-    Preconditions.checkNotNull(
-        null != operation, "Invalid update namespace properties operation: null");
+    Preconditions.checkNotNull(null != operation, "Invalid create namespace operation: null");
 
     gen.writeStartObject();
     gen.writeStringField(OPERATION_TYPE, operation.operationType().type());
     JsonUtil.writeStringArray(NAMESPACE, Arrays.asList(operation.namespace().levels()), gen);
-    JsonUtil.writeStringArray(UPDATED, operation.updated(), gen);
-    JsonUtil.writeStringArray(REMOVED, operation.removed(), gen);
 
-    if (!operation.missing().isEmpty()) {
-      JsonUtil.writeStringArray(MISSING, operation.missing(), gen);
+    if (!operation.properties().isEmpty()) {
+      gen.writeObjectField(PROPERTIES, operation.properties());
     }
 
     gen.writeEndObject();
   }
 
-  public static UpdateNamespacePropertiesOperation fromJson(String json) {
-    return JsonUtil.parse(json, UpdateNamespacePropertiesOperationParser::fromJson);
+  public static CreateNamespaceOperation fromJson(String json) {
+    return JsonUtil.parse(json, CreateNamespaceOperationParser::fromJson);
   }
 
-  public static UpdateNamespacePropertiesOperation fromJson(JsonNode json) {
+  public static CreateNamespaceOperation fromJson(JsonNode json) {
     Preconditions.checkNotNull(
-        null != json, "Cannot parse update namespace properties operation from null object");
+        null != json, "Cannot parse create namespace operation from null object");
 
     Namespace namespace = Namespace.of(JsonUtil.getStringArray(JsonUtil.get(NAMESPACE, json)));
-    List<String> updated = JsonUtil.getStringList(UPDATED, json);
-    List<String> removed = JsonUtil.getStringList(REMOVED, json);
 
-    ImmutableUpdateNamespacePropertiesOperation.Builder builder =
-        ImmutableUpdateNamespacePropertiesOperation.builder()
-            .namespace(namespace)
-            .updated(updated)
-            .removed(removed);
+    ImmutableCreateNamespaceOperation.Builder builder =
+        ImmutableCreateNamespaceOperation.builder().namespace(namespace);
 
-    if (json.has(MISSING)) {
-      builder.missing(JsonUtil.getStringList(MISSING, json));
+    if (json.has(PROPERTIES)) {
+      builder.properties(JsonUtil.getStringMap(PROPERTIES, json));
     }
 
     return builder.build();
