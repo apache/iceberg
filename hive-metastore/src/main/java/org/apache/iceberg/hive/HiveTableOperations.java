@@ -84,7 +84,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
   private EncryptionManager encryptionManager;
   private EncryptingFileIO encryptingFileIO;
-  private String encryptionKeyId;
+  private String tableKeyId;
   private int encryptionDekLength;
   private List<EncryptedKey> encryptedKeysFromMetadata;
 
@@ -119,7 +119,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
   @Override
   public FileIO io() {
-    if (encryptionKeyId == null) {
+    if (tableKeyId == null) {
       return fileIO;
     }
 
@@ -136,19 +136,19 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       return encryptionManager;
     }
 
-    if (encryptionKeyId != null) {
+    if (tableKeyId != null) {
       if (keyManagementClient == null) {
         throw new RuntimeException(
             "Cant create encryption manager, because key management client is not set");
       }
 
-      Map<String, String> tableProperties = Maps.newHashMap();
-      tableProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, encryptionKeyId);
-      tableProperties.put(
+      Map<String, String> encryptionProperties = Maps.newHashMap();
+      encryptionProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, tableKeyId);
+      encryptionProperties.put(
           TableProperties.ENCRYPTION_DEK_LENGTH, String.valueOf(encryptionDekLength));
       encryptionManager =
           EncryptionUtil.createEncryptionManager(
-              encryptedKeysFromMetadata, tableProperties, keyManagementClient);
+              encryptedKeysFromMetadata, encryptionProperties, keyManagementClient);
     } else {
       return PlaintextEncryptionManager.instance();
     }
@@ -159,7 +159,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
-    String encryptionKeyIdFromHMS = null;
+    String tableKeyIdFromHMS = null;
     String dekLengthFromHMS = null;
     try {
       Table table = metaClients.run(client -> client.getTable(database, tableName));
@@ -170,9 +170,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       HiveOperationsBase.validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
-      encryptionKeyIdFromHMS = table.getParameters().get(TableProperties.ENCRYPTION_TABLE_KEY);
+      /* Table key ID must be retrieved from a catalog service, and not from untrusted storage
+      (e.g. metadata json file) that can be tampered with. For example, an attacker can remove
+      the table key parameter (along with existing snapshots) in the file, making the writers
+      produce unencrypted files. Table key ID is taken directly from HMS catalog */
+      tableKeyIdFromHMS = table.getParameters().get(TableProperties.ENCRYPTION_TABLE_KEY);
       dekLengthFromHMS = table.getParameters().get(TableProperties.ENCRYPTION_DEK_LENGTH);
-
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
         throw new NoSuchTableException("No such table: %s.%s", database, tableName);
@@ -188,18 +191,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       throw new RuntimeException("Interrupted during refresh", e);
     }
 
-    if (encryptionKeyIdFromHMS != null) {
-      encryptionKeyId = encryptionKeyIdFromHMS; // todo gg
+    refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
+
+    if (tableKeyIdFromHMS != null) {
+      tableKeyId = tableKeyIdFromHMS;
       encryptionDekLength =
           (dekLengthFromHMS != null)
               ? Integer.parseInt(dekLengthFromHMS)
-              : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT; // todo gg
-    }
+              : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
 
-    refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
-
-    if (encryptionKeyIdFromHMS != null) {
-      checkEncryptionProperties(encryptionKeyIdFromHMS, dekLengthFromHMS);
+      checkEncryptionProperties(tableKeyIdFromHMS, dekLengthFromHMS);
       encryptedKeysFromMetadata = current().encryptionKeys();
     }
   }
@@ -210,16 +211,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     boolean newTable = base == null;
     encryptionPropsFromMetadata(metadata.properties());
 
+    String newMetadataLocation;
     if (encryption() instanceof StandardEncryptionManager) {
+      // Add new encryption keys to the metadata
       TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
       for (Map.Entry<String, EncryptedKey> entry :
           EncryptionUtil.encryptionKeys(encryption()).entrySet()) {
         builder.addEncryptionKey(entry.getValue());
       }
-      metadata = builder.build();
+
+      newMetadataLocation = writeNewMetadataIfRequired(newTable, builder.build());
+    } else {
+      newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     }
 
-    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
     boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
 
@@ -272,10 +277,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       // get Iceberg props that have been removed
       Set<String> removedProps = Collections.emptySet();
       if (base != null) {
-        TableMetadata finalMetadata = metadata;
         removedProps =
             base.properties().keySet().stream()
-                .filter(key -> !finalMetadata.properties().containsKey(key))
+                .filter(key -> !metadata.properties().containsKey(key))
                 .collect(Collectors.toSet());
       }
 
@@ -410,6 +414,54 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     return metaClients;
   }
 
+  @Override
+  public TableOperations temp(TableMetadata uncommittedMetadata) {
+    return new TableOperations() {
+      @Override
+      public TableMetadata current() {
+        return uncommittedMetadata;
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        throw new UnsupportedOperationException(
+            "Cannot call refresh on temporary table operations");
+      }
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata metadata) {
+        throw new UnsupportedOperationException("Cannot call commit on temporary table operations");
+      }
+
+      @Override
+      public String metadataFileLocation(String fileName) {
+        return HiveTableOperations.this.metadataFileLocation(uncommittedMetadata, fileName);
+      }
+
+      @Override
+      public LocationProvider locationProvider() {
+        return LocationProviders.locationsFor(
+            uncommittedMetadata.location(), uncommittedMetadata.properties());
+      }
+
+      @Override
+      public FileIO io() {
+        HiveTableOperations.this.encryptionPropsFromMetadata(uncommittedMetadata.properties());
+        return HiveTableOperations.this.io();
+      }
+
+      @Override
+      public EncryptionManager encryption() {
+        return HiveTableOperations.this.encryption();
+      }
+
+      @Override
+      public long newSnapshotId() {
+        return HiveTableOperations.this.newSnapshotId();
+      }
+    };
+  }
+
   /**
    * Returns if the hive engine related values should be enabled on the table, or not.
    *
@@ -465,11 +517,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   }
 
   private void encryptionPropsFromMetadata(Map<String, String> tableProperties) {
-    if (encryptionKeyId == null) {
-      encryptionKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
+    if (tableKeyId == null) {
+      tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
     }
 
-    if (encryptionKeyId != null && encryptionDekLength <= 0) {
+    if (tableKeyId != null && encryptionDekLength <= 0) {
       String dekLength = tableProperties.get(TableProperties.ENCRYPTION_DEK_LENGTH);
       encryptionDekLength =
           (dekLength == null)
@@ -483,7 +535,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
     String encryptionKeyIdFromMetadata =
         propertiesFromMetadata.get(TableProperties.ENCRYPTION_TABLE_KEY);
-    if (!encryptionKeyIdFromHMS.equals(encryptionKeyIdFromMetadata)) {
+    if (!Objects.equals(encryptionKeyIdFromHMS, encryptionKeyIdFromMetadata)) {
       String errMsg =
           String.format(
               "Metadata file might have been modified. Encryption key id %s differs from HMS value %s",
