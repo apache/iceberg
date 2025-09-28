@@ -94,4 +94,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
   }
+
+  /** Instantiates an action to snapshot an existing table as a new Iceberg table. */
+  default Hive2Iceberg hive2Iceberg(String sourceTableIdent) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement snapshotTable");
+  }
 }

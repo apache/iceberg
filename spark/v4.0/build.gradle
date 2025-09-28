@@ -65,6 +65,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
+    implementation project(':iceberg-hive-metastore')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
     implementation("org.apache.datasketches:datasketches-java:${libs.versions.datasketches.get()}")
 
