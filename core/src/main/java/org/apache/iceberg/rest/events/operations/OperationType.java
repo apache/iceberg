@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.events.operations;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -80,6 +81,24 @@ public enum OperationType {
 
     public String type() {
       return type;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (this == obj) {
+        return true;
+      }
+
+      if (obj == null || getClass() != obj.getClass()) {
+        return false;
+      }
+
+      CustomOperationType that = (CustomOperationType) obj;
+      return type.equals(that.type);
+    }
+
+    @Override public int hashCode() {
+      return type.hashCode();
     }
 
     @Override
