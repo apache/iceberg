@@ -29,6 +29,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UUIDUtil;
 
 public class InternalRecordWrapper implements StructLike {
   private final Function<Object, Object>[] transforms;
@@ -61,6 +62,8 @@ public class InternalRecordWrapper implements StructLike {
         }
       case FIXED:
         return bytes -> ByteBuffer.wrap((byte[]) bytes);
+      case UUID:
+        return uuid -> UUIDUtil.convert((byte[]) uuid);
       case STRUCT:
         InternalRecordWrapper wrapper = new InternalRecordWrapper(type.asStructType());
         return struct -> wrapper.wrap((StructLike) struct);
