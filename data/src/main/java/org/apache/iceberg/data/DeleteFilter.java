@@ -317,8 +317,8 @@ public abstract class DeleteFilter<T> {
   }
 
   /**
-   * Get field from table schema by ID, supporting both top-level and nested fields.
-   * This replaces the previous tableSchema.asStruct().field(fieldId) which only worked for top-level fields.
+   * Get field from table schema by ID, supporting both top-level and nested fields. This replaces
+   * the previous tableSchema.asStruct().field(fieldId) which only worked for top-level fields.
    */
   private static Types.NestedField getFieldFromTableSchema(Schema tableSchema, int fieldId) {
     return tableSchema.findField(fieldId);

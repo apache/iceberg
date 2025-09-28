@@ -27,7 +27,6 @@ import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -93,8 +92,7 @@ public class TestDeleteFilterProjection {
               Types.MapType.ofOptional(
                   700,
                   701,
-                  Types.StructType.of(
-                      optional(702, "mapKeyField", Types.StringType.get())),
+                  Types.StructType.of(optional(702, "mapKeyField", Types.StringType.get())),
                   Types.StringType.get())),
           // Complex combination: List of Maps with struct values
           optional(
@@ -118,16 +116,22 @@ public class TestDeleteFilterProjection {
           optional(4, "active", Types.BooleanType.get()));
 
   private Method getFileProjectionMethod() throws Exception {
-    Method method = DeleteFilter.class.getDeclaredMethod(
-        "fileProjection", Schema.class, Schema.class, List.class, List.class, boolean.class);
+    Method method =
+        DeleteFilter.class.getDeclaredMethod(
+            "fileProjection", Schema.class, Schema.class, List.class, List.class, boolean.class);
     method.setAccessible(true);
     return method;
   }
 
-  private Schema invokeFileProjection(Schema tableSchema, Schema requestedSchema,
-                                     List<DeleteFile> posDeletes, List<DeleteFile> eqDeletes) throws Exception {
-    return (Schema) getFileProjectionMethod().invoke(
-        null, tableSchema, requestedSchema, posDeletes, eqDeletes, false);
+  private Schema invokeFileProjection(
+      Schema tableSchema,
+      Schema requestedSchema,
+      List<DeleteFile> posDeletes,
+      List<DeleteFile> eqDeletes)
+      throws Exception {
+    return (Schema)
+        getFileProjectionMethod()
+            .invoke(null, tableSchema, requestedSchema, posDeletes, eqDeletes, false);
   }
 
   @Test
@@ -137,20 +141,24 @@ public class TestDeleteFilterProjection {
 
     // Create a mock delete file that references the nested field (structInnerData)
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(100)); // nested field ID
+    Mockito.when(mockEqDelete.equalityFieldIds())
+        .thenReturn(ImmutableList.of(100)); // nested field ID
 
     List<DeleteFile> eqDeletes = ImmutableList.of(mockEqDelete);
     List<DeleteFile> posDeletes = ImmutableList.of();
 
     // Use reflection to access the private fileProjection method
-    Method fileProjectionMethod = DeleteFilter.class.getDeclaredMethod(
-        "fileProjection", Schema.class, Schema.class, List.class, List.class, boolean.class);
+    Method fileProjectionMethod =
+        DeleteFilter.class.getDeclaredMethod(
+            "fileProjection", Schema.class, Schema.class, List.class, List.class, boolean.class);
     fileProjectionMethod.setAccessible(true);
 
     // Before the fix, this would throw:
     // "Cannot find required field for ID 100" when trying to access nested field
-    Schema projectedSchema = (Schema) fileProjectionMethod.invoke(
-        null, NESTED_SCHEMA, requestedSchema, posDeletes, eqDeletes, false);
+    Schema projectedSchema =
+        (Schema)
+            fileProjectionMethod.invoke(
+                null, NESTED_SCHEMA, requestedSchema, posDeletes, eqDeletes, false);
 
     // Verify the projection includes the nested field
     assertThat(projectedSchema.findField(100))
@@ -187,13 +195,16 @@ public class TestDeleteFilterProjection {
     List<DeleteFile> posDeletes = ImmutableList.of();
 
     // Use reflection to access the private fileProjection method
-    Method fileProjectionMethod = DeleteFilter.class.getDeclaredMethod(
-        "fileProjection", Schema.class, Schema.class, List.class, List.class, boolean.class);
+    Method fileProjectionMethod =
+        DeleteFilter.class.getDeclaredMethod(
+            "fileProjection", Schema.class, Schema.class, List.class, List.class, boolean.class);
     fileProjectionMethod.setAccessible(true);
 
     // This should not throw an exception
-    Schema projectedSchema = (Schema) fileProjectionMethod.invoke(
-        null, NESTED_SCHEMA, requestedSchema, posDeletes, eqDeletes, false);
+    Schema projectedSchema =
+        (Schema)
+            fileProjectionMethod.invoke(
+                null, NESTED_SCHEMA, requestedSchema, posDeletes, eqDeletes, false);
 
     // Verify both nested fields are included
     assertThat(projectedSchema.findField(100))
@@ -213,8 +224,9 @@ public class TestDeleteFilterProjection {
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
     Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(100));
 
-    Schema projectedSchema = invokeFileProjection(
-        NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
 
     // Verify the nested field is returned with correct details
     Types.NestedField nestedField = projectedSchema.findField(100);
@@ -224,7 +236,8 @@ public class TestDeleteFilterProjection {
     assertThat(nestedField.fieldId()).isEqualTo(100);
     assertThat(nestedField.isOptional()).isTrue();
 
-    // Note: With the current simple implementation, parent structures are not automatically included
+    // Note: With the current simple implementation, parent structures are not automatically
+    // included
     // The nested field is accessible directly through the schema's findField method
   }
 
@@ -236,14 +249,16 @@ public class TestDeleteFilterProjection {
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
     Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(400)); // deepField
 
-    Schema projectedSchema = invokeFileProjection(
-        COMPLEX_NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            COMPLEX_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete));
 
     // Verify the deeply nested field is found
     Types.NestedField deepField = projectedSchema.findField(400);
-    assertThat(deepField)
-        .as("Should find deeply nested field (level 4)")
-        .isNotNull();
+    assertThat(deepField).as("Should find deeply nested field (level 4)").isNotNull();
     assertThat(deepField.name()).isEqualTo("deepField");
     assertThat(deepField.type()).isEqualTo(Types.StringType.get());
 
@@ -260,16 +275,16 @@ public class TestDeleteFilterProjection {
     Mockito.when(mockEqDelete.equalityFieldIds())
         .thenReturn(ImmutableList.of(400, 410)); // both deep fields at same level
 
-    Schema projectedSchema = invokeFileProjection(
-        COMPLEX_NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            COMPLEX_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete));
 
     // Verify both fields at the same level are found
-    assertThat(projectedSchema.findField(400))
-        .as("First deep field should be found")
-        .isNotNull();
-    assertThat(projectedSchema.findField(410))
-        .as("Second deep field should be found")
-        .isNotNull();
+    assertThat(projectedSchema.findField(400)).as("First deep field should be found").isNotNull();
+    assertThat(projectedSchema.findField(410)).as("Second deep field should be found").isNotNull();
   }
 
   @Test
@@ -278,16 +293,19 @@ public class TestDeleteFilterProjection {
     Schema requestedSchema = COMPLEX_NESTED_SCHEMA.select("id", "data");
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(501)); // field in list element
+    Mockito.when(mockEqDelete.equalityFieldIds())
+        .thenReturn(ImmutableList.of(501)); // field in list element
 
-    Schema projectedSchema = invokeFileProjection(
-        COMPLEX_NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            COMPLEX_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete));
 
     // Verify the list element field is found
     Types.NestedField listElementField = projectedSchema.findField(501);
-    assertThat(listElementField)
-        .as("List element field should be found")
-        .isNotNull();
+    assertThat(listElementField).as("List element field should be found").isNotNull();
     assertThat(listElementField.name()).isEqualTo("listElementField");
 
     // Note: With the current implementation, parent list structures are not automatically included
@@ -300,10 +318,15 @@ public class TestDeleteFilterProjection {
     Schema requestedSchema = COMPLEX_NESTED_SCHEMA.select("id");
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(501, 502)); // both list element fields
+    Mockito.when(mockEqDelete.equalityFieldIds())
+        .thenReturn(ImmutableList.of(501, 502)); // both list element fields
 
-    Schema projectedSchema = invokeFileProjection(
-        COMPLEX_NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            COMPLEX_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete));
 
     // Verify both list element fields are found
     assertThat(projectedSchema.findField(501))
@@ -320,16 +343,19 @@ public class TestDeleteFilterProjection {
     Schema requestedSchema = COMPLEX_NESTED_SCHEMA.select("id", "data");
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(602)); // field in map value
+    Mockito.when(mockEqDelete.equalityFieldIds())
+        .thenReturn(ImmutableList.of(602)); // field in map value
 
-    Schema projectedSchema = invokeFileProjection(
-        COMPLEX_NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            COMPLEX_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete));
 
     // Verify the map value field is found
     Types.NestedField mapValueField = projectedSchema.findField(602);
-    assertThat(mapValueField)
-        .as("Map value field should be found")
-        .isNotNull();
+    assertThat(mapValueField).as("Map value field should be found").isNotNull();
     assertThat(mapValueField.name()).isEqualTo("mapValueField");
 
     // Note: With the current implementation, parent map structures are not automatically included
@@ -342,16 +368,19 @@ public class TestDeleteFilterProjection {
     Schema requestedSchema = COMPLEX_NESTED_SCHEMA.select("id", "data");
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(702)); // field in map key
+    Mockito.when(mockEqDelete.equalityFieldIds())
+        .thenReturn(ImmutableList.of(702)); // field in map key
 
-    Schema projectedSchema = invokeFileProjection(
-        COMPLEX_NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            COMPLEX_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete));
 
     // Verify the map key field is found
     Types.NestedField mapKeyField = projectedSchema.findField(702);
-    assertThat(mapKeyField)
-        .as("Map key field should be found")
-        .isNotNull();
+    assertThat(mapKeyField).as("Map key field should be found").isNotNull();
     assertThat(mapKeyField.name()).isEqualTo("mapKeyField");
 
     // Note: With the current implementation, parent map structures are not automatically included
@@ -364,18 +393,19 @@ public class TestDeleteFilterProjection {
     Schema requestedSchema = COMPLEX_NESTED_SCHEMA.select("id");
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(602, 702)); // value and key fields
+    Mockito.when(mockEqDelete.equalityFieldIds())
+        .thenReturn(ImmutableList.of(602, 702)); // value and key fields
 
-    Schema projectedSchema = invokeFileProjection(
-        COMPLEX_NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            COMPLEX_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete));
 
     // Verify both map key and value fields are found
-    assertThat(projectedSchema.findField(602))
-        .as("Map value field should be found")
-        .isNotNull();
-    assertThat(projectedSchema.findField(702))
-        .as("Map key field should be found")
-        .isNotNull();
+    assertThat(projectedSchema.findField(602)).as("Map value field should be found").isNotNull();
+    assertThat(projectedSchema.findField(702)).as("Map key field should be found").isNotNull();
   }
 
   @Test
@@ -384,10 +414,15 @@ public class TestDeleteFilterProjection {
     Schema requestedSchema = COMPLEX_NESTED_SCHEMA.select("id");
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(803)); // field in map value in list
+    Mockito.when(mockEqDelete.equalityFieldIds())
+        .thenReturn(ImmutableList.of(803)); // field in map value in list
 
-    Schema projectedSchema = invokeFileProjection(
-        COMPLEX_NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            COMPLEX_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete));
 
     // Verify the deeply complex nested field is found
     Types.NestedField complexField = projectedSchema.findField(803);
@@ -407,21 +442,21 @@ public class TestDeleteFilterProjection {
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
     Mockito.when(mockEqDelete.equalityFieldIds())
-        .thenReturn(ImmutableList.of(400, 501, 602, 803)); // fields from struct, list, map, and complex combo
+        .thenReturn(
+            ImmutableList.of(
+                400, 501, 602, 803)); // fields from struct, list, map, and complex combo
 
-    Schema projectedSchema = invokeFileProjection(
-        COMPLEX_NESTED_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            COMPLEX_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete));
 
     // Verify all different types of nested fields are found
-    assertThat(projectedSchema.findField(400))
-        .as("Deep struct field should be found")
-        .isNotNull();
-    assertThat(projectedSchema.findField(501))
-        .as("List element field should be found")
-        .isNotNull();
-    assertThat(projectedSchema.findField(602))
-        .as("Map value field should be found")
-        .isNotNull();
+    assertThat(projectedSchema.findField(400)).as("Deep struct field should be found").isNotNull();
+    assertThat(projectedSchema.findField(501)).as("List element field should be found").isNotNull();
+    assertThat(projectedSchema.findField(602)).as("Map value field should be found").isNotNull();
     assertThat(projectedSchema.findField(803))
         .as("Complex combination field should be found")
         .isNotNull();
@@ -433,10 +468,12 @@ public class TestDeleteFilterProjection {
     Schema requestedSchema = SIMPLE_SCHEMA.select("id", "name");
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(3, 4)); // age and active fields
+    Mockito.when(mockEqDelete.equalityFieldIds())
+        .thenReturn(ImmutableList.of(3, 4)); // age and active fields
 
-    Schema projectedSchema = invokeFileProjection(
-        SIMPLE_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            SIMPLE_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
 
     // Verify all requested and required fields are present
     assertThat(projectedSchema.findField(1))
@@ -462,8 +499,9 @@ public class TestDeleteFilterProjection {
     // Regression test: when no delete files are present, should return requested schema
     Schema requestedSchema = SIMPLE_SCHEMA.select("id", "name");
 
-    Schema projectedSchema = invokeFileProjection(
-        SIMPLE_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of());
+    Schema projectedSchema =
+        invokeFileProjection(
+            SIMPLE_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of());
 
     // Should return the requested schema unchanged
     assertThat(projectedSchema.columns()).hasSize(2);
@@ -479,10 +517,12 @@ public class TestDeleteFilterProjection {
     Schema requestedSchema = SIMPLE_SCHEMA; // All fields already requested
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds()).thenReturn(ImmutableList.of(3, 4)); // fields already in requested
+    Mockito.when(mockEqDelete.equalityFieldIds())
+        .thenReturn(ImmutableList.of(3, 4)); // fields already in requested
 
-    Schema projectedSchema = invokeFileProjection(
-        SIMPLE_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
+    Schema projectedSchema =
+        invokeFileProjection(
+            SIMPLE_SCHEMA, requestedSchema, ImmutableList.of(), ImmutableList.of(mockEqDelete));
 
     // Should return the requested schema (which already contains everything)
     assertThat(projectedSchema.columns()).hasSize(4);
