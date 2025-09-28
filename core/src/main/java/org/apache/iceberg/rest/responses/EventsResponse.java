@@ -19,44 +19,24 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
-import org.apache.iceberg.rest.events.Event;
+import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.rest.events.Event;
+import org.immutables.value.Value;
 
 /** Standard response body for event queries */
-public class EventsResponse {
-  private final String nextPageToken;
-  private final Long highestProcessedTimestampMs;
-  private final List<Event> events;
+@Value.Immutable
+public interface EventsResponse extends RESTResponse {
+  @Nullable
+  String nextPageToken();
 
-  public EventsResponse(
-      String nextPageToken, Long highestProcessedTimestampMs, List<Event> events) {
-    this.nextPageToken = nextPageToken;
-    this.highestProcessedTimestampMs = highestProcessedTimestampMs;
-    this.events = events;
-  }
+  Long highestProcessedTimestampMs();
 
-  public EventsResponse(Long highestProcessedTimestampMs, List<Event> events) {
-    this(null, highestProcessedTimestampMs, events);
-  }
-
-  public String nextPageToken() {
-    return nextPageToken;
-  }
-
-  public Long highestProcessedTimestampMs() {
-    return highestProcessedTimestampMs;
-  }
-
-  public List<Event> events() {
-    return events;
-  }
+  List<Event> events();
 
   @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("nextPageToken", nextPageToken)
-        .add("highestProcessedTimestampMs", highestProcessedTimestampMs)
-        .add("events", events)
-        .toString();
+  default void validate() {
+    // nothing to validate as it's not possible to create an invalid instance
   }
 }

@@ -20,90 +20,38 @@ package org.apache.iceberg.rest.requests;
 
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.iceberg.catalog.CatalogObject;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.rest.RESTRequest;
-import org.apache.iceberg.rest.operations.OperationType;
+import org.apache.iceberg.rest.events.operations.OperationType;
+import org.immutables.value.Value;
 
 /** Standard request body for querying events. */
-public class QueryEventsRequest implements RESTRequest {
-  private final String pageToken;
-  private final Integer pageSize;
-  private final Long afterTimestampMs;
-  private final List<OperationType> operationTypes;
-  private final List<CatalogObject> catalogObjectsByName;
-  private final List<CatalogObjectUuid> catalogObjectsById;
-  private final List<CatalogObjectType> objectTypes;
-  private final Map<String, String> customFilters;
+@Value.Immutable
+public interface QueryEventsRequest extends RESTRequest {
+  @Nullable
+  String pageToken();
 
-  public QueryEventsRequest(
-      String pageToken,
-      Integer pageSize,
-      Long afterTimestampMs,
-      List<OperationType> operationTypes,
-      List<CatalogObject> catalogObjectsByName,
-      List<CatalogObjectUuid> catalogObjectsById,
-      List<CatalogObjectType> objectTypes,
-      Map<String, String> customFilters) {
-    this.pageToken = pageToken;
-    this.pageSize = pageSize;
-    this.afterTimestampMs = afterTimestampMs;
-    this.operationTypes = operationTypes;
-    this.catalogObjectsByName = catalogObjectsByName;
-    this.catalogObjectsById = catalogObjectsById;
-    this.objectTypes = objectTypes;
-    this.customFilters = customFilters;
-  }
+  @Nullable
+  Integer pageSize();
 
-  public QueryEventsRequest() {
-    this(null, null, null, null, null, null, null, null);
-  }
+  @Nullable
+  Long afterTimestampMs();
 
-  public String pageToken() {
-    return pageToken;
-  }
+  List<OperationType> operationTypes();
 
-  public Integer pageSize() {
-    return pageSize;
-  }
+  List<CatalogObject> catalogObjectsByName();
 
-  public Long afterTimestampMs() {
-    return afterTimestampMs;
-  }
+  List<CatalogObjectUuid> catalogObjectsById();
 
-  public List<OperationType> operationTypes() {
-    return operationTypes;
-  }
+  List<CatalogObjectType> objectTypes();
 
-  public List<CatalogObject> catalogObjectsByName() {
-    return catalogObjectsByName;
-  }
-
-  public List<CatalogObjectUuid> catalogObjectsById() {
-    return catalogObjectsById;
-  }
-
-  public List<CatalogObjectType> objectTypes() {
-    return objectTypes;
-  }
-
-  public Map<String, String> customFilters() {
-    return customFilters;
-  }
+  Map<String, String> customFilters();
 
   @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("pageToken", pageToken)
-        .add("pageSize", pageSize)
-        .add("afterTimestampMs", afterTimestampMs)
-        .add("operationTypes", operationTypes)
-        .add("catalogObjectsByName", catalogObjectsByName)
-        .add("catalogObjectsById", catalogObjectsById)
-        .add("objectTypes", objectTypes)
-        .add("customFilters", customFilters)
-        .toString();
+  default void validate() {
+    // nothing to validate as it's not possible to create an invalid instance
   }
 }
