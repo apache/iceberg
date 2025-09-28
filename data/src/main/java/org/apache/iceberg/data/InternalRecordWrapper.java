@@ -63,7 +63,13 @@ public class InternalRecordWrapper implements StructLike {
       case FIXED:
         return bytes -> ByteBuffer.wrap((byte[]) bytes);
       case UUID:
-        return uuid -> UUIDUtil.convert((byte[]) uuid);
+        return uuid -> {
+          if (uuid instanceof byte[]) {
+            return UUIDUtil.convert((byte[]) uuid);
+          } else {
+            return uuid;
+          }
+        };
       case STRUCT:
         InternalRecordWrapper wrapper = new InternalRecordWrapper(type.asStructType());
         return struct -> wrapper.wrap((StructLike) struct);
