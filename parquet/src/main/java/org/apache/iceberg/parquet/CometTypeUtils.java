@@ -223,13 +223,7 @@ public class CometTypeUtils {
 
         // DECIMAL
       case "DecimalLogicalTypeAnnotation":
-        if (!params.containsKey("scale") || !params.containsKey("precision")) {
-          throw new IllegalArgumentException(
-              "Missing required parameters for DecimalLogicalTypeAnnotation: " + params);
-        }
-        int scale = Integer.parseInt(params.get("scale"));
-        int precision = Integer.parseInt(params.get("precision"));
-        return LogicalTypeAnnotation.decimalType(scale, precision);
+        return createDecimalLogicalType(params);
 
         // DATE
       case "DateLogicalTypeAnnotation":
@@ -237,64 +231,15 @@ public class CometTypeUtils {
 
         // TIME
       case "TimeLogicalTypeAnnotation":
-        if (!params.containsKey("isAdjustedToUTC") || !params.containsKey("unit")) {
-          throw new IllegalArgumentException(
-              "Missing required parameters for TimeLogicalTypeAnnotation: " + params);
-        }
-
-        boolean isUTC = Boolean.parseBoolean(params.get("isAdjustedToUTC"));
-        String timeUnitStr = params.get("unit");
-
-        LogicalTypeAnnotation.TimeUnit timeUnit;
-        switch (timeUnitStr) {
-          case "MILLIS":
-            timeUnit = LogicalTypeAnnotation.TimeUnit.MILLIS;
-            break;
-          case "MICROS":
-            timeUnit = LogicalTypeAnnotation.TimeUnit.MICROS;
-            break;
-          case "NANOS":
-            timeUnit = LogicalTypeAnnotation.TimeUnit.NANOS;
-            break;
-          default:
-            throw new IllegalArgumentException("Unknown time unit: " + timeUnitStr);
-        }
-        return LogicalTypeAnnotation.timeType(isUTC, timeUnit);
+        return createTimeLogicalType(params);
 
         // TIMESTAMP
       case "TimestampLogicalTypeAnnotation":
-        if (!params.containsKey("isAdjustedToUTC") || !params.containsKey("unit")) {
-          throw new IllegalArgumentException(
-              "Missing required parameters for TimestampLogicalTypeAnnotation: " + params);
-        }
-        boolean isAdjustedToUTC = Boolean.parseBoolean(params.get("isAdjustedToUTC"));
-        String unitStr = params.get("unit");
-
-        LogicalTypeAnnotation.TimeUnit unit;
-        switch (unitStr) {
-          case "MILLIS":
-            unit = LogicalTypeAnnotation.TimeUnit.MILLIS;
-            break;
-          case "MICROS":
-            unit = LogicalTypeAnnotation.TimeUnit.MICROS;
-            break;
-          case "NANOS":
-            unit = LogicalTypeAnnotation.TimeUnit.NANOS;
-            break;
-          default:
-            throw new IllegalArgumentException("Unknown timestamp unit: " + unitStr);
-        }
-        return LogicalTypeAnnotation.timestampType(isAdjustedToUTC, unit);
+        return createTimestampLogicalType(params);
 
         // INTEGER
       case "IntLogicalTypeAnnotation":
-        if (!params.containsKey("isSigned") || !params.containsKey("bitWidth")) {
-          throw new IllegalArgumentException(
-              "Missing required parameters for IntLogicalTypeAnnotation: " + params);
-        }
-        boolean isSigned = Boolean.parseBoolean(params.get("isSigned"));
-        int bitWidth = Integer.parseInt(params.get("bitWidth"));
-        return LogicalTypeAnnotation.intType(bitWidth, isSigned);
+        return createIntLogicalType(params);
 
         // JSON
       case "JsonLogicalTypeAnnotation":
@@ -314,6 +259,76 @@ public class CometTypeUtils {
 
       default:
         throw new IllegalArgumentException("Unknown logical type: " + logicalTypeName);
+    }
+  }
+
+  private static LogicalTypeAnnotation createDecimalLogicalType(Map<String, String> params) {
+    if (!params.containsKey("scale") || !params.containsKey("precision")) {
+      throw new IllegalArgumentException(
+          "Missing required parameters for DecimalLogicalTypeAnnotation: " + params);
+    }
+    int scale = parseIntParameter(params, "scale", "DecimalLogicalTypeAnnotation");
+    int precision = parseIntParameter(params, "precision", "DecimalLogicalTypeAnnotation");
+    return LogicalTypeAnnotation.decimalType(scale, precision);
+  }
+
+  private static LogicalTypeAnnotation createTimeLogicalType(Map<String, String> params) {
+    if (!params.containsKey("isAdjustedToUTC") || !params.containsKey("unit")) {
+      throw new IllegalArgumentException(
+          "Missing required parameters for TimeLogicalTypeAnnotation: " + params);
+    }
+    boolean isUTC = Boolean.parseBoolean(params.get("isAdjustedToUTC"));
+    LogicalTypeAnnotation.TimeUnit timeUnit = parseTimeUnit(params.get("unit"));
+    return LogicalTypeAnnotation.timeType(isUTC, timeUnit);
+  }
+
+  private static LogicalTypeAnnotation createTimestampLogicalType(Map<String, String> params) {
+    if (!params.containsKey("isAdjustedToUTC") || !params.containsKey("unit")) {
+      throw new IllegalArgumentException(
+          "Missing required parameters for TimestampLogicalTypeAnnotation: " + params);
+    }
+    boolean isAdjustedToUTC = Boolean.parseBoolean(params.get("isAdjustedToUTC"));
+    LogicalTypeAnnotation.TimeUnit unit = parseTimeUnit(params.get("unit"));
+    return LogicalTypeAnnotation.timestampType(isAdjustedToUTC, unit);
+  }
+
+  private static LogicalTypeAnnotation createIntLogicalType(Map<String, String> params) {
+    if (!params.containsKey("isSigned") || !params.containsKey("bitWidth")) {
+      throw new IllegalArgumentException(
+          "Missing required parameters for IntLogicalTypeAnnotation: " + params);
+    }
+    boolean isSigned = Boolean.parseBoolean(params.get("isSigned"));
+    int bitWidth = parseIntParameter(params, "bitWidth", "IntLogicalTypeAnnotation");
+    return LogicalTypeAnnotation.intType(bitWidth, isSigned);
+  }
+
+  private static int parseIntParameter(
+      Map<String, String> params, String paramName, String logicalTypeName) {
+    try {
+      return Integer.parseInt(params.get(paramName));
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException(
+          "Invalid "
+              + paramName
+              + " parameter for "
+              + logicalTypeName
+              + ": '"
+              + params.get(paramName)
+              + "'",
+          e);
+    }
+  }
+
+  private static LogicalTypeAnnotation.TimeUnit parseTimeUnit(String unitStr) {
+    switch (unitStr) {
+      case "MILLIS":
+        return LogicalTypeAnnotation.TimeUnit.MILLIS;
+      case "MICROS":
+        return LogicalTypeAnnotation.TimeUnit.MICROS;
+      case "NANOS":
+        return LogicalTypeAnnotation.TimeUnit.NANOS;
+      default:
+        throw new IllegalArgumentException("Unknown time unit: " + unitStr);
     }
   }
 }

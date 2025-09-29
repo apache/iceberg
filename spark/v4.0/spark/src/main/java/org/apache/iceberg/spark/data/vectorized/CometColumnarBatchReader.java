@@ -22,11 +22,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
-import org.apache.comet.CometRuntimeException;
 import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.IcebergCometBatchReader;
-import org.apache.comet.vector.CometSelectionVector;
-import org.apache.comet.vector.CometVector;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.CometPageReadStore;
@@ -153,8 +150,8 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
         Pair<int[], Integer> pair = buildRowIdMapping(vectors);
         if (pair != null) {
           int[] rowIdMapping = pair.first();
-            numLiveRows = pair.second();
-            for (int i = 0; i < vectors.length; i++) {
+          numLiveRows = pair.second();
+          for (int i = 0; i < vectors.length; i++) {
             vectors[i] = new ColumnVectorWithFilter(vectors[i], rowIdMapping);
           }
         }

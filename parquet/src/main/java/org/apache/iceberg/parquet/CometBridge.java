@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +71,7 @@ class CometBridge {
           try {
             initializeClasses();
             cometAvailable = true;
-          } catch (Exception e) {
+          } catch (ClassNotFoundException | NoSuchMethodException e) {
             cometAvailable = false;
           }
         }
@@ -79,7 +80,7 @@ class CometBridge {
     return cometAvailable;
   }
 
-  private static void initializeClasses() throws Exception {
+  private static void initializeClasses() throws ClassNotFoundException, NoSuchMethodException {
     // Load classes
     fileReaderClass = Class.forName(FILE_READER_CLASS);
     wrappedInputFileClass = Class.forName(WRAPPED_INPUT_FILE_CLASS);
@@ -132,7 +133,7 @@ class CometBridge {
         Long length,
         byte[] fileEncryptionKey,
         byte[] fileAADPrefix)
-        throws Exception {
+        throws IllegalAccessException, InstantiationException, InvocationTargetException {
 
       // Create WrappedInputFile
       Object wrappedInputFile = wrappedInputFileConstructor.newInstance(file);
@@ -152,23 +153,26 @@ class CometBridge {
     }
 
     /** Sets the requested schema from ParquetColumnSpec list. */
-    public void setRequestedSchemaFromSpecs(List<Object> specs) throws Exception {
+    public void setRequestedSchemaFromSpecs(List<Object> specs)
+        throws IllegalAccessException, InvocationTargetException {
       setRequestedSchemaFromSpecsMethod.invoke(fileReader, specs);
     }
 
     /** Reads the next row group. */
-    public RowGroupReaderWrapper readNextRowGroup() throws Exception {
+    public RowGroupReaderWrapper readNextRowGroup()
+        throws IllegalAccessException, InvocationTargetException {
       Object rowGroupReader = readNextRowGroupMethod.invoke(fileReader);
       return new RowGroupReaderWrapper(rowGroupReader);
     }
 
     /** Skips the next row group. */
-    public void skipNextRowGroup() throws Exception {
+    public void skipNextRowGroup() throws IllegalAccessException, InvocationTargetException {
       skipNextRowGroupMethod.invoke(fileReader);
     }
 
     /** Closes the file reader. */
-    public void close() throws Exception {
+    @Override
+    public void close() throws IllegalAccessException, InvocationTargetException {
       closeMethod.invoke(fileReader);
     }
   }
@@ -182,7 +186,7 @@ class CometBridge {
     }
 
     /** Gets the row count for this row group. */
-    public long getRowCount() throws Exception {
+    public long getRowCount() throws IllegalAccessException, InvocationTargetException {
       return (Long) getRowCountMethod.invoke(rowGroupReader);
     }
 
@@ -194,7 +198,10 @@ class CometBridge {
 
   /** Creates ReadOptions using reflection. */
   public static Object createReadOptions(org.apache.hadoop.conf.Configuration conf)
-      throws Exception {
+      throws IllegalStateException,
+          IllegalAccessException,
+          InstantiationException,
+          InvocationTargetException {
     if (!isCometAvailable()) {
       throw new IllegalStateException("Comet is not available in the classpath");
     }
@@ -204,7 +211,8 @@ class CometBridge {
   }
 
   /** Creates ParquetColumnSpec from ColumnDescriptor using CometTypeUtils. */
-  public static Object createParquetColumnSpec(ColumnDescriptor descriptor) throws Exception {
+  public static Object createParquetColumnSpec(ColumnDescriptor descriptor)
+      throws IllegalStateException {
     if (!isCometAvailable()) {
       throw new IllegalStateException("Comet is not available in the classpath");
     }
