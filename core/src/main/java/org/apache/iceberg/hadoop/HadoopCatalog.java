@@ -296,8 +296,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
       // Ensure target namespace exists
       Path toNamespacePath = toPath.getParent();
       if (!isNamespace(toNamespacePath)) {
-        throw new NoSuchNamespaceException(
-            "Target namespace does not exist: %s", to.namespace());
+        throw new NoSuchNamespaceException("Target namespace does not exist: %s", to.namespace());
       }
 
       // Perform the rename operation
