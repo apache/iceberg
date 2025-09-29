@@ -26,9 +26,9 @@ public interface AzureTokenCredentialProvider {
   TokenCredential credential();
 
   /**
-   * Initialize Azure credential provider from catalog properties.
+   * Initialize Azure credential provider from provider properties.
    *
-   * @param properties catalog properties
+   * @param properties credential provider properties
    */
   void initialize(Map<String, String> properties);
 }
