@@ -299,7 +299,7 @@ public class TestAzureProperties {
     }
   }
 
-  static class DummyTokenCredentialProvider implements AzureTokenCredentialProvider {
+  static class DummyTokenCredentialProvider implements AdlsTokenCredentialProvider {
     static Map<String, String> lastInitializedProperties;
 
     @Override

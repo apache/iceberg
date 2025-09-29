@@ -25,18 +25,18 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 
-public class AzureTokenCredentialProviders {
+public class AdlsTokenCredentialProviders {
 
   private static final DefaultTokenCredentialProvider DEFAULT_TOKEN_CREDENTIAL_PROVIDER =
       new DefaultTokenCredentialProvider();
 
-  private AzureTokenCredentialProviders() {}
+  private AdlsTokenCredentialProviders() {}
 
-  public static AzureTokenCredentialProvider defaultFactory() {
+  public static AdlsTokenCredentialProvider defaultFactory() {
     return DEFAULT_TOKEN_CREDENTIAL_PROVIDER;
   }
 
-  public static AzureTokenCredentialProvider from(Map<String, String> properties) {
+  public static AdlsTokenCredentialProvider from(Map<String, String> properties) {
     String providerImpl =
         PropertyUtil.propertyAsString(
             properties, AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, null);
@@ -45,36 +45,36 @@ public class AzureTokenCredentialProviders {
     return loadCredentialProvider(providerImpl, credentialProviderProperties);
   }
 
-  private static AzureTokenCredentialProvider loadCredentialProvider(
+  private static AdlsTokenCredentialProvider loadCredentialProvider(
       String impl, Map<String, String> properties) {
     if (Strings.isNullOrEmpty(impl)) {
-      AzureTokenCredentialProvider provider = defaultFactory();
+      AdlsTokenCredentialProvider provider = defaultFactory();
       provider.initialize(properties);
       return provider;
     }
 
-    DynConstructors.Ctor<AzureTokenCredentialProvider> ctor;
+    DynConstructors.Ctor<AdlsTokenCredentialProvider> ctor;
     try {
       ctor =
-          DynConstructors.builder(AzureTokenCredentialProvider.class)
-              .loader(AzureTokenCredentialProviders.class.getClassLoader())
+          DynConstructors.builder(AdlsTokenCredentialProvider.class)
+              .loader(AdlsTokenCredentialProviders.class.getClassLoader())
               .hiddenImpl(impl)
               .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
-              "Cannot initialize AzureTokenCredentialProvider, missing no-arg constructor: %s",
+              "Cannot initialize AdlsTokenCredentialProvider, missing no-arg constructor: %s",
               impl),
           e);
     }
 
-    AzureTokenCredentialProvider provider;
+    AdlsTokenCredentialProvider provider;
     try {
       provider = ctor.newInstance();
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           String.format(
-              "Cannot initialize AzureTokenCredentialProvider, %s does not implement AzureTokenCredentialProvider.",
+              "Cannot initialize AdlsTokenCredentialProvider, %s does not implement AdlsTokenCredentialProvider.",
               impl),
           e);
     }
@@ -83,7 +83,7 @@ public class AzureTokenCredentialProviders {
     return provider;
   }
 
-  static class DefaultTokenCredentialProvider implements AzureTokenCredentialProvider {
+  static class DefaultTokenCredentialProvider implements AdlsTokenCredentialProvider {
 
     @Override
     public TokenCredential credential() {

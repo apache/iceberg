@@ -30,34 +30,34 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 
-public class TestAzureTokenCredentialProviders {
+public class TestAdlsTokenCredentialProviders {
 
   @Test
   public void useDefaultFactory() {
-    AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.defaultFactory();
+    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.defaultFactory();
     assertThat(provider)
         .isNotNull()
-        .isInstanceOf(AzureTokenCredentialProviders.DefaultTokenCredentialProvider.class);
+        .isInstanceOf(AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
 
   @Test
   public void emptyPropertiesWithNoProvider() {
     Map<String, String> properties = ImmutableMap.of();
-    AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
+    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.from(properties);
 
     assertThat(provider)
         .isNotNull()
-        .isInstanceOf(AzureTokenCredentialProviders.DefaultTokenCredentialProvider.class);
+        .isInstanceOf(AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
 
   @Test
   public void emptyCredentialProvider() {
     Map<String, String> properties =
         ImmutableMap.of(AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, "");
-    AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
+    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.from(properties);
     assertThat(provider)
         .isNotNull()
-        .isInstanceOf(AzureTokenCredentialProviders.DefaultTokenCredentialProvider.class);
+        .isInstanceOf(AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
 
   @Test
@@ -65,11 +65,11 @@ public class TestAzureTokenCredentialProviders {
     Map<String, String> properties =
         ImmutableMap.of(
             AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
-            "org.apache.iceberg.azure.AzureTokenCredentialProviders$DefaultTokenCredentialProvider");
-    AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
+            AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class.getName());
+    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.from(properties);
     assertThat(provider)
         .isNotNull()
-        .isInstanceOf(AzureTokenCredentialProviders.DefaultTokenCredentialProvider.class);
+        .isInstanceOf(AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
 
   @Test
@@ -77,8 +77,8 @@ public class TestAzureTokenCredentialProviders {
     Map<String, String> properties =
         ImmutableMap.of(
             AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
-            "org.apache.iceberg.azure.TestAzureTokenCredentialProviders$DummyTokenCredentialProvider");
-    AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
+            TestAdlsTokenCredentialProviders.DummyTokenCredentialProvider.class.getName());
+    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.from(properties);
 
     assertThat(provider).isNotNull().isInstanceOf(DummyTokenCredentialProvider.class);
     assertThat(provider.credential()).isInstanceOf(DummyTokenCredential.class);
@@ -92,9 +92,9 @@ public class TestAzureTokenCredentialProviders {
             "org.apache.iceberg.azure.NonExistentProvider");
 
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> AzureTokenCredentialProviders.from(properties))
+        .isThrownBy(() -> AdlsTokenCredentialProviders.from(properties))
         .withMessageContaining(
-            "Cannot initialize AzureTokenCredentialProvider, missing no-arg constructor");
+            "Cannot initialize AdlsTokenCredentialProvider, missing no-arg constructor");
   }
 
   @Test
@@ -102,8 +102,8 @@ public class TestAzureTokenCredentialProviders {
     Map<String, String> properties =
         ImmutableMap.of(AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, "java.lang.String");
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> AzureTokenCredentialProviders.from(properties))
-        .withMessageContaining("java.lang.String does not implement AzureTokenCredentialProvider");
+        .isThrownBy(() -> AdlsTokenCredentialProviders.from(properties))
+        .withMessageContaining("java.lang.String does not implement AdlsTokenCredentialProvider");
   }
 
   @Test
@@ -111,7 +111,7 @@ public class TestAzureTokenCredentialProviders {
     Map<String, String> properties =
         ImmutableMap.of(
             AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
-            "org.apache.iceberg.azure.TestAzureTokenCredentialProviders$DummyTokenCredentialProvider",
+            TestAdlsTokenCredentialProviders.DummyTokenCredentialProvider.class.getName(),
             AzureProperties.ADLS_TOKEN_PROVIDER_PREFIX + "client-id",
             "clientId",
             AzureProperties.ADLS_TOKEN_PROVIDER_PREFIX + "client-secret",
@@ -119,7 +119,7 @@ public class TestAzureTokenCredentialProviders {
             "custom.property",
             "custom.value");
 
-    AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
+    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.from(properties);
     assertThat(provider).isInstanceOf(DummyTokenCredentialProvider.class);
     DummyTokenCredentialProvider credentialProvider = (DummyTokenCredentialProvider) provider;
     assertThat(credentialProvider.properties())
@@ -131,7 +131,7 @@ public class TestAzureTokenCredentialProviders {
   }
 
   // Dummy implementation for testing
-  static class DummyTokenCredentialProvider implements AzureTokenCredentialProvider {
+  static class DummyTokenCredentialProvider implements AdlsTokenCredentialProvider {
 
     private Map<String, String> properties;
 

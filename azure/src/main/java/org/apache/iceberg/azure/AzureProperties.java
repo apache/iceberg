@@ -51,22 +51,22 @@ public class AzureProperties implements Serializable {
 
   /**
    * Configure the Azure token credential provider used to get {@link TokenCredential}. A fully
-   * qualified concrete class with package that implements the {@link AzureTokenCredentialProvider}
+   * qualified concrete class with package that implements the {@link AdlsTokenCredentialProvider}
    * interface is required.
    *
    * <p>The implementation class must have a no-arg constructor and will be initialized by calling
-   * the {@link AzureTokenCredentialProvider#initialize(Map)} method with the catalog properties.
+   * the {@link AdlsTokenCredentialProvider#initialize(Map)} method with the catalog properties.
    *
    * <p>Example: adls.token-credential-provider=com.example.MyCustomTokenCredentialProvider
    *
-   * <p>When set, the {@link AzureTokenCredentialProviders#from(Map)} method will use this provider
+   * <p>When set, the {@link AdlsTokenCredentialProviders#from(Map)} method will use this provider
    * to get Azure credentials instead of using the default.
    */
   public static final String ADLS_TOKEN_CREDENTIAL_PROVIDER = "adls.token-credential-provider";
 
   /**
    * Used by the configured {@link #ADLS_TOKEN_CREDENTIAL_PROVIDER} value that will be used by
-   * {@link AzureTokenCredentialProviders#defaultFactory()} and other token credential provider
+   * {@link AdlsTokenCredentialProviders#defaultFactory()} and other token credential provider
    * classes to pass provider-specific properties. Each property consists of a key name and an
    * associated value.
    */
@@ -175,8 +175,8 @@ public class AzureProperties implements Serializable {
             };
         builder.credential(tokenCredential);
       } else {
-        AzureTokenCredentialProvider credentialProvider =
-            AzureTokenCredentialProviders.from(allProperties);
+        AdlsTokenCredentialProvider credentialProvider =
+            AdlsTokenCredentialProviders.from(allProperties);
         builder.credential(credentialProvider.credential());
       }
     }

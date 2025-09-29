@@ -21,7 +21,7 @@ package org.apache.iceberg.azure;
 import com.azure.core.credential.TokenCredential;
 import java.util.Map;
 
-public interface AzureTokenCredentialProvider {
+public interface AdlsTokenCredentialProvider {
 
   TokenCredential credential();
 
