@@ -47,8 +47,7 @@ public class CreateNamespaceOperationParser {
     return JsonUtil.generate(gen -> toJson(operation, gen), pretty);
   }
 
-  public static void toJson(CreateNamespaceOperation operation, JsonGenerator gen)
-      throws IOException {
+  public static void toJson(CreateNamespaceOperation operation, JsonGenerator gen) throws IOException {
     Preconditions.checkNotNull(operation, "Invalid create namespace operation: null");
 
     gen.writeStartObject();

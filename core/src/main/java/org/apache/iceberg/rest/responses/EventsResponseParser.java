@@ -48,7 +48,7 @@ public class EventsResponseParser {
   }
 
   public static void toJson(EventsResponse eventsResponse, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(eventsResponse, "Invalid event response: null");
+    Preconditions.checkNotNull(eventsResponse, "Invalid events response: null");
 
     gen.writeStartObject();
 
@@ -71,7 +71,7 @@ public class EventsResponseParser {
   }
 
   public static EventsResponse fromJson(JsonNode json) {
-    Preconditions.checkNotNull(json, "Cannot parse event response from null object");
+    Preconditions.checkNotNull(json, "Cannot parse events response from null object");
 
     Long highestProcessedTimestampMs = JsonUtil.getLong(HIGHEST_PROCESSED_TIMESTAMP_MS, json);
     List<Event> events =

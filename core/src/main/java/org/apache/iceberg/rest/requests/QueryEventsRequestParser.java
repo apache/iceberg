@@ -154,7 +154,7 @@ public class QueryEventsRequestParser {
     }
 
     if(json.has(OBJECT_TYPES)) {
-      builder.objectTypes(JsonUtil.getStringList(OPERATION_TYPES, json)
+      builder.objectTypes(JsonUtil.getStringList(OBJECT_TYPES, json)
           .stream()
           .map(CatalogObjectType::fromType)
           .collect(Collectors.toList()));

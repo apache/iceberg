@@ -30,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 public class CatalogObject {
   private static final CatalogObject EMPTY_CATALOG_OBJECT = new CatalogObject(new String[] {});
-  private static final Joiner DOT = Joiner.on('.');
+  private static final Joiner DOT = Joiner.on(".");
   private static final Predicate<String> CONTAINS_NULL_CHARACTER =
       Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
 
@@ -57,7 +57,7 @@ public class CatalogObject {
   public static CatalogObject of(String name) {
     Preconditions.checkNotNull(name, "Cannot create CatalogObject from null name");
 
-    return of(name.split(DOT.toString()));
+    return of(name.split("\\."));
   }
 
   private final String[] levels;
