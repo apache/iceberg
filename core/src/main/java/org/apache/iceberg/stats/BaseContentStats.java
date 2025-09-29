@@ -76,7 +76,15 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
       return null;
     }
 
-    return javaClass.cast(fieldStats.get(pos));
+    FieldStats<?> value = fieldStats.get(pos);
+    if (value == null || javaClass.isInstance(value)) {
+      return javaClass.cast(value);
+    }
+
+    throw new IllegalArgumentException(
+        String.format(
+            "Wrong class, expected %s, but was %s, for object: %s",
+            javaClass.getName(), value.getClass().getName(), value));
   }
 
   @SuppressWarnings({"unchecked", "rawtypes"})
@@ -103,12 +111,24 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
         builder.nullValueCount((Long) record.getField("null_value_count"));
       }
 
-      if (null != type && null != record.getField("lower_bound")) {
-        builder.lowerBound(type.typeId().javaClass().cast(record.getField("lower_bound")));
+      Object lowerBound = record.getField("lower_bound");
+      if (null != type && null != lowerBound) {
+        Preconditions.checkArgument(
+            type.typeId().javaClass().isInstance(lowerBound),
+            "Invalid lower bound type, expected a subtype of %s: %s",
+            type.typeId().javaClass(),
+            lowerBound.getClass().getName());
+        builder.lowerBound(type.typeId().javaClass().cast(lowerBound));
       }
 
-      if (null != type && null != record.getField("upper_bound")) {
-        builder.upperBound(type.typeId().javaClass().cast(record.getField("upper_bound")));
+      Object upperBound = record.getField("upper_bound");
+      if (null != type && null != upperBound) {
+        Preconditions.checkArgument(
+            type.typeId().javaClass().isInstance(upperBound),
+            "Invalid upper bound type, expected a subtype of %s: %s",
+            type.typeId().javaClass(),
+            upperBound.getClass().getName());
+        builder.upperBound(type.typeId().javaClass().cast(upperBound));
       }
 
       BaseFieldStats<?> newStat = builder.build();
