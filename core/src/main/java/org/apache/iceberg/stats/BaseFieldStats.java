@@ -35,7 +35,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
   private final T lowerBound;
   private final T upperBound;
 
-  BaseFieldStats(
+  private BaseFieldStats(
       int fieldId,
       Type type,
       Long columnSize,
@@ -238,6 +238,26 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
     }
 
     public BaseFieldStats<T> build() {
+      if (null != lowerBound) {
+        Preconditions.checkArgument(
+            null != type, "Invalid type (required when lower bound is set): null");
+        Preconditions.checkArgument(
+            type.typeId().javaClass().isInstance(lowerBound),
+            "Invalid lower bound type, expected a subtype of %s: %s",
+            type.typeId().javaClass().getName(),
+            lowerBound.getClass().getName());
+      }
+
+      if (null != upperBound) {
+        Preconditions.checkArgument(
+            null != type, "Invalid type (required when lower bound is set): null");
+        Preconditions.checkArgument(
+            type.typeId().javaClass().isInstance(upperBound),
+            "Invalid upper bound type, expected a subtype of %s: %s",
+            type.typeId().javaClass().getName(),
+            upperBound.getClass().getName());
+      }
+
       return new BaseFieldStats<>(
           fieldId,
           type,
