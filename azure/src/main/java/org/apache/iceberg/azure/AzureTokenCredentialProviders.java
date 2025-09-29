@@ -40,7 +40,9 @@ public class AzureTokenCredentialProviders {
     String providerImpl =
         PropertyUtil.propertyAsString(
             properties, AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, null);
-    return loadCredentialProvider(providerImpl, properties);
+    Map<String, String> credentialProviderProperties =
+        PropertyUtil.propertiesWithPrefix(properties, AzureProperties.ADLS_TOKEN_PROVIDER_PREFIX);
+    return loadCredentialProvider(providerImpl, credentialProviderProperties);
   }
 
   private static AzureTokenCredentialProvider loadCredentialProvider(

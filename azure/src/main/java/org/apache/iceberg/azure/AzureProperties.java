@@ -65,6 +65,14 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_TOKEN_CREDENTIAL_PROVIDER = "adls.token-credential-provider";
 
   /**
+   * Used by the configured {@link #ADLS_TOKEN_CREDENTIAL_PROVIDER} value that will be used by
+   * {@link AzureTokenCredentialProviders#defaultFactory()} and other token credential provider
+   * classes to pass provider-specific properties. Each property consists of a key name and an
+   * associated value.
+   */
+  public static final String ADLS_TOKEN_PROVIDER_PREFIX = "adls.token-credential-provider.";
+
+  /**
    * When set, the {@link VendedAdlsCredentialProvider} will be used to fetch and refresh vended
    * credentials from this endpoint.
    */

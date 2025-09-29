@@ -112,16 +112,28 @@ public class TestAzureTokenCredentialProviders {
         ImmutableMap.of(
             AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
             "org.apache.iceberg.azure.TestAzureTokenCredentialProviders$DummyTokenCredentialProvider",
+            AzureProperties.ADLS_TOKEN_PROVIDER_PREFIX + "client-id",
+            "clientId",
+            AzureProperties.ADLS_TOKEN_PROVIDER_PREFIX + "client-secret",
+            "clientSecret",
             "custom.property",
             "custom.value");
 
     AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
     assertThat(provider).isInstanceOf(DummyTokenCredentialProvider.class);
+    DummyTokenCredentialProvider credentialProvider = (DummyTokenCredentialProvider) provider;
+    assertThat(credentialProvider.properties())
+        .containsEntry("client-id", "clientId")
+        .containsEntry("client-secret", "clientSecret")
+        .doesNotContainKey("custom.property")
+        .doesNotContainKey(AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER);
     assertThat(provider.credential()).isInstanceOf(DummyTokenCredential.class);
   }
 
   // Dummy implementation for testing
   static class DummyTokenCredentialProvider implements AzureTokenCredentialProvider {
+
+    private Map<String, String> properties;
 
     @Override
     public TokenCredential credential() {
@@ -129,7 +141,13 @@ public class TestAzureTokenCredentialProviders {
     }
 
     @Override
-    public void initialize(Map<String, String> properties) {}
+    public void initialize(Map<String, String> credentialProperties) {
+      this.properties = credentialProperties;
+    }
+
+    public Map<String, String> properties() {
+      return properties;
+    }
   }
 
   // Dummy TokenCredential for testing
