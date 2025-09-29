@@ -2113,6 +2113,26 @@ public class TestViews extends ExtensionsTestBase {
                 ""));
   }
 
+  @TestTemplate
+  public void createViewWithCustomMetadataLocationWithLocation() {
+    String viewName = viewName("v");
+    String customMetadataLocation =
+        Paths.get(temp.toUri().toString(), "custom-metadata-location").toString();
+    sql(
+        "CREATE VIEW %s TBLPROPERTIES ('%s'='%s') AS SELECT * FROM %s",
+        viewName, "location", customMetadataLocation, tableName);
+    String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
+
+    assertThat(sql("DESCRIBE EXTENDED %s", viewName))
+        .contains(
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg']",
+                    customMetadataLocation),
+                ""));
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {
