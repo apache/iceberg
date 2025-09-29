@@ -272,7 +272,41 @@ public class HadoopCatalog extends BaseMetastoreCatalog
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    throw new UnsupportedOperationException("Cannot rename Hadoop tables");
+    if (!isValidIdentifier(from)) {
+      throw new NoSuchTableException("Invalid source identifier: %s", from);
+    }
+    if (!isValidIdentifier(to)) {
+      throw new IllegalArgumentException(String.format("Invalid target identifier: %s", to));
+    }
+
+    Path fromPath = new Path(defaultWarehouseLocation(from));
+    Path toPath = new Path(defaultWarehouseLocation(to));
+
+    try {
+      // Check if source table exists
+      if (!fs.exists(fromPath)) {
+        throw new NoSuchTableException("Table does not exist: %s", from);
+      }
+
+      // Check if target table already exists
+      if (fs.exists(toPath)) {
+        throw new AlreadyExistsException("Table already exists: %s", to);
+      }
+
+      // Ensure target namespace exists
+      Path toNamespacePath = toPath.getParent();
+      if (!isNamespace(toNamespacePath)) {
+        throw new NoSuchNamespaceException(
+            "Target namespace does not exist: %s", to.namespace());
+      }
+
+      // Perform the rename operation
+      if (!fs.rename(fromPath, toPath)) {
+        throw new RuntimeIOException("Failed to rename table from %s to %s", from, to);
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to rename table from %s to %s", from, to);
+    }
   }
 
   @Override

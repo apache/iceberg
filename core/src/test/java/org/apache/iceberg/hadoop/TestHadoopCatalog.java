@@ -282,11 +282,113 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   @Test
   public void testRenameTable() throws Exception {
     HadoopCatalog catalog = hadoopCatalog();
-    TableIdentifier testTable = TableIdentifier.of("db", "tbl1");
-    catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
-    assertThatThrownBy(() -> catalog.renameTable(testTable, TableIdentifier.of("db", "tbl2")))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot rename Hadoop tables");
+    TableIdentifier from = TableIdentifier.of("db", "tbl1");
+    TableIdentifier to = TableIdentifier.of("db", "tbl2");
+
+    catalog.createTable(from, SCHEMA, PartitionSpec.unpartitioned());
+    String fromLocation = catalog.defaultWarehouseLocation(from);
+    String toLocation = catalog.defaultWarehouseLocation(to);
+
+    FileSystem fs = Util.getFs(new Path(fromLocation), catalog.getConf());
+    assertThat(fs.exists(new Path(fromLocation))).isTrue();
+    assertThat(fs.exists(new Path(toLocation))).isFalse();
+
+    catalog.renameTable(from, to);
+
+    assertThat(fs.exists(new Path(fromLocation))).isFalse();
+    assertThat(fs.exists(new Path(toLocation))).isTrue();
+
+    // Verify the renamed table can be loaded and has the same schema
+    Table renamedTable = catalog.loadTable(to);
+    assertThat(renamedTable.schema().toString()).isEqualTo(TABLE_SCHEMA.toString());
+  }
+
+  @Test
+  public void testRenameTableSourceDoesNotExist() throws Exception {
+    HadoopCatalog catalog = hadoopCatalog();
+    TableIdentifier from = TableIdentifier.of("db", "nonexistent");
+    TableIdentifier to = TableIdentifier.of("db", "tbl2");
+
+    assertThatThrownBy(() -> catalog.renameTable(from, to))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist");
+  }
+
+  @Test
+  public void testRenameTableTargetAlreadyExists() throws Exception {
+    HadoopCatalog catalog = hadoopCatalog();
+    TableIdentifier from = TableIdentifier.of("db", "tbl1");
+    TableIdentifier to = TableIdentifier.of("db", "tbl2");
+
+    catalog.createTable(from, SCHEMA, PartitionSpec.unpartitioned());
+    catalog.createTable(to, SCHEMA, PartitionSpec.unpartitioned());
+
+    assertThatThrownBy(() -> catalog.renameTable(from, to))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Table already exists");
+  }
+
+  @Test
+  public void testRenameTableToNonExistentNamespace() throws Exception {
+    HadoopCatalog catalog = hadoopCatalog();
+    TableIdentifier from = TableIdentifier.of("db", "tbl1");
+    TableIdentifier to = TableIdentifier.of("nonexistent_ns", "tbl2");
+
+    catalog.createTable(from, SCHEMA, PartitionSpec.unpartitioned());
+
+    assertThatThrownBy(() -> catalog.renameTable(from, to))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Target namespace does not exist");
+  }
+
+  @Test
+  public void testRenameTableAcrossNamespaces() throws Exception {
+    HadoopCatalog catalog = hadoopCatalog();
+    TableIdentifier from = TableIdentifier.of("db1", "tbl1");
+    TableIdentifier to = TableIdentifier.of("db2", "tbl2");
+
+    catalog.createNamespace(Namespace.of("db1"), META);
+    catalog.createNamespace(Namespace.of("db2"), META);
+    catalog.createTable(from, SCHEMA, PartitionSpec.unpartitioned());
+
+    String fromLocation = catalog.defaultWarehouseLocation(from);
+    String toLocation = catalog.defaultWarehouseLocation(to);
+
+    FileSystem fs = Util.getFs(new Path(fromLocation), catalog.getConf());
+    assertThat(fs.exists(new Path(fromLocation))).isTrue();
+
+    catalog.renameTable(from, to);
+
+    assertThat(fs.exists(new Path(fromLocation))).isFalse();
+    assertThat(fs.exists(new Path(toLocation))).isTrue();
+
+    // Verify the renamed table can be loaded
+    Table renamedTable = catalog.loadTable(to);
+    assertThat(renamedTable.schema().toString()).isEqualTo(TABLE_SCHEMA.toString());
+  }
+
+  @Test
+  public void testRenameTableWithNestedNamespace() throws Exception {
+    HadoopCatalog catalog = hadoopCatalog();
+    TableIdentifier from = TableIdentifier.of("db", "ns1", "tbl1");
+    TableIdentifier to = TableIdentifier.of("db", "ns1", "tbl2");
+
+    catalog.createTable(from, SCHEMA, PartitionSpec.unpartitioned());
+
+    String fromLocation = catalog.defaultWarehouseLocation(from);
+    String toLocation = catalog.defaultWarehouseLocation(to);
+
+    FileSystem fs = Util.getFs(new Path(fromLocation), catalog.getConf());
+    assertThat(fs.exists(new Path(fromLocation))).isTrue();
+
+    catalog.renameTable(from, to);
+
+    assertThat(fs.exists(new Path(fromLocation))).isFalse();
+    assertThat(fs.exists(new Path(toLocation))).isTrue();
+
+    // Verify the renamed table can be loaded
+    Table renamedTable = catalog.loadTable(to);
+    assertThat(renamedTable.schema().toString()).isEqualTo(TABLE_SCHEMA.toString());
   }
 
   @Test
