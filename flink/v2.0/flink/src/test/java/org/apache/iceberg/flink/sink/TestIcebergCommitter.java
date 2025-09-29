@@ -1247,8 +1247,7 @@ class TestIcebergCommitter extends TestBase {
         table.properties(),
         table.spec(),
         equalityFieldIds,
-        table.schema(),
-        null);
+        table.schema());
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {
