@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.events.parsers;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -26,34 +28,35 @@ import org.apache.iceberg.rest.events.operations.DropTableOperation;
 import org.apache.iceberg.rest.events.operations.ImmutableDropTableOperation;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 public class TestDropTableOperationParser {
   @Test
   void testToJson() {
-    DropTableOperation op = ImmutableDropTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-        .tableUuid("uuid")
-        .build();
-    String expected = "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\"}";
+    DropTableOperation op =
+        ImmutableDropTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
+            .tableUuid("uuid")
+            .build();
+    String expected =
+        "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\"}";
     assertThat(DropTableOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    DropTableOperation op = ImmutableDropTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-        .tableUuid("uuid")
-        .build();
-    String expected = "{\n" +
-        "  \"operation-type\" : \"drop-table\",\n" +
-        "  \"identifier\" : {\n" +
-        "    \"namespace\" : [ \"a\" ],\n" +
-        "    \"name\" : \"t\"\n" +
-        "  },\n" +
-        "  \"table-uuid\" : \"uuid\"\n" +
-        "}";
+    DropTableOperation op =
+        ImmutableDropTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
+            .tableUuid("uuid")
+            .build();
+    String expected =
+        "{\n"
+            + "  \"operation-type\" : \"drop-table\",\n"
+            + "  \"identifier\" : {\n"
+            + "    \"namespace\" : [ \"a\" ],\n"
+            + "    \"name\" : \"t\"\n"
+            + "  },\n"
+            + "  \"table-uuid\" : \"uuid\"\n"
+            + "}";
     assertThat(DropTableOperationParser.toJsonPretty(op)).isEqualTo(expected);
   }
 
@@ -66,22 +69,26 @@ public class TestDropTableOperationParser {
 
   @Test
   void testToJsonWithOptionalProperties() {
-    DropTableOperation op = ImmutableDropTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-        .tableUuid("uuid")
-        .purge(true)
-        .build();
-    String expected = "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"purge\":true}";
+    DropTableOperation op =
+        ImmutableDropTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
+            .tableUuid("uuid")
+            .purge(true)
+            .build();
+    String expected =
+        "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"purge\":true}";
     assertThat(DropTableOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testFromJson() {
-    String json = "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\"}";
-    DropTableOperation expected = ImmutableDropTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-        .tableUuid("uuid")
-        .build();
+    String json =
+        "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\"}";
+    DropTableOperation expected =
+        ImmutableDropTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
+            .tableUuid("uuid")
+            .build();
     assertThat(DropTableOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
@@ -98,7 +105,8 @@ public class TestDropTableOperationParser {
     assertThatThrownBy(() -> DropTableOperationParser.fromJson(missingIdentifier))
         .isInstanceOf(IllegalArgumentException.class);
 
-    String missingUuid = "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"}}";
+    String missingUuid =
+        "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"}}";
     assertThatThrownBy(() -> DropTableOperationParser.fromJson(missingUuid))
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -106,17 +114,20 @@ public class TestDropTableOperationParser {
   @Test
   void testFromJsonWithInvalidProperties() {
     // identifier present but not an object
-    String invalidIdentifier = "{\"operation-type\":\"drop-table\",\"identifier\":\"not-obj\",\"table-uuid\":\"uuid\"}";
+    String invalidIdentifier =
+        "{\"operation-type\":\"drop-table\",\"identifier\":\"not-obj\",\"table-uuid\":\"uuid\"}";
     assertThatThrownBy(() -> DropTableOperationParser.fromJson(invalidIdentifier))
         .isInstanceOf(IllegalArgumentException.class);
 
     // table-uuid present but not a string
-    String invalidUuid = "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":123}";
+    String invalidUuid =
+        "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":123}";
     assertThatThrownBy(() -> DropTableOperationParser.fromJson(invalidUuid))
         .isInstanceOf(IllegalArgumentException.class);
 
     // purge present but not a boolean
-    String invalidPurge = "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"purge\":\"yes\"}";
+    String invalidPurge =
+        "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"purge\":\"yes\"}";
     assertThatThrownBy(() -> DropTableOperationParser.fromJson(invalidPurge))
         .isInstanceOf(IllegalArgumentException.class);
   }

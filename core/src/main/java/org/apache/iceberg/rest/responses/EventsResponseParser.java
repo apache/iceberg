@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -52,13 +51,14 @@ public class EventsResponseParser {
 
     gen.writeStartObject();
 
-    if(eventsResponse.nextPageToken() != null)
+    if (eventsResponse.nextPageToken() != null)
       gen.writeStringField(NEXT_PAGE_TOKEN, eventsResponse.nextPageToken());
 
-    gen.writeNumberField(HIGHEST_PROCESSED_TIMESTAMP_MS, eventsResponse.highestProcessedTimestampMs());
+    gen.writeNumberField(
+        HIGHEST_PROCESSED_TIMESTAMP_MS, eventsResponse.highestProcessedTimestampMs());
 
     gen.writeArrayFieldStart(EVENTS);
-    for(Event event : eventsResponse.events()){
+    for (Event event : eventsResponse.events()) {
       EventParser.toJson(event, gen);
     }
     gen.writeEndArray();
@@ -74,8 +74,7 @@ public class EventsResponseParser {
     Preconditions.checkNotNull(json, "Cannot parse events response from null object");
 
     Long highestProcessedTimestampMs = JsonUtil.getLong(HIGHEST_PROCESSED_TIMESTAMP_MS, json);
-    List<Event> events =
-        JsonUtil.getObjectList(EVENTS, json, EventParser::fromJson);
+    List<Event> events = JsonUtil.getObjectList(EVENTS, json, EventParser::fromJson);
 
     ImmutableEventsResponse.Builder builder =
         ImmutableEventsResponse.builder()

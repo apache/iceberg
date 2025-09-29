@@ -94,7 +94,8 @@ public class OperationParser {
   public static Operation fromJson(JsonNode json) {
     Preconditions.checkNotNull(json, "Invalid json object: null");
 
-    OperationType operationType = OperationType.fromType(JsonUtil.getString("operation-type", json));
+    OperationType operationType =
+        OperationType.fromType(JsonUtil.getString("operation-type", json));
     switch (operationType) {
       case CREATE_NAMESPACE:
         return CreateNamespaceOperationParser.fromJson(json);

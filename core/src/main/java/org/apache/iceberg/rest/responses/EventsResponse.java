@@ -20,7 +20,6 @@ package org.apache.iceberg.rest.responses;
 
 import java.util.List;
 import javax.annotation.Nullable;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.rest.RESTResponse;
 import org.apache.iceberg.rest.events.Event;
 import org.immutables.value.Value;

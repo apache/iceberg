@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.events.parsers;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -26,34 +28,35 @@ import org.apache.iceberg.rest.events.operations.DropViewOperation;
 import org.apache.iceberg.rest.events.operations.ImmutableDropViewOperation;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 public class TestDropViewOperationParser {
   @Test
   void testToJson() {
-    DropViewOperation op = ImmutableDropViewOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.empty(), "v"))
-        .viewUuid("uuid")
-        .build();
-    String expected = "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":\"uuid\"}";
+    DropViewOperation op =
+        ImmutableDropViewOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.empty(), "v"))
+            .viewUuid("uuid")
+            .build();
+    String expected =
+        "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":\"uuid\"}";
     assertThat(DropViewOperationParser.toJson(op)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    DropViewOperation op = ImmutableDropViewOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.empty(), "v"))
-        .viewUuid("uuid")
-        .build();
-    String expected = "{\n" +
-        "  \"operation-type\" : \"drop-view\",\n" +
-        "  \"identifier\" : {\n" +
-        "    \"namespace\" : [ ],\n" +
-        "    \"name\" : \"v\"\n" +
-        "  },\n" +
-        "  \"view-uuid\" : \"uuid\"\n" +
-        "}";
+    DropViewOperation op =
+        ImmutableDropViewOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.empty(), "v"))
+            .viewUuid("uuid")
+            .build();
+    String expected =
+        "{\n"
+            + "  \"operation-type\" : \"drop-view\",\n"
+            + "  \"identifier\" : {\n"
+            + "    \"namespace\" : [ ],\n"
+            + "    \"name\" : \"v\"\n"
+            + "  },\n"
+            + "  \"view-uuid\" : \"uuid\"\n"
+            + "}";
     assertThat(DropViewOperationParser.toJsonPretty(op)).isEqualTo(expected);
   }
 
@@ -66,11 +69,13 @@ public class TestDropViewOperationParser {
 
   @Test
   void testFromJson() {
-    String json = "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":\"uuid\"}";
-    DropViewOperation expected = ImmutableDropViewOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.empty(), "v"))
-        .viewUuid("uuid")
-        .build();
+    String json =
+        "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":\"uuid\"}";
+    DropViewOperation expected =
+        ImmutableDropViewOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.empty(), "v"))
+            .viewUuid("uuid")
+            .build();
     assertThat(DropViewOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
@@ -87,18 +92,21 @@ public class TestDropViewOperationParser {
     assertThatThrownBy(() -> DropViewOperationParser.fromJson(missingIdentifier))
         .isInstanceOf(IllegalArgumentException.class);
 
-    String missingUuid = "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"}}";
+    String missingUuid =
+        "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"}}";
     assertThatThrownBy(() -> DropViewOperationParser.fromJson(missingUuid))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
-    String invalidIdentifier = "{\"operation-type\":\"drop-view\",\"identifier\":\"not-obj\",\"view-uuid\":\"uuid\"}";
+    String invalidIdentifier =
+        "{\"operation-type\":\"drop-view\",\"identifier\":\"not-obj\",\"view-uuid\":\"uuid\"}";
     assertThatThrownBy(() -> DropViewOperationParser.fromJson(invalidIdentifier))
         .isInstanceOf(IllegalArgumentException.class);
 
-    String invalidUuid = "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":123}";
+    String invalidUuid =
+        "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":123}";
     assertThatThrownBy(() -> DropViewOperationParser.fromJson(invalidUuid))
         .isInstanceOf(IllegalArgumentException.class);
   }

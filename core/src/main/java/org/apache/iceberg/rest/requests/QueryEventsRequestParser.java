@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -62,105 +61,101 @@ public class QueryEventsRequestParser {
 
     if (request.pageToken() != null) gen.writeStringField(PAGE_TOKEN, request.pageToken());
 
-    if (request.pageSize() != null)
-      gen.writeNumberField(PAGE_SIZE, request.pageSize());
+    if (request.pageSize() != null) gen.writeNumberField(PAGE_SIZE, request.pageSize());
 
-    if(request.afterTimestampMs() != null)
+    if (request.afterTimestampMs() != null)
       gen.writeNumberField(AFTER_TIMESTAMP_MS, request.afterTimestampMs());
 
-    if(!request.operationTypes().isEmpty()){
+    if (!request.operationTypes().isEmpty()) {
       gen.writeArrayFieldStart(OPERATION_TYPES);
 
-      for (OperationType operationType : request.operationTypes()){
+      for (OperationType operationType : request.operationTypes()) {
         gen.writeString(operationType.type());
       }
 
       gen.writeEndArray();
     }
 
-    if(!request.catalogObjectsByName().isEmpty()){
+    if (!request.catalogObjectsByName().isEmpty()) {
       gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_NAME);
 
-      for (CatalogObject catalogObject : request.catalogObjectsByName()){
+      for (CatalogObject catalogObject : request.catalogObjectsByName()) {
         gen.writeString(catalogObject.toString());
       }
 
       gen.writeEndArray();
     }
 
-    if(!request.catalogObjectsById().isEmpty()){
+    if (!request.catalogObjectsById().isEmpty()) {
       gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_ID);
 
-      for (CatalogObjectUuid catalogObjectUuid : request.catalogObjectsById()){
+      for (CatalogObjectUuid catalogObjectUuid : request.catalogObjectsById()) {
         CatalogObjectUuidParser.toJson(catalogObjectUuid, gen);
       }
 
       gen.writeEndArray();
     }
 
-    if(!request.objectTypes().isEmpty()){
+    if (!request.objectTypes().isEmpty()) {
       gen.writeArrayFieldStart(OBJECT_TYPES);
 
-      for (CatalogObjectType objectType : request.objectTypes()){
+      for (CatalogObjectType objectType : request.objectTypes()) {
         gen.writeString(objectType.type());
       }
 
       gen.writeEndArray();
     }
 
-    if(!request.customFilters().isEmpty()){
+    if (!request.customFilters().isEmpty()) {
       JsonUtil.writeStringMap(CUSTOM_FILTERS, request.customFilters(), gen);
     }
 
     gen.writeEndObject();
   }
 
-  public static QueryEventsRequest fromJson(String json){
+  public static QueryEventsRequest fromJson(String json) {
     return JsonUtil.parse(json, QueryEventsRequestParser::fromJson);
   }
 
-  public static QueryEventsRequest fromJson(JsonNode json){
+  public static QueryEventsRequest fromJson(JsonNode json) {
     Preconditions.checkNotNull(json, "Cannot parse query events request from null object");
 
     ImmutableQueryEventsRequest.Builder builder = ImmutableQueryEventsRequest.builder();
 
-    if(json.has(PAGE_TOKEN))
-      builder.pageToken(JsonUtil.getString(PAGE_TOKEN, json));
+    if (json.has(PAGE_TOKEN)) builder.pageToken(JsonUtil.getString(PAGE_TOKEN, json));
 
-    if(json.has(PAGE_SIZE))
-      builder.pageSize(JsonUtil.getInt(PAGE_SIZE, json));
+    if (json.has(PAGE_SIZE)) builder.pageSize(JsonUtil.getInt(PAGE_SIZE, json));
 
-    if(json.has(AFTER_TIMESTAMP_MS))
+    if (json.has(AFTER_TIMESTAMP_MS))
       builder.afterTimestampMs(JsonUtil.getLong(AFTER_TIMESTAMP_MS, json));
 
-    if(json.has(OPERATION_TYPES)) {
+    if (json.has(OPERATION_TYPES)) {
       builder.operationTypes(
-          JsonUtil.getStringList(OPERATION_TYPES, json)
-              .stream()
+          JsonUtil.getStringList(OPERATION_TYPES, json).stream()
               .map(OperationType::fromType)
               .collect(Collectors.toList()));
     }
 
-    if(json.has(CATALOG_OBJECTS_BY_NAME)){
-      builder.catalogObjectsByName(JsonUtil.getStringList(CATALOG_OBJECTS_BY_NAME, json)
-          .stream()
-          .map(CatalogObject::of)
-          .collect(Collectors.toList()));
+    if (json.has(CATALOG_OBJECTS_BY_NAME)) {
+      builder.catalogObjectsByName(
+          JsonUtil.getStringList(CATALOG_OBJECTS_BY_NAME, json).stream()
+              .map(CatalogObject::of)
+              .collect(Collectors.toList()));
     }
 
-    if(json.has(CATALOG_OBJECTS_BY_ID)) {
+    if (json.has(CATALOG_OBJECTS_BY_ID)) {
       builder.catalogObjectsById(
           JsonUtil.getObjectList(CATALOG_OBJECTS_BY_ID, json, CatalogObjectUuidParser::fromJson));
     }
 
-    if(json.has(OBJECT_TYPES)) {
-      builder.objectTypes(JsonUtil.getStringList(OBJECT_TYPES, json)
-          .stream()
-          .map(CatalogObjectType::fromType)
-          .collect(Collectors.toList()));
+    if (json.has(OBJECT_TYPES)) {
+      builder.objectTypes(
+          JsonUtil.getStringList(OBJECT_TYPES, json).stream()
+              .map(CatalogObjectType::fromType)
+              .collect(Collectors.toList()));
     }
 
-    if(json.has(CUSTOM_FILTERS)){
+    if (json.has(CUSTOM_FILTERS)) {
       builder.customFilters(JsonUtil.getStringMap(CUSTOM_FILTERS, json));
     }
 

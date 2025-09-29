@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
@@ -25,19 +28,12 @@ import org.apache.iceberg.rest.events.Event;
 import org.apache.iceberg.rest.events.ImmutableEvent;
 import org.apache.iceberg.rest.events.operations.ImmutableCreateNamespaceOperation;
 import org.apache.iceberg.rest.events.operations.Operation;
-import org.apache.iceberg.rest.events.parsers.EventParser;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TestEventsResponseParser {
 
   private static Operation sampleOperation() {
-    return ImmutableCreateNamespaceOperation.builder()
-        .namespace(Namespace.of("a", "b"))
-        .build();
+    return ImmutableCreateNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
   }
 
   private static Event sampleEventWithActor() {
@@ -53,41 +49,44 @@ public class TestEventsResponseParser {
 
   @Test
   void testToJson() {
-    EventsResponse response = ImmutableEventsResponse.builder()
-        .nextPageToken("npt")
-        .highestProcessedTimestampMs(5000L)
-        .events(List.of(sampleEventWithActor()))
-        .build();
+    EventsResponse response =
+        ImmutableEventsResponse.builder()
+            .nextPageToken("npt")
+            .highestProcessedTimestampMs(5000L)
+            .events(List.of(sampleEventWithActor()))
+            .build();
 
     String expected =
-        "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":5000,\"events\":[{" +
-            "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
+        "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":5000,\"events\":[{"
+            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
     assertThat(EventsResponseParser.toJson(response)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    EventsResponse response = ImmutableEventsResponse.builder()
-        .nextPageToken("npt")
-        .highestProcessedTimestampMs(5000L)
-        .events(List.of(sampleEventWithActor()))
-        .build();
+    EventsResponse response =
+        ImmutableEventsResponse.builder()
+            .nextPageToken("npt")
+            .highestProcessedTimestampMs(5000L)
+            .events(List.of(sampleEventWithActor()))
+            .build();
 
-    String expected = "{\n" +
-        "  \"next-page-token\" : \"npt\",\n" +
-        "  \"highest-processed-timestamp-ms\" : 5000,\n" +
-        "  \"events\" : [ {\n" +
-        "    \"event-id\" : \"e-1\",\n" +
-        "    \"request-id\" : \"r-1\",\n" +
-        "    \"event-count\" : 2,\n" +
-        "    \"timestamp-ms\" : 123,\n" +
-        "    \"actor\" : \"user1\",\n" +
-        "    \"operation\" : {\n" +
-        "      \"operation-type\" : \"create-namespace\",\n" +
-        "      \"namespace\" : [ \"a\", \"b\" ]\n" +
-        "    }\n" +
-        "  } ]\n" +
-        "}";
+    String expected =
+        "{\n"
+            + "  \"next-page-token\" : \"npt\",\n"
+            + "  \"highest-processed-timestamp-ms\" : 5000,\n"
+            + "  \"events\" : [ {\n"
+            + "    \"event-id\" : \"e-1\",\n"
+            + "    \"request-id\" : \"r-1\",\n"
+            + "    \"event-count\" : 2,\n"
+            + "    \"timestamp-ms\" : 123,\n"
+            + "    \"actor\" : \"user1\",\n"
+            + "    \"operation\" : {\n"
+            + "      \"operation-type\" : \"create-namespace\",\n"
+            + "      \"namespace\" : [ \"a\", \"b\" ]\n"
+            + "    }\n"
+            + "  } ]\n"
+            + "}";
     assertThat(EventsResponseParser.toJsonPretty(response)).isEqualTo(expected);
   }
 
@@ -100,14 +99,15 @@ public class TestEventsResponseParser {
 
   @Test
   void testFromJson() {
-    EventsResponse response = ImmutableEventsResponse.builder()
-        .nextPageToken("npt")
-        .highestProcessedTimestampMs(5000L)
-        .events(List.of(sampleEventWithActor()))
-        .build();
+    EventsResponse response =
+        ImmutableEventsResponse.builder()
+            .nextPageToken("npt")
+            .highestProcessedTimestampMs(5000L)
+            .events(List.of(sampleEventWithActor()))
+            .build();
     String json =
-        "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":5000,\"events\":[{" +
-            "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
+        "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":5000,\"events\":[{"
+            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
 
     assertThat(EventsResponseParser.fromJson(json)).isEqualTo(response);
   }
@@ -121,13 +121,11 @@ public class TestEventsResponseParser {
 
   @Test
   void testFromJsonWithMissingProperties() {
-    String missingHighestProcessedTimestamp =
-        "{\"events\":[]}";
+    String missingHighestProcessedTimestamp = "{\"events\":[]}";
     assertThatThrownBy(() -> EventsResponseParser.fromJson(missingHighestProcessedTimestamp))
         .isInstanceOf(IllegalArgumentException.class);
 
-    String missingEvents =
-        "{\"highest-processed-timestamp-ms\":1}";
+    String missingEvents = "{\"highest-processed-timestamp-ms\":1}";
     assertThatThrownBy(() -> EventsResponseParser.fromJson(missingEvents))
         .isInstanceOf(IllegalArgumentException.class);
   }

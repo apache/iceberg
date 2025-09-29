@@ -16,31 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import org.junit.jupiter.api.Test;
+
 public class TestCatalogObjectUuidParser {
   @Test
   void testToJson() {
-    CatalogObjectUuid catalogObjectUuid = new CatalogObjectUuid("uuid", CatalogObjectType.NAMESPACE);
+    CatalogObjectUuid catalogObjectUuid =
+        new CatalogObjectUuid("uuid", CatalogObjectType.NAMESPACE);
     String catalogObjectUuidJson = "{\"uuid\":\"uuid\",\"type\":\"namespace\"}";
     assertThat(CatalogObjectUuidParser.toJson(catalogObjectUuid)).isEqualTo(catalogObjectUuidJson);
   }
 
   @Test
   void testToJsonPretty() {
-    CatalogObjectUuid catalogObjectUuid = new CatalogObjectUuid("uuid", CatalogObjectType.NAMESPACE);
-    String catalogObjectUuidJson = "{\n" +
-        "  \"uuid\" : \"uuid\",\n" +
-        "  \"type\" : \"namespace\"\n" +
-        "}";
-    assertThat(CatalogObjectUuidParser.toJsonPretty(catalogObjectUuid)).isEqualTo(catalogObjectUuidJson);
+    CatalogObjectUuid catalogObjectUuid =
+        new CatalogObjectUuid("uuid", CatalogObjectType.NAMESPACE);
+    String catalogObjectUuidJson =
+        "{\n" + "  \"uuid\" : \"uuid\",\n" + "  \"type\" : \"namespace\"\n" + "}";
+    assertThat(CatalogObjectUuidParser.toJsonPretty(catalogObjectUuid))
+        .isEqualTo(catalogObjectUuidJson);
   }
 
   @Test
@@ -52,9 +52,11 @@ public class TestCatalogObjectUuidParser {
 
   @Test
   void testFromJson() {
-    CatalogObjectUuid catalogObjectUuid = new CatalogObjectUuid("uuid", CatalogObjectType.NAMESPACE);
+    CatalogObjectUuid catalogObjectUuid =
+        new CatalogObjectUuid("uuid", CatalogObjectType.NAMESPACE);
     String catalogObjectUuidJson = "{\"uuid\":\"uuid\",\"type\":\"namespace\"}";
-    assertThat(CatalogObjectUuidParser.fromJson(catalogObjectUuidJson)).isEqualTo(catalogObjectUuid);
+    assertThat(CatalogObjectUuidParser.fromJson(catalogObjectUuidJson))
+        .isEqualTo(catalogObjectUuid);
   }
 
   @Test

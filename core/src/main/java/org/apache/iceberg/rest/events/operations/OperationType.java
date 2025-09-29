@@ -19,7 +19,6 @@
 package org.apache.iceberg.rest.events.operations;
 
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -97,7 +96,8 @@ public enum OperationType {
       return type.equals(that.type);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
       return type.hashCode();
     }
 

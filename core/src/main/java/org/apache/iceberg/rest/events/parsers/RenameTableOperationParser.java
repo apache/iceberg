@@ -70,8 +70,7 @@ public class RenameTableOperationParser {
   }
 
   public static RenameTableOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(
-        json, "Cannot parse rename table operation from null object");
+    Preconditions.checkNotNull(json, "Cannot parse rename table operation from null object");
 
     String tableUuid = JsonUtil.getString(TABLE_UUID, json);
     TableIdentifier sourceIdentifier =

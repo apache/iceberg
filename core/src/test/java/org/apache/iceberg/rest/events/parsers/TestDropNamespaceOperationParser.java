@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.events.parsers;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -25,16 +27,12 @@ import org.apache.iceberg.rest.events.operations.DropNamespaceOperation;
 import org.apache.iceberg.rest.events.operations.ImmutableDropNamespaceOperation;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 public class TestDropNamespaceOperationParser {
   @Test
   void testToJson() {
     DropNamespaceOperation op =
         ImmutableDropNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
-    String expected =
-        "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
+    String expected = "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
     assertThat(DropNamespaceOperationParser.toJson(op)).isEqualTo(expected);
   }
 
@@ -42,10 +40,11 @@ public class TestDropNamespaceOperationParser {
   void testToJsonPretty() {
     DropNamespaceOperation op =
         ImmutableDropNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
-    String expected = "{\n" +
-        "  \"operation-type\" : \"drop-namespace\",\n" +
-        "  \"namespace\" : [ \"a\", \"b\" ]\n" +
-        "}";
+    String expected =
+        "{\n"
+            + "  \"operation-type\" : \"drop-namespace\",\n"
+            + "  \"namespace\" : [ \"a\", \"b\" ]\n"
+            + "}";
     assertThat(DropNamespaceOperationParser.toJsonPretty(op)).isEqualTo(expected);
   }
 
@@ -58,8 +57,7 @@ public class TestDropNamespaceOperationParser {
 
   @Test
   void testFromJson() {
-    String json =
-        "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
+    String json = "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
     DropNamespaceOperation expected =
         ImmutableDropNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
     assertThat(DropNamespaceOperationParser.fromJson(json)).isEqualTo(expected);
@@ -81,8 +79,7 @@ public class TestDropNamespaceOperationParser {
 
   @Test
   void testFromJsonWithInvalidProperties() {
-    String jsonInvalidNamespace =
-        "{\"operation-type\":\"drop-namespace\",\"namespace\":\"a\"}";
+    String jsonInvalidNamespace = "{\"operation-type\":\"drop-namespace\",\"namespace\":\"a\"}";
     assertThatThrownBy(() -> DropNamespaceOperationParser.fromJson(jsonInvalidNamespace))
         .isInstanceOf(IllegalArgumentException.class);
   }

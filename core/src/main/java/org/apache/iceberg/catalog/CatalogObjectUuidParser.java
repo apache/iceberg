@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -43,7 +42,8 @@ public class CatalogObjectUuidParser {
     return JsonUtil.generate(gen -> toJson(catalogObjectUuid, gen), pretty);
   }
 
-  public static void toJson(CatalogObjectUuid catalogObjectUuid, JsonGenerator gen) throws IOException {
+  public static void toJson(CatalogObjectUuid catalogObjectUuid, JsonGenerator gen)
+      throws IOException {
     Preconditions.checkNotNull(catalogObjectUuid, "Invalid catalog object uuid: null");
 
     gen.writeStartObject();

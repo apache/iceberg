@@ -16,45 +16,48 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.events.parsers;
-
-import org.apache.iceberg.MetadataUpdate;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
-import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.iceberg.rest.events.operations.ImmutableRegisterTableOperation;
-import org.apache.iceberg.rest.events.operations.RegisterTableOperation;
-import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.rest.events.operations.ImmutableRegisterTableOperation;
+import org.apache.iceberg.rest.events.operations.RegisterTableOperation;
+import org.junit.jupiter.api.Test;
+
 public class TestRegisterTableOperationParser {
   @Test
   void testToJson() {
-    RegisterTableOperation op = ImmutableRegisterTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-        .tableUuid("uuid")
-        .build();
-    String json = "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
+    RegisterTableOperation op =
+        ImmutableRegisterTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+            .tableUuid("uuid")
+            .build();
+    String json =
+        "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
     assertThat(RegisterTableOperationParser.toJson(op)).isEqualTo(json);
   }
 
   @Test
   void testToJsonPretty() {
-    RegisterTableOperation op = ImmutableRegisterTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-        .tableUuid("uuid")
-        .build();
-    String json = "{\n" +
-        "  \"operation-type\" : \"register-table\",\n" +
-        "  \"identifier\" : {\n" +
-        "    \"namespace\" : [ ],\n" +
-        "    \"name\" : \"table\"\n" +
-        "  },\n" +
-        "  \"table-uuid\" : \"uuid\"\n" +
-        "}";
+    RegisterTableOperation op =
+        ImmutableRegisterTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+            .tableUuid("uuid")
+            .build();
+    String json =
+        "{\n"
+            + "  \"operation-type\" : \"register-table\",\n"
+            + "  \"identifier\" : {\n"
+            + "    \"namespace\" : [ ],\n"
+            + "    \"name\" : \"table\"\n"
+            + "  },\n"
+            + "  \"table-uuid\" : \"uuid\"\n"
+            + "}";
     assertThat(RegisterTableOperationParser.toJsonPretty(op)).isEqualTo(json);
   }
 
@@ -67,22 +70,26 @@ public class TestRegisterTableOperationParser {
 
   @Test
   void testToJsonWithOptionalProperties() {
-    RegisterTableOperation op = ImmutableRegisterTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-        .tableUuid("uuid")
-        .addUpdates(new MetadataUpdate.AssignUUID("uuid"))
-        .build();
-    String json = "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
+    RegisterTableOperation op =
+        ImmutableRegisterTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+            .tableUuid("uuid")
+            .addUpdates(new MetadataUpdate.AssignUUID("uuid"))
+            .build();
+    String json =
+        "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
     assertThat(RegisterTableOperationParser.toJson(op)).isEqualTo(json);
   }
 
   @Test
   void testFromJson() {
-    String json = "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
-    RegisterTableOperation expected = ImmutableRegisterTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-        .tableUuid("uuid")
-        .build();
+    String json =
+        "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
+    RegisterTableOperation expected =
+        ImmutableRegisterTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+            .tableUuid("uuid")
+            .build();
     assertThat(RegisterTableOperationParser.fromJson(json)).isEqualTo(expected);
   }
 
@@ -99,7 +106,8 @@ public class TestRegisterTableOperationParser {
     assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(missingIdentifier))
         .isInstanceOf(IllegalArgumentException.class);
 
-    String missingUuid = "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"}}";
+    String missingUuid =
+        "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"}}";
     assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(missingUuid))
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -107,29 +115,34 @@ public class TestRegisterTableOperationParser {
   @Test
   void testFromJsonWithInvalidProperties() {
     // identifier present but not an object
-    String invalidIdentifier = "{\"operation-type\":\"register-table\",\"identifier\":\"not-an-object\",\"table-uuid\":\"uuid\"}";
+    String invalidIdentifier =
+        "{\"operation-type\":\"register-table\",\"identifier\":\"not-an-object\",\"table-uuid\":\"uuid\"}";
     assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(invalidIdentifier))
         .isInstanceOf(IllegalArgumentException.class);
 
     // table-uuid present but not a string
-    String invalidUuid = "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":123}";
+    String invalidUuid =
+        "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":123}";
     assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(invalidUuid))
         .isInstanceOf(IllegalArgumentException.class);
 
     // updates present but not an array
-    String invalidUpdates = "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":\"not-an-array\"}";
+    String invalidUpdates =
+        "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":\"not-an-array\"}";
     assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(invalidUpdates))
         .isInstanceOf(IllegalArgumentException.class);
   }
-  
+
   @Test
   void testFromJsonWithOptionalProperties() {
-    String json = "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    RegisterTableOperation expected = ImmutableRegisterTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
-        .tableUuid("uuid")
-        .addUpdates(new MetadataUpdate.AssignUUID("uuid"))
-        .build();
+    String json =
+        "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
+    RegisterTableOperation expected =
+        ImmutableRegisterTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.of("a"), "t"))
+            .tableUuid("uuid")
+            .addUpdates(new MetadataUpdate.AssignUUID("uuid"))
+            .build();
 
     RegisterTableOperation actual = RegisterTableOperationParser.fromJson(json);
     assertThat(actual.operationType()).isEqualTo(expected.operationType());

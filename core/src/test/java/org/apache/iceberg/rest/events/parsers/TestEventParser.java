@@ -30,9 +30,7 @@ import org.junit.jupiter.api.Test;
 public class TestEventParser {
 
   private static Operation sampleOperation() {
-    return ImmutableCreateNamespaceOperation.builder()
-        .namespace(Namespace.of("a", "b"))
-        .build();
+    return ImmutableCreateNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
   }
 
   private static Event sampleEventWithActor() {
@@ -67,17 +65,18 @@ public class TestEventParser {
   @Test
   void testToJsonPretty() {
     Event event = sampleEventWithActor();
-    String expected = "{\n" +
-        "  \"event-id\" : \"e-1\",\n" +
-        "  \"request-id\" : \"r-1\",\n" +
-        "  \"event-count\" : 2,\n" +
-        "  \"timestamp-ms\" : 123,\n" +
-        "  \"actor\" : \"user1\",\n" +
-        "  \"operation\" : {\n" +
-        "    \"operation-type\" : \"create-namespace\",\n" +
-        "    \"namespace\" : [ \"a\", \"b\" ]\n" +
-        "  }\n" +
-        "}";
+    String expected =
+        "{\n"
+            + "  \"event-id\" : \"e-1\",\n"
+            + "  \"request-id\" : \"r-1\",\n"
+            + "  \"event-count\" : 2,\n"
+            + "  \"timestamp-ms\" : 123,\n"
+            + "  \"actor\" : \"user1\",\n"
+            + "  \"operation\" : {\n"
+            + "    \"operation-type\" : \"create-namespace\",\n"
+            + "    \"namespace\" : [ \"a\", \"b\" ]\n"
+            + "  }\n"
+            + "}";
     Assertions.assertThat(EventParser.toJsonPretty(event)).isEqualTo(expected);
   }
 

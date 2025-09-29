@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.events.parsers;
 
-import java.io.IOException;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.ArrayList;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -53,64 +54,73 @@ import org.apache.iceberg.rest.events.operations.UpdateViewOperation;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 public class TestOperationParser {
-  CreateNamespaceOperation createNamespaceOperation = ImmutableCreateNamespaceOperation.builder()
-      .namespace(Namespace.of("a", "b"))
-      .build();
-  String createNamespaceOperationJson = "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}";
+  CreateNamespaceOperation createNamespaceOperation =
+      ImmutableCreateNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+  String createNamespaceOperationJson =
+      "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}";
 
-  CreateTableOperation createTableOperation = ImmutableCreateTableOperation.builder()
-      .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-      .tableUuid("uuid")
-      .updates(new ArrayList<>())
-      .build();
-  String createTableOperationJson = "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[]}";
+  CreateTableOperation createTableOperation =
+      ImmutableCreateTableOperation.builder()
+          .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+          .tableUuid("uuid")
+          .updates(new ArrayList<>())
+          .build();
+  String createTableOperationJson =
+      "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[]}";
 
-  CreateViewOperation createViewOperation = ImmutableCreateViewOperation.builder()
-      .identifier(TableIdentifier.of(Namespace.empty(), "view"))
-      .viewUuid("uuid")
-      .build();
-  String createViewOperationJson = "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
+  CreateViewOperation createViewOperation =
+      ImmutableCreateViewOperation.builder()
+          .identifier(TableIdentifier.of(Namespace.empty(), "view"))
+          .viewUuid("uuid")
+          .build();
+  String createViewOperationJson =
+      "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
 
-  DropNamespaceOperation dropNamespaceOperation = ImmutableDropNamespaceOperation.builder()
-      .namespace(Namespace.of("a", "b"))
-      .build();
-  String dropNamespaceOperationJson = "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
+  DropNamespaceOperation dropNamespaceOperation =
+      ImmutableDropNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
+  String dropNamespaceOperationJson =
+      "{\"operation-type\":\"drop-namespace\",\"namespace\":[\"a\",\"b\"]}";
 
-  DropTableOperation dropTableOperation = ImmutableDropTableOperation.builder()
-      .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-      .tableUuid("uuid")
-      .build();
-  String dropTableOperationJson = "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
+  DropTableOperation dropTableOperation =
+      ImmutableDropTableOperation.builder()
+          .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+          .tableUuid("uuid")
+          .build();
+  String dropTableOperationJson =
+      "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
 
-  DropViewOperation dropViewOperation = ImmutableDropViewOperation.builder()
-      .identifier(TableIdentifier.of(Namespace.empty(), "view"))
-      .viewUuid("uuid")
-      .build();
-  String dropViewOperationJson = "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
+  DropViewOperation dropViewOperation =
+      ImmutableDropViewOperation.builder()
+          .identifier(TableIdentifier.of(Namespace.empty(), "view"))
+          .viewUuid("uuid")
+          .build();
+  String dropViewOperationJson =
+      "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
 
-  RegisterTableOperation registerTableOperation = ImmutableRegisterTableOperation.builder()
-      .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-      .tableUuid("uuid")
-      .build();
-  String registerTableOperationJson = "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
+  RegisterTableOperation registerTableOperation =
+      ImmutableRegisterTableOperation.builder()
+          .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+          .tableUuid("uuid")
+          .build();
+  String registerTableOperationJson =
+      "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
 
-  RenameTableOperation renameTableOperation = ImmutableRenameTableOperation.builder()
-      .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "fromTable"))
-      .destIdentifier(TableIdentifier.of(Namespace.empty(), "toTable"))
-      .tableUuid("uuid")
-      .build();
+  RenameTableOperation renameTableOperation =
+      ImmutableRenameTableOperation.builder()
+          .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "fromTable"))
+          .destIdentifier(TableIdentifier.of(Namespace.empty(), "toTable"))
+          .tableUuid("uuid")
+          .build();
   String renameTableOperationJson =
       "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"fromTable\"},\"destination\":{\"namespace\":[],\"name\":\"toTable\"}}";
 
-  RenameViewOperation renameViewOperation = ImmutableRenameViewOperation.builder()
-      .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "fromView"))
-      .destIdentifier(TableIdentifier.of(Namespace.empty(), "toView"))
-      .viewUuid("uuid")
-      .build();
+  RenameViewOperation renameViewOperation =
+      ImmutableRenameViewOperation.builder()
+          .sourceIdentifier(TableIdentifier.of(Namespace.empty(), "fromView"))
+          .destIdentifier(TableIdentifier.of(Namespace.empty(), "toView"))
+          .viewUuid("uuid")
+          .build();
   String renameViewOperationJson =
       "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"fromView\"},\"destination\":{\"namespace\":[],\"name\":\"toView\"}}";
 
@@ -123,12 +133,14 @@ public class TestOperationParser {
   String updateNamespacePropertiesOperationJson =
       "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\",\"b\"],\"updated\":[],\"removed\":[]}";
 
-  UpdateTableOperation updateTableOperation = ImmutableUpdateTableOperation.builder()
-      .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-      .tableUuid("uuid")
-      .updates(new ArrayList<>())
-      .build();
-  String updateTableOperationJson = "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[]}";
+  UpdateTableOperation updateTableOperation =
+      ImmutableUpdateTableOperation.builder()
+          .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+          .tableUuid("uuid")
+          .updates(new ArrayList<>())
+          .build();
+  String updateTableOperationJson =
+      "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[]}";
 
   UpdateViewOperation updateViewOperation =
       ImmutableUpdateViewOperation.builder()
@@ -136,16 +148,19 @@ public class TestOperationParser {
           .viewUuid("uuid")
           .updates(new ArrayList<>())
           .build();
-  String updateViewOperationJson = "{\"operation-type\":\"update-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[]}";
+  String updateViewOperationJson =
+      "{\"operation-type\":\"update-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[]}";
 
-  CustomOperation customOperation = ImmutableCustomOperation.builder()
-      .customOperationType(new OperationType.CustomOperationType("x-op"))
-      .build();
+  CustomOperation customOperation =
+      ImmutableCustomOperation.builder()
+          .customOperationType(new OperationType.CustomOperationType("x-op"))
+          .build();
   String customOperationJson = "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\"}";
 
   @Test
   void testToJson() {
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(createNamespaceOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(gen -> OperationParser.toJson(createNamespaceOperation, gen), false))
         .isEqualTo(createNamespaceOperationJson);
 
     assertThat(JsonUtil.generate(gen -> OperationParser.toJson(createTableOperation, gen), false))
@@ -172,7 +187,9 @@ public class TestOperationParser {
     assertThat(JsonUtil.generate(gen -> OperationParser.toJson(renameViewOperation, gen), false))
         .isEqualTo(renameViewOperationJson);
 
-    assertThat(JsonUtil.generate(gen -> OperationParser.toJson(updateNamespacePropertiesOperation, gen), false))
+    assertThat(
+            JsonUtil.generate(
+                gen -> OperationParser.toJson(updateNamespacePropertiesOperation, gen), false))
         .isEqualTo(updateNamespacePropertiesOperationJson);
 
     assertThat(JsonUtil.generate(gen -> OperationParser.toJson(updateTableOperation, gen), false))
@@ -237,7 +254,8 @@ public class TestOperationParser {
     assertThatThrownBy(() -> JsonUtil.parse("{}", OperationParser::fromJson))
         .isInstanceOf(IllegalArgumentException.class);
 
-    assertThatThrownBy(() -> JsonUtil.parse("{\"operation-type\":\"unknown\"}", OperationParser::fromJson))
+    assertThatThrownBy(
+            () -> JsonUtil.parse("{\"operation-type\":\"unknown\"}", OperationParser::fromJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid OperationType: unknown");
   }

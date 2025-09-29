@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.events.parsers;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
@@ -28,20 +30,20 @@ import org.apache.iceberg.rest.events.operations.CreateTableOperation;
 import org.apache.iceberg.rest.events.operations.ImmutableCreateTableOperation;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 public class TestCreateTableOperationParser {
   @Test
   void testToJson() {
-    CreateTableOperation createTableOperation = ImmutableCreateTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-        .tableUuid("uuid")
-        .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-        .build();
-    String createTableOperationJson = "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
+    CreateTableOperation createTableOperation =
+        ImmutableCreateTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+            .tableUuid("uuid")
+            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
+            .build();
+    String createTableOperationJson =
+        "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
 
-    assertThat(CreateTableOperationParser.toJson(createTableOperation)).isEqualTo(createTableOperationJson);
+    assertThat(CreateTableOperationParser.toJson(createTableOperation))
+        .isEqualTo(createTableOperationJson);
   }
 
   @Test
@@ -52,20 +54,22 @@ public class TestCreateTableOperationParser {
             .tableUuid("uuid")
             .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
             .build();
-    String createTableOperationJson = "{\n" +
-        "  \"operation-type\" : \"create-table\",\n" +
-        "  \"identifier\" : {\n" +
-        "    \"namespace\" : [ ],\n" +
-        "    \"name\" : \"table\"\n" +
-        "  },\n" +
-        "  \"table-uuid\" : \"uuid\",\n" +
-        "  \"updates\" : [ {\n" +
-        "    \"action\" : \"assign-uuid\",\n" +
-        "    \"uuid\" : \"uuid\"\n" +
-        "  } ]\n" +
-        "}";
+    String createTableOperationJson =
+        "{\n"
+            + "  \"operation-type\" : \"create-table\",\n"
+            + "  \"identifier\" : {\n"
+            + "    \"namespace\" : [ ],\n"
+            + "    \"name\" : \"table\"\n"
+            + "  },\n"
+            + "  \"table-uuid\" : \"uuid\",\n"
+            + "  \"updates\" : [ {\n"
+            + "    \"action\" : \"assign-uuid\",\n"
+            + "    \"uuid\" : \"uuid\"\n"
+            + "  } ]\n"
+            + "}";
 
-    assertThat(CreateTableOperationParser.toJsonPretty(createTableOperation)).isEqualTo(createTableOperationJson);
+    assertThat(CreateTableOperationParser.toJsonPretty(createTableOperation))
+        .isEqualTo(createTableOperationJson);
   }
 
   @Test
@@ -77,22 +81,29 @@ public class TestCreateTableOperationParser {
 
   @Test
   void testFromJson() {
-    CreateTableOperation createTableOperation = ImmutableCreateTableOperation.builder()
-        .identifier(TableIdentifier.of(Namespace.empty(), "table"))
-        .tableUuid("uuid")
-        .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
-        .build();
-    String createTableOperationJson = "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
+    CreateTableOperation createTableOperation =
+        ImmutableCreateTableOperation.builder()
+            .identifier(TableIdentifier.of(Namespace.empty(), "table"))
+            .tableUuid("uuid")
+            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
+            .build();
+    String createTableOperationJson =
+        "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
 
-    CreateTableOperation actualCreateTableOperation = CreateTableOperationParser.fromJson(createTableOperationJson);
-    assertThat(actualCreateTableOperation.operationType()).isEqualTo(createTableOperation.operationType());
-    assertThat(actualCreateTableOperation.identifier()).isEqualTo(createTableOperation.identifier());
+    CreateTableOperation actualCreateTableOperation =
+        CreateTableOperationParser.fromJson(createTableOperationJson);
+    assertThat(actualCreateTableOperation.operationType())
+        .isEqualTo(createTableOperation.operationType());
+    assertThat(actualCreateTableOperation.identifier())
+        .isEqualTo(createTableOperation.identifier());
     assertThat(actualCreateTableOperation.tableUuid()).isEqualTo(createTableOperation.tableUuid());
 
     assertThat(actualCreateTableOperation.updates()).hasSize(1);
-    assertThat(actualCreateTableOperation.updates().get(0)).isInstanceOf(MetadataUpdate.AssignUUID.class);
+    assertThat(actualCreateTableOperation.updates().get(0))
+        .isInstanceOf(MetadataUpdate.AssignUUID.class);
     assertThat(((MetadataUpdate.AssignUUID) actualCreateTableOperation.updates().get(0)).uuid())
-        .isEqualTo(((MetadataUpdate.AssignUUID) actualCreateTableOperation.updates().get(0)).uuid());
+        .isEqualTo(
+            ((MetadataUpdate.AssignUUID) actualCreateTableOperation.updates().get(0)).uuid());
   }
 
   @Test

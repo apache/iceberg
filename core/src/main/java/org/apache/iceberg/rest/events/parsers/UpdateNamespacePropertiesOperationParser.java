@@ -72,7 +72,8 @@ public class UpdateNamespacePropertiesOperationParser {
   }
 
   public static UpdateNamespacePropertiesOperation fromJson(JsonNode json) {
-    Preconditions.checkNotNull(json, "Cannot parse update namespace properties operation from null object");
+    Preconditions.checkNotNull(
+        json, "Cannot parse update namespace properties operation from null object");
 
     Namespace namespace = Namespace.of(JsonUtil.getStringArray(JsonUtil.get(NAMESPACE, json)));
     List<String> updated = JsonUtil.getStringList(UPDATED, json);
