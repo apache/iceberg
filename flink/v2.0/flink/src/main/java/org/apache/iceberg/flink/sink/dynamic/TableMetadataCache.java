@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -84,6 +85,10 @@ class TableMetadataCache {
     return spec(identifier, spec, true);
   }
 
+  Map<String, String> properties(TableIdentifier identifier) {
+    return properties(identifier, true);
+  }
+
   void update(TableIdentifier identifier, Table table) {
     tableCache.put(
         identifier,
@@ -92,6 +97,7 @@ class TableMetadataCache {
             table.refs().keySet(),
             table.schemas(),
             table.specs(),
+            table.properties(),
             inputSchemasPerTableCacheMaximumSize));
   }
 
@@ -179,6 +185,21 @@ class TableMetadataCache {
     }
   }
 
+  @Nullable
+  private Map<String, String> properties(TableIdentifier identifier, boolean allowRefresh) {
+    CacheItem cached = tableCache.get(identifier);
+    if (cached != null && cached.tableExists) {
+      return cached.properties;
+    }
+
+    if (needsRefresh(cached, allowRefresh)) {
+      refreshTable(identifier);
+      return properties(identifier, false);
+    } else {
+      return null;
+    }
+  }
+
   private Tuple2<Boolean, Exception> refreshTable(TableIdentifier identifier) {
     try {
       Table table = catalog.loadTable(identifier);
@@ -186,7 +207,7 @@ class TableMetadataCache {
       return EXISTS;
     } catch (NoSuchTableException e) {
       LOG.debug("Table doesn't exist {}", identifier, e);
-      tableCache.put(identifier, new CacheItem(false, null, null, null, 1));
+      tableCache.put(identifier, new CacheItem(false, null, null, null, null, 1));
       return Tuple2.of(false, e);
     }
   }
@@ -208,6 +229,7 @@ class TableMetadataCache {
     private final Set<String> branches;
     private final Map<Integer, Schema> tableSchemas;
     private final Map<Integer, PartitionSpec> specs;
+    private final Map<String, String> properties;
     private final Map<Schema, ResolvedSchemaInfo> inputSchemas;
 
     private CacheItem(
@@ -215,11 +237,13 @@ class TableMetadataCache {
         Set<String> branches,
         Map<Integer, Schema> tableSchemas,
         Map<Integer, PartitionSpec> specs,
+        Map<String, String> properties,
         int inputSchemaCacheMaximumSize) {
       this.tableExists = tableExists;
       this.branches = branches;
       this.tableSchemas = tableSchemas;
       this.specs = specs;
+      this.properties = properties;
       this.inputSchemas =
           new LRUCache<>(inputSchemaCacheMaximumSize, CacheItem::inputSchemaEvictionListener);
     }

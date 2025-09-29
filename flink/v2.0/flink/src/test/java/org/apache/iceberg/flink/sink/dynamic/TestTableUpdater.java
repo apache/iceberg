@@ -28,6 +28,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -106,6 +107,62 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     Table table = catalog.loadTable(tableIdentifier);
     assertThat(table).isNotNull();
     assertThat(table.spec()).isEqualTo(spec);
+  }
+
+  @Test
+  void testTablePropertiesUpdate() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+
+    Map<String, String> expectedAfterCreation = Maps.newHashMap();
+    expectedAfterCreation.put("some.initial.prop.which.will.be.removed", "some.value");
+    expectedAfterCreation.put("this.one.should.be.updated", "some.value2");
+    expectedAfterCreation.put("this.one.should.be.preserved", "preserved");
+
+    TableUpdater tableUpdater =
+        new TableUpdater(cache, catalog, (tableName, currentProps) -> expectedAfterCreation);
+    tableUpdater.update(tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned());
+    assertThat(catalog.tableExists(tableIdentifier)).isTrue();
+
+    // Load the table and verify properties were applied
+    Table table = catalog.loadTable(tableIdentifier);
+    Map<String, String> properties = table.properties();
+    assertThat(properties).isEqualTo(expectedAfterCreation);
+    // Verify properties are cached
+    Map<String, String> cachedProperties = cache.properties(tableIdentifier);
+    assertThat(cachedProperties).isEqualTo(expectedAfterCreation);
+
+    TablePropertiesUpdater propertyUpdater =
+        (tableName, currentProps) -> {
+          Map<String, String> updatedProps = Maps.newHashMap(currentProps);
+          updatedProps.remove("some.initial.prop.which.will.be.removed");
+          updatedProps.put("this.one.should.be.updated", tableName);
+          updatedProps.put("write.format.default", "parquet");
+          updatedProps.put("write.parquet.compression-codec", "snappy");
+          updatedProps.put("custom.property", "test-value");
+          return updatedProps;
+        };
+
+    // Re-create TableUpdater with new propertyUpdater
+    tableUpdater = new TableUpdater(cache, catalog, propertyUpdater);
+    // Trigger update path
+    tableUpdater.update(tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned());
+
+    Map<String, String> expectedAfterUpdate = Maps.newHashMap();
+    expectedAfterUpdate.put("this.one.should.be.updated", tableIdentifier.toString());
+    expectedAfterUpdate.put("this.one.should.be.preserved", "preserved");
+    expectedAfterUpdate.put("write.format.default", "parquet");
+    expectedAfterUpdate.put("write.parquet.compression-codec", "snappy");
+    expectedAfterUpdate.put("custom.property", "test-value");
+
+    // Load the table and verify properties were applied
+    table = catalog.loadTable(tableIdentifier);
+    properties = table.properties();
+    assertThat(properties).isEqualTo(expectedAfterUpdate);
+    // Verify properties are cached
+    cachedProperties = cache.properties(tableIdentifier);
+    assertThat(cachedProperties).isEqualTo(expectedAfterUpdate);
   }
 
   @Test
