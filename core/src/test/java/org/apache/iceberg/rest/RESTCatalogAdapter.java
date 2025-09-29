@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -54,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
+import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
@@ -426,7 +428,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       case LOAD_TABLE:
         {
           LoadTableResponse response =
-              CatalogHandlers.loadTable(catalog, tableIdentFromPathVars(vars));
+              CatalogHandlers.loadTable(
+                  catalog,
+                  tableIdentFromPathVars(vars),
+                  snapshotModeFromQueryParams(httpRequest.queryParameters()));
 
           responseHeaders.accept(
               ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
@@ -730,5 +735,12 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
         namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+  }
+
+  private static SnapshotMode snapshotModeFromQueryParams(Map<String, String> queryParams) {
+    return SnapshotMode.valueOf(
+        queryParams
+            .getOrDefault("snapshots", RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
+            .toUpperCase(Locale.US));
   }
 }
