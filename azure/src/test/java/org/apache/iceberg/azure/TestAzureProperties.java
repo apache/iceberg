@@ -281,7 +281,7 @@ public class TestAzureProperties {
     assertThat(credential).isInstanceOf(DummyTokenCredential.class);
 
     // Provider should receive only prefixed properties, with prefix stripped
-    assertThat(DummyTokenCredentialProvider.lastInitializedProperties)
+    assertThat(DummyTokenCredentialProvider.properties)
         .containsEntry("client-id", "clientId")
         .containsEntry("client-secret", "clientSecret")
         .doesNotContainKey("custom.property")
@@ -291,7 +291,6 @@ public class TestAzureProperties {
     verify(clientBuilder, never()).credential(any(StorageSharedKeyCredential.class));
   }
 
-  // Helper classes for custom provider testing
   static class DummyTokenCredential implements TokenCredential {
     @Override
     public Mono<AccessToken> getToken(TokenRequestContext request) {
@@ -300,7 +299,7 @@ public class TestAzureProperties {
   }
 
   static class DummyTokenCredentialProvider implements AdlsTokenCredentialProvider {
-    static Map<String, String> lastInitializedProperties;
+    static Map<String, String> properties;
 
     @Override
     public TokenCredential credential() {
@@ -308,8 +307,8 @@ public class TestAzureProperties {
     }
 
     @Override
-    public void initialize(Map<String, String> properties) {
-      lastInitializedProperties = properties;
+    public void initialize(Map<String, String> credentialProperties) {
+      properties = credentialProperties;
     }
   }
 }

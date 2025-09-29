@@ -50,7 +50,7 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_TOKEN = "adls.token";
 
   /**
-   * Configure the Azure token credential provider used to get {@link TokenCredential}. A fully
+   * Configure the ADLS token credential provider used to get {@link TokenCredential}. A fully
    * qualified concrete class with package that implements the {@link AdlsTokenCredentialProvider}
    * interface is required.
    *
@@ -60,7 +60,7 @@ public class AzureProperties implements Serializable {
    * <p>Example: adls.token-credential-provider=com.example.MyCustomTokenCredentialProvider
    *
    * <p>When set, the {@link AdlsTokenCredentialProviders#from(Map)} method will use this provider
-   * to get Azure credentials instead of using the default.
+   * to get ADLS credentials instead of using the default.
    */
   public static final String ADLS_TOKEN_CREDENTIAL_PROVIDER = "adls.token-credential-provider";
 

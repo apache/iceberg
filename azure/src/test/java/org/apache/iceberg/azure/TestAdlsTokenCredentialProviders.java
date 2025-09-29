@@ -34,18 +34,14 @@ public class TestAdlsTokenCredentialProviders {
 
   @Test
   public void useDefaultFactory() {
-    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.defaultFactory();
-    assertThat(provider)
+    assertThat(AdlsTokenCredentialProviders.defaultFactory())
         .isNotNull()
         .isInstanceOf(AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
 
   @Test
   public void emptyPropertiesWithNoProvider() {
-    Map<String, String> properties = ImmutableMap.of();
-    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.from(properties);
-
-    assertThat(provider)
+    assertThat(AdlsTokenCredentialProviders.from(ImmutableMap.of()))
         .isNotNull()
         .isInstanceOf(AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
@@ -54,8 +50,7 @@ public class TestAdlsTokenCredentialProviders {
   public void emptyCredentialProvider() {
     Map<String, String> properties =
         ImmutableMap.of(AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, "");
-    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.from(properties);
-    assertThat(provider)
+    assertThat(AdlsTokenCredentialProviders.from(properties))
         .isNotNull()
         .isInstanceOf(AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
@@ -66,8 +61,7 @@ public class TestAdlsTokenCredentialProviders {
         ImmutableMap.of(
             AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
             AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class.getName());
-    AdlsTokenCredentialProvider provider = AdlsTokenCredentialProviders.from(properties);
-    assertThat(provider)
+    assertThat(AdlsTokenCredentialProviders.from(properties))
         .isNotNull()
         .isInstanceOf(AdlsTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
@@ -130,7 +124,6 @@ public class TestAdlsTokenCredentialProviders {
     assertThat(provider.credential()).isInstanceOf(DummyTokenCredential.class);
   }
 
-  // Dummy implementation for testing
   static class DummyTokenCredentialProvider implements AdlsTokenCredentialProvider {
 
     private Map<String, String> properties;
@@ -150,7 +143,6 @@ public class TestAdlsTokenCredentialProviders {
     }
   }
 
-  // Dummy TokenCredential for testing
   static class DummyTokenCredential implements TokenCredential {
     @Override
     public Mono<AccessToken> getToken(TokenRequestContext request) {
