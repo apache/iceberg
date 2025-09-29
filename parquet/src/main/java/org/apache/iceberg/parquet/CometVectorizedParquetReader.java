@@ -173,10 +173,11 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
         Long length,
         ByteBuffer fileEncryptionKey,
         ByteBuffer fileAADPrefix) {
+      CometBridge.FileReaderWrapper fileReader = null;
       try {
         Object cometOptions = CometBridge.createReadOptions(new Configuration());
 
-        CometBridge.FileReaderWrapper fileReader =
+        fileReader =
             CometBridge.FileReaderWrapper.create(
                 file,
                 cometOptions,
@@ -198,6 +199,15 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
         fileReader.setRequestedSchemaFromSpecs(specs);
         return fileReader;
       } catch (Exception e) {
+        // Clean up the fileReader if it was created but configuration failed
+        if (fileReader != null) {
+          try {
+            fileReader.close();
+          } catch (Exception closeException) {
+            // Log the close exception but don't mask the original exception
+            e.addSuppressed(closeException);
+          }
+        }
         throw CometIOException.fromException("Failed to open Parquet file: " + file.location(), e);
       }
     }

@@ -116,7 +116,7 @@ class CometBridge {
   }
 
   /** Wrapper for Comet FileReader that uses reflection. */
-  public static class FileReaderWrapper {
+  public static class FileReaderWrapper implements AutoCloseable {
     private final Object fileReader;
 
     private FileReaderWrapper(Object fileReader) {
