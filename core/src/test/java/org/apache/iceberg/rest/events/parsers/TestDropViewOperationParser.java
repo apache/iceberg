@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -62,9 +63,9 @@ public class TestDropViewOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> DropViewOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid drop view operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> DropViewOperationParser.toJson(null))
+        .withMessage("Invalid drop view operation: null");
   }
 
   @Test
@@ -81,33 +82,33 @@ public class TestDropViewOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> DropViewOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse drop view operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> DropViewOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse drop view operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingIdentifier = "{\"operation-type\":\"drop-view\",\"view-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> DropViewOperationParser.fromJson(missingIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropViewOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"}}";
-    assertThatThrownBy(() -> DropViewOperationParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropViewOperationParser.fromJson(missingUuid));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String invalidIdentifier =
         "{\"operation-type\":\"drop-view\",\"identifier\":\"not-obj\",\"view-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> DropViewOperationParser.fromJson(invalidIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropViewOperationParser.fromJson(invalidIdentifier));
 
     String invalidUuid =
         "{\"operation-type\":\"drop-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":123}";
-    assertThatThrownBy(() -> DropViewOperationParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropViewOperationParser.fromJson(invalidUuid));
   }
 }

@@ -19,7 +19,8 @@
 package org.apache.iceberg.catalog;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
@@ -45,9 +46,9 @@ public class TestCatalogObjectUuidParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> CatalogObjectUuidParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid catalog object uuid: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CatalogObjectUuidParser.toJson(null))
+        .withMessage("Invalid catalog object uuid: null");
   }
 
   @Test
@@ -61,35 +62,35 @@ public class TestCatalogObjectUuidParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> CatalogObjectUuidParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse catalog object uuid from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse catalog object uuid from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingUuid = "{\"type\":\"namespace\"}";
-    assertThatThrownBy(() -> CatalogObjectUuidParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(missingUuid));
 
     String missingType = "{\"uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> CatalogObjectUuidParser.fromJson(missingType))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(missingType));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String invalidUuid = "{\"uuid\":123,\"type\":\"namespace\"}";
-    assertThatThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidUuid));
 
     String invalidType = "{\"uuid\":\"uuid\",\"type\":123}";
-    assertThatThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidType))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidType));
 
     String invalidCatalogObjectType = "{\"uuid\":\"uuid\",\"type\":\"unknown\"}";
-    assertThatThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidCatalogObjectType))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid CatalogObjectType: unknown");
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidCatalogObjectType))
+        .withMessage("Invalid CatalogObjectType: unknown");
   }
 }

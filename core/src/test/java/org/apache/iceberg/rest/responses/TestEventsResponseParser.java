@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.responses;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
@@ -92,9 +93,9 @@ public class TestEventsResponseParser {
 
   @Test
   void testToJsonWithNullResponse() {
-    assertThatThrownBy(() -> EventsResponseParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid events response: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> EventsResponseParser.toJson(null))
+        .withMessage("Invalid events response: null");
   }
 
   @Test
@@ -114,40 +115,40 @@ public class TestEventsResponseParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> EventsResponseParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse events response from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> EventsResponseParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse events response from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingHighestProcessedTimestamp = "{\"events\":[]}";
-    assertThatThrownBy(() -> EventsResponseParser.fromJson(missingHighestProcessedTimestamp))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> EventsResponseParser.fromJson(missingHighestProcessedTimestamp));
 
     String missingEvents = "{\"highest-processed-timestamp-ms\":1}";
-    assertThatThrownBy(() -> EventsResponseParser.fromJson(missingEvents))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> EventsResponseParser.fromJson(missingEvents));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String invalidNextPageToken =
         "{\"next-page-token\":123,\"highest-processed-timestamp-ms\":1,\"events\":[]}";
-    assertThatThrownBy(() -> EventsResponseParser.fromJson(invalidNextPageToken))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> EventsResponseParser.fromJson(invalidNextPageToken));
 
     String invalidHighestProcessed =
         "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":\"x\",\"events\":[]}";
-    assertThatThrownBy(() -> EventsResponseParser.fromJson(invalidHighestProcessed))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> EventsResponseParser.fromJson(invalidHighestProcessed));
 
     String invalidEvents = "{\"highest-processed-timestamp-ms\":1,\"events\":{}}";
-    assertThatThrownBy(() -> EventsResponseParser.fromJson(invalidEvents))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> EventsResponseParser.fromJson(invalidEvents));
 
     String invalidEventsObject = "{\"highest-processed-timestamp-ms\":1,\"events\":[{}]}";
-    assertThatThrownBy(() -> EventsResponseParser.fromJson(invalidEventsObject))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> EventsResponseParser.fromJson(invalidEventsObject));
   }
 }

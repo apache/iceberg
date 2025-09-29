@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -62,9 +63,9 @@ public class TestDropTableOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> DropTableOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid drop table operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> DropTableOperationParser.toJson(null))
+        .withMessage("Invalid drop table operation: null");
   }
 
   @Test
@@ -94,21 +95,21 @@ public class TestDropTableOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> DropTableOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse drop table operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> DropTableOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse drop table operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingIdentifier = "{\"operation-type\":\"drop-table\",\"table-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> DropTableOperationParser.fromJson(missingIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropTableOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"}}";
-    assertThatThrownBy(() -> DropTableOperationParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropTableOperationParser.fromJson(missingUuid));
   }
 
   @Test
@@ -116,19 +117,19 @@ public class TestDropTableOperationParser {
     // identifier present but not an object
     String invalidIdentifier =
         "{\"operation-type\":\"drop-table\",\"identifier\":\"not-obj\",\"table-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> DropTableOperationParser.fromJson(invalidIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropTableOperationParser.fromJson(invalidIdentifier));
 
     // table-uuid present but not a string
     String invalidUuid =
         "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":123}";
-    assertThatThrownBy(() -> DropTableOperationParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropTableOperationParser.fromJson(invalidUuid));
 
     // purge present but not a boolean
     String invalidPurge =
         "{\"operation-type\":\"drop-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"purge\":\"yes\"}";
-    assertThatThrownBy(() -> DropTableOperationParser.fromJson(invalidPurge))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropTableOperationParser.fromJson(invalidPurge));
   }
 }

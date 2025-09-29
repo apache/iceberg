@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -68,9 +69,9 @@ public class TestRenameViewOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> RenameViewOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid rename view operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> RenameViewOperationParser.toJson(null))
+        .withMessage("Invalid rename view operation: null");
   }
 
   @Test
@@ -88,44 +89,44 @@ public class TestRenameViewOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> RenameViewOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse rename view operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> RenameViewOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse rename view operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingUuid =
         "{\"operation-type\":\"rename-view\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThatThrownBy(() -> RenameViewOperationParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameViewOperationParser.fromJson(missingUuid));
 
     String missingSource =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThatThrownBy(() -> RenameViewOperationParser.fromJson(missingSource))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameViewOperationParser.fromJson(missingSource));
 
     String missingDest =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"}}";
-    assertThatThrownBy(() -> RenameViewOperationParser.fromJson(missingDest))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameViewOperationParser.fromJson(missingDest));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String invalidUuid =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":123,\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThatThrownBy(() -> RenameViewOperationParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameViewOperationParser.fromJson(invalidUuid));
 
     String invalidSource =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":\"not-obj\",\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThatThrownBy(() -> RenameViewOperationParser.fromJson(invalidSource))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameViewOperationParser.fromJson(invalidSource));
 
     String invalidDest =
         "{\"operation-type\":\"rename-view\",\"view-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":123}";
-    assertThatThrownBy(() -> RenameViewOperationParser.fromJson(invalidDest))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameViewOperationParser.fromJson(invalidDest));
   }
 }

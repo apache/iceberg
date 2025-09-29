@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
@@ -74,9 +75,9 @@ public class TestCreateTableOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> CreateTableOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid create table operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CreateTableOperationParser.toJson(null))
+        .withMessage("Invalid create table operation: null");
   }
 
   @Test
@@ -108,9 +109,9 @@ public class TestCreateTableOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> CreateTableOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse create table operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CreateTableOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse create table operation from null object");
   }
 
   @Test
@@ -118,20 +119,20 @@ public class TestCreateTableOperationParser {
     // missing identifier
     String missingIdentifier =
         "{\"operation-type\":\"create-table\",\"table-uuid\":\"uuid\",\"updates\":[]}";
-    assertThatThrownBy(() -> CreateTableOperationParser.fromJson(missingIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy((() -> CreateTableOperationParser.fromJson(missingIdentifier)));
 
     // missing table-uuid
     String missingUuid =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"updates\":[]}";
-    assertThatThrownBy(() -> CreateTableOperationParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy((() -> CreateTableOperationParser.fromJson(missingUuid)));
 
     // missing updates
     String missingUpdates =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> CreateTableOperationParser.fromJson(missingUpdates))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy((() -> CreateTableOperationParser.fromJson(missingUpdates)));
   }
 
   @Test
@@ -139,19 +140,19 @@ public class TestCreateTableOperationParser {
     // identifier present but not an object
     String invalidIdentifier =
         "{\"operation-type\":\"create-table\",\"identifier\":\"not-an-object\",\"table-uuid\":\"uuid\",\"updates\":[]}";
-    assertThatThrownBy(() -> CreateTableOperationParser.fromJson(invalidIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy((() -> CreateTableOperationParser.fromJson(invalidIdentifier)));
 
     // table-uuid present but not a string
     String invalidUuid =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":123,\"updates\":[]}";
-    assertThatThrownBy(() -> CreateTableOperationParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy((() -> CreateTableOperationParser.fromJson(invalidUuid)));
 
     // updates present but not an array
     String invalidUpdates =
         "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":\"not-an-array\"}";
-    assertThatThrownBy(() -> CreateTableOperationParser.fromJson(invalidUpdates))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy((() -> CreateTableOperationParser.fromJson(invalidUpdates)));
   }
 }

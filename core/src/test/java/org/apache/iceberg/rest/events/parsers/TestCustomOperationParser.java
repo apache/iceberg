@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -53,9 +54,9 @@ public class TestCustomOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> CustomOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid custom operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CustomOperationParser.toJson(null))
+        .withMessage("Invalid custom operation: null");
   }
 
   @Test
@@ -85,48 +86,47 @@ public class TestCustomOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> CustomOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse custom operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CustomOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse custom operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String json = "{\"operation-type\":\"custom\"}";
-    assertThatThrownBy(() -> CustomOperationParser.fromJson(json))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> CustomOperationParser.fromJson(json));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     // custom-type present but not a string matching pattern
     String jsonInvalidCustomType = "{\"operation-type\":\"custom\",\"custom-type\":123}";
-    assertThatThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidCustomType))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidCustomType));
 
     // identifier present but not an object
     String jsonInvalidIdentifier =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"identifier\":{}}";
-    assertThatThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidIdentifier));
 
     // namespace present but not an array
     String jsonInvalidNamespace =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"namespace\":\"a\"}";
-    assertThatThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidNamespace))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidNamespace));
 
     // table-uuid present but not a string
     String jsonInvalidTableUuid =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"table-uuid\":123}";
-    assertThatThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidTableUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidTableUuid));
 
     // view-uuid present but not a string
     String jsonInvalidViewUuid =
         "{\"operation-type\":\"custom\",\"custom-type\":\"x-op\",\"view-uuid\":true}";
-    assertThatThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidViewUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CustomOperationParser.fromJson(jsonInvalidViewUuid));
   }
 
   @Test

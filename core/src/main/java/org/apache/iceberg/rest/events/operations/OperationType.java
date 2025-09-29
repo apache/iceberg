@@ -66,7 +66,7 @@ public enum OperationType {
 
   /** Custom operation type for catalog-specific extensions. */
   public static class CustomOperationType {
-    private final Pattern PATTERN = Pattern.compile("^x-[a-zA-Z0-9-_.]+$");
+    private static final Pattern PATTERN = Pattern.compile("^x-[a-zA-Z0-9-_.]+$");
     private final String type;
 
     public CustomOperationType(String type) {

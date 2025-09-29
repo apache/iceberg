@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -68,9 +69,9 @@ public class TestRenameTableOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> RenameTableOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid rename table operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> RenameTableOperationParser.toJson(null))
+        .withMessage("Invalid rename table operation: null");
   }
 
   @Test
@@ -88,44 +89,44 @@ public class TestRenameTableOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> RenameTableOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse rename table operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> RenameTableOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse rename table operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingUuid =
         "{\"operation-type\":\"rename-table\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThatThrownBy(() -> RenameTableOperationParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameTableOperationParser.fromJson(missingUuid));
 
     String missingSource =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThatThrownBy(() -> RenameTableOperationParser.fromJson(missingSource))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameTableOperationParser.fromJson(missingSource));
 
     String missingDest =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"}}";
-    assertThatThrownBy(() -> RenameTableOperationParser.fromJson(missingDest))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameTableOperationParser.fromJson(missingDest));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String invalidUuid =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":123,\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThatThrownBy(() -> RenameTableOperationParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameTableOperationParser.fromJson(invalidUuid));
 
     String invalidSource =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":\"not-obj\",\"destination\":{\"namespace\":[\"a\"],\"name\":\"d\"}}";
-    assertThatThrownBy(() -> RenameTableOperationParser.fromJson(invalidSource))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameTableOperationParser.fromJson(invalidSource));
 
     String invalidDest =
         "{\"operation-type\":\"rename-table\",\"table-uuid\":\"uuid\",\"source\":{\"namespace\":[],\"name\":\"s\"},\"destination\":123}";
-    assertThatThrownBy(() -> RenameTableOperationParser.fromJson(invalidDest))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RenameTableOperationParser.fromJson(invalidDest));
   }
 }

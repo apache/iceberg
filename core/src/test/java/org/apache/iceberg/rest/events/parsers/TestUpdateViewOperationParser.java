@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
@@ -71,9 +72,9 @@ public class TestUpdateViewOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> UpdateViewOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid update view operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> UpdateViewOperationParser.toJson(null))
+        .withMessage("Invalid update view operation: null");
   }
 
   @Test
@@ -110,50 +111,50 @@ public class TestUpdateViewOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> UpdateViewOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse update view operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> UpdateViewOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse update view operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingIdentifier =
         "{\"operation-type\":\"update-view\",\"view-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    assertThatThrownBy(() -> UpdateViewOperationParser.fromJson(missingIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateViewOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"update-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    assertThatThrownBy(() -> UpdateViewOperationParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateViewOperationParser.fromJson(missingUuid));
 
     String missingUpdates =
         "{\"operation-type\":\"update-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> UpdateViewOperationParser.fromJson(missingUpdates))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateViewOperationParser.fromJson(missingUpdates));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String invalidIdentifier =
         "{\"operation-type\":\"update-view\",\"identifier\":\"not-obj\",\"view-uuid\":\"uuid\",\"updates\":[]}";
-    assertThatThrownBy(() -> UpdateViewOperationParser.fromJson(invalidIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateViewOperationParser.fromJson(invalidIdentifier));
 
     String invalidUuid =
         "{\"operation-type\":\"update-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":123,\"updates\":[]}";
-    assertThatThrownBy(() -> UpdateViewOperationParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateViewOperationParser.fromJson(invalidUuid));
 
     String invalidUpdates =
         "{\"operation-type\":\"update-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":\"uuid\",\"updates\":\"not-array\"}";
-    assertThatThrownBy(() -> UpdateViewOperationParser.fromJson(invalidUpdates))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateViewOperationParser.fromJson(invalidUpdates));
 
     String invalidRequirements =
         "{\"operation-type\":\"update-view\",\"identifier\":{\"namespace\":[],\"name\":\"v\"},\"view-uuid\":\"uuid\",\"updates\":[],\"requirements\":{}}";
-    assertThatThrownBy(() -> UpdateViewOperationParser.fromJson(invalidRequirements))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateViewOperationParser.fromJson(invalidRequirements));
   }
 
   @Test

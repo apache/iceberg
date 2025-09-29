@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -62,9 +63,9 @@ public class TestCreateViewOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> CreateViewOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid create view operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CreateViewOperationParser.toJson(null))
+        .withMessage("Invalid create view operation: null");
   }
 
   @Test
@@ -81,21 +82,21 @@ public class TestCreateViewOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> CreateViewOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse create view operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CreateViewOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse create view operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingIdentifier = "{\"operation-type\":\"create-view\",\"view-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> CreateViewOperationParser.fromJson(missingIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CreateViewOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"}}";
-    assertThatThrownBy(() -> CreateViewOperationParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CreateViewOperationParser.fromJson(missingUuid));
   }
 
   @Test
@@ -103,13 +104,13 @@ public class TestCreateViewOperationParser {
     // identifier present but not an object
     String invalidIdentifier =
         "{\"operation-type\":\"create-view\",\"identifier\":\"not-an-object\",\"view-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> CreateViewOperationParser.fromJson(invalidIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CreateViewOperationParser.fromJson(invalidIdentifier));
 
     // view-uuid present but not a string
     String invalidUuid =
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":123}";
-    assertThatThrownBy(() -> CreateViewOperationParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CreateViewOperationParser.fromJson(invalidUuid));
   }
 }

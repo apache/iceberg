@@ -54,17 +54,23 @@ public class QueryEventsRequestParser {
     return JsonUtil.generate(gen -> toJson(request, gen), pretty);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(QueryEventsRequest request, JsonGenerator gen) throws IOException {
     Preconditions.checkNotNull(request, "Invalid query events request: null");
 
     gen.writeStartObject();
 
-    if (request.pageToken() != null) gen.writeStringField(PAGE_TOKEN, request.pageToken());
+    if (request.pageToken() != null) {
+      gen.writeStringField(PAGE_TOKEN, request.pageToken());
+    }
 
-    if (request.pageSize() != null) gen.writeNumberField(PAGE_SIZE, request.pageSize());
+    if (request.pageSize() != null) {
+      gen.writeNumberField(PAGE_SIZE, request.pageSize());
+    }
 
-    if (request.afterTimestampMs() != null)
+    if (request.afterTimestampMs() != null) {
       gen.writeNumberField(AFTER_TIMESTAMP_MS, request.afterTimestampMs());
+    }
 
     if (!request.operationTypes().isEmpty()) {
       gen.writeArrayFieldStart(OPERATION_TYPES);
@@ -122,12 +128,17 @@ public class QueryEventsRequestParser {
 
     ImmutableQueryEventsRequest.Builder builder = ImmutableQueryEventsRequest.builder();
 
-    if (json.has(PAGE_TOKEN)) builder.pageToken(JsonUtil.getString(PAGE_TOKEN, json));
+    if (json.has(PAGE_TOKEN)) {
+      builder.pageToken(JsonUtil.getString(PAGE_TOKEN, json));
+    }
 
-    if (json.has(PAGE_SIZE)) builder.pageSize(JsonUtil.getInt(PAGE_SIZE, json));
+    if (json.has(PAGE_SIZE)) {
+      builder.pageSize(JsonUtil.getInt(PAGE_SIZE, json));
+    }
 
-    if (json.has(AFTER_TIMESTAMP_MS))
+    if (json.has(AFTER_TIMESTAMP_MS)) {
       builder.afterTimestampMs(JsonUtil.getLong(AFTER_TIMESTAMP_MS, json));
+    }
 
     if (json.has(OPERATION_TYPES)) {
       builder.operationTypes(

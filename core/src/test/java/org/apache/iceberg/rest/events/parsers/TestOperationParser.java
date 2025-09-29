@@ -19,11 +19,12 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
-import java.util.ArrayList;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.events.operations.CreateNamespaceOperation;
 import org.apache.iceberg.rest.events.operations.CreateTableOperation;
 import org.apache.iceberg.rest.events.operations.CreateViewOperation;
@@ -64,7 +65,7 @@ public class TestOperationParser {
       ImmutableCreateTableOperation.builder()
           .identifier(TableIdentifier.of(Namespace.empty(), "table"))
           .tableUuid("uuid")
-          .updates(new ArrayList<>())
+          .updates(Lists.newArrayList())
           .build();
   String createTableOperationJson =
       "{\"operation-type\":\"create-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[]}";
@@ -127,8 +128,8 @@ public class TestOperationParser {
   UpdateNamespacePropertiesOperation updateNamespacePropertiesOperation =
       ImmutableUpdateNamespacePropertiesOperation.builder()
           .namespace(Namespace.of("a", "b"))
-          .updated(new ArrayList<>())
-          .removed(new ArrayList<>())
+          .updated(Lists.newArrayList())
+          .removed(Lists.newArrayList())
           .build();
   String updateNamespacePropertiesOperationJson =
       "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\",\"b\"],\"updated\":[],\"removed\":[]}";
@@ -137,7 +138,7 @@ public class TestOperationParser {
       ImmutableUpdateTableOperation.builder()
           .identifier(TableIdentifier.of(Namespace.empty(), "table"))
           .tableUuid("uuid")
-          .updates(new ArrayList<>())
+          .updates(Lists.newArrayList())
           .build();
   String updateTableOperationJson =
       "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":[]}";
@@ -146,7 +147,7 @@ public class TestOperationParser {
       ImmutableUpdateViewOperation.builder()
           .identifier(TableIdentifier.of(Namespace.empty(), "view"))
           .viewUuid("uuid")
-          .updates(new ArrayList<>())
+          .updates(Lists.newArrayList())
           .build();
   String updateViewOperationJson =
       "{\"operation-type\":\"update-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[]}";
@@ -201,9 +202,9 @@ public class TestOperationParser {
     assertThat(JsonUtil.generate(gen -> OperationParser.toJson(customOperation, gen), false))
         .isEqualTo(customOperationJson);
 
-    assertThatThrownBy(() -> OperationParser.toJson(null, null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> OperationParser.toJson(null, null))
+        .withMessage("Invalid operation: null");
   }
 
   @Test
@@ -247,16 +248,16 @@ public class TestOperationParser {
     assertThat(JsonUtil.parse(customOperationJson, OperationParser::fromJson))
         .isEqualTo(customOperation);
 
-    assertThatThrownBy(() -> OperationParser.fromJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid json object: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> OperationParser.fromJson(null))
+        .withMessage("Invalid json object: null");
 
-    assertThatThrownBy(() -> JsonUtil.parse("{}", OperationParser::fromJson))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> JsonUtil.parse("{}", OperationParser::fromJson));
 
-    assertThatThrownBy(
+    assertThatIllegalArgumentException()
+        .isThrownBy(
             () -> JsonUtil.parse("{\"operation-type\":\"unknown\"}", OperationParser::fromJson))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid OperationType: unknown");
+        .withMessage("Invalid OperationType: unknown");
   }
 }

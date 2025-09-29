@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -50,9 +51,9 @@ public class TestDropNamespaceOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> DropNamespaceOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid drop namespace operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> DropNamespaceOperationParser.toJson(null))
+        .withMessage("Invalid drop namespace operation: null");
   }
 
   @Test
@@ -65,22 +66,22 @@ public class TestDropNamespaceOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> DropNamespaceOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse drop namespace operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> DropNamespaceOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse drop namespace operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingNamespace = "{\"operation-type\":\"drop-namespace\"}";
-    assertThatThrownBy(() -> DropNamespaceOperationParser.fromJson(missingNamespace))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropNamespaceOperationParser.fromJson(missingNamespace));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String jsonInvalidNamespace = "{\"operation-type\":\"drop-namespace\",\"namespace\":\"a\"}";
-    assertThatThrownBy(() -> DropNamespaceOperationParser.fromJson(jsonInvalidNamespace))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> DropNamespaceOperationParser.fromJson(jsonInvalidNamespace));
   }
 }

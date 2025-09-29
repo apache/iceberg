@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
@@ -71,9 +72,9 @@ public class TestUpdateTableOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> UpdateTableOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid update table operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> UpdateTableOperationParser.toJson(null))
+        .withMessage("Invalid update table operation: null");
   }
 
   @Test
@@ -110,50 +111,50 @@ public class TestUpdateTableOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> UpdateTableOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse update table operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> UpdateTableOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse update table operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingIdentifier =
         "{\"operation-type\":\"update-table\",\"table-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    assertThatThrownBy(() -> UpdateTableOperationParser.fromJson(missingIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateTableOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
-    assertThatThrownBy(() -> UpdateTableOperationParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateTableOperationParser.fromJson(missingUuid));
 
     String missingUpdates =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> UpdateTableOperationParser.fromJson(missingUpdates))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateTableOperationParser.fromJson(missingUpdates));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String invalidIdentifier =
         "{\"operation-type\":\"update-table\",\"identifier\":\"not-obj\",\"table-uuid\":\"uuid\",\"updates\":[]}";
-    assertThatThrownBy(() -> UpdateTableOperationParser.fromJson(invalidIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateTableOperationParser.fromJson(invalidIdentifier));
 
     String invalidUuid =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":123,\"updates\":[]}";
-    assertThatThrownBy(() -> UpdateTableOperationParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateTableOperationParser.fromJson(invalidUuid));
 
     String invalidUpdates =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":\"not-array\"}";
-    assertThatThrownBy(() -> UpdateTableOperationParser.fromJson(invalidUpdates))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateTableOperationParser.fromJson(invalidUpdates));
 
     String invalidRequirements =
         "{\"operation-type\":\"update-table\",\"identifier\":{\"namespace\":[],\"name\":\"t\"},\"table-uuid\":\"uuid\",\"updates\":[],\"requirements\":{}}";
-    assertThatThrownBy(() -> UpdateTableOperationParser.fromJson(invalidRequirements))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateTableOperationParser.fromJson(invalidRequirements));
   }
 
   @Test

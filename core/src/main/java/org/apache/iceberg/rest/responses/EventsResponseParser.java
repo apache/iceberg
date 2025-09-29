@@ -51,8 +51,9 @@ public class EventsResponseParser {
 
     gen.writeStartObject();
 
-    if (eventsResponse.nextPageToken() != null)
+    if (eventsResponse.nextPageToken() != null) {
       gen.writeStringField(NEXT_PAGE_TOKEN, eventsResponse.nextPageToken());
+    }
 
     gen.writeNumberField(
         HIGHEST_PROCESSED_TIMESTAMP_MS, eventsResponse.highestProcessedTimestampMs());

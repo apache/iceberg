@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
@@ -62,9 +63,9 @@ public class TestUpdateNamespacePropertiesOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> UpdateNamespacePropertiesOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid update namespace properties operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.toJson(null))
+        .withMessage("Invalid update namespace properties operation: null");
   }
 
   @Test
@@ -96,49 +97,49 @@ public class TestUpdateNamespacePropertiesOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse update namespace properties operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse update namespace properties operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingNamespace =
         "{\"operation-type\":\"update-namespace-properties\",\"updated\":[\"k1\"],\"removed\":[\"k2\"]}";
-    assertThatThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(missingNamespace))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(missingNamespace));
 
     String missingUpdated =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"removed\":[\"k2\"]}";
-    assertThatThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(missingUpdated))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(missingUpdated));
 
     String missingRemoved =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"]}";
-    assertThatThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(missingRemoved))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(missingRemoved));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String invalidNamespace =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":\"a\",\"updated\":[\"k1\"],\"removed\":[\"k2\"]}";
-    assertThatThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidNamespace))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidNamespace));
 
     String invalidUpdated =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":\"not-array\",\"removed\":[\"k2\"]}";
-    assertThatThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidUpdated))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidUpdated));
 
     String invalidRemoved =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"],\"removed\":123}";
-    assertThatThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidRemoved))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidRemoved));
 
     String invalidMissing =
         "{\"operation-type\":\"update-namespace-properties\",\"namespace\":[\"a\"],\"updated\":[\"k1\"],\"removed\":[\"k2\"],\"missing\":123}";
-    assertThatThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidMissing))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> UpdateNamespacePropertiesOperationParser.fromJson(invalidMissing));
   }
 }

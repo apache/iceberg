@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.MetadataUpdate;
@@ -63,9 +64,9 @@ public class TestRegisterTableOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> RegisterTableOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid register table operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> RegisterTableOperationParser.toJson(null))
+        .withMessage("Invalid register table operation: null");
   }
 
   @Test
@@ -95,21 +96,21 @@ public class TestRegisterTableOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> RegisterTableOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse register table operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> RegisterTableOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse register table operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingIdentifier = "{\"operation-type\":\"register-table\",\"table-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(missingIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RegisterTableOperationParser.fromJson(missingIdentifier));
 
     String missingUuid =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[\"a\"],\"name\":\"t\"}}";
-    assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(missingUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RegisterTableOperationParser.fromJson(missingUuid));
   }
 
   @Test
@@ -117,20 +118,20 @@ public class TestRegisterTableOperationParser {
     // identifier present but not an object
     String invalidIdentifier =
         "{\"operation-type\":\"register-table\",\"identifier\":\"not-an-object\",\"table-uuid\":\"uuid\"}";
-    assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(invalidIdentifier))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RegisterTableOperationParser.fromJson(invalidIdentifier));
 
     // table-uuid present but not a string
     String invalidUuid =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":123}";
-    assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(invalidUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RegisterTableOperationParser.fromJson(invalidUuid));
 
     // updates present but not an array
     String invalidUpdates =
         "{\"operation-type\":\"register-table\",\"identifier\":{\"namespace\":[],\"name\":\"table\"},\"table-uuid\":\"uuid\",\"updates\":\"not-an-array\"}";
-    assertThatThrownBy(() -> RegisterTableOperationParser.fromJson(invalidUpdates))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> RegisterTableOperationParser.fromJson(invalidUpdates));
   }
 
   @Test

@@ -18,13 +18,16 @@
  */
 package org.apache.iceberg.rest.events.parsers;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.rest.events.Event;
 import org.apache.iceberg.rest.events.ImmutableEvent;
 import org.apache.iceberg.rest.events.operations.ImmutableCreateNamespaceOperation;
 import org.apache.iceberg.rest.events.operations.Operation;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestEventParser {
@@ -59,7 +62,7 @@ public class TestEventParser {
     Event event = sampleEventWithActor();
     String expected =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThat(EventParser.toJson(event)).isEqualTo(expected);
+    assertThat(EventParser.toJson(event)).isEqualTo(expected);
   }
 
   @Test
@@ -77,14 +80,14 @@ public class TestEventParser {
             + "    \"namespace\" : [ \"a\", \"b\" ]\n"
             + "  }\n"
             + "}";
-    Assertions.assertThat(EventParser.toJsonPretty(event)).isEqualTo(expected);
+    assertThat(EventParser.toJsonPretty(event)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonWithNullEvent() {
-    Assertions.assertThatThrownBy(() -> EventParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid event: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> EventParser.toJson(null))
+        .withMessage("Invalid event: null");
   }
 
   @Test
@@ -92,7 +95,7 @@ public class TestEventParser {
     Event event = sampleEventWithoutActor();
     String expected =
         "{\"event-id\":\"e-2\",\"request-id\":\"r-2\",\"event-count\":1,\"timestamp-ms\":999,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThat(EventParser.toJson(event)).isEqualTo(expected);
+    assertThat(EventParser.toJson(event)).isEqualTo(expected);
   }
 
   @Test
@@ -100,42 +103,37 @@ public class TestEventParser {
     String json =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     Event expected = sampleEventWithActor();
-    Assertions.assertThat(EventParser.fromJson(json)).isEqualTo(expected);
+    assertThat(EventParser.fromJson(json)).isEqualTo(expected);
   }
 
   @Test
   void testFromJsonWithNullInput() {
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse event from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> EventParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse event from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingEventId =
         "{\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(missingEventId))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingEventId));
 
     String missingRequestId =
         "{\"event-id\":\"e-1\",\"event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(missingRequestId))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingRequestId));
 
     String missingEventCount =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(missingEventCount))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingEventCount));
 
     String missingTimestamp =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(missingTimestamp))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingTimestamp));
 
     String missingOperation =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(missingOperation))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingOperation));
   }
 
   @Test
@@ -143,31 +141,26 @@ public class TestEventParser {
     // event-id present but not a string
     String invalidEventId =
         "{\"event-id\":1,\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(invalidEventId))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidEventId));
 
     // request-id present but not a string
     String invalidRequestId =
         "{\"event-id\":\"e-1\",\"request-id\":1,\"event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(invalidRequestId))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidRequestId));
 
     // event-count present but not an integer
     String invalidEventCount =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":\"two\",\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(invalidEventCount))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidEventCount));
 
     // timestamp-ms present but not a long
     String invalidTimestamp =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":\"123\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(invalidTimestamp))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidTimestamp));
 
     // actor present but not a string
     String invalidActor =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    Assertions.assertThatThrownBy(() -> EventParser.fromJson(invalidActor))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidActor));
   }
 }

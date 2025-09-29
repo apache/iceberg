@@ -19,7 +19,8 @@
 package org.apache.iceberg.rest.events.parsers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
@@ -55,9 +56,9 @@ public class TestCreateNamespaceOperationParser {
 
   @Test
   void testToJsonWithNullOperation() {
-    assertThatThrownBy(() -> CreateNamespaceOperationParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid create namespace operation: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CreateNamespaceOperationParser.toJson(null))
+        .withMessage("Invalid create namespace operation: null");
   }
 
   @Test
@@ -87,31 +88,31 @@ public class TestCreateNamespaceOperationParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    assertThatThrownBy(() -> CreateNamespaceOperationParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse create namespace operation from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> CreateNamespaceOperationParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse create namespace operation from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
     String missingNamespace = "{\"operation-type\":\"create-namespace\"}";
 
-    assertThatThrownBy(() -> CreateNamespaceOperationParser.fromJson(missingNamespace))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CreateNamespaceOperationParser.fromJson(missingNamespace));
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     // namespace present but not an array
     String invalidNamespace = "{\"operation-type\":\"create-namespace\",\"namespace\":\"a\"}";
-    assertThatThrownBy(() -> CreateNamespaceOperationParser.fromJson(invalidNamespace))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CreateNamespaceOperationParser.fromJson(invalidNamespace));
 
     // properties present but not an object
     String invalidProperties =
         "{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\"],\"properties\":\"not-an-object\"}";
-    assertThatThrownBy(() -> CreateNamespaceOperationParser.fromJson(invalidProperties))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> CreateNamespaceOperationParser.fromJson(invalidProperties));
   }
 
   @Test

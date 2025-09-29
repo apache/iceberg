@@ -19,6 +19,8 @@
 package org.apache.iceberg.rest.requests;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
@@ -27,7 +29,6 @@ import org.apache.iceberg.catalog.CatalogObject;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.rest.events.operations.OperationType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestQueryEventsRequestParser {
@@ -93,9 +94,9 @@ public class TestQueryEventsRequestParser {
 
   @Test
   void testToJsonWithNullRequest() {
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.toJson(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid query events request: null");
+    assertThatNullPointerException()
+        .isThrownBy(() -> QueryEventsRequestParser.toJson(null))
+        .withMessage("Invalid query events request: null");
   }
 
   @Test
@@ -131,58 +132,56 @@ public class TestQueryEventsRequestParser {
 
   @Test
   void testFromJsonWithNullInput() {
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson((JsonNode) null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot parse query events request from null object");
+    assertThatNullPointerException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse query events request from null object");
   }
 
   @Test
   void testFromJsonWithInvalidProperties() {
     String invalidPageToken = "{\"page-token\":123}";
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson(invalidPageToken))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidPageToken));
 
     String invalidPageSize = "{\"page-size\":\"x\"}";
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson(invalidPageSize))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidPageSize));
 
     String invalidAfter = "{\"after-timestamp-ms\":\"x\"}";
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson(invalidAfter))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidAfter));
 
     String invalidOperationTypes = "{\"operation-types\":{}}";
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson(invalidOperationTypes))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidOperationTypes));
 
     String invalidOperationType = "{\"operation-types\":[{}]}";
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson(invalidOperationType))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidOperationType));
 
     String invalidCatalogObjectsByName = "{\"catalog-objects-by-name\":{}}";
-    Assertions.assertThatThrownBy(
-            () -> QueryEventsRequestParser.fromJson(invalidCatalogObjectsByName))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCatalogObjectsByName));
 
     String invalidCatalogObjectsById = "{\"catalog-objects-by-id\":{}}";
-    Assertions.assertThatThrownBy(
-            () -> QueryEventsRequestParser.fromJson(invalidCatalogObjectsById))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCatalogObjectsById));
 
     String invalidCatalogObjectUuid = "{\"catalog-objects-by-id\":[{}]}";
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCatalogObjectUuid))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCatalogObjectUuid));
 
     String invalidObjectTypes = "{\"object-types\":{}}";
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson(invalidObjectTypes))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidObjectTypes));
 
     String invalidObjectType = "{\"object-types\":[\"\"]}";
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson(invalidObjectType))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidObjectType));
 
     String invalidCustomFilters = "{\"custom-filters\":[]}";
-    Assertions.assertThatThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCustomFilters))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidCustomFilters));
   }
 
   @Test
