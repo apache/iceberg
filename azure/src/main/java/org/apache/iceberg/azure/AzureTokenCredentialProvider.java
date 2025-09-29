@@ -26,7 +26,7 @@ public interface AzureTokenCredentialProvider {
   TokenCredential credential();
 
   /**
-   * Initialize Azure credential factory from catalog properties.
+   * Initialize Azure credential provider from catalog properties.
    *
    * @param properties catalog properties
    */

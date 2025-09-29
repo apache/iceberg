@@ -33,60 +33,59 @@ import reactor.core.publisher.Mono;
 public class TestAzureTokenCredentialProviders {
 
   @Test
-  public void testDefaultFactory() {
+  public void useDefaultFactory() {
     AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.defaultFactory();
-    assertThat(provider).isNotNull();
     assertThat(provider)
+        .isNotNull()
         .isInstanceOf(AzureTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
 
   @Test
-  public void testFromWithNoProvider() {
+  public void emptyPropertiesWithNoProvider() {
     Map<String, String> properties = ImmutableMap.of();
     AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
 
-    assertThat(provider).isNotNull();
     assertThat(provider)
+        .isNotNull()
         .isInstanceOf(AzureTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
 
   @Test
-  public void testFromWithNullProvider() {
+  public void emptyCredentialProvider() {
     Map<String, String> properties =
         ImmutableMap.of(AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, "");
     AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
-    assertThat(provider).isNotNull();
     assertThat(provider)
+        .isNotNull()
         .isInstanceOf(AzureTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
 
   @Test
-  public void testFromWithDefaultProvider() {
+  public void defaultProviderAsCredentialProvider() {
     Map<String, String> properties =
         ImmutableMap.of(
             AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
             "org.apache.iceberg.azure.AzureTokenCredentialProviders$DefaultTokenCredentialProvider");
     AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
-    assertThat(provider).isNotNull();
     assertThat(provider)
+        .isNotNull()
         .isInstanceOf(AzureTokenCredentialProviders.DefaultTokenCredentialProvider.class);
   }
 
   @Test
-  public void testFromWithDummyProvider() {
+  public void customProviderAsCredentialProvider() {
     Map<String, String> properties =
         ImmutableMap.of(
             AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
             "org.apache.iceberg.azure.TestAzureTokenCredentialProviders$DummyTokenCredentialProvider");
     AzureTokenCredentialProvider provider = AzureTokenCredentialProviders.from(properties);
 
-    assertThat(provider).isNotNull();
-    assertThat(provider).isInstanceOf(DummyTokenCredentialProvider.class);
+    assertThat(provider).isNotNull().isInstanceOf(DummyTokenCredentialProvider.class);
     assertThat(provider.credential()).isInstanceOf(DummyTokenCredential.class);
   }
 
   @Test
-  public void testFromWithInvalidProvider() {
+  public void nonExistentCredentialProvider() {
     Map<String, String> properties =
         ImmutableMap.of(
             AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
@@ -99,7 +98,7 @@ public class TestAzureTokenCredentialProviders {
   }
 
   @Test
-  public void testFromWithNonImplementingClass() {
+  public void nonImplementingClassAsCredentialProvider() {
     Map<String, String> properties =
         ImmutableMap.of(AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, "java.lang.String");
     assertThatIllegalArgumentException()
@@ -108,7 +107,7 @@ public class TestAzureTokenCredentialProviders {
   }
 
   @Test
-  public void testLoadCredentialProviderWithProperties() {
+  public void loadCredentialProviderWithProperties() {
     Map<String, String> properties =
         ImmutableMap.of(
             AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
