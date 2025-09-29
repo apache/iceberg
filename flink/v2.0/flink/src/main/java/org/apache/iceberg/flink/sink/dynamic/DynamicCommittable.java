@@ -19,42 +19,41 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Objects;
-import org.apache.iceberg.flink.sink.DeltaManifests;
+import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * The aggregated results of a single checkpoint which should be committed. Containing the
- * serialized {@link DeltaManifests} file - which contains the commit data, and the jobId,
- * operatorId, checkpointId triplet to identify the specific commit.
+ * serialized {@link org.apache.iceberg.io.WriteResult} and the jobId, operatorId, checkpointId
+ * triplet to identify the specific commit.
  *
  * <p>{@link DynamicCommittableSerializer} is used to serialize {@link DynamicCommittable} between
  * the {@link DynamicWriter} and the {@link DynamicWriteResultAggregator}.
  */
 class DynamicCommittable implements Serializable {
 
-  private final WriteTarget key;
-  private final byte[] manifest;
+  private final TableKey key;
+  private final WriteResult writeResult;
   private final String jobId;
   private final String operatorId;
   private final long checkpointId;
 
   DynamicCommittable(
-      WriteTarget key, byte[] manifest, String jobId, String operatorId, long checkpointId) {
+      TableKey key, WriteResult writeResult, String jobId, String operatorId, long checkpointId) {
     this.key = key;
-    this.manifest = manifest;
+    this.writeResult = writeResult;
     this.jobId = jobId;
     this.operatorId = operatorId;
     this.checkpointId = checkpointId;
   }
 
-  WriteTarget key() {
+  TableKey key() {
     return key;
   }
 
-  byte[] manifest() {
-    return manifest;
+  WriteResult writeResult() {
+    return writeResult;
   }
 
   String jobId() {
@@ -78,27 +77,24 @@ class DynamicCommittable implements Serializable {
     DynamicCommittable that = (DynamicCommittable) o;
     return checkpointId == that.checkpointId
         && Objects.equals(key, that.key)
-        && Objects.deepEquals(manifest, that.manifest)
+        && Objects.equals(writeResult, that.writeResult)
         && Objects.equals(jobId, that.jobId)
         && Objects.equals(operatorId, that.operatorId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(key, Arrays.hashCode(manifest), jobId, operatorId, checkpointId);
+    return Objects.hash(key, writeResult, jobId, operatorId, checkpointId);
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("key", key)
+        .add("writeResult", writeResult)
         .add("jobId", jobId)
         .add("checkpointId", checkpointId)
         .add("operatorId", operatorId)
         .toString();
-  }
-
-  public WriteTarget writeTarget() {
-    return key;
   }
 }

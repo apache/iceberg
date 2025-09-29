@@ -18,14 +18,18 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
-import org.apache.flink.core.memory.DataInputDeserializer;
-import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
-import org.apache.flink.util.InstantiationUtil;
+import org.apache.iceberg.ContentFileAvroEncoder;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 
 @Internal
 public class WriteResultSerializer implements SimpleVersionedSerializer<WriteResult> {
@@ -39,25 +43,55 @@ public class WriteResultSerializer implements SimpleVersionedSerializer<WriteRes
   @Override
   public byte[] serialize(WriteResult writeResult) throws IOException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
-    byte[] result = InstantiationUtil.serializeObject(writeResult);
-    view.write(result);
+    DataOutputStream view = new DataOutputStream(out);
+
+    writeByteArray(ContentFileAvroEncoder.encode(writeResult.dataFiles()), view);
+    writeByteArray(ContentFileAvroEncoder.encode(writeResult.deleteFiles()), view);
+
+    view.writeInt(writeResult.referencedDataFiles().length);
+    for (CharSequence referencedDataFile : writeResult.referencedDataFiles()) {
+      view.writeUTF(referencedDataFile.toString());
+    }
+
+    writeByteArray(ContentFileAvroEncoder.encode(writeResult.rewrittenDeleteFiles()), view);
+
     return out.toByteArray();
   }
 
   @Override
   public WriteResult deserialize(int version, byte[] serialized) throws IOException {
-    if (version == 1) {
-      DataInputDeserializer view = new DataInputDeserializer(serialized);
-      byte[] resultBuf = new byte[serialized.length];
-      view.read(resultBuf);
-      try {
-        return InstantiationUtil.deserializeObject(
-            resultBuf, IcebergCommittableSerializer.class.getClassLoader());
-      } catch (ClassNotFoundException cnc) {
-        throw new IOException("Could not deserialize the WriteResult object", cnc);
-      }
+    if (version != 1) {
+      throw new IOException("Unrecognized version or corrupt state: " + version);
     }
-    throw new IOException("Unrecognized version or corrupt state: " + version);
+    DataInputStream view = new DataInputStream(new ByteArrayInputStream(serialized));
+
+    DataFile[] dataFiles = ContentFileAvroEncoder.decodeDataFiles(readByteArray(view));
+    DeleteFile[] deleteFiles = ContentFileAvroEncoder.decodeDeleteFiles(readByteArray(view));
+
+    CharSequence[] referencedDataFiles = new CharSequence[view.readInt()];
+    for (int i = 0; i < referencedDataFiles.length; i++) {
+      referencedDataFiles[i] = view.readUTF();
+    }
+
+    DeleteFile[] rewrittenDeleteFiles =
+        ContentFileAvroEncoder.decodeDeleteFiles(readByteArray(view));
+
+    return WriteResult.builder()
+        .addDataFiles(dataFiles)
+        .addDeleteFiles(deleteFiles)
+        .addReferencedDataFiles(referencedDataFiles)
+        .addRewrittenDeleteFiles(rewrittenDeleteFiles)
+        .build();
+  }
+
+  private static void writeByteArray(byte[] buffer, DataOutputStream view) throws IOException {
+    view.writeInt(buffer.length);
+    view.write(buffer);
+  }
+
+  private static byte[] readByteArray(DataInputStream inputStream) throws IOException {
+    byte[] buffer = new byte[inputStream.readInt()];
+    ByteStreams.readFully(inputStream, buffer);
+    return buffer;
   }
 }
