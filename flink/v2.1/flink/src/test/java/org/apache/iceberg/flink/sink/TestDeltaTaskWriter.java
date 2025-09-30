@@ -89,6 +89,7 @@ public class TestDeltaTaskWriter extends TestBase {
         parameters.add(new Object[] {version, format});
       }
     }
+
     return parameters;
   }
 

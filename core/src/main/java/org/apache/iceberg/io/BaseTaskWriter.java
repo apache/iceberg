@@ -129,6 +129,14 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         .build();
   }
 
+  protected void addReferencedDataFiles(CharSequenceSet files) {
+    referencedDataFiles.addAll(files);
+  }
+
+  protected void addCompletedDeleteFiles(List<DeleteFile> files) {
+    completedDeleteFiles.addAll(files);
+  }
+
   /** Base equality delta writer to write both insert records and equality-deletes. */
   protected abstract class BaseEqualityDeltaWriter implements Closeable {
     private final StructProjection structProjection;
@@ -142,7 +150,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private Map<StructLike, PathOffset> insertedRowMap;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
-      this(partition, schema, deleteSchema, DeleteGranularity.PARTITION, false);
+      this(partition, schema, deleteSchema, DeleteGranularity.PARTITION, null, false);
     }
 
     protected BaseEqualityDeltaWriter(
@@ -150,7 +158,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         Schema schema,
         Schema deleteSchema,
         DeleteGranularity deleteGranularity) {
-      this(partition, schema, deleteSchema, deleteGranularity, false);
+      this(partition, schema, deleteSchema, deleteGranularity, null, false);
     }
 
     protected BaseEqualityDeltaWriter(
@@ -158,6 +166,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         Schema schema,
         Schema deleteSchema,
         DeleteGranularity deleteGranularity,
+        PartitioningDVWriter<T> partitioningDVWriter,
         boolean useDv) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
@@ -178,7 +187,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
                 }
               },
               deleteGranularity);
-      this.dvFileWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
+      this.dvFileWriter =
+          null == partitioningDVWriter
+              ? new PartitioningDVWriter<>(fileFactory, p -> null)
+              : partitioningDVWriter;
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
       this.partitionKey = partition;
       this.useDv = useDv;
@@ -264,6 +276,22 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       }
     }
 
+    /** Close the dvs writer and add the completed files. */
+    protected void clearDvFileWriter() throws IOException {
+      // Add the completed dvs files.
+      if (dvFileWriter != null) {
+        try {
+          // complete will call close
+          dvFileWriter.close();
+          DeleteWriteResult result = dvFileWriter.result();
+          addCompletedDeleteFiles(result.deleteFiles());
+          addReferencedDataFiles(result.referencedDataFiles());
+        } finally {
+          dvFileWriter = null;
+        }
+      }
+    }
+
     @Override
     public void close() throws IOException {
       try {
@@ -296,25 +324,14 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
             // complete will call close
             posDeleteWriter.close();
             DeleteWriteResult result = posDeleteWriter.result();
-            completedDeleteFiles.addAll(result.deleteFiles());
-            referencedDataFiles.addAll(result.referencedDataFiles());
+            addCompletedDeleteFiles(result.deleteFiles());
+            addReferencedDataFiles(result.referencedDataFiles());
           } finally {
             posDeleteWriter = null;
           }
         }
 
-        // Add the completed dvs files.
-        if (dvFileWriter != null) {
-          try {
-            // complete will call close
-            dvFileWriter.close();
-            DeleteWriteResult result = dvFileWriter.result();
-            completedDeleteFiles.addAll(result.deleteFiles());
-            referencedDataFiles.addAll(result.referencedDataFiles());
-          } finally {
-            dvFileWriter = null;
-          }
-        }
+        clearDvFileWriter();
       } catch (IOException | RuntimeException e) {
         setFailure(e);
         throw e;
