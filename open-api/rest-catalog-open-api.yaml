@@ -147,7 +147,7 @@ paths:
                   "defaults": {
                     "clients": "4"
                   },
-                  "idempotencyKeyLifetime": "PT30M",
+                  "idempotency-key-lifetime": "PT30M",
                   "endpoints": [
                     "GET /v1/{prefix}/namespaces/{namespace}",
                     "GET /v1/{prefix}/namespaces",
@@ -1946,7 +1946,7 @@ components:
 
         Finalization rules:
         - Finalize & replay: 200, 201, 204, and deterministic terminal 4xx
-        - Do not finalize (not stored/replayed): 5xx, 409 request_in_progress
+        - Do not finalize (not stored/replayed): 5xx, 409 (RequestInProgressException)
 
         Key Requirements:
         - Key format: UUID (V7 preferred)
@@ -1984,10 +1984,6 @@ components:
           type: array
           items:
             type: string
-        subtype:
-          type: string
-          description: Machine-readable error subtype (used for idempotency cases).
-          enum: [ request_in_progress ]
 
     CatalogConfig:
       type: object
@@ -2021,16 +2017,17 @@ components:
               "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
               "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
             ]
-        idempotencyKeyLifetime:
+        idempotency-key-lifetime:
           type: string
           format: duration
           description: >
             Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H).
             Interpreted as the maximum time from the first submission using a key to the last retry
-            during which a client may reuse that key. Servers MUST accept replays for at least this
-            duration and MAY include a small grace period to account for delays/clock skew.
-            Presence of this field indicates the server supports Idempotency-Key semantics for
-            mutation endpoints. If absent, clients MUST assume idempotency is not supported.
+            during which a client may reuse that key. Servers SHOULD accept retries for at least this
+            duration and MAY include a grace period to account for delays/clock skew. Clients SHOULD NOT
+            reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any
+            subsequent attempt. Presence of this field indicates the server supports Idempotency-Key
+            semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.
           example: PT30M
 
     CreateNamespaceRequest:
@@ -4648,8 +4645,7 @@ components:
           example: {
               "error": {
                 "message": "A request with this Idempotency-Key is still in progress",
-                "type": "CommitFailedException",
-                "subtype": "request_in_progress",
+                "type": "RequestInProgressException",
                 "code": 409
               }
             }
