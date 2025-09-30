@@ -26,11 +26,13 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
@@ -79,6 +81,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Test;
@@ -3204,10 +3207,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     String branchName3 = "retention-branch";
     int minSnapshotsToKeep = 5;
-    long maxSnapshotAgeMs = 7 * 24 * 60 * 60 * 1000L; // 7 days
-    long maxRefAgeMs = 30 * 24 * 60 * 60 * 1000L; // 30 days
+    long maxSnapshotAgeMs = Duration.ofDays(7).toMillis(); // 7 days
+    long maxRefAgeMs = Duration.ofDays(30).toMillis(); // 30 days
 
-    table.manageSnapshots()
+    table
+        .manageSnapshots()
         .createBranch(branchName3, firstSnapshot.snapshotId())
         .setMinSnapshotsToKeep(branchName3, minSnapshotsToKeep)
         .setMaxSnapshotAgeMs(branchName3, maxSnapshotAgeMs)
@@ -3278,9 +3282,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Snapshot secondSnapshot = table.currentSnapshot();
 
     String tagName2 = "v1.1";
-    long maxRefAgeMs = 365 * 24 * 60 * 60 * 1000L; // 1 year
+    long maxRefAgeMs = Duration.ofDays(365).toMillis(); // 1 year
 
-    table.manageSnapshots()
+    table
+        .manageSnapshots()
         .createTag(tagName2, secondSnapshot.snapshotId())
         .setMaxRefAgeMs(tagName2, maxRefAgeMs)
         .commit();
@@ -3328,9 +3333,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(NS);
     }
 
-    Table table = catalog.buildTable(TABLE, SCHEMA)
-        .withProperty(TableProperties.GC_ENABLED, "true")
-        .create();
+    Table table =
+        catalog.buildTable(TABLE, SCHEMA).withProperty(TableProperties.GC_ENABLED, "true").create();
 
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
@@ -3339,7 +3343,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     int minSnapshotsToKeep = 2;
     long maxSnapshotAgeMs = 1000L;
 
-    table.manageSnapshots()
+    table
+        .manageSnapshots()
         .createBranch(branchName, firstSnapshot.snapshotId())
         .setMinSnapshotsToKeep(branchName, minSnapshotsToKeep)
         .setMaxSnapshotAgeMs(branchName, maxSnapshotAgeMs)
@@ -3349,11 +3354,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.newFastAppend().toBranch(branchName).appendFile(FILE_C).commit();
 
     // Wait for snapshots to age
-    try {
-      Thread.sleep(1100);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
+    Uninterruptibles.sleepUninterruptibly(1100, TimeUnit.MILLISECONDS);
 
     // Expire snapshots
     table.expireSnapshots().cleanExpiredMetadata(true).commit();
@@ -3370,7 +3371,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     String tagName = "short-lived-tag";
     long maxRefAgeMs = 1000L; // 1 second
 
-    table.manageSnapshots()
+    table
+        .manageSnapshots()
         .createTag(tagName, firstSnapshot.snapshotId())
         .setMaxRefAgeMs(tagName, maxRefAgeMs)
         .commit();
@@ -3380,11 +3382,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(refs).containsKey(tagName);
 
     // Wait for tag to age
-    try {
-      Thread.sleep(1100); // Wait longer than maxRefAgeMs
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
+    Uninterruptibles.sleepUninterruptibly(1100, TimeUnit.MILLISECONDS);
 
     // Expire snapshots (this should also expire the tag)
     table.expireSnapshots().cleanExpiredMetadata(true).commit();
@@ -3394,7 +3392,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(refs).doesNotContainKey(tagName);
 
     String nonExistentBranch = "non-existent-branch";
-    assertThatThrownBy(() -> table.manageSnapshots().setMinSnapshotsToKeep(nonExistentBranch, 5).commit())
+    assertThatThrownBy(
+            () -> table.manageSnapshots().setMinSnapshotsToKeep(nonExistentBranch, 5).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Branch does not exist: %s", nonExistentBranch);
 
@@ -3426,7 +3425,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     String tag2 = "v1.1";
     String tag3 = "release-candidate";
 
-    table.manageSnapshots()
+    table
+        .manageSnapshots()
         .createBranch(branch1, baseSnapshot.snapshotId())
         .createBranch(branch2, baseSnapshot.snapshotId())
         .createBranch(branch3, baseSnapshot.snapshotId())
@@ -3526,11 +3526,15 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     String invalidBranch = "invalid-branch";
     long invalidSnapshotId = 999999L; // Non-existent snapshot ID
-    assertThatThrownBy(() -> table.manageSnapshots().createBranch(invalidBranch, invalidSnapshotId).commit())
-        .isInstanceOf(ValidationException.class);
+    assertThatThrownBy(
+            () -> table.manageSnapshots().createBranch(invalidBranch, invalidSnapshotId).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find snapshot with ID %s", invalidSnapshotId);
 
-    assertThatThrownBy(() -> table.manageSnapshots().replaceBranch(branchName, invalidSnapshotId).commit())
-        .isInstanceOf(ValidationException.class);
+    assertThatThrownBy(
+            () -> table.manageSnapshots().replaceBranch(branchName, invalidSnapshotId).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find snapshot with ID %s", invalidSnapshotId);
   }
 
   @Test
@@ -3549,7 +3553,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.manageSnapshots().createTag(tagName, currentSnapshot.snapshotId()).commit();
 
     // Attempt to create the same tag again should fail
-    assertThatThrownBy(() -> table.manageSnapshots().createTag(tagName, currentSnapshot.snapshotId()).commit())
+    assertThatThrownBy(
+            () -> table.manageSnapshots().createTag(tagName, currentSnapshot.snapshotId()).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref %s already exists", tagName);
 
@@ -3560,11 +3565,15 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     String invalidTag = "invalid-tag";
     long invalidSnapshotId = 999999L; // Non-existent snapshot ID
-    assertThatThrownBy(() -> table.manageSnapshots().createTag(invalidTag, invalidSnapshotId).commit())
-        .isInstanceOf(ValidationException.class);
+    assertThatThrownBy(
+            () -> table.manageSnapshots().createTag(invalidTag, invalidSnapshotId).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find snapshot with ID %s", invalidSnapshotId);
 
-    assertThatThrownBy(() -> table.manageSnapshots().replaceTag(tagName, invalidSnapshotId).commit())
-        .isInstanceOf(ValidationException.class);
+    assertThatThrownBy(
+            () -> table.manageSnapshots().replaceTag(tagName, invalidSnapshotId).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find snapshot with ID %s", invalidSnapshotId);
   }
 
   @Test
