@@ -1882,7 +1882,7 @@ Column projection rules are designed so that the table will remain readable even
 However, the less common case of updating default values may need to be handled depending on isolation level. Consider two concurrent transactions:
 
 * **T1** modifies the `write-default` on the column.
-* **T2** writes data write that makes use of `write-default` from the changed column in the first transaction.
+* **T2** writes data that makes use of `write-default` from the changed column in the first transaction.
 
 If the **T1** commits before **T2** then handling **T2** depends on isolation level.
 
