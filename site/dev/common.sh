@@ -92,7 +92,7 @@ create_nightly () {
 
   # Remove any existing 'nightly' directory and recreate it
   rm -rf docs/docs/nightly/
-  mkdir docs/docs/nightly/
+  mkdir -p docs/docs/nightly/
 
   # Create symbolic links and copy configuration files for the 'nightly' documentation
   ln -s "../../../../docs/docs/" docs/docs/nightly/docs
@@ -105,12 +105,12 @@ create_nightly () {
   cd -
 
   # Remove any existing javadoc 'nightly' link
-  rm -fr docs/javadoc/nightly
+  # rm -fr docs/javadoc/nightly
 
   # Create symbolic link to 'nightly' javadoc
-  cd docs/javadoc
-  ln -s latest nightly
-  cd -
+  # cd docs/javadoc
+  # ln -s latest nightly
+  # cd -
 }
 
 # Finds and retrieves the latest version of the documentation based on the directory structure.
