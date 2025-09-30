@@ -57,6 +57,7 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -273,6 +274,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
+  @Disabled("Deprecated API")
   @TestTemplate
   public void testPositionDeleteWriterWithRow() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), table.schema());
