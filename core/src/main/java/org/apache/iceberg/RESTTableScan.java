@@ -52,7 +52,10 @@ public class RESTTableScan extends DataTableScan {
   private volatile String currentPlanId = null;
 
   // TODO revisit if this property should be configurable
+  // Sleep duration between polling attempts for plan completion
   private static final int FETCH_PLANNING_SLEEP_DURATION_MS = 1000;
+  // Maximum time to wait for scan planning to complete (5 minutes)
+  // This prevents indefinite blocking on server-side planning issues
   private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000L;
 
   RESTTableScan(
@@ -214,20 +217,28 @@ public class RESTTableScan extends DataTableScan {
         }
       }
       // If we reach here, we've exceeded the max wait time
-      currentPlanId = null; // Clear on timeout
+      // Attempt to cancel the plan before timing out
+      cancelPlan();
       throw new IllegalStateException(
           String.format(
               Locale.ROOT,
-              "Exceeded max wait time of %d ms when fetching planning result",
-              MAX_WAIT_TIME_MS));
+              "Exceeded max wait time of %d ms when fetching planning result for planId: %s",
+              MAX_WAIT_TIME_MS,
+              planId));
     } catch (Exception e) {
       // Clear the plan ID on any exception (except successful completion)
-      currentPlanId = null;
+      // Also attempt to cancel the plan to clean up server resources
+      try {
+        cancelPlan();
+      } catch (Exception cancelException) {
+        // Ignore cancellation failures during exception handling
+        // The original exception is more important
+      }
       throw e;
     }
   }
 
-  public CloseableIterable<FileScanTask> getScanTasksIterable(
+  private CloseableIterable<FileScanTask> getScanTasksIterable(
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
     List<ScanTasksIterable> iterableOfScanTaskIterables = Lists.newArrayList();
     if (fileScanTasks != null) {

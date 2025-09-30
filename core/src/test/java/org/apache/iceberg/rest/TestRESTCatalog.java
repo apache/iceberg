@@ -51,7 +51,11 @@ import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RESTTable;
@@ -2762,7 +2766,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertBoundFileScanTasks(table, SPEC);
   }
 
-  public Table createRESTTableAndInsertData(TableIdentifier tableIdentifier) {
+  private Table createRESTTableAndInsertData(TableIdentifier tableIdentifier) {
     RESTCatalog catalog =
         initCatalog(
             "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
@@ -2774,6 +2778,27 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     table.newAppend().appendFile(FILE_A).commit();
     return table;
+  }
+
+  private RESTTable restTableFor(TableIdentifier tableIdentifier) {
+    Table table = createRESTTableAndInsertData(tableIdentifier);
+    assertThat(table).isInstanceOf(RESTTable.class);
+    return (RESTTable) table;
+  }
+
+  private RESTTableScan restTableScanFor(TableIdentifier tableIdentifier) {
+    RESTTable restTable = restTableFor(tableIdentifier);
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    return (RESTTableScan) scan;
+  }
+
+  private RESTTableScan restTableScanFor(Table table) {
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    return (RESTTableScan) scan;
   }
 
   private void verifyTableExistsFallbackToGETRequest(ConfigResponse configResponse) {
@@ -3012,16 +3037,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCancelPlanWithNoActivePlan() {
-    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
-
-    // Cast to RESTTable to access scan functionality
-    assertThat(table).isInstanceOf(RESTTable.class);
-    RESTTable restTable = (RESTTable) table;
-
-    // Create a new scan and cast to RESTTableScan
-    TableScan scan = restTable.newScan();
-    assertThat(scan).isInstanceOf(RESTTableScan.class);
-    RESTTableScan restTableScan = (RESTTableScan) scan;
+    RESTTableScan restTableScan = restTableScanFor(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
 
     // Calling cancel with no active plan should return false
     boolean cancelled = restTableScan.cancelPlan();
@@ -3030,15 +3046,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCancelPlanEndpointSupport() {
-    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
-
-    // Verify that a RESTTable was created (indicating server-side planning is enabled)
-    assertThat(table).isInstanceOf(RESTTable.class);
-
-    // Create scan from RESTTable
-    TableScan scan = table.newScan();
-    assertThat(scan).isInstanceOf(RESTTableScan.class);
-    RESTTableScan restTableScan = (RESTTableScan) scan;
+    RESTTableScan restTableScan = restTableScanFor(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
 
     // Test that cancelPlan method is available and returns false when no plan is active
     boolean cancelled = restTableScan.cancelPlan();
@@ -3047,14 +3055,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCancelPlanMethodAvailability() {
-    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
-    // Ensure we have a RESTTable with server-side planning enabled
-    assertThat(table).isInstanceOf(RESTTable.class);
-    RESTTable restTable = (RESTTable) table;
-
-    TableScan scan = restTable.newScan();
-    assertThat(scan).isInstanceOf(RESTTableScan.class);
-    RESTTableScan restTableScan = (RESTTableScan) scan;
+    RESTTableScan restTableScan = restTableScanFor(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
 
     // Test that cancelPlan method is available and callable
     // When no plan is active, it should return false
@@ -3115,6 +3116,48 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  public void testMetadataTablesWithRemotePlanning() throws IOException {
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+
+    // Test that metadata tables work with remote planning
+    // Files metadata table
+    Table filesTable =
+        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.FILES);
+    assertThat(filesTable).isNotNull();
+
+    TableScan filesScan = filesTable.newScan();
+    assertThat(filesScan).isNotNull();
+
+    // Verify metadata table scan works (should not use REST scan planning)
+    CloseableIterable<FileScanTask> filesIterable = filesScan.planFiles();
+    List<FileScanTask> filesTasks = Lists.newArrayList(filesIterable);
+    assertThat(filesTasks).isNotEmpty();
+
+    // Snapshots metadata table
+    Table snapshotsTable =
+        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.SNAPSHOTS);
+    assertThat(snapshotsTable).isNotNull();
+
+    TableScan snapshotsScan = snapshotsTable.newScan();
+    CloseableIterable<FileScanTask> snapshotsIterable = snapshotsScan.planFiles();
+    List<FileScanTask> snapshotsTasks = Lists.newArrayList(snapshotsIterable);
+    assertThat(snapshotsTasks).isNotEmpty();
+
+    // Manifests metadata table
+    Table manifestsTable =
+        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.MANIFESTS);
+    assertThat(manifestsTable).isNotNull();
+
+    TableScan manifestsScan = manifestsTable.newScan();
+    CloseableIterable<FileScanTask> manifestsIterable = manifestsScan.planFiles();
+    List<FileScanTask> manifestsTasks = Lists.newArrayList(manifestsIterable);
+    assertThat(manifestsTasks).isNotEmpty();
+  }
+
+  @Test
   public void testIterableCloseTriggersCancel() throws IOException {
     Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_PLAN_TASK);
 
@@ -3160,9 +3203,23 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // Verify we get tasks back (specific count depends on implementation)
     assertThat(tasks).isNotEmpty();
 
-    // Verify that delete files are properly handled in the scan tasks
-    boolean hasTasksWithDeletes = tasks.stream().anyMatch(task -> !task.deletes().isEmpty());
-    assertThat(hasTasksWithDeletes).isTrue();
+    // Verify specific task content and delete file associations
+    FileScanTask taskWithDeletes =
+        tasks.stream()
+            .filter(task -> !task.deletes().isEmpty())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected at least one task with delete files"));
+
+    // Verify the task has the expected data file
+    assertThat(taskWithDeletes.file().path()).isEqualTo(FILE_A.path());
+
+    // Verify the delete files are properly associated
+    List<DeleteFile> deletes = taskWithDeletes.deletes();
+    assertThat(deletes).hasSize(1);
+
+    DeleteFile deleteFile = deletes.get(0);
+    assertThat(deleteFile.path()).isEqualTo(FILE_A_DELETES.path());
+    assertThat(deleteFile.content()).isEqualTo(FileContent.POSITION_DELETES);
   }
 
   @Test
@@ -3186,9 +3243,27 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // Verify we get tasks back
     assertThat(tasks).isNotEmpty();
 
-    // Verify that equality delete files are properly handled
-    boolean hasTasksWithDeletes = tasks.stream().anyMatch(task -> !task.deletes().isEmpty());
-    assertThat(hasTasksWithDeletes).isTrue();
+    // Verify specific task content and equality delete file associations
+    FileScanTask taskWithDeletes =
+        tasks.stream()
+            .filter(task -> !task.deletes().isEmpty())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected at least one task with delete files"));
+
+    // Verify the task has the expected data file
+    assertThat(taskWithDeletes.file().path()).isEqualTo(FILE_A.path());
+
+    // Verify the equality delete files are properly associated
+    List<DeleteFile> deletes = taskWithDeletes.deletes();
+    assertThat(deletes).hasSize(1);
+
+    DeleteFile deleteFile = deletes.get(0);
+    assertThat(deleteFile.path()).isEqualTo(FILE_A_EQUALITY_DELETES.path());
+    assertThat(deleteFile.content()).isEqualTo(FileContent.EQUALITY_DELETES);
+
+    // Verify delete file has proper equality fields
+    assertThat(deleteFile.equalityFieldIds()).isNotNull();
+    assertThat(deleteFile.equalityFieldIds()).isNotEmpty();
   }
 
   @Test
