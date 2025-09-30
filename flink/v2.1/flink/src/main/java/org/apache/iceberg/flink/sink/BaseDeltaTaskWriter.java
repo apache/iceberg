@@ -35,6 +35,7 @@ import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 
@@ -112,8 +113,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   }
 
   protected class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
-    RowDataDeltaWriter(PartitionKey partition) {
-      super(partition, schema, deleteSchema, DeleteGranularity.FILE, useDv);
+    RowDataDeltaWriter(PartitionKey partition, PartitioningDVWriter dvFileWriter) {
+      super(partition, schema, deleteSchema, DeleteGranularity.FILE, dvFileWriter, useDv);
     }
 
     @Override
@@ -124,6 +125,12 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     @Override
     protected StructLike asStructLikeKey(RowData data) {
       return keyWrapper.wrap(data);
+    }
+
+    @Override
+    protected void clearDvFileWriter() throws IOException {
+      // We should not clear dvFileWriter here, because we may have multiple writers share the same
+      // dvFileWriter.
     }
   }
 }

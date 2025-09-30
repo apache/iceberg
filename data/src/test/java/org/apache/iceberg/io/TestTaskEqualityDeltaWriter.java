@@ -87,6 +87,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         parameters.add(new Object[] {version, format});
       }
     }
+
     return parameters;
   }
 
@@ -596,8 +597,10 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         DeleteGranularity deleteGranularity,
         boolean useDv) {
       super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+      PartitioningDVWriter<Object> dvWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
       this.deltaWriter =
-          new GenericEqualityDeltaWriter(null, schema, deleteSchema, deleteGranularity, useDv);
+          new GenericEqualityDeltaWriter(
+              null, schema, deleteSchema, deleteGranularity, dvWriter, useDv);
     }
 
     @Override
@@ -625,8 +628,9 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
           Schema schema,
           Schema eqDeleteSchema,
           DeleteGranularity deleteGranularity,
+          PartitioningDVWriter dvWriter,
           boolean useDv) {
-        super(partition, schema, eqDeleteSchema, deleteGranularity, useDv);
+        super(partition, schema, eqDeleteSchema, deleteGranularity, dvWriter, useDv);
       }
 
       @Override
