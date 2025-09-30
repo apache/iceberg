@@ -1949,15 +1949,10 @@ components:
         - Do not finalize (not stored/replayed): 5xx, 409 request_in_progress
 
         Key Requirements:
-        - Must be unique per client mutation operation (e.g., updateTable, createTable)
         - Key format: UUID (V7 preferred)
-        - Scoped to operation type and resource path
+        - Scoped to operation type and resource path; the idempotency key must be unique per (operation type, resource path) pair (e.g., updateTable on db.t1)
         - Catalogs may expire keys according to the advertised token lifetime.
-
-        Best Practices:
-        - Use UUID.randomUUID() or equivalent
-        - Reuse the same key for retries of the same logical operation
-        - Generate new keys for new operations
+        - If Idempotency-Key is used, clients MUST reuse the same key when retrying the same logical operation and MUST generate a new key for a different operation.
 
   ##############################
   # Application Schema Objects #
@@ -2030,10 +2025,12 @@ components:
           type: string
           format: duration
           description: >
-            Minimum retention window for Idempotency-Key tokens (ISO-8601 duration,
-            e.g., PT30M, PT24H). Presence of this field indicates the server supports
-            Idempotency-Key semantics for mutation endpoints. If absent, clients MUST
-            assume idempotency is not supported.
+            Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H).
+            Interpreted as the maximum time from the first submission using a key to the last retry
+            during which a client may reuse that key. Servers MUST accept replays for at least this
+            duration and MAY include a small grace period to account for delays/clock skew.
+            Presence of this field indicates the server supports Idempotency-Key semantics for
+            mutation endpoints. If absent, clients MUST assume idempotency is not supported.
           example: PT30M
 
     CreateNamespaceRequest:
