@@ -28,7 +28,9 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
+import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -119,6 +121,9 @@ public class RESTCatalogServer {
         new Server(
             PropertyUtil.propertyAsInt(catalogContext.configuration, REST_PORT, REST_PORT_DEFAULT));
     httpServer.setHandler(context);
+    for (Connector connector : httpServer.getConnectors()) {
+      ((ServerConnector) connector).setReusePort(true);
+    }
     httpServer.start();
 
     if (join) {

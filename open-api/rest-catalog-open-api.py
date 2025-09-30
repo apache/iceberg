@@ -220,6 +220,11 @@ class Snapshot(BaseModel):
         alias='first-row-id',
         description='The first _row_id assigned to the first row in the first data file in the first manifest',
     )
+    added_rows: Optional[int] = Field(
+        None,
+        alias='added-rows',
+        description='The upper bound of the number of rows with assigned row IDs',
+    )
     summary: Summary
     schema_id: Optional[int] = Field(None, alias='schema-id')
 
@@ -440,7 +445,10 @@ class AssertTableUUID(TableRequirement):
 
 class AssertRefSnapshotId(TableRequirement):
     """
-    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
+    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`.
+    The `snapshot-id` field is required in this object, but in the case of a `null`
+    the ref must not already exist.
+
     """
 
     type: str = Field('assert-ref-snapshot-id', const=True)
@@ -1147,7 +1155,7 @@ class NotExpression(BaseModel):
 
 
 class TableMetadata(BaseModel):
-    format_version: int = Field(..., alias='format-version', ge=1, le=2)
+    format_version: int = Field(..., alias='format-version', ge=1, le=3)
     table_uuid: str = Field(..., alias='table-uuid')
     location: Optional[str] = None
     last_updated_ms: Optional[int] = Field(None, alias='last-updated-ms')

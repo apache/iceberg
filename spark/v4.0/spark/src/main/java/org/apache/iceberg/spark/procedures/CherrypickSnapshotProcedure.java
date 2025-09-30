@@ -45,11 +45,13 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
 
   static final String NAME = "cherrypick_snapshot";
 
+  private static final ProcedureParameter TABLE_PARAM =
+      requiredInParameter("table", DataTypes.StringType);
+  private static final ProcedureParameter SNAPSHOT_ID_PARAM =
+      requiredInParameter("snapshot_id", DataTypes.LongType);
+
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        requiredInParameter("table", DataTypes.StringType),
-        requiredInParameter("snapshot_id", DataTypes.LongType)
-      };
+      new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -83,8 +85,10 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
 
   @Override
   public Iterator<Scan> call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    long snapshotId = args.getLong(1);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+
+    Identifier tableIdent = input.ident(TABLE_PARAM);
+    long snapshotId = input.asLong(SNAPSHOT_ID_PARAM);
 
     return asScanIterator(
         OUTPUT_TYPE,

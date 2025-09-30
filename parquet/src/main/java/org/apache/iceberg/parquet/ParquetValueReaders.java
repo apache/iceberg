@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -187,6 +189,16 @@ public class ParquetValueReaders {
 
   public static ParquetValueReader<Long> int96Timestamps(ColumnDescriptor desc) {
     return new TimestampInt96Reader(desc);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends StructLike> ParquetValueReader<T> structLikeReader(
+      List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structClass) {
+    if (structClass.equals(Record.class)) {
+      return ((ParquetValueReader<T>) recordReader(readers, struct));
+    } else {
+      return new StructLikeReader<>(readers, struct, structClass);
+    }
   }
 
   public static ParquetValueReader<Record> recordReader(
@@ -1129,6 +1141,46 @@ public class ParquetValueReaders {
         }
       }
       return NullReader.NULL_COLUMN;
+    }
+  }
+
+  private static class StructLikeReader<T extends StructLike> extends StructReader<T, T> {
+    private final Types.StructType struct;
+    private final DynConstructors.Ctor<T> ctor;
+
+    StructLikeReader(
+        List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structLikeClass) {
+      super(readers);
+      this.struct = struct;
+      this.ctor =
+          DynConstructors.builder(StructLike.class)
+              .hiddenImpl(structLikeClass, Types.StructType.class)
+              .hiddenImpl(structLikeClass)
+              .build();
+    }
+
+    @Override
+    protected T newStructData(T reuse) {
+      if (reuse != null) {
+        return reuse;
+      } else {
+        return ctor.newInstance(struct);
+      }
+    }
+
+    @Override
+    protected Object getField(T intermediate, int pos) {
+      return intermediate.get(pos, Object.class);
+    }
+
+    @Override
+    protected T buildStruct(T s) {
+      return s;
+    }
+
+    @Override
+    protected void set(T s, int pos, Object value) {
+      s.set(pos, value);
     }
   }
 

@@ -34,6 +34,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter;
 import org.apache.iceberg.RewriteTablePathUtil.RewriteResult;
@@ -90,12 +91,14 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteTablePathSparkAction.class);
   private static final String RESULT_LOCATION = "file-list";
+  static final String NOT_APPLICABLE = "N/A";
 
   private String sourcePrefix;
   private String targetPrefix;
   private String startVersionName;
   private String endVersionName;
   private String stagingDir;
+  private boolean createFileList = true;
 
   private final Table table;
   private Broadcast<Table> tableBroadcast = null;
@@ -150,6 +153,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   @Override
+  public RewriteTablePath createFileList(boolean createFileListFlag) {
+    this.createFileList = createFileListFlag;
+    return this;
+  }
+
+  @Override
   public Result execute() {
     validateInputs();
     JobGroupInfo info = newJobGroupInfo("REWRITE-TABLE-PATH", jobDesc());
@@ -157,12 +166,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private Result doExecute() {
-    String resultLocation = rebuildMetadata();
-    return ImmutableRewriteTablePath.Result.builder()
-        .stagingLocation(stagingDir)
-        .fileListLocation(resultLocation)
-        .latestVersion(RewriteTablePathUtil.fileName(endVersionName))
-        .build();
+    return rebuildMetadata();
   }
 
   private void validateInputs() {
@@ -263,7 +267,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    *   <li>Get all files needed to move
    * </ul>
    */
-  private String rebuildMetadata() {
+  private Result rebuildMetadata() {
     TableMetadata startMetadata =
         startVersionName != null
             ? ((HasTableOperations) newStaticTable(startVersionName, table.io()))
@@ -272,11 +276,6 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             : null;
     TableMetadata endMetadata =
         ((HasTableOperations) newStaticTable(endVersionName, table.io())).operations().current();
-
-    Preconditions.checkArgument(
-        endMetadata.partitionStatisticsFiles() == null
-            || endMetadata.partitionStatisticsFiles().isEmpty(),
-        "Partition statistics files are not supported yet.");
 
     // rebuild version files
     RewriteResult<Snapshot> rewriteVersionResult = rewriteVersionFiles(endMetadata);
@@ -293,6 +292,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .reduce(new RewriteResult<>(), RewriteResult::append);
 
     // rebuild manifest files
+    Set<ManifestFile> metaFiles = rewriteManifestListResult.toRewrite();
     RewriteContentFileResult rewriteManifestResult =
         rewriteManifests(deltaSnapshots, endMetadata, rewriteManifestListResult.toRewrite());
 
@@ -304,12 +304,24 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .collect(Collectors.toSet());
     rewritePositionDeletes(deleteFiles);
 
+    ImmutableRewriteTablePath.Result.Builder builder =
+        ImmutableRewriteTablePath.Result.builder()
+            .stagingLocation(stagingDir)
+            .rewrittenDeleteFilePathsCount(deleteFiles.size())
+            .rewrittenManifestFilePathsCount(metaFiles.size())
+            .latestVersion(RewriteTablePathUtil.fileName(endVersionName));
+
+    if (!createFileList) {
+      return builder.fileListLocation(NOT_APPLICABLE).build();
+    }
+
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();
     copyPlan.addAll(rewriteVersionResult.copyPlan());
     copyPlan.addAll(rewriteManifestListResult.copyPlan());
     copyPlan.addAll(rewriteManifestResult.copyPlan());
+    String fileListLocation = saveFileList(copyPlan);
 
-    return saveFileList(copyPlan);
+    return builder.fileListLocation(fileListLocation).build();
   }
 
   private String saveFileList(Set<Pair<String, String>> filesToMove) {
@@ -385,6 +397,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     // include statistics files in copy plan
     result.addAll(
         statsFileCopyPlan(metadata.statisticsFiles(), newTableMetadata.statisticsFiles()));
+    result.addAll(
+        partitionStatsFileCopyPlan(
+            metadata.partitionStatisticsFiles(), newTableMetadata.partitionStatisticsFiles()));
     return result;
   }
 
@@ -404,10 +419,28 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Preconditions.checkArgument(
           before.fileSizeInBytes() == after.fileSizeInBytes(),
           "Before and after path rewrite, statistic file size should be same");
-      result.add(
-          Pair.of(
-              RewriteTablePathUtil.stagingPath(before.path(), sourcePrefix, stagingDir),
-              after.path()));
+      result.add(Pair.of(before.path(), after.path()));
+    }
+    return result;
+  }
+
+  private Set<Pair<String, String>> partitionStatsFileCopyPlan(
+      List<PartitionStatisticsFile> beforeStats, List<PartitionStatisticsFile> afterStats) {
+    Set<Pair<String, String>> result = Sets.newHashSet();
+    if (beforeStats.isEmpty()) {
+      return result;
+    }
+
+    Preconditions.checkArgument(
+        beforeStats.size() == afterStats.size(),
+        "Before and after path rewrite, partition statistic files count should be same");
+    for (int i = 0; i < beforeStats.size(); i++) {
+      PartitionStatisticsFile before = beforeStats.get(i);
+      PartitionStatisticsFile after = afterStats.get(i);
+      Preconditions.checkArgument(
+          before.fileSizeInBytes() == after.fileSizeInBytes(),
+          "Before and after path rewrite, partition statistic file size should be same");
+      result.add(Pair.of(before.path(), after.path()));
     }
     return result;
   }
