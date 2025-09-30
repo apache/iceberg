@@ -3074,14 +3074,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ResourcePaths paths = new ResourcePaths("test-prefix");
 
     // Test that the cancel plan path is generated correctly
-    String cancelPath = paths.cancelPlan(tableId, planId);
+    String cancelPath = paths.plan(tableId, planId);
 
     assertThat(cancelPath)
         .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
 
     // Test with different identifiers
     TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
-    String complexPath = paths.cancelPlan(complexId, "plan-xyz-789");
+    String complexPath = paths.plan(complexId, "plan-xyz-789");
 
     assertThat(complexPath).contains("/plan/plan-xyz-789");
     assertThat(complexPath).contains("db%1Fschema"); // URL encoded namespace separator

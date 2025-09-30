@@ -53,10 +53,6 @@ public class RESTTable extends BaseTable {
 
   @Override
   public TableScan newScan() {
-    // TODO when looking at ImmutableTableScanContext how do we ensure
-    // correct snapshotId to use for point in time cases. When looking at spark
-    // it seems it follows similar approach, see class SparkDistributedDataScan
-
     return new RESTTableScan(
         this,
         schema(),

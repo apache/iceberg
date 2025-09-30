@@ -179,7 +179,7 @@ public class RESTTableScan extends DataTableScan {
       while (System.currentTimeMillis() - startTime <= MAX_WAIT_TIME_MS) {
         FetchPlanningResultResponse response =
             client.get(
-                resourcePaths.fetchPlanningResult(tableIdentifier, planId),
+                resourcePaths.plan(tableIdentifier, planId),
                 Map.of(),
                 FetchPlanningResultResponse.class,
                 headers.get(),
@@ -297,7 +297,7 @@ public class RESTTableScan extends DataTableScan {
 
     try {
       client.delete(
-          resourcePaths.cancelPlan(tableIdentifier, planId),
+          resourcePaths.plan(tableIdentifier, planId),
           Map.of(),
           null,
           headers.get(),

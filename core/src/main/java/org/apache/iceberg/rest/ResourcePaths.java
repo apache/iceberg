@@ -145,19 +145,7 @@ public class ResourcePaths {
         "plan");
   }
 
-  public String fetchPlanningResult(TableIdentifier ident, String planId) {
-    return SLASH.join(
-        "v1",
-        prefix,
-        "namespaces",
-        RESTUtil.encodeNamespace(ident.namespace()),
-        "tables",
-        RESTUtil.encodeString(ident.name()),
-        "plan",
-        planId);
-  }
-
-  public String cancelPlan(TableIdentifier ident, String planId) {
+  public String plan(TableIdentifier ident, String planId) {
     return SLASH.join(
         "v1",
         prefix,

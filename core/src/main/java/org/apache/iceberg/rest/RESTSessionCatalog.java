@@ -468,7 +468,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable = getRemoteScanPlanningTable(ops, finalIdentifier, tableClient);
+    RESTTable restTable = restTableForScanPlanning(ops, finalIdentifier, tableClient);
     if (restTable != null) {
       return restTable;
     }
@@ -485,7 +485,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return table;
   }
 
-  private RESTTable getRemoteScanPlanningTable(
+  private RESTTable restTableForScanPlanning(
       TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
     // server supports remote planning and the client has it enabled
     if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restServerPlanningEnabled) {
@@ -569,7 +569,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable = getRemoteScanPlanningTable(ops, ident, tableClient);
+    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
     if (restTable != null) {
       return restTable;
     }
@@ -833,7 +833,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable restTable = getRemoteScanPlanningTable(ops, ident, tableClient);
+      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
       if (restTable != null) {
         return restTable;
       }
