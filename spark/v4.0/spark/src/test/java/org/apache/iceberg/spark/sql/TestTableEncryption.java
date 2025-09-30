@@ -30,9 +30,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
@@ -94,7 +97,18 @@ public class TestTableEncryption extends CatalogTestBase {
 
   @TestTemplate
   public void testInsertAndDelete() {
+    Table table = catalog.loadTable(tableIdent);
+
+    assertThat(currentDataFiles(table)).isNotEmpty();
+
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0), (6, 'f', float('NaN'))", tableName);
+
+    // Refresh - the table now can't be read
+    table.refresh();
+
+    // This throws with "java.lang.IllegalStateException: Cannot find manifest list key metadata
+    // with id at StandardEncryptionManager.encryptedByKey"
+    assertThat(currentDataFiles(table)).isNotEmpty();
 
     List<Object[]> expected =
         ImmutableList.of(
@@ -206,5 +220,11 @@ public class TestTableEncryption extends CatalogTestBase {
     stream.read(magic);
     stream.close();
     assertThat(magic).isEqualTo(Ciphers.GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static List<DataFile> currentDataFiles(Table table) {
+    return Streams.stream(table.newScan().planFiles())
+        .map(FileScanTask::file)
+        .collect(Collectors.toList());
   }
 }

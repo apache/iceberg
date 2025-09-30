@@ -37,6 +37,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
@@ -87,7 +88,11 @@ public abstract class TestBase extends SparkTestHelperBase {
     TestBase.catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
-                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
+                HiveCatalog.class.getName(),
+                "hive",
+                // Hacky - temporarily add KMS impl
+                ImmutableMap.of("encryption.kms-impl", UnitestKMS.class.getCanonicalName()),
+                hiveConf);
 
     try {
       catalog.createNamespace(Namespace.of("default"));
