@@ -1041,6 +1041,7 @@ project(':iceberg-open-api') {
     testFixturesImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testFixturesImplementation project(':iceberg-aws')
     testFixturesImplementation project(':iceberg-gcp')
+    testFixturesImplementation project(':iceberg-bigquery')
     testFixturesImplementation project(':iceberg-azure')
     testFixturesImplementation(libs.hadoop3.common) {
       exclude group: 'org.slf4j'
