@@ -3529,12 +3529,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThatThrownBy(
             () -> table.manageSnapshots().createBranch(invalidBranch, invalidSnapshotId).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot find snapshot with ID %s", invalidSnapshotId);
+        .hasMessageContaining(
+            "Cannot set invalid-branch to unknown snapshot: %s", invalidSnapshotId);
 
     assertThatThrownBy(
             () -> table.manageSnapshots().replaceBranch(branchName, invalidSnapshotId).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot find snapshot with ID %s", invalidSnapshotId);
+        .hasMessageContaining(
+            "Cannot set existing-branch to unknown snapshot: %s", invalidSnapshotId);
   }
 
   @Test
@@ -3568,12 +3570,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThatThrownBy(
             () -> table.manageSnapshots().createTag(invalidTag, invalidSnapshotId).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot find snapshot with ID %s", invalidSnapshotId);
+        .hasMessageContaining("Cannot set invalid-tag to unknown snapshot: %s", invalidSnapshotId);
 
     assertThatThrownBy(
             () -> table.manageSnapshots().replaceTag(tagName, invalidSnapshotId).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot find snapshot with ID %s", invalidSnapshotId);
+        .hasMessageContaining("Cannot set existing-tag to unknown snapshot: %s", invalidSnapshotId);
   }
 
   @Test
