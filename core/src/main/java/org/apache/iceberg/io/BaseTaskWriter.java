@@ -516,7 +516,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       extends SortingPositionOnlyDeleteWriter<T>
       implements PartitioningWriter<PositionDelete<T>, DeleteWriteResult> {
 
-    public PartitionSortingPositionOnlyDeleteWriterWrap(
+    PartitionSortingPositionOnlyDeleteWriterWrap(
         Supplier<FileWriter<PositionDelete<T>, DeleteWriteResult>> writers,
         DeleteGranularity granularity) {
       super(writers, granularity);
