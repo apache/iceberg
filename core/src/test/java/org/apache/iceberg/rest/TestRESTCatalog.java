@@ -931,40 +931,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     ResourcePaths paths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
 
-    // Respond with only referenced snapshots
-    Answer<?> refsAnswer =
-        invocation -> {
-          LoadTableResponse originalResponse = (LoadTableResponse) invocation.callRealMethod();
-          TableMetadata refsMetadata =
-              TableMetadata.buildFrom(originalResponse.tableMetadata())
-                  .suppressHistoricalSnapshots()
-                  .build();
-
-          // don't call snapshots() directly as that would cause to load all snapshots. Instead,
-          // make sure the snapshots field holds exactly 1 snapshot
-          assertThat(refsMetadata)
-              .extracting("snapshots")
-              .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
-              .hasSize(1);
-
-          return LoadTableResponse.builder()
-              .withTableMetadata(refsMetadata)
-              .addAllConfig(originalResponse.config())
-              .build();
-        };
-
-    Mockito.doAnswer(refsAnswer)
-        .when(adapter)
-        .execute(
-            reqMatcher(HTTPMethod.GET, paths.table(TABLE), Map.of(), Map.of("snapshots", "refs")),
-            eq(LoadTableResponse.class),
-            any(),
-            any());
-
     Table refsTable = catalog.loadTable(TABLE);
     refsTable.refresh();
 
+    // don't call snapshots() directly as that would cause to load all snapshots. Instead,
+    // make sure the snapshots field holds exactly 1 snapshot
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshots")
+        .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+        .hasSize(1);
+
     assertThat(refsTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
+
     // verify that the table was loaded with the refs argument
     verify(adapter, times(2))
         .execute(
