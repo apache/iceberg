@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -134,18 +135,9 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     try {
       switch (fileFormat) {
         case AVRO:
-          return Avro.write(encryptedOutputFile)
-              .schema(schema)
-              .createWriterFunc(DataWriter::create)
-              .metricsConfig(metricsConfig)
-              .setAll(config)
-              .overwrite()
-              .build();
-
         case PARQUET:
-          return Parquet.write(encryptedOutputFile)
+          return InternalData.write(fileFormat, encryptedOutputFile.encryptingOutputFile())
               .schema(schema)
-              .createWriterFunc(GenericParquetWriter::create)
               .setAll(config)
               .metricsConfig(metricsConfig)
               .overwrite()

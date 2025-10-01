@@ -115,6 +115,20 @@ public class InternalData {
     WriteBuilder set(String property, String value);
 
     /**
+     * Set a writer configuration property.
+     *
+     * <p>Write configuration affects writer behavior. To add file metadata properties, use {@link
+     * #meta(String, String)}.
+     *
+     * @param config a writer config
+     * @return this for method chaining
+     */
+    default WriteBuilder setAll(Map<String, String> config) {
+      config.forEach(this::set);
+      return this;
+    }
+
+    /**
      * Set a file metadata property.
      *
      * <p>Metadata properties are written into file metadata. To alter a writer configuration
@@ -142,6 +156,16 @@ public class InternalData {
 
     /** Overwrite the file if it already exists. */
     WriteBuilder overwrite();
+
+    /**
+     * Set the metrics config
+     *
+     * @param newMetricsConfig The metrics config to set
+     * @return this for method chaining
+     */
+    default WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      throw new UnsupportedOperationException("metricsConfig() not supported");
+    }
 
     /** Build the configured {@link FileAppender}. */
     <D> FileAppender<D> build() throws IOException;

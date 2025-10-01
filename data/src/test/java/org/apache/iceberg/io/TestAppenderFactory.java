@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -34,19 +35,15 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestBase;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -331,17 +328,8 @@ public abstract class TestAppenderFactory<T> extends TestBase {
   private CloseableIterable<Record> createReader(Schema schema, InputFile inputFile) {
     switch (format) {
       case PARQUET:
-        return Parquet.read(inputFile)
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-            .build();
-
       case AVRO:
-        return Avro.read(inputFile)
-            .project(schema)
-            .createResolvingReader(PlannedDataReader::create)
-            .build();
-
+        return InternalData.read(format, inputFile).project(schema).build();
       case ORC:
         return ORC.read(inputFile)
             .project(schema)

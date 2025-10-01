@@ -149,6 +149,7 @@ public class Avro {
       return this;
     }
 
+    @Override
     public WriteBuilder setAll(Map<String, String> properties) {
       config.putAll(properties);
       return this;
@@ -166,6 +167,7 @@ public class Avro {
       return this;
     }
 
+    @Override
     public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;

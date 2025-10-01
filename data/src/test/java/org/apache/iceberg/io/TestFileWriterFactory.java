@@ -32,24 +32,21 @@ import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
@@ -464,23 +461,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   private List<Record> readFile(Schema schema, InputFile inputFile) throws IOException {
     switch (fileFormat) {
       case PARQUET:
-        try (CloseableIterable<Record> records =
-            Parquet.read(inputFile)
-                .project(schema)
-                .createReaderFunc(
-                    fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-                .build()) {
-
-          return ImmutableList.copyOf(records);
-        }
-
       case AVRO:
         try (CloseableIterable<Record> records =
-            Avro.read(inputFile)
-                .project(schema)
-                .createResolvingReader(PlannedDataReader::create)
-                .build()) {
-
+            InternalData.read(fileFormat, inputFile).project(schema).build()) {
           return ImmutableList.copyOf(records);
         }
 
