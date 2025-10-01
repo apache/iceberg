@@ -251,6 +251,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'commons-logging', module: 'commons-logging'
     }
     implementation project(':iceberg-gcp')
+    implementation project(':iceberg-bigquery')
     implementation project(':iceberg-hive-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
