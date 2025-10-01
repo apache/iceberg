@@ -23,7 +23,6 @@ import org.apache.iceberg.aws.AwsClientFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 class StaticClientFactory implements AwsClientFactory {
@@ -32,11 +31,6 @@ class StaticClientFactory implements AwsClientFactory {
   @Override
   public S3Client s3() {
     return client;
-  }
-
-  @Override
-  public S3AsyncClient s3Async() {
-    return null;
   }
 
   @Override
