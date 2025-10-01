@@ -128,9 +128,12 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     }
 
     @Override
-    protected void clearDvFileWriter() throws IOException {
-      // We should not clear dvFileWriter here, because we may have multiple writers share the same
+    protected void closePositionWriter() throws IOException {
+      // We should not close dvFileWriter here, because we may have multiple writers share the same
       // dvFileWriter.
+      if (!useDv) {
+        super.closePositionWriter();
+      }
     }
   }
 }
