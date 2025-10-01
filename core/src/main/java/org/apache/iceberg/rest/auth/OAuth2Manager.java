@@ -61,10 +61,10 @@ public class OAuth2Manager implements AuthManager {
 
   private final String name;
 
-  private RESTClient refreshClient;
+  private volatile RESTClient refreshClient;
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
-  private AuthSessionCache sessionCache;
+  private volatile AuthSessionCache sessionCache;
   private boolean keepRefreshed = true;
 
   public OAuth2Manager(String managerName) {
@@ -168,25 +168,23 @@ public class OAuth2Manager implements AuthManager {
     // Important: this method is invoked from standalone components; we must not assume that
     // the refresh client and session cache have been initialized, because catalogSession()
     // won't be called.
-    if (refreshClient == null) {
-      refreshClient = sharedClient.withAuthSession(parent);
-    }
-
-    if (sessionCache == null) {
-      sessionCache = newSessionCache(name, properties);
-    }
 
     String oauth2ServerUri =
         properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+
     if (config.token() != null) {
+      maybeInitRefreshClient(sharedClient, parent);
+      AuthSessionCache cache = getOrCreateSessionCache(properties);
       String cacheKey = oauth2ServerUri + ":" + config.token();
-      return sessionCache.cachedSession(
+      return cache.cachedSession(
           cacheKey, k -> newSessionFromAccessToken(config.token(), properties, parent));
     }
 
     if (config.credential() != null && !config.credential().isEmpty()) {
+      maybeInitRefreshClient(sharedClient, parent);
+      AuthSessionCache cache = getOrCreateSessionCache(properties);
       String cacheKey = oauth2ServerUri + ":" + config.credential();
-      return sessionCache.cachedSession(cacheKey, k -> newSessionFromTokenResponse(config, parent));
+      return cache.cachedSession(cacheKey, k -> newSessionFromTokenResponse(config, parent));
     }
 
     return parent;
@@ -262,16 +260,41 @@ public class OAuth2Manager implements AuthManager {
 
   protected OAuth2Util.AuthSession newSessionFromTokenResponse(
       AuthConfig config, OAuth2Util.AuthSession parent) {
+    RESTClient client = refreshClient;
     OAuthTokenResponse response =
         OAuth2Util.fetchToken(
-            refreshClient,
+            client,
             Map.of(),
             config.credential(),
             config.scope(),
             config.oauth2ServerUri(),
             config.optionalOAuthParams());
     return OAuth2Util.AuthSession.fromTokenResponse(
-        refreshClient, refreshExecutor(), response, System.currentTimeMillis(), parent);
+        client, refreshExecutor(), response, System.currentTimeMillis(), parent);
+  }
+
+  private void maybeInitRefreshClient(RESTClient sharedClient, AuthSession session) {
+    if (refreshClient == null) {
+      synchronized (this) {
+        if (refreshClient == null) {
+          refreshClient = sharedClient.withAuthSession(session);
+        }
+      }
+    }
+  }
+
+  private AuthSessionCache getOrCreateSessionCache(Map<String, String> properties) {
+    AuthSessionCache cache = this.sessionCache;
+    if (cache == null) {
+      synchronized (this) {
+        if (this.sessionCache == null) {
+          cache = newSessionCache(name, properties);
+          this.sessionCache = cache;
+        }
+      }
+    }
+
+    return cache;
   }
 
   @Nullable
