@@ -1941,8 +1941,9 @@ components:
 
         When present, the server ensures no additional effects for requests that carry the same
         Idempotency-Key within the same operation/resource scope. If a prior request with this key
-        has been finalized, the server returns the previously finalized response instead of
-        re-executing the mutation.
+        has been finalized, the server returns an equivalent final response without re-running the
+        operation (the response body may be rebuilt from current authoritative state and need not
+        be byte-identical).
 
         Finalization rules:
         - Finalize & replay: 200, 201, 204, and deterministic terminal 4xx
