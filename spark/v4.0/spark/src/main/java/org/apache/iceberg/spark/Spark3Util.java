@@ -814,7 +814,7 @@ public class Spark3Util {
               try {
                 return catalogManager.catalog(catalogName);
               } catch (Exception e) {
-                LOG.warn("Failed to load catalog", e);
+                LOG.warn("Failed to load catalog: {}", catalogName, e);
                 return null;
               }
             },
