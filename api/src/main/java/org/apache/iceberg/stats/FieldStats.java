@@ -26,13 +26,15 @@ public interface FieldStats<T> extends StructLike {
 
   Type type();
 
-  Long columnSize();
-
   Long valueCount();
 
   Long nullValueCount();
 
   Long nanValueCount();
+
+  Integer avgValueSize();
+
+  Integer maxValueSize();
 
   T lowerBound();
 

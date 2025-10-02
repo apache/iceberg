@@ -96,10 +96,6 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
       FieldStats<?> stat = fieldStats.get(pos);
       BaseFieldStats.Builder builder = BaseFieldStats.buildFrom(stat);
       Type type = stat.type();
-      if (null != record.getField("column_size")) {
-        builder.columnSize((Long) record.getField("column_size"));
-      }
-
       if (null != record.getField("value_count")) {
         builder.valueCount((Long) record.getField("value_count"));
       }
@@ -110,6 +106,14 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
 
       if (null != record.getField("null_value_count")) {
         builder.nullValueCount((Long) record.getField("null_value_count"));
+      }
+
+      if (null != record.getField("avg_value_size")) {
+        builder.avgValueSize((Integer) record.getField("avg_value_size"));
+      }
+
+      if (null != record.getField("max_value_size")) {
+        builder.maxValueSize((Integer) record.getField("max_value_size"));
       }
 
       Object lowerBound = record.getField("lower_bound");
