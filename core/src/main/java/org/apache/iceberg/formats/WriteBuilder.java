@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.formats;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.io.FileAppender;
 
 /**
  * Builder interface for creating file writers across supported data file formats. The {@link
@@ -34,19 +35,16 @@ import org.apache.iceberg.Schema;
  *
  * <p>This interface is directly exposed to users for parameterizing when only an appender is
  * required.
- *
- * @param <D> the input data type for the writer
- * @param <S> the type of the schema for the input data
  */
-public interface WriteBuilder<D, S> {
+public interface WriteBuilder {
   /** Set the file schema. */
-  WriteBuilder<D, S> schema(Schema schema);
+  WriteBuilder schema(Schema schema);
 
   /**
    * Sets the input schema accepted by the writer. If not provided derived from the {@link
    * #schema(Schema)}.
    */
-  WriteBuilder<D, S> inputSchema(S schema);
+  WriteBuilder inputSchema(Object schema);
 
   /**
    * Set a writer configuration property which affects the writer behavior.
@@ -55,7 +53,7 @@ public interface WriteBuilder<D, S> {
    * @param value config value
    * @return this for method chaining
    */
-  WriteBuilder<D, S> set(String property, String value);
+  WriteBuilder set(String property, String value);
 
   /**
    * Sets multiple writer configuration properties that affect the writer behavior.
@@ -63,7 +61,7 @@ public interface WriteBuilder<D, S> {
    * @param properties writer config properties to set
    * @return this for method chaining
    */
-  default WriteBuilder<D, S> set(Map<String, String> properties) {
+  default WriteBuilder setAll(Map<String, String> properties) {
     properties.forEach(this::set);
     return this;
   }
@@ -75,7 +73,7 @@ public interface WriteBuilder<D, S> {
    * @param value config value
    * @return this for method chaining
    */
-  WriteBuilder<D, S> meta(String property, String value);
+  WriteBuilder meta(String property, String value);
 
   /**
    * Sets multiple file metadata properties in the created file.
@@ -83,7 +81,7 @@ public interface WriteBuilder<D, S> {
    * @param properties file metadata properties to set
    * @return this for method chaining
    */
-  default WriteBuilder<D, S> meta(Map<String, String> properties) {
+  default WriteBuilder meta(Map<String, String> properties) {
     properties.forEach(this::meta);
     return this;
   }
@@ -92,26 +90,26 @@ public interface WriteBuilder<D, S> {
    * Based on the target file content the generated {@link FileAppender} needs different
    * configuration.
    */
-  WriteBuilder<D, S> content(FileContent content);
+  WriteBuilder content(FileContent content);
 
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
-  WriteBuilder<D, S> metricsConfig(MetricsConfig metricsConfig);
+  WriteBuilder metricsConfig(MetricsConfig metricsConfig);
 
   /** Overwrite the file if it already exists. By default, overwrite is disabled. */
-  WriteBuilder<D, S> overwrite();
+  WriteBuilder overwrite();
 
   /**
    * Sets the encryption key used for writing the file. If the writer does not support encryption,
    * then an exception should be thrown.
    */
-  WriteBuilder<D, S> fileEncryptionKey(ByteBuffer encryptionKey);
+  WriteBuilder withFileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
    * Sets the additional authentication data (AAD) prefix used for writing the file. If the reader
    * does not support encryption, then an exception should be thrown.
    */
-  WriteBuilder<D, S> fileAADPrefix(ByteBuffer aadPrefix);
+  WriteBuilder withAADPrefix(ByteBuffer aadPrefix);
 
   /** Finalizes the configuration and builds the {@link FileAppender}. */
-  FileAppender<D> build() throws IOException;
+  <D> FileAppender<D> build() throws IOException;
 }

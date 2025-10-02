@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.formats;
 
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.data.FormatModelRegistry;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 
 /**
  * Interface that provides a unified abstraction for converting between data file formats and
@@ -59,6 +60,8 @@ public interface FormatModel<D, S> {
    */
   Class<D> type();
 
+  Class<S> schemaType();
+
   /**
    * Creates a writer builder for data files.
    *
@@ -68,7 +71,7 @@ public interface FormatModel<D, S> {
    * @param outputFile destination for the written data
    * @return configured writer builder
    */
-  WriteBuilder<D, S> writeBuilder(OutputFile outputFile);
+  WriteBuilder writeBuilder(OutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.
@@ -79,5 +82,5 @@ public interface FormatModel<D, S> {
    * @param inputFile source file to read from
    * @return configured reader builder for the specified input
    */
-  ReadBuilder<D, S> readBuilder(InputFile inputFile);
+  ReadBuilder readBuilder(InputFile inputFile);
 }

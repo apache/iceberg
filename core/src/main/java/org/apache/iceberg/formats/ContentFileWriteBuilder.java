@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.data;
+package org.apache.iceberg.formats;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -63,7 +63,7 @@ interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
    * @param properties a map of writer config properties
    * @return this for method chaining
    */
-  default B set(Map<String, String> properties) {
+  default B setAll(Map<String, String> properties) {
     properties.forEach(this::set);
     return self();
   }
@@ -98,13 +98,13 @@ interface ContentFileWriteBuilder<B extends ContentFileWriteBuilder<B>> {
    * Sets the encryption key used for writing the file. If the writer does not support encryption,
    * then an exception should be thrown.
    */
-  B fileEncryptionKey(ByteBuffer encryptionKey);
+  B withFileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
    * Sets the additional authentication data (AAD) prefix used for writing the file. If the writer
    * does not support encryption, then an exception should be thrown.
    */
-  B fileAADPrefix(ByteBuffer aadPrefix);
+  B withAADPrefix(ByteBuffer aadPrefix);
 
   /** Sets the partition specification for the Iceberg metadata. */
   B spec(PartitionSpec newSpec);
