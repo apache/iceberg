@@ -452,9 +452,11 @@ class TestOAuth2Manager {
       assertThat(tableSession.headers()).isEmpty();
       assertThat(manager)
           .extracting("sessionCache")
-          .as("should not create session cache for table without token")
-          .isNull();
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should create session cache for empty table properties")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
     }
+    Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
 
