@@ -177,8 +177,7 @@ public class SimpleDataUtil {
 
     RowType flinkSchema = FlinkSchemaUtil.convert(schema);
     FileAppenderFactory<RowData> appenderFactory =
-        new FlinkAppenderFactory(
-            table, schema, flinkSchema, ImmutableMap.of(), spec, null, null, null);
+        new FlinkAppenderFactory(table, schema, flinkSchema, ImmutableMap.of(), spec, null, null);
 
     FileAppender<RowData> appender = appenderFactory.newAppender(fromPath(path, conf), fileFormat);
     try (FileAppender<RowData> closeableAppender = appender) {

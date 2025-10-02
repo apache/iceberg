@@ -55,7 +55,6 @@ public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
                 ImmutableMap.of(),
                 PartitionSpec.unpartitioned(),
                 null,
-                null,
                 null)
             .newAppender(
                 Files.localOutput(File.createTempFile("junit", null, tempDir)), fileFormat);

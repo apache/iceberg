@@ -123,8 +123,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.appenderFactory =
-          new FlinkAppenderFactory(
-              table, schema, flinkSchema, writeProperties, spec, null, null, null);
+          new FlinkAppenderFactory(table, schema, flinkSchema, writeProperties, spec, null, null);
     } else if (upsert) {
       // In upsert mode, only the new row is emitted using INSERT row kind. Therefore, any column of
       // the inserted row
@@ -139,8 +138,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
               writeProperties,
               spec,
               ArrayUtil.toPrimitive(equalityFieldIds.toArray(new Integer[0])),
-              TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)),
-              null);
+              TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)));
     } else {
       this.appenderFactory =
           new FlinkAppenderFactory(
@@ -150,8 +148,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
               writeProperties,
               spec,
               ArrayUtil.toPrimitive(equalityFieldIds.toArray(new Integer[0])),
-              schema,
-              null);
+              schema);
     }
   }
 

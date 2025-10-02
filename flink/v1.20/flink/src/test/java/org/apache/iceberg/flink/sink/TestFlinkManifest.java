@@ -83,8 +83,7 @@ public class TestFlinkManifest {
             table.properties(),
             table.spec(),
             equalityFieldIds,
-            table.schema(),
-            null);
+            table.schema());
   }
 
   @Test
