@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
@@ -124,6 +125,8 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -2108,6 +2111,29 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(readConf.cacheDeleteFilesOnExecutors())
         .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
         .isFalse();
+  }
+
+  @TestTemplate
+  public void testZOrderUDFWithAllDataTypes() {
+    SparkZOrderUDF zorderUDF = new SparkZOrderUDF(9, 16, 1024);
+
+    DataType[] supportedTypes = {
+      DataTypes.ByteType,
+      DataTypes.ShortType,
+      DataTypes.IntegerType,
+      DataTypes.LongType,
+      DataTypes.FloatType,
+      DataTypes.DoubleType,
+      DataTypes.StringType,
+      DataTypes.BinaryType,
+      DataTypes.BooleanType,
+      DataTypes.TimestampType,
+      DataTypes.DateType
+    };
+
+    for (DataType type : supportedTypes) {
+      zorderUDF.sortedLexicographically(col("col"), type);
+    }
   }
 
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
