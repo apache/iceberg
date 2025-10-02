@@ -321,7 +321,10 @@ paths:
         406:
           $ref: '#/components/responses/UnsupportedOperationResponse'
         409:
-          description: Conflict - The namespace already exists
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - The namespace already exists
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
@@ -329,6 +332,8 @@ paths:
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/NamespaceAlreadyExistsError'
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -430,7 +435,10 @@ paths:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Not Empty - Namespace to delete is not empty.
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - Not Empty - Namespace to delete is not empty
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
@@ -438,6 +446,8 @@ paths:
               examples:
                 NamespaceNotEmptyExample:
                   $ref: '#/components/examples/NamespaceNotEmptyError'
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -494,6 +504,16 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         406:
           $ref: '#/components/responses/UnsupportedOperationResponse'
+        409:
+          description: |
+            Conflict - A request with the same Idempotency-Key is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         422:
           description: Unprocessable Entity - A property key was included in both `removals` and `updates`
           content:
@@ -595,7 +615,10 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - The table already exists
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
@@ -603,6 +626,8 @@ paths:
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -905,7 +930,10 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The table already exists
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - The table already exists
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
@@ -913,6 +941,8 @@ paths:
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1053,12 +1083,17 @@ paths:
                 TableToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
         409:
-          description:
-            Conflict - CommitFailedException, one or more requirements failed. The client may retry.
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - CommitFailedException, one or more requirements failed. The client may retry.
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         500:
@@ -1154,6 +1189,16 @@ paths:
               examples:
                 TableToDeleteDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        409:
+          description: |
+            Conflict - A request with the same Idempotency-Key is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1282,13 +1327,19 @@ paths:
         406:
           $ref: '#/components/responses/UnsupportedOperationResponse'
         409:
-          description: Conflict - The target identifier to rename to already exists as a table or view
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - The target identifier to rename to already exists as a table or view
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
-              example:
-                $ref: '#/components/examples/TableAlreadyExistsError'
+              examples:
+                RenameTargetAlreadyExists:
+                  $ref: '#/components/examples/TableAlreadyExistsError'
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1390,12 +1441,17 @@ paths:
                 TableToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
         409:
-          description:
-            Conflict - CommitFailedException, one or more requirements failed. The client may retry.
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - CommitFailedException, one or more requirements failed. The client may retry.
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         500:
@@ -1528,7 +1584,10 @@ paths:
                 NamespaceNotFound:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         409:
-          description: Conflict - The view already exists
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - The view already exists
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
@@ -1536,6 +1595,8 @@ paths:
               examples:
                 NamespaceAlreadyExists:
                   $ref: '#/components/examples/ViewAlreadyExistsError'
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1724,6 +1785,16 @@ paths:
               examples:
                 ViewToDeleteDoesNotExist:
                   $ref: '#/components/examples/NoSuchViewError'
+        409:
+          description: |
+            Conflict - A request with the same Idempotency-Key is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+              examples:
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1804,13 +1875,19 @@ paths:
         406:
           $ref: '#/components/responses/UnsupportedOperationResponse'
         409:
-          description: Conflict - The target identifier to rename to already exists as a table or view
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - The target identifier to rename to already exists as a table or view
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
-              example:
-                $ref: '#/components/examples/ViewAlreadyExistsError'
+              examples:
+                NamespaceAlreadyExists:
+                  $ref: '#/components/examples/ViewAlreadyExistsError'
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1942,8 +2019,8 @@ components:
         When present, the server ensures no additional effects for requests that carry the same
         Idempotency-Key within the same operation/resource scope. If a prior request with this key
         has been finalized, the server returns an equivalent final response without re-running the
-        operation (the response body may be rebuilt from current authoritative state and need not
-        be byte-identical).
+        operation. The response body may reflect a more recent state of the catalog than what it
+        was at the time the original change was committed..
 
         Finalization rules:
         - Finalize & replay: 200, 201, 204, and deterministic terminal 4xx
@@ -1952,7 +2029,7 @@ components:
         Key Requirements:
         - Key format: UUID (V7 preferred)
         - Scoped to operation type and resource path; the idempotency key must be unique per (operation type, resource path) pair (e.g., updateTable on db.t1)
-        - Catalogs may expire keys according to the advertised token lifetime.
+        - Catalogs MUST NOT expire keys before the end of the advertised token lifetime.
         - If Idempotency-Key is used, clients MUST reuse the same key when retrying the same logical operation and MUST generate a new key for a different operation.
 
   ##############################
@@ -4634,22 +4711,6 @@ components:
               }
             }
 
-    IdempotencyInProgressResponse:
-      description: |
-        Conflict - A request with the same Idempotency-Key for the same (operation, resource)
-        is already in progress. Servers MAY include Retry-After or block and replay the final
-        result.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/IcebergErrorResponse'
-          example: {
-              "error": {
-                "message": "A request with this Idempotency-Key is still in progress",
-                "type": "RequestInProgressException",
-                "code": 409
-              }
-            }
 
     IcebergErrorResponse:
       description: JSON wrapper for all error responses (non-2xx)
@@ -4890,6 +4951,16 @@ components:
           "error": {
             "message": "The given namespace already exists",
             "type": "AlreadyExistsException",
+            "code": 409
+          }
+        }
+
+    IdempotencyInProgressError:
+      summary: A request with the same Idempotency-Key is already in progress
+      value: {
+          "error": {
+            "message": "A request with this Idempotency-Key is still in progress",
+            "type": "RequestInProgressException",
             "code": 409
           }
         }
