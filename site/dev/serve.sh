@@ -20,4 +20,12 @@ set -e
 
 ./dev/setup_env.sh
 
+# remove all other versions except 1.10.0, nightly, latest, and index.html
+find docs/docs/ docs/javadoc -mindepth 1 -maxdepth 1 \
+  ! -name '1.10.0' \
+  ! -name 'index.html' \
+  ! -name 'nightly' \
+  ! -name 'latest' \
+  -exec rm -rf {} +
+
 mkdocs serve --dirty --watch .
