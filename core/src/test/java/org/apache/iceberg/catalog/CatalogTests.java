@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
@@ -81,7 +80,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Test;
@@ -3173,7 +3171,29 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void testBranchLifecycleManagement() {
+  public void testCreateBranchFromCurrentSnapshot() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    String branchName = "data-quality-check";
+    table.manageSnapshots().createBranch(branchName).commit();
+
+    // Verify branch was created
+    Map<String, SnapshotRef> refs = table.refs();
+    assertThat(refs).containsKey(branchName);
+    assertThat(refs.get(branchName).isBranch()).isTrue();
+    assertThat(refs.get(branchName).snapshotId()).isEqualTo(currentSnapshot.snapshotId());
+  }
+
+  @Test
+  public void testCreateBranchFromSpecificSnapshot() {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -3184,81 +3204,160 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
 
-    String branchName1 = "feature-branch-1";
-    table.manageSnapshots().createBranch(branchName1).commit();
-
-    // Verify branch was created
-    Map<String, SnapshotRef> refs = table.refs();
-    assertThat(refs).containsKey(branchName1);
-    assertThat(refs.get(branchName1).isBranch()).isTrue();
-    assertThat(refs.get(branchName1).snapshotId()).isEqualTo(firstSnapshot.snapshotId());
-
     table.newFastAppend().appendFile(FILE_B).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
 
-    String branchName2 = "feature-branch-2";
-    table.manageSnapshots().createBranch(branchName2, firstSnapshot.snapshotId()).commit();
+    String branchName = "historical-analysis";
+    table.manageSnapshots().createBranch(branchName, firstSnapshot.snapshotId()).commit();
 
     // Verify branch points to the specific snapshot
-    refs = table.refs();
-    assertThat(refs).containsKey(branchName2);
-    assertThat(refs.get(branchName2).snapshotId()).isEqualTo(firstSnapshot.snapshotId());
-    assertThat(refs.get(branchName2).snapshotId()).isNotEqualTo(secondSnapshot.snapshotId());
+    Map<String, SnapshotRef> refs = table.refs();
+    assertThat(refs).containsKey(branchName);
+    assertThat(refs.get(branchName).snapshotId()).isEqualTo(firstSnapshot.snapshotId());
+    assertThat(refs.get(branchName).snapshotId()).isNotEqualTo(secondSnapshot.snapshotId());
+  }
 
-    String branchName3 = "retention-branch";
+  @Test
+  public void testCreateBranchWithRetentionPolicies() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    String branchName = "audit-branch";
     int minSnapshotsToKeep = 5;
-    long maxSnapshotAgeMs = Duration.ofDays(7).toMillis(); // 7 days
-    long maxRefAgeMs = Duration.ofDays(30).toMillis(); // 30 days
+    long maxSnapshotAgeMs = Duration.ofDays(7).toMillis();
+    long maxRefAgeMs = Duration.ofDays(30).toMillis();
 
     table
         .manageSnapshots()
-        .createBranch(branchName3, firstSnapshot.snapshotId())
-        .setMinSnapshotsToKeep(branchName3, minSnapshotsToKeep)
-        .setMaxSnapshotAgeMs(branchName3, maxSnapshotAgeMs)
-        .setMaxRefAgeMs(branchName3, maxRefAgeMs)
+        .createBranch(branchName, currentSnapshot.snapshotId())
+        .setMinSnapshotsToKeep(branchName, minSnapshotsToKeep)
+        .setMaxSnapshotAgeMs(branchName, maxSnapshotAgeMs)
+        .setMaxRefAgeMs(branchName, maxRefAgeMs)
         .commit();
 
     // Verify branch with retention policies
-    refs = table.refs();
-    SnapshotRef branchRef = refs.get(branchName3);
+    Map<String, SnapshotRef> refs = table.refs();
+    SnapshotRef branchRef = refs.get(branchName);
     assertThat(branchRef).isNotNull();
     assertThat(branchRef.isBranch()).isTrue();
     assertThat(branchRef.minSnapshotsToKeep()).isEqualTo(minSnapshotsToKeep);
     assertThat(branchRef.maxSnapshotAgeMs()).isEqualTo(maxSnapshotAgeMs);
     assertThat(branchRef.maxRefAgeMs()).isEqualTo(maxRefAgeMs);
-
-    table.manageSnapshots().replaceBranch(branchName1, secondSnapshot.snapshotId()).commit();
-
-    // Verify branch points to new snapshot
-    refs = table.refs();
-    SnapshotRef branchRef1 = refs.get(branchName1);
-    assertThat(branchRef1.snapshotId()).isEqualTo(secondSnapshot.snapshotId());
-    assertThat(branchRef1.snapshotId()).isNotEqualTo(firstSnapshot.snapshotId());
-
-    // Add data to feature branch (this should create a new snapshot on the branch)
-    table.newFastAppend().toBranch(branchName1).appendFile(FILE_C).commit();
-
-    // Verify both branches have independent snapshots
-    refs = table.refs();
-    SnapshotRef mainRef = refs.get(SnapshotRef.MAIN_BRANCH);
-    SnapshotRef branchRef1Updated = refs.get(branchName1);
-
-    assertThat(mainRef.snapshotId()).isEqualTo(secondSnapshot.snapshotId());
-    assertThat(branchRef1Updated.snapshotId()).isNotEqualTo(mainRef.snapshotId());
-
-    // Verify the branch snapshot contains FILE_C
-    Snapshot branchSnapshot = table.snapshot(branchRef1Updated.snapshotId());
-    assertThat(branchSnapshot).isNotNull();
-
-    table.manageSnapshots().removeBranch(branchName2).commit();
-
-    // Verify branch is removed
-    refs = table.refs();
-    assertThat(refs).doesNotContainKey(branchName2);
   }
 
   @Test
-  public void testTagLifecycleManagement() {
+  public void testCreateTagFromSnapshot() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    String tagName = "end-of-month-2024-01";
+    table.manageSnapshots().createTag(tagName, currentSnapshot.snapshotId()).commit();
+
+    // Verify tag was created
+    Map<String, SnapshotRef> refs = table.refs();
+    assertThat(refs).containsKey(tagName);
+    assertThat(refs.get(tagName).isTag()).isTrue();
+    assertThat(refs.get(tagName).snapshotId()).isEqualTo(currentSnapshot.snapshotId());
+  }
+
+  @Test
+  public void testCreateTagWithRetentionPolicies() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    String tagName = "yearly-archive-2024";
+    long maxRefAgeMs = Duration.ofDays(365).toMillis();
+
+    table
+        .manageSnapshots()
+        .createTag(tagName, currentSnapshot.snapshotId())
+        .setMaxRefAgeMs(tagName, maxRefAgeMs)
+        .commit();
+
+    // Verify tag with retention policy
+    Map<String, SnapshotRef> refs = table.refs();
+    SnapshotRef tagRef = refs.get(tagName);
+    assertThat(tagRef).isNotNull();
+    assertThat(tagRef.isTag()).isTrue();
+    assertThat(tagRef.maxRefAgeMs()).isEqualTo(maxRefAgeMs);
+  }
+
+  @Test
+  public void testRemoveBranch() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    String branchName = "staging-pipeline";
+    table.manageSnapshots().createBranch(branchName).commit();
+
+    // Verify branch exists
+    Map<String, SnapshotRef> refs = table.refs();
+    assertThat(refs).containsKey(branchName);
+
+    // Remove branch
+    table.manageSnapshots().removeBranch(branchName).commit();
+
+    // Verify branch is removed
+    refs = table.refs();
+    assertThat(refs).doesNotContainKey(branchName);
+  }
+
+  @Test
+  public void testRemoveTag() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    String tagName = "pre-migration-backup";
+    table.manageSnapshots().createTag(tagName, currentSnapshot.snapshotId()).commit();
+
+    // Verify tag exists
+    Map<String, SnapshotRef> refs = table.refs();
+    assertThat(refs).containsKey(tagName);
+
+    // Remove tag
+    table.manageSnapshots().removeTag(tagName).commit();
+
+    // Verify tag is removed
+    refs = table.refs();
+    assertThat(refs).doesNotContainKey(tagName);
+  }
+
+  @Test
+  public void testReplaceBranch() {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -3269,64 +3368,90 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
 
-    String tagName1 = "v1.0";
-    table.manageSnapshots().createTag(tagName1, firstSnapshot.snapshotId()).commit();
+    String branchName = "data-validation";
+    table.manageSnapshots().createBranch(branchName, firstSnapshot.snapshotId()).commit();
 
-    // Verify tag was created
-    Map<String, SnapshotRef> refs = table.refs();
-    assertThat(refs).containsKey(tagName1);
-    assertThat(refs.get(tagName1).isTag()).isTrue();
-    assertThat(refs.get(tagName1).snapshotId()).isEqualTo(firstSnapshot.snapshotId());
-
+    // Add more data and create new snapshot
     table.newFastAppend().appendFile(FILE_B).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
 
-    String tagName2 = "v1.1";
-    long maxRefAgeMs = Duration.ofDays(365).toMillis(); // 1 year
+    // Replace branch to point to new snapshot
+    table.manageSnapshots().replaceBranch(branchName, secondSnapshot.snapshotId()).commit();
 
-    table
-        .manageSnapshots()
-        .createTag(tagName2, secondSnapshot.snapshotId())
-        .setMaxRefAgeMs(tagName2, maxRefAgeMs)
-        .commit();
-
-    // Verify tag with retention policy
-    refs = table.refs();
-    SnapshotRef tagRef = refs.get(tagName2);
-    assertThat(tagRef).isNotNull();
-    assertThat(tagRef.isTag()).isTrue();
-    assertThat(tagRef.maxRefAgeMs()).isEqualTo(maxRefAgeMs);
-
-    table.manageSnapshots().replaceTag(tagName1, secondSnapshot.snapshotId()).commit();
-
-    // Verify tag points to new snapshot
-    refs = table.refs();
-    SnapshotRef tagRef1 = refs.get(tagName1);
-    assertThat(tagRef1.snapshotId()).isEqualTo(secondSnapshot.snapshotId());
-    assertThat(tagRef1.snapshotId()).isNotEqualTo(firstSnapshot.snapshotId());
-
-    // Add more data to main branch
-    table.newFastAppend().appendFile(FILE_C).commit();
-    Snapshot thirdSnapshot = table.currentSnapshot();
-
-    // Verify tag still points to original snapshot (tags don't move with main branch)
-    refs = table.refs();
-    SnapshotRef mainRef = refs.get(SnapshotRef.MAIN_BRANCH);
-    SnapshotRef tagRef1Updated = refs.get(tagName1);
-
-    assertThat(mainRef.snapshotId()).isEqualTo(thirdSnapshot.snapshotId());
-    assertThat(tagRef1Updated.snapshotId()).isEqualTo(secondSnapshot.snapshotId());
-    assertThat(tagRef1Updated.snapshotId()).isNotEqualTo(mainRef.snapshotId());
-
-    table.manageSnapshots().removeTag(tagName2).commit();
-
-    // Verify tag is removed
-    refs = table.refs();
-    assertThat(refs).doesNotContainKey(tagName2);
+    // Verify branch points to new snapshot
+    Map<String, SnapshotRef> refs = table.refs();
+    SnapshotRef branchRef = refs.get(branchName);
+    assertThat(branchRef.snapshotId()).isEqualTo(secondSnapshot.snapshotId());
+    assertThat(branchRef.snapshotId()).isNotEqualTo(firstSnapshot.snapshotId());
   }
 
   @Test
-  public void testRetentionPolicyManagement() {
+  public void testReplaceTag() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    String tagName = "quarterly-audit-2024-q1";
+    table.manageSnapshots().createTag(tagName, firstSnapshot.snapshotId()).commit();
+
+    // Add more data and create new snapshot
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    // Replace tag to point to new snapshot
+    table.manageSnapshots().replaceTag(tagName, secondSnapshot.snapshotId()).commit();
+
+    // Verify tag points to new snapshot
+    Map<String, SnapshotRef> refs = table.refs();
+    SnapshotRef tagRef = refs.get(tagName);
+    assertThat(tagRef.snapshotId()).isEqualTo(secondSnapshot.snapshotId());
+    assertThat(tagRef.snapshotId()).isNotEqualTo(firstSnapshot.snapshotId());
+  }
+
+  @Test
+  public void testBranchIndependentLineage() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot mainSnapshot = table.currentSnapshot();
+
+    // Create branch from main
+    String branchName = "experimental-features";
+    table.manageSnapshots().createBranch(branchName, mainSnapshot.snapshotId()).commit();
+
+    // Add data to main branch
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot mainSnapshot2 = table.currentSnapshot();
+
+    // Add data to feature branch (this should create a new snapshot on the branch)
+    table.newFastAppend().toBranch(branchName).appendFile(FILE_C).commit();
+
+    // Verify both branches have independent snapshots
+    Map<String, SnapshotRef> refs = table.refs();
+    SnapshotRef mainRef = refs.get(SnapshotRef.MAIN_BRANCH);
+    SnapshotRef branchRef = refs.get(branchName);
+
+    assertThat(mainRef.snapshotId()).isEqualTo(mainSnapshot2.snapshotId());
+    assertThat(branchRef.snapshotId()).isNotEqualTo(mainRef.snapshotId());
+
+    // Verify the branch snapshot contains FILE_C
+    Snapshot branchSnapshot = table.snapshot(branchRef.snapshotId());
+    assertThat(branchSnapshot).isNotNull();
+  }
+
+  @Test
+  public void testBranchRetentionPolicyEnforcement() {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -3336,12 +3461,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table =
         catalog.buildTable(TABLE, SCHEMA).withProperty(TableProperties.GC_ENABLED, "true").create();
 
+    // Create initial snapshot
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
 
-    String branchName = "retention-branch";
+    // Create branch with retention policy
+    String branchName = "audit-branch";
     int minSnapshotsToKeep = 2;
-    long maxSnapshotAgeMs = 1000L;
+    long maxSnapshotAgeMs = Duration.ofSeconds(1).toMillis(); // Very short for testing
 
     table
         .manageSnapshots()
@@ -3350,11 +3477,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .setMaxSnapshotAgeMs(branchName, maxSnapshotAgeMs)
         .commit();
 
+    // Add more snapshots to the branch
     table.newFastAppend().toBranch(branchName).appendFile(FILE_B).commit();
     table.newFastAppend().toBranch(branchName).appendFile(FILE_C).commit();
 
     // Wait for snapshots to age
-    Uninterruptibles.sleepUninterruptibly(1100, TimeUnit.MILLISECONDS);
+    TestHelpers.waitUntilAfter(System.currentTimeMillis() + maxSnapshotAgeMs);
 
     // Expire snapshots
     table.expireSnapshots().cleanExpiredMetadata(true).commit();
@@ -3367,47 +3495,48 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     // The branch should still exist and point to a recent snapshot
     Snapshot currentBranchSnapshot = table.snapshot(branchRef.snapshotId());
     assertThat(currentBranchSnapshot).isNotNull();
+  }
 
-    String tagName = "short-lived-tag";
-    long maxRefAgeMs = 1000L; // 1 second
+  @Test
+  public void testTagMaxRefAgeExpiration() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table =
+        catalog.buildTable(TABLE, SCHEMA).withProperty(TableProperties.GC_ENABLED, "true").create();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    // Create tag with very short max ref age
+    String tagName = "temp-analysis-snapshot";
+    long maxRefAgeMs = Duration.ofSeconds(1).toMillis();
 
     table
         .manageSnapshots()
-        .createTag(tagName, firstSnapshot.snapshotId())
+        .createTag(tagName, currentSnapshot.snapshotId())
         .setMaxRefAgeMs(tagName, maxRefAgeMs)
         .commit();
 
     // Verify tag exists
-    refs = table.refs();
+    Map<String, SnapshotRef> refs = table.refs();
     assertThat(refs).containsKey(tagName);
 
     // Wait for tag to age
-    Uninterruptibles.sleepUninterruptibly(1100, TimeUnit.MILLISECONDS);
+    TestHelpers.waitUntilAfter(System.currentTimeMillis() + maxRefAgeMs);
 
-    // Expire snapshots (this should also expire the tag)
     table.expireSnapshots().cleanExpiredMetadata(true).commit();
 
     // Verify tag was expired
     refs = table.refs();
     assertThat(refs).doesNotContainKey(tagName);
-
-    String nonExistentBranch = "non-existent-branch";
-    assertThatThrownBy(
-            () -> table.manageSnapshots().setMinSnapshotsToKeep(nonExistentBranch, 5).commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Branch does not exist: %s", nonExistentBranch);
-
-    String tagName2 = "test-tag";
-    table.manageSnapshots().createTag(tagName2, firstSnapshot.snapshotId()).commit();
-
-    // Attempt to set branch-specific retention policy on tag should fail
-    assertThatThrownBy(() -> table.manageSnapshots().setMinSnapshotsToKeep(tagName2, 5).commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Tags do not support setting minSnapshotsToKeep");
   }
 
   @Test
-  public void testMultiReferenceManagement() {
+  public void testMultipleBranchesAndTags() {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -3421,21 +3550,25 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     String branch1 = "feature-1";
     String branch2 = "feature-2";
     String branch3 = "hotfix";
-    String tag1 = "v1.0";
-    String tag2 = "v1.1";
-    String tag3 = "release-candidate";
 
     table
         .manageSnapshots()
         .createBranch(branch1, baseSnapshot.snapshotId())
         .createBranch(branch2, baseSnapshot.snapshotId())
         .createBranch(branch3, baseSnapshot.snapshotId())
+        .commit();
+
+    String tag1 = "end-of-month-2024-01";
+    String tag2 = "end-of-month-2024-02";
+    String tag3 = "compliance-checkpoint";
+
+    table
+        .manageSnapshots()
         .createTag(tag1, baseSnapshot.snapshotId())
         .createTag(tag2, baseSnapshot.snapshotId())
         .createTag(tag3, baseSnapshot.snapshotId())
         .commit();
 
-    // Verify all branches and tags exist
     Map<String, SnapshotRef> refs = table.refs();
     assertThat(refs).containsKey(branch1);
     assertThat(refs).containsKey(branch2);
@@ -3444,60 +3577,61 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(refs).containsKey(tag2);
     assertThat(refs).containsKey(tag3);
 
-    // Verify types
     assertThat(refs.get(branch1).isBranch()).isTrue();
     assertThat(refs.get(branch2).isBranch()).isTrue();
     assertThat(refs.get(branch3).isBranch()).isTrue();
     assertThat(refs.get(tag1).isTag()).isTrue();
     assertThat(refs.get(tag2).isTag()).isTrue();
     assertThat(refs.get(tag3).isTag()).isTrue();
+  }
+
+  @Test
+  public void testBranchAndTagSnapshotIsolation() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    // Create branch and tag from same snapshot
+    String branchName = "etl-pipeline";
+    String tagName = "data-migration-checkpoint";
+
+    table
+        .manageSnapshots()
+        .createBranch(branchName, baseSnapshot.snapshotId())
+        .createTag(tagName, baseSnapshot.snapshotId())
+        .commit();
 
     // Add data to main branch
     table.newFastAppend().appendFile(FILE_B).commit();
     Snapshot mainSnapshot2 = table.currentSnapshot();
 
     // Add data to feature branch
-    table.newFastAppend().toBranch(branch1).appendFile(FILE_C).commit();
-    Snapshot branchSnapshot = table.snapshot(branch1);
+    table.newFastAppend().toBranch(branchName).appendFile(FILE_C).commit();
 
     // Verify isolation
-    refs = table.refs();
+    Map<String, SnapshotRef> refs = table.refs();
     SnapshotRef mainRef = refs.get(SnapshotRef.MAIN_BRANCH);
-    SnapshotRef branchRef = refs.get(branch1);
-    SnapshotRef tagRef = refs.get(tag1);
+    SnapshotRef branchRef = refs.get(branchName);
+    SnapshotRef tagRef = refs.get(tagName);
 
     // Main branch should point to latest main snapshot
     assertThat(mainRef.snapshotId()).isEqualTo(mainSnapshot2.snapshotId());
 
-    // Feature branch should point to its own snapshot
-    assertThat(branchRef.snapshotId()).isEqualTo(branchSnapshot.snapshotId());
+    // Feature branch should point to its own snapshot (different from main)
     assertThat(branchRef.snapshotId()).isNotEqualTo(mainRef.snapshotId());
 
     // Tag should still point to original snapshot
     assertThat(tagRef.snapshotId()).isEqualTo(baseSnapshot.snapshotId());
-    assertThat(tagRef.snapshotId()).isNotEqualTo(mainRef.snapshotId());
-    assertThat(tagRef.snapshotId()).isNotEqualTo(branchRef.snapshotId());
-
-    // Add more data to main branch
-    table.newFastAppend().appendFile(FILE_A).commit();
-    Snapshot mainSnapshot3 = table.currentSnapshot();
-
-    // Add more data to feature branch
-    table.newFastAppend().toBranch(branch1).appendFile(FILE_B).commit();
-    Snapshot branchSnapshot2 = table.snapshot(branch1);
-
-    // Verify independent lineage
-    refs = table.refs();
-    SnapshotRef mainRefUpdated = refs.get(SnapshotRef.MAIN_BRANCH);
-    SnapshotRef branchRefUpdated = refs.get(branch1);
-
-    assertThat(mainRefUpdated.snapshotId()).isEqualTo(mainSnapshot3.snapshotId());
-    assertThat(branchRefUpdated.snapshotId()).isEqualTo(branchSnapshot2.snapshotId());
-    assertThat(branchRefUpdated.snapshotId()).isNotEqualTo(mainRefUpdated.snapshotId());
   }
 
   @Test
-  public void testBranchErrorHandling() {
+  public void testCreateBranchFailsWhenBranchExists() {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -3507,40 +3641,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.buildTable(TABLE, SCHEMA).create();
     table.newFastAppend().appendFile(FILE_A).commit();
 
-    String branchName = "existing-branch";
+    String branchName = "production-pipeline";
     table.manageSnapshots().createBranch(branchName).commit();
 
     // Attempt to create the same branch again should fail
     assertThatThrownBy(() -> table.manageSnapshots().createBranch(branchName).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref %s already exists", branchName);
-
-    String nonExistentBranch = "non-existent-branch";
-    assertThatThrownBy(() -> table.manageSnapshots().removeBranch(nonExistentBranch).commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Branch does not exist: %s", nonExistentBranch);
-
-    assertThatThrownBy(() -> table.manageSnapshots().removeBranch(SnapshotRef.MAIN_BRANCH).commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot remove main branch");
-
-    String invalidBranch = "invalid-branch";
-    long invalidSnapshotId = 999999L; // Non-existent snapshot ID
-    assertThatThrownBy(
-            () -> table.manageSnapshots().createBranch(invalidBranch, invalidSnapshotId).commit())
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining(
-            "Cannot set invalid-branch to unknown snapshot: %s", invalidSnapshotId);
-
-    assertThatThrownBy(
-            () -> table.manageSnapshots().replaceBranch(branchName, invalidSnapshotId).commit())
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining(
-            "Cannot set existing-branch to unknown snapshot: %s", invalidSnapshotId);
   }
 
   @Test
-  public void testTagErrorHandling() {
+  public void testCreateTagFailsWhenTagExists() {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -3551,7 +3662,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot currentSnapshot = table.currentSnapshot();
 
-    String tagName = "existing-tag";
+    String tagName = "production-checkpoint";
     table.manageSnapshots().createTag(tagName, currentSnapshot.snapshotId()).commit();
 
     // Attempt to create the same tag again should fail
@@ -3559,23 +3670,184 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             () -> table.manageSnapshots().createTag(tagName, currentSnapshot.snapshotId()).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref %s already exists", tagName);
+  }
 
-    String nonExistentTag = "non-existent-tag";
+  @Test
+  public void testRemoveBranchFailsWhenBranchDoesNotExist() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    String nonExistentBranch = "missing-data-pipeline";
+
+    // Attempt to remove non-existent branch should fail
+    assertThatThrownBy(() -> table.manageSnapshots().removeBranch(nonExistentBranch).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Branch does not exist: %s", nonExistentBranch);
+  }
+
+  @Test
+  public void testRemoveTagFailsWhenTagDoesNotExist() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    String nonExistentTag = "missing-checkpoint";
+
+    // Attempt to remove non-existent tag should fail
     assertThatThrownBy(() -> table.manageSnapshots().removeTag(nonExistentTag).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Tag does not exist: %s", nonExistentTag);
+  }
 
-    String invalidTag = "invalid-tag";
+  @Test
+  public void testRemoveMainBranchFails() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    // Attempt to remove main branch should fail
+    assertThatThrownBy(() -> table.manageSnapshots().removeBranch("main").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot remove main branch");
+  }
+
+  @Test
+  public void testCreateBranchWithInvalidSnapshotId() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    String branchName = "corrupted-data-branch";
     long invalidSnapshotId = 999999L; // Non-existent snapshot ID
-    assertThatThrownBy(
-            () -> table.manageSnapshots().createTag(invalidTag, invalidSnapshotId).commit())
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot set invalid-tag to unknown snapshot: %s", invalidSnapshotId);
 
+    // Attempt to create branch with invalid snapshot ID should fail
+    assertThatThrownBy(
+            () -> table.manageSnapshots().createBranch(branchName, invalidSnapshotId).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find snapshot with ID");
+  }
+
+  @Test
+  public void testCreateTagWithInvalidSnapshotId() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    String tagName = "corrupted-checkpoint";
+    long invalidSnapshotId = 999999L; // Non-existent snapshot ID
+
+    // Attempt to create tag with invalid snapshot ID should fail
+    assertThatThrownBy(() -> table.manageSnapshots().createTag(tagName, invalidSnapshotId).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find snapshot with ID");
+  }
+
+  @Test
+  public void testSetRetentionPolicyOnNonExistentBranch() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    String nonExistentBranch = "missing-data-pipeline";
+
+    // Attempt to set retention policy on non-existent branch should fail
+    assertThatThrownBy(
+            () -> table.manageSnapshots().setMinSnapshotsToKeep(nonExistentBranch, 5).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Branch does not exist: %s", nonExistentBranch);
+  }
+
+  @Test
+  public void testSetRetentionPolicyOnTag() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    String tagName = "analytics-checkpoint";
+    table.manageSnapshots().createTag(tagName, currentSnapshot.snapshotId()).commit();
+
+    // Attempt to set branch-specific retention policy on tag should fail
+    assertThatThrownBy(() -> table.manageSnapshots().setMinSnapshotsToKeep(tagName, 5).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Tags do not support setting minSnapshotsToKeep");
+  }
+
+  @Test
+  public void testReplaceBranchWithInvalidSnapshotId() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    String branchName = "analytics-branch";
+    table.manageSnapshots().createBranch(branchName).commit();
+
+    long invalidSnapshotId = 999999L; // Non-existent snapshot ID
+
+    // Attempt to replace branch with invalid snapshot ID should fail
+    assertThatThrownBy(
+            () -> table.manageSnapshots().replaceBranch(branchName, invalidSnapshotId).commit())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find snapshot with ID");
+  }
+
+  @Test
+  public void testReplaceTagWithInvalidSnapshotId() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    String tagName = "analytics-checkpoint";
+    table.manageSnapshots().createTag(tagName, currentSnapshot.snapshotId()).commit();
+
+    long invalidSnapshotId = 999999L; // Non-existent snapshot ID
+
+    // Attempt to replace tag with invalid snapshot ID should fail
     assertThatThrownBy(
             () -> table.manageSnapshots().replaceTag(tagName, invalidSnapshotId).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot set existing-tag to unknown snapshot: %s", invalidSnapshotId);
+        .hasMessageContaining("Cannot find snapshot with ID");
   }
 
   @Test
