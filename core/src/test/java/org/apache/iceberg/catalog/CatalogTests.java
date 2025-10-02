@@ -3570,12 +3570,13 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .commit();
 
     Map<String, SnapshotRef> refs = table.refs();
-    assertThat(refs).containsKey(branch1);
-    assertThat(refs).containsKey(branch2);
-    assertThat(refs).containsKey(branch3);
-    assertThat(refs).containsKey(tag1);
-    assertThat(refs).containsKey(tag2);
-    assertThat(refs).containsKey(tag3);
+    assertThat(refs)
+        .containsKey(branch1)
+        .containsKey(branch2)
+        .containsKey(branch3)
+        .containsKey(tag1)
+        .containsKey(tag2)
+        .containsKey(tag3);
 
     assertThat(refs.get(branch1).isBranch()).isTrue();
     assertThat(refs.get(branch2).isBranch()).isTrue();
@@ -3741,7 +3742,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThatThrownBy(
             () -> table.manageSnapshots().createBranch(branchName, invalidSnapshotId).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot find snapshot with ID");
+        .hasMessageContaining("unknown snapshot");
   }
 
   @Test
@@ -3760,7 +3761,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     // Attempt to create tag with invalid snapshot ID should fail
     assertThatThrownBy(() -> table.manageSnapshots().createTag(tagName, invalidSnapshotId).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot find snapshot with ID");
+        .hasMessageContaining("unknown snapshot");
   }
 
   @Test
@@ -3823,7 +3824,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThatThrownBy(
             () -> table.manageSnapshots().replaceBranch(branchName, invalidSnapshotId).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot find snapshot with ID");
+        .hasMessageContaining("unknown snapshot");
   }
 
   @Test
@@ -3847,7 +3848,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThatThrownBy(
             () -> table.manageSnapshots().replaceTag(tagName, invalidSnapshotId).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot find snapshot with ID");
+        .hasMessageContaining("unknown snapshot");
   }
 
   @Test
