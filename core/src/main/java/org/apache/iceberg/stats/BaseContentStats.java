@@ -35,6 +35,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
 
   private final List<FieldStats<?>> fieldStats;
 
+  /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public BaseContentStats(Types.StructType projection) {
     this.fieldStats = Lists.newArrayListWithCapacity(projection.fields().size());
     for (int i = 0; i < projection.fields().size(); i++) {
@@ -72,7 +73,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    if (pos > fieldStats().size() - 1) {
+    if (pos < 0 || pos > fieldStats().size() - 1) {
       return null;
     }
 
@@ -83,7 +84,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
 
     throw new IllegalArgumentException(
         String.format(
-            "Wrong class, expected %s, but was %s, for object: %s",
+            "Wrong class, expected %s but was %s for object: %s",
             javaClass.getName(), value.getClass().getName(), value));
   }
 

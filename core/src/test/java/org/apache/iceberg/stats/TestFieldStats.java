@@ -27,6 +27,70 @@ import org.junit.jupiter.api.Test;
 public class TestFieldStats {
 
   @Test
+  public void empty() {
+    BaseFieldStats<?> empty = BaseFieldStats.builder().build();
+    assertThat(empty.fieldId()).isEqualTo(0);
+    assertThat(empty.type()).isNull();
+    assertThat(empty.columnSize()).isNull();
+    assertThat(empty.valueCount()).isNull();
+    assertThat(empty.nullValueCount()).isNull();
+    assertThat(empty.nanValueCount()).isNull();
+    assertThat(empty.lowerBound()).isNull();
+    assertThat(empty.upperBound()).isNull();
+  }
+
+  @Test
+  public void validIndividualValues() {
+    BaseFieldStats<Integer> fieldStats =
+        BaseFieldStats.<Integer>builder()
+            .type(Types.IntegerType.get())
+            .fieldId(23)
+            .valueCount(10L)
+            .nullValueCount(2L)
+            .nanValueCount(3L)
+            .lowerBound(5)
+            .upperBound(20)
+            .columnSize(50L)
+            .build();
+
+    assertThat(fieldStats.type()).isEqualTo(Types.IntegerType.get());
+    assertThat(fieldStats.fieldId()).isEqualTo(23);
+    assertThat(fieldStats.valueCount()).isEqualTo(10L);
+    assertThat(fieldStats.nullValueCount()).isEqualTo(2L);
+    assertThat(fieldStats.nanValueCount()).isEqualTo(3L);
+    assertThat(fieldStats.lowerBound()).isEqualTo(5);
+    assertThat(fieldStats.upperBound()).isEqualTo(20);
+    assertThat(fieldStats.columnSize()).isEqualTo(50L);
+  }
+
+  @Test
+  public void buildFromExistingStats() {
+    BaseFieldStats<Integer> fieldStats =
+        BaseFieldStats.buildFrom(
+                BaseFieldStats.<Integer>builder()
+                    .type(Types.IntegerType.get())
+                    .fieldId(23)
+                    .valueCount(10L)
+                    .nullValueCount(2L)
+                    .nanValueCount(3L)
+                    .lowerBound(5)
+                    .upperBound(20)
+                    .columnSize(50L)
+                    .build())
+            .lowerBound(2)
+            .upperBound(50)
+            .build();
+    assertThat(fieldStats.type()).isEqualTo(Types.IntegerType.get());
+    assertThat(fieldStats.fieldId()).isEqualTo(23);
+    assertThat(fieldStats.valueCount()).isEqualTo(10L);
+    assertThat(fieldStats.nullValueCount()).isEqualTo(2L);
+    assertThat(fieldStats.nanValueCount()).isEqualTo(3L);
+    assertThat(fieldStats.lowerBound()).isEqualTo(2);
+    assertThat(fieldStats.upperBound()).isEqualTo(50);
+    assertThat(fieldStats.columnSize()).isEqualTo(50L);
+  }
+
+  @Test
   public void validFieldStats() {
     assertThat(BaseFieldStats.builder().build()).isNotNull();
     assertThat(BaseFieldStats.builder().fieldId(1).build()).isNotNull();
@@ -91,5 +155,34 @@ public class TestFieldStats {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid upper bound type, expected a subtype of java.lang.Long: java.lang.Integer");
+  }
+
+  @Test
+  public void retrievalByPosition() {
+    BaseFieldStats<Integer> fieldStats =
+        BaseFieldStats.<Integer>builder()
+            .type(Types.IntegerType.get())
+            .fieldId(23)
+            .columnSize(50L)
+            .valueCount(10L)
+            .nullValueCount(2L)
+            .nanValueCount(3L)
+            .lowerBound(5)
+            .upperBound(20)
+            .build();
+
+    assertThat(fieldStats.get(StatsUtil.COLUMN_SIZE_OFFSET, Long.class)).isEqualTo(50L);
+    assertThat(fieldStats.get(StatsUtil.VALUE_COUNT_OFFSET, Long.class)).isEqualTo(10L);
+    assertThat(fieldStats.get(StatsUtil.NULL_VALUE_COUNT_OFFSET, Long.class)).isEqualTo(2L);
+    assertThat(fieldStats.get(StatsUtil.NAN_VALUE_COUNT_OFFSET, Long.class)).isEqualTo(3L);
+    assertThat(fieldStats.get(StatsUtil.LOWER_BOUND_OFFSET, Integer.class)).isEqualTo(5);
+    assertThat(fieldStats.get(StatsUtil.UPPER_BOUND_OFFSET, Integer.class)).isEqualTo(20);
+
+    assertThatThrownBy(() -> assertThat(fieldStats.get(10, Long.class)))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unknown field ordinal: 10");
+    assertThatThrownBy(() -> assertThat(fieldStats.get(StatsUtil.VALUE_COUNT_OFFSET, Double.class)))
+        .isInstanceOf(ClassCastException.class)
+        .hasMessage("Cannot cast java.lang.Long to java.lang.Double");
   }
 }
