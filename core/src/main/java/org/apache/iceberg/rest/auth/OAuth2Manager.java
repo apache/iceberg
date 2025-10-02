@@ -168,21 +168,35 @@ public class OAuth2Manager implements AuthManager {
     // Important: this method is invoked from standalone components; we must not assume that
     // the refresh client and session cache have been initialized, because catalogSession()
     // won't be called.
+    // We also assume that this method may be called from multiple threads, so we must
+    // synchronize access to the refresh client and session cache.
+
+    if (refreshClient == null) {
+      synchronized (this) {
+        if (refreshClient == null) {
+          this.refreshClient = sharedClient.withAuthSession(parent);
+        }
+      }
+    }
+
+    if (sessionCache == null) {
+      synchronized (this) {
+        if (sessionCache == null) {
+          this.sessionCache = newSessionCache(name, properties);
+        }
+      }
+    }
 
     String oauth2ServerUri =
         properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
 
     if (config.token() != null) {
-      refreshClient(sharedClient, parent);
-      sessionCache(properties);
       String cacheKey = oauth2ServerUri + ":" + config.token();
       return sessionCache.cachedSession(
           cacheKey, k -> newSessionFromAccessToken(config.token(), properties, parent));
     }
 
     if (config.credential() != null && !config.credential().isEmpty()) {
-      refreshClient(sharedClient, parent);
-      sessionCache(properties);
       String cacheKey = oauth2ServerUri + ":" + config.credential();
       return sessionCache.cachedSession(cacheKey, k -> newSessionFromTokenResponse(config, parent));
     }
@@ -271,26 +285,6 @@ public class OAuth2Manager implements AuthManager {
             config.optionalOAuthParams());
     return OAuth2Util.AuthSession.fromTokenResponse(
         client, refreshExecutor(), response, System.currentTimeMillis(), parent);
-  }
-
-  private void refreshClient(RESTClient sharedClient, AuthSession session) {
-    if (refreshClient == null) {
-      synchronized (this) {
-        if (refreshClient == null) {
-          this.refreshClient = sharedClient.withAuthSession(session);
-        }
-      }
-    }
-  }
-
-  private void sessionCache(Map<String, String> properties) {
-    if (sessionCache == null) {
-      synchronized (this) {
-        if (sessionCache == null) {
-          this.sessionCache = newSessionCache(name, properties);
-        }
-      }
-    }
   }
 
   @Nullable
