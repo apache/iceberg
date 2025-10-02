@@ -229,6 +229,18 @@ abstract class BaseParquetReaders<T> {
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       return Optional.of(ParquetValueReaders.uuids(desc));
     }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryLogicalType) {
+      return Optional.of(ParquetValueReaders.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyLogicalType) {
+      return Optional.of(ParquetValueReaders.byteBuffers(desc));
+    }
   }
 
   private class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
