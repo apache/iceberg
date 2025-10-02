@@ -28,28 +28,31 @@ import org.apache.iceberg.types.Type;
 public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializable {
   private final transient int fieldId;
   private final transient Type type;
-  private final Long columnSize;
   private final Long valueCount;
   private final Long nullValueCount;
   private final Long nanValueCount;
+  private final Integer avgValueSize;
+  private final Integer maxValueSize;
   private final T lowerBound;
   private final T upperBound;
 
   private BaseFieldStats(
       int fieldId,
       Type type,
-      Long columnSize,
       Long valueCount,
       Long nullValueCount,
       Long nanValueCount,
+      Integer avgValueSize,
+      Integer maxValueSize,
       T lowerBound,
       T upperBound) {
     this.fieldId = fieldId;
     this.type = type;
-    this.columnSize = columnSize;
     this.valueCount = valueCount;
     this.nullValueCount = nullValueCount;
     this.nanValueCount = nanValueCount;
+    this.avgValueSize = avgValueSize;
+    this.maxValueSize = maxValueSize;
     this.lowerBound = lowerBound;
     this.upperBound = upperBound;
   }
@@ -65,11 +68,6 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
   }
 
   @Override
-  public Long columnSize() {
-    return columnSize;
-  }
-
-  @Override
   public Long valueCount() {
     return valueCount;
   }
@@ -82,6 +80,16 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
   @Override
   public Long nanValueCount() {
     return nanValueCount;
+  }
+
+  @Override
+  public Integer avgValueSize() {
+    return avgValueSize;
+  }
+
+  @Override
+  public Integer maxValueSize() {
+    return maxValueSize;
   }
 
   @Override
@@ -102,14 +110,16 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
   @Override
   public <X> X get(int pos, Class<X> javaClass) {
     switch (pos) {
-      case StatsUtil.COLUMN_SIZE_OFFSET:
-        return javaClass.cast(columnSize);
       case StatsUtil.VALUE_COUNT_OFFSET:
         return javaClass.cast(valueCount);
       case StatsUtil.NULL_VALUE_COUNT_OFFSET:
         return javaClass.cast(nullValueCount);
       case StatsUtil.NAN_VALUE_COUNT_OFFSET:
         return javaClass.cast(nanValueCount);
+      case StatsUtil.AVG_VALUE_SIZE_OFFSET:
+        return javaClass.cast(avgValueSize);
+      case StatsUtil.MAX_VALUE_SIZE_OFFSET:
+        return javaClass.cast(maxValueSize);
       case StatsUtil.LOWER_BOUND_OFFSET:
         return javaClass.cast(lowerBound);
       case StatsUtil.UPPER_BOUND_OFFSET:
@@ -129,10 +139,11 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
     return MoreObjects.toStringHelper(this)
         .add("fieldId", fieldId)
         .add("type", type)
-        .add("columnSize", columnSize)
         .add("valueCount", valueCount)
         .add("nullValueCount", nullValueCount)
         .add("nanValueCount", nanValueCount)
+        .add("avgValueSize", avgValueSize)
+        .add("maxValueSize", maxValueSize)
         .add("lowerBound", lowerBound)
         .add("upperBound", upperBound)
         .toString();
@@ -147,10 +158,11 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
     BaseFieldStats<?> that = (BaseFieldStats<?>) o;
     return fieldId == that.fieldId
         && Objects.equals(type, that.type)
-        && Objects.equals(columnSize, that.columnSize)
         && Objects.equals(valueCount, that.valueCount)
         && Objects.equals(nullValueCount, that.nullValueCount)
         && Objects.equals(nanValueCount, that.nanValueCount)
+        && Objects.equals(avgValueSize, that.avgValueSize)
+        && Objects.equals(maxValueSize, that.maxValueSize)
         && Objects.equals(lowerBound, that.lowerBound)
         && Objects.equals(upperBound, that.upperBound);
   }
@@ -160,10 +172,11 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
     return Objects.hash(
         fieldId,
         type,
-        columnSize,
         valueCount,
         nullValueCount,
         nanValueCount,
+        avgValueSize,
+        maxValueSize,
         lowerBound,
         upperBound);
   }
@@ -175,12 +188,13 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
   public static <X> Builder<X> buildFrom(FieldStats<X> value) {
     Preconditions.checkArgument(null != value, "Invalid column stats: null");
     return BaseFieldStats.<X>builder()
-        .columnSize(value.columnSize())
-        .valueCount(value.valueCount())
-        .nanValueCount(value.nanValueCount())
-        .nullValueCount(value.nullValueCount())
         .type(value.type())
         .fieldId(value.fieldId())
+        .valueCount(value.valueCount())
+        .nullValueCount(value.nullValueCount())
+        .nanValueCount(value.nanValueCount())
+        .avgValueSize(value.avgValueSize())
+        .maxValueSize(value.maxValueSize())
         .lowerBound(value.lowerBound())
         .upperBound(value.upperBound());
   }
@@ -188,10 +202,11 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
   public static class Builder<T> {
     private int fieldId;
     private Type type;
-    private Long columnSize;
     private Long valueCount;
     private Long nullValueCount;
     private Long nanValueCount;
+    private Integer avgValueSize;
+    private Integer maxValueSize;
     private T lowerBound;
     private T upperBound;
 
@@ -199,11 +214,6 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
 
     public Builder<T> type(Type newType) {
       this.type = newType;
-      return this;
-    }
-
-    public Builder<T> columnSize(Long newColumnSize) {
-      this.columnSize = newColumnSize;
       return this;
     }
 
@@ -219,6 +229,16 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
 
     public Builder<T> nanValueCount(Long newNanValueCount) {
       this.nanValueCount = newNanValueCount;
+      return this;
+    }
+
+    public Builder<T> avgValueSize(Integer newAvgValueSize) {
+      this.avgValueSize = newAvgValueSize;
+      return this;
+    }
+
+    public Builder<T> maxValueSize(Integer newMaxValueSize) {
+      this.maxValueSize = newMaxValueSize;
       return this;
     }
 
@@ -261,10 +281,11 @@ public class BaseFieldStats<T> implements FieldStats<T>, StructLike, Serializabl
       return new BaseFieldStats<>(
           fieldId,
           type,
-          columnSize,
           valueCount,
           nullValueCount,
           nanValueCount,
+          avgValueSize,
+          maxValueSize,
           lowerBound,
           upperBound);
     }

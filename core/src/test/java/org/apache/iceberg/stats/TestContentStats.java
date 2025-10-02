@@ -126,18 +126,20 @@ public class TestContentStats {
         BaseFieldStats.<Integer>builder()
             .type(Types.IntegerType.get())
             .fieldId(1)
-            .columnSize(50L)
             .valueCount(10L)
             .nullValueCount(2L)
             .nanValueCount(3L)
+            .avgValueSize(30)
+            .maxValueSize(70)
             .lowerBound(5)
             .upperBound(20)
             .build();
 
-    record.set(StatsUtil.COLUMN_SIZE_OFFSET, fieldStats.columnSize());
     record.set(StatsUtil.VALUE_COUNT_OFFSET, fieldStats.valueCount());
     record.set(StatsUtil.NULL_VALUE_COUNT_OFFSET, fieldStats.nullValueCount());
     record.set(StatsUtil.NAN_VALUE_COUNT_OFFSET, fieldStats.nanValueCount());
+    record.set(StatsUtil.AVG_VALUE_SIZE_OFFSET, fieldStats.avgValueSize());
+    record.set(StatsUtil.MAX_VALUE_SIZE_OFFSET, fieldStats.maxValueSize());
     record.set(StatsUtil.LOWER_BOUND_OFFSET, fieldStats.lowerBound());
     record.set(StatsUtil.UPPER_BOUND_OFFSET, fieldStats.upperBound());
 
