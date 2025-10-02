@@ -274,17 +274,16 @@ public class OAuth2Manager implements AuthManager {
 
   protected OAuth2Util.AuthSession newSessionFromTokenResponse(
       AuthConfig config, OAuth2Util.AuthSession parent) {
-    RESTClient client = refreshClient;
     OAuthTokenResponse response =
         OAuth2Util.fetchToken(
-            client,
+            refreshClient,
             Map.of(),
             config.credential(),
             config.scope(),
             config.oauth2ServerUri(),
             config.optionalOAuthParams());
     return OAuth2Util.AuthSession.fromTokenResponse(
-        client, refreshExecutor(), response, System.currentTimeMillis(), parent);
+        refreshClient, refreshExecutor(), response, System.currentTimeMillis(), parent);
   }
 
   @Nullable
