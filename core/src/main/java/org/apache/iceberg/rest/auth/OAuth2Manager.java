@@ -173,18 +173,18 @@ public class OAuth2Manager implements AuthManager {
         properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
 
     if (config.token() != null) {
-      maybeInitRefreshClient(sharedClient, parent);
-      AuthSessionCache cache = getOrCreateSessionCache(properties);
+      refreshClient(sharedClient, parent);
+      sessionCache(properties);
       String cacheKey = oauth2ServerUri + ":" + config.token();
-      return cache.cachedSession(
+      return sessionCache.cachedSession(
           cacheKey, k -> newSessionFromAccessToken(config.token(), properties, parent));
     }
 
     if (config.credential() != null && !config.credential().isEmpty()) {
-      maybeInitRefreshClient(sharedClient, parent);
-      AuthSessionCache cache = getOrCreateSessionCache(properties);
+      refreshClient(sharedClient, parent);
+      sessionCache(properties);
       String cacheKey = oauth2ServerUri + ":" + config.credential();
-      return cache.cachedSession(cacheKey, k -> newSessionFromTokenResponse(config, parent));
+      return sessionCache.cachedSession(cacheKey, k -> newSessionFromTokenResponse(config, parent));
     }
 
     return parent;
@@ -273,28 +273,24 @@ public class OAuth2Manager implements AuthManager {
         client, refreshExecutor(), response, System.currentTimeMillis(), parent);
   }
 
-  private void maybeInitRefreshClient(RESTClient sharedClient, AuthSession session) {
+  private void refreshClient(RESTClient sharedClient, AuthSession session) {
     if (refreshClient == null) {
       synchronized (this) {
         if (refreshClient == null) {
-          refreshClient = sharedClient.withAuthSession(session);
+          this.refreshClient = sharedClient.withAuthSession(session);
         }
       }
     }
   }
 
-  private AuthSessionCache getOrCreateSessionCache(Map<String, String> properties) {
-    AuthSessionCache cache = this.sessionCache;
-    if (cache == null) {
+  private void sessionCache(Map<String, String> properties) {
+    if (sessionCache == null) {
       synchronized (this) {
-        if (this.sessionCache == null) {
-          cache = newSessionCache(name, properties);
-          this.sessionCache = cache;
+        if (sessionCache == null) {
+          this.sessionCache = newSessionCache(name, properties);
         }
       }
     }
-
-    return cache;
   }
 
   @Nullable
