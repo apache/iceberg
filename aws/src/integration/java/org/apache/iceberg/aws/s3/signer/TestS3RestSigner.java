@@ -37,10 +37,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.ThreadPools;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -181,6 +181,7 @@ public class TestS3RestSigner {
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("random/multipart-key").build());
   }
 
+  @SuppressWarnings("removal")
   private static Server initHttpServer() throws Exception {
     S3SignerServlet.SignRequestValidator deleteObjectsWithBody =
         new S3SignerServlet.SignRequestValidator(

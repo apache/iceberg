@@ -97,4 +97,13 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
     return PropertyUtil.propertyAsBoolean(
         restCatalog.properties(), RESTCompatibilityKitSuite.RCK_SUPPORTS_NAMES_WITH_DOT, false);
   }
+
+  @Override
+  protected boolean supportsNamesWithSlashes() {
+    // names with slashes are rejected and considered as suspicious characters after upgrading Jetty
+    // and the Servlet API. See also
+    // https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0.html#uri-path-canonicalization
+    // for additional details
+    return false;
+  }
 }
