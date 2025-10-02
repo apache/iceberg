@@ -1,0 +1,98 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+site_name: docs/latest
+
+plugins:
+  - search
+
+nav:
+  - index.md
+  - Concepts:
+    - Tables:
+      - branching.md
+      - configuration.md
+      - evolution.md
+      - maintenance.md
+      - metrics-reporting.md
+      - partitioning.md
+      - performance.md
+      - reliability.md
+      - schemas.md
+    - Views:
+      - view-configuration.md
+  - API:
+    - Quickstart: java-api-quickstart.md
+    - API: api.md
+    - Javadoc: ../../javadoc/latest
+  - Integrations:
+    # Iceberg-maintained integrations come first
+    - Apache Spark:
+      - spark-getting-started.md
+      - spark-configuration.md
+      - spark-ddl.md
+      - spark-procedures.md
+      - spark-queries.md
+      - spark-structured-streaming.md
+      - spark-writes.md
+    - Apache Flink:
+      - flink.md
+      - flink-connector.md
+      - flink-ddl.md
+      - flink-queries.md
+      - flink-writes.md
+      - flink-maintenance.md
+      - flink-configuration.md
+    - Kafka Connect: kafka-connect.md
+    - Apache Hive: hive.md
+    - Third-party:
+    # Now all the 3rd party integrations
+      - Apache Amoro: amoro.md
+      - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
+      - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
+      - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
+      - Amazon Redshift: https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg.html
+      - Apache Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
+      - Apache Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
+      - BladePipe: bladepipe.md
+      - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
+      - Daft: daft.md
+      - Databend: https://docs.databend.com/guides/access-data-lake/iceberg
+      - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
+      - DuckDB: https://duckdb.org/docs/preview/core_extensions/iceberg/overview
+      - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
+      - Firebolt: https://docs.firebolt.io/reference-sql/functions-reference/table-valued/read_iceberg
+      - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
+      - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
+      - Memiiso Debezium: https://memiiso.github.io/debezium-server-iceberg/
+      - OLake: https://olake.io/docs
+      - Presto: https://prestodb.io/docs/current/connector/iceberg.html
+      - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
+      - RisingWave: risingwave.md
+      - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
+      - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
+      - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
+      - Trino: https://trino.io/docs/current/connector/iceberg.html
+  - Catalogs:
+    - AWS Glue: aws/#glue-catalog
+    - AWS DynamoDB: aws/#dynamodb-catalog
+    - custom-catalog.md
+    - jdbc.md
+    - nessie.md
+  - Storage:
+    - AWS S3: aws/#s3-fileio
+    - Dell ECS: dell.md
