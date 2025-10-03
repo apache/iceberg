@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.Types.MinorType;
@@ -37,6 +38,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -51,6 +53,7 @@ import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type.TypeID;
@@ -201,6 +204,7 @@ public class ArrowReader extends CloseableGroup {
     private final boolean reuseContainers;
     private CloseableIterator<ColumnarBatch> currentIterator;
     private FileScanTask currentTask;
+    private final List<BufferAllocator> allocators = Lists.newArrayList();
 
     /**
      * Create a new instance.
@@ -323,6 +327,11 @@ public class ArrowReader extends CloseableGroup {
       CloseableIterable<ColumnarBatch> iter;
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
+      BufferAllocator allocator =
+          ArrowAllocation.rootAllocator()
+              .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+      allocators.add(allocator);
+
       if (task.file().format() == FileFormat.PARQUET) {
         Parquet.ReadBuilder builder =
             Parquet.read(location)
@@ -333,7 +342,8 @@ public class ArrowReader extends CloseableGroup {
                         buildReader(
                             expectedSchema,
                             fileSchema, /* setArrowValidityVector */
-                            NullCheckingForGet.NULL_CHECKING_ENABLED))
+                            NullCheckingForGet.NULL_CHECKING_ENABLED,
+                            allocator))
                 .recordsPerBatch(batchSize)
                 .filter(task.residual())
                 .caseSensitive(caseSensitive);
@@ -362,6 +372,10 @@ public class ArrowReader extends CloseableGroup {
       while (fileItr.hasNext()) {
         fileItr.next();
       }
+
+      for (BufferAllocator allocator : allocators) {
+        allocator.close();
+      }
     }
 
     private InputFile getInputFile(FileScanTask task) {
@@ -377,7 +391,10 @@ public class ArrowReader extends CloseableGroup {
      * @param setArrowValidityVector Indicates whether to set the validity vector in Arrow vectors.
      */
     private static ArrowBatchReader buildReader(
-        Schema expectedSchema, MessageType fileSchema, boolean setArrowValidityVector) {
+        Schema expectedSchema,
+        MessageType fileSchema,
+        boolean setArrowValidityVector,
+        BufferAllocator allocator) {
       return (ArrowBatchReader)
           TypeWithSchemaVisitor.visit(
               expectedSchema.asStruct(),
@@ -387,7 +404,9 @@ public class ArrowReader extends CloseableGroup {
                   fileSchema,
                   setArrowValidityVector,
                   ImmutableMap.of(),
-                  ArrowBatchReader::new));
+                  ArrowBatchReader::new,
+                  (type, value) -> value,
+                  allocator));
     }
   }
 }

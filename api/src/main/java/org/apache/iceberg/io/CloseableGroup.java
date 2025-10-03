@@ -50,7 +50,7 @@ public class CloseableGroup implements Closeable {
   }
 
   /**
-   * Register an autocloseables to be managed by this class. It will be handled as a closeable
+   * Register an autocloseable to be managed by this class. It will be handled as a closeable
    * object.
    */
   public void addCloseable(AutoCloseable autoCloseable) {
