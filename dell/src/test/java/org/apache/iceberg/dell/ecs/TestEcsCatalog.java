@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
@@ -199,6 +200,13 @@ public class TestEcsCatalog {
     assertThatThrownBy(() -> ecsCatalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
+    assertThatThrownBy(() -> ecsCatalog.registerTable(identifier, metadataLocation, false))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: a.t1");
+    assertThatThrownBy(
+            () -> ecsCatalog.registerTable(identifier, metadataLocation + UUID.randomUUID(), true))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Overwrite table metadata on registration is not supported in test catalog");
     assertThat(ecsCatalog.dropTable(identifier, true)).isTrue();
   }
 }
