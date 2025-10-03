@@ -207,9 +207,9 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
 
     // Only subtask 0 saves the state so that globalStatisticsState(UnionListState) stores
     // an exact copy of globalStatistics
+    globalStatisticsState.clear();
     if (globalStatistics != null
         && getRuntimeContext().getTaskInfo().getIndexOfThisSubtask() == 0) {
-      globalStatisticsState.clear();
       LOG.info(
           "Operator {} subtask {} saving global statistics to state", operatorName, subtaskIndex);
       globalStatisticsState.add(globalStatistics);
