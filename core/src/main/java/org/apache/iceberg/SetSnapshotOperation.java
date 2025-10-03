@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -40,7 +41,7 @@ import org.apache.iceberg.util.Tasks;
  * <p>This update is not exposed though the Table API. Instead, it is a package-private part of the
  * Transaction API intended for use in {@link ManageSnapshots}.
  */
-class SetSnapshotOperation implements PendingUpdate<Snapshot> {
+class SetSnapshotOperation implements PendingUpdate<Snapshot, Snapshot> {
 
   private final TableOperations ops;
   private TableMetadata base;
@@ -106,7 +107,8 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
   }
 
   @Override
-  public void commit() {
+  public Snapshot commit() {
+    final AtomicReference<Snapshot> committedSnapshot = new AtomicReference<>();
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
@@ -118,6 +120,7 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
         .run(
             taskOps -> {
               Snapshot snapshot = apply();
+              committedSnapshot.set(snapshot);
               TableMetadata updated =
                   TableMetadata.buildFrom(base)
                       .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
@@ -134,6 +137,8 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
               // fail.
               taskOps.commit(base, updated.withUUID());
             });
+
+    return committedSnapshot.get();
   }
 
   /**

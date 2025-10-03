@@ -28,7 +28,7 @@ import org.apache.iceberg.expressions.Term;
  * <p>When committing, these changes will be applied to the current table metadata. Commit conflicts
  * will not be resolved and will result in a {@link CommitFailedException}.
  */
-public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
+public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec, Snapshot> {
   /**
    * Set whether column resolution in the source schema should be case sensitive.
    *

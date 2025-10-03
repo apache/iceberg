@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.UpdateLocation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class BaseView implements View, Serializable {
@@ -96,7 +95,7 @@ public class BaseView implements View, Serializable {
   }
 
   @Override
-  public UpdateLocation updateLocation() {
+  public UpdateViewLocation updateLocation() {
     return new SetViewLocation(ops);
   }
 
