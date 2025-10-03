@@ -49,7 +49,7 @@ import org.apache.iceberg.types.Types.StructType;
  * The schema of a data table.
  *
  * <p>Schema ID will only be populated when reading from/writing to table metadata, otherwise it
- * will be default to 0.
+ * will default to 0.
  */
 public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
@@ -617,6 +617,17 @@ public class Schema implements Serializable {
                 "Invalid initial default for %s: non-null default (%s) is not supported until v%s",
                 schema.findColumnName(field.fieldId()),
                 field.initialDefault(),
+                DEFAULT_VALUES_MIN_FORMAT_VERSION));
+      }
+
+      // TODO: need to clarify why this wasn't included initially.
+      if (field.writeDefault() != null && formatVersion < DEFAULT_VALUES_MIN_FORMAT_VERSION) {
+        problems.put(
+            field.fieldId(),
+            String.format(
+                "Invalid write default for %s: non-null default (%s) is not supported until v%s",
+                schema.findColumnName(field.fieldId()),
+                field.writeDefault(),
                 DEFAULT_VALUES_MIN_FORMAT_VERSION));
       }
     }
