@@ -593,7 +593,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
-                NamespaceAlreadyExists:
+                TableAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
@@ -901,7 +901,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
-                NamespaceAlreadyExists:
+                TableAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
@@ -1517,7 +1517,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               examples:
-                NamespaceAlreadyExists:
+                ViewAlreadyExists:
                   $ref: '#/components/examples/ViewAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
