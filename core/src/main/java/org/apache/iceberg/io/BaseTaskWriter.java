@@ -22,6 +22,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -111,17 +112,26 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         .build();
   }
 
+  protected void addReferencedDataFiles(CharSequenceSet files) {
+    referencedDataFiles.addAll(files);
+  }
+
+  protected void addCompletedDeleteFiles(List<DeleteFile> files) {
+    completedDeleteFiles.addAll(files);
+  }
+
   /** Base equality delta writer to write both insert records and equality-deletes. */
   protected abstract class BaseEqualityDeltaWriter implements Closeable {
     private final StructProjection structProjection;
     private final PositionDelete<T> positionDelete;
+    private final StructLike partitionKey;
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
-    private FileWriter<PositionDelete<T>, DeleteWriteResult> posDeleteWriter;
+    private PartitioningWriter<PositionDelete<T>, DeleteWriteResult> posDeleteWriter;
     private Map<StructLike, PathOffset> insertedRowMap;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
-      this(partition, schema, deleteSchema, DeleteGranularity.PARTITION);
+      this(partition, schema, deleteSchema, DeleteGranularity.PARTITION, null, false);
     }
 
     protected BaseEqualityDeltaWriter(
@@ -129,6 +139,16 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         Schema schema,
         Schema deleteSchema,
         DeleteGranularity deleteGranularity) {
+      this(partition, schema, deleteSchema, deleteGranularity, null, false);
+    }
+
+    protected BaseEqualityDeltaWriter(
+        StructLike partition,
+        Schema schema,
+        Schema deleteSchema,
+        DeleteGranularity deleteGranularity,
+        PartitioningDVWriter<T> partitioningDVWriter,
+        boolean useDv) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
       this.structProjection = StructProjection.create(schema, deleteSchema);
@@ -137,10 +157,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter =
-          new SortingPositionOnlyDeleteWriter<>(
-              () -> appenderFactory.newPosDeleteWriter(newOutputFile(partition), format, partition),
-              deleteGranularity);
+          createPositionDeleteWriter(partition, useDv, deleteGranularity, partitioningDVWriter);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
+      this.partitionKey = partition;
     }
 
     /** Wrap the data as a {@link StructLike}. */
@@ -165,6 +184,22 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       dataWriter.write(row);
     }
 
+    private PartitioningWriter<PositionDelete<T>, DeleteWriteResult> createPositionDeleteWriter(
+        StructLike partition,
+        boolean useDv,
+        DeleteGranularity deleteGranularity,
+        PartitioningDVWriter<T> partitioningDVWriter) {
+      if (useDv) {
+        return null == partitioningDVWriter
+            ? new PartitioningDVWriter<>(fileFactory, p -> null)
+            : partitioningDVWriter;
+      } else {
+        return new PartitionSortingPositionOnlyDeleteWriterWrap<>(
+            () -> appenderFactory.newPosDeleteWriter(newOutputFile(partition), format, partition),
+            deleteGranularity);
+      }
+    }
+
     private EncryptedOutputFile newOutputFile(StructLike partition) {
       if (spec.isUnpartitioned() || partition == null) {
         return fileFactory.newOutputFile();
@@ -175,7 +210,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     private void writePosDelete(PathOffset pathOffset) {
       positionDelete.set(pathOffset.path, pathOffset.rowOffset, null);
-      posDeleteWriter.write(positionDelete);
+      posDeleteWriter.write(positionDelete, spec, partitionKey);
     }
 
     /**
@@ -219,6 +254,21 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       }
     }
 
+    protected void closePositionWriter() throws IOException {
+      // Add the completed pos-delete files.
+      if (posDeleteWriter != null) {
+        try {
+          // complete will call close
+          posDeleteWriter.close();
+          DeleteWriteResult result = posDeleteWriter.result();
+          addCompletedDeleteFiles(result.deleteFiles());
+          addReferencedDataFiles(result.referencedDataFiles());
+        } finally {
+          posDeleteWriter = null;
+        }
+      }
+    }
+
     @Override
     public void close() throws IOException {
       try {
@@ -245,18 +295,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           insertedRowMap = null;
         }
 
-        // Add the completed pos-delete files.
-        if (posDeleteWriter != null) {
-          try {
-            // complete will call close
-            posDeleteWriter.close();
-            DeleteWriteResult result = posDeleteWriter.result();
-            completedDeleteFiles.addAll(result.deleteFiles());
-            referencedDataFiles.addAll(result.referencedDataFiles());
-          } finally {
-            posDeleteWriter = null;
-          }
-        }
+        closePositionWriter();
       } catch (IOException | RuntimeException e) {
         setFailure(e);
         throw e;
@@ -430,6 +469,22 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     @Override
     void complete(EqualityDeleteWriter<T> closedWriter) {
       completedDeleteFiles.add(closedWriter.toDeleteFile());
+    }
+  }
+
+  private static class PartitionSortingPositionOnlyDeleteWriterWrap<T>
+      extends SortingPositionOnlyDeleteWriter<T>
+      implements PartitioningWriter<PositionDelete<T>, DeleteWriteResult> {
+
+    PartitionSortingPositionOnlyDeleteWriterWrap(
+        Supplier<FileWriter<PositionDelete<T>, DeleteWriteResult>> writers,
+        DeleteGranularity granularity) {
+      super(writers, granularity);
+    }
+
+    @Override
+    public void write(PositionDelete<T> positionDelete, PartitionSpec spec, StructLike partition) {
+      super.write(positionDelete);
     }
   }
 }

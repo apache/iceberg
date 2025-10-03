@@ -48,21 +48,27 @@ public class TestFlinkUpsert extends CatalogTestBase {
   @Parameter(index = 3)
   private boolean isStreamingJob;
 
+  @Parameter(index = 4)
+  private int formatVersion;
+
   private final Map<String, String> tableUpsertProps = Maps.newHashMap();
   private TableEnvironment tEnv;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
+  @Parameters(
+      name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}, formatVersion={4} ")
   public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.PARQUET, FileFormat.AVRO, FileFormat.ORC}) {
-      for (Boolean isStreaming : new Boolean[] {true, false}) {
-        // Only test with one catalog as this is a file operation concern.
-        // FlinkCatalogTestBase requires the catalog name start with testhadoop if using hadoop
-        // catalog.
-        String catalogName = "testhadoop";
-        Namespace baseNamespace = Namespace.of("default");
-        parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming});
+      for (int version : org.apache.iceberg.TestHelpers.V2_AND_ABOVE) {
+        for (Boolean isStreaming : new Boolean[] {true, false}) {
+          // Only test with one catalog as this is a file operation concern.
+          // FlinkCatalogTestBase requires the catalog name start with testhadoop if using hadoop
+          // catalog.
+          String catalogName = "testhadoop";
+          Namespace baseNamespace = Namespace.of("default");
+          parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming, version});
+        }
       }
     }
     return parameters;
@@ -98,7 +104,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
     sql("CREATE DATABASE IF NOT EXISTS %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
-    tableUpsertProps.put(TableProperties.FORMAT_VERSION, "2");
+    tableUpsertProps.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     tableUpsertProps.put(TableProperties.UPSERT_ENABLED, "true");
     tableUpsertProps.put(TableProperties.DEFAULT_FILE_FORMAT, format.name());
   }
