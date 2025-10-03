@@ -211,8 +211,8 @@ public class AwsClientFactories {
    *     S3FileIOProperties#applyEndpointConfigurations(S3BaseClientBuilder)}, {@link
    *     AwsProperties#applyGlueEndpointConfigurations(GlueClientBuilder)}, or {@link
    *     AwsProperties#applyDynamoDbEndpointConfigurations(DynamoDbClientBuilder)}, or {@link
-   *     AwsProperties#applyKmsEndpointConfigurations(KmsClientBuilder)} accordingly. It
-   *     will be removed in 2.0.0
+   *     AwsProperties#applyKmsEndpointConfigurations(KmsClientBuilder)} accordingly. It will be
+   *     removed in 2.0.0
    */
   @Deprecated
   public static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
