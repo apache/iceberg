@@ -33,7 +33,7 @@ import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestRowDataWrapper extends RecordWrapperTestBase {
 

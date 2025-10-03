@@ -33,7 +33,7 @@ import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestRowDataWrapper extends RecordWrapperTestBase {
 
@@ -63,9 +63,7 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
         });
   }
 
-  /**
-   * Test that nanosecond precision timestamps are preserved correctly.
-   */
+  /** Test that nanosecond precision timestamps are preserved correctly. */
   @Test
   public void testNanosecondTimestampPrecision() {
     // Create a specific timestamp with nanosecond precision

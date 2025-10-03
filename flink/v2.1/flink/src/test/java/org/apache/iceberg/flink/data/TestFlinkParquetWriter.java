@@ -122,9 +122,7 @@ public class TestFlinkParquetWriter extends DataTestBase {
     writeAndValidate(binaryRowList, schema);
   }
 
-  /**
-   * Test that nanosecond precision timestamps are preserved when writing to Parquet files. This
-   */
+  /** Test that nanosecond precision timestamps are preserved when writing to Parquet files. This */
   @Test
   public void testNanosecondTimestampPrecision() throws IOException {
     // Create a schema with nanosecond timestamp

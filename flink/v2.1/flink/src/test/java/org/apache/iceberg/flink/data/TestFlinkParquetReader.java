@@ -276,9 +276,7 @@ public class TestFlinkParquetReader extends DataTestBase {
     writeAndValidate(expectedData, schema, schema);
   }
 
-  /**
-   * Test that nanosecond precision timestamps are preserved when reading from Parquet files. 
-   */
+  /** Test that nanosecond precision timestamps are preserved when reading from Parquet files. */
   @Test
   public void testNanosecondTimestampPrecision() throws IOException {
     // Create a schema with nanosecond timestamp
@@ -357,8 +355,7 @@ public class TestFlinkParquetReader extends DataTestBase {
       // Verify that microsecond precision is preserved
       assertThat(timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond())
           .isLessThan(1_000_000_000_000L);
-      assertThat(timestampData.getNanoOfMillisecond() % 1000)
-          .isEqualTo(0);
+      assertThat(timestampData.getNanoOfMillisecond() % 1000).isEqualTo(0);
     }
   }
 }

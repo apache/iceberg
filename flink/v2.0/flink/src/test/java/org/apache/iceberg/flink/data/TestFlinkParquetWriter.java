@@ -26,8 +26,6 @@ import java.time.LocalDateTime;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.LogicalType;
@@ -46,7 +44,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -125,16 +122,14 @@ public class TestFlinkParquetWriter extends DataTestBase {
     writeAndValidate(binaryRowList, schema);
   }
 
-  /**
-   * Test that nanosecond precision timestamps are preserved when writing to Parquet files.
-   */
+  /** Test that nanosecond precision timestamps are preserved when writing to Parquet files. */
   @Test
   public void testNanosecondTimestampPrecision() throws IOException {
     // Create a schema with nanosecond timestamp
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
-        Types.NestedField.required(2, "timestamp_ns_tz", Types.TimestampNanoType.withZone())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(2, "timestamp_ns_tz", Types.TimestampNanoType.withZone()));
 
     // Use RandomRowData to generate test data with nanosecond precision
     List<RowData> testData = Lists.newArrayList(RandomRowData.generate(schema, 1, 42L));
@@ -159,34 +154,33 @@ public class TestFlinkParquetWriter extends DataTestBase {
             .build()) {
       Iterator<Record> records = reader.iterator();
       assertThat(records).hasNext();
-      
+
       Record record = records.next();
       Object timestampValue = record.get(0);
       Object timestampTzValue = record.get(1);
-      
+
       // Verify that nanosecond precision is preserved
-      // The first value should be LocalDateTime, the second should be OffsetDateTime (timezone-aware)
+      // The first value should be LocalDateTime, the second should be OffsetDateTime
+      // (timezone-aware)
       assertThat(timestampValue).isInstanceOf(LocalDateTime.class);
       assertThat(timestampTzValue).isInstanceOf(java.time.OffsetDateTime.class);
-      
+
       LocalDateTime timestamp = (LocalDateTime) timestampValue;
       java.time.OffsetDateTime timestampTz = (java.time.OffsetDateTime) timestampTzValue;
-      
+
       // Verify that nanosecond precision is preserved (nano field should have meaningful values)
       assertThat(timestamp.getNano()).isGreaterThan(0);
       assertThat(timestampTz.getNano()).isGreaterThan(0);
     }
   }
 
-  /**
-   * Test that microsecond precision timestamps work correctly (regression test).
-   */
+  /** Test that microsecond precision timestamps work correctly (regression test). */
   @Test
   public void testMicrosecondTimestampPrecision() throws IOException {
     // Create a schema with microsecond timestamp
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone()));
 
     List<RowData> testData = Lists.newArrayList(RandomRowData.generate(schema, 1, 42L));
 
@@ -210,16 +204,17 @@ public class TestFlinkParquetWriter extends DataTestBase {
             .build()) {
       Iterator<Record> records = reader.iterator();
       assertThat(records).hasNext();
-      
+
       Record record = records.next();
       Object timestampValue = record.get(0);
-      
+
       // Verify that microsecond precision is preserved
       assertThat(timestampValue).isInstanceOf(LocalDateTime.class);
-      
+
       LocalDateTime timestamp = (LocalDateTime) timestampValue;
-      
-      // Verify that microsecond precision is preserved (nano field should be rounded to microseconds)
+
+      // Verify that microsecond precision is preserved (nano field should be rounded to
+      // microseconds)
       assertThat(timestamp.getNano() % 1000).isEqualTo(0);
     }
   }

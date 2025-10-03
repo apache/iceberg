@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.data;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
@@ -41,8 +40,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.DateTimeUtil;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestFlinkAvroReaderWriter extends DataTestBase {
 
@@ -140,16 +138,16 @@ public class TestFlinkAvroReaderWriter extends DataTestBase {
   }
 
   /**
-   * Test that nanosecond precision timestamps are preserved when writing to and reading from Avro files.
-   * This test verifies the Avro writer/reader nanosecond precision support.
+   * Test that nanosecond precision timestamps are preserved when writing to and reading from Avro
+   * files. This test verifies the Avro writer/reader nanosecond precision support.
    */
   @Test
   public void testNanosecondTimestampPrecision() throws IOException {
     // Create a schema with nanosecond timestamp
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
-        Types.NestedField.required(2, "timestamp_ns_tz", Types.TimestampNanoType.withZone())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(2, "timestamp_ns_tz", Types.TimestampNanoType.withZone()));
 
     List<RowData> testData = Lists.newArrayList(RandomRowData.generate(schema, 1, 42L));
 
@@ -173,28 +171,28 @@ public class TestFlinkAvroReaderWriter extends DataTestBase {
             .build()) {
       Iterator<RowData> rows = reader.iterator();
       assertThat(rows).hasNext();
-      
+
       RowData rowData = rows.next();
       TimestampData timestampData = rowData.getTimestamp(0, 9);
       TimestampData timestampTzData = rowData.getTimestamp(1, 9);
-      
+
       // Verify that nanosecond precision is preserved
       assertThat(timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond())
           .isGreaterThan(1_000_000_000_000L);
-      assertThat(timestampTzData.getMillisecond() * 1_000_000L + timestampTzData.getNanoOfMillisecond())
+      assertThat(
+              timestampTzData.getMillisecond() * 1_000_000L
+                  + timestampTzData.getNanoOfMillisecond())
           .isGreaterThan(1_000_000_000_000L);
     }
   }
 
-  /**
-   * Test that microsecond precision timestamps work correctly (regression test).
-   */
+  /** Test that microsecond precision timestamps work correctly (regression test). */
   @Test
   public void testMicrosecondTimestampPrecision() throws IOException {
     // Create a schema with microsecond timestamp
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone()));
 
     List<RowData> testData = Lists.newArrayList(RandomRowData.generate(schema, 1, 42L));
 
@@ -218,14 +216,15 @@ public class TestFlinkAvroReaderWriter extends DataTestBase {
             .build()) {
       Iterator<RowData> rows = reader.iterator();
       assertThat(rows).hasNext();
-      
+
       RowData rowData = rows.next();
       TimestampData timestampData = rowData.getTimestamp(0, 6);
-      
-      // Note: Avro implementation actually preserves nanosecond precision even for microsecond schemas
+
+      // Note: Avro implementation actually preserves nanosecond precision even for microsecond
+      // schemas
       // This is actually good behavior - it means we don't lose precision
       assertThat(timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond())
-          .isGreaterThan(1_000_000_000_000L); 
+          .isGreaterThan(1_000_000_000_000L);
     }
   }
 }

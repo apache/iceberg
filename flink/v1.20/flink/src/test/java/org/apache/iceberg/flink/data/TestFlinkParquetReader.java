@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.time.LocalDateTime;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -52,7 +51,6 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -278,16 +276,14 @@ public class TestFlinkParquetReader extends DataTestBase {
     writeAndValidate(expectedData, schema, schema);
   }
 
-  /**
-   * Test that nanosecond precision timestamps are preserved when reading from Parquet files.
-   */
+  /** Test that nanosecond precision timestamps are preserved when reading from Parquet files. */
   @Test
   public void testNanosecondTimestampPrecision() throws IOException {
     // Create a schema with nanosecond timestamp
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
-        Types.NestedField.required(2, "timestamp_ns_tz", Types.TimestampNanoType.withZone())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(2, "timestamp_ns_tz", Types.TimestampNanoType.withZone()));
 
     List<Record> testData = RandomGenericData.generate(schema, 1, 42L);
 
@@ -309,28 +305,28 @@ public class TestFlinkParquetReader extends DataTestBase {
             .build()) {
       Iterator<RowData> rows = reader.iterator();
       assertThat(rows).hasNext();
-      
+
       RowData rowData = rows.next();
       TimestampData timestampData = rowData.getTimestamp(0, 9);
       TimestampData timestampTzData = rowData.getTimestamp(1, 9);
-      
+
       // Verify that nanosecond precision is preserved
       assertThat(timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond())
           .isGreaterThan(1_000_000_000_000L);
-      assertThat(timestampTzData.getMillisecond() * 1_000_000L + timestampTzData.getNanoOfMillisecond())
+      assertThat(
+              timestampTzData.getMillisecond() * 1_000_000L
+                  + timestampTzData.getNanoOfMillisecond())
           .isGreaterThan(1_000_000_000_000L);
     }
   }
 
-  /**
-   * Test that microsecond precision timestamps work correctly (regression test).
-   */
+  /** Test that microsecond precision timestamps work correctly (regression test). */
   @Test
   public void testMicrosecondTimestampPrecision() throws IOException {
     // Create a schema with microsecond timestamp
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone()));
 
     List<Record> testData = RandomGenericData.generate(schema, 1, 42L);
 
@@ -352,10 +348,10 @@ public class TestFlinkParquetReader extends DataTestBase {
             .build()) {
       Iterator<RowData> rows = reader.iterator();
       assertThat(rows).hasNext();
-      
+
       RowData rowData = rows.next();
       TimestampData timestampData = rowData.getTimestamp(0, 6);
-      
+
       // Verify that microsecond precision is preserved
       assertThat(timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond())
           .isLessThan(1_000_000_000_000L);
