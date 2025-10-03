@@ -210,8 +210,7 @@ public class TestDictionaryRowGroupFilter {
           structNotNull.put("_int_field", INT_MIN_VALUE + i);
           builder.set("_struct_not_null", structNotNull); // struct with int
 
-          builder.set(
-              "_uuid_col", (i % 3 == 0) ? UUID_WITH_ZEROS : (i % 3 == 1) ? UUID_WITH_ONES : null);
+          builder.set("_uuid_col", (i % 2 == 0) ? UUID_WITH_ZEROS : null);
 
           appender.add(builder.build());
         }
@@ -1278,20 +1277,56 @@ public class TestDictionaryRowGroupFilter {
   }
 
   @TestTemplate
-  public void testUUIDDictionaryFilter() {
+  public void testUUID() {
     assumeThat(getColumnForName(rowGroupMetadata, "_uuid_col").getEncodings())
         .contains(Encoding.RLE_DICTIONARY);
 
-    boolean shouldReadExisting =
-        new ParquetDictionaryRowGroupFilter(SCHEMA, equal("uuid_col", UUID_WITH_ZEROS))
-            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldReadExisting).as("Should read: Dictionary contains a matching entry").isTrue();
+    UUID nonExistentUuid = UUID.fromString("99999999-9999-9999-9999-999999999999");
 
-    UUID nonExistentUUID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     boolean shouldRead =
-        new ParquetDictionaryRowGroupFilter(SCHEMA, equal("uuid_col", nonExistentUUID))
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("uuid_col", UUID_WITH_ZEROS))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should skip: UUID not found in dictionary").isFalse();
+    assertThat(shouldRead).as("Should read: column contains nulls").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("uuid_col", nonExistentUuid))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: column contains non-matching values").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("uuid_col"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: column contains null values").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notNull("uuid_col"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: column contains non-null values").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(
+                SCHEMA, in("uuid_col", UUID_WITH_ZEROS, nonExistentUuid))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: column contains one of the values").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, in("uuid_col", nonExistentUuid))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: column contains none of the values").isFalse();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("uuid_col", nonExistentUuid))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead)
+        .as("Should read: column contains values not in the exclusion list")
+        .isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notIn("uuid_col", UUID_WITH_ZEROS))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead)
+        .as("Should read: column contains null values not in the exclusion list")
+        .isTrue();
   }
 
   private ColumnChunkMetaData getColumnForName(BlockMetaData rowGroup, String columnName) {
