@@ -30,7 +30,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
@@ -120,7 +119,7 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
       }
     } catch (Exception e) {
       LOG.warn("Exception listing files for {} at {}", location, ctx.timestamp(), e);
-      ctx.output(DeleteOrphanFiles.ERROR_STREAM, e);
+      ctx.output(TaskResultAggregator.ERROR_STREAM, e);
       errorCounter.inc();
     }
   }
