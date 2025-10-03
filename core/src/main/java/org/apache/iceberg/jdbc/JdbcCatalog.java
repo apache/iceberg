@@ -390,6 +390,17 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
+  public void targetNamespaceExists(TableIdentifier identifier) {
+    Namespace namespace = identifier.namespace();
+    if (PropertyUtil.propertyAsBoolean(catalogProperties, JdbcUtil.STRICT_MODE_PROPERTY, false)
+        && !JdbcUtil.namespaceExists(catalogName, connections, namespace)) {
+      throw new NoSuchNamespaceException(
+          "Cannot register table %s to catalog %s. Namespace does not exist: %s",
+          identifier, catalogName, namespace);
+    }
+  }
+
+  @Override
   public String name() {
     return catalogName;
   }
