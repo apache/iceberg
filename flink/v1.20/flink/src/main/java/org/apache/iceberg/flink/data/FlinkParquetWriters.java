@@ -447,7 +447,7 @@ public class FlinkParquetWriters {
     @Override
     public void write(int repetitionLevel, TimestampData value) {
       column.writeLong(
-          repetitionLevel, value.getMillisecond() * 1000 + value.getNanoOfMillisecond() / 1000);
+          repetitionLevel, value.getMillisecond() * 1_000_000L + value.getNanoOfMillisecond());
     }
   }
 

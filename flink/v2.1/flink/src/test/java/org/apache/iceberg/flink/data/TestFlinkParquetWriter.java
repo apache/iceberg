@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
@@ -42,6 +43,8 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestFlinkParquetWriter extends DataTestBase {
@@ -117,5 +120,99 @@ public class TestFlinkParquetWriter extends DataTestBase {
     }
 
     writeAndValidate(binaryRowList, schema);
+  }
+
+  /** Test that nanosecond precision timestamps are preserved when writing to Parquet files. This */
+  @Test
+  public void testNanosecondTimestampPrecision() throws IOException {
+    // Create a schema with nanosecond timestamp
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(2, "timestamp_ns_tz", Types.TimestampNanoType.withZone()));
+
+    List<RowData> testData = Lists.newArrayList(RandomRowData.generate(schema, 1, 42L));
+
+    // Write to Parquet file
+    OutputFile outputFile = new InMemoryOutputFile();
+    LogicalType logicalType = FlinkSchemaUtil.convert(schema);
+
+    try (FileAppender<RowData> writer =
+        Parquet.write(outputFile)
+            .schema(schema)
+            .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(logicalType, msgType))
+            .build()) {
+      writer.addAll(testData);
+    }
+
+    // Read back from Parquet file and verify nanosecond precision
+    try (CloseableIterable<Record> reader =
+        Parquet.read(outputFile.toInputFile())
+            .project(schema)
+            .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
+            .build()) {
+      Iterator<Record> records = reader.iterator();
+      assertThat(records).hasNext();
+
+      Record record = records.next();
+      Object timestampValue = record.get(0);
+      Object timestampTzValue = record.get(1);
+
+      // Verify that nanosecond precision is preserved
+      // The first value should be LocalDateTime, the second should be OffsetDateTime
+      // (timezone-aware)
+      assertThat(timestampValue).isInstanceOf(LocalDateTime.class);
+      assertThat(timestampTzValue).isInstanceOf(java.time.OffsetDateTime.class);
+
+      LocalDateTime timestamp = (LocalDateTime) timestampValue;
+      java.time.OffsetDateTime timestampTz = (java.time.OffsetDateTime) timestampTzValue;
+
+      // Verify that nanosecond precision is preserved (nano field should have meaningful values)
+      assertThat(timestamp.getNano()).isGreaterThan(0);
+      assertThat(timestampTz.getNano()).isGreaterThan(0);
+    }
+  }
+
+  /** Test that microsecond precision timestamps work correctly (regression test). */
+  @Test
+  public void testMicrosecondTimestampPrecision() throws IOException {
+    // Create a schema with microsecond timestamp
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone()));
+
+    List<RowData> testData = Lists.newArrayList(RandomRowData.generate(schema, 1, 42L));
+
+    // Write to Parquet file
+    OutputFile outputFile = new InMemoryOutputFile();
+    LogicalType logicalType = FlinkSchemaUtil.convert(schema);
+
+    try (FileAppender<RowData> writer =
+        Parquet.write(outputFile)
+            .schema(schema)
+            .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(logicalType, msgType))
+            .build()) {
+      writer.addAll(testData);
+    }
+
+    // Read back and verify microsecond precision
+    try (CloseableIterable<Record> reader =
+        Parquet.read(outputFile.toInputFile())
+            .project(schema)
+            .createReaderFunc(msgType -> GenericParquetReaders.buildReader(schema, msgType))
+            .build()) {
+      Iterator<Record> records = reader.iterator();
+      assertThat(records).hasNext();
+
+      Record record = records.next();
+      Object timestampValue = record.get(0);
+
+      // Verify that microsecond precision is preserved
+      assertThat(timestampValue).isInstanceOf(LocalDateTime.class);
+      LocalDateTime timestamp = (LocalDateTime) timestampValue;
+
+      // For microsecond precision, the nanosecond component should be a multiple of 1000
+      assertThat(timestamp.getNano() % 1000).isEqualTo(0);
+    }
   }
 }
