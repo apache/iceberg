@@ -23,6 +23,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.TableProperties;
@@ -46,9 +47,19 @@ public class StandardEncryptionManager implements EncryptionManager {
     private final Map<String, EncryptedKey> encryptionKeys;
     private final LoadingCache<String, ByteBuffer> unwrappedKeyCache;
 
-    private TransientEncryptionState(KeyManagementClient kmsClient) {
+    private TransientEncryptionState(KeyManagementClient kmsClient, List<EncryptedKey> keys) {
       this.kmsClient = kmsClient;
       this.encryptionKeys = Maps.newLinkedHashMap();
+
+      if (keys != null) {
+        for (EncryptedKey key : keys) {
+          encryptionKeys.put(
+              key.keyId(),
+              new BaseEncryptedKey(
+                  key.keyId(), key.encryptedKeyMetadata(), key.encryptedById(), key.properties()));
+        }
+      }
+
       this.unwrappedKeyCache =
           Caffeine.newBuilder()
               .expireAfterWrite(1, TimeUnit.HOURS)
@@ -64,12 +75,25 @@ public class StandardEncryptionManager implements EncryptionManager {
   private transient volatile SecureRandom lazyRNG = null;
 
   /**
+   * @deprecated will be removed in 2.0.
+   */
+  @Deprecated
+  public StandardEncryptionManager(
+      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+    this(List.of(), tableKeyId, dataKeyLength, kmsClient);
+  }
+
+  /**
+   * @param keys encryption keys from table metadata
    * @param tableKeyId table encryption key id
    * @param dataKeyLength length of data encryption key (16/24/32 bytes)
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
    */
   public StandardEncryptionManager(
-      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+      List<EncryptedKey> keys,
+      String tableKeyId,
+      int dataKeyLength,
+      KeyManagementClient kmsClient) {
     Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
     Preconditions.checkArgument(
         dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
@@ -77,7 +101,7 @@ public class StandardEncryptionManager implements EncryptionManager {
         dataKeyLength);
     Preconditions.checkNotNull(kmsClient, "Invalid KMS client: null");
     this.tableKeyId = tableKeyId;
-    this.transientState = new TransientEncryptionState(kmsClient);
+    this.transientState = new TransientEncryptionState(kmsClient, keys);
     this.dataKeyLength = dataKeyLength;
   }
 
@@ -132,6 +156,14 @@ public class StandardEncryptionManager implements EncryptionManager {
     }
 
     return transientState.kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
+  }
+
+  Map<String, EncryptedKey> encryptionKeys() {
+    if (transientState == null) {
+      throw new IllegalStateException("Cannot return the encryption keys after serialization");
+    }
+
+    return transientState.encryptionKeys;
   }
 
   private String keyEncryptionKeyID() {
