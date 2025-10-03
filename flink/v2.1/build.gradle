@@ -31,8 +31,6 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
-    implementation "io.etcd:jetcd-core:0.8.5"
-    implementation "io.etcd:jetcd-launcher:0.8.5"
 
     compileOnly libs.flink21.avro
     // for dropwizard histogram metrics implementation
@@ -72,6 +70,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     // for caching in DynamicSink
     implementation libs.caffeine
+
+    implementation libs.jetcd.core
 
     testImplementation libs.flink21.connector.test.utils
     testImplementation libs.flink21.core
@@ -125,6 +125,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     testImplementation libs.awaitility
     testImplementation libs.assertj.core
     testImplementation libs.sqlite.jdbc
+    testImplementation libs.jetcd.launcher
   }
 
   test {
