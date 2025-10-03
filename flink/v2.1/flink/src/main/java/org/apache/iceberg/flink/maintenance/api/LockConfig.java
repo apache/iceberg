@@ -96,6 +96,54 @@ public class LockConfig {
             .withDescription("The maximum number of retries for the Zookeeper client.");
   }
 
+  public static class EtcdLockConfig {
+    public static final String ETCD = "etcd";
+
+    /** The URI of the Etcd service for acquiring the lock. Example: http://127.0.0.1:2379 */
+    public static final ConfigOption<String> ETCD_ENDPOINTS_OPTION =
+        ConfigOptions.key(PREFIX + ETCD + ".endpoints")
+            .stringType()
+            .defaultValue(StringUtils.EMPTY)
+            .withDescription("The endpoints of the Etcd service for acquiring the lock.");
+
+    /** The connection timeout (in milliseconds) for the Etcd client. Default: 5000 ms */
+    public static final ConfigOption<Integer> ETCD_CONNECTION_TIMEOUT_MS_OPTION =
+        ConfigOptions.key(PREFIX + ETCD + ".connection-timeout-ms")
+            .intType()
+            .defaultValue(5000)
+            .withDescription(
+                "The connection timeout (in milliseconds) for the Etcd client. (Default: 5000 ms)");
+
+    /**
+     * The keepalive interval (in milliseconds) for the Etcd gRPC connection. Default: 30000 ms (30
+     * seconds)
+     */
+    public static final ConfigOption<Integer> ETCD_KEEPALIVE_MS_OPTION =
+        ConfigOptions.key(PREFIX + ETCD + ".keepalive-ms")
+            .intType()
+            .defaultValue(30000)
+            .withDescription(
+                "The keepalive interval (in milliseconds) for the Etcd gRPC connection. (Default: 30000 ms)");
+
+    /**
+     * The keepalive timeout (in milliseconds) for the Etcd gRPC connection. Default: 10000 ms (10
+     * seconds)
+     */
+    public static final ConfigOption<Integer> ETCD_KEEPALIVE_TIMEOUT_MS_OPTION =
+        ConfigOptions.key(PREFIX + ETCD + ".keepalive-timeout-ms")
+            .intType()
+            .defaultValue(10000)
+            .withDescription(
+                "The keepalive timeout (in milliseconds) for the Etcd gRPC connection. (Default: 10000 ms)");
+
+    /** The maximum number of retries for the Etcd client in case of failures. Default: 2 */
+    public static final ConfigOption<Integer> ETCD_MAX_RETRIES_OPTION =
+        ConfigOptions.key(PREFIX + ETCD + ".max-retries")
+            .intType()
+            .defaultValue(2)
+            .withDescription("The maximum number of retries for the Etcd client. (Default: 2)");
+  }
+
   private final FlinkConfParser confParser;
   private final Map<String, String> writeProperties;
   private final Map<String, String> setProperties;
@@ -199,6 +247,56 @@ public class LockConfig {
         .option(ZkLockConfig.ZK_MAX_RETRIES_OPTION.key())
         .flinkConfig(ZkLockConfig.ZK_MAX_RETRIES_OPTION)
         .defaultValue(ZkLockConfig.ZK_MAX_RETRIES_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Etcd service URI configuration. */
+  public String etcdEndpoints() {
+    return confParser
+        .stringConf()
+        .option(EtcdLockConfig.ETCD_ENDPOINTS_OPTION.key())
+        .flinkConfig(EtcdLockConfig.ETCD_ENDPOINTS_OPTION)
+        .defaultValue(EtcdLockConfig.ETCD_ENDPOINTS_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Etcd connection timeout configuration (in milliseconds). */
+  public int etcdConnectionTimeoutMs() {
+    return confParser
+        .intConf()
+        .option(EtcdLockConfig.ETCD_CONNECTION_TIMEOUT_MS_OPTION.key())
+        .flinkConfig(EtcdLockConfig.ETCD_CONNECTION_TIMEOUT_MS_OPTION)
+        .defaultValue(EtcdLockConfig.ETCD_CONNECTION_TIMEOUT_MS_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Etcd gRPC keepalive interval configuration (in milliseconds). */
+  public int etcdKeepAliveMs() {
+    return confParser
+        .intConf()
+        .option(EtcdLockConfig.ETCD_KEEPALIVE_MS_OPTION.key())
+        .flinkConfig(EtcdLockConfig.ETCD_KEEPALIVE_MS_OPTION)
+        .defaultValue(EtcdLockConfig.ETCD_KEEPALIVE_MS_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Etcd gRPC keepalive timeout configuration (in milliseconds). */
+  public int etcdKeepAliveTimeoutMs() {
+    return confParser
+        .intConf()
+        .option(EtcdLockConfig.ETCD_KEEPALIVE_TIMEOUT_MS_OPTION.key())
+        .flinkConfig(EtcdLockConfig.ETCD_KEEPALIVE_TIMEOUT_MS_OPTION)
+        .defaultValue(EtcdLockConfig.ETCD_KEEPALIVE_TIMEOUT_MS_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Etcd maximum retry count configuration. */
+  public int etcdMaxRetries() {
+    return confParser
+        .intConf()
+        .option(EtcdLockConfig.ETCD_MAX_RETRIES_OPTION.key())
+        .flinkConfig(EtcdLockConfig.ETCD_MAX_RETRIES_OPTION)
+        .defaultValue(EtcdLockConfig.ETCD_MAX_RETRIES_OPTION.defaultValue())
         .parse();
   }
 
