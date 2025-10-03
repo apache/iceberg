@@ -102,8 +102,7 @@ public class TestManifestFileSerialization {
 
   @Test
   public void testManifestFileKryoSerialization() throws IOException {
-    File data = File.createTempFile("junit", null, temp.toFile());
-    assertThat(data.delete()).isTrue();
+    File data = temp.resolve("kryo").toFile();
 
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
@@ -199,8 +198,7 @@ public class TestManifestFileSerialization {
   }
 
   private ManifestFile writeManifest(DataFile... files) throws IOException {
-    File manifestFile = File.createTempFile("input.m0", ".avro", temp.toFile());
-    assertThat(manifestFile.delete()).isTrue();
+    File manifestFile = temp.resolve("input.m0.avro").toFile();
     OutputFile outputFile = FILE_IO.newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(SPEC, outputFile);
