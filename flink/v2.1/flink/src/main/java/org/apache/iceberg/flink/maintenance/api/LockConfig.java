@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
-import static org.apache.iceberg.flink.maintenance.api.ZKRetryPolicies.EXPONENTIAL_BACKOFF;
-
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -115,7 +113,7 @@ public class LockConfig {
     public static final ConfigOption<String> ZK_RETRY_POLICY_NAME_OPTION =
         ConfigOptions.key(PREFIX + ZK + ".retry-policy")
             .stringType()
-            .defaultValue(EXPONENTIAL_BACKOFF.name())
+            .defaultValue(ZKRetryPolicies.EXPONENTIAL_BACKOFF.name())
             .withDescription(
                 "The retry policy name for the Zookeeper client. (Default: exponential-backoff)");
   }

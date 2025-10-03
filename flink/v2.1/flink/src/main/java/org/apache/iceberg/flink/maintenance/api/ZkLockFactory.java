@@ -108,14 +108,12 @@ public class ZkLockFactory implements TriggerLockFactory {
       LOG.debug("ZkLockFactory already opened for lockId: {}.", lockId);
       return;
     }
-    RetryPolicy retryPolicy =
-        createRetryPolicy(retryPolicyName, baseSleepTimeMs, maxRetries, maxSleepTimeMs);
     this.client =
         CuratorFrameworkFactory.builder()
             .connectString(connectString)
             .sessionTimeoutMs(sessionTimeoutMs)
             .connectionTimeoutMs(connectionTimeoutMs)
-            .retryPolicy(retryPolicy)
+            .retryPolicy(createRetryPolicy())
             .build();
     client.start();
 
@@ -243,8 +241,7 @@ public class ZkLockFactory implements TriggerLockFactory {
     }
   }
 
-  RetryPolicy createRetryPolicy(
-      String retryPolicyName, int baseSleepTime, int maxRetries, int maxSleepTime) {
+  RetryPolicy createRetryPolicy() {
 
     ZKRetryPolicies policy;
     try {
@@ -255,20 +252,20 @@ public class ZkLockFactory implements TriggerLockFactory {
 
     switch (policy) {
       case ONE_TIME:
-        return new RetryOneTime(baseSleepTime);
+        return new RetryOneTime(baseSleepTimeMs);
 
       case N_TIME:
-        return new RetryNTimes(maxRetries, baseSleepTime);
+        return new RetryNTimes(maxRetries, baseSleepTimeMs);
 
       case BOUNDED_EXPONENTIAL_BACKOFF:
-        return new BoundedExponentialBackoffRetry(baseSleepTime, maxSleepTime, maxRetries);
+        return new BoundedExponentialBackoffRetry(baseSleepTimeMs, maxSleepTimeMs, maxRetries);
 
       case UNTIL_ELAPSED:
-        return new RetryUntilElapsed(maxSleepTime, baseSleepTime);
+        return new RetryUntilElapsed(maxSleepTimeMs, baseSleepTimeMs);
 
       case EXPONENTIAL_BACKOFF:
       default:
-        return new ExponentialBackoffRetry(baseSleepTime, maxRetries);
+        return new ExponentialBackoffRetry(maxSleepTimeMs, maxRetries);
     }
   }
 }
