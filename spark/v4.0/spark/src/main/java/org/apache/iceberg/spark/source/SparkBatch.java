@@ -175,7 +175,7 @@ class SparkBatch implements Batch {
     return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
   }
 
-  private boolean useCometBatchReads() {
+  protected boolean useCometBatchReads() {
     return readConf.parquetVectorizationEnabled()
         && readConf.parquetReaderType() == ParquetReaderType.COMET
         && expectedSchema.columns().stream().allMatch(this::supportsCometBatchReads)
