@@ -43,21 +43,17 @@ class Worker extends Channel {
   private final SinkTaskContext context;
   private final SinkWriter sinkWriter;
 
-  Worker(
-      IcebergSinkConfig config,
-      KafkaClientFactory clientFactory,
-      SinkWriter sinkWriter,
-      SinkTaskContext context) {
+  Worker(IcebergSinkConfig config, KafkaClientFactory clientFactory, SinkWriter sinkWriter) {
     // pass transient consumer group ID to which we never commit offsets
     super(
         "worker",
         config.controlGroupIdPrefix() + UUID.randomUUID(),
         config,
         clientFactory,
-        context);
+        config.context());
 
     this.config = config;
-    this.context = context;
+    this.context = config.context();
     this.sinkWriter = sinkWriter;
   }
 

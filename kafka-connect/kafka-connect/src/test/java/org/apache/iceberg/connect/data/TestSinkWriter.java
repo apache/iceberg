@@ -180,8 +180,9 @@ public class TestSinkWriter {
 
     IcebergWriterFactory writerFactory = mock(IcebergWriterFactory.class);
     when(writerFactory.createWriter(any(), any(), anyBoolean())).thenReturn(writer);
+    when(config.loadCatalog()).thenReturn(catalog);
 
-    SinkWriter sinkWriter = new SinkWriter(catalog, config);
+    SinkWriter sinkWriter = new SinkWriter(config);
 
     // save a record
     Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
