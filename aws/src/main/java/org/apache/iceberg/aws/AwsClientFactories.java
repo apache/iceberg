@@ -39,6 +39,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.kms.KmsClientBuilder;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -155,6 +156,7 @@ public class AwsClientFactories {
       return KmsClient.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyKmsEndpointConfigurations)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(awsClientProperties::applyRetryConfigurations)
           .build();
@@ -208,7 +210,8 @@ public class AwsClientFactories {
    * @deprecated Not for public use. To configure the endpoint for a client, please use {@link
    *     S3FileIOProperties#applyEndpointConfigurations(S3BaseClientBuilder)}, {@link
    *     AwsProperties#applyGlueEndpointConfigurations(GlueClientBuilder)}, or {@link
-   *     AwsProperties#applyDynamoDbEndpointConfigurations(DynamoDbClientBuilder)} accordingly. It
+   *     AwsProperties#applyDynamoDbEndpointConfigurations(DynamoDbClientBuilder)}, or {@link
+   *     AwsProperties#applyKmsEndpointConfigurations(KmsClientBuilder)} accordingly. It
    *     will be removed in 2.0.0
    */
   @Deprecated
