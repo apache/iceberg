@@ -31,6 +31,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
@@ -273,5 +274,91 @@ public class TestFlinkParquetReader extends DataTestBase {
   @Override
   protected void writeAndValidate(Schema schema, List<Record> expectedData) throws IOException {
     writeAndValidate(expectedData, schema, schema);
+  }
+
+  /**
+   * Test that nanosecond precision timestamps are preserved when reading from Parquet files. 
+   */
+  @Test
+  public void testNanosecondTimestampPrecision() throws IOException {
+    // Create a schema with nanosecond timestamp
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(2, "timestamp_ns_tz", Types.TimestampNanoType.withZone()));
+
+    List<Record> testData = RandomGenericData.generate(schema, 1, 42L);
+
+    // Write to Parquet file using GenericParquetWriter
+    OutputFile outputFile = new InMemoryOutputFile();
+    try (FileAppender<Record> writer =
+        Parquet.write(outputFile)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      writer.addAll(testData);
+    }
+
+    // Read back using FlinkParquetReaders and verify nanosecond precision
+    try (CloseableIterable<RowData> reader =
+        Parquet.read(outputFile.toInputFile())
+            .project(schema)
+            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
+            .build()) {
+      Iterator<RowData> rows = reader.iterator();
+      assertThat(rows).hasNext();
+
+      RowData rowData = rows.next();
+      TimestampData timestampData = rowData.getTimestamp(0, 9);
+      TimestampData timestampTzData = rowData.getTimestamp(1, 9);
+
+      // Verify that nanosecond precision is preserved
+      assertThat(timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond())
+          .isGreaterThan(1_000_000_000_000L);
+      assertThat(
+              timestampTzData.getMillisecond() * 1_000_000L
+                  + timestampTzData.getNanoOfMillisecond())
+          .isGreaterThan(1_000_000_000_000L);
+    }
+  }
+
+  /** Test that microsecond precision timestamps work correctly (regression test). */
+  @Test
+  public void testMicrosecondTimestampPrecision() throws IOException {
+    // Create a schema with microsecond timestamp
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone()));
+
+    List<Record> testData = RandomGenericData.generate(schema, 1, 42L);
+
+    // Write to Parquet file using GenericParquetWriter
+    OutputFile outputFile = new InMemoryOutputFile();
+    try (FileAppender<Record> writer =
+        Parquet.write(outputFile)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      writer.addAll(testData);
+    }
+
+    // Read back using FlinkParquetReaders and verify microsecond precision
+    try (CloseableIterable<RowData> reader =
+        Parquet.read(outputFile.toInputFile())
+            .project(schema)
+            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
+            .build()) {
+      Iterator<RowData> rows = reader.iterator();
+      assertThat(rows).hasNext();
+
+      RowData rowData = rows.next();
+      TimestampData timestampData = rowData.getTimestamp(0, 6);
+
+      // Verify that microsecond precision is preserved
+      assertThat(timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond())
+          .isLessThan(1_000_000_000_000L);
+      assertThat(timestampData.getNanoOfMillisecond() % 1000)
+          .isEqualTo(0);
+    }
   }
 }

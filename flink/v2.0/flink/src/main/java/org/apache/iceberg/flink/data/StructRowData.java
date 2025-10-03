@@ -186,7 +186,13 @@ public class StructRowData implements RowData {
   @Override
   public TimestampData getTimestamp(int pos, int precision) {
     long timeLong = getLong(pos);
-    return TimestampData.fromEpochMillis(timeLong / 1000, (int) (timeLong % 1000) * 1000);
+    if (precision == 9) {
+      // For nanosecond precision, preserve the full nanosecond value
+      return TimestampData.fromEpochMillis(timeLong / 1_000_000L, (int) (timeLong % 1_000_000L));
+    } else {
+      // For microsecond precision, use the original logic
+      return TimestampData.fromEpochMillis(timeLong / 1000, (int) (timeLong % 1000) * 1000);
+    }
   }
 
   @Override

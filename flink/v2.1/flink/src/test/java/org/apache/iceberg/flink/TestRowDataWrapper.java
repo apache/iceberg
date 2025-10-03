@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
 import java.util.Iterator;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.RecordWrapperTestBase;
@@ -29,7 +30,10 @@ import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RandomRowData;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.junit.Test;
 
 public class TestRowDataWrapper extends RecordWrapperTestBase {
 
@@ -57,6 +61,57 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
             assertThat(actualMilliseconds).as(message).isEqualTo(expectedMilliseconds);
           }
         });
+  }
+
+  /** Test that nanosecond precision timestamps are preserved correctly. */
+  @Test
+  public void testNanosecondTimestampPrecision() {
+    // Create a specific timestamp with nanosecond precision
+    LocalDateTime testTime = LocalDateTime.of(2025, 10, 2, 10, 15, 30, 123456789);
+    long expectedMicros = DateTimeUtil.microsFromTimestamp(testTime);
+    long expectedNanos = DateTimeUtil.nanosFromTimestamp(testTime);
+
+    // Microsecond precision schema (should use microsFromTimestamp)
+    Schema microsSchema =
+        new Schema(
+            Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone()));
+
+    // Nanosecond precision schema (should use nanosFromTimestamp)
+    Schema nanosSchema =
+        new Schema(
+            Types.NestedField.required(
+                1, "timestamp_nanos", Types.TimestampNanoType.withoutZone()));
+
+    // Create wrappers for both schemas
+    RowDataWrapper microsWrapper =
+        new RowDataWrapper(FlinkSchemaUtil.convert(microsSchema), microsSchema.asStruct());
+    RowDataWrapper nanosWrapper =
+        new RowDataWrapper(FlinkSchemaUtil.convert(nanosSchema), nanosSchema.asStruct());
+
+    // Test with the same seed to get comparable data
+    RowData microsRowData = RandomRowData.generate(microsSchema, 1, 42L).iterator().next();
+    RowData nanosRowData = RandomRowData.generate(nanosSchema, 1, 42L).iterator().next();
+
+    StructLike microsStructLike = microsWrapper.wrap(microsRowData);
+    StructLike nanosStructLike = nanosWrapper.wrap(nanosRowData);
+
+    Long microsValue = microsStructLike.get(0, Long.class);
+    Long nanosValue = nanosStructLike.get(0, Long.class);
+
+    // Verify both values are not null
+    assertThat(microsValue).isNotNull();
+    assertThat(nanosValue).isNotNull();
+
+    // Calculate the actual ratio
+    double ratio = (double) nanosValue / microsValue;
+
+    // For the same timestamp, nanosecond precision should produce values that are
+    // approximately 1000x larger than microsecond precision
+    assertThat(nanosValue).isGreaterThan(microsValue); // Nanosecond should be larger
+
+    // The ratio should be close to 1000 (nanoseconds vs microseconds)
+    // Allow some tolerance since we're using random data
+    assertThat(ratio).isGreaterThan(100.0); // At least 100x larger
   }
 
   @Override
