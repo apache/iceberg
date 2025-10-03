@@ -22,7 +22,7 @@ import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-public class RewriteDataFilesActionResult {
+public class RewriteDataFilesActionResult implements ActionResult {
 
   private static final RewriteDataFilesActionResult EMPTY =
       new RewriteDataFilesActionResult(ImmutableList.of(), ImmutableList.of());
@@ -46,5 +46,21 @@ public class RewriteDataFilesActionResult {
 
   public List<DataFile> addedDataFiles() {
     return addedDataFiles;
+  }
+
+  @Override
+  public ActionResult merge(ActionResult other) {
+    if (other == null) {
+      return this;
+    }
+
+    if (other instanceof RewriteDataFilesActionResult) {
+      RewriteDataFilesActionResult otherRewriteDataFileActionResult =
+          (RewriteDataFilesActionResult) other;
+      this.deletedDataFiles.addAll(otherRewriteDataFileActionResult.deletedDataFiles());
+      this.addedDataFiles.addAll(otherRewriteDataFileActionResult.addedDataFiles());
+    }
+
+    return this;
   }
 }
