@@ -106,7 +106,6 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
 
     // Calculate the actual ratio
     double ratio = (double) nanosValue / microsValue;
-    System.out.println("Actual ratio (nanos/micros): " + ratio);
 
     // For the same timestamp, nanosecond precision should produce values that are
     // approximately 1000x larger than microsecond precision

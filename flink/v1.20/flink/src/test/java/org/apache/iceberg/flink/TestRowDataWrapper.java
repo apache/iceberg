@@ -68,8 +68,6 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
    */
   @Test
   public void testNanosecondTimestampPrecision() {
-    // Test the precision conversion logic by directly testing the RowDataWrapper conversion
-
     // Create a specific timestamp with nanosecond precision
     LocalDateTime testTime = LocalDateTime.of(2025, 10, 2, 10, 15, 30, 123456789);
     long expectedMicros = DateTimeUtil.microsFromTimestamp(testTime);
@@ -108,7 +106,6 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
 
     // Calculate the actual ratio
     double ratio = (double) nanosValue / microsValue;
-    System.out.println("Actual ratio (nanos/micros): " + ratio);
 
     // For the same timestamp, nanosecond precision should produce values that are
     // approximately 1000x larger than microsecond precision
