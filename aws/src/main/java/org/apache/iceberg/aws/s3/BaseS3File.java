@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.s3;
 
 import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.http.HttpStatusCode;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
@@ -28,20 +27,14 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 abstract class BaseS3File {
   private final S3Client client;
-  private final S3AsyncClient asyncClient;
   private final S3URI uri;
   private final S3FileIOProperties s3FileIOProperties;
   private HeadObjectResponse metadata;
   private final MetricsContext metrics;
 
   BaseS3File(
-      S3Client client,
-      S3AsyncClient asyncClient,
-      S3URI uri,
-      S3FileIOProperties s3FileIOProperties,
-      MetricsContext metrics) {
+      S3Client client, S3URI uri, S3FileIOProperties s3FileIOProperties, MetricsContext metrics) {
     this.client = client;
-    this.asyncClient = asyncClient;
     this.uri = uri;
     this.s3FileIOProperties = s3FileIOProperties;
     this.metrics = metrics;
@@ -53,10 +46,6 @@ abstract class BaseS3File {
 
   S3Client client() {
     return client;
-  }
-
-  S3AsyncClient asyncClient() {
-    return asyncClient;
   }
 
   S3URI uri() {

@@ -28,8 +28,6 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -53,26 +51,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .applyMutation(s3FileIOProperties::applyServiceConfigurations)
         .applyMutation(s3FileIOProperties::applySignerConfiguration)
         .applyMutation(s3FileIOProperties::applyRetryConfigurations)
-        .build();
-  }
-
-  @Override
-  public S3AsyncClient s3Async() {
-    if (s3FileIOProperties.isS3CRTEnabled()) {
-      return S3AsyncClient.crtBuilder()
-          .applyMutation(this::applyAssumeRoleConfigurations)
-          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
-          .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
-          .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
-          .build();
-    }
-    return S3AsyncClient.builder()
-        .applyMutation(this::applyAssumeRoleConfigurations)
-        .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-        .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
-        .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
-        .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
         .build();
   }
 
@@ -123,12 +101,6 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .credentialsProvider(createCredentialsProvider())
         .region(Region.of(awsProperties.clientAssumeRoleRegion()));
     return clientBuilder;
-  }
-
-  protected S3AsyncClientBuilder applyAssumeRoleConfigurations(S3AsyncClientBuilder clientBuilder) {
-    return clientBuilder
-        .credentialsProvider(createCredentialsProvider())
-        .region(Region.of(awsProperties.clientAssumeRoleRegion()));
   }
 
   protected S3CrtAsyncClientBuilder applyAssumeRoleConfigurations(

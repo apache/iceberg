@@ -98,7 +98,6 @@ import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.identity.spi.AwsSessionCredentialsIdentity;
 import software.amazon.awssdk.identity.spi.IdentityProvider;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ServiceClientConfiguration;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
@@ -507,17 +506,13 @@ public class TestS3FileIO {
     io.initialize(Map.of(AwsClientProperties.CLIENT_REGION, "us-east-1"));
 
     assertThat(io.client()).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
     assertThat(io.client("s3a://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient("s3a://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
 
     S3FileIO fileIO = roundTripSerializer.apply(io);
     assertThat(fileIO.credentials()).isEqualTo(io.credentials()).isEmpty();
 
     assertThat(fileIO.client()).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
     assertThat(fileIO.client("s3a://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient("s3a://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
   }
 
   @ParameterizedTest
@@ -533,18 +528,14 @@ public class TestS3FileIO {
 
     // there should be a client for the generic and specific storage prefix available
     assertThat(io.client()).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient()).isInstanceOf(S3AsyncClient.class);
     assertThat(io.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(io.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
 
     S3FileIO fileIO = roundTripSerializer.apply(io);
     assertThat(fileIO.credentials()).isEqualTo(io.credentials());
 
     // make sure there's a client for the generic and specific storage prefix available after ser/de
     assertThat(fileIO.client()).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient()).isInstanceOf(S3AsyncClient.class);
     assertThat(fileIO.client("s3://my-bucket/my-path")).isInstanceOf(S3Client.class);
-    assertThat(fileIO.asyncClient("s3://my-bucket/my-path")).isInstanceOf(S3AsyncClient.class);
   }
 
   @Test
@@ -641,9 +632,6 @@ public class TestS3FileIO {
               assertThat(fileIO.client("s3://foo/bar"))
                   .isSameAs(fileIO.client())
                   .isInstanceOf(S3Client.class);
-              assertThat(fileIO.asyncClient("s3://foo/bar"))
-                  .isSameAs(fileIO.asyncClient())
-                  .isInstanceOf(S3AsyncClient.class);
             });
 
     // make sure credentials can be accessed after serde
@@ -662,9 +650,6 @@ public class TestS3FileIO {
               assertThat(fileIO.client("s3://foo/bar"))
                   .isSameAs(fileIO.client())
                   .isInstanceOf(S3Client.class);
-              assertThat(fileIO.asyncClient("s3://foo/bar"))
-                  .isSameAs(fileIO.asyncClient())
-                  .isInstanceOf(S3AsyncClient.class);
             });
   }
 
@@ -696,9 +681,6 @@ public class TestS3FileIO {
           assertThat(fileIO.client("s3://foo/bar"))
               .isNotSameAs(fileIO.client())
               .isInstanceOf(S3Client.class);
-          assertThat(fileIO.asyncClient("s3://foo/bar"))
-              .isNotSameAs(fileIO.asyncClient())
-              .isInstanceOf(S3AsyncClient.class);
         });
 
     // make sure credentials are still present after serde
@@ -721,9 +703,6 @@ public class TestS3FileIO {
           assertThat(fileIO.client("s3://foo/bar"))
               .isNotSameAs(fileIO.client())
               .isInstanceOf(S3Client.class);
-          assertThat(fileIO.asyncClient("s3://foo/bar"))
-              .isNotSameAs(fileIO.asyncClient())
-              .isInstanceOf(S3AsyncClient.class);
         });
   }
 

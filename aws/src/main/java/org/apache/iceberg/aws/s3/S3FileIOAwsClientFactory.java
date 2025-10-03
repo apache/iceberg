@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.s3;
 
 import java.io.Serializable;
 import java.util.Map;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public interface S3FileIOAwsClientFactory extends Serializable {
@@ -30,13 +29,6 @@ public interface S3FileIOAwsClientFactory extends Serializable {
    * @return s3 client
    */
   S3Client s3();
-
-  /**
-   * create a Amazon S3 async client
-   *
-   * @return s3 async client
-   */
-  S3AsyncClient s3Async();
 
   /**
    * Initialize AWS client factory from catalog properties.
