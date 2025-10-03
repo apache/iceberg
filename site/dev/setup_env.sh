@@ -22,8 +22,9 @@ set -e
 
 clean
 
-install_deps
+#install_deps
 
-pull_versioned_docs
+#pull_versioned_docs
+create_nightly
 
 git show "${REMOTE}/main:../.asf.yaml" > docs/.asf.yaml
