@@ -265,6 +265,22 @@ public class TestMetadataTables extends ExtensionsTestBase {
         .containsExactlyElementsOf(expectedRows);
   }
 
+  // test when an iceberg table has a column named partition as the partition key
+  @TestTemplate
+  public void testPositionDeletesTableWithPartColNamedPartition() throws Exception {
+    sql(
+        "CREATE TABLE %s (id int, partition int) USING iceberg PARTITIONED BY (partition) TBLPROPERTIES"
+            + "('format-version'='%s', 'write.delete.mode'='merge-on-read')",
+        tableName, formatVersion);
+
+    sql("INSERT INTO TABLE %s VALUES (1,1),(2,1),(3,2),(4,2)", tableName);
+
+    sql("DELETE FROM %s WHERE id=1", tableName);
+
+    // check position_deletes table
+    assertThat(sql("SELECT * FROM %s.position_deletes", tableName)).hasSize(1);
+  }
+
   @TestTemplate
   public void testPartitionedTable() throws Exception {
     sql(
