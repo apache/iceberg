@@ -29,7 +29,15 @@ public class TestZkLockFactory extends TestLockFactoryBase {
 
   @Override
   TriggerLockFactory lockFactory(String tableName) {
-    return new ZkLockFactory(zkTestServer.getConnectString(), tableName, 5000, 3000, 1000, 3);
+    return new ZkLockFactory(
+        zkTestServer.getConnectString(),
+        tableName,
+        5000,
+        3000,
+        1000,
+        3,
+        2000,
+        ZKRetryPolicies.EXPONENTIAL_BACKOFF.name());
   }
 
   @BeforeEach

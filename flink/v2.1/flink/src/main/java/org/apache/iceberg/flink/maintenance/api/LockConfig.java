@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
+import static org.apache.iceberg.flink.maintenance.api.ZKRetryPolicies.EXPONENTIAL_BACKOFF;
+
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -94,6 +96,28 @@ public class LockConfig {
             .intType()
             .defaultValue(3)
             .withDescription("The maximum number of retries for the Zookeeper client.");
+
+    /**
+     * The maximum sleep time (in milliseconds) between retries for the Zookeeper client. Default:
+     * 10000 ms
+     */
+    public static final ConfigOption<Integer> ZK_MAX_SLEEP_MS_OPTION =
+        ConfigOptions.key(PREFIX + ZK + ".max-sleep-ms")
+            .intType()
+            .defaultValue(10000)
+            .withDescription(
+                "The maximum sleep time (in milliseconds) between retries for the Zookeeper client. (Default: 10000)");
+
+    /**
+     * The retry policy name for the Zookeeper client. Supported values might include:
+     * "exponential-backoff", "fixed", etc. Default: "exponential-backoff"
+     */
+    public static final ConfigOption<String> ZK_RETRY_POLICY_NAME_OPTION =
+        ConfigOptions.key(PREFIX + ZK + ".retry-policy")
+            .stringType()
+            .defaultValue(EXPONENTIAL_BACKOFF.name())
+            .withDescription(
+                "The retry policy name for the Zookeeper client. (Default: exponential-backoff)");
   }
 
   private final FlinkConfParser confParser;
@@ -199,6 +223,26 @@ public class LockConfig {
         .option(ZkLockConfig.ZK_MAX_RETRIES_OPTION.key())
         .flinkConfig(ZkLockConfig.ZK_MAX_RETRIES_OPTION)
         .defaultValue(ZkLockConfig.ZK_MAX_RETRIES_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Zookeeper maximum sleep time configuration (in milliseconds). */
+  public int zkMaxSleepMs() {
+    return confParser
+        .intConf()
+        .option(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION)
+        .defaultValue(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Zookeeper retry policy configuration. */
+  public String zkRetryPolicy() {
+    return confParser
+        .stringConf()
+        .option(ZkLockConfig.ZK_RETRY_POLICY_NAME_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_RETRY_POLICY_NAME_OPTION)
+        .defaultValue(ZkLockConfig.ZK_RETRY_POLICY_NAME_OPTION.defaultValue())
         .parse();
   }
 
