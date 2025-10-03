@@ -171,6 +171,9 @@ public class TableProperties {
       "write.parquet.bloom-filter-fpp.column.";
   public static final double PARQUET_BLOOM_FILTER_COLUMN_FPP_DEFAULT = 0.01;
 
+  public static final String PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX =
+      "write.parquet.bloom-filter-ndv.column.";
+
   public static final String PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX =
       "write.parquet.bloom-filter-enabled.column.";
 
