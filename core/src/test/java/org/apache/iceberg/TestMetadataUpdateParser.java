@@ -972,6 +972,17 @@ public class TestMetadataUpdateParser {
   }
 
   @Test
+  public void testRemoveSortOrders() {
+    String action = MetadataUpdateParser.REMOVE_SORT_ORDERS;
+    String json = "{\"action\":\"remove-sort-orders\",\"sort-order-ids\":[1,2,3]}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveSortOrders(ImmutableSet.of(1, 2, 3));
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Remove Sort Orders should convert to the correct JSON value")
+        .isEqualTo(json);
+  }
+
+  @Test
   public void testAddEncryptionKey() {
     byte[] keyBytes = "key".getBytes(StandardCharsets.UTF_8);
     String encodedKey = Base64.getEncoder().encodeToString(keyBytes);
@@ -1113,6 +1124,11 @@ public class TestMetadataUpdateParser {
         assertEqualsRemoveSchemas(
             (MetadataUpdate.RemoveSchemas) expectedUpdate,
             (MetadataUpdate.RemoveSchemas) actualUpdate);
+        break;
+      case MetadataUpdateParser.REMOVE_SORT_ORDERS:
+        assertEqualsRemoveSortOrders(
+            (MetadataUpdate.RemoveSortOrders) expectedUpdate,
+            (MetadataUpdate.RemoveSortOrders) actualUpdate);
         break;
       case MetadataUpdateParser.ADD_ENCRYPTION_KEY:
         assertEqualsAddEncryptionKey(
@@ -1353,6 +1369,11 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsRemoveSchemas(
       MetadataUpdate.RemoveSchemas expected, MetadataUpdate.RemoveSchemas actual) {
     assertThat(actual.schemaIds()).containsExactlyInAnyOrderElementsOf(expected.schemaIds());
+  }
+
+  private static void assertEqualsRemoveSortOrders(
+      MetadataUpdate.RemoveSortOrders expected, MetadataUpdate.RemoveSortOrders actual) {
+    assertThat(actual.sortOrderIds()).containsExactlyInAnyOrderElementsOf(expected.sortOrderIds());
   }
 
   private static void assertEqualsAddEncryptionKey(
