@@ -143,7 +143,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         BaseMetastoreOperations.CommitStatus.FAILURE;
     boolean updateHiveTable = false;
 
-    HiveLock lock = lockObject(base);
+    HiveLock lock = lockObject(base != null ? base : metadata);
     try {
       lock.lock();
 

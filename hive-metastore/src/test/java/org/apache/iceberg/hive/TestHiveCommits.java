@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.HIVE_LOCK_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
@@ -36,6 +37,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -502,6 +504,120 @@ public class TestHiveCommits extends HiveTableTestBase {
     assertThat(lockRef.get())
         .as("New lock mechanism shouldn't take effect before the commit completes")
         .hasSameClassAs(initialLock);
+  }
+
+  @Test
+  public void testCreateTableWithNoLockEndToEnd() {
+    testCreateTableEndToEnd(false);
+  }
+
+  @Test
+  public void testCreateTableWithLockEndToEnd() {
+    testCreateTableEndToEnd(true);
+  }
+
+  private void testCreateTableEndToEnd(boolean lockEnabled) {
+    String tableName = lockEnabled ? "new_table_lock_e2e" : "new_table_no_lock_e2e";
+    TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, tableName);
+
+    try {
+      // Create table with lock setting via catalog
+      // We will spy the call to create table operation and capture the lock object being returned
+      HiveCatalog spyCatalog = spy(catalog);
+      AtomicReference<HiveLock> lockRef = new AtomicReference<>();
+      doAnswer(
+              (args) -> {
+                TableOperations ops =
+                    catalog.newTableOps(args.getArgument(0, TableIdentifier.class));
+                HiveTableOperations spyOps = (HiveTableOperations) spy(ops);
+                doAnswer(
+                        (lockArgs) -> {
+                          lockRef.set(
+                              ((HiveTableOperations) ops)
+                                  .lockObject(lockArgs.getArgument(0, TableMetadata.class)));
+                          return lockRef.get();
+                        })
+                    .when(spyOps)
+                    .lockObject(any());
+                return spyOps;
+              })
+          .when(spyCatalog)
+          .newTableOps(newTableIdentifier);
+
+      spyCatalog.createTable(
+          newTableIdentifier,
+          SCHEMA,
+          PartitionSpec.unpartitioned(),
+          ImmutableMap.of(HIVE_LOCK_ENABLED, String.valueOf(lockEnabled)));
+
+      Class<? extends HiveLock> expectedLockClass =
+          lockEnabled ? MetastoreLock.class : NoLock.class;
+      assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
+      assertThat(lockRef.get())
+          .as(
+              "Table created with HIVE_LOCK_ENABLED="
+                  + lockEnabled
+                  + " should use "
+                  + expectedLockClass.getSimpleName()
+                  + ")")
+          .isInstanceOf(expectedLockClass);
+    } finally {
+      catalog.dropTable(newTableIdentifier, true);
+    }
+  }
+
+  @Test
+  public void testCreateTableWithNoLock() {
+    testCreateTableWithLockSetting(false);
+  }
+
+  @Test
+  public void testCreateTableWithLock() {
+    testCreateTableWithLockSetting(true);
+  }
+
+  private void testCreateTableWithLockSetting(boolean lockEnabled) {
+    String tableName = lockEnabled ? "new_table_with_lock" : "new_table_with_no_lock";
+    TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, tableName);
+
+    try {
+      HiveTableOperations ops =
+          new HiveTableOperations(
+              catalog.getConf(),
+              catalog.clientPool(),
+              catalog.newTableOps(newTableIdentifier).io(),
+              catalog.name(),
+              newTableIdentifier.namespace().level(0),
+              newTableIdentifier.name());
+
+      AtomicReference<HiveLock> lockRef = new AtomicReference<>();
+      HiveTableOperations spyOps = spy(ops);
+      TableMetadata metadata =
+          TableMetadata.newTableMetadata(
+              SCHEMA,
+              PartitionSpec.unpartitioned(),
+              catalog.defaultWarehouseLocation(newTableIdentifier),
+              lockEnabled ? ImmutableMap.of() : ImmutableMap.of(HIVE_LOCK_ENABLED, "false"));
+      doAnswer(
+              i -> {
+                lockRef.set(ops.lockObject(i.getArgument(0)));
+                return lockRef.get();
+              })
+          .when(spyOps)
+          .lockObject(eq(metadata));
+
+      // Commit with base = null (new table creation)
+      spyOps.commit(null, metadata);
+
+      Class<? extends HiveLock> expectedLockClass =
+          lockEnabled ? MetastoreLock.class : NoLock.class;
+      assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
+      assertThat(lockRef.get())
+          .as("Lock mechanism should use metadata (" + expectedLockClass.getSimpleName() + ")")
+          .isInstanceOf(expectedLockClass);
+    } finally {
+      catalog.dropTable(newTableIdentifier, true);
+    }
   }
 
   private void commitAndThrowException(
