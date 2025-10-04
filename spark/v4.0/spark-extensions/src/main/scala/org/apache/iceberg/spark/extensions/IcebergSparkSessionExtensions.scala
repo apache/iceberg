@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.analysis.CheckViews
+import org.apache.spark.sql.catalyst.analysis.ResolveTables
 import org.apache.spark.sql.catalyst.analysis.ResolveViews
 import org.apache.spark.sql.catalyst.optimizer.ReplaceStaticInvoke
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
@@ -34,6 +35,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
+    extensions.injectResolutionRule { spark => ResolveTables(spark) }
     extensions.injectCheckRule(_ => CheckViews)
 
     // optimizer extensions

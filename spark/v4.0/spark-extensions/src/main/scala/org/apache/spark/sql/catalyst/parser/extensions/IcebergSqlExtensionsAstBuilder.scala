@@ -36,19 +36,7 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParserUtils.withOrigin
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
-import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
-import org.apache.spark.sql.catalyst.plans.logical.BranchOptions
-import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
-import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
-import org.apache.spark.sql.catalyst.plans.logical.DropBranch
-import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
-import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
-import org.apache.spark.sql.catalyst.plans.logical.DropTag
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
-import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
-import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
-import org.apache.spark.sql.catalyst.plans.logical.TagOptions
+import org.apache.spark.sql.catalyst.plans.logical.{AddPartitionField, BranchOptions, CreateOrReplaceBranch, CreateOrReplaceTag, CreateIcebergTableLike, DropBranch, DropIdentifierFields, DropPartitionField, DropTag, LogicalPlan, ReplacePartitionField, SetIdentifierFields, SetWriteDistributionAndOrdering, TagOptions}
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.expressions
@@ -63,6 +51,30 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   private def toBuffer[T](list: java.util.List[T]): scala.collection.mutable.Buffer[T] = list.asScala
   private def toSeq[T](list: java.util.List[T]): Seq[T] = toBuffer(list).toSeq
+
+  /**
+   * Create a CREATE TABLE LIKE command.
+   */
+  override def visitCreateTableLike(ctx: CreateTableLikeContext): CreateIcebergTableLike = withOrigin(ctx) {
+    val tableName = toSeq(ctx.multipartIdentifier(0).parts).map(_.getText)
+    val sourceTableName = toSeq(ctx.multipartIdentifier(1).parts).map(_.getText)
+    val properties = if (ctx.tableProperty() != null) {
+      toSeq(ctx.tableProperty()).map { prop =>
+        val key = prop.key.getText
+        val value = if (prop.value != null) {
+          typedVisit[String](prop.value)
+        } else {
+          ""
+        }
+        key -> value
+      }.toMap
+    } else {
+      Map.empty[String, String]
+    }
+    val ifNotExists = ctx.EXISTS() != null
+
+    CreateIcebergTableLike(tableName, sourceTableName, properties, ifNotExists)
+  }
 
   /**
    * Create an ADD PARTITION FIELD logical command.
