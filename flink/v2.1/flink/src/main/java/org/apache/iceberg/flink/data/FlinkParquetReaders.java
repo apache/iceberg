@@ -35,10 +35,14 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.types.variant.Variant;
+import org.apache.flink.types.variant.BinaryVariant;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
+import org.apache.iceberg.parquet.ParquetVariantReaders;
+import org.apache.iceberg.parquet.ParquetVariantVisitor;
+import org.apache.iceberg.parquet.VariantReaderBuilder;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -295,6 +299,21 @@ public class FlinkParquetReaders {
           LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
         return Optional.of(new ParquetValueReaders.ByteArrayReader(desc));
       }
+    }
+
+    @Override
+    public ParquetVariantVisitor<ParquetValueReader<?>> variantVisitor() {
+      return new VariantReaderBuilder(type, Arrays.asList(currentPath()));
+    }
+
+    @Override
+    public ParquetValueReader<?> variant(
+        Types.VariantType expected, GroupType group, ParquetValueReader<?> result) {
+      if (expected == null) {
+        return null;
+      }
+
+      return new VariantReader(result);
     }
 
     @Override
@@ -851,6 +870,29 @@ public class FlinkParquetReaders {
     @Override
     public double[] toDoubleArray() {
       return ArrayUtil.toPrimitive((Double[]) values);
+    }
+  }
+
+  /** Variant reader to convert from Iceberg Variant to Flink Variant */
+  private static class VariantReader extends ParquetVariantReaders.DelegatingValueReader<org.apache.iceberg.variants.Variant, Variant> {
+    @SuppressWarnings("unchecked")
+    private VariantReader(ParquetValueReader<?> reader) {
+      super((ParquetValueReader<org.apache.iceberg.variants.Variant>) reader);
+    }
+
+    @Override
+    public Variant read(Variant reuse) {
+      org.apache.iceberg.variants.Variant icebergVariant = super.readFromDelegate(null);
+      
+      byte[] metadataBytes = new byte[icebergVariant.metadata().sizeInBytes()];
+      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+      icebergVariant.metadata().writeTo(metadataBuffer, 0);
+
+      byte[] valueBytes = new byte[icebergVariant.value().sizeInBytes()];
+      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+      icebergVariant.value().writeTo(valueBuffer, 0);
+
+      return new BinaryVariant(valueBytes, metadataBytes);
     }
   }
 }

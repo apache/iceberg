@@ -37,6 +37,7 @@ import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.flink.table.types.logical.VariantType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -81,6 +82,11 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
   public LogicalType map(Types.MapType map, LogicalType keyResult, LogicalType valueResult) {
     // keys in map are not allowed to be null.
     return new MapType(keyResult.copy(false), valueResult.copy(map.isValueOptional()));
+  }
+
+  @Override
+  public LogicalType variant(Types.VariantType variant) {
+    return new VariantType(false); // VariantType is always non-nullable in Flink
   }
 
   @Override
