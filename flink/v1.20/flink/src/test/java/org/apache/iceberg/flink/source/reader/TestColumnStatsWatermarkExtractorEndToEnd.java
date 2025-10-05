@@ -31,10 +31,8 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -43,7 +41,6 @@ import org.apache.iceberg.flink.HadoopTableExtension;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.FlinkInputFormat;
 import org.apache.iceberg.flink.source.FlinkSource;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
@@ -52,9 +49,9 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * End-to-end tests for ColumnStatsWatermarkExtractor with nanosecond precision timestamps.
- * This test validates that watermark extraction works correctly with actual data files
- * containing nanosecond precision timestamps.
+ * End-to-end tests for ColumnStatsWatermarkExtractor with nanosecond precision timestamps. This
+ * test validates that watermark extraction works correctly with actual data files containing
+ * nanosecond precision timestamps.
  */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestColumnStatsWatermarkExtractorEndToEnd {
@@ -95,7 +92,8 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
     assertThat(extractorNs).isNotNull();
 
     ColumnStatsWatermarkExtractor extractorNsTz =
-        new ColumnStatsWatermarkExtractor(table.schema(), "event_time_ns_tz", TimeUnit.MICROSECONDS);
+        new ColumnStatsWatermarkExtractor(
+            table.schema(), "event_time_ns_tz", TimeUnit.MICROSECONDS);
     assertThat(extractorNsTz).isNotNull();
 
     // Test that we can still create extractors for microsecond timestamp columns
@@ -110,7 +108,7 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
 
     // Generate test data with nanosecond precision timestamps
     List<Record> testRecords = RandomGenericData.generate(NANOSECOND_WATERMARK_SCHEMA, 5, 42L);
-    
+
     // Write data to the table
     new GenericAppenderHelper(table, format, temporaryDirectory).appendToTable(testRecords);
 
@@ -146,19 +144,19 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
 
     // Generate test data
     List<Record> expectedRecords = RandomGenericData.generate(NANOSECOND_WATERMARK_SCHEMA, 3, 123L);
-    
+
     // Write data to the table
     new GenericAppenderHelper(table, format, temporaryDirectory).appendToTable(expectedRecords);
 
     // Test that we can scan the data back
     FlinkSource.Builder builder =
         FlinkSource.forRowData().table(table).tableLoader(TABLE_EXTENSION.tableLoader());
-    
+
     List<Row> actualRows = runFormat(builder.buildFormat());
-    
+
     // Verify that we can read the data back correctly
     assertThat(actualRows).hasSize(expectedRecords.size());
-    
+
     // The data should be readable, indicating that nanosecond timestamps are properly handled
     // in the read path as well
     TestHelpers.assertRecords(actualRows, expectedRecords, NANOSECOND_WATERMARK_SCHEMA);
@@ -175,8 +173,9 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
 
     // Test that we can create a watermark extractor for Long columns with nanosecond time unit
     ColumnStatsWatermarkExtractor extractor =
-        new ColumnStatsWatermarkExtractor(longWatermarkSchema, "timestamp_long", TimeUnit.NANOSECONDS);
-    
+        new ColumnStatsWatermarkExtractor(
+            longWatermarkSchema, "timestamp_long", TimeUnit.NANOSECONDS);
+
     assertThat(extractor).isNotNull();
   }
 

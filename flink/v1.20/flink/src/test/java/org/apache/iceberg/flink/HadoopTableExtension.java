@@ -49,7 +49,11 @@ public class HadoopTableExtension extends HadoopCatalogExtension {
   }
 
   public HadoopTableExtension(
-      String database, String tableName, Schema schema, PartitionSpec partitionSpec, Map<String, String> properties) {
+      String database,
+      String tableName,
+      Schema schema,
+      PartitionSpec partitionSpec,
+      Map<String, String> properties) {
     super(database, tableName);
     this.schema = schema;
     this.partitionSpec = partitionSpec;
@@ -63,14 +67,22 @@ public class HadoopTableExtension extends HadoopCatalogExtension {
       if (properties == null) {
         this.table = catalog.createTable(TableIdentifier.of(database, tableName), schema);
       } else {
-        this.table = catalog.createTable(TableIdentifier.of(database, tableName), schema, 
-            PartitionSpec.unpartitioned(), null, properties);
+        this.table =
+            catalog.createTable(
+                TableIdentifier.of(database, tableName),
+                schema,
+                PartitionSpec.unpartitioned(),
+                null,
+                properties);
       }
     } else {
       if (properties == null) {
-        this.table = catalog.createTable(TableIdentifier.of(database, tableName), schema, partitionSpec);
+        this.table =
+            catalog.createTable(TableIdentifier.of(database, tableName), schema, partitionSpec);
       } else {
-        this.table = catalog.createTable(TableIdentifier.of(database, tableName), schema, partitionSpec, null, properties);
+        this.table =
+            catalog.createTable(
+                TableIdentifier.of(database, tableName), schema, partitionSpec, null, properties);
       }
     }
     tableLoader.open();
@@ -80,19 +92,21 @@ public class HadoopTableExtension extends HadoopCatalogExtension {
     return table;
   }
 
-  /**
-   * Create a HadoopTableExtension with format version 3 for nanosecond timestamp support.
-   */
-  public static HadoopTableExtension withFormatVersion3(String database, String tableName, Schema schema) {
-    return new HadoopTableExtension(database, tableName, schema, 
-        ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+  /** Create a HadoopTableExtension with format version 3 for nanosecond timestamp support. */
+  public static HadoopTableExtension withFormatVersion3(
+      String database, String tableName, Schema schema) {
+    return new HadoopTableExtension(
+        database, tableName, schema, ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
   }
 
-  /**
-   * Create a HadoopTableExtension with format version 3 for nanosecond timestamp support.
-   */
-  public static HadoopTableExtension withFormatVersion3(String database, String tableName, Schema schema, PartitionSpec partitionSpec) {
-    return new HadoopTableExtension(database, tableName, schema, partitionSpec,
+  /** Create a HadoopTableExtension with format version 3 for nanosecond timestamp support. */
+  public static HadoopTableExtension withFormatVersion3(
+      String database, String tableName, Schema schema, PartitionSpec partitionSpec) {
+    return new HadoopTableExtension(
+        database,
+        tableName,
+        schema,
+        partitionSpec,
         ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
   }
 }
