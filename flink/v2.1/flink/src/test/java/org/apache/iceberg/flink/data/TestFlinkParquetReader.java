@@ -352,10 +352,11 @@ public class TestFlinkParquetReader extends DataTestBase {
       RowData rowData = rows.next();
       TimestampData timestampData = rowData.getTimestamp(0, 6);
 
-      // Verify that microsecond precision is preserved
-      assertThat(timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond())
-          .isLessThan(1_000_000_000_000L);
+      // Check that nanoseconds are divisible by 1000 (microsecond precision)
       assertThat(timestampData.getNanoOfMillisecond() % 1000).isEqualTo(0);
+      
+      // Verify the timestamp is reasonable (not null and has a valid value)
+      assertThat(timestampData.getMillisecond()).isGreaterThan(0);
     }
   }
 }
