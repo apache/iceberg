@@ -33,12 +33,24 @@ WORKDIR /usr/lib/iceberg-rest
 # Copy the JAR file directly to the target location
 COPY --chown=iceberg:iceberg open-api/build/libs/iceberg-open-api-test-fixtures-runtime-*.jar /usr/lib/iceberg-rest/iceberg-rest-adapter.jar
 
+# Copy the default log4j configuration file
+COPY --chown=iceberg:iceberg open-api/src/testFixtures/resources/log4j.properties /usr/lib/iceberg-rest/log4j.properties
+
 ENV CATALOG_CATALOG__IMPL=org.apache.iceberg.jdbc.JdbcCatalog
 ENV CATALOG_URI=jdbc:sqlite:/tmp/iceberg_catalog.db
 ENV CATALOG_JDBC_USER=user
 ENV CATALOG_JDBC_PASSWORD=password
 ENV CATALOG_JDBC_STRICT__MODE=true
 ENV REST_PORT=8181
+
+# Logging configuration environment variables
+# CATALOG_LOG4J_LOGLEVEL - Set the root logger level (e.g., WARN, ERROR, INFO)
+# CATALOG_LOG4J_CONFIG_FILE - Path to custom log4j.properties file
+# CATALOG_LOG4J_LOGGER_<logger_name> - Set specific logger levels
+# Examples:
+#   CATALOG_LOG4J_LOGLEVEL=WARN
+#   CATALOG_LOG4J_LOGGER_ORG_APACHE_ICEBERG_BASEMETASTORECATALOG=ERROR
+ENV CATALOG_LOG4J_LOGLEVEL=INFO
 
 # Healthcheck for the iceberg rest service
 HEALTHCHECK --retries=10 --interval=1s \

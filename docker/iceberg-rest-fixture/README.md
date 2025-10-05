@@ -35,6 +35,39 @@ When making changes to the local files and test them out, you can build the imag
 docker image rm -f apache/iceberg-rest-fixture && docker build -t apache/iceberg-rest-fixture -f docker/iceberg-rest-fixture/Dockerfile .
 ```
 
+## Configuration
+
+The Docker image supports various environment variables for configuration:
+
+### Catalog Configuration
+- `CATALOG_CATALOG__IMPL` - Catalog implementation class
+- `CATALOG_URI` - Database URI for JDBC catalogs
+- `CATALOG_JDBC_USER` - Database username
+- `CATALOG_JDBC_PASSWORD` - Database password
+- `CATALOG_JDBC_STRICT__MODE` - Enable strict mode for JDBC
+
+### Logging Configuration
+- `CATALOG_LOG4J_LOGLEVEL` - Set the root logger level (e.g., WARN, ERROR, INFO)
+- `CATALOG_LOG4J_CONFIG_FILE` - Path to custom log4j.properties file
+- `CATALOG_LOG4J_LOGGER_<logger_name>` - Set specific logger levels
+
+### Examples
+
+```bash
+# Reduce log verbosity to WARN level
+docker run -e CATALOG_LOG4J_LOGLEVEL=WARN apache/iceberg-rest-fixture
+
+# Set specific loggers to ERROR level to reduce noise
+docker run \
+  -e CATALOG_LOG4J_LOGLEVEL=WARN \
+  -e CATALOG_LOG4J_LOGGER_ORG_APACHE_ICEBERG_BASEMETASTORECATALOG=ERROR \
+  -e CATALOG_LOG4J_LOGGER_ORG_APACHE_ICEBERG_BASEMETASTORETABLEOPERATIONS=ERROR \
+  apache/iceberg-rest-fixture
+
+# Use custom log4j configuration file
+docker run -e CATALOG_LOG4J_CONFIG_FILE=/custom/log4j.properties apache/iceberg-rest-fixture
+```
+
 ## Browse
 
 To browse the catalog, you can use `pyiceberg`:
