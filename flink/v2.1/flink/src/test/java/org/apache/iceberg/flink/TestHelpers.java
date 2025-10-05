@@ -386,8 +386,10 @@ public class TestHelpers {
             .as("Should expect a Variant")
             .isInstanceOf(org.apache.iceberg.variants.Variant.class);
 
-        org.apache.flink.types.variant.Variant flinkVariant = (org.apache.flink.types.variant.Variant) actual;
-        org.apache.iceberg.variants.Variant icebergVariant = (org.apache.iceberg.variants.Variant) expected;
+        org.apache.flink.types.variant.Variant flinkVariant =
+            (org.apache.flink.types.variant.Variant) actual;
+        org.apache.iceberg.variants.Variant icebergVariant =
+            (org.apache.iceberg.variants.Variant) expected;
 
         compareVariants(icebergVariant, flinkVariant);
         break;
@@ -396,7 +398,6 @@ public class TestHelpers {
     }
   }
 
-  
   /**
    * Compare two variants by their underlying data structures rather than string representations.
    * This method handles the differences between Iceberg and Flink variant implementations.
@@ -404,30 +405,26 @@ public class TestHelpers {
   private static void compareVariants(
       org.apache.iceberg.variants.Variant icebergVariant,
       org.apache.flink.types.variant.Variant flinkVariant) {
-    
+
     // Extract the underlying data from both variants
     org.apache.iceberg.variants.VariantValue icebergValue = icebergVariant.value();
     org.apache.iceberg.variants.VariantMetadata icebergMetadata = icebergVariant.metadata();
-    
+
     // For Flink variant, we expect BinaryVariant which is the standard implementation
     assertThat(flinkVariant)
         .as("Flink variant should be a BinaryVariant")
         .isInstanceOf(org.apache.flink.types.variant.BinaryVariant.class);
-    
-    org.apache.flink.types.variant.BinaryVariant binaryVariant = 
+
+    org.apache.flink.types.variant.BinaryVariant binaryVariant =
         (org.apache.flink.types.variant.BinaryVariant) flinkVariant;
-    
+
     // Compare the binary data directly
     byte[] flinkValueBytes = binaryVariant.getValue();
     byte[] flinkMetadataBytes = binaryVariant.getMetadata();
-    
+
     // Verify that both variants contain data
-    assertThat(flinkValueBytes)
-        .as("Flink variant should contain value bytes")
-        .isNotNull();
-    assertThat(flinkMetadataBytes)
-        .as("Flink variant should contain metadata bytes")
-        .isNotNull();
+    assertThat(flinkValueBytes).as("Flink variant should contain value bytes").isNotNull();
+    assertThat(flinkMetadataBytes).as("Flink variant should contain metadata bytes").isNotNull();
   }
 
   public static void assertEquals(Schema schema, List<GenericData.Record> records, List<Row> rows) {
@@ -583,10 +580,12 @@ public class TestHelpers {
         assertThat(expected)
             .as("Should expect a Variant")
             .isInstanceOf(org.apache.iceberg.variants.Variant.class);
-        
-        org.apache.flink.types.variant.Variant flinkVariant = (org.apache.flink.types.variant.Variant) actual;
-        org.apache.iceberg.variants.Variant icebergVariant = (org.apache.iceberg.variants.Variant) expected;
-        
+
+        org.apache.flink.types.variant.Variant flinkVariant =
+            (org.apache.flink.types.variant.Variant) actual;
+        org.apache.iceberg.variants.Variant icebergVariant =
+            (org.apache.iceberg.variants.Variant) expected;
+
         compareVariants(icebergVariant, flinkVariant);
         break;
       default:

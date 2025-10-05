@@ -39,7 +39,6 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
-import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -128,14 +127,17 @@ public class RowDataConverter {
         }
         return new GenericMapData(convertedMap);
       case VARIANT:
-        org.apache.iceberg.variants.Variant icebergVariant = (org.apache.iceberg.variants.Variant) object;
-        
+        org.apache.iceberg.variants.Variant icebergVariant =
+            (org.apache.iceberg.variants.Variant) object;
+
         byte[] metadataBytes = new byte[icebergVariant.metadata().sizeInBytes()];
-        ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer metadataBuffer =
+            ByteBuffer.wrap(metadataBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
         icebergVariant.metadata().writeTo(metadataBuffer, 0);
-        
+
         byte[] valueBytes = new byte[icebergVariant.value().sizeInBytes()];
-        ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer valueBuffer =
+            ByteBuffer.wrap(valueBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
         icebergVariant.value().writeTo(valueBuffer, 0);
 
         return new org.apache.flink.types.variant.BinaryVariant(valueBytes, metadataBytes);

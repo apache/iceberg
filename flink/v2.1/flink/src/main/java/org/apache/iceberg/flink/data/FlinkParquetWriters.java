@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.data;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -632,20 +631,20 @@ public class FlinkParquetWriters {
     }
 
     @Override
-    public void write(int repetitionLevel, Variant variant) {  
+    public void write(int repetitionLevel, Variant variant) {
       // Flink's Variant implementation uses BinaryVariant as the standard
       // Based on FLIP-521
       if (!(variant instanceof org.apache.flink.types.variant.BinaryVariant)) {
         throw new IllegalArgumentException(
             "Expected BinaryVariant but got: " + variant.getClass().getSimpleName());
       }
-      
-      org.apache.flink.types.variant.BinaryVariant binaryVariant = 
+
+      org.apache.flink.types.variant.BinaryVariant binaryVariant =
           (org.apache.flink.types.variant.BinaryVariant) variant;
-      
+
       byte[] metadataBytes = binaryVariant.getMetadata();
       byte[] valueBytes = binaryVariant.getValue();
-      
+
       org.apache.iceberg.variants.VariantMetadata metadata =
           org.apache.iceberg.variants.VariantMetadata.from(
               ByteBuffer.wrap(metadataBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN));

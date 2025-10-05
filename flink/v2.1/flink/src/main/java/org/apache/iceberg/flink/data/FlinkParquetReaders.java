@@ -34,16 +34,16 @@ import org.apache.flink.table.data.RawValueData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
-import org.apache.flink.types.variant.Variant;
 import org.apache.flink.types.variant.BinaryVariant;
+import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetVariantReaders;
 import org.apache.iceberg.parquet.ParquetVariantVisitor;
-import org.apache.iceberg.parquet.VariantReaderBuilder;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.parquet.VariantReaderBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -874,7 +874,9 @@ public class FlinkParquetReaders {
   }
 
   /** Variant reader to convert from Iceberg Variant to Flink Variant */
-  private static class VariantReader extends ParquetVariantReaders.DelegatingValueReader<org.apache.iceberg.variants.Variant, Variant> {
+  private static class VariantReader
+      extends ParquetVariantReaders.DelegatingValueReader<
+          org.apache.iceberg.variants.Variant, Variant> {
     @SuppressWarnings("unchecked")
     private VariantReader(ParquetValueReader<?> reader) {
       super((ParquetValueReader<org.apache.iceberg.variants.Variant>) reader);
@@ -883,9 +885,10 @@ public class FlinkParquetReaders {
     @Override
     public Variant read(Variant reuse) {
       org.apache.iceberg.variants.Variant icebergVariant = super.readFromDelegate(null);
-      
+
       byte[] metadataBytes = new byte[icebergVariant.metadata().sizeInBytes()];
-      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+      ByteBuffer metadataBuffer =
+          ByteBuffer.wrap(metadataBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
       icebergVariant.metadata().writeTo(metadataBuffer, 0);
 
       byte[] valueBytes = new byte[icebergVariant.value().sizeInBytes()];

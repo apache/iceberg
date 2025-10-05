@@ -3,7 +3,7 @@
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
- * to you under the License, Version 2.0 (the
+ * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -28,15 +27,9 @@ import java.nio.ByteOrder;
 import java.nio.file.Path;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
-import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.RowDataConverter;
-import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
@@ -44,9 +37,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
-import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
-import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
@@ -106,16 +97,18 @@ public class TestFlinkVariants {
     // Test that Iceberg's VariantType converts to Flink's VariantType
     Types.VariantType icebergVariantType = Types.VariantType.get();
     LogicalType flinkVariantType = FlinkSchemaUtil.convert(icebergVariantType);
-    
-    assertThat(flinkVariantType).isInstanceOf(org.apache.flink.table.types.logical.VariantType.class);
+
+    assertThat(flinkVariantType)
+        .isInstanceOf(org.apache.flink.table.types.logical.VariantType.class);
   }
 
   @Test
   public void testFlinkVariantTypeToIcebergVariantType() {
-    org.apache.flink.table.types.logical.VariantType flinkVariantType = 
+    org.apache.flink.table.types.logical.VariantType flinkVariantType =
         new org.apache.flink.table.types.logical.VariantType(false);
-    Types.VariantType icebergVariantType = (Types.VariantType) FlinkSchemaUtil.convert(flinkVariantType);
-    
+    Types.VariantType icebergVariantType =
+        (Types.VariantType) FlinkSchemaUtil.convert(flinkVariantType);
+
     assertThat(icebergVariantType).isEqualTo(Types.VariantType.get());
   }
 
@@ -189,59 +182,59 @@ public class TestFlinkVariants {
 
   @Test
   public void testVariantWriteAndRead() throws IOException {
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "id", Types.IntegerType.get()),
-        Types.NestedField.required(2, "data", Types.VariantType.get())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data", Types.VariantType.get()));
 
     LogicalType logicalType = FlinkSchemaUtil.convert(schema);
     assertThat(logicalType).isNotNull();
-    
+
     assertThat(logicalType).isInstanceOf(org.apache.flink.table.types.logical.RowType.class);
-    org.apache.flink.table.types.logical.RowType rowType = 
+    org.apache.flink.table.types.logical.RowType rowType =
         (org.apache.flink.table.types.logical.RowType) logicalType;
-    
+
     assertThat(rowType.getChildren().get(1))
         .isInstanceOf(org.apache.flink.table.types.logical.VariantType.class);
   }
 
   @Test
-  public void testVariantBinaryVariantSupport() {   
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "data", Types.VariantType.get())
-    );
-    
+  public void testVariantBinaryVariantSupport() {
+    Schema schema = new Schema(Types.NestedField.required(1, "data", Types.VariantType.get()));
+
     LogicalType logicalType = FlinkSchemaUtil.convert(schema);
     assertThat(logicalType).isNotNull();
-    
+
     assertThat(logicalType).isInstanceOf(org.apache.flink.table.types.logical.RowType.class);
   }
 
   @Test
   public void testVariantSchemaVisitor() throws IOException {
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "id", Types.IntegerType.get()),
-        Types.NestedField.required(2, "data", Types.VariantType.get())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data", Types.VariantType.get()));
 
     LogicalType logicalType = FlinkSchemaUtil.convert(schema);
-    
+
     assertThat(logicalType).isNotNull();
-    
+
     OutputFile outputFile = new InMemoryOutputFile();
-    
-    FileAppender<RowData> writer = Parquet.write(outputFile)
-        .schema(schema)
-        .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(logicalType, msgType))
-        .build();
-    
+
+    FileAppender<RowData> writer =
+        Parquet.write(outputFile)
+            .schema(schema)
+            .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(logicalType, msgType))
+            .build();
+
     writer.close();
-    
+
     assertThat(writer).isNotNull();
   }
 
   private void testVariantRoundTrip(VariantMetadata metadata, VariantValue value) {
-    org.apache.iceberg.variants.Variant icebergVariant = org.apache.iceberg.variants.Variant.of(metadata, value);
+    org.apache.iceberg.variants.Variant icebergVariant =
+        org.apache.iceberg.variants.Variant.of(metadata, value);
 
     ByteBuffer metadataBuffer =
         ByteBuffer.allocate(metadata.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
@@ -253,13 +246,13 @@ public class TestFlinkVariants {
 
     byte[] metadataBytes = ByteBuffers.toByteArray(metadataBuffer);
     byte[] valueBytes = ByteBuffers.toByteArray(valueBuffer);
-    org.apache.flink.types.variant.BinaryVariant flinkVariant = 
+    org.apache.flink.types.variant.BinaryVariant flinkVariant =
         new org.apache.flink.types.variant.BinaryVariant(valueBytes, metadataBytes);
 
     assertThat(icebergVariant).isNotNull();
     assertThat(icebergVariant.value()).isNotNull();
     assertThat(icebergVariant.metadata()).isNotNull();
-    
+
     assertThat(flinkVariant).isNotNull();
     assertThat(flinkVariant.getValue()).isNotNull();
     assertThat(flinkVariant.getMetadata()).isNotNull();

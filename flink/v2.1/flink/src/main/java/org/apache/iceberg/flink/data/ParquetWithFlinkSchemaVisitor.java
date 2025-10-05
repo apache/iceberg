@@ -30,12 +30,12 @@ import org.apache.flink.table.types.logical.VariantType;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import org.apache.iceberg.variants.Variant;
 
 public class ParquetWithFlinkSchemaVisitor<T> {
   private final Deque<String> fieldNames = Lists.newLinkedList();
