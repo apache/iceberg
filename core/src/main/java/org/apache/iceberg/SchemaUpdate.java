@@ -66,6 +66,7 @@ class SchemaUpdate implements UpdateSchema {
   private boolean allowIncompatibleChanges = false;
   private Set<String> identifierFieldNames;
   private boolean caseSensitive = true;
+  private final int formatVersion;
 
   SchemaUpdate(TableOperations ops) {
     this(ops, ops.current());
@@ -73,20 +74,35 @@ class SchemaUpdate implements UpdateSchema {
 
   /** For testing only. */
   SchemaUpdate(Schema schema, int lastColumnId) {
-    this(null, null, schema, lastColumnId);
+    this(null, null, schema, lastColumnId, TableProperties.DEFAULT_FORMAT_VERSION);
+  }
+
+  /** For testing only. */
+  SchemaUpdate(Schema schema, int lastColumnId, int formatVersion) {
+    this(null, null, schema, lastColumnId, formatVersion);
   }
 
   private SchemaUpdate(TableOperations ops, TableMetadata base) {
-    this(ops, base, base.schema(), base.lastColumnId());
+    this(
+        ops,
+        base,
+        base.schema(),
+        base.lastColumnId(),
+        PropertyUtil.propertyAsInt(
+            base.properties(),
+            TableProperties.FORMAT_VERSION,
+            TableProperties.DEFAULT_FORMAT_VERSION));
   }
 
-  private SchemaUpdate(TableOperations ops, TableMetadata base, Schema schema, int lastColumnId) {
+  private SchemaUpdate(
+      TableOperations ops, TableMetadata base, Schema schema, int lastColumnId, int formatVersion) {
     this.ops = ops;
     this.base = base;
     this.schema = schema;
     this.lastColumnId = lastColumnId;
     this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
     this.identifierFieldNames = schema.identifierFieldNames();
+    this.formatVersion = formatVersion;
   }
 
   @Override
@@ -282,7 +298,7 @@ class SchemaUpdate implements UpdateSchema {
     }
 
     Preconditions.checkArgument(
-        TypeUtil.isPromotionAllowed(field.type(), newType),
+        TypeUtil.isPromotionAllowed(field.type(), newType, formatVersion),
         "Cannot change column type: %s: %s -> %s",
         name,
         field.type(),
@@ -375,7 +391,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema unionByNameWith(Schema newSchema) {
-    UnionByNameVisitor.visit(this, schema, newSchema, caseSensitive);
+    UnionByNameVisitor.visit(this, schema, newSchema, caseSensitive, formatVersion);
     return this;
   }
 
