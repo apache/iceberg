@@ -36,11 +36,14 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
   private final UpdateSchema api;
   private final Schema partnerSchema;
   private final boolean caseSensitive;
+  private final int formatVersion;
 
-  private UnionByNameVisitor(UpdateSchema api, Schema partnerSchema, boolean caseSensitive) {
+  private UnionByNameVisitor(
+      UpdateSchema api, Schema partnerSchema, boolean caseSensitive, int formatVersion) {
     this.api = api;
     this.partnerSchema = partnerSchema;
     this.caseSensitive = caseSensitive;
+    this.formatVersion = formatVersion;
   }
 
   /**
@@ -53,7 +56,17 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
    * @param newSchema a new schema to compare with the existing
    */
   public static void visit(UpdateSchema api, Schema existingSchema, Schema newSchema) {
-    visit(api, existingSchema, newSchema, true);
+    visit(api, existingSchema, newSchema, true, 2);
+  }
+
+  public static void visit(
+      UpdateSchema api, Schema existingSchema, Schema newSchema, boolean caseSensitive) {
+    visit(api, existingSchema, newSchema, caseSensitive, 2);
+  }
+
+  public static void visit(
+      UpdateSchema api, Schema existingSchema, Schema newSchema, int formatVersion) {
+    visit(api, existingSchema, newSchema, true, formatVersion);
   }
 
   /**
@@ -65,13 +78,18 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
    * @param existingSchema an existing schema
    * @param caseSensitive when false, the case of schema's fields are ignored
    * @param newSchema a new schema to compare with the existing
+   * @param formatVersion the table format version
    */
   public static void visit(
-      UpdateSchema api, Schema existingSchema, Schema newSchema, boolean caseSensitive) {
+      UpdateSchema api,
+      Schema existingSchema,
+      Schema newSchema,
+      boolean caseSensitive,
+      int formatVersion) {
     visit(
         newSchema,
         -1,
-        new UnionByNameVisitor(api, existingSchema, caseSensitive),
+        new UnionByNameVisitor(api, existingSchema, caseSensitive, formatVersion),
         new PartnerIdByNameAccessors(existingSchema, caseSensitive));
   }
 
@@ -204,7 +222,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
       // existingType:long -> newType:int returns true, meaning it is ignorable
       // existingType:int -> newType:long returns false, meaning it is not ignorable
       return newType.isPrimitiveType()
-          && TypeUtil.isPromotionAllowed(newType, existingType.asPrimitiveType());
+          && TypeUtil.isPromotionAllowed(newType, existingType.asPrimitiveType(), formatVersion);
     } else {
       // Complex -> Complex
       return !newType.isPrimitiveType();

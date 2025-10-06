@@ -424,6 +424,11 @@ public class TypeUtil {
   }
 
   public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
+    return TypeUtil.isPromotionAllowed(from, to, 2);
+  }
+
+  public static boolean isPromotionAllowed(
+      Type from, Type.PrimitiveType to, Integer formatVersion) {
     // Warning! Before changing this function, make sure that the type change doesn't introduce
     // compatibility problems in partitioning.
     if (from.equals(to)) {
@@ -431,6 +436,19 @@ public class TypeUtil {
     }
 
     switch (from.typeId()) {
+      case DATE:
+        if (formatVersion < 3) {
+          return false;
+        } else if (to.typeId() == Type.TypeID.TIMESTAMP) {
+          // Timezone types cannot be promoted.
+          Types.TimestampType toTs = (Types.TimestampType) to;
+          return Types.TimestampType.withoutZone().equals(toTs);
+        } else if (to.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+          // Timezone types cannot be promoted.
+          Types.TimestampNanoType toTs = (Types.TimestampNanoType) to;
+          return Types.TimestampNanoType.withoutZone().equals(toTs);
+        }
+        // fall through
       case INTEGER:
         return to.typeId() == Type.TypeID.LONG;
 
