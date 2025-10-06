@@ -283,8 +283,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public String toString() {
-      long snapshotId = table.currentSnapshot() != null ? table.currentSnapshot().snapshotId() : -1;
-      return String.format("IcebergPositionDeltaWrite(table=%s, current_snapshot_id=%d)", table, snapshotId);
+      return String.format("IcebergPositionDeltaWrite(table=%s, format=%s)", table, context.dataFileFormat());
     }
 
     private Expression conflictDetectionFilter(SparkBatchQueryScan queryScan) {
