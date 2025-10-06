@@ -28,6 +28,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.BaseFieldStats;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -88,6 +90,29 @@ public class TestContentFileParser {
         ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), TestBase.SPEC));
     assertThat(deserializedContentFile).isInstanceOf(DeleteFile.class);
     assertContentFileEquals(deleteFile, deserializedContentFile, spec);
+  }
+
+  @ParameterizedTest
+  @MethodSource("provideContentStatsAndDataFile")
+  public void testDataFileContentStats(PartitionSpec spec, DataFile dataFile, String expectedJson)
+        throws Exception {
+    String jsonStr = ContentFileParser.toJson(dataFile, spec);
+    assertThat(jsonStr).isEqualTo(expectedJson);
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile =
+          ContentFileParser.fromJson(jsonNode, Map.of(TestBase.SPEC.specId(), spec));
+    assertThat(deserializedContentFile).isInstanceOf(DataFile.class);
+    assertContentFileEquals(dataFile, deserializedContentFile, spec);
+  }
+
+  private static Stream<Arguments> provideContentStatsAndDataFile() {
+    return Stream.of(
+      Arguments.of(
+        TestBase.SPEC,
+        dataFileWithAllOptionalContentStats(TestBase.SPEC),
+        dataFileJsonWithAllOptionalContentStats()
+      )
+    );
   }
 
   private static Stream<Arguments> provideSpecAndDataFile() {
@@ -159,6 +184,81 @@ public class TestContentFileParser {
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     }
+  }
+
+  private static String dataFileJsonWithAllOptionalContentStats() {
+    return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\","
+      + "\"file-format\":\"PARQUET\","
+      + "\"partition\":{\"1000\":1},"
+      + "\"file-size-in-bytes\":350,"
+      + "\"record-count\":10,"
+      + "\"key-metadata\":\"00000000000000000000000000000000\","
+      + "\"split-offsets\":[128,256],"
+      + "\"sort-order-id\":1,"
+      + "\"content-stats\":{"
+        + "\"10200\":{"
+        + "\"10202\":90,"
+        + "\"10203\":10,"
+        + "\"10204\":0,"
+        + "\"10205\":1000000,"
+        + "\"10206\":5000000"
+        + "},"
+        + "\"10400\":{"
+        + "\"10402\":180,"
+        + "\"10403\":20,"
+        + "\"10404\":0,"
+        + "\"10405\":\"02000000\","
+        + "\"10406\":\"0A000000\""
+        + "}"
+      + "}"
+      + "}";
+  }
+
+  private static DataFile dataFileWithAllOptionalContentStats(PartitionSpec spec) {
+    DataFiles.Builder builder =
+    DataFiles.builder(spec)
+    .withPath("/path/to/data-with-stats.parquet")
+    .withContentStats(
+      BaseContentStats.builder()
+      .withFieldStats(
+        BaseFieldStats.<Integer>builder()
+        .fieldId(1)
+        .type(Types.IntegerType.get())
+        .valueCount(90L)
+        .nullValueCount(10L)
+        .nanValueCount(0L)
+        .lowerBound(1000000)
+        .upperBound(5000000)
+        .build()
+      )
+      .withFieldStats(
+        BaseFieldStats.<String>builder()
+        .fieldId(2)
+        .type(Types.StringType.get())
+        .valueCount(180L)
+        .nullValueCount(20L)
+        .nanValueCount(0L)
+        .lowerBound("02000000")
+        .upperBound("0A000000")
+        .build()
+      )
+      .build()
+    )
+    .withRecordCount(10L)
+    .withFileSizeInBytes(350)
+    .withSplitOffsets(Arrays.asList(128L, 256L))
+    .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[16]))
+    .withSortOrder(
+    SortOrder.builderFor(TestBase.SCHEMA)
+    .withOrderId(1)
+    .sortBy("id", SortDirection.ASC, NullOrder.NULLS_FIRST)
+    .build());
+
+    if (spec.isPartitioned()) {
+      // easy way to set partition data for now
+      builder.withPartitionPath("data_bucket=1");
+    }
+    return builder.build();
   }
 
   private static DataFile dataFileWithAllOptional(PartitionSpec spec) {

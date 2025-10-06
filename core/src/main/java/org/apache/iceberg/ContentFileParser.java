@@ -25,7 +25,9 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.stats.BaseContentStats;
 import org.apache.iceberg.stats.ContentStats;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ContentFileParser {
@@ -50,6 +52,7 @@ public class ContentFileParser {
   private static final String REFERENCED_DATA_FILE = "referenced-data-file";
   private static final String CONTENT_OFFSET = "content-offset";
   private static final String CONTENT_SIZE = "content-size-in-bytes";
+  private static final String CONTENT_STATS = "content-stats";
 
   private ContentFileParser() {}
 
@@ -115,6 +118,12 @@ public class ContentFileParser {
     }
 
     JsonUtil.writeLongFieldIfPresent(FIRST_ROW_ID, contentFile.firstRowId(), generator);
+    if (contentFile.contentStats() != null) {
+      generator.writeFieldName(CONTENT_STATS);
+      SingleValueParser.toJson(
+        DataFile.getType(spec).field(DataFile.CONTENT_STATS.fieldId()).type(), contentFile.contentStats(), generator
+      );
+    }
 
     if (contentFile instanceof DeleteFile) {
       DeleteFile deleteFile = (DeleteFile) contentFile;
@@ -169,10 +178,7 @@ public class ContentFileParser {
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
     Metrics metrics = metricsFromJson(jsonNode);
-    ContentStats stats = contentStatsFromJson(jsonNode);
-    //    if (null == columnStats) {
-    //      columnStats = ColumnStatsUtil.fromMetrics(metrics);
-    //    }
+    ContentStats stats = contentStatsFromJson(spec, jsonNode);
 
     ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
     List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
@@ -310,63 +316,22 @@ public class ContentFileParser {
         upperBounds);
   }
 
-  private static ContentStats contentStatsFromJson(JsonNode jsonNode) {
-    if (null == jsonNode) {
+  private static ContentStats contentStatsFromJson(PartitionSpec spec, JsonNode jsonNode) {
+    if (jsonNode == null || !jsonNode.has(CONTENT_STATS)) {
       return null;
     }
-    return null;
-    //    long recordCount = JsonUtil.getLong(RECORD_COUNT, jsonNode);
-    //
-    //    Map<Integer, Long> columnSizes = null;
-    //    if (jsonNode.has(COLUMN_SIZES)) {
-    //      columnSizes =
-    //              (Map<Integer, Long>)
-    //                      SingleValueParser.fromJson(DataFile.COLUMN_SIZES.type(),
-    // jsonNode.get(COLUMN_SIZES));
-    //    }
-    //
-    //    Map<Integer, Long> valueCounts = null;
-    //    if (jsonNode.has(VALUE_COUNTS)) {
-    //      valueCounts =
-    //              (Map<Integer, Long>)
-    //                      SingleValueParser.fromJson(DataFile.VALUE_COUNTS.type(),
-    // jsonNode.get(VALUE_COUNTS));
-    //    }
-    //
-    //    Map<Integer, Long> nullValueCounts = null;
-    //    if (jsonNode.has(NULL_VALUE_COUNTS)) {
-    //      nullValueCounts =
-    //              (Map<Integer, Long>)
-    //                      SingleValueParser.fromJson(
-    //                              DataFile.NULL_VALUE_COUNTS.type(),
-    // jsonNode.get(NULL_VALUE_COUNTS));
-    //    }
-    //
-    //    Map<Integer, Long> nanValueCounts = null;
-    //    if (jsonNode.has(NAN_VALUE_COUNTS)) {
-    //      nanValueCounts =
-    //              (Map<Integer, Long>)
-    //                      SingleValueParser.fromJson(
-    //                              DataFile.NAN_VALUE_COUNTS.type(),
-    // jsonNode.get(NAN_VALUE_COUNTS));
-    //    }
-    //
-    //    Map<Integer, ByteBuffer> lowerBounds = null;
-    //    if (jsonNode.has(LOWER_BOUNDS)) {
-    //      lowerBounds =
-    //              (Map<Integer, ByteBuffer>)
-    //                      SingleValueParser.fromJson(DataFile.LOWER_BOUNDS.type(),
-    // jsonNode.get(LOWER_BOUNDS));
-    //    }
-    //
-    //    Map<Integer, ByteBuffer> upperBounds = null;
-    //    if (jsonNode.has(UPPER_BOUNDS)) {
-    //      upperBounds =
-    //              (Map<Integer, ByteBuffer>)
-    //                      SingleValueParser.fromJson(DataFile.UPPER_BOUNDS.type(),
-    // jsonNode.get(UPPER_BOUNDS));
-    //    }
-
-    // return ColumnStatsParser.fromJson;
+    JsonNode contentStatsNode = jsonNode.get(CONTENT_STATS);
+    // Get the content-stats type.
+    Types.StructType contentStatsType =
+      (Types.StructType) DataFile.getType(spec).field(DataFile.CONTENT_STATS.fieldId()).type();
+    StructLike structLike =
+      (StructLike) SingleValueParser.fromJson(contentStatsType, contentStatsNode);
+    // Create BaseContentStats with the projection type
+    BaseContentStats contentStats = new BaseContentStats(contentStatsType);
+    // Populate the stats by copying from structLike
+    for (int i = 0; i < structLike.size(); i++) {
+      contentStats.set(i, structLike.get(i, Object.class));
+    }
+    return contentStats;
   }
 }
