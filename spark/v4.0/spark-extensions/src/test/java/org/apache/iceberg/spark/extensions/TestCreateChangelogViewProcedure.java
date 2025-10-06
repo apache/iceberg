@@ -667,15 +667,226 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testNetChangesWithComputeUpdates() {
-    createTableWithTwoColumns();
-    assertThatThrownBy(
-            () ->
-                sql(
-                    "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), net_changes => true)",
-                    catalogName, tableName))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Not support net changes with update images");
+  public void testNetChangesComputeUpdatesSingleSnapshot() {
+    createTableWithIdentifierField();
+
+    // Snapshot 1: INSERT (1, 'a'), (2, 'b')
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: UPDATE (1, 'a') to (1, 'a2'), keep (2, 'b'), INSERT (3, 'c')
+    sql("INSERT OVERWRITE %s VALUES (1, 'a2'), (2, 'b'), (3, 'c')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', "
+                + "options => map('start-snapshot-id','%s'), "
+                + "identifier_columns => array('id'), "
+                + "net_changes => true)",
+            catalogName, tableName, snap1.snapshotId());
+
+    String viewName = (String) returns.get(0)[0];
+
+    // Expected: Net result from start-snapshot-id (snap1) onwards, showing changes in snap2
+    // Row 1: (1, 'a') in snap1 -> (1, 'a2') in snap2 = UPDATE_BEFORE + UPDATE_AFTER
+    // Row 2: (2, 'b') in snap1 -> (2, 'b') in snap2 = carryover, filtered out
+    // Row 3: (3, 'c') inserted in snap2 = INSERT
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", UPDATE_BEFORE, 0, snap2.snapshotId()),
+            row(1, "a2", UPDATE_AFTER, 0, snap2.snapshotId()),
+            row(3, "c", INSERT, 0, snap2.snapshotId())),
+        sql("select * from %s order by id, _change_ordinal", viewName));
+  }
+
+  @TestTemplate
+  public void testNetChangesComputeUpdatesMultipleSnapshots() {
+    createTableWithIdentifierField();
+
+    // Snapshot 1: INSERT (1, 'a'), (2, 'b')
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (4, 'd')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: UPDATE (1, 'a') to (1, 'a2'), DELETE (2, 'b'), INSERT (3, 'c')
+    sql("INSERT OVERWRITE %s VALUES (1, 'a2'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: DELETE (4, 'd')
+    sql("INSERT OVERWRITE %s VALUES (1, 'a3'), (2, 'b3'), (3, 'c3')", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    // Snapshot 4:
+    sql("INSERT OVERWRITE %s VALUES (1, 'a4'), (2, 'b4'), (3, 'c4')", tableName);
+
+    // Snapshot 5: UPDATE (1, 'a2') to (1, 'a3'), INSERT (2, 'b2')
+    sql("INSERT OVERWRITE %s VALUES (1, 'a5'), (2, 'b2'), (3, 'c')", tableName);
+    table.refresh();
+    Snapshot snap5 = table.currentSnapshot();
+
+    // Test net changes from start-snapshot-id (snap1) onwards
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', "
+                + "options => map('start-snapshot-id','%s'), "
+                + "identifier_columns => array('id'), "
+                + "net_changes => true)",
+            catalogName, tableName, snap1.snapshotId());
+
+    String viewName = (String) returns.get(0)[0];
+
+    // Expected: Net result from start-snapshot-id (snap1) onwards across snap2-snap5
+    // Row 1: (1, 'a') in snap1 -> (1, 'a5') in snap5 = UPDATE_BEFORE + UPDATE_AFTER
+    // Row 2: (2, 'b') in snap1 -> (2, 'b2') in snap5 = UPDATE_BEFORE + UPDATE_AFTER
+    // Row 3: (3, 'c') inserted in snap2, carried over to snap5 = INSERT
+    // Row 4: (4, 'd') inserted in snap1, deleted in snap3
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", UPDATE_BEFORE, 0, snap2.snapshotId()),
+            row(1, "a5", UPDATE_AFTER, 3, snap5.snapshotId()),
+            row(2, "b", UPDATE_BEFORE, 1, snap3.snapshotId()),
+            row(2, "b2", UPDATE_AFTER, 3, snap5.snapshotId()),
+            row(3, "c", INSERT, 3, snap5.snapshotId()),
+            row(4, "d", DELETE, 1, snap3.snapshotId())),
+        sql("select * from %s order by id, _change_ordinal", viewName));
+  }
+
+  @TestTemplate
+  public void testNetChangesComputeUpdatesInsertThenDelete() {
+    createTableWithIdentifierField();
+
+    // Snapshot 1: INSERT (1, 'a'), (2, 'b')
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: DELETE (1, 'a'), INSERT (3, 'c')
+    sql("INSERT OVERWRITE %s VALUES (2, 'b'), (3, 'c')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: DELETE (3, 'c')
+    sql("INSERT OVERWRITE %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', "
+                + "options => map('start-snapshot-id','%s'), "
+                + "identifier_columns => array('id'), "
+                + "net_changes => true)",
+            catalogName, tableName, snap1.snapshotId());
+
+    String viewName = (String) returns.get(0)[0];
+
+    // Expected: Net result from start-snapshot-id (snap1) onwards
+    // Row 1: (1, 'a') in snap1 deleted in snap2 = DELETE
+    // Row 2: (2, 'b') in snap1 carried over to snap3 = INSERT (no net change)
+    // Row 3: (3, 'c') inserted in snap2, deleted in snap3 = no-op (filtered)
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(row(1, "a", DELETE, 0, snap2.snapshotId())),
+        sql("select * from %s order by id, _change_ordinal", viewName));
+  }
+
+  @TestTemplate
+  public void testNetChangesComputeUpdatesMultipleUpdates() {
+    createTableWithIdentifierField();
+    // Tests different record ranges for netting updates
+
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (1, 'a2'), (2, 'b'), (3, 'c')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (1, 'a3'), (2, 'b2'), (3, 'c2')", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (1, 'a4'), (2, 'b3')", tableName);
+    table.refresh();
+    Snapshot snap4 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (1, 'a4'), (2, 'b4'), (3, 'c4')", tableName);
+    table.refresh();
+    Snapshot snap5 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', "
+                + "options => map('start-snapshot-id','%s'), "
+                + "identifier_columns => array('id'), "
+                + "net_changes => true)",
+            catalogName, tableName, snap1.snapshotId());
+
+    String viewName = (String) returns.get(0)[0];
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", UPDATE_BEFORE, 0, snap2.snapshotId()),
+            row(1, "a4", UPDATE_AFTER, 2, snap4.snapshotId()),
+            row(2, "b", UPDATE_BEFORE, 1, snap3.snapshotId()),
+            row(2, "b4", UPDATE_AFTER, 3, snap5.snapshotId()),
+            row(3, "c4", INSERT, 3, snap5.snapshotId())),
+        sql("select * from %s order by id, _change_ordinal", viewName));
+  }
+
+  @TestTemplate
+  public void testNetChangesComputeUpdatesMultipleIdentifiers() {
+    createTableWithThreeColumns();
+
+    // Snapshot 1: INSERT multiple rows
+    sql("INSERT INTO %s VALUES (1, 'a', 10), (2, 'b', 20), (3, 'c', 30)", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Complex changes - update some, delete some, insert new
+    sql("INSERT OVERWRITE %s VALUES (1, 'a_new', 11), (3, 'c', 29), (4, 'c', 40)", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: More changes
+    sql("INSERT OVERWRITE %s VALUES (1, 'a_new', 12), (3, 'c', 30)", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', "
+                + "options => map('start-snapshot-id','%s'), "
+                + "identifier_columns => array('id', 'data'), "
+                + "net_changes => true)",
+            catalogName, tableName, snap1.snapshotId());
+
+    String viewName = (String) returns.get(0)[0];
+
+    // Expected: Net result from start-snapshot-id (snap1) onwards across snap2-snap3
+    // Row 1: (1, 'a', 10) in snap1 -> (1, 'a_new', 11) in snap3 = UPDATE_BEFORE + UPDATE_AFTER
+    // Row 2: (2, 'b', 20) in snap1 deleted in snap2 = DELETE
+    // Row 3: (3, 'c', 30) in snap1 carried to snap2, deleted in snap3 = DELETE
+    // Row 4: (4, 'd', 40) inserted in snap2, deleted in snap3 = no-op (filtered)
+    // Row 5: (5, 'e', 50) inserted in snap3 = INSERT
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", 10, DELETE, 0, snap2.snapshotId()),
+            row(1, "a_new", 12, INSERT, 1, snap3.snapshotId()),
+            row(3, "c", 30, UPDATE_BEFORE, 0, snap2.snapshotId()),
+            row(3, "c", 30, UPDATE_AFTER, 1, snap3.snapshotId()),
+            row(4, "c", 40, INSERT, 0, snap2.snapshotId())),
+        sql("select * from %s order by id, _change_ordinal", viewName));
   }
 
   @TestTemplate

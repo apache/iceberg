@@ -82,6 +82,27 @@ public abstract class ChangelogIterator implements Iterator<Row> {
   }
 
   /**
+   * Creates an iterator that computes net updates across snapshots. This combines the functionality
+   * of removeNetCarryovers and computeUpdates to produce a single before/after pair for each
+   * logical row across the entire snapshot range.
+   *
+   * @param rowIterator the iterator of rows from a changelog table (already filtered to first/last
+   *     changes)
+   * @param rowType the schema of the rows
+   * @param identifierFields the names of the identifier columns, which determine if rows are the
+   *     same
+   * @return a new iterator instance with UPDATE_BEFORE/UPDATE_AFTER pairs
+   */
+  public static Iterator<Row> computeNetUpdates(
+      Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
+    Iterator<Row> netChangesIterator =
+        removeLogicalNoopPairs(rowIterator, rowType, identifierFields);
+    ChangelogIterator changelogIterator =
+        new ComputeNetUpdateIterator(netChangesIterator, rowType, identifierFields);
+    return Iterators.filter(changelogIterator, Objects::nonNull);
+  }
+
+  /**
    * Creates an iterator that removes carry-over rows from a changelog table.
    *
    * @param rowIterator the iterator of rows from a changelog table
@@ -95,6 +116,13 @@ public abstract class ChangelogIterator implements Iterator<Row> {
 
   public static Iterator<Row> removeNetCarryovers(Iterator<Row> rowIterator, StructType rowType) {
     ChangelogIterator changelogIterator = new RemoveNetCarryoverIterator(rowIterator, rowType);
+    return Iterators.filter(changelogIterator, Objects::nonNull);
+  }
+
+  public static Iterator<Row> removeLogicalNoopPairs(
+      Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
+    ChangelogIterator changelogIterator =
+        new RemoveNoopPairIterator(rowIterator, rowType, identifierFields);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 

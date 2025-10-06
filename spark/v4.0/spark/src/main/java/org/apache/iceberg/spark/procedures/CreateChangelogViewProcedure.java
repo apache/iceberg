@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import static org.apache.spark.sql.functions.first;
+import static org.apache.spark.sql.functions.last;
+
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -25,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -45,6 +49,8 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
 import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
 import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.expressions.Window;
+import org.apache.spark.sql.expressions.WindowSpec;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -85,10 +91,17 @@ import org.apache.spark.unsafe.types.UTF8String;
  *   <li>(id=1, data='a', op='UPDATE_BEFORE')
  *   <li>(id=1, data='b', op='UPDATE_AFTER')
  * </ul>
+ *
+ * <p>Above would be calculated for each snapshot. If you use "compute_updates" along with
+ * "net_changes". You can get a single pre/post update pair across the given snapshot range.
  */
 public class CreateChangelogViewProcedure extends BaseProcedure {
 
   static final String NAME = "create_changelog_view";
+
+  // Window column names used for net changes computation
+  private static final String MIN_ORDINAL_COL = "_min_ordinal";
+  private static final String MAX_ORDINAL_COL = "_max_ordinal";
 
   private static final ProcedureParameter TABLE_PARAM =
       requiredInParameter("table", DataTypes.StringType);
@@ -166,8 +179,11 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         unorderableColumnNames);
 
     if (shouldComputeUpdateImages(input)) {
-      Preconditions.checkArgument(!netChanges, "Not support net changes with update images");
-      df = computeUpdateImages(identifierColumns, df);
+      if (netChanges) {
+        df = computeNetUpdateImage(identifierColumns, df);
+      } else {
+        df = computeUpdateImages(identifierColumns, df);
+      }
     } else {
       df = removeCarryoverRows(df, netChanges);
     }
@@ -197,8 +213,89 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return applyChangelogIterator(df, repartitionSpec, identifierFields);
   }
 
+  /**
+   * Computes net update images across multiple snapshots by finding the first and last change for
+   * each logical row.
+   *
+   * <p>This method performs multiple shuffle operations which may impact performance on large
+   * datasets:
+   *
+   * <ol>
+   *   <li>Initial repartition and sort by identifier columns
+   *   <li>mapPartitions to remove carryover rows
+   *   <li>Window operations to identify first/last changes
+   *   <li>Final repartition for update computation
+   * </ol>
+   *
+   * <p>For optimal performance, ensure adequate executor memory and consider adjusting
+   * spark.sql.shuffle.partitions based on data volume.
+   *
+   * @param identifierColumns the columns that uniquely identify a logical row
+   * @param df the changelog dataset
+   * @return a dataset with net update images (UPDATE_BEFORE/UPDATE_AFTER pairs)
+   */
+  Dataset<Row> computeNetUpdateImage(String[] identifierColumns, Dataset<Row> df) {
+    Preconditions.checkArgument(
+        identifierColumns.length > 0,
+        "Cannot compute the update images because identifier columns are not set");
+
+    Column[] repartitionSpec =
+        Arrays.stream(identifierColumns)
+            .map(CreateChangelogViewProcedure::delimitedName)
+            .map(df::col)
+            .toArray(Column[]::new);
+
+    // Repartition and sort for removing carryovers
+    Dataset<Row> sortedDf =
+        df.repartition(repartitionSpec).sortWithinPartitions(sortSpec(df, repartitionSpec, true));
+    StructType sortedDfSchema = sortedDf.schema();
+    Dataset<Row> cleanedDf =
+        sortedDf.mapPartitions(
+            (MapPartitionsFunction<Row, Row>)
+                rowIterator -> ChangelogIterator.removeCarryovers(rowIterator, sortedDfSchema),
+            Encoders.row(sortedDfSchema));
+
+    // Recreate column references after mapPartitions
+    repartitionSpec =
+        Arrays.stream(identifierColumns)
+            .map(CreateChangelogViewProcedure::delimitedName)
+            .map(cleanedDf::col)
+            .toArray(Column[]::new);
+
+    Column[] newSortColumns = sortSpec(cleanedDf, repartitionSpec, true);
+
+    WindowSpec windowByIdentifier = Window.partitionBy(repartitionSpec).orderBy(newSortColumns);
+
+    // Use window functions to find first and last change for each logical row
+    Column changeOrdinalCol = cleanedDf.col(MetadataColumns.CHANGE_ORDINAL.name());
+    Column minOrdinal = first(changeOrdinalCol).over(windowByIdentifier);
+    Column maxOrdinal = last(changeOrdinalCol).over(windowByIdentifier);
+
+    Dataset<Row> withWindowCols =
+        cleanedDf.withColumn(MIN_ORDINAL_COL, minOrdinal).withColumn(MAX_ORDINAL_COL, maxOrdinal);
+
+    Dataset<Row> filteredChanges =
+        withWindowCols
+            .filter(
+                changeOrdinalCol
+                    .equalTo(withWindowCols.col(MIN_ORDINAL_COL))
+                    .or(changeOrdinalCol.equalTo(withWindowCols.col(MAX_ORDINAL_COL))))
+            .drop(MIN_ORDINAL_COL, MAX_ORDINAL_COL);
+
+    // Apply net update computation to the filtered dataset
+    StructType filteredChangesSchema = filteredChanges.schema();
+    return filteredChanges
+        .repartition(repartitionSpec)
+        .sortWithinPartitions(sortSpec(filteredChanges, repartitionSpec, true))
+        .mapPartitions(
+            (MapPartitionsFunction<Row, Row>)
+                rowIterator ->
+                    ChangelogIterator.computeNetUpdates(
+                        rowIterator, filteredChangesSchema, identifierColumns),
+            Encoders.row(filteredChangesSchema));
+  }
+
   private boolean shouldComputeUpdateImages(ProcedureInput input) {
-    // If the identifier columns are set, we compute pre/post update images by default.
     boolean defaultValue = input.isProvided(IDENTIFIER_COLUMNS_PARAM);
     return input.asBoolean(COMPUTE_UPDATES_PARAM, defaultValue);
   }
@@ -232,7 +329,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       return input.asStringArray(IDENTIFIER_COLUMNS_PARAM);
     } else {
       Table table = loadSparkTable(tableIdent).table();
-      return table.schema().identifierFieldNames().stream().toArray(String[]::new);
+      return table.schema().identifierFieldNames().toArray(new String[0]);
     }
   }
 
@@ -303,15 +400,12 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
     Column changeType = df.col(MetadataColumns.CHANGE_TYPE.name());
     Column changeOrdinal = df.col(MetadataColumns.CHANGE_ORDINAL.name());
+
     Column[] extraColumns =
         netChanges ? new Column[] {changeOrdinal, changeType} : new Column[] {changeType};
 
-    Column[] sortSpec = new Column[repartitionSpec.length + extraColumns.length];
-
-    System.arraycopy(repartitionSpec, 0, sortSpec, 0, repartitionSpec.length);
-    System.arraycopy(extraColumns, 0, sortSpec, repartitionSpec.length, extraColumns.length);
-
-    return sortSpec;
+    return Stream.concat(Arrays.stream(repartitionSpec), Arrays.stream(extraColumns))
+        .toArray(Column[]::new);
   }
 
   private InternalRow[] toOutputRows(String viewName) {
