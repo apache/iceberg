@@ -20,8 +20,8 @@ package org.apache.iceberg.parquet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
@@ -308,7 +308,7 @@ public class TestPruneColumns {
 
     Schema projection =
         new Schema(
-            List.of(
+            ImmutableList.of(
                 NestedField.required(1, "id", IntegerType.get()),
                 NestedField.required(2, "variant_1", VariantType.get())));
     MessageType expected =
