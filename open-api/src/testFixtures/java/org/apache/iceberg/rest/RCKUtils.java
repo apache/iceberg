@@ -151,13 +151,15 @@ class RCKUtils {
    * Configure Log4j logging from environment variables.
    *
    * <p>Supports the following environment variables:
+   *
    * <ul>
-   *   <li>CATALOG_LOG4J_LOGLEVEL - Set the root logger level (e.g., WARN, ERROR)</li>
-   *   <li>CATALOG_LOG4J_CONFIG_FILE - Path to custom log4j.properties file</li>
-   *   <li>CATALOG_LOG4J_LOGGER_&lt;logger_name&gt; - Set specific logger levels</li>
+   *   <li>CATALOG_LOG4J_LOGLEVEL - Set the root logger level (e.g., WARN, ERROR)
+   *   <li>CATALOG_LOG4J_CONFIG_FILE - Path to custom log4j.properties file
+   *   <li>CATALOG_LOG4J_LOGGER_&lt;logger_name&gt; - Set specific logger levels
    * </ul>
    *
    * <p>Examples:
+   *
    * <pre><code>
    *     CATALOG_LOG4J_LOGLEVEL=WARN
    *     CATALOG_LOG4J_CONFIG_FILE=/custom/log4j.properties
@@ -165,13 +167,15 @@ class RCKUtils {
    * </code></pre>
    */
   static void configureLoggingFromEnvironment() {
-    Map<String, String> loggingConfig = System.getenv().entrySet().stream()
-        .filter(e -> e.getKey().startsWith(LOGGING_ENV_PREFIX))
-        .collect(Collectors.toMap(
-            e -> e.getKey().replaceFirst(LOGGING_ENV_PREFIX, "").toLowerCase(Locale.ROOT),
-            Map.Entry::getValue,
-            (m1, m2) -> m1, // Take first value if duplicate
-            HashMap::new));
+    Map<String, String> loggingConfig =
+        System.getenv().entrySet().stream()
+            .filter(e -> e.getKey().startsWith(LOGGING_ENV_PREFIX))
+            .collect(
+                Collectors.toMap(
+                    e -> e.getKey().replaceFirst(LOGGING_ENV_PREFIX, "").toLowerCase(Locale.ROOT),
+                    Map.Entry::getValue,
+                    (m1, m2) -> m1, // Take first value if duplicate
+                    HashMap::new));
 
     if (!loggingConfig.isEmpty()) {
       configureLog4j(loggingConfig);
@@ -184,19 +188,20 @@ class RCKUtils {
     if (logLevel != null) {
       System.setProperty("log4j.rootLogger", logLevel + ", stdout");
     }
-    
+
     // Set custom configuration file
     String configFile = config.get("config_file");
     if (configFile != null) {
       System.setProperty("log4j.configuration", configFile);
     }
-    
+
     // Configure specific loggers
     config.entrySet().stream()
         .filter(e -> e.getKey().startsWith("logger."))
-        .forEach(e -> {
-          String loggerName = e.getKey().substring(7); // Remove "logger." prefix
-          System.setProperty("log4j.logger." + loggerName, e.getValue());
-        });
+        .forEach(
+            e -> {
+              String loggerName = e.getKey().substring(7); // Remove "logger." prefix
+              System.setProperty("log4j.logger." + loggerName, e.getValue());
+            });
   }
 }

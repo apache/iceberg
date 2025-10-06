@@ -31,28 +31,27 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestRCKUtilsLoggingConfig {
 
-  @TempDir
-  Path tempDir;
+  @TempDir Path tempDir;
 
   private String originalLogLevel;
   private String originalConfigFile;
 
   @BeforeEach
-  void setUp() {
+  void before() {
     // Save original system properties
     originalLogLevel = System.getProperty("log4j.rootLogger");
     originalConfigFile = System.getProperty("log4j.configuration");
   }
 
   @AfterEach
-  void tearDown() {
+  void after() {
     // Restore original system properties
     if (originalLogLevel != null) {
       System.setProperty("log4j.rootLogger", originalLogLevel);
     } else {
       System.clearProperty("log4j.rootLogger");
     }
-    
+
     if (originalConfigFile != null) {
       System.setProperty("log4j.configuration", originalConfigFile);
     } else {
@@ -64,11 +63,12 @@ public class TestRCKUtilsLoggingConfig {
   void testConfigureLoggingFromEnvironmentWithLogLevel() {
     // Note: This test verifies the method doesn't crash when called
     // In a real environment, CATALOG_LOG4J_LOGLEVEL would be set as an environment variable
-    // We can't easily mock environment variables in unit tests, so we test the method exists and runs
-    
+    // We can't easily mock environment variables in unit tests, so we test the method exists and
+    // runs
+
     // Call the method (should not throw exception)
     RCKUtils.configureLoggingFromEnvironment();
-    
+
     // The method should complete without error
     // In real usage, if CATALOG_LOG4J_LOGLEVEL=WARN is set as env var,
     // it would set System.setProperty("log4j.rootLogger", "WARN, stdout")
@@ -79,13 +79,13 @@ public class TestRCKUtilsLoggingConfig {
     // Create a temporary log4j.properties file
     File configFile = tempDir.resolve("test-log4j.properties").toFile();
     Files.write(configFile.toPath(), "log4j.rootLogger=ERROR, stdout".getBytes());
-    
+
     // Note: This test verifies the method doesn't crash when called
     // In a real environment, CATALOG_LOG4J_CONFIG_FILE would be set as an environment variable
-    
+
     // Call the method (should not throw exception)
     RCKUtils.configureLoggingFromEnvironment();
-    
+
     // The method should complete without error
     // In real usage, if CATALOG_LOG4J_CONFIG_FILE=/path/to/file is set as env var,
     // it would set System.setProperty("log4j.configuration", "/path/to/file")
@@ -94,24 +94,28 @@ public class TestRCKUtilsLoggingConfig {
   @Test
   void testConfigureLoggingFromEnvironmentWithSpecificLogger() {
     // Note: This test verifies the method doesn't crash when called
-    // In a real environment, CATALOG_LOG4J_LOGGER_ORG_APACHE_ICEBERG_BASEMETASTORECATALOG would be set as an environment variable
-    
+    // In a real environment, CATALOG_LOG4J_LOGGER_ORG_APACHE_ICEBERG_BASEMETASTORECATALOG would be
+    // set as an environment variable
+
     // Call the method (should not throw exception)
     RCKUtils.configureLoggingFromEnvironment();
-    
+
     // The method should complete without error
-    // In real usage, if CATALOG_LOG4J_LOGGER_ORG_APACHE_ICEBERG_BASEMETASTORECATALOG=ERROR is set as env var,
-    // it would set System.setProperty("log4j.logger.org.apache.iceberg.BaseMetastoreCatalog", "ERROR")
+    // In real usage, if CATALOG_LOG4J_LOGGER_ORG_APACHE_ICEBERG_BASEMETASTORECATALOG=ERROR is set
+    // as env var,
+    // it would set System.setProperty("log4j.logger.org.apache.iceberg.BaseMetastoreCatalog",
+    // "ERROR")
   }
 
   @Test
   void testConfigureLoggingFromEnvironmentWithMultipleSettings() {
     // Note: This test verifies the method doesn't crash when called
-    // In a real environment, multiple CATALOG_LOG4J_* variables would be set as environment variables
-    
+    // In a real environment, multiple CATALOG_LOG4J_* variables would be set as environment
+    // variables
+
     // Call the method (should not throw exception)
     RCKUtils.configureLoggingFromEnvironment();
-    
+
     // The method should complete without error
     // In real usage, multiple environment variables would be processed and set as system properties
   }
@@ -121,10 +125,10 @@ public class TestRCKUtilsLoggingConfig {
     // Clear any existing system properties
     System.clearProperty("log4j.rootLogger");
     System.clearProperty("log4j.configuration");
-    
+
     // Call the method (should not set any properties)
     RCKUtils.configureLoggingFromEnvironment();
-    
+
     // Verify no system properties were set
     assertThat(System.getProperty("log4j.rootLogger")).isNull();
     assertThat(System.getProperty("log4j.configuration")).isNull();

@@ -109,7 +109,7 @@ public class RESTCatalogServer {
   public void start(boolean join) throws Exception {
     // Configure logging from environment variables before initializing catalog
     RCKUtils.configureLoggingFromEnvironment();
-    
+
     CatalogContext catalogContext = initializeBackendCatalog();
 
     RESTCatalogAdapter adapter = new RESTServerCatalogAdapter(catalogContext);
