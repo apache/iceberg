@@ -99,12 +99,8 @@ public abstract class S3V4RestSignerClient
 
   @Value.Lazy
   public String endpoint() {
-    return properties().getOrDefault(S3_SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
-  }
-
-  @Value.Lazy
-  public String endpointUri() {
-    return RESTUtil.resolveEndpoint(baseSignerUri(), endpoint());
+    return RESTUtil.resolveEndpoint(
+        baseSignerUri(), properties().getOrDefault(S3_SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT));
   }
 
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
@@ -264,7 +260,7 @@ public abstract class S3V4RestSignerClient
           httpClient()
               .withAuthSession(authSession())
               .post(
-                  endpointUri(),
+                  endpoint(),
                   remoteSigningRequest,
                   S3SignResponse.class,
                   Map.of(),
