@@ -55,7 +55,8 @@ hadoop3 = "3.4.2"
 httpcomponents-httpclient5 = "5.5.1"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.11.4"
-jackson-bom = "2.19.2"
+jackson-annotations = "2.20"
+jackson-bom = "2.20.0"
 jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
 jackson212 = { strictly = "2.12.3"}
 jackson213 = { strictly = "2.13.4"}
@@ -146,7 +147,7 @@ immutables-value = { module = "org.immutables:value", version.ref = "immutables-
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
 jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson-bom" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson-bom" }
-jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-bom" }
+jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-annotations" }
 jackson211-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson211" }
 jackson212-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson212" }
 jackson213-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref =  "jackson213" }
