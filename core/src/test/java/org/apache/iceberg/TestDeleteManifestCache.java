@@ -58,9 +58,13 @@ public class TestDeleteManifestCache
     table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
     Snapshot snap2 = table.currentSnapshot();
 
-    // Clear cache stats
+    // Clear cache entries
     DeleteManifestCache cache = DeleteManifestCache.instance();
     cache.invalidateAll();
+
+    // Record initial stats (cache stats are cumulative across all tests)
+    long initialHitCount = cache.stats().hitCount();
+    long initialRequestCount = cache.stats().requestCount();
 
     // First scan - cache miss, manifests will be parsed
     IncrementalChangelogScan scan1 =
@@ -68,9 +72,16 @@ public class TestDeleteManifestCache
     List<ChangelogScanTask> tasks1 = plan(scan1);
 
     assertThat(tasks1).as("Must have 1 task").hasSize(1);
-    assertThat(cache.stats().hitCount()).as("First scan should have no cache hits").isEqualTo(0);
-    long firstRequestCount = cache.stats().requestCount();
-    assertThat(firstRequestCount).as("First scan should have cache requests").isGreaterThan(0);
+
+    long firstScanHits = cache.stats().hitCount() - initialHitCount;
+    long firstScanRequests = cache.stats().requestCount() - initialRequestCount;
+
+    assertThat(firstScanHits).as("First scan should have no cache hits").isEqualTo(0);
+    assertThat(firstScanRequests).as("First scan should have cache requests").isGreaterThan(0);
+
+    // Record stats before second scan
+    long beforeSecondScanHits = cache.stats().hitCount();
+    long beforeSecondScanRequests = cache.stats().requestCount();
 
     // Second scan - cache hit, manifests should be reused
     IncrementalChangelogScan scan2 =
@@ -78,9 +89,17 @@ public class TestDeleteManifestCache
     List<ChangelogScanTask> tasks2 = plan(scan2);
 
     assertThat(tasks2).as("Must have 1 task").hasSize(1);
-    assertThat(cache.stats().hitCount()).as("Second scan should have cache hits").isGreaterThan(0);
-    assertThat(cache.stats().hitRate())
-        .as("Cache hit rate should be reasonable")
+
+    long secondScanHits = cache.stats().hitCount() - beforeSecondScanHits;
+    long secondScanRequests = cache.stats().requestCount() - beforeSecondScanRequests;
+
+    assertThat(secondScanHits).as("Second scan should have cache hits").isGreaterThan(0);
+    assertThat(secondScanRequests).as("Second scan should have cache requests").isGreaterThan(0);
+
+    // Verify hit rate for the second scan
+    double secondScanHitRate = (double) secondScanHits / secondScanRequests;
+    assertThat(secondScanHitRate)
+        .as("Cache hit rate for second scan should be reasonable")
         .isGreaterThanOrEqualTo(0.4); // At least 40% hit rate demonstrates caching benefit
   }
 
@@ -113,6 +132,9 @@ public class TestDeleteManifestCache
     DeleteManifestCache cache = DeleteManifestCache.instance();
     cache.invalidateAll();
 
+    // Record initial stats
+    long initialMissCount = cache.stats().missCount();
+
     // Scan entire range
     IncrementalChangelogScan scan =
         newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap4.snapshotId());
@@ -120,22 +142,24 @@ public class TestDeleteManifestCache
 
     assertThat(tasks).as("Must have 3 tasks").hasSize(3);
 
-    // Verify cache was populated
-    long missCount = cache.stats().missCount();
-    assertThat(missCount).as("Cache should have misses for unique manifests").isGreaterThan(0);
+    // Verify cache was populated (check delta in miss count)
+    long firstScanMisses = cache.stats().missCount() - initialMissCount;
+    assertThat(firstScanMisses)
+        .as("First scan should have misses for unique manifests")
+        .isGreaterThan(0);
+
+    // Record stats before second scan
+    long beforeSecondScanHits = cache.stats().hitCount();
 
     // Scan again - should hit cache
-    cache.stats(); // Record stats before second scan
-    long initialHits = cache.stats().hitCount();
-
     IncrementalChangelogScan scan2 =
         newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap4.snapshotId());
     List<ChangelogScanTask> tasks2 = plan(scan2);
 
     assertThat(tasks2).as("Must have 3 tasks").hasSize(3);
-    assertThat(cache.stats().hitCount())
-        .as("Second scan should have more cache hits")
-        .isGreaterThan(initialHits);
+
+    long secondScanHits = cache.stats().hitCount() - beforeSecondScanHits;
+    assertThat(secondScanHits).as("Second scan should have cache hits").isGreaterThan(0);
   }
 
   @TestTemplate
