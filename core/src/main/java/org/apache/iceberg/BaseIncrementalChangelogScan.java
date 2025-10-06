@@ -331,9 +331,7 @@ class BaseIncrementalChangelogScan
     return fileStatusBySnapshot;
   }
 
-  /**
-   * Builds a cumulative delete index from the accumulated list of delete files.
-   */
+  /** Builds a cumulative delete index from the accumulated list of delete files. */
   private DeleteFileIndex buildCumulativeDeleteIndex(List<DeleteFile> accumulatedDeletes) {
     if (accumulatedDeletes.isEmpty()) {
       return DeleteFileIndex.builderFor(ImmutableList.of()).build();
@@ -408,8 +406,7 @@ class BaseIncrementalChangelogScan
         String schemaString = SchemaParser.toJson(schema());
         String specString = PartitionSpecParser.toJson(table().specs().get(dataFile.specId()));
         PartitionSpec spec = table().specs().get(dataFile.specId());
-        Expression residualFilter =
-            shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
+        Expression residualFilter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
         ResidualEvaluator residuals = ResidualEvaluator.of(spec, residualFilter, isCaseSensitive());
 
         tasks.add(
