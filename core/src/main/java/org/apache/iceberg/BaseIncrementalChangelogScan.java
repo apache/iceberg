@@ -238,11 +238,66 @@ class BaseIncrementalChangelogScan
     Map<Long, Integer> snapshotOrdinals = computeSnapshotOrdinals(changelogSnapshots);
     List<ChangelogScanTask> tasks = Lists.newArrayList();
 
-    // Track data files that have been processed for each snapshot to avoid duplicates
-    // Use a map of snapshot ID -> (file path, entry status) to track per-snapshot state
+    // Build a map of file statuses for each snapshot
+    Map<Long, Map<String, ManifestEntry.Status>> fileStatusBySnapshot =
+        buildFileStatusBySnapshot(changelogSnapshots, changelogSnapshotIds);
+
+    // Process snapshots in order, tracking which files have been handled
+    Set<String> alreadyProcessedPaths = Sets.newHashSet();
+
+    // Accumulate actual DeleteFile entries chronologically
+    List<DeleteFile> accumulatedDeletes = Lists.newArrayList();
+
+    // Start with deletes from before the changelog range
+    // Apply partition pruning to only accumulate relevant delete files
+    if (!existingDeleteIndex.isEmpty()) {
+      for (DeleteFile df : existingDeleteIndex.referencedDeleteFiles()) {
+        if (partitionMatchesFilter(df)) {
+          accumulatedDeletes.add(df);
+        }
+      }
+    }
+
+    for (Snapshot snapshot : changelogSnapshots) {
+      DeleteFileIndex addedDeleteIndex = addedDeletesBySnapshot.get(snapshot.snapshotId());
+      if (addedDeleteIndex.isEmpty()) {
+        continue;
+      }
+
+      // Build cumulative delete index for this snapshot from accumulated deletes
+      DeleteFileIndex cumulativeDeleteIndex = buildCumulativeDeleteIndex(accumulatedDeletes);
+
+      // Process data files for this snapshot
+      processSnapshotForDeletedRowsTasks(
+          snapshot,
+          addedDeleteIndex,
+          cumulativeDeleteIndex,
+          fileStatusBySnapshot.get(snapshot.snapshotId()),
+          alreadyProcessedPaths,
+          snapshotOrdinals,
+          tasks);
+
+      // Accumulate this snapshot's added deletes for subsequent snapshots
+      // Apply partition pruning to only accumulate relevant delete files
+      for (DeleteFile df : addedDeleteIndex.referencedDeleteFiles()) {
+        if (partitionMatchesFilter(df)) {
+          accumulatedDeletes.add(df);
+        }
+      }
+    }
+
+    return CloseableIterable.withNoopClose(tasks);
+  }
+
+  /**
+   * Builds a map of file statuses for each snapshot, tracking which files were added or deleted in
+   * each snapshot.
+   */
+  private Map<Long, Map<String, ManifestEntry.Status>> buildFileStatusBySnapshot(
+      Deque<Snapshot> changelogSnapshots, Set<Long> changelogSnapshotIds) {
+
     Map<Long, Map<String, ManifestEntry.Status>> fileStatusBySnapshot = Maps.newHashMap();
 
-    // Build a map of file statuses for each snapshot
     for (Snapshot snapshot : changelogSnapshots) {
       Map<String, ManifestEntry.Status> fileStatuses = Maps.newHashMap();
 
@@ -273,126 +328,107 @@ class BaseIncrementalChangelogScan
       fileStatusBySnapshot.put(snapshot.snapshotId(), fileStatuses);
     }
 
-    // Process snapshots in order, tracking which files have been handled
-    Set<String> alreadyProcessedPaths = Sets.newHashSet();
+    return fileStatusBySnapshot;
+  }
 
-    // Accumulate actual DeleteFile entries chronologically
-    List<DeleteFile> accumulatedDeletes = Lists.newArrayList();
-
-    // Start with deletes from before the changelog range
-    // Apply partition pruning to only accumulate relevant delete files
-    if (!existingDeleteIndex.isEmpty()) {
-      for (DeleteFile df : existingDeleteIndex.referencedDeleteFiles()) {
-        if (partitionMatchesFilter(df)) {
-          accumulatedDeletes.add(df);
-        }
-      }
+  /**
+   * Builds a cumulative delete index from the accumulated list of delete files.
+   */
+  private DeleteFileIndex buildCumulativeDeleteIndex(List<DeleteFile> accumulatedDeletes) {
+    if (accumulatedDeletes.isEmpty()) {
+      return DeleteFileIndex.builderFor(ImmutableList.of()).build();
     }
 
-    for (Snapshot snapshot : changelogSnapshots) {
-      DeleteFileIndex addedDeleteIndex = addedDeletesBySnapshot.get(snapshot.snapshotId());
-      if (addedDeleteIndex.isEmpty()) {
-        continue;
-      }
+    return DeleteFileIndex.builderFor(accumulatedDeletes)
+        .specsById(table().specs())
+        .caseSensitive(isCaseSensitive())
+        .build();
+  }
 
-      // Build cumulative delete index for this snapshot from accumulated deletes
-      DeleteFileIndex cumulativeDeleteIndex;
-      if (accumulatedDeletes.isEmpty()) {
-        cumulativeDeleteIndex = DeleteFileIndex.builderFor(ImmutableList.of()).build();
-      } else {
-        cumulativeDeleteIndex =
-            DeleteFileIndex.builderFor(accumulatedDeletes)
-                .specsById(table().specs())
-                .caseSensitive(isCaseSensitive())
-                .build();
-      }
+  /**
+   * Processes data files for a snapshot to create DeletedRowsScanTask for existing files affected
+   * by new delete files.
+   */
+  private void processSnapshotForDeletedRowsTasks(
+      Snapshot snapshot,
+      DeleteFileIndex addedDeleteIndex,
+      DeleteFileIndex cumulativeDeleteIndex,
+      Map<String, ManifestEntry.Status> currentSnapshotFiles,
+      Set<String> alreadyProcessedPaths,
+      Map<Long, Integer> snapshotOrdinals,
+      List<ChangelogScanTask> tasks) {
 
-      // Get the file statuses for this snapshot
-      Map<String, ManifestEntry.Status> currentSnapshotFiles =
-          fileStatusBySnapshot.get(snapshot.snapshotId());
+    // Get all data files that exist in this snapshot
+    List<ManifestFile> allDataManifests = snapshot.dataManifests(table().io());
+    ManifestGroup allDataGroup =
+        new ManifestGroup(table().io(), allDataManifests, ImmutableList.of())
+            .specsById(table().specs())
+            .caseSensitive(isCaseSensitive())
+            .select(scanColumns())
+            .filterData(filter())
+            .ignoreDeleted()
+            .columnsToKeepStats(columnsToKeepStats());
 
-      // Get all data files that exist in this snapshot
-      List<ManifestFile> allDataManifests = snapshot.dataManifests(table().io());
-      ManifestGroup allDataGroup =
-          new ManifestGroup(table().io(), allDataManifests, ImmutableList.of())
-              .specsById(table().specs())
-              .caseSensitive(isCaseSensitive())
-              .select(scanColumns())
-              .filterData(filter())
-              .ignoreDeleted()
-              .columnsToKeepStats(columnsToKeepStats());
-
-      if (shouldIgnoreResiduals()) {
-        allDataGroup = allDataGroup.ignoreResiduals();
-      }
-
-      try (CloseableIterable<ManifestEntry<DataFile>> entries = allDataGroup.entries()) {
-        for (ManifestEntry<DataFile> entry : entries) {
-          DataFile dataFile = entry.file();
-          String filePath = dataFile.location();
-
-          // Skip if this file was ADDED or DELETED in this snapshot
-          // (those are handled by CreateDataFileChangeTasks)
-          if (currentSnapshotFiles.containsKey(filePath)) {
-            continue;
-          }
-
-          // Skip if we already created a task for this file in this snapshot
-          String key = snapshot.snapshotId() + ":" + filePath;
-          if (alreadyProcessedPaths.contains(key)) {
-            continue;
-          }
-
-          // Check if this data file is affected by newly added delete files
-          DeleteFile[] addedDeletes = addedDeleteIndex.forEntry(entry);
-          if (addedDeletes.length == 0) {
-            continue;
-          }
-
-          // This data file was EXISTING but has new delete files applied
-          // Get existing deletes from before this snapshot (cumulative)
-          DeleteFile[] existingDeletes =
-              cumulativeDeleteIndex.isEmpty()
-                  ? new DeleteFile[0]
-                  : cumulativeDeleteIndex.forEntry(entry);
-
-          // Create a DeletedRowsScanTask
-          int changeOrdinal = snapshotOrdinals.get(snapshot.snapshotId());
-          String schemaString = SchemaParser.toJson(schema());
-          String specString = PartitionSpecParser.toJson(table().specs().get(dataFile.specId()));
-          PartitionSpec spec = table().specs().get(dataFile.specId());
-          Expression residualFilter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
-          ResidualEvaluator residuals =
-              ResidualEvaluator.of(spec, residualFilter, isCaseSensitive());
-
-          tasks.add(
-              new BaseDeletedRowsScanTask(
-                  changeOrdinal,
-                  snapshot.snapshotId(),
-                  dataFile.copy(shouldKeepStats()),
-                  addedDeletes,
-                  existingDeletes,
-                  schemaString,
-                  specString,
-                  residuals));
-
-          // Mark this file+snapshot as processed
-          alreadyProcessedPaths.add(key);
-        }
-      } catch (Exception e) {
-        throw new RuntimeException("Failed to plan deleted rows tasks", e);
-      }
-
-      // Accumulate this snapshot's added deletes for subsequent snapshots
-      // Apply partition pruning to only accumulate relevant delete files
-      for (DeleteFile df : addedDeleteIndex.referencedDeleteFiles()) {
-        if (partitionMatchesFilter(df)) {
-          accumulatedDeletes.add(df);
-        }
-      }
+    if (shouldIgnoreResiduals()) {
+      allDataGroup = allDataGroup.ignoreResiduals();
     }
 
-    return CloseableIterable.withNoopClose(tasks);
+    try (CloseableIterable<ManifestEntry<DataFile>> entries = allDataGroup.entries()) {
+      for (ManifestEntry<DataFile> entry : entries) {
+        DataFile dataFile = entry.file();
+        String filePath = dataFile.location();
+
+        // Skip if this file was ADDED or DELETED in this snapshot
+        // (those are handled by CreateDataFileChangeTasks)
+        if (currentSnapshotFiles.containsKey(filePath)) {
+          continue;
+        }
+
+        // Skip if we already created a task for this file in this snapshot
+        String key = snapshot.snapshotId() + ":" + filePath;
+        if (alreadyProcessedPaths.contains(key)) {
+          continue;
+        }
+
+        // Check if this data file is affected by newly added delete files
+        DeleteFile[] addedDeletes = addedDeleteIndex.forEntry(entry);
+        if (addedDeletes.length == 0) {
+          continue;
+        }
+
+        // This data file was EXISTING but has new delete files applied
+        // Get existing deletes from before this snapshot (cumulative)
+        DeleteFile[] existingDeletes =
+            cumulativeDeleteIndex.isEmpty()
+                ? new DeleteFile[0]
+                : cumulativeDeleteIndex.forEntry(entry);
+
+        // Create a DeletedRowsScanTask
+        int changeOrdinal = snapshotOrdinals.get(snapshot.snapshotId());
+        String schemaString = SchemaParser.toJson(schema());
+        String specString = PartitionSpecParser.toJson(table().specs().get(dataFile.specId()));
+        PartitionSpec spec = table().specs().get(dataFile.specId());
+        Expression residualFilter =
+            shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
+        ResidualEvaluator residuals = ResidualEvaluator.of(spec, residualFilter, isCaseSensitive());
+
+        tasks.add(
+            new BaseDeletedRowsScanTask(
+                changeOrdinal,
+                snapshot.snapshotId(),
+                dataFile.copy(shouldKeepStats()),
+                addedDeletes,
+                existingDeletes,
+                schemaString,
+                specString,
+                residuals));
+
+        // Mark this file+snapshot as processed
+        alreadyProcessedPaths.add(key);
+      }
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to plan deleted rows tasks", e);
+    }
   }
 
   private boolean shouldKeepStats() {
