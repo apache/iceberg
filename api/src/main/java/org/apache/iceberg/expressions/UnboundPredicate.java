@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -112,7 +113,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     BoundTerm<T> bound = term().bind(struct, caseSensitive);
 
     if (literals == null) {
-      return bindUnaryOperation(bound);
+      return bindUnaryOperation(struct, bound);
     }
 
     if (op() == Operation.IN || op() == Operation.NOT_IN) {
@@ -122,17 +123,21 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     return bindLiteralOperation(bound);
   }
 
-  private Expression bindUnaryOperation(BoundTerm<T> boundTerm) {
+  private Expression bindUnaryOperation(StructType struct, BoundTerm<T> boundTerm) {
+    boolean allFieldsAreRequired =
+        TypeUtil.findParents(struct.asSchema(), boundTerm.ref().fieldId()).stream()
+            .allMatch(Types.NestedField::isRequired);
+
     switch (op()) {
       case IS_NULL:
-        if (!boundTerm.producesNull()) {
+        if (!boundTerm.producesNull() && allFieldsAreRequired) {
           return Expressions.alwaysFalse();
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysTrue();
         }
         return new BoundUnaryPredicate<>(Operation.IS_NULL, boundTerm);
       case NOT_NULL:
-        if (!boundTerm.producesNull()) {
+        if (!boundTerm.producesNull() && allFieldsAreRequired) {
           return Expressions.alwaysTrue();
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysFalse();
