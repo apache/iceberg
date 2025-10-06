@@ -455,18 +455,6 @@ public class RewriteTablePathUtil {
                 .withPath(targetDeleteFilePath)
                 .withMetrics(metricsWithTargetPath);
 
-        // Preserve DV-specific fields for deletion vectors
-        if (file.referencedDataFile() != null) {
-          builder.withReferencedDataFile(
-              newPath(file.referencedDataFile(), sourcePrefix, targetPrefix));
-        }
-        if (file.contentOffset() != null) {
-          builder.withContentOffset(file.contentOffset());
-        }
-        if (file.contentSizeInBytes() != null) {
-          builder.withContentSizeInBytes(file.contentSizeInBytes());
-        }
-
         DeleteFile movedFile = builder.build();
         appendEntryWithFile(entry, writer, movedFile);
         // keep the following entries in metadata but exclude them from copyPlan
