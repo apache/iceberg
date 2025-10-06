@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * Cache for parsed delete file entries from manifests to avoid redundant manifest parsing across
  * changelog scans.
  *
- * This cache is thread-safe and uses LRU eviction with size and time-based expiration.
+ * <p>This cache is thread-safe and uses LRU eviction with size and time-based expiration.
  */
 class DeleteManifestCache {
   private static final int DEFAULT_MAX_ENTRIES = 1000;

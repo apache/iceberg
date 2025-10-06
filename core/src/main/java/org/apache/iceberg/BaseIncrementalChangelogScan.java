@@ -455,8 +455,9 @@ class BaseIncrementalChangelogScan
     try {
       // Project the row filter to partition space using inclusive projection
       // This transforms expressions on source columns to expressions on partition columns
-      Expression partitionFilter = Projections.inclusive(spec, isCaseSensitive()).project(currentFilter);
-      
+      Expression partitionFilter =
+          Projections.inclusive(spec, isCaseSensitive()).project(currentFilter);
+
       // Evaluate the projected filter against the delete file's partition
       Evaluator evaluator = new Evaluator(spec.partitionType(), partitionFilter, isCaseSensitive());
       return evaluator.eval(file.partition());
@@ -481,12 +482,12 @@ class BaseIncrementalChangelogScan
         if (entry.status() != ManifestEntry.Status.DELETED) {
           // Only include live delete files, copy with minimal stats to save memory
           DeleteFile file = entry.file();
-          
+
           // Apply partition pruning - skip delete files that cannot match the scan filter
           if (!partitionMatchesFilter(file)) {
             continue;
           }
-          
+
           Set<Integer> columns =
               file.content() == FileContent.POSITION_DELETES
                   ? Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId())
