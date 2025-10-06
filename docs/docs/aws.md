@@ -805,7 +805,6 @@ More details could be found [here](https://docs.aws.amazon.com/glue/latest/dg/aw
 ### AWS EKS
 
 [AWS Elastic Kubernetes Service (EKS)](https://aws.amazon.com/eks/) can be used to start any Spark, Flink, Hive, Presto or Trino clusters to work with Iceberg.
-Search the [Iceberg blogs](../../blogs.md) page for tutorials around running Iceberg with Docker and Kubernetes.
 
 ### Amazon Kinesis
 

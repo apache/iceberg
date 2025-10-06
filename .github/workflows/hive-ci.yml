@@ -69,7 +69,7 @@ concurrency:
 
 jobs:
   hive2-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         jvm: [11, 17, 21]

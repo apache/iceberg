@@ -68,7 +68,7 @@ concurrency:
 
 jobs:
   delta-conversion-scala-2-12-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         jvm: [11, 17, 21]
@@ -97,7 +97,7 @@ jobs:
             **/build/testlogs
 
   delta-conversion-scala-2-13-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         jvm: [11, 17, 21]

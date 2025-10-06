@@ -25,6 +25,7 @@ import java.io.File;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Map;
+import javax.annotation.Nonnull;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileFormat;
@@ -40,7 +41,6 @@ import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
 class TestDynamicWriter extends TestFlinkIcebergSinkBase {
@@ -201,7 +201,7 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
             "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
   }
 
-  private static @NotNull DynamicWriter createDynamicWriter(
+  private static @Nonnull DynamicWriter createDynamicWriter(
       Catalog catalog, Map<String, String> properties) {
     DynamicWriter dynamicWriter =
         new DynamicWriter(
@@ -216,11 +216,11 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     return dynamicWriter;
   }
 
-  private static @NotNull DynamicWriter createDynamicWriter(Catalog catalog) {
+  private static @Nonnull DynamicWriter createDynamicWriter(Catalog catalog) {
     return createDynamicWriter(catalog, Map.of());
   }
 
-  private static @NotNull DynamicRecordInternal getDynamicRecordInternal(Table table1) {
+  private static @Nonnull DynamicRecordInternal getDynamicRecordInternal(Table table1) {
     DynamicRecordInternal record = new DynamicRecordInternal();
     record.setTableName(TableIdentifier.parse(table1.name()).name());
     record.setSchema(table1.schema());

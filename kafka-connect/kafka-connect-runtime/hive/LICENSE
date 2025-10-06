@@ -1644,12 +1644,6 @@ License (from POM): Eclipse Public License - Version 1.0 - https://www.eclipse.o
 
 --------------------------------------------------------------------------------
 
-Group: org.jetbrains  Name: annotations  Version: 17.0.0
-Project URL (from POM): https://github.com/JetBrains/java-annotations
-License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
-
---------------------------------------------------------------------------------
-
 Group: org.jline  Name: jline  Version: 3.9.0
 License (from POM): The BSD License - http://www.opensource.org/licenses/bsd-license.php
 

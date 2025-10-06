@@ -827,6 +827,11 @@ public class Parquet {
       return this;
     }
 
+    public DataWriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
+      appenderBuilder.variantShreddingFunc(func);
+      return this;
+    }
+
     public DataWriteBuilder withSpec(PartitionSpec newSpec) {
       this.spec = newSpec;
       return this;
@@ -1151,8 +1156,7 @@ public class Parquet {
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
-    private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
-    private BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema = null;
+    private ReaderFunction readerFunction = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
     private boolean callInit = false;
@@ -1161,6 +1165,61 @@ public class Parquet {
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
+    private Class<? extends StructLike> rootType = null;
+    private Map<Integer, Class<? extends StructLike>> customTypes = Maps.newHashMap();
+
+    public interface ReaderFunction {
+      Function<MessageType, ParquetValueReader<?>> apply();
+
+      default ReaderFunction withRootType(Class<? extends StructLike> rootType) {
+        return this;
+      }
+
+      default ReaderFunction withCustomTypes(
+          Map<Integer, Class<? extends StructLike>> customTypes) {
+        return this;
+      }
+
+      default ReaderFunction withSchema(Schema schema) {
+        return this;
+      }
+    }
+
+    private static class UnaryReaderFunction implements ReaderFunction {
+      private final Function<MessageType, ParquetValueReader<?>> readerFunc;
+
+      UnaryReaderFunction(Function<MessageType, ParquetValueReader<?>> readerFunc) {
+        this.readerFunc = readerFunc;
+      }
+
+      @Override
+      public Function<MessageType, ParquetValueReader<?>> apply() {
+        return readerFunc;
+      }
+    }
+
+    private static class BinaryReaderFunction implements ReaderFunction {
+      private final BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema;
+      private Schema schema;
+
+      BinaryReaderFunction(
+          BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema) {
+        this.readerFuncWithSchema = readerFuncWithSchema;
+      }
+
+      @Override
+      public Function<MessageType, ParquetValueReader<?>> apply() {
+        Preconditions.checkArgument(
+            schema != null, "Schema must be set for 2-argument reader function");
+        return messageType -> readerFuncWithSchema.apply(schema, messageType);
+      }
+
+      @Override
+      public ReaderFunction withSchema(Schema expectedSchema) {
+        this.schema = expectedSchema;
+        return this;
+      }
+    }
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1220,32 +1279,40 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set reader function: batched reader function already set");
       Preconditions.checkArgument(
-          this.readerFuncWithSchema == null,
-          "Cannot set reader function: 2-argument reader function already set");
-      this.readerFunc = newReaderFunction;
+          this.readerFunction == null, "Cannot set reader function: reader function already set");
+      this.readerFunction = new UnaryReaderFunction(newReaderFunction);
       return this;
     }
 
     public ReadBuilder createReaderFunc(
         BiFunction<Schema, MessageType, ParquetValueReader<?>> newReaderFunction) {
       Preconditions.checkArgument(
-          this.readerFunc == null,
-          "Cannot set 2-argument reader function: reader function already set");
-      Preconditions.checkArgument(
           this.batchedReaderFunc == null,
-          "Cannot set 2-argument reader function: batched reader function already set");
-      this.readerFuncWithSchema = newReaderFunction;
+          "Cannot set reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.readerFunction == null, "Cannot set reader function: reader function already set");
+      this.readerFunction = new BinaryReaderFunction(newReaderFunction);
       return this;
     }
 
     public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
       Preconditions.checkArgument(
-          this.readerFunc == null,
-          "Cannot set batched reader function: reader function already set");
+          this.batchedReaderFunc == null,
+          "Cannot set batched reader function: batched reader function already set");
       Preconditions.checkArgument(
-          this.readerFuncWithSchema == null,
-          "Cannot set batched reader function: 2-argument reader function already set");
+          this.readerFunction == null,
+          "Cannot set batched reader function: ReaderFunction already set");
       this.batchedReaderFunc = func;
+      return this;
+    }
+
+    public ReadBuilder createReaderFunc(ReaderFunction reader) {
+      Preconditions.checkArgument(
+          this.batchedReaderFunc == null,
+          "Cannot set reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.readerFunction == null, "Cannot set reader function: reader function already set");
+      this.readerFunction = reader;
       return this;
     }
 
@@ -1281,12 +1348,14 @@ public class Parquet {
 
     @Override
     public ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
-      throw new UnsupportedOperationException("Custom types are not yet supported");
+      rootType = rootClass;
+      return this;
     }
 
     @Override
     public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
-      throw new UnsupportedOperationException("Custom types are not yet supported");
+      customTypes.put(fieldId, structClass);
+      return this;
     }
 
     public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
@@ -1315,7 +1384,7 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (readerFunc != null || readerFuncWithSchema != null || batchedReaderFunc != null) {
+      if (batchedReaderFunc != null || readerFunction != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -1340,6 +1409,7 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
+        optionsBuilder.withUseHadoopVectoredIo(true);
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;
@@ -1364,9 +1434,12 @@ public class Parquet {
               maxRecordsPerBatch);
         } else {
           Function<MessageType, ParquetValueReader<?>> readBuilder =
-              readerFuncWithSchema != null
-                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
-                  : readerFunc;
+              readerFunction
+                  .withSchema(schema)
+                  .withRootType(rootType)
+                  .withCustomTypes(customTypes)
+                  .apply();
+
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
         }

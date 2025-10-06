@@ -43,12 +43,15 @@ import org.apache.spark.sql.types.StructType;
  */
 class RewriteManifestsProcedure extends BaseProcedure {
 
+  private static final ProcedureParameter TABLE_PARAM =
+      requiredInParameter("table", DataTypes.StringType);
+  private static final ProcedureParameter USE_CACHING_PARAM =
+      optionalInParameter("use_caching", DataTypes.BooleanType);
+  private static final ProcedureParameter SPEC_ID_PARAM =
+      optionalInParameter("spec_id", DataTypes.IntegerType);
+
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("use_caching", DataTypes.BooleanType),
-        ProcedureParameter.optional("spec_id", DataTypes.IntegerType)
-      };
+      new ProcedureParameter[] {TABLE_PARAM, USE_CACHING_PARAM, SPEC_ID_PARAM};
 
   // counts are not nullable since the action result is never null
   private static final StructType OUTPUT_TYPE =
@@ -84,9 +87,10 @@ class RewriteManifestsProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
-    Integer specId = args.isNullAt(2) ? null : args.getInt(2);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+    Identifier tableIdent = input.ident(TABLE_PARAM);
+    Boolean useCaching = input.asBoolean(USE_CACHING_PARAM, null);
+    Integer specId = input.asInt(SPEC_ID_PARAM, null);
 
     return modifyIcebergTable(
         tableIdent,

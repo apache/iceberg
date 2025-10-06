@@ -320,7 +320,6 @@ public class IcebergSink
 
   public static class Builder implements IcebergSinkBuilder<Builder> {
     private TableLoader tableLoader;
-    private String uidSuffix = "";
     private Function<String, DataStream<RowData>> inputCreator = null;
     @Deprecated private TableSchema tableSchema;
     private ResolvedSchema resolvedSchema;
@@ -596,7 +595,7 @@ public class IcebergSink
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder uidSuffix(String newSuffix) {
-      this.uidSuffix = newSuffix;
+      writeOptions.put(FlinkWriteOptions.UID_SUFFIX.key(), newSuffix);
       return this;
     }
 
@@ -665,11 +664,12 @@ public class IcebergSink
 
       FlinkMaintenanceConfig flinkMaintenanceConfig =
           new FlinkMaintenanceConfig(table, writeOptions, readableConfig);
+
       return new IcebergSink(
           tableLoader,
           table,
           snapshotSummary,
-          uidSuffix,
+          flinkWriteConf.uidSuffix(),
           SinkUtil.writeProperties(flinkWriteConf.dataFileFormat(), flinkWriteConf, table),
           resolvedSchema != null
               ? toFlinkRowType(table.schema(), resolvedSchema)
@@ -690,7 +690,7 @@ public class IcebergSink
     @Override
     public DataStreamSink<RowData> append() {
       IcebergSink sink = build();
-      String suffix = defaultSuffix(uidSuffix, table.name());
+      String suffix = defaultSuffix(sink.uidSuffix, table.name());
       DataStream<RowData> rowDataInput = inputCreator.apply(suffix);
       // Please note that V2 sink framework will apply the uid here to the framework created
       // operators like writer,
