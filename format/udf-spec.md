@@ -25,8 +25,8 @@ title: "SQL UDF Spec"
 A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters, executes a function body.
 Depending on the function type, the result can be:
 
-- **UDFs** – return a single value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
-- **Table functions (UDTFs)** – return a table, i.e., a table with zero or more rows and columns.
+- **UDFs** – return a scalar value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
+- **Table functions (UDTFs)** – return a table, i.e., a table with zero or more rows and columns with a uniform schema.
 
 Many compute engines (e.g., Spark, Trino) already support UDFs, but in different and incompatible ways. Without a common
 standard, UDFs cannot be reliably shared across engines or reused in multi-engine environments.
@@ -45,7 +45,7 @@ UDF metadata follows the same design principles as Iceberg table and view metada
 **self-contained metadata file**. Metadata captures definitions, parameters, return types, documentation, security,
 properties, and engine-specific representations.
 
-* Any modification (new overload, updated representation, changed properties, etc.) creates a new metadata file. The old file is replaced atomically.
+* Any modification (new overload, updated representation, changed properties, etc.) creates a new metadata file, and atomically swaps in the new file as the current metadata.
 * Each metadata file includes recent definition versions, enabling rollbacks without external state.
 
 ## Specification
