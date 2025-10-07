@@ -178,8 +178,8 @@ This section tracks V3-specific feature support in Java implementation across Co
 | **New Data Types** | | | | | | | |
 | `unknown` type | Y | N | N | Y | Y | Y | Y |
 | `timestamp_ns` / `timestamptz_ns` | Y | N | N | N | Partial | Partial | Partial |
-| `variant` type (read) | Y | Partial | Partial | Partial | N | N | N |
-| `variant` type (write) | Y | N | N | N | N | N | N |
+| `variant` type (read) | Y | Y | Y | Y | N | N | N |
+| `variant` type (write) | Y | Partial | Partial | Partial | N | N | N |
 | `geometry` type | N | N | N | N | N | N | N |
 | `geography` type | N | N | N | N | N | N | N |
 | **Deletion Vectors** | | | | | | | |
@@ -199,7 +199,7 @@ This section tracks V3-specific feature support in Java implementation across Co
 | V3 promotions (`unknown→any`, `date→timestamp/timestamp_ns`) | Y | N | N | N | Y | Y | Y |
 
 **Notes:**
-- **Variant type**: Spark supports reading both shredded and unshredded variants but does not support writing shredded variants. Core supports Avro and Parquet formats but not ORC.
+- **Variant type**: Spark supports reading both shredded and unshredded variants but only supports writing unshredded variants (shredded write not implemented). Core supports Avro and Parquet formats but not ORC.
 - **Default values**: Spark has full read/write support but lacks DDL integration (CREATE TABLE, ALTER TABLE with default values).
 - **Geometry/Geography types**: Type definitions exist in the API but no engine has data processing implementation yet.
 - **Type Promotions**: V1/V2 promotions (int→long, float→double, decimal precision widening) are supported by all engines. V3 adds unknown→any and date→timestamp promotions; Spark v3.4/v3.5 don't support these due to lack of unknown type support.
