@@ -35,6 +35,8 @@ public final class RESTCatalogProperties {
 
   public static final String PAGE_SIZE = "rest-page-size";
 
+  public static final String NAMESPACE_SEPARATOR = "namespace-separator";
+
   public enum SnapshotMode {
     ALL,
     REFS
