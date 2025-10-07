@@ -21,15 +21,18 @@ package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.PartitionSpec
 import org.apache.iceberg.Schema
+import org.apache.iceberg.SortDirection
 import org.apache.iceberg.SortOrder
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkSchemaUtil
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.connector.catalog.Column
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.types.StructField
 import scala.jdk.CollectionConverters._
 
 case class CreateV2TableLikeExec(
@@ -51,9 +54,8 @@ case class CreateV2TableLikeExec(
 
     val sourceTable = sourceCatalog.loadTable(sourceIdent) match {
       case iceberg: SparkTable => iceberg
-      case other =>
-        throw new UnsupportedOperationException(
-          s"CREATE TABLE LIKE is only supported for Iceberg tables, got: ${other.getClass}")
+      case table =>
+        throw new UnsupportedOperationException(s"Cannot create table like for non-Iceberg table: $table")
     }
 
     val schema: Schema = sourceTable.table().schema()
@@ -64,29 +66,33 @@ case class CreateV2TableLikeExec(
 
     val sourceProps = sourceTable.table().properties().asScala.toMap
     val mergedProps = sourceProps ++ tableProps
+    val columns = SparkSchemaUtil.convert(schema).fields.map {
+      case StructField(name, dataType, nullable, _) =>
+        Column.create(name, dataType, nullable)
+    }
 
     catalog.createTable(
       ident,
-      SparkSchemaUtil.convert(schema),
+      columns,
       partitioning,
       mergedProps.asJava
     )
 
     if (sortOrder.isSorted) {
       catalog.loadTable(ident) match {
-        case newIceberg: SparkTable =>
-          val replaceSortOrder = newIceberg.table().replaceSortOrder()
+        case sparkTable: SparkTable =>
+          val replaceSortOrder = sparkTable.table().replaceSortOrder()
           sortOrder.fields().asScala.foreach { field =>
             val fieldName = schema.findColumnName(field.sourceId())
             field.direction() match {
-              case org.apache.iceberg.SortDirection.ASC =>
-                replaceSortOrder.asc(fieldName)
-              case org.apache.iceberg.SortDirection.DESC =>
-                replaceSortOrder.desc(fieldName)
+              case SortDirection.ASC => replaceSortOrder.asc(fieldName)
+              case SortDirection.DESC => replaceSortOrder.desc(fieldName)
             }
           }
           replaceSortOrder.commit()
-        case _ =>
+        case table =>
+          throw new UnsupportedOperationException(s"Cannot create table like for non-Iceberg table: $table")
+
       }
     }
 
