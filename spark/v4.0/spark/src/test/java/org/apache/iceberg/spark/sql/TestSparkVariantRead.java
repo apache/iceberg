@@ -109,7 +109,7 @@ public class TestSparkVariantRead extends TestBase {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  public void testVariantColumnProjection_noVariant(boolean vectorized) {
+  public void testVariantColumnProjectionNoVariant(boolean vectorized) {
     assumeFalse(vectorized, "Variant vectorized Parquet read is not implemented yet");
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
@@ -150,5 +150,25 @@ public class TestSparkVariantRead extends TestBase {
     assertThat(nn.get(0).getString(1)).isEqualTo("{\"a\":1}");
     assertThat(nn.get(1).getLong(0)).isEqualTo(2L);
     assertThat(nn.get(1).getString(1)).isEqualTo("{\"b\":2}");
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testVariantNullValueProjection(boolean vectorized) {
+    assumeFalse(vectorized, "Variant vectorized Parquet read is not implemented yet");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
+        TABLE, String.valueOf(vectorized));
+
+    // insert a row with NULL variant values
+    sql("INSERT INTO %s SELECT 10, NULL, NULL", TABLE);
+
+    // select id and variant; ensure the variant value is null
+    Dataset<Row> df = spark.table(TABLE).where("id = 10").select("id", "v1");
+    java.util.List<Row> rows = df.collectAsList();
+    assertThat(rows).hasSize(1);
+    Row row = rows.get(0);
+    assertThat(row.getLong(0)).isEqualTo(10L);
+    assertThat(row.isNullAt(1)).isTrue();
   }
 }
