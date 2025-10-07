@@ -211,6 +211,12 @@ for f in filter(lambda x: x.endswith('.md'), os.listdir()): lines = open(f).read
 pull_versioned_docs () {
   echo " --> pull versioned docs"
   
+  # Check if running in dev mode (only build nightly and latest for faster iteration)
+  if [ "${ICEBERG_DEV_MODE:-false}" = "true" ]; then
+    echo " --> running in DEV MODE - only building nightly and latest"
+    echo " --> This significantly reduces build time by skipping historical versions"
+  fi
+  
   # Ensure the remote repository for documentation exists and is up-to-date
   create_or_update_docs_remote  
 
@@ -231,7 +237,12 @@ pull_versioned_docs () {
   create_latest "${latest_version}"
 
   # Create the 'nightly' version of documentation
-  create_nightly  
+  create_nightly
+  
+  if [ "${ICEBERG_DEV_MODE:-false}" = "true" ]; then
+    echo " --> DEV MODE setup complete"
+    echo " --> nav-dev.yml will be used to only build nightly and latest"
+  fi
 }
 
 # Cleans up artifacts and temporary files generated during documentation management.

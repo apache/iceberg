@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -12,27 +14,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-.PHONY: help
-help: # Show help for each of the Makefile recipes.
-	@grep -E '^[a-zA-Z0-9 -]+:.*#'  Makefile | sort | while read -r l; do printf "\033[1;32m$$(echo $$l | cut -f 1 -d':')\033[00m:$$(echo $$l | cut -f 2- -d'#')\n"; done
+# Development mode serve script - only builds nightly and latest for fast iteration
 
-.PHONY: serve
-serve: # Clean, build, and run the docs site locally.
-	dev/serve.sh
+set -e
 
-.PHONY: serve-dev
-serve-dev:
-	dev/serve-dev.sh
+export ICEBERG_DEV_MODE=true
 
-.PHONY: build
-build: # Clean and build the docs site locally.
-	dev/build.sh
+echo "=========================================="
+echo "RUNNING IN DEVELOPMENT MODE"
+echo "Only building nightly and latest versions"
+echo "=========================================="
+echo ""
 
-.PHONY: deploy
-deploy: # Clean, build, and deploy the Iceberg docs site.
-	dev/deploy.sh $(remote_name)
+./dev/setup_env.sh
 
-.PHONY: clean
-clean: # Clean the local docs site.
-	dev/clean.sh
+# Using mkdocs serve with --dirty flag for even faster rebuilds
+# The --dirty flag means only changed files are rebuilt
+mkdocs serve --dirty --watch .
+
