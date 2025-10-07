@@ -188,7 +188,19 @@ public class StructRowData implements RowData {
   public TimestampData getTimestamp(int pos, int precision) {
     Object timestampVal = struct.get(pos, Object.class);
 
-    if (timestampVal instanceof OffsetDateTime) {
+    if (timestampVal instanceof Long) {
+      // Handle Long values (stored as microseconds in Iceberg)
+      long micros = (Long) timestampVal;
+      if (precision == 9) {
+        // For nanosecond precision, convert microseconds to milliseconds and nanoseconds
+        long nanos = micros * 1000;
+        return TimestampData.fromEpochMillis(
+            Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
+      } else {
+        // For microsecond precision
+        return TimestampData.fromEpochMillis(micros / 1000, (int) (micros % 1000) * 1000);
+      }
+    } else if (timestampVal instanceof OffsetDateTime) {
       long nanos = Duration.between(Instant.EPOCH, (OffsetDateTime) timestampVal).toNanos();
       if (precision == 9) {
         // For nanosecond precision, preserve the full nanosecond value
