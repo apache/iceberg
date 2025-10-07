@@ -53,16 +53,16 @@ properties, and engine-specific representations.
 ### UDF Metadata
 The UDF metadata file has the following fields:
 
-| Requirement | Field name               | Description                                                      |
-|-------------|--------------------------|------------------------------------------------------------------|
-| *required*  | `function-uuid`          | A UUID that identifies the function, generated once at creation. |
-| *required*  | `format-version`         | Metadata format version (must be `1`).                           |
-| *required*  | `definitions`            | List of function `overload` entities.                            |
-| *required*  | `definition-log`         | List of `definition-log` entities.                               |
-| *optional*  | `location`               | The storage location of metadata files.                          | 
-| *optional*  | `properties`             | Arbitrary key-value pairs.                                       | 
-| *optional*  | `secure`                 | Whether it is a secure function. Default: `false`.               |
-| *optional*  | `doc`                    | Documentation string.                                            |
+| Requirement | Field name       | Type                    | Description                                                      |
+|-------------|------------------|-------------------------|------------------------------------------------------------------|
+| *required*  | `function-uuid`  | `string`                | A UUID that identifies the function, generated once at creation. |
+| *required*  | `format-version` | `int`                   | Metadata format version (must be `1`).                           |
+| *required*  | `definitions`    | `array<overload>`       | List of function overload entities.                              |
+| *required*  | `definition-log` | `array<definition-log>` | History of definition snapshots.                                 |
+| *optional*  | `location`       | `string`                | Storage location of metadata files.                              |
+| *optional*  | `properties`     | `map`                   | Arbitrary key–value pairs.                                       |
+| *optional*  | `secure`         | `boolean`               | Whether it is a secure function. Default: `false`.               |
+| *optional*  | `doc`            | `string`                | Documentation string.                                            |
 
 Notes:
 1. When `secure` is `true`,
@@ -74,47 +74,53 @@ Notes:
 Function overloads allow multiple implementations of the same function name with different signatures. Each overload has
 the following fields:
 
-| Requirement | Field name                 | Description                                                                                                                                                                                        |
-|-------------|----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| *required*  | `overload-id`              | A monotonically increasing number that identifies this function overload.                                                                                                                          |
-| *required*  | `parameters`               | Ordered list of function parameter definitions (name, type, optional doc). The order of parameters in this list **must exactly match** the order of arguments provided when invoking the function. |
-| *required*  | `return-type`              | Return type (any primitive type or non-primitive type supported by Iceberg). Example: `"string"` or `"struct<...>"`                                                                                |
-| *required*  | `versions`                 | List of `overload version` entities.                                                                                                                                                               |
-| *required*  | `current-overload-version` | Identifier of the current overload version.                                                                                                                                                        |
-| *optional*  | `function-type`            | `udf` or `udtf`, default to `udf`. If `udtf`, the `return-type` must be a `struct` describing the output schema.                                                                                   | 
-| *optional*  | `doc`                      | Documentation string.                                                                                                                                                                              |
+| Requirement | Field name                 | Type                                       | Description                                                                     |
+|-------------|----------------------------|--------------------------------------------|---------------------------------------------------------------------------------|
+| *required*  | `overload-id`              | `long`                                     | Monotonically increasing identifier of this function overload.                  |
+| *required*  | `parameters`               | `array<parameter>`                         | Ordered list of function parameters. Invocation order **must** match this list. |
+| *required*  | `return-type`              | `Type` (Iceberg type; `struct` for UDTF)   | Return type. Example: `"string"`, `"struct<...>"`.                              |
+| *required*  | `versions`                 | `array<overload-version>`                  | Versioned implementations of this overload.                                     |
+| *required*  | `current-overload-version` | `long`                                     | Monotonically increasing identifier of the current overload version.            |
+| *optional*  | `function-type`            | `enum { "udf", "udtf" }` (default `"udf"`) | If `"udtf"`, `return-type` must be a `struct` describing the output schema.     |
+| *optional*  | `doc`                      | `string`                                   | Documentation string.                                                           |
+
+### Parameter
+| Requirement | Field  | Type     | Description              |
+|-------------|--------|----------|--------------------------|
+| *required*  | `name` | `string` | Parameter name.          |
+| *required*  | `type` | `Type`   | Parameter data type.     |
+| *optional*  | `doc`  | `string` | Parameter documentation. |
 
 Notes:
-1. The `name` and `type` of `parameters` are immutable. To change them, a new overload must be created. Only the optional documentation field (`doc`) can be updated in-place.
-2. The `return type` is immutable. To change it, users must create a new overload and deprecate or remove the old one.
+1. The `name` and `type` of a `parameter` are immutable. To change them, a new overload must be created. Only the optional documentation field (`doc`) can be updated in-place.
+2. The `return-type` is immutable. To change it, users must create a new overload and deprecate or remove the old one.
 
 ### Overload-Version
 Each overload can evolve over time by introducing new versions. An overload version represents a specific implementation
 of the overload at a given point in time.
 
-| Requirement | Field name            | Description                                                                                  |
-|-------------|-----------------------|----------------------------------------------------------------------------------------------|
-| *required*  | `overload-version-id` | Monotonically increasing identifier (long) for this overload's version history. Example: `1` |
-| *required*  | `representations`     | List of `representation` entities.                                                           |
-| *optional*  | `deterministic`       | Whether the function is deterministic. Defaults to `false`.                                  |
-| *required*  | `timestamp-ms`        | Creation timestamp of this version, in epoch milliseconds.                                   |
+| Requirement | Field name            | Type                        | Description                                                                 |
+|-------------|-----------------------|-----------------------------|-----------------------------------------------------------------------------|
+| *required*  | `overload-version-id` | `long`                      | Monotonically increasing identifier within this overload’s version history. |
+| *required*  | `representations`     | `array<representation>`     | Dialect-specific implementations.                                           |
+| *optional*  | `deterministic`       | `boolean` (default `false`) | Whether the function is deterministic.                                      |
+| *required*  | `timestamp-ms`        | `long` (epoch millis)       | Creation timestamp of this version.                                         |
 
 ### Representation
 A representation encodes how the overload version is expressed in a specific SQL dialect.
 
-| Requirement | Field name | Description                                            |
-|-------------|------------|--------------------------------------------------------|
-| *required*  | `dialect`  | SQL dialect identifier. Example: `"spark"`, `"trino"`. |
-| *required*  | `body`     | SQL expression text.                                   |
+| Requirement | Field name | Type     | Description                                          |
+|-------------|------------|----------|------------------------------------------------------|
+| *required*  | `dialect`  | `string` | SQL dialect identifier (e.g., `"spark"`, `"trino"`). |
+| *required*  | `body`     | `string` | SQL expression text.                                 |
 
 Note: The `body` must be valid SQL in the specified dialect; validation is the responsibility of the consuming engine.
 
 ### Definition log
-
-| Requirement | Field name              | Description                                                                                                                 |
-|-------------|-------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| *required*  | `timestamp-ms`          | Timestamp when the definition was created or updated. Example: `1734506000456`                                              |
-| *required*  | `overload-versions`     | List of mapping of `overload-id` to `current-overload-version`. Example: `[{"overload-id": "1", "overload-version-id": 1}]` |
+| Requirement | Field name          | Type                                                             | Description                                                     |
+|-------------|---------------------|------------------------------------------------------------------|-----------------------------------------------------------------|
+| *required*  | `timestamp-ms`      | `long` (epoch millis)                                            | When the definition snapshot was created or updated.            |
+| *required*  | `overload-versions` | `array<struct { overload-id: long, overload-version-id: long }>` | Mapping of each overload to its selected version at this point. |
 
 ## Function Resolution in Engines
 Resolution rule is decided by engines, but engines SHOULD:
