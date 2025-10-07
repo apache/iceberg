@@ -53,16 +53,17 @@ properties, and engine-specific representations.
 ### UDF Metadata
 The UDF metadata file has the following fields:
 
-| Requirement | Field name       | Type                    | Description                                                      |
-|-------------|------------------|-------------------------|------------------------------------------------------------------|
-| *required*  | `function-uuid`  | `string`                | A UUID that identifies the function, generated once at creation. |
-| *required*  | `format-version` | `int`                   | Metadata format version (must be `1`).                           |
-| *required*  | `definitions`    | `array<overload>`       | List of function [overload](#overload) entities.                 |
-| *required*  | `definition-log` | `array<definition-log>` | History of [definition snapshots](#definition-log).              |
-| *optional*  | `location`       | `string`                | Storage location of metadata files.                              |
-| *optional*  | `properties`     | `map`                   | Arbitrary key–value pairs.                                       |
-| *optional*  | `secure`         | `boolean`               | Whether it is a secure function. Default: `false`.               |
-| *optional*  | `doc`            | `string`                | Documentation string.                                            |
+| Requirement | Field name        | Type                    | Description                                                                                                              |
+|-------------|-------------------|-------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| *required*  | `function-uuid`   | `string`                | A UUID that identifies the function, generated once at creation.                                                         |
+| *required*  | `format-version`  | `int`                   | Metadata format version (must be `1`).                                                                                   |
+| *required*  | `definitions`     | `array<overload>`       | List of function [overload](#overload) entities.                                                                         |
+| *required*  | `definition-log`  | `array<definition-log>` | History of [definition snapshots](#definition-log).                                                                      |
+| *required*  | `max-overload-id` | `long`                  | Highest `overload-id` currently assigned in this metadata file. Used to allocate new overload identifiers monotonically. |
+| *optional*  | `location`        | `string`                | Storage location of metadata files.                                                                                      |
+| *optional*  | `properties`      | `map`                   | Arbitrary key–value pairs.                                                                                               |
+| *optional*  | `secure`          | `boolean`               | Whether it is a secure function. Default: `false`.                                                                       |
+| *optional*  | `doc`             | `string`                | Documentation string.                                                                                                    |
 
 Notes:
 1. When `secure` is `true`,
@@ -99,12 +100,20 @@ Notes:
 Each overload can evolve over time by introducing new versions. An overload version represents a specific implementation
 of the overload at a given point in time.
 
-| Requirement | Field name            | Type                        | Description                                                                 |
-|-------------|-----------------------|-----------------------------|-----------------------------------------------------------------------------|
-| *required*  | `overload-version-id` | `long`                      | Monotonically increasing identifier within this overload’s version history. |
-| *required*  | `representations`     | `array<representation>`     | [Dialect-specific implementations](#representation).                        |
-| *optional*  | `deterministic`       | `boolean` (default `false`) | Whether the function is deterministic.                                      |
-| *required*  | `timestamp-ms`        | `long` (epoch millis)       | Creation timestamp of this version.                                         |
+| Requirement | Field name            | Type                                                                     | Description                                                                             |
+|-------------|-----------------------|--------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| *required*  | `overload-version-id` | `long`                                                                   | Monotonically increasing identifier of the overload version.                            |
+| *required*  | `representations`     | `array<representation>`                                                  | [Dialect-specific implementations](#representation).                                    |
+| *optional*  | `deterministic`       | `boolean` (default `false`)                                              | Whether the function is deterministic.                                                  |
+| *optional*  | `null-handling`       | `enum { "returns_null", "called_on_null" }` (default `"called_on_null"`) | Hint describing how the function behaves with NULL input values. See below for details. |
+| *required*  | `timestamp-ms`        | `long` (epoch millis)                                                    | Creation timestamp of this version.                                                     |
+
+Note:
+
+`null-handling` provides an optimization hint for query engines:
+1. `returns_null`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
+the engine can safely rewrite `WHERE f(a,b) > 0` as `WHERE a IS NOT NULL AND b IS NOT NULL AND f(a,b) > 0`.
+2. `called_on_null`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must execute the function even if some inputs are `NULL`.
 
 ### Representation
 A representation encodes how the overload version is expressed in a specific SQL dialect.
@@ -212,6 +221,7 @@ RETURN x + 1.0;
          ]
       }
    ],
+   "max-overload-id": 2,
    "doc": "Overloaded scalar UDF for integer and float inputs",
    "secure": false
 }
@@ -268,6 +278,7 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
          ]
       }
    ],
+   "max-overload-id": 1,
    "doc": "UDTF returning (name, color) rows filtered by the given color",
    "secure": false
 }
