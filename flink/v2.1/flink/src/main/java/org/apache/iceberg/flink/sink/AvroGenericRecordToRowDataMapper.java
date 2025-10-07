@@ -135,7 +135,6 @@ public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericReco
       case BYTES:
         return rowData.getBinary(pos);
       case FIXED:
-        // FIXED can be binary data or UUID
         return rowData.getBinary(pos);
       case RECORD:
         return rowData.getRow(pos, fieldSchema.getFields().size());
