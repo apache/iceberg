@@ -137,7 +137,12 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
 
   @Override
   public Type visit(TimestampType timestampType) {
-    if (timestampType.getPrecision() == 9) {
+    int precision = timestampType.getPrecision();
+    if (precision > 9) {
+      throw new IllegalArgumentException(
+          "Unsupported timestamp precision: " + precision + ". Maximum supported precision is 9.");
+    }
+    if (precision == 9) {
       return Types.TimestampNanoType.withoutZone();
     } else {
       return Types.TimestampType.withoutZone();
@@ -146,7 +151,12 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
 
   @Override
   public Type visit(LocalZonedTimestampType localZonedTimestampType) {
-    if (localZonedTimestampType.getPrecision() == 9) {
+    int precision = localZonedTimestampType.getPrecision();
+    if (precision > 9) {
+      throw new IllegalArgumentException(
+          "Unsupported timestamp precision: " + precision + ". Maximum supported precision is 9.");
+    }
+    if (precision == 9) {
       return Types.TimestampNanoType.withZone();
     } else {
       return Types.TimestampType.withZone();

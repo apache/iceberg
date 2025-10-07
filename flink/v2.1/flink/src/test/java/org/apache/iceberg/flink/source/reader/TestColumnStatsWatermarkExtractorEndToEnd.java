@@ -68,12 +68,13 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
   private static final String TABLE = "test_watermark_table";
 
   // Schema with nanosecond precision timestamps for watermark testing
+  // Contains both nanosecond (ns) and microsecond (micros) precision timestamps
   private static final Schema NANOSECOND_WATERMARK_SCHEMA =
       new Schema(
           required(1, "id", Types.LongType.get()),
           required(2, "event_time_ns", Types.TimestampNanoType.withoutZone()),
           required(3, "event_time_ns_tz", Types.TimestampNanoType.withZone()),
-          required(4, "event_time_us", Types.TimestampType.withoutZone()),
+          required(4, "event_time_micros", Types.TimestampType.withoutZone()),
           required(5, "data", Types.StringType.get()));
 
   @TempDir protected Path temporaryDirectory;
@@ -82,6 +83,11 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
   private static final HadoopTableExtension TABLE_EXTENSION =
       HadoopTableExtension.withFormatVersion3(DATABASE, TABLE, NANOSECOND_WATERMARK_SCHEMA);
 
+  /**
+   * Tests that ColumnStatsWatermarkExtractor can be instantiated with both nanosecond and
+   * microsecond precision timestamp columns. This verifies that the extractor correctly recognizes
+   * and accepts both TIMESTAMP_NANO and TIMESTAMP column types.
+   */
   @Test
   public void testWatermarkExtractorCreationWithNanosecondTimestamps() {
     Table table = TABLE_EXTENSION.table();
@@ -97,11 +103,20 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
     assertThat(extractorNsTz).isNotNull();
 
     // Test that we can still create extractors for microsecond timestamp columns
-    ColumnStatsWatermarkExtractor extractorUs =
-        new ColumnStatsWatermarkExtractor(table.schema(), "event_time_us", TimeUnit.MICROSECONDS);
-    assertThat(extractorUs).isNotNull();
+    ColumnStatsWatermarkExtractor extractorMicros =
+        new ColumnStatsWatermarkExtractor(
+            table.schema(), "event_time_micros", TimeUnit.MICROSECONDS);
+    assertThat(extractorMicros).isNotNull();
   }
 
+  /**
+   * Tests that ColumnStatsWatermarkExtractor can be created and used with actual data files
+   * containing nanosecond precision timestamps. This validates the end-to-end integration where
+   * data is written to files (Parquet/Avro) and the extractor is configured to read watermarks from
+   * the column statistics. The test verifies that data can be written with nanosecond timestamps,
+   * watermark extractors can be instantiated for these columns, and the schema correctly identifies
+   * timestamp types (nano vs micro).
+   */
   @TestTemplate
   public void testWatermarkExtractionWithRealData() throws Exception {
     Table table = TABLE_EXTENSION.table();
@@ -116,16 +131,15 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
     ColumnStatsWatermarkExtractor extractor =
         new ColumnStatsWatermarkExtractor(table.schema(), "event_time_ns", TimeUnit.MICROSECONDS);
 
-    // Create a mock split with the actual table data
-    // Note: In a real scenario, this would be created by the Flink source system
-    // For this test, we'll validate that the extractor can be created and configured correctly
+    // Validate that the extractor can be created and configured correctly
+    // Note: The actual watermark extraction happens in the Flink source during split processing
     assertThat(extractor).isNotNull();
 
     // Verify that the table has the expected schema
     Schema tableSchema = table.schema();
     assertThat(tableSchema.findField("event_time_ns")).isNotNull();
     assertThat(tableSchema.findField("event_time_ns_tz")).isNotNull();
-    assertThat(tableSchema.findField("event_time_us")).isNotNull();
+    assertThat(tableSchema.findField("event_time_micros")).isNotNull();
 
     // Verify that the timestamp fields are of the correct types
     Types.NestedField eventTimeNsField = tableSchema.findField("event_time_ns");
@@ -134,10 +148,17 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
     Types.NestedField eventTimeNsTzField = tableSchema.findField("event_time_ns_tz");
     assertThat(eventTimeNsTzField.type()).isInstanceOf(Types.TimestampNanoType.class);
 
-    Types.NestedField eventTimeUsField = tableSchema.findField("event_time_us");
-    assertThat(eventTimeUsField.type()).isInstanceOf(Types.TimestampType.class);
+    Types.NestedField eventTimeMicrosField = tableSchema.findField("event_time_micros");
+    assertThat(eventTimeMicrosField.type()).isInstanceOf(Types.TimestampType.class);
   }
 
+  /**
+   * Tests the full write-read cycle for tables with nanosecond precision timestamps. This verifies
+   * that data with nanosecond timestamps can be written to files (Parquet/Avro), the data can be
+   * read back through Flink's source implementation, and nanosecond precision is preserved during
+   * the round-trip. This is an integration test ensuring that the complete data path works
+   * correctly with nanosecond timestamps.
+   */
   @TestTemplate
   public void testDataScanningWithNanosecondTimestamps() throws Exception {
     Table table = TABLE_EXTENSION.table();
@@ -162,6 +183,11 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
     TestHelpers.assertRecords(actualRows, expectedRecords, NANOSECOND_WATERMARK_SCHEMA);
   }
 
+  /**
+   * Tests that ColumnStatsWatermarkExtractor also works with LONG columns (not just TIMESTAMP
+   * types). This is useful for cases where timestamps are stored as epoch milliseconds/nanoseconds
+   * in a LONG column.
+   */
   @Test
   public void testWatermarkExtractorWithLongColumn() {
     // Create a schema with a Long column for watermark testing
@@ -179,6 +205,11 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
     assertThat(extractor).isNotNull();
   }
 
+  /**
+   * Tests that attempting to create a watermark extractor with an unsupported column type (e.g.,
+   * STRING) throws an appropriate exception. Only LONG, TIMESTAMP, and TIMESTAMP_NANO types are
+   * supported for watermark extraction.
+   */
   @Test
   public void testInvalidColumnForWatermark() {
     Schema invalidSchema =

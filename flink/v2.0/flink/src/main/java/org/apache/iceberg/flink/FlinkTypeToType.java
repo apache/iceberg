@@ -137,20 +137,12 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
 
   @Override
   public Type visit(TimestampType timestampType) {
-    if (timestampType.getPrecision() == 9) {
-      return Types.TimestampNanoType.withoutZone();
-    } else {
-      return Types.TimestampType.withoutZone();
-    }
+    return Types.TimestampType.withoutZone();
   }
 
   @Override
   public Type visit(LocalZonedTimestampType localZonedTimestampType) {
-    if (localZonedTimestampType.getPrecision() == 9) {
-      return Types.TimestampNanoType.withZone();
-    } else {
-      return Types.TimestampType.withZone();
-    }
+    return Types.TimestampType.withZone();
   }
 
   @Override

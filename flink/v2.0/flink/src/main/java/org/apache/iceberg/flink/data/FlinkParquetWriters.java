@@ -446,9 +446,8 @@ public class FlinkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, TimestampData value) {
-      // For microsecond precision timestamps, convert to microseconds
-      long micros = value.getMillisecond() * 1_000L + value.getNanoOfMillisecond() / 1_000L;
-      column.writeLong(repetitionLevel, micros);
+      column.writeLong(
+          repetitionLevel, value.getMillisecond() * 1000 + value.getNanoOfMillisecond() / 1000);
     }
   }
 
@@ -460,9 +459,8 @@ public class FlinkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, TimestampData value) {
-      // For nanosecond precision timestamps, convert to nanoseconds
-      long nanos = value.getMillisecond() * 1_000_000L + value.getNanoOfMillisecond();
-      column.writeLong(repetitionLevel, nanos);
+      column.writeLong(
+          repetitionLevel, value.getMillisecond() * 1_000_000L + value.getNanoOfMillisecond());
     }
   }
 
