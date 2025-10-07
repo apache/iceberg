@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,9 +41,9 @@ public class TestTables extends ExtensionsTestBase {
   @BeforeEach
   public void createTableIfNotExists() {
     sql(
-            "CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) "
-                    + "USING iceberg PARTITIONED BY (truncate(id, 3))",
-            sourceName);
+        "CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) "
+            + "USING iceberg PARTITIONED BY (truncate(id, 3))",
+        sourceName);
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e')", sourceName);
   }
 
@@ -52,7 +51,6 @@ public class TestTables extends ExtensionsTestBase {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
-
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, sourceName = {3}")
   protected static Object[][] parameters() {
@@ -85,13 +83,13 @@ public class TestTables extends ExtensionsTestBase {
     Table targetTable = validationCatalog.loadTable(tableIdent);
 
     Schema expectedSchema =
-            new Schema(
-                    Types.NestedField.required(1, "id", Types.LongType.get()),
-                    Types.NestedField.optional(2, "data", Types.StringType.get()));
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
 
     assertThat(targetTable.schema().asStruct())
-            .as("Should have expected schema")
-            .isEqualTo(expectedSchema.asStruct());
+        .as("Should have expected schema")
+        .isEqualTo(expectedSchema.asStruct());
 
     assertThat(sql("SELECT * FROM %s", tableName)).isEmpty();
   }
