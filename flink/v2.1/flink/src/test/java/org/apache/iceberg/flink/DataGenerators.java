@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.node.IntNode;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -135,6 +136,14 @@ public class DataGenerators {
                               .addToSchema(
                                   org.apache.avro.Schema.create(org.apache.avro.Schema.Type.INT));
                       updatedField = new org.apache.avro.Schema.Field("time_field", fieldSchema);
+                    } else if (field.name().equals("ts_nano_with_zone_field")
+                        || field.name().equals("ts_nano_without_zone_field")) {
+                      // Use timestamp-nanos logical type to preserve nanosecond precision
+                      org.apache.avro.Schema fieldSchema =
+                          LogicalTypes.timestampNanos()
+                              .addToSchema(
+                                  org.apache.avro.Schema.create(org.apache.avro.Schema.Type.LONG));
+                      updatedField = new org.apache.avro.Schema.Field(field.name(), fieldSchema);
                     }
 
                     return new org.apache.avro.Schema.Field(updatedField, updatedField.schema());
@@ -278,10 +287,17 @@ public class DataGenerators {
       genericRecord.put("fixed_field", ByteBuffer.wrap(FIXED_BYTES));
 
       // nanosecond timestamp fields
-      // For Avro, use milliseconds for nanosecond timestamps as Avro's logical types only support
-      // microseconds
-      genericRecord.put("ts_nano_with_zone_field", JODA_DATETIME_20220110.getMillis());
-      genericRecord.put("ts_nano_without_zone_field", JODA_DATETIME_20220110.getMillis());
+      // Store as nanoseconds from epoch for timestamp-nanos logical type
+      long nanosWithZone =
+          Duration.between(java.time.Instant.EPOCH, JAVA_OFFSET_DATE_TIME_NANO_20220110.toInstant())
+              .toNanos();
+      long nanosWithoutZone =
+          Duration.between(
+                  java.time.Instant.EPOCH,
+                  JAVA_LOCAL_DATE_TIME_NANO_20220110.atOffset(ZoneOffset.UTC))
+              .toNanos();
+      genericRecord.put("ts_nano_with_zone_field", nanosWithZone);
+      genericRecord.put("ts_nano_without_zone_field", nanosWithoutZone);
 
       return genericRecord;
     }

@@ -186,13 +186,35 @@ public class StructRowData implements RowData {
 
   @Override
   public TimestampData getTimestamp(int pos, int precision) {
-    long timeLong = getLong(pos);
-    if (precision == 9) {
-      // For nanosecond precision, preserve the full nanosecond value
-      return TimestampData.fromEpochMillis(timeLong / 1_000_000L, (int) (timeLong % 1_000_000L));
+    Object timestampVal = struct.get(pos, Object.class);
+
+    if (timestampVal instanceof OffsetDateTime) {
+      long nanos = Duration.between(Instant.EPOCH, (OffsetDateTime) timestampVal).toNanos();
+      if (precision == 9) {
+        // For nanosecond precision, preserve the full nanosecond value
+        return TimestampData.fromEpochMillis(
+            Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
+      } else {
+        // For microsecond precision
+        long micros = nanos / 1000;
+        return TimestampData.fromEpochMillis(micros / 1000, (int) (micros % 1000) * 1000);
+      }
+    } else if (timestampVal instanceof LocalDateTime) {
+      long nanos =
+          Duration.between(Instant.EPOCH, ((LocalDateTime) timestampVal).atOffset(ZoneOffset.UTC))
+              .toNanos();
+      if (precision == 9) {
+        // For nanosecond precision, preserve the full nanosecond value
+        return TimestampData.fromEpochMillis(
+            Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
+      } else {
+        // For microsecond precision
+        long micros = nanos / 1000;
+        return TimestampData.fromEpochMillis(micros / 1000, (int) (micros % 1000) * 1000);
+      }
     } else {
-      // For microsecond precision, use the original logic
-      return TimestampData.fromEpochMillis(timeLong / 1000, (int) (timeLong % 1000) * 1000);
+      throw new IllegalStateException(
+          "Unknown type for timestamp field. Type name: " + timestampVal.getClass().getName());
     }
   }
 
