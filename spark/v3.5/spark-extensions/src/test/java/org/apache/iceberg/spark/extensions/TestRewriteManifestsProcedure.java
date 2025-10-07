@@ -326,7 +326,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot handle an empty identifier for argument table");
+        .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
 
   @TestTemplate
@@ -411,7 +411,7 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
     PartitionStatisticsFile statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table);
     table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
 
-    Schema dataSchema = PartitionStatsHandler.schema(Partitioning.partitionType(table));
+    Schema dataSchema = PartitionStatsHandler.schema(Partitioning.partitionType(table), 2);
     List<PartitionStats> statsBeforeRewrite;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(

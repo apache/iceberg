@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -46,7 +47,11 @@ public class TestIcebergSpark {
 
   @BeforeAll
   public static void startSpark() {
-    TestIcebergSpark.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestIcebergSpark.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
   }
 
   @AfterAll

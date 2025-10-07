@@ -83,6 +83,56 @@ public class TestMergeAppend extends TestBase {
   }
 
   @TestTemplate
+  public void testAddManyFilesWithConsistentOrdering() {
+    assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
+
+    int multiplier = 3;
+    int groupSize = SnapshotProducer.MIN_FILE_GROUP_SIZE;
+    List<DataFile> dataFiles = Lists.newArrayList();
+
+    for (int ordinal = 0; ordinal < multiplier * groupSize; ordinal++) {
+      StructLike partition = Row.of(ordinal % 2);
+      DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
+      dataFiles.add(dataFile);
+    }
+
+    AppendFiles append = table.newAppend();
+    dataFiles.forEach(append::appendFile);
+    append.commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifestsInSnapshot = snapshot.allManifests(table.io());
+    assertThat(manifestsInSnapshot).hasSize(multiplier);
+
+    // expect 1st manifest to contain first third of the data files
+    validateManifest(
+        manifestsInSnapshot.get(0),
+        dataSeqsRepeat(1L, groupSize),
+        fileSeqsRepeat(1L, groupSize),
+        idsRepeat(snapshot.snapshotId(), groupSize),
+        dataFiles.subList(0, groupSize).iterator(),
+        statusesRepeat(Status.ADDED, groupSize));
+
+    // expect 2nd manifest to contain second third of the data files
+    validateManifest(
+        manifestsInSnapshot.get(1),
+        dataSeqsRepeat(1L, groupSize),
+        fileSeqsRepeat(1L, groupSize),
+        idsRepeat(snapshot.snapshotId(), groupSize),
+        dataFiles.subList(groupSize, groupSize * 2).iterator(),
+        statusesRepeat(Status.ADDED, groupSize));
+
+    // expect 3rd manifest to contain last third of the data files
+    validateManifest(
+        manifestsInSnapshot.get(2),
+        dataSeqsRepeat(1L, groupSize),
+        fileSeqsRepeat(1L, groupSize),
+        idsRepeat(snapshot.snapshotId(), groupSize),
+        dataFiles.subList(groupSize * 2, groupSize * 3).iterator(),
+        statusesRepeat(Status.ADDED, groupSize));
+  }
+
+  @TestTemplate
   public void testEmptyTableAppend() {
     assertThat(listManifestFiles()).isEmpty();
 

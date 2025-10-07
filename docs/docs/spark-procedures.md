@@ -414,6 +414,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `delete-ratio-threshold` | 0.3 | Minimum deletion ratio that needs to be associated with a data file for it to be considered for rewriting |
 | `output-spec-id` | current partition spec id | Identifier of the output partition spec. Data will be reorganized during the rewrite to align with the output partitioning. |
 | `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional commit for the removal. |
+| `max-files-to-rewrite` | null | This option sets an upper limit on the number of eligible files that will be rewritten. If this option is not specified, all eligible files will be rewritten. |
 
 !!! info
     Dangling delete files are removed based solely on data sequence numbers. This action does not apply to global 
@@ -442,6 +443,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `added_data_files_count`     | int | Number of new data files which were written by this command |
 | `rewritten_bytes_count`      | long | Number of bytes which were written by this command |
 | `failed_data_files_count`    | int | Number of data files that failed to be rewritten when `partial-progress.enabled` is true |
+| `removed_delete_files_count` | int | Number of delete files removed by this command |
 
 #### Examples
 
@@ -1029,7 +1031,7 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 | `start_version`    |           | first metadata.json in table's metadata log    | string | The name or path of the chronologically first metadata.json to rewrite |
 | `end_version`      |           | latest metadata.json in table's metadata log   | string | The name or path of the chronologically last metadata.json to rewrite  |
 | `staging_location` |           | new directory under table's metadata directory | string | The output location for newly rewritten metadata files                 |
-
+| `create_file_list` |           | true                                           | boolean | Whether to generate a file list containing the paths of rewritten metadata |
 
 #### Modes of operation
 
@@ -1044,6 +1046,8 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 |----------------------|--------|-------------------------------------------------------------------|
 | `latest_version`     | string | Name of the latest metadata file rewritten by this procedure      |
 | `file_list_location` | string | Path to a CSV file containing a mapping of source to target paths |
+| `rewritten_manifest_file_paths_count` | int    | Number of manifest files with rewritten paths   |
+| `rewritten_delete_file_paths_count`   | int    | Number of delete files with rewritten paths     |
 
 ##### File List
 The file contains the copy plan for all files added to the table between `start_version` and `end_version`.

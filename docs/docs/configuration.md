@@ -63,7 +63,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.orc.bloom.filter.fpp                           | 0.05                        | False positive probability for Bloom filter (must > 0.0 and < 1.0)                                                                                                                                |
 | write.location-provider.impl                         | null                        | Optional custom implementation for LocationProvider                                                                                                                                               |
 | write.metadata.compression-codec                     | none                        | Metadata compression codec; none or gzip                                                                                                                                                          |
-| write.metadata.metrics.max-inferred-column-defaults  | 100                         | Defines the maximum number of top level columns for which metrics are collected. Number of stored metrics can be higher than this limit for a table with nested fields                            |
+| write.metadata.metrics.max-inferred-column-defaults  | 100                         | Defines the maximum number of columns for which metrics are collected. Columns are included with a pre-order traversal of the schema: top level fields first; then all elements of the first nested struct; then the next nested struct and so on. |
 | write.metadata.metrics.default                       | truncate(16)                | Default metrics mode for all columns in the table; none, counts, truncate(length), or full                                                                                                        |
 | write.metadata.metrics.column.col1                   | (not set)                   | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full                                                                                                |
 | write.target-file-size-bytes                         | 536870912 (512 MB)          | Controls the size of files generated to target about this many bytes                                                                                                                              |
@@ -74,8 +74,8 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.merge.distribution-mode                        | (not set)                   | Defines distribution of write merge data                                                                                                                                                          |
 | write.wap.enabled                                    | false                       | Enables write-audit-publish writes                                                                                                                                                                |
 | write.summary.partition-limit                        | 0                           | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit                                                                               |
-| write.metadata.delete-after-commit.enabled           | false                       | Controls whether to delete the oldest **tracked** version metadata files after commit                                                                                                             |
-| write.metadata.previous-versions-max                 | 100                         | The max number of previous version metadata files to keep before deleting after commit                                                                                                            |
+| write.metadata.delete-after-commit.enabled           | false                       | Controls whether to delete the oldest **tracked** version metadata files after each table commit. See the [Remove old metadata files](maintenance.md#remove-old-metadata-files) section for additional details                                                                                                             |
+| write.metadata.previous-versions-max                 | 100                         | The max number of previous version metadata files to track                                                                                                             |
 | write.spark.fanout.enabled                           | false                       | Enables the fanout writer in Spark that does not require data to be clustered; uses more memory                                                                                                   |
 | write.object-storage.enabled                         | false                       | Enables the object storage location provider that adds a hash component to file paths                                                                                                             |
 | write.object-storage.partitioned-paths               | true                        | Includes the partition values in the file path                                                                                                                                                    |
@@ -87,7 +87,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.update.isolation-level                         | serializable                | Isolation level for update commands: serializable or snapshot                                                                                                                                     |
 | write.merge.mode                                     | copy-on-write               | Mode used for merge commands: copy-on-write or merge-on-read (v2 and above)                                                                                                                       |
 | write.merge.isolation-level                          | serializable                | Isolation level for merge commands: serializable or snapshot                                                                                                                                      |
-| write.delete.granularity                             | partition                   | Controls the granularity of generated delete files: partition or file                                                                                                                     |
+| write.delete.granularity                             | partition                   | Controls the granularity of generated delete files: partition or file                                                                                                                             |
 
 ### Table behavior properties
 
@@ -142,6 +142,43 @@ Any other custom catalog can access the properties by implementing `Catalog.init
 The properties can be manually constructed or passed in from a compute engine like Spark or Flink.
 Spark uses its session properties as catalog properties, see more details in the [Spark configuration](spark-configuration.md#catalog-configuration) section.
 Flink passes in catalog properties through `CREATE CATALOG` statement, see more details in the [Flink](flink.md#adding-catalogs) section.
+
+### REST Catalog auth properties
+
+The following catalog properties configure authentication for the REST catalog.
+They support Basic, OAuth2, SigV4, and Google authentication.
+
+#### REST auth properties
+
+| Property                             | Default          | Description                                                                                                       |
+|--------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------|
+| `rest.auth.type`                     | `none`           | Authentication mechanism for REST catalog access. Supported values: `none`, `basic`, `oauth2`, `sigv4`, `google`. |
+| `rest.auth.basic.username`           | null             | Username for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
+| `rest.auth.basic.password`           | null             | Password for Basic authentication. Required if `rest.auth.type` = `basic`.                                        |
+| `rest.auth.sigv4.delegate-auth-type` | `oauth2`         | Auth type to delegate to after `sigv4` signing.                                                                   |
+
+#### OAuth2 auth properties
+Required and optional properties to include while using `oauth2` authentication
+
+| Property                | Default           | Description                                                                                                                                                           |
+|-------------------------|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `token`                 | null              | A Bearer token to interact with the server. Either `token` or `credential` is required.                                                                               |
+| `credential`            | null              | Credential string in the form of `client_id:client_secret` to exchange for a token in the OAuth2 client credentials flow. Either `token` or `credential` is required. |
+| `oauth2-server-uri`     | `v1/oauth/tokens` | OAuth2 token endpoint URI. Required if the REST catalog is not the OAuth2 authentication server.                                                                      |
+| `token-expires-in-ms`   | 3600000 (1 hour)  | Time in milliseconds after which a bearer token is considered expired. Used to decide when to refresh or re-exchange a token.                                         |
+| `token-refresh-enabled` | true              | Determines whether tokens are automatically refreshed when expiration details are available.                                                                          |
+| `token-exchange-enabled`| true              | Determines whether to use the token exchange flow to acquire new tokens. Disabling this will allow fallback to the client credential flow.                            |
+| `scope`                 | `catalog`         | Additional scope for `oauth2`.                                                                                                                                        |
+| `audience`              | null              | Optional param to specify token `audience`                                                                                                                            |
+| `resource`              | null              | Optional param to specify `resource`                                                                                                                                  |
+
+#### Google auth properties
+Required and optional properties to include while using `google` authentication
+
+| Property                   | Default                                          | Description                                      |
+|----------------------------|--------------------------------------------------|--------------------------------------------------|
+| `gcp.auth.credentials-path`| Application Default Credentials (ADC)            | Path to a service account JSON key file.         |
+| `gcp.auth.scopes`          | `https://www.googleapis.com/auth/cloud-platform` | Comma-separated list of OAuth scopes to request. |
 
 ### Lock catalog properties
 

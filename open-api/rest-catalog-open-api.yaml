@@ -2434,6 +2434,10 @@ components:
           type: integer
           format: int64
           description: The first _row_id assigned to the first row in the first data file in the first manifest
+        added-rows:
+          type: integer
+          format: int64
+          description: The upper bound of the number of rows with assigned row IDs
         summary:
           type: object
           required:
@@ -2511,7 +2515,7 @@ components:
         format-version:
           type: integer
           minimum: 1
-          maximum: 2
+          maximum: 3
         table-uuid:
           type: string
         location:
@@ -3136,9 +3140,10 @@ components:
           type: string
 
     AssertRefSnapshotId:
-      description:
-        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
-        if `snapshot-id` is `null` or missing, the ref must not already exist
+      description: |
+        The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`.
+        The `snapshot-id` field is required in this object, but in the case of a `null`
+        the ref must not already exist.
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
@@ -3153,6 +3158,7 @@ components:
         snapshot-id:
           type: integer
           format: int64
+          nullable: true
 
     AssertLastAssignedFieldId:
       description:
@@ -3309,6 +3315,7 @@ components:
         metadata-location:
           type: string
           description: May be null if the table is staged as part of a transaction
+          nullable: true
         metadata:
           $ref: '#/components/schemas/TableMetadata'
         config:
@@ -4647,10 +4654,10 @@ components:
 
     ServiceUnavailableResponse:
       description:
-        The service is not ready to handle the request. The client should wait and retry.
+        The service is not ready to handle the request, request could have been partially processed.
 
-
-        The service may additionally send a Retry-After header to indicate when to retry.
+        The service may additionally send a Retry-After header to indicate when to retry, a non idempotent
+        request should only be retried by the client when the Retry-After header is present.
       content:
         application/json:
           schema:

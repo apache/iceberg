@@ -37,7 +37,7 @@ Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStr
 | [DataStream append](flink-writes.md#appending-data)                    | ✔️ ️  |                                                                                        |
 | [DataStream overwrite](flink-writes.md#overwrite-data)                 | ✔️ ️  |                                                                                        |
 | [Metadata tables](flink-queries.md#inspecting-tables)                    | ✔️    |                                                                                        |
-| [Rewrite files action](flink-actions.md#rewrite-files-action)           | ✔️ ️  |                                                                                        |
+| [Rewrite files action](flink-maintenance.md#rewrite-files-action)           | ✔️ ️  |                                                                                        |
 
 ## Preparation when using Flink SQL Client
 

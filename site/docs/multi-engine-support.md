@@ -70,6 +70,7 @@ Each engine version undergoes the following lifecycle stages:
 | 3.3        | End of Life        | 0.14.0                  | 1.8.1                  | [iceberg-spark-runtime-3.3_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.3_2.12/1.8.1/iceberg-spark-runtime-3.3_2.12-1.8.1.jar) |
 | 3.4        | Maintained         | 1.3.0                   | {{ icebergVersion }}   | [iceberg-spark-runtime-3.4_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.4_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.4_2.12-{{ icebergVersion }}.jar) |
 | 3.5        | Maintained         | 1.4.0                   | {{ icebergVersion }}   | [iceberg-spark-runtime-3.5_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) |
+| 4.0        | Maintained         | 1.10.0                  | {{ icebergVersion }}   | [iceberg-spark-runtime-4.0_2.13](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/{{ icebergVersion }}/iceberg-spark-runtime-4.0_2.13-{{ icebergVersion }}.jar) |
 
 <!-- markdown-link-check-enable -->
 
@@ -91,9 +92,10 @@ Users should continuously upgrade their Flink version to stay up-to-date.
 | 1.15    | End of Life     | 0.14.0                  | 1.4.3                  | [iceberg-flink-runtime-1.15](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.15/1.4.3/iceberg-flink-runtime-1.15-1.4.3.jar)                               |
 | 1.16    | End of Life     | 1.1.0                   | 1.5.0                  | [iceberg-flink-runtime-1.16](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.16/1.5.0/iceberg-flink-runtime-1.16-1.5.0.jar)                               |
 | 1.17    | End of Life     | 1.3.0                   | 1.6.1                  | [iceberg-flink-runtime-1.17](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.17/1.6.1/iceberg-flink-runtime-1.17-1.6.1.jar) |
-| 1.18    | Maintained      | 1.5.0                   | {{ icebergVersion }}   | [iceberg-flink-runtime-1.18](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.18/{{ icebergVersion }}/iceberg-flink-runtime-1.18-{{ icebergVersion }}.jar) |
+| 1.18    | Maintained      | 1.5.0                   | 1.9.2                  | [iceberg-flink-runtime-1.18](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.18/{{ icebergVersion }}/iceberg-flink-runtime-1.18-{{ icebergVersion }}.jar) |
 | 1.19    | Maintained      | 1.6.0                   | {{ icebergVersion }}   | [iceberg-flink-runtime-1.19](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.19/{{ icebergVersion }}/iceberg-flink-runtime-1.19-{{ icebergVersion }}.jar) |
 | 1.20    | Maintained      | 1.7.0                   | {{ icebergVersion }}   | [iceberg-flink-runtime-1.20](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar) |
+| 2.0     | Maintained      | 1.10.0                  | {{ icebergVersion }}   | [iceberg-flink-runtime-2.0](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-2.0/{{ icebergVersion }}/iceberg-flink-runtime-2.0-{{ icebergVersion }}.jar)    |
 
 <!-- markdown-link-check-enable -->
 

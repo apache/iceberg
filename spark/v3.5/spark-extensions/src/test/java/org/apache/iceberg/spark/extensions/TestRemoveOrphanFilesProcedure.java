@@ -272,7 +272,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot handle an empty identifier for argument table");
+        .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
 
   @TestTemplate
