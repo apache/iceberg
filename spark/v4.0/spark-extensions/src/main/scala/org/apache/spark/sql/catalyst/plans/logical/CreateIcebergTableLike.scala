@@ -27,9 +27,9 @@ case class CreateIcebergTableLike(
     sourceTableName: Seq[String],
     tableProps: Map[String, String],
     ifNotExists: Boolean) extends LeafCommand {
-  
+
   override lazy val output: Seq[Attribute] = Nil
-  
+
   override def simpleString(maxFields: Int): String = {
     import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
     s"CreateTableLike ${tableName.quoted} LIKE ${sourceTableName.quoted}"

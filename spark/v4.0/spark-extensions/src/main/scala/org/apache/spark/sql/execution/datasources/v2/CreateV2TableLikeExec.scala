@@ -48,7 +48,7 @@ case class CreateV2TableLikeExec(
     if (ignoreIfExists && catalog.tableExists(ident)) {
       return Nil
     }
-    
+
     val sourceTable = sourceCatalog.loadTable(sourceIdent) match {
       case iceberg: SparkTable => iceberg
       case other =>
@@ -59,19 +59,19 @@ case class CreateV2TableLikeExec(
     val schema: Schema = sourceTable.table().schema()
     val partitionSpec: PartitionSpec = sourceTable.table().spec()
     val sortOrder: SortOrder = sourceTable.table().sortOrder()
-    
+
     val partitioning: Array[Transform] = Spark3Util.toTransforms(partitionSpec)
-    
+
     val sourceProps = sourceTable.table().properties().asScala.toMap
     val mergedProps = sourceProps ++ tableProps
-    
+
     catalog.createTable(
       ident,
       SparkSchemaUtil.convert(schema),
       partitioning,
       mergedProps.asJava
     )
-    
+
     if (sortOrder.isSorted) {
       catalog.loadTable(ident) match {
         case newIceberg: SparkTable =>
