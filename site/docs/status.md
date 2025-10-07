@@ -167,6 +167,46 @@ This section lists the libraries that implement the Apache Iceberg specification
 | Write position deletes | Y    | N         | N    | N  |
 | Write equality deletes | Y    | N         | N    | N  |
 
+## Table Spec V3
+
+### V3 Features in Java
+
+This section tracks V3-specific feature support in Java implementation across Core, Spark, and Flink.
+
+| Feature | Core | Spark v3.4 | Spark v3.5 | Spark v4.0 | Flink v1.20 | Flink v2.0 | Flink v2.1 |
+|---------|------|------------|------------|------------|-------------|------------|------------|
+| **New Data Types** | | | | | | | |
+| `unknown` type | Y | N | N | Y | Y | Y | Y |
+| `timestamp_ns` / `timestamptz_ns` | Y | N | N | N | Partial | Partial | Partial |
+| `variant` type (read) | Y | Partial | Partial | Partial | N | N | N |
+| `variant` type (write) | Y | N | N | N | N | N | N |
+| `geometry` type | N | N | N | N | N | N | N |
+| `geography` type | N | N | N | N | N | N | N |
+| **Deletion Vectors** | | | | | | | |
+| Binary deletion vectors (read) | Y | N | N | Y | N | N | N |
+| Binary deletion vectors (write) | Y | N | N | Y | N | N | N |
+| **Default Values** | | | | | | | |
+| Field default values (read/write) | Y | Y | Y | Y | Y | Y | Y |
+| Field default values (DDL) | Y | N | N | N | Y | Y | Y |
+| **Table Encryption** | | | | | | | |
+| AES-GCM encryption | Y | N | N | N | N | N | N |
+| **Multi-Argument Transforms** | | | | | | | |
+| Z-order partitioning/sorting | Y | Y | Y | Y | N | N | N |
+| **Row Lineage** | | | | | | | |
+| Row lineage (`_row_id`, `_last_updated_sequence_number`) | Y | Y | Y | Y | N | N | N |
+| **Type Promotions** | | | | | | | |
+| V1/V2 promotions (`int→long`, `float→double`, `decimal`) | Y | Y | Y | Y | Y | Y | Y |
+| V3 promotions (`unknown→any`, `date→timestamp/timestamp_ns`) | Y | N | N | N | Y | Y | Y |
+
+**Notes:**
+- **Variant type**: Spark supports reading both shredded and unshredded variants but does not support writing shredded variants. Core supports Avro and Parquet formats but not ORC.
+- **Default values**: Spark has full read/write support but lacks DDL integration (CREATE TABLE, ALTER TABLE with default values).
+- **Geometry/Geography types**: Type definitions exist in the API but no engine has data processing implementation yet.
+- **Type Promotions**: V1/V2 promotions (int→long, float→double, decimal precision widening) are supported by all engines. V3 adds unknown→any and date→timestamp promotions; Spark v3.4/v3.5 don't support these due to lack of unknown type support.
+- **Timestamp nanoseconds**: Flink can read `timestamp_ns` and `timestamptz_ns` but truncates to microsecond precision when writing.
+- **Deletion Vectors**: Spark v4.0 supports deletion vectors with both Parquet (vectorized) and ORC (non-vectorized). 
+- **Z-order partitioning/sorting**: Z-order cannot be mixed with other sort columns in Spark.
+
 ## Catalogs
 
 ### Rest Catalog
