@@ -62,7 +62,7 @@ public class StatsUtil {
 
   private static int statsFieldIdForDataField(int fieldId) {
     long statsFieldId = DATA_SPACE_FIELD_ID_START + NUM_STATS_PER_COLUMN * (long) fieldId;
-    if (fieldId < 0 || fieldId > MAX_DATA_FIELD_ID || statsFieldId < 0) {
+    if (fieldId < 0 || fieldId > MAX_DATA_FIELD_ID) {
       return -1;
     }
 
@@ -108,10 +108,7 @@ public class StatsUtil {
     ContentStatsSchemaVisitor visitor = new ContentStatsSchemaVisitor();
     Types.NestedField result = TypeUtil.visit(schema, visitor);
     if (!visitor.skippedFieldIds.isEmpty()) {
-      LOG.warn(
-          "Could not create stats schema for field ids {} of schema: {}",
-          visitor.skippedFieldIds,
-          schema.asStruct());
+      LOG.warn("Could not create stats schema for field ids: {}", visitor.skippedFieldIds);
     }
 
     return result;
@@ -204,7 +201,6 @@ public class StatsUtil {
       }
 
       int fieldId = StatsUtil.statsFieldIdForField(field.fieldId());
-      // don't overflow and don't overlap with the metadata ID range
       if (fieldId >= 0) {
         Types.StructType structType = contentStatsFor(field.type(), fieldId + 1);
         return optional(fieldId, Integer.toString(field.fieldId()), structType);
