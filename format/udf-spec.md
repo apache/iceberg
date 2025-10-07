@@ -53,17 +53,16 @@ properties, and engine-specific representations.
 ### UDF Metadata
 The UDF metadata file has the following fields:
 
-| Requirement | Field name                   | Description                                                      |
-|-------------|------------------------------|------------------------------------------------------------------|
-| *required*  | `function-uuid`              | A UUID that identifies the function, generated once at creation. |
-| *required*  | `format-version`             | Metadata format version (must be `1`).                           |
-| *required*  | `definitions`                | List of function overloads.                                      |
-| *required*  | `definition-versions`        | List of versioned function definitions.                          |
-| *required*  | `current-definition-version` | Identifier of the current definition version.                    |
-| *optional*  | `location`                   | The storage location of metadata files.                          | 
-| *optional*  | `properties`                 | Arbitrary key-value pairs.                                       | 
-| *optional*  | `secure`                     | Whether it is a secure function. Default: `false`.               |
-| *optional*  | `doc`                        | Documentation string.                                            |
+| Requirement | Field name               | Description                                                      |
+|-------------|--------------------------|------------------------------------------------------------------|
+| *required*  | `function-uuid`          | A UUID that identifies the function, generated once at creation. |
+| *required*  | `format-version`         | Metadata format version (must be `1`).                           |
+| *required*  | `definitions`            | List of function `overload` entities.                            |
+| *required*  | `definition-log`         | List of `definition-log` entities.                               |
+| *optional*  | `location`               | The storage location of metadata files.                          | 
+| *optional*  | `properties`             | Arbitrary key-value pairs.                                       | 
+| *optional*  | `secure`                 | Whether it is a secure function. Default: `false`.               |
+| *optional*  | `doc`                    | Documentation string.                                            |
 
 Notes:
 1. When `secure` is `true`,
@@ -77,10 +76,10 @@ the following fields:
 
 | Requirement | Field name                 | Description                                                                                                                                                                                        |
 |-------------|----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| *required*  | `overload-uuid`            | A UUID that identifies this function overload.                                                                                                                                                     |
+| *required*  | `overload-id`              | A monotonically increasing number that identifies this function overload.                                                                                                                          |
 | *required*  | `parameters`               | Ordered list of function parameter definitions (name, type, optional doc). The order of parameters in this list **must exactly match** the order of arguments provided when invoking the function. |
 | *required*  | `return-type`              | Return type (any primitive type or non-primitive type supported by Iceberg). Example: `"string"` or `"struct<...>"`                                                                                |
-| *required*  | `versions`                 | List of overload versions.                                                                                                                                                                         |
+| *required*  | `versions`                 | List of `overload version` entities.                                                                                                                                                               |
 | *required*  | `current-overload-version` | Identifier of the current overload version.                                                                                                                                                        |
 | *optional*  | `function-type`            | `udf` or `udtf`, default to `udf`. If `udtf`, the `return-type` must be a `struct` describing the output schema.                                                                                   | 
 | *optional*  | `doc`                      | Documentation string.                                                                                                                                                                              |
@@ -95,8 +94,8 @@ of the overload at a given point in time.
 
 | Requirement | Field name            | Description                                                                                  |
 |-------------|-----------------------|----------------------------------------------------------------------------------------------|
-| *required*  | `overload-version-id` | Monotonically increasing identifier (long) for this overload’s version history. Example: `1` |
-| *required*  | `representations`     | Dialect-specific implementations of this overload.                                           |
+| *required*  | `overload-version-id` | Monotonically increasing identifier (long) for this overload's version history. Example: `1` |
+| *required*  | `representations`     | List of `representation` entities.                                                           |
 | *optional*  | `deterministic`       | Whether the function is deterministic. Defaults to `false`.                                  |
 | *required*  | `timestamp-ms`        | Creation timestamp of this version, in epoch milliseconds.                                   |
 
@@ -110,13 +109,12 @@ A representation encodes how the overload version is expressed in a specific SQL
 
 Note: The `body` must be valid SQL in the specified dialect; validation is the responsibility of the consuming engine.
 
-### Definition-Version
+### Definition log
 
-| Requirement | Field name              | Description                                                                                                                                                      |
-|-------------|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| *required*  | `definition-version-id` | Unique identifier of the definition version, a monotonically increasing long. Example: `2`                                                                       |
-| *required*  | `timestamp-ms`          | Timestamp when the definition was created or updated. Example: `1734506000456`                                                                                   |
-| *required*  | `overload-versions`     | List of mapping of overload uuids to their current version ids. Example: `[{"overload-uuid": "1f2c9b5b-1b7c-4a36-a9b0-6d3a0f4b7c21", "overload-version-id": 1}]` |
+| Requirement | Field name              | Description                                                                                                                 |
+|-------------|-------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| *required*  | `timestamp-ms`          | Timestamp when the definition was created or updated. Example: `1734506000456`                                              |
+| *required*  | `overload-versions`     | List of mapping of `overload-id` to `current-overload-version`. Example: `[{"overload-id": "1", "overload-version-id": 1}]` |
 
 ## Function Resolution in Engines
 Resolution rule is decided by engines, but engines SHOULD:
@@ -146,7 +144,7 @@ RETURN x + 1.0;
    "format-version": 1,
    "definitions": [
       {
-         "overload-uuid": "d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111",
+         "overload-id": 1,
          "parameters": [
             { "name": "x", "type": "int", "doc": "Input integer" }
          ],
@@ -157,10 +155,7 @@ RETURN x + 1.0;
                "overload-version-id": 1,
                "deterministic": true,
                "representations": [
-                  {
-                     "dialect": "trino",
-                     "body": "x + 2"
-                  }
+                  { "dialect": "trino", "body": "x + 2" }
                ],
                "timestamp-ms": 1734507000123
             },
@@ -168,10 +163,7 @@ RETURN x + 1.0;
                "overload-version-id": 2,
                "deterministic": true,
                "representations": [
-                  {
-                     "dialect": "trino",
-                     "body": "x + 1"
-                  }
+                  { "dialect": "trino", "body": "x + 1" }
                ],
                "timestamp-ms": 1735507000124
             }
@@ -179,7 +171,7 @@ RETURN x + 1.0;
          "current-overload-version": 2
       },
       {
-         "overload-uuid": "7c9f93b1-28b4-4ef5-90f5-70c73cda2222",
+         "overload-id": 2,
          "parameters": [
             { "name": "x", "type": "float", "doc": "Input float" }
          ],
@@ -190,10 +182,7 @@ RETURN x + 1.0;
                "overload-version-id": 1,
                "deterministic": true,
                "representations": [
-                  {
-                     "dialect": "trino",
-                     "body": "x + 1.0"
-                  }
+                  { "dialect": "trino", "body": "x + 1.0" }
                ],
                "timestamp-ms": 1734507001123
             }
@@ -201,25 +190,22 @@ RETURN x + 1.0;
          "current-overload-version": 1
       }
    ],
-   "definition-versions": [
+   "definition-log": [
       {
-         "definition-version-id": 2,
-         "timestamp-ms": 1735507000124,
+         "timestamp-ms": 1734507001123,
          "overload-versions": [
-            {"overload-uuid": "d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", "overload-version-id": 2},
-            {"overload-uuid": "7c9f93b1-28b4-4ef5-90f5-70c73cda2222", "overload-version-id": 1}
+            { "overload-id": 1, "overload-version-id": 1 },
+            { "overload-id": 2, "overload-version-id": 1 }
          ]
       },
       {
-         "definition-version-id": 1,
-         "timestamp-ms": 1734507001123,
+         "timestamp-ms": 1735507000124,
          "overload-versions": [
-            {"overload-uuid": "d2c7dfe0-54a3-4d5f-a34d-2e8cfbc34111", "overload-version-id": 1},
-            {"overload-uuid": "7c9f93b1-28b4-4ef5-90f5-70c73cda2222", "overload-version-id": 1}
+            { "overload-id": 1, "overload-version-id": 2 },
+            { "overload-id": 2, "overload-version-id": 1 }
          ]
       }
    ],
-   "current-definition-version": 2,
    "doc": "Overloaded scalar UDF for integer and float inputs",
    "secure": false
 }
@@ -237,54 +223,46 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
 
 ```json
 {
-  "function-uuid": "8a7fa39a-6d8f-4a2f-9d8d-3f3a8f3c2a10",
-  "format-version": 1,
-  "definitions": [
-    {
-      "overload-uuid": "1f2c9b5b-1b7c-4a36-a9b0-6d3a0f4b7c21",
-      "parameters": [
-        { "name": "c", "type": "string", "doc": "Color of fruits" }
-      ],
-      "return-type": {
-         "type": "struct",
-         "fields": [
-            { "id": 1, "name": "name", "type": "string" },
-            { "id": 2, "name": "color", "type": "string" }
-         ]
-      },
-      "function-type": "udtf",
-      "doc": "Return fruits of a specific color from the fruits table",
-      "versions": [
-        {
-          "overload-version-id": 1,
-          "deterministic": true,
-          "representations": [
+   "function-uuid": "8a7fa39a-6d8f-4a2f-9d8d-3f3a8f3c2a10",
+   "format-version": 1,
+   "definitions": [
+      {
+         "overload-id": 1,
+         "parameters": [
+            { "name": "c", "type": "string", "doc": "Color of fruits" }
+         ],
+         "return-type": {
+            "type": "struct",
+            "fields": [
+               { "id": 1, "name": "name", "type": "string" },
+               { "id": 2, "name": "color", "type": "string" }
+            ]
+         },
+         "function-type": "udtf",
+         "doc": "Return fruits of a specific color from the fruits table",
+         "versions": [
             {
-              "dialect": "trino",
-              "body": "SELECT name, color FROM fruits WHERE color = c"
-            },
-            {
-              "dialect": "spark",
-              "body": "SELECT name, color FROM fruits WHERE color = c"
+               "overload-version-id": 1,
+               "deterministic": true,
+               "representations": [
+                  { "dialect": "trino", "body": "SELECT name, color FROM fruits WHERE color = c" },
+                  { "dialect": "spark", "body": "SELECT name, color FROM fruits WHERE color = c" }
+               ],
+               "timestamp-ms": 1734508000123
             }
-          ],
-          "timestamp-ms": 1734508000123
-        }
-      ],
-      "current-overload-version": 1
-    }
-  ],
-  "definition-versions": [
-    {
-      "definition-version-id": 1,
-      "timestamp-ms": 1734508000123,
-      "overload-versions": [
-        {"overload-uuid": "1f2c9b5b-1b7c-4a36-a9b0-6d3a0f4b7c21", "overload-version-id": 1}
-      ]
-    }
-  ],
-  "current-definition-version": 1,
-  "doc": "UDTF returning (name, color) rows filtered by the given color",
-  "secure": false
+         ],
+         "current-overload-version": 1
+      }
+   ],
+   "definition-log": [
+      {
+         "timestamp-ms": 1734508000123,
+         "overload-versions": [
+            { "overload-id": 1, "overload-version-id": 1 }
+         ]
+      }
+   ],
+   "doc": "UDTF returning (name, color) rows filtered by the given color",
+   "secure": false
 }
 ```
