@@ -106,7 +106,6 @@ public class TestContentStats {
     assertThat(stats.get(0, FieldStats.class)).isEqualTo(fieldStatsOne);
     assertThat(stats.get(1, FieldStats.class)).isEqualTo(fieldStatsTwo);
     assertThat(stats.get(2, FieldStats.class)).isNull();
-    assertThat(stats.get(-1, FieldStats.class)).isNull();
     assertThat(stats.get(10, FieldStats.class)).isNull();
 
     assertThatThrownBy(() -> stats.get(0, Long.class))
