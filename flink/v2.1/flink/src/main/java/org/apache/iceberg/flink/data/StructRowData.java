@@ -188,45 +188,31 @@ public class StructRowData implements RowData {
   public TimestampData getTimestamp(int pos, int precision) {
     Object timestampVal = struct.get(pos, Object.class);
 
+    // Convert all timestamp types to nanoseconds (smallest unit)
+    long nanos;
     if (timestampVal instanceof Long) {
-      // Handle Long values (stored as microseconds in Iceberg)
-      long micros = (Long) timestampVal;
-      if (precision == 9) {
-        // For nanosecond precision, convert microseconds to milliseconds and nanoseconds
-        long nanos = micros * 1000;
-        return TimestampData.fromEpochMillis(
-            Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
-      } else {
-        // For microsecond precision
-        return TimestampData.fromEpochMillis(micros / 1000, (int) (micros % 1000) * 1000);
-      }
+      // Long values: nanoseconds for timestamp_ns (precision 9), microseconds otherwise
+      nanos = precision == 9 ? (Long) timestampVal : ((Long) timestampVal) * 1000;
     } else if (timestampVal instanceof OffsetDateTime) {
-      long nanos = Duration.between(Instant.EPOCH, (OffsetDateTime) timestampVal).toNanos();
-      if (precision == 9) {
-        // For nanosecond precision, preserve the full nanosecond value
-        return TimestampData.fromEpochMillis(
-            Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
-      } else {
-        // For microsecond precision
-        long micros = nanos / 1000;
-        return TimestampData.fromEpochMillis(micros / 1000, (int) (micros % 1000) * 1000);
-      }
+      nanos = Duration.between(Instant.EPOCH, (OffsetDateTime) timestampVal).toNanos();
     } else if (timestampVal instanceof LocalDateTime) {
-      long nanos =
+      nanos =
           Duration.between(Instant.EPOCH, ((LocalDateTime) timestampVal).atOffset(ZoneOffset.UTC))
               .toNanos();
-      if (precision == 9) {
-        // For nanosecond precision, preserve the full nanosecond value
-        return TimestampData.fromEpochMillis(
-            Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
-      } else {
-        // For microsecond precision
-        long micros = nanos / 1000;
-        return TimestampData.fromEpochMillis(micros / 1000, (int) (micros % 1000) * 1000);
-      }
     } else {
       throw new IllegalStateException(
           "Unknown type for timestamp field. Type name: " + timestampVal.getClass().getName());
+    }
+
+    // Convert nanoseconds to TimestampData based on precision
+    if (precision == 9) {
+      // Nanosecond precision: use nanos directly
+      return TimestampData.fromEpochMillis(
+          Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
+    } else {
+      // Microsecond precision: convert nanos to micros
+      long micros = nanos / 1000;
+      return TimestampData.fromEpochMillis(micros / 1000, (int) (micros % 1000) * 1000);
     }
   }
 
