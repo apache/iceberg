@@ -39,9 +39,6 @@ class ErrorModel(BaseModel):
         ..., description='HTTP response code', example=404, ge=400, le=600
     )
     stack: Optional[List[str]] = None
-    subtype: Optional[Literal['request_in_progress']] = Field(
-        None, description='Machine-readable error subtype (used for idempotency cases).'
-    )
 
 
 class CatalogConfig(BaseModel):
@@ -68,9 +65,10 @@ class CatalogConfig(BaseModel):
             'GET /v1/{prefix}/namespaces/{namespace}/views/{view}',
         ],
     )
-    idempotencyKeyLifetime: Optional[timedelta] = Field(
+    idempotency_key_lifetime: Optional[timedelta] = Field(
         None,
-        description='Minimum retention window for Idempotency-Key tokens (ISO-8601 duration, e.g., PT30M, PT24H). Presence of this field indicates the server supports Idempotency-Key semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.\n',
+        alias='idempotency-key-lifetime',
+        description='Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H). Interpreted as the maximum time from the first submission using a key to the last retry during which a client may reuse that key. Servers SHOULD accept retries for at least this duration and MAY include a grace period to account for delays/clock skew. Clients SHOULD NOT reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any subsequent attempt. Presence of this field indicates the server supports Idempotency-Key semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.\n',
         example='PT30M',
     )
 
@@ -241,7 +239,7 @@ class SnapshotReference(BaseModel):
 
 
 class SnapshotReferences(BaseModel):
-    __root__: Optional[Dict[str, SnapshotReference]] = None
+    __root__: Dict[str, SnapshotReference]
 
 
 class SnapshotLogItem(BaseModel):
@@ -622,7 +620,7 @@ class MetricResult(BaseModel):
 
 
 class Metrics(BaseModel):
-    __root__: Optional[Dict[str, MetricResult]] = None
+    __root__: Dict[str, MetricResult]
 
 
 class CommitReport(BaseModel):
