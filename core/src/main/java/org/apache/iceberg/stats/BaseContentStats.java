@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -31,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class BaseContentStats implements ContentStats, StructLike, Serializable {
+public class BaseContentStats implements ContentStats, Serializable {
 
   private final List<FieldStats<?>> fieldStats;
 
@@ -41,14 +40,15 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
     for (int i = 0; i < projection.fields().size(); i++) {
       Types.NestedField field = projection.fields().get(i);
       Preconditions.checkArgument(
-          field.type().isStructType(), "ColumnStats must contain structs: %s", field.type());
+          field.type().isStructType(), "Field stats must be a struct type: %s", field.type());
       Types.StructType structType = field.type().asStructType();
-      Type type =
-          null != structType.field("lower_bound")
-              ? structType.field("lower_bound").type()
-              : null != structType.field("upper_bound")
-                  ? structType.field("upper_bound").type()
-                  : null;
+      Type type = null;
+      if (null != structType.field("lower_bound")) {
+        type = structType.field("lower_bound").type();
+      } else if (null != structType.field("upper_bound")) {
+        type = structType.field("upper_bound").type();
+      }
+
       fieldStats.add(
           BaseFieldStats.builder()
               .fieldId(StatsUtil.fieldIdForStatsField(field.fieldId()))
@@ -73,7 +73,9 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    if (pos < 0 || pos > fieldStats().size() - 1) {
+    if (pos > fieldStats().size() - 1) {
+      // return null in case there are more stats schemas than actual stats available as Avro calls
+      // get() for all available stats schemas of a given table
       return null;
     }
 

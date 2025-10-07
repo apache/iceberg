@@ -22,21 +22,30 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 
 public interface FieldStats<T> extends StructLike {
+  /** The field ID of the statistic */
   int fieldId();
 
+  /** The field type of the statistic */
   Type type();
 
+  /** The total value count, including null and NaN */
   Long valueCount();
 
+  /** The total null value count */
   Long nullValueCount();
 
+  /** The total NaN value count */
   Long nanValueCount();
 
+  /** The avg value size of variable-length types (String, Binary) */
   Integer avgValueSize();
 
+  /** The max value size of variable-length types (String, Binary) */
   Integer maxValueSize();
 
+  /** The lower bound */
   T lowerBound();
 
+  /** The upper bound */
   T upperBound();
 }
