@@ -314,11 +314,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         if (asNamespaceCatalog != null) {
           Namespace ns;
           if (vars.containsKey("parent")) {
-            ns =
-                Namespace.of(
-                    RESTUtil.NAMESPACE_SPLITTER
-                        .splitToStream(vars.get("parent"))
-                        .toArray(String[]::new));
+            ns = RESTUtil.namespaceFromQueryParam(vars.get("parent"));
           } else {
             ns = Namespace.empty();
           }
