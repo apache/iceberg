@@ -101,8 +101,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   public static final boolean STREAM_RESULTS_DEFAULT = false;
 
   // Maximum number of file paths to return in streaming mode to avoid OOM
-  // Users can still get total count by checking last row
-  private static final int MAX_ORPHAN_FILE_RESULTS = 20000;
+  private static final int MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING = 20000;
 
   private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
   private static final Map<String, String> EQUAL_SCHEMES_DEFAULT = ImmutableMap.of("s3n,s3a", "s3");
@@ -264,13 +263,13 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   /**
    * Deletes orphan files in streaming mode using toLocalIterator(). Files are processed one
    * partition at a time to avoid collecting all file paths to driver memory. Returns a sample of
-   * file paths (up to MAX_ORPHAN_FILE_RESULTS) plus a summary row as the last row.
+   * file paths (up to MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING) plus a summary row as the last row.
    *
    * @param orphanFiles iterator of file paths to delete (streamed from executors)
    * @return result with sample file paths and optional summary row
    */
   private DeleteOrphanFiles.Result deleteFilesStreaming(Iterator<String> orphanFiles) {
-    List<String> samplePaths = Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_RESULTS);
+    List<String> samplePaths = Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
     long filesCount = 0;
 
     if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
@@ -282,7 +281,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
         // Collect sample paths before deleting
         for (String path : fileGroup) {
-          if (samplePaths.size() < MAX_ORPHAN_FILE_RESULTS) {
+          if (samplePaths.size() < MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING) {
             samplePaths.add(path);
           }
         }
@@ -306,7 +305,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       filesCount = filesList.size();
 
       // Collect sample paths
-      for (int i = 0; i < Math.min(filesList.size(), MAX_ORPHAN_FILE_RESULTS); i++) {
+      for (int i = 0; i < Math.min(filesList.size(), MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING); i++) {
         samplePaths.add(filesList.get(i));
       }
 
