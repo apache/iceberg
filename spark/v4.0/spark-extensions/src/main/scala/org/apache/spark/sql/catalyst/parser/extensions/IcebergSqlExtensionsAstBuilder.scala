@@ -69,8 +69,8 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    * Create a CREATE TABLE LIKE command.
    */
   override def visitCreateTableLike(ctx: CreateTableLikeContext): CreateIcebergTableLike = withOrigin(ctx) {
-    val tableName = toSeq(ctx.multipartIdentifier(0).parts).map(_.getText)
-    val sourceTableName = toSeq(ctx.multipartIdentifier(1).parts).map(_.getText)
+    val tableName = typedVisit[Seq[String]](ctx.multipartIdentifier(0))
+    val sourceTableName = typedVisit[Seq[String]](ctx.multipartIdentifier(1))
     val properties = if (ctx.tableProperty() != null) {
       toSeq(ctx.tableProperty()).map { prop =>
         val key = prop.key.getText

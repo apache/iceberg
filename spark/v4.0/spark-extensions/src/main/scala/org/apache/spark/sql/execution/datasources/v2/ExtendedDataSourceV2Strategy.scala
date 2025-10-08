@@ -64,21 +64,19 @@ import scala.jdk.CollectionConverters._
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy with PredicateHelper {
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
-    case CreateIcebergTableLike(tableName, sourceTableName, tableProps, ignoreIfExists) =>
-      val targetCatalogAndIdent = Spark3Util.catalogAndIdentifier(spark, tableName.asJava)
-      val sourceCatalogAndIdent = Spark3Util.catalogAndIdentifier(spark, sourceTableName.asJava)
-
-      (targetCatalogAndIdent.catalog(), sourceCatalogAndIdent.catalog()) match {
-        case (targetCatalog: TableCatalog, sourceCatalog: TableCatalog) =>
-          CreateV2TableLikeExec(
-            targetCatalog,
-            targetCatalogAndIdent.identifier(),
-            sourceCatalog,
-            sourceCatalogAndIdent.identifier(),
-            tableProps,
-            ignoreIfExists) :: Nil
-        case _ => Nil
-      }
+    case CreateIcebergTableLike(
+      IcebergCatalogAndIdentifier(catalog, ident),
+      IcebergCatalogAndIdentifier(sourceCatalog, sourceTableIdent),
+      tableProps,
+      ignoreIfExists
+    ) =>
+      CreateV2TableLikeExec(
+        catalog,
+        ident,
+        sourceCatalog,
+        sourceTableIdent,
+        tableProps,
+        ignoreIfExists) :: Nil
 
     case AddPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform, name) =>
       AddPartitionFieldExec(catalog, ident, transform, name) :: Nil
