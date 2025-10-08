@@ -79,6 +79,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private Boolean incrementalCleanup;
   private boolean specifiedSnapshotId = false;
   private boolean cleanExpiredMetadata = false;
+  private boolean retainDataFiles = false;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -164,6 +165,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   @Override
   public ExpireSnapshots cleanExpiredMetadata(boolean clean) {
     this.cleanExpiredMetadata = clean;
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots retainOrphanedDataFiles(boolean retain) {
+    this.retainDataFiles = retain;
     return this;
   }
 
@@ -380,9 +387,13 @@ class RemoveSnapshots implements ExpireSnapshots {
     FileCleanupStrategy cleanupStrategy =
         incrementalCleanup
             ? new IncrementalFileCleanup(
-                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc)
+                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc, retainDataFiles)
             : new ReachableFileCleanup(
-                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc);
+                ops.io(),
+                deleteExecutorService,
+                planExecutorService(),
+                deleteFunc,
+                retainDataFiles);
 
     cleanupStrategy.cleanFiles(base, current);
   }
