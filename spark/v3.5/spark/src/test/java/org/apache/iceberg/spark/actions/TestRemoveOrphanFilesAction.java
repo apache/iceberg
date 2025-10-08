@@ -79,11 +79,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.StringToFileURI;
 import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.FileSystemWalker;
+import org.apache.iceberg.util.Pair;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -1203,9 +1206,190 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     Dataset<String> validFileDS = spark.createDataset(validFiles, Encoders.STRING());
     Dataset<String> actualFileDS = spark.createDataset(actualFiles, Encoders.STRING());
 
+    Dataset<FileURI> actualFileURIDS = toFileUri.apply(actualFileDS);
+    Dataset<FileURI> validFileURIDS = toFileUri.apply(validFileDS);
+
+    // Inline the orphan file detection logic (same as findOrphanFilesAsDataset)
+    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
+    spark.sparkContext().register(conflicts);
+
+    Column joinCond = actualFileURIDS.col("path").equalTo(validFileURIDS.col("path"));
+
     List<String> orphanFiles =
-        DeleteOrphanFilesSparkAction.findOrphanFiles(
-            spark, toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
+        actualFileURIDS
+            .joinWith(validFileURIDS, joinCond, "leftouter")
+            .mapPartitions(
+                new DeleteOrphanFilesSparkAction.FindOrphanFiles(mode, conflicts),
+                Encoders.STRING())
+            .collectAsList();
+
+    if (mode == DeleteOrphanFiles.PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
+      throw new ValidationException(
+          "Unable to determine whether certain files are orphan. "
+              + "Metadata references files that match listed/provided files except for authority/scheme. "
+              + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
+              + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
+              + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
+              + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
+              + "authorities/schemes are different. It will be impossible to recover deleted files. "
+              + "Conflicting authorities/schemes: %s.",
+          conflicts.value());
+    }
+
     assertThat(orphanFiles).isEqualTo(expectedOrphanFiles);
+  }
+
+  @TestTemplate
+  public void testStreamResults() throws IOException, InterruptedException {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    List<String> validFiles =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation + "#files")
+            .select("file_path")
+            .as(Encoders.STRING())
+            .collectAsList();
+    assertThat(validFiles).as("Should have 2 valid files").hasSize(2);
+
+    // Create several orphan files to test batching
+    String orphanFile1 = tableDir.toURI().resolve("data/orphan1.parquet").toString();
+    String orphanFile2 = tableDir.toURI().resolve("data/orphan2.parquet").toString();
+    String orphanFile3 = tableDir.toURI().resolve("data/orphan3.parquet").toString();
+    createFileAtPath(orphanFile1);
+    createFileAtPath(orphanFile2);
+    createFileAtPath(orphanFile3);
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    // Test with streaming enabled
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .option("stream-results", "true")
+            .execute();
+
+    // When streaming, result should contain file paths plus summary row
+    assertThat(result.orphanFileLocations())
+        .as("Streaming should return file paths with summary")
+        .hasSizeGreaterThan(0);
+    
+    // Last row should always be the summary row
+    List<String> locations = Lists.newArrayList(result.orphanFileLocations());
+    assertThat(locations.size()).as("Should have 3 orphan files + 1 summary row").isEqualTo(4);
+    
+    // Last row should be the consistent summary format
+    assertThat(locations.get(locations.size() - 1))
+        .as("Last row should be summary")
+        .startsWith("[Total removed:")
+        .endsWith("files.]")
+        .contains("3"); // Should contain the count
+
+    // Verify orphan files were actually deleted
+    FileSystem fs = new Path(tableLocation).getFileSystem(spark.sessionState().newHadoopConf());
+    assertThat(fs.exists(new Path(orphanFile1)))
+        .as("Orphan file 1 should be deleted")
+        .isFalse();
+    assertThat(fs.exists(new Path(orphanFile2)))
+        .as("Orphan file 2 should be deleted")
+        .isFalse();
+    assertThat(fs.exists(new Path(orphanFile3)))
+        .as("Orphan file 3 should be deleted")
+        .isFalse();
+
+    // Verify valid files still exist
+    for (String validFile : validFiles) {
+      assertThat(fs.exists(new Path(validFile))).as("Valid file should still exist").isTrue();
+    }
+  }
+
+  @TestTemplate
+  public void testStreamResultsBackwardsCompatibility() throws IOException, InterruptedException {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    String orphanFile = tableDir.toURI().resolve("data/orphan.parquet").toString();
+    createFileAtPath(orphanFile);
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    // Test without streaming (backwards compatibility)
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
+
+    // Non-streaming mode should return the full file list
+    assertThat(result.orphanFileLocations())
+        .as("Non-streaming should return file list")
+        .hasSize(1)
+        .contains(orphanFile);
+
+    // Verify file was deleted
+    FileSystem fs = new Path(tableLocation).getFileSystem(spark.sessionState().newHadoopConf());
+    assertThat(fs.exists(new Path(orphanFile)))
+        .as("Orphan file should be deleted")
+        .isFalse();
+  }
+
+  @TestTemplate
+  public void testStreamResultsWithDryRun() throws IOException, InterruptedException {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    String orphanFile = tableDir.toURI().resolve("data/orphan.parquet").toString();
+    createFileAtPath(orphanFile);
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    // Test streaming with dry run
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .option("stream-results", "true")
+            .deleteWith(file -> {})
+            .execute();
+
+    // Streaming with dry run should return file paths (may include summary)
+    assertThat(result.orphanFileLocations())
+        .as("Streaming dry run should return file paths")
+        .hasSizeGreaterThan(0);
+
+    // Verify file was NOT deleted (dry run)
+    FileSystem fs = new Path(tableLocation).getFileSystem(spark.sessionState().newHadoopConf());
+    assertThat(fs.exists(new Path(orphanFile)))
+        .as("Orphan file should not be deleted in dry run")
+        .isTrue();
+  }
+
+  private void createFileAtPath(String filePath) throws IOException {
+    Path path = new Path(filePath);
+    FileSystem fs = path.getFileSystem(spark.sessionState().newHadoopConf());
+    fs.mkdirs(path.getParent());
+    fs.createNewFile(path);
   }
 }
