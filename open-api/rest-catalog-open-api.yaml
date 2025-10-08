@@ -2027,10 +2027,14 @@ components:
         - Do not finalize (not stored/replayed): 5xx, 409 (RequestInProgressException)
 
         Key Requirements:
-        - Key format: UUID (V7 preferred)
-        - Scoped to operation type and resource path; the idempotency key must be unique per (operation type, resource path) pair (e.g., updateTable on db.t1)
+        - Key format: UUID (V7 preferred) in string format as defined in RFC 9562 Section 4.
+          See https://datatracker.ietf.org/doc/html/rfc9562#sampleStringUUID for the textual
+          representation specification.
+        - Scoped to operation type and resource path; the idempotency key must be unique per
+          (operation type, resource path) pair (e.g., updateTable on db.t1)
         - Catalogs MUST NOT expire keys before the end of the advertised token lifetime.
-        - If Idempotency-Key is used, clients MUST reuse the same key when retrying the same logical operation and MUST generate a new key for a different operation.
+        - If Idempotency-Key is used, clients MUST reuse the same key when retrying the same
+          logical operation and MUST generate a new key for a different operation.
 
   ##############################
   # Application Schema Objects #
@@ -4959,7 +4963,7 @@ components:
       summary: A request with the same Idempotency-Key is already in progress
       value: {
           "error": {
-            "message": "A request with this Idempotency-Key is still in progress",
+            "message": "A request with the same Idempotency-Key header is still in progress",
             "type": "RequestInProgressException",
             "code": 409
           }
