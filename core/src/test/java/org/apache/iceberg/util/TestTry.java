@@ -63,7 +63,7 @@ public class TestTry {
               throw testException;
             });
 
-    assertThatThrownBy(result::get).isSameAs(testException);
+    assertThatThrownBy(result::get).isSameAs(testException).hasMessage("test exception");
   }
 
   @Test
@@ -92,8 +92,10 @@ public class TestTry {
             });
 
     assertThat(result.isFailure()).isTrue();
-    assertThatThrownBy(result::get).isSameAs(runtimeException);
-    assertThatThrownBy(result::getOrThrow).isSameAs(runtimeException);
+    assertThatThrownBy(result::get).isSameAs(runtimeException).hasMessage("runtime exception");
+    assertThatThrownBy(result::getOrThrow)
+        .isSameAs(runtimeException)
+        .hasMessage("runtime exception");
   }
 
   @Test
