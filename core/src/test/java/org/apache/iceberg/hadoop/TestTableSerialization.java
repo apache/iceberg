@@ -20,6 +20,10 @@ package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -197,6 +201,23 @@ public class TestTableSerialization extends HadoopTableTestBase {
   private static Table getMetaDataTable(Table table, MetadataTableType type) {
     return TABLES.load(
         ((HasTableOperations) table).operations().current().metadataFileLocation() + "#" + type);
+  }
+
+  @Test
+  public void testLocationProviderExceptionIsDeferred() {
+    Table spyTable = spy(table);
+    RuntimeException failure = new RuntimeException("location provider failure");
+    when(spyTable.locationProvider()).thenThrow(failure);
+
+    // SerializableTable.copyOf should not throw an exception even if locationProvider fails
+    Table serializableTable = SerializableTable.copyOf(spyTable);
+    assertThat(serializableTable).isNotNull();
+
+    // The exception should be thrown when locationProvider() is actually called
+    assertThatThrownBy(serializableTable::locationProvider).isSameAs(failure);
+
+    // Verify that the original table's locationProvider was called during construction
+    verify(spyTable, times(1)).locationProvider();
   }
 
   private static Set<CharSequence> getFiles(Table table) throws IOException {

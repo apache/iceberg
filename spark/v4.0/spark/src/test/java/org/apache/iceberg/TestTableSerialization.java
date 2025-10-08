@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -156,6 +157,19 @@ public class TestTableSerialization {
 
     TestHelpers.assertSerializedMetadata(
         txnTable, KryoHelpers.roundTripSerialize(serializableTxnTable));
+  }
+
+  @TestTemplate
+  public void testLocationProviderExceptionIsDeferred() {
+    Table spyTable = spy(table);
+    RuntimeException failure = new RuntimeException("location provider failure");
+    when(spyTable.locationProvider()).thenThrow(failure);
+
+    Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+    assertThat(serializableTable).isNotNull();
+
+    assertThatThrownBy(serializableTable::locationProvider).isSameAs(failure);
+    verify(spyTable, times(1)).locationProvider();
   }
 
   private List<Table> tables() {
