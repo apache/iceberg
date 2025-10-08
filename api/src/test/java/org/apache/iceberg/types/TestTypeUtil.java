@@ -851,23 +851,23 @@ public class TestTypeUtil {
   }
 
   @Test
-  public void findParentsInEmptySchema() {
-    assertThat(TypeUtil.findParents(new Schema(), -1)).isEmpty();
-    assertThat(TypeUtil.findParents(new Schema(), 1)).isEmpty();
+  public void ancestorFieldsInEmptySchema() {
+    assertThat(TypeUtil.ancestorFields(new Schema(), -1)).isEmpty();
+    assertThat(TypeUtil.ancestorFields(new Schema(), 1)).isEmpty();
   }
 
   @Test
-  public void findParentsInNonNestedSchema() {
+  public void ancestorFieldsInNonNestedSchema() {
     Schema schema =
         new Schema(
             required(0, "a", Types.IntegerType.get()), required(1, "A", Types.IntegerType.get()));
 
-    assertThat(TypeUtil.findParents(schema, 0)).isEmpty();
-    assertThat(TypeUtil.findParents(schema, 1)).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, 0)).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, 1)).isEmpty();
   }
 
   @Test
-  public void findParentsInNestedSchema() {
+  public void ancestorFieldsInNestedSchema() {
     Types.NestedField innerPreferences =
         optional(
             8,
@@ -915,33 +915,34 @@ public class TestTypeUtil {
     Schema schema = new Schema(id, data, preferences, locations, points);
 
     // non-nested fields don't have parents
-    assertThat(TypeUtil.findParents(schema, id.fieldId())).isEmpty();
-    assertThat(TypeUtil.findParents(schema, data.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, id.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, data.fieldId())).isEmpty();
 
     // verify preferences struct and all of its nested fields (6-8, 12+13)
-    assertThat(TypeUtil.findParents(schema, preferences.fieldId())).isEmpty();
-    assertThat(TypeUtil.findParents(schema, 6)).containsExactly(preferences);
-    assertThat(TypeUtil.findParents(schema, 7)).containsExactly(preferences);
-    assertThat(TypeUtil.findParents(schema, innerPreferences.fieldId()))
+    assertThat(TypeUtil.ancestorFields(schema, preferences.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, 6)).containsExactly(preferences);
+    assertThat(TypeUtil.ancestorFields(schema, 7)).containsExactly(preferences);
+    assertThat(TypeUtil.ancestorFields(schema, innerPreferences.fieldId()))
         .containsExactly(preferences);
-    assertThat(TypeUtil.findParents(schema, 12)).containsExactly(innerPreferences, preferences);
-    assertThat(TypeUtil.findParents(schema, 13)).containsExactly(innerPreferences, preferences);
+    assertThat(TypeUtil.ancestorFields(schema, 12)).containsExactly(innerPreferences, preferences);
+    assertThat(TypeUtil.ancestorFields(schema, 13)).containsExactly(innerPreferences, preferences);
 
-    // verify locations map and all of its nested fields (IDs 20-23 and 14+15)
-    assertThat(TypeUtil.findParents(schema, locations.fieldId())).isEmpty();
-    assertThat(TypeUtil.findParents(schema, locationsKey.fieldId())).containsExactly(locations);
-    assertThat(TypeUtil.findParents(schema, 20)).containsExactly(locationsKey, locations);
-    assertThat(TypeUtil.findParents(schema, 21)).containsExactly(locationsKey, locations);
-    assertThat(TypeUtil.findParents(schema, 22)).containsExactly(locationsKey, locations);
-    assertThat(TypeUtil.findParents(schema, 23)).containsExactly(locationsKey, locations);
-    assertThat(TypeUtil.findParents(schema, locationsValue.fieldId())).containsExactly(locations);
-    assertThat(TypeUtil.findParents(schema, 14)).containsExactly(locationsValue, locations);
-    assertThat(TypeUtil.findParents(schema, 15)).containsExactly(locationsValue, locations);
+    // verify locations map and all of its nested fields (IDs 9+10, 20-23 and 14+15)
+    assertThat(TypeUtil.ancestorFields(schema, locations.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, locationsKey.fieldId())).containsExactly(locations);
+    assertThat(TypeUtil.ancestorFields(schema, 20)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 21)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 22)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 23)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, locationsValue.fieldId()))
+        .containsExactly(locations);
+    assertThat(TypeUtil.ancestorFields(schema, 14)).containsExactly(locationsValue, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 15)).containsExactly(locationsValue, locations);
 
-    // verify points list and all of its nested fields (IDs 14-16)
-    assertThat(TypeUtil.findParents(schema, points.fieldId())).isEmpty();
-    assertThat(TypeUtil.findParents(schema, pointsElement.fieldId())).containsExactly(points);
-    assertThat(TypeUtil.findParents(schema, 16)).containsExactly(pointsElement, points);
-    assertThat(TypeUtil.findParents(schema, 17)).containsExactly(pointsElement, points);
+    // verify points list and all of its nested fields (IDs 11 and 16+17)
+    assertThat(TypeUtil.ancestorFields(schema, points.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, pointsElement.fieldId())).containsExactly(points);
+    assertThat(TypeUtil.ancestorFields(schema, 16)).containsExactly(pointsElement, points);
+    assertThat(TypeUtil.ancestorFields(schema, 17)).containsExactly(pointsElement, points);
   }
 }
