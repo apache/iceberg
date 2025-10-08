@@ -249,12 +249,13 @@ public final class FormatModelRegistry {
 
   @SuppressWarnings("unchecked")
   private static <D, S> FormatModel<D, S> factoryFor(FileFormat format, Class<D> type) {
-    return ((FormatModel<D, S>) MODELS.get(Pair.of(format, type)));
+    FormatModel<D, S> model = ((FormatModel<D, S>) MODELS.get(Pair.of(format, type)));
+    Preconditions.checkNotNull(model, "Format model is not registered for %s and %s", format, type);
+    return model;
   }
 
   @SuppressWarnings("unchecked")
   private static FormatModel<PositionDelete<?>, ?> factoryForPositionDelete(FileFormat format) {
-    // Registry should use Pair<FileFormat, Class<?>> as key, so use PositionDelete.class
     return (FormatModel<PositionDelete<?>, ?>) MODELS.get(Pair.of(format, PositionDelete.class));
   }
 }
