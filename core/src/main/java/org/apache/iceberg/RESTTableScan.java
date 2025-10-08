@@ -155,6 +155,7 @@ public class RESTTableScan extends DataTableScan {
     PlanStatus planStatus = response.planStatus();
     switch (planStatus) {
       case COMPLETED:
+        // No need to clear currentPlanId here since it's only set for SUBMITTED plans
         return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
         return fetchPlanningResult(response.planId());
@@ -189,6 +190,8 @@ public class RESTTableScan extends DataTableScan {
         PlanStatus planStatus = response.planStatus();
         switch (planStatus) {
           case COMPLETED:
+            // Clear plan ID since planning completed successfully
+            currentPlanId = null;
             return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
           case SUBMITTED:
             try {
@@ -240,9 +243,15 @@ public class RESTTableScan extends DataTableScan {
 
   private CloseableIterable<FileScanTask> getScanTasksIterable(
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
-    List<ScanTasksIterable> iterableOfScanTaskIterables = Lists.newArrayList();
+    // Create a single global ParallelIterable for all scan tasks
+    ParallelIterable<FileScanTask> parallelIterable =
+        new ParallelIterable<>(Lists.newArrayList(), planExecutor());
+
+    // Create shared reference counter to track when all scan tasks are complete
+    ScanTasksReferenceCounter referenceCounter =
+        new ScanTasksReferenceCounterImpl(parallelIterable);
+
     if (fileScanTasks != null) {
-      // add this to the list for below if planTasks will also be present
       ScanTasksIterable scanTasksIterable =
           new ScanTasksIterable(
               fileScanTasks,
@@ -253,11 +262,14 @@ public class RESTTableScan extends DataTableScan {
               planExecutor(),
               table.specs(),
               isCaseSensitive(),
-              this::cancelPlan);
-      iterableOfScanTaskIterables.add(scanTasksIterable);
+              this::cancelPlan,
+              parallelIterable,
+              referenceCounter);
+      parallelIterable.addIterable(scanTasksIterable);
+      referenceCounter.increment();
     }
+
     if (planTasks != null) {
-      // Use parallel iterable since planTasks are present
       for (String planTask : planTasks) {
         ScanTasksIterable iterable =
             new ScanTasksIterable(
@@ -269,22 +281,56 @@ public class RESTTableScan extends DataTableScan {
                 planExecutor(),
                 table.specs(),
                 isCaseSensitive(),
-                this::cancelPlan);
-        iterableOfScanTaskIterables.add(iterable);
+                this::cancelPlan,
+                parallelIterable,
+                referenceCounter);
+        parallelIterable.addIterable(iterable);
+        referenceCounter.increment();
       }
-      return new ParallelIterable<>(iterableOfScanTaskIterables, planExecutor());
     }
-    // use a single scanTasks iterable since no need to parallelize since no planTasks
-    return new ScanTasksIterable(
-        fileScanTasks,
-        client,
-        resourcePaths,
-        tableIdentifier,
-        headers,
-        planExecutor(),
-        table.specs(),
-        isCaseSensitive(),
-        this::cancelPlan);
+
+    // If no iterables were added, finish immediately
+    if ((fileScanTasks == null || fileScanTasks.isEmpty())
+        && (planTasks == null || planTasks.isEmpty())) {
+      parallelIterable.finishAdding();
+    }
+
+    return parallelIterable;
+  }
+
+  // Interface for reference counting
+  interface ScanTasksReferenceCounter {
+    void increment();
+
+    void decrement();
+  }
+
+  // Reference counter to track active ScanTasksIterables
+  private static class ScanTasksReferenceCounterImpl implements ScanTasksReferenceCounter {
+    private final ParallelIterable<FileScanTask> parallelIterable;
+    private volatile int count = 0;
+    private final Object lock = new Object();
+
+    ScanTasksReferenceCounterImpl(ParallelIterable<FileScanTask> parallelIterable) {
+      this.parallelIterable = parallelIterable;
+    }
+
+    @Override
+    public void increment() {
+      synchronized (lock) {
+        count++;
+      }
+    }
+
+    @Override
+    public void decrement() {
+      synchronized (lock) {
+        count--;
+        if (count == 0) {
+          parallelIterable.finishAdding();
+        }
+      }
+    }
   }
 
   @VisibleForTesting

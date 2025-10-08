@@ -27,7 +27,6 @@ import java.util.function.Supplier;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
 import org.apache.iceberg.rest.RESTClient;
@@ -49,6 +48,8 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
   private final Map<Integer, PartitionSpec> specsById;
   private final boolean caseSensitive;
   private final Supplier<Boolean> cancellationCallback;
+  private final ParallelIterable<FileScanTask> sharedParallelIterable;
+  private final RESTTableScan.ScanTasksReferenceCounter referenceCounter;
 
   ScanTasksIterable(
       String planTask,
@@ -59,7 +60,9 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       ExecutorService executorService,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive,
-      Supplier<Boolean> cancellationCallback) {
+      Supplier<Boolean> cancellationCallback,
+      ParallelIterable<FileScanTask> sharedParallelIterable,
+      RESTTableScan.ScanTasksReferenceCounter referenceCounter) {
     this.planTask = planTask;
     this.fileScanTasks = null;
     this.client = client;
@@ -70,6 +73,8 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     this.specsById = specsById;
     this.caseSensitive = caseSensitive;
     this.cancellationCallback = cancellationCallback;
+    this.sharedParallelIterable = sharedParallelIterable;
+    this.referenceCounter = referenceCounter;
   }
 
   ScanTasksIterable(
@@ -81,7 +86,9 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       ExecutorService executorService,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive,
-      Supplier<Boolean> cancellationCallback) {
+      Supplier<Boolean> cancellationCallback,
+      ParallelIterable<FileScanTask> sharedParallelIterable,
+      RESTTableScan.ScanTasksReferenceCounter referenceCounter) {
     this.planTask = null;
     this.fileScanTasks = new ArrayDeque<>(fileScanTasks);
     this.client = client;
@@ -92,6 +99,8 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     this.specsById = specsById;
     this.caseSensitive = caseSensitive;
     this.cancellationCallback = cancellationCallback;
+    this.sharedParallelIterable = sharedParallelIterable;
+    this.referenceCounter = referenceCounter;
   }
 
   @Override
@@ -106,7 +115,9 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
         executorService,
         specsById,
         caseSensitive,
-        cancellationCallback);
+        cancellationCallback,
+        sharedParallelIterable,
+        referenceCounter);
   }
 
   @Override
@@ -123,6 +134,8 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     private final Map<Integer, PartitionSpec> specsById;
     private final boolean caseSensitive;
     private final Supplier<Boolean> cancellationCallback;
+    private final ParallelIterable<FileScanTask> sharedParallelIterable;
+    private final RESTTableScan.ScanTasksReferenceCounter referenceCounter;
 
     ScanTasksIterator(
         String planTask,
@@ -134,7 +147,9 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
         ExecutorService executorService,
         Map<Integer, PartitionSpec> specsById,
         boolean caseSensitive,
-        Supplier<Boolean> cancellationCallback) {
+        Supplier<Boolean> cancellationCallback,
+        ParallelIterable<FileScanTask> sharedParallelIterable,
+        RESTTableScan.ScanTasksReferenceCounter referenceCounter) {
       this.client = client;
       this.resourcePaths = resourcePaths;
       this.tableIdentifier = tableIdentifier;
@@ -145,6 +160,8 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       this.specsById = specsById;
       this.caseSensitive = caseSensitive;
       this.cancellationCallback = cancellationCallback;
+      this.sharedParallelIterable = sharedParallelIterable;
+      this.referenceCounter = referenceCounter;
     }
 
     @Override
@@ -162,8 +179,15 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
         return hasNext();
       }
       // we have no file scan tasks left to consume
-      // so means we are finished
+      // so means we are finished - decrement reference counter
+      decrementReferenceCounter();
       return false;
+    }
+
+    private void decrementReferenceCounter() {
+      if (referenceCounter != null) {
+        referenceCounter.decrement();
+      }
     }
 
     @Override
@@ -192,36 +216,36 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       }
 
       if (response.planTasks() != null) {
-        // This is the case where a plan task returned an additional plan task, so ensure that this
-        // result is added to top level fileScanTasks list.
-        Iterable<FileScanTask> fileScanTasksFromPlanTasks =
-            getScanTasksIterable(response.planTasks());
-
-        fileScanTasksFromPlanTasks.forEach(fileScanTasks::add);
+        // This is the case where a plan task returned additional plan tasks, so add them
+        // to the shared ParallelIterable for processing
+        for (String planTaskId : response.planTasks()) {
+          ScanTasksIterable iterable =
+              new ScanTasksIterable(
+                  planTaskId,
+                  client,
+                  resourcePaths,
+                  tableIdentifier,
+                  headers,
+                  executorService,
+                  specsById,
+                  caseSensitive,
+                  cancellationCallback,
+                  sharedParallelIterable,
+                  referenceCounter);
+          sharedParallelIterable.addIterable(iterable);
+          // Increment reference counter for the new iterable
+          if (referenceCounter != null) {
+            referenceCounter.increment();
+          }
+        }
       }
-    }
-
-    public CloseableIterable<FileScanTask> getScanTasksIterable(List<String> planTasks) {
-      List<ScanTasksIterable> iterableOfScanTaskIterables = Lists.newArrayList();
-      for (String withPlanTask : planTasks) {
-        ScanTasksIterable iterable =
-            new ScanTasksIterable(
-                withPlanTask,
-                client,
-                resourcePaths,
-                tableIdentifier,
-                headers,
-                executorService,
-                specsById,
-                caseSensitive,
-                cancellationCallback);
-        iterableOfScanTaskIterables.add(iterable);
-      }
-      return new ParallelIterable<>(iterableOfScanTaskIterables, executorService);
     }
 
     @Override
     public void close() throws IOException {
+      // Decrement reference counter when closing
+      decrementReferenceCounter();
+
       // Cancel the plan if we have a cancellation callback
       if (cancellationCallback != null) {
         try {

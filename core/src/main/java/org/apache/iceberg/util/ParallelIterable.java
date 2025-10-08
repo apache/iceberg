@@ -52,6 +52,9 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
   private final Iterable<? extends Iterable<T>> iterables;
   private final ExecutorService workerPool;
+  private final ConcurrentLinkedQueue<Iterable<T>> pendingIterables = new ConcurrentLinkedQueue<>();
+  private final AtomicBoolean addingFinished = new AtomicBoolean(false);
+  private final AtomicBoolean dynamicMode = new AtomicBoolean(false);
 
   // Bound for number of items in the queue to limit memory consumption
   // even in the case when input iterables are large.
@@ -70,10 +73,30 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     this.approximateMaxQueueSize = approximateMaxQueueSize;
   }
 
+  public void addIterable(Iterable<T> iterable) {
+    Preconditions.checkNotNull(iterable, "Iterable cannot be null");
+    if (addingFinished.get()) {
+      throw new IllegalStateException(
+          "No more iterables can be added after finishAdding() is called");
+    }
+    dynamicMode.set(true);
+    pendingIterables.offer(iterable);
+  }
+
+  public void finishAdding() {
+    addingFinished.set(true);
+  }
+
   @Override
   public CloseableIterator<T> iterator() {
     ParallelIterator<T> iter =
-        new ParallelIterator<>(iterables, workerPool, approximateMaxQueueSize);
+        new ParallelIterator<>(
+            iterables,
+            pendingIterables,
+            addingFinished,
+            dynamicMode.get(),
+            workerPool,
+            approximateMaxQueueSize);
     addCloseable(iter);
     return iter;
   }
@@ -82,19 +105,30 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
   static class ParallelIterator<T> implements CloseableIterator<T> {
     private final Iterator<Task<T>> tasks;
     private final Deque<Task<T>> yieldedTasks = new ArrayDeque<>();
+    private final ConcurrentLinkedQueue<Iterable<T>> pendingIterables;
+    private final AtomicBoolean addingFinished;
     private final ExecutorService workerPool;
     private final CompletableFuture<Optional<Task<T>>>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final int maxQueueSize;
+    private final boolean isDynamicMode;
 
     private ParallelIterator(
-        Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool, int maxQueueSize) {
+        Iterable<? extends Iterable<T>> iterables,
+        ConcurrentLinkedQueue<Iterable<T>> pendingIterables,
+        AtomicBoolean addingFinished,
+        boolean isDynamicMode,
+        ExecutorService workerPool,
+        int maxQueueSize) {
       Preconditions.checkArgument(maxQueueSize > 0, "Max queue size must be greater than 0");
       this.tasks =
           Iterables.transform(
                   iterables, iterable -> new Task<>(iterable, queue, closed, maxQueueSize))
               .iterator();
+      this.pendingIterables = pendingIterables;
+      this.addingFinished = addingFinished;
+      this.isDynamicMode = isDynamicMode;
       this.workerPool = workerPool;
       // submit 2 tasks per worker at a time
       this.taskFutures = new CompletableFuture[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
@@ -150,28 +184,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
       for (int i = 0; i < taskFutures.length; i += 1) {
         if (taskFutures[i] == null || taskFutures[i].isDone()) {
-          if (taskFutures[i] != null) {
-            // check for task failure and re-throw any exception. Enqueue continuation if any.
-            try {
-              Optional<Task<T>> continuation = taskFutures[i].get();
-              continuation.ifPresent(yieldedTasks::addLast);
-              taskFutures[i] = null;
-            } catch (ExecutionException e) {
-              if (e.getCause() instanceof RuntimeException) {
-                // rethrow a runtime exception
-                throw (RuntimeException) e.getCause();
-              } else {
-                throw new RuntimeException("Failed while running parallel task", e.getCause());
-              }
-            } catch (InterruptedException e) {
-              throw new RuntimeException("Interrupted while running parallel task", e);
-            }
-          }
-
-          // submit a new task if there is space in the queue
-          if (queue.size() < maxQueueSize) {
-            taskFutures[i] = submitNextTask();
-          }
+          handleCompletedTask(i);
+          trySubmitNewTask(i);
         }
 
         if (taskFutures[i] != null) {
@@ -179,7 +193,44 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         }
       }
 
-      return !closed.get() && (tasks.hasNext() || hasRunningTask);
+      return hasPendingWork(hasRunningTask);
+    }
+
+    private void handleCompletedTask(int index) {
+      if (taskFutures[index] != null) {
+        try {
+          Optional<Task<T>> continuation = taskFutures[index].get();
+          continuation.ifPresent(yieldedTasks::addLast);
+          taskFutures[index] = null;
+        } catch (ExecutionException e) {
+          handleExecutionException(e);
+        } catch (InterruptedException e) {
+          throw new RuntimeException("Interrupted while running parallel task", e);
+        }
+      }
+    }
+
+    private void handleExecutionException(ExecutionException executionException) {
+      if (executionException.getCause() instanceof RuntimeException) {
+        throw (RuntimeException) executionException.getCause();
+      } else {
+        throw new RuntimeException(
+            "Failed while running parallel task", executionException.getCause());
+      }
+    }
+
+    private void trySubmitNewTask(int index) {
+      if (queue.size() < maxQueueSize) {
+        taskFutures[index] = submitNextTask();
+      }
+    }
+
+    private boolean hasPendingWork(boolean hasRunningTask) {
+      return !closed.get()
+          && (tasks.hasNext()
+              || hasRunningTask
+              || !pendingIterables.isEmpty()
+              || (isDynamicMode && !addingFinished.get()));
     }
 
     private CompletableFuture<Optional<Task<T>>> submitNextTask() {
@@ -188,6 +239,13 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
           return CompletableFuture.supplyAsync(yieldedTasks.removeFirst(), workerPool);
         } else if (tasks.hasNext()) {
           return CompletableFuture.supplyAsync(tasks.next(), workerPool);
+        } else {
+          // Check for dynamically added iterables
+          Iterable<T> pendingIterable = pendingIterables.poll();
+          if (pendingIterable != null) {
+            Task<T> newTask = new Task<>(pendingIterable, queue, closed, maxQueueSize);
+            return CompletableFuture.supplyAsync(newTask, workerPool);
+          }
         }
       }
       return null;
