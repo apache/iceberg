@@ -62,21 +62,15 @@ case class CreateV2TableLikeExec(
     val partitionSpec: PartitionSpec = sourceTable.table().spec()
     val sortOrder: SortOrder = sourceTable.table().sortOrder()
 
-    val partitioning: Array[Transform] = Spark3Util.toTransforms(partitionSpec)
-
-    val sourceProps = sourceTable.table().properties().asScala.toMap
-    val mergedProps = sourceProps ++ tableProps
     val columns = SparkSchemaUtil.convert(schema).fields.map {
       case StructField(name, dataType, nullable, _) =>
         Column.create(name, dataType, nullable)
     }
+    val partitioning: Array[Transform] = Spark3Util.toTransforms(partitionSpec)
+    val sourceProps = sourceTable.table().properties().asScala.toMap
+    val mergedProps = sourceProps ++ tableProps
 
-    catalog.createTable(
-      ident,
-      columns,
-      partitioning,
-      mergedProps.asJava
-    )
+    catalog.createTable(ident, columns, partitioning, mergedProps.asJava)
 
     if (sortOrder.isSorted) {
       catalog.loadTable(ident) match {

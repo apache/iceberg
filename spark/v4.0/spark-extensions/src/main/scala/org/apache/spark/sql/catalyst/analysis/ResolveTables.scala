@@ -26,7 +26,7 @@ import org.apache.spark.sql.catalyst.rules.Rule
 
 case class ResolveTables(spark: SparkSession) extends Rule[LogicalPlan] {
 
-  override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperatorsUp {
+  override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case x @ CreateIcebergTableLike(_, _, _, _) => x
   }
 
