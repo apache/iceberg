@@ -1283,11 +1283,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result.orphanFileLocations())
         .as("Streaming should return file paths with summary")
         .hasSizeGreaterThan(0);
-    
+
     // Last row should always be the summary row
     List<String> locations = Lists.newArrayList(result.orphanFileLocations());
     assertThat(locations.size()).as("Should have 3 orphan files + 1 summary row").isEqualTo(4);
-    
+
     // Last row should be the consistent summary format
     assertThat(locations.get(locations.size() - 1))
         .as("Last row should be summary")

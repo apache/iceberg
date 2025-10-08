@@ -99,7 +99,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
   public static final String STREAM_RESULTS = "stream-results";
   public static final boolean STREAM_RESULTS_DEFAULT = false;
-  
+
   // Maximum number of file paths to return in streaming mode to avoid OOM
   // Users can still get total count by checking last row
   private static final int MAX_ORPHAN_FILE_RESULTS = 20000;
@@ -279,14 +279,14 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
       while (fileGroups.hasNext()) {
         List<String> fileGroup = fileGroups.next();
-        
+
         // Collect sample paths before deleting
         for (String path : fileGroup) {
           if (samplePaths.size() < MAX_ORPHAN_FILE_RESULTS) {
             samplePaths.add(path);
           }
         }
-        
+
         try {
           bulkIO.deleteFiles(fileGroup);
           filesCount += fileGroup.size();
@@ -304,7 +304,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     } else {
       List<String> filesList = Lists.newArrayList(orphanFiles);
       filesCount = filesList.size();
-      
+
       // Collect sample paths
       for (int i = 0; i < Math.min(filesList.size(), MAX_ORPHAN_FILE_RESULTS); i++) {
         samplePaths.add(filesList.get(i));
@@ -329,11 +329,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
 
     LOG.info("Deleted {} orphan files", filesCount);
-    
+
     // Always add summary row for consistency (same format regardless of result size)
     String summary = String.format("[Total removed: %d files.]", filesCount);
     samplePaths.add(summary);
-    
+
     return ImmutableDeleteOrphanFiles.Result.builder()
         .orphanFileLocations(samplePaths)
         .build();
