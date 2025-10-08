@@ -79,7 +79,8 @@ public class TestTry {
     assertThatThrownBy(result::getOrThrow)
         .isInstanceOf(RuntimeException.class)
         .hasCauseInstanceOf(Exception.class)
-        .hasRootCauseMessage("checked exception");
+        .hasRootCauseMessage("checked exception")
+        .hasMessage("java.lang.Exception: checked exception");
   }
 
   @Test
