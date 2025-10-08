@@ -30,6 +30,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.VariantType;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
@@ -282,28 +283,8 @@ public class TestPruneColumns {
                 Types.primitive(PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
                     .id(1)
                     .named("id"))
-            .addField(
-                Types.buildGroup(Type.Repetition.OPTIONAL)
-                    .as(LogicalTypeAnnotation.variantType((byte) 1))
-                    .addField(
-                        Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                            .named("metadata"))
-                    .addField(
-                        Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                            .named("value"))
-                    .id(2)
-                    .named("variant_1"))
-            .addField(
-                Types.buildGroup(Type.Repetition.OPTIONAL)
-                    .as(LogicalTypeAnnotation.variantType((byte) 1))
-                    .addField(
-                        Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                            .named("metadata"))
-                    .addField(
-                        Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                            .named("value"))
-                    .id(3)
-                    .named("variant_2"))
+            .addField(buildVariantType(2, "variant_1"))
+            .addField(buildVariantType(3, "variant_2"))
             .named("table");
 
     Schema projection =
@@ -317,20 +298,21 @@ public class TestPruneColumns {
                 Types.primitive(PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
                     .id(1)
                     .named("id"))
-            .addField(
-                Types.buildGroup(Type.Repetition.OPTIONAL)
-                    .as(LogicalTypeAnnotation.variantType((byte) 1))
-                    .addField(
-                        Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                            .named("metadata"))
-                    .addField(
-                        Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
-                            .named("value"))
-                    .id(2)
-                    .named("variant_1"))
+            .addField(buildVariantType(2, "variant_1"))
             .named("table");
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
     assertThat(actual).as("Pruned schema should be matched").isEqualTo(expected);
+  }
+
+  private static Type buildVariantType(int id, String name) {
+    return Types.buildGroup(Type.Repetition.OPTIONAL)
+        .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
+        .addField(
+            Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED).named("metadata"))
+        .addField(
+            Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED).named("value"))
+        .id(id)
+        .named(name);
   }
 }
