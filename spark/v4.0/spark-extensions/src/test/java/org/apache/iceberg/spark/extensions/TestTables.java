@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -77,20 +78,21 @@ public class TestTables extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableLike() {
+  public void testPartitionedTable() {
     sql("CREATE TABLE %s LIKE %s", tableName, sourceName);
-
-    Table targetTable = validationCatalog.loadTable(tableIdent);
 
     Schema expectedSchema =
         new Schema(
             Types.NestedField.required(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "data", Types.StringType.get()));
 
-    assertThat(targetTable.schema().asStruct())
-        .as("Should have expected schema")
-        .isEqualTo(expectedSchema.asStruct());
+    PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema).truncate("id", 3).build();
 
-    assertThat(sql("SELECT * FROM %s", tableName)).isEmpty();
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(table.spec()).as("Should be partitioned by id").isEqualTo(expectedSpec);
   }
 }
