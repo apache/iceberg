@@ -264,7 +264,7 @@ public class SimpleDataUtil {
     PositionDelete<RowData> posDelete = PositionDelete.create();
     try (PositionDeleteWriter<RowData> writer = posWriter) {
       for (Pair<CharSequence, Long> p : positions) {
-        writer.write(posDelete.set(p.first(), p.second(), null));
+        writer.write(posDelete.set(p.first(), p.second()));
       }
     }
 
