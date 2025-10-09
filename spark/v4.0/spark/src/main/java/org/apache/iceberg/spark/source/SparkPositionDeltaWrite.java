@@ -285,7 +285,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public String toString() {
-      return String.format("IcebergPositionDeltaWrite(table=%s, format=%s)", table, context.dataFileFormat());
+      return String.format(
+          "IcebergPositionDeltaWrite(table=%s, format=%s)", table, context.dataFileFormat());
     }
 
     private Expression conflictDetectionFilter(SparkBatchQueryScan queryScan) {
