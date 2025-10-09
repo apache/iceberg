@@ -44,6 +44,7 @@ public class TestS3FileIOSharedResourceManagement {
   @BeforeEach
   public void before() {
     properties = Maps.newHashMap();
+    properties.put("client.region", "us-east-1");
     properties.put("s3.endpoint", "https://localhost:9000");
     properties.put("s3.path-style-access", "true");
     properties.put("s3.delete.enabled", "false"); // Don't actually delete during tests
