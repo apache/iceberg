@@ -2520,4 +2520,47 @@ public class TestSchemaUpdate {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create required field with unknown type: unk");
   }
+
+  @Test
+  public void testDateToTimestampPromotionNotAllowedInV2() {
+    Schema schema = new Schema(required(1, "col", Types.DateType.get()));
+    // v2 format does not allow date to timestamp promotion
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1, 2)
+                    .updateColumn("col", Types.TimestampType.withoutZone()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: col: date -> timestamp");
+  }
+
+  @Test
+  public void testDateToTimestampTzPromotionNotAllowedInV3() {
+    Schema schema = new Schema(required(1, "col", Types.DateType.get()));
+    // v3 format does not allow date to timestamptz promotion
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1, 3).updateColumn("col", Types.TimestampType.withZone()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: col: date -> timestamptz");
+  }
+
+  @Test
+  public void testUpdatePartitionedDateToTimestampV3Fails() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()), required(2, "ts", Types.DateType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).day("ts").build();
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(schema, spec, "file:/tmp", java.util.Collections.emptyMap());
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(metadata)
+                    .updateColumn("ts", Types.TimestampType.withoutZone())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: ts: date -> timestamp");
+  }
 }

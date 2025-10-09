@@ -47,6 +47,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    *
    * @param readSchema a read schema
    * @param writeSchema a write schema
+   * @param formatVersion the table format version
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> writeCompatibilityErrors(
@@ -324,7 +325,8 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
               currentType.typeId().toString().toLowerCase(Locale.ENGLISH), readPrimitive));
     }
 
-    if (!TypeUtil.isPromotionAllowed(currentType.asPrimitiveType(), readPrimitive, formatVersion)) {
+    if (!TypeUtil.isPromotionAllowed(
+        currentType.asPrimitiveType(), readPrimitive, formatVersion, false)) {
       return ImmutableList.of(
           String.format(": %s cannot be promoted to %s", currentType, readPrimitive));
     }

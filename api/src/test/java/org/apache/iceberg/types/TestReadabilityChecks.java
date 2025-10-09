@@ -70,7 +70,7 @@ public class TestReadabilityChecks {
             CheckCompatibility.writeCompatibilityErrors(
                 new Schema(required(1, "to_field", to)), fromSchema);
 
-        if (TypeUtil.isPromotionAllowed(from, to, 2)) {
+        if (TypeUtil.isPromotionAllowed(from, to, 2, false)) {
           assertThat(errors).as("Should produce 0 error messages").isEmpty();
         } else {
           assertThat(errors).hasSize(1);
