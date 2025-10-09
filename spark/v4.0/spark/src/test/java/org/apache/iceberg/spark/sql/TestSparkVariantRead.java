@@ -19,8 +19,10 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.assertj.core.api.Assertions.fail;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.util.List;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.spark.sql.Dataset;
@@ -28,6 +30,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.types.variant.Variant;
 import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -37,8 +40,8 @@ public class TestSparkVariantRead extends TestBase {
   private static final String CATALOG = "local";
   private static final String TABLE = CATALOG + ".default.var";
 
-  @BeforeEach
-  public void setupCatalog() {
+  @BeforeAll
+  public static void setupCatalog() {
     // Use a Hadoop catalog to avoid Hive schema conversion (Hive doesn't support VARIANT yet)
     spark.conf().set("spark.sql.catalog." + CATALOG, SparkCatalog.class.getName());
     spark.conf().set("spark.sql.catalog." + CATALOG + ".type", "hadoop");
@@ -47,7 +50,10 @@ public class TestSparkVariantRead extends TestBase {
     // point warehouse to a temp directory
     String temp = System.getProperty("java.io.tmpdir") + "/iceberg_spark_variant_warehouse";
     spark.conf().set("spark.sql.catalog." + CATALOG + ".warehouse", temp);
+  }
 
+  @BeforeEach
+  public void setupTable() {
     sql("DROP TABLE IF EXISTS %s", TABLE);
     sql(
         "CREATE TABLE %s (id BIGINT, v1 VARIANT, v2 VARIANT) USING iceberg "
@@ -71,7 +77,7 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testVariantColumnProjection_singleVariant(boolean vectorized) {
-    assumeFalse(vectorized, "Variant vectorized Parquet read is not implemented yet");
+    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
         TABLE, String.valueOf(vectorized));
@@ -79,7 +85,7 @@ public class TestSparkVariantRead extends TestBase {
     assertThat(df.schema().fieldNames()).containsExactly("id", "v1");
     assertThat(df.count()).isEqualTo(2);
 
-    java.util.List<Row> directRows = df.collectAsList();
+    List<Row> directRows = df.collectAsList();
     Object v1row1 = directRows.get(0).get(1);
     Object v1row2 = directRows.get(1).get(1);
     Variant vv1;
@@ -91,8 +97,7 @@ public class TestSparkVariantRead extends TestBase {
       vv1 = new Variant(((VariantVal) v1row1).getValue(), ((VariantVal) v1row1).getMetadata());
       vv2 = new Variant(((VariantVal) v1row2).getValue(), ((VariantVal) v1row2).getMetadata());
     } else {
-      org.assertj.core.api.Assertions.fail(
-          "Expected Variant/VariantVal but got: " + (v1row1 == null ? "null" : v1row1.getClass()));
+      fail("Expected Variant/VariantVal but got: " + (v1row1 == null ? "null" : v1row1.getClass()));
       return;
     }
 
@@ -110,7 +115,7 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testVariantColumnProjectionNoVariant(boolean vectorized) {
-    assumeFalse(vectorized, "Variant vectorized Parquet read is not implemented yet");
+    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
         TABLE, String.valueOf(vectorized));
@@ -123,7 +128,7 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testFilterOnVariantColumnOnWholeValue(boolean vectorized) {
-    assumeFalse(vectorized, "Variant vectorized Parquet read is not implemented yet");
+    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
         TABLE, String.valueOf(vectorized));
@@ -144,7 +149,7 @@ public class TestSparkVariantRead extends TestBase {
             .where("v1 IS NOT NULL")
             .selectExpr("id", "to_json(v1) as v1_json")
             .orderBy("id");
-    java.util.List<Row> nn = notNullVals.collectAsList();
+    List<Row> nn = notNullVals.collectAsList();
     assertThat(nn).hasSize(2);
     assertThat(nn.get(0).getLong(0)).isEqualTo(1L);
     assertThat(nn.get(0).getString(1)).isEqualTo("{\"a\":1}");
@@ -155,7 +160,7 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testVariantNullValueProjection(boolean vectorized) {
-    assumeFalse(vectorized, "Variant vectorized Parquet read is not implemented yet");
+    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
         TABLE, String.valueOf(vectorized));
@@ -165,7 +170,7 @@ public class TestSparkVariantRead extends TestBase {
 
     // select id and variant; ensure the variant value is null
     Dataset<Row> df = spark.table(TABLE).where("id = 10").select("id", "v1");
-    java.util.List<Row> rows = df.collectAsList();
+    List<Row> rows = df.collectAsList();
     assertThat(rows).hasSize(1);
     Row row = rows.get(0);
     assertThat(row.getLong(0)).isEqualTo(10L);
