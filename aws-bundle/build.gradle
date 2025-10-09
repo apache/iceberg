@@ -53,6 +53,9 @@ project(":iceberg-aws-bundle") {
     }
 
     dependencies {
+      exclude(dependency('org.apache.logging.log4j:log4j-api'))
+      exclude(dependency('org.apache.logging.log4j:log4j-core'))
+      exclude(dependency('org.apache.logging.log4j:log4j-slf4j-impl'))
       exclude(dependency('org.slf4j:slf4j-api'))
     }
 
