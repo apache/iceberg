@@ -222,7 +222,8 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
       // existingType:long -> newType:int returns true, meaning it is ignorable
       // existingType:int -> newType:long returns false, meaning it is not ignorable
       return newType.isPrimitiveType()
-          && TypeUtil.isPromotionAllowed(newType, existingType.asPrimitiveType(), formatVersion);
+          && TypeUtil.isPromotionAllowed(
+              newType, existingType.asPrimitiveType(), formatVersion, false);
     } else {
       // Complex -> Complex
       return !newType.isPrimitiveType();
