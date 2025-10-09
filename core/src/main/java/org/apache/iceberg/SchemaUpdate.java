@@ -72,6 +72,11 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   /** For testing only. */
+  SchemaUpdate(TableMetadata base) {
+    this(null, base, base.schema(), base.lastColumnId(), TableProperties.DEFAULT_FORMAT_VERSION);
+  }
+
+  /** For testing only. */
   SchemaUpdate(Schema schema, int lastColumnId) {
     this(null, null, schema, lastColumnId, TableProperties.DEFAULT_FORMAT_VERSION);
   }
@@ -296,8 +301,15 @@ class SchemaUpdate implements UpdateSchema {
       return this;
     }
 
+    // If field is listed in source-ids, we need to flag it for promoting date -> timestamp.
+    List<PartitionField> partitionFields =
+        this.base != null
+            ? this.base.spec().getFieldsBySourceId(field.fieldId())
+            : Lists.newArrayList();
+
     Preconditions.checkArgument(
-        TypeUtil.isPromotionAllowed(field.type(), newType, formatVersion),
+        TypeUtil.isPromotionAllowed(
+            field.type(), newType, formatVersion, !partitionFields.isEmpty()),
         "Cannot change column type: %s: %s -> %s",
         name,
         field.type(),
