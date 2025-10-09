@@ -423,6 +423,12 @@ public class TypeUtil {
     return visit(type, new FindTypeVisitor(predicate));
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link #isPromotionAllowed(Type, Type.PrimitiveType,
+   *     Integer, boolean)} instead. This method does not take advantage of table format or source
+   *     id references
+   */
+  @Deprecated
   public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
     return TypeUtil.isPromotionAllowed(from, to, 2, false);
   }
