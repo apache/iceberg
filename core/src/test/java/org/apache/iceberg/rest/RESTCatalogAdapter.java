@@ -121,16 +121,16 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private final ViewCatalog asViewCatalog;
 
   private AuthSession authSession = AuthSession.EMPTY;
-  private Map<String, List<FileScanTask>> planToFileScanTasks;
-  private Map<String, String> planToPlanTasks;
+  private final Map<String, List<FileScanTask>> planToFileScanTasks;
+  private final Map<String, String> planToPlanTasks;
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
     this.asNamespaceCatalog =
         catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
     this.asViewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
-    this.planToFileScanTasks = Maps.newHashMap();
-    this.planToPlanTasks = Maps.newHashMap();
+    this.planToFileScanTasks = Maps.newConcurrentMap();
+    this.planToPlanTasks = Maps.newConcurrentMap();
   }
 
   enum Route {
@@ -482,18 +482,18 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           TableScan tableScan = table.newScan();
 
           if (request.snapshotId() != null) {
-            tableScan.useSnapshot(request.snapshotId());
+            tableScan = tableScan.useSnapshot(request.snapshotId());
           }
           if (request.select() != null) {
-            tableScan.select(request.select());
+            tableScan = tableScan.select(request.select());
           }
           if (request.filter() != null) {
-            tableScan.filter(request.filter());
+            tableScan = tableScan.filter(request.filter());
           }
           if (request.statsFields() != null) {
-            tableScan.includeColumnStats(request.statsFields());
+            tableScan = tableScan.includeColumnStats(request.statsFields());
           }
-          tableScan.caseSensitive(request.caseSensitive());
+          tableScan = tableScan.caseSensitive(request.caseSensitive());
 
           List<FileScanTask> fileScanTasks = Lists.newArrayList();
           CloseableIterable<FileScanTask> returnedTasks = tableScan.planFiles();
@@ -533,7 +533,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             // for each
             List<String> planTasks =
                 List.of("plan-task-" + UUID.randomUUID(), "plan-task-" + UUID.randomUUID());
-            planTasks.forEach(task -> planToFileScanTasks.put(task, fileScanTasks));
+            planTasks.forEach(
+                task -> planToFileScanTasks.put(task, Lists.newArrayList(fileScanTasks)));
             return castResponse(
                 responseType,
                 PlanTableScanResponse.builder()
@@ -560,7 +561,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
             for (int i = 0; i < outerPlanTasks.size(); i++) {
               planToPlanTasks.put(outerPlanTasks.get(i), innerPlanTasks.get(i));
-              planToFileScanTasks.put(innerPlanTasks.get(i), fileScanTasks);
+              planToFileScanTasks.put(innerPlanTasks.get(i), Lists.newArrayList(fileScanTasks));
             }
 
             return castResponse(
@@ -613,7 +614,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           if (ident.equals(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK)) {
             // this is the case where we return another round of nested plan tasks
             if (planToPlanTasks.containsKey(request.planTask())) {
-              String innerPlanTask = planToPlanTasks.remove(request.planTask());
+              String innerPlanTask = planToPlanTasks.get(request.planTask());
               return castResponse(
                   responseType,
                   FetchScanTasksResponse.builder()
@@ -625,7 +626,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             if (planToFileScanTasks.containsKey(request.planTask())) {
               // this is the case where we get from nested plan tasks the file scan tasks
               List<FileScanTask> fileScanTasksFromPlanTask =
-                  planToFileScanTasks.remove(request.planTask());
+                  planToFileScanTasks.get(request.planTask());
               return castResponse(
                   responseType,
                   FetchScanTasksResponse.builder()

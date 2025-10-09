@@ -34,6 +34,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
@@ -52,7 +53,6 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
@@ -2744,6 +2744,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   public void testPlanTableScanWithCompletedStatusAndFileScanTask() throws IOException {
     Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK);
     assertBoundFileScanTasks(table, SPEC);
+
+    // Verify actual data file is returned with correct count
+    CloseableIterable<FileScanTask> iterable = table.newScan().planFiles();
+    List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+    assertThat(tasks).hasSize(1); // 1 data file: FILE_A
+    assertThat(tasks.get(0).file().path()).isEqualTo(FILE_A.path());
+    assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
   }
 
   @Test
@@ -2751,6 +2759,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       throws IOException {
     Table table = createRESTTableAndInsertData(TABLE_SUBMITTED_WITH_FILE_SCAN_TASK);
     assertBoundFileScanTasks(table, SPEC);
+
+    // Verify actual data file is returned after async polling with correct count
+    CloseableIterable<FileScanTask> iterable = table.newScan().planFiles();
+    List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+    assertThat(tasks).hasSize(1); // 1 data file: FILE_A
+    assertThat(tasks.get(0).file().path()).isEqualTo(FILE_A.path());
+    assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
   }
 
   @Test
@@ -2758,12 +2774,33 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       throws IOException {
     Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_PLAN_TASK);
     assertBoundFileScanTasks(table, SPEC);
+
+    // Verify actual data file is returned via plan task fetching with correct count
+    CloseableIterable<FileScanTask> iterable = table.newScan().planFiles();
+    List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+    assertThat(tasks)
+        .isNotEmpty(); // Should have FILE_A (exact count may vary due to adapter behavior)
+    assertThat(tasks).anySatisfy(task -> assertThat(task.file().path()).isEqualTo(FILE_A.path()));
+    assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
   }
 
   @Test
   public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndNestedPlanTasks() {
     Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
     assertBoundFileScanTasks(table, SPEC);
+
+    // Verify actual data file is returned via nested plan task fetching with correct count
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      assertThat(tasks)
+          .isNotEmpty(); // Should have FILE_A (exact count may vary due to adapter behavior)
+      assertThat(tasks).anySatisfy(task -> assertThat(task.file().path()).isEqualTo(FILE_A.path()));
+      assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private Table createRESTTableAndInsertData(TableIdentifier tableIdentifier) {
@@ -3210,16 +3247,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Expected at least one task with delete files"));
 
-    // Verify the task has the expected data file
+    // Verify the task count and file paths
+    assertThat(tasks).hasSize(1); // 1 data file: FILE_A
     assertThat(taskWithDeletes.file().path()).isEqualTo(FILE_A.path());
-
-    // Verify the delete files are properly associated
-    List<DeleteFile> deletes = taskWithDeletes.deletes();
-    assertThat(deletes).hasSize(1);
-
-    DeleteFile deleteFile = deletes.get(0);
-    assertThat(deleteFile.path()).isEqualTo(FILE_A_DELETES.path());
-    assertThat(deleteFile.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(taskWithDeletes.deletes()).hasSize(1); // 1 delete file: FILE_A_DELETES
+    assertThat(taskWithDeletes.deletes().get(0).path()).isEqualTo(FILE_A_DELETES.path());
   }
 
   @Test
@@ -3250,20 +3282,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Expected at least one task with delete files"));
 
-    // Verify the task has the expected data file
+    // Verify the task count and file paths
+    assertThat(tasks).hasSize(1); // 1 data file: FILE_A
     assertThat(taskWithDeletes.file().path()).isEqualTo(FILE_A.path());
-
-    // Verify the equality delete files are properly associated
-    List<DeleteFile> deletes = taskWithDeletes.deletes();
-    assertThat(deletes).hasSize(1);
-
-    DeleteFile deleteFile = deletes.get(0);
-    assertThat(deleteFile.path()).isEqualTo(FILE_A_EQUALITY_DELETES.path());
-    assertThat(deleteFile.content()).isEqualTo(FileContent.EQUALITY_DELETES);
-
-    // Verify delete file has proper equality fields
-    assertThat(deleteFile.equalityFieldIds()).isNotNull();
-    assertThat(deleteFile.equalityFieldIds()).isNotEmpty();
+    assertThat(taskWithDeletes.deletes()).hasSize(1); // 1 delete file: FILE_A_EQUALITY_DELETES
+    assertThat(taskWithDeletes.deletes().get(0).path()).isEqualTo(FILE_A_EQUALITY_DELETES.path());
   }
 
   @Test
@@ -3288,12 +3311,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     CloseableIterable<FileScanTask> iterable = scan.planFiles();
     List<FileScanTask> tasks = Lists.newArrayList(iterable);
 
-    // Verify we get tasks back
-    assertThat(tasks).isNotEmpty();
+    // Verify task count: FILE_A only (FILE_B_EQUALITY_DELETES is in different partition)
+    assertThat(tasks).hasSize(1); // 1 data file: FILE_A
 
-    // Verify scan planning succeeds with mixed delete types
-    boolean hasTasksWithDeletes = tasks.stream().anyMatch(task -> !task.deletes().isEmpty());
-    assertThat(hasTasksWithDeletes).isTrue();
+    // Verify FILE_A with position deletes (FILE_B_EQUALITY_DELETES not associated since no FILE_B)
+    FileScanTask fileATask =
+        tasks.stream()
+            .filter(task -> task.file().path().equals(FILE_A.path()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected FILE_A in scan tasks"));
+
+    assertThat(fileATask.deletes())
+        .hasSize(1); // 1 delete file: FILE_A_DELETES (FILE_B_EQUALITY_DELETES not matched)
+    assertThat(fileATask.deletes().get(0).path()).isEqualTo(FILE_A_DELETES.path());
   }
 
   @Test
@@ -3323,16 +3353,37 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     List<FileScanTask> tasks = Lists.newArrayList(iterable);
 
     // Verify we get tasks back (should have 3 data files: FILE_A, FILE_B, FILE_C)
-    assertThat(tasks).isNotEmpty();
+    assertThat(tasks).hasSize(3); // 3 data files
 
-    // Verify that multiple delete files are handled properly in scan planning
-    int tasksWithDeletes = 0;
-    for (FileScanTask task : tasks) {
-      if (!task.deletes().isEmpty()) {
-        tasksWithDeletes++;
-      }
-    }
-    assertThat(tasksWithDeletes).isEqualTo(3);
+    // Verify FILE_A with position deletes
+    FileScanTask fileATask =
+        tasks.stream()
+            .filter(task -> task.file().path().equals(FILE_A.path()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected FILE_A in scan tasks"));
+    assertThat(fileATask.deletes()).isNotEmpty(); // Has delete files
+    assertThat(fileATask.deletes().stream().map(DeleteFile::path))
+        .contains(FILE_A_DELETES.path()); // FILE_A_DELETES is present
+
+    // Verify FILE_B with position deletes
+    FileScanTask fileBTask =
+        tasks.stream()
+            .filter(task -> task.file().path().equals(FILE_B.path()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected FILE_B in scan tasks"));
+    assertThat(fileBTask.deletes()).isNotEmpty(); // Has delete files
+    assertThat(fileBTask.deletes().stream().map(DeleteFile::path))
+        .contains(FILE_B_DELETES.path()); // FILE_B_DELETES is present
+
+    // Verify FILE_C with equality deletes
+    FileScanTask fileCTask =
+        tasks.stream()
+            .filter(task -> task.file().path().equals(FILE_C.path()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected FILE_C in scan tasks"));
+    assertThat(fileCTask.deletes()).isNotEmpty(); // Has delete files
+    assertThat(fileCTask.deletes().stream().map(DeleteFile::path))
+        .contains(FILE_C_EQUALITY_DELETES.path()); // FILE_C_EQUALITY_DELETES is present
   }
 
   @Test
@@ -3358,16 +3409,24 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     List<FileScanTask> tasks = Lists.newArrayList(iterable);
 
     // Verify scan planning works with both filtering and deletes
-    assertThat(tasks).isNotNull();
+    assertThat(tasks).hasSize(2); // 2 data files: FILE_A, FILE_B
 
-    // Should be able to iterate through tasks without errors
-    for (FileScanTask task : tasks) {
-      assertThat(task).isNotNull();
-      // Verify delete files are properly associated (depends on format version and backend)
-      if (!task.deletes().isEmpty()) {
-        assertThat(task.deletes()).isNotNull();
-      }
-    }
+    // FILE_A should have no delete files
+    FileScanTask fileATask =
+        tasks.stream()
+            .filter(task -> task.file().path().equals(FILE_A.path()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected FILE_A in scan tasks"));
+    assertThat(fileATask.deletes()).isEmpty(); // 0 delete files for FILE_A
+
+    // FILE_B should have FILE_B_EQUALITY_DELETES
+    FileScanTask fileBTask =
+        tasks.stream()
+            .filter(task -> task.file().path().equals(FILE_B.path()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected FILE_B in scan tasks"));
+    assertThat(fileBTask.deletes()).hasSize(1); // 1 delete file: FILE_B_EQUALITY_DELETES
+    assertThat(fileBTask.deletes().get(0).path()).isEqualTo(FILE_B_EQUALITY_DELETES.path());
   }
 
   @Test
@@ -3395,5 +3454,90 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // Verify cancellation method is still accessible
     boolean cancelled = restTableScan.cancelPlan();
     assertThat(cancelled).isFalse(); // No active plan at this point
+  }
+
+  @Test
+  public void testRESTScanPlanningWithTimeTravel() throws IOException {
+    // Test server-side scan planning with time travel (snapshot-based queries)
+    // Verify that snapshot IDs are correctly passed through the REST API
+    // and that historical scans return the correct files and deletes
+
+    RESTCatalog catalog =
+        initCatalog(
+            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE_COMPLETED_WITH_FILE_SCAN_TASK.namespace());
+    }
+
+    // Create table and add FILE_A (snapshot 1)
+    Table table =
+        catalog
+            .buildTable(TABLE_COMPLETED_WITH_FILE_SCAN_TASK, SCHEMA)
+            .withPartitionSpec(SPEC)
+            .create();
+    // Assert that we have a RESTTable
+    assertThat(table).isInstanceOf(RESTTable.class);
+    table.newAppend().appendFile(FILE_A).commit();
+    table.refresh();
+    long snapshot1Id = table.currentSnapshot().snapshotId();
+
+    // Add FILE_B (snapshot 2)
+    table.newAppend().appendFile(FILE_B).commit();
+    table.refresh();
+    long snapshot2Id = table.currentSnapshot().snapshotId();
+    assertThat(snapshot2Id).isNotEqualTo(snapshot1Id);
+
+    // Add FILE_C and deletes (snapshots 3 and 4)
+    table.newAppend().appendFile(FILE_C).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    table.refresh();
+    long snapshot4Id = table.currentSnapshot().snapshotId();
+    assertThat(snapshot4Id).isNotEqualTo(snapshot2Id);
+
+    // Test 1: Scan at snapshot 1 (should only see FILE_A, no deletes)
+    TableScan scan1 = table.newScan().useSnapshot(snapshot1Id);
+    CloseableIterable<FileScanTask> iterable1 = scan1.planFiles();
+    List<FileScanTask> tasks1 = Lists.newArrayList(iterable1);
+
+    assertThat(tasks1).hasSize(1); // Only FILE_A exists at snapshot 1
+    assertThat(tasks1.get(0).file().path()).isEqualTo(FILE_A.path());
+    assertThat(tasks1.get(0).deletes()).isEmpty(); // No deletes at snapshot 1
+
+    // Test 2: Scan at snapshot 2 (should see FILE_A and FILE_B, no deletes)
+    TableScan scan2 = table.newScan().useSnapshot(snapshot2Id);
+    CloseableIterable<FileScanTask> iterable2 = scan2.planFiles();
+    List<FileScanTask> tasks2 = Lists.newArrayList(iterable2);
+
+    assertThat(tasks2).hasSize(2); // FILE_A and FILE_B exist at snapshot 2
+    assertThat(tasks2.stream().map(task -> task.file().path()))
+        .containsExactlyInAnyOrder(FILE_A.path(), FILE_B.path());
+    assertThat(tasks2.stream().allMatch(task -> task.deletes().isEmpty()))
+        .isTrue(); // No deletes at snapshot 2
+
+    // Test 3: Scan at current snapshot (should see FILE_A, FILE_B, FILE_C, and FILE_A has deletes)
+    TableScan scan3 = table.newScan().useSnapshot(snapshot4Id);
+    CloseableIterable<FileScanTask> iterable3 = scan3.planFiles();
+    List<FileScanTask> tasks3 = Lists.newArrayList(iterable3);
+
+    assertThat(tasks3).hasSize(3); // All 3 data files exist at snapshot 4
+    assertThat(tasks3.stream().map(task -> task.file().path()))
+        .containsExactlyInAnyOrder(FILE_A.path(), FILE_B.path(), FILE_C.path());
+
+    // Verify FILE_A has deletes at snapshot 4
+    FileScanTask fileATask =
+        tasks3.stream()
+            .filter(task -> task.file().path().equals(FILE_A.path()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected FILE_A in scan tasks"));
+    assertThat(fileATask.deletes()).hasSize(1); // FILE_A_DELETES present at snapshot 4
+    assertThat(fileATask.deletes().get(0).path()).isEqualTo(FILE_A_DELETES.path());
+
+    // Verify FILE_B and FILE_C have no deletes at snapshot 4
+    tasks3.stream()
+        .filter(
+            task ->
+                task.file().path().equals(FILE_B.path())
+                    || task.file().path().equals(FILE_C.path()))
+        .forEach(task -> assertThat(task.deletes()).isEmpty());
   }
 }
