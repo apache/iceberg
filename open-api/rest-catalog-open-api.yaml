@@ -2023,7 +2023,8 @@ components:
         time of the commit.
 
         Finalization rules:
-        - Finalize & replay: 200, 201, 204, and deterministic terminal 4xx
+        - Finalize & replay: 200, 201, 204, and deterministic terminal 4xx (including 409
+          such as AlreadyExists, NamespaceNotEmpty, etc.)
         - Do not finalize (not stored/replayed): 5xx, 409 (RequestInProgressException)
 
         Key Requirements:
