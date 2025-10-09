@@ -44,7 +44,6 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksResponseElement;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
@@ -282,22 +281,14 @@ class MetastoreLock implements HiveLock {
     lockComponent.setTablename(tableName);
     LockRequest lockRequest =
         new LockRequest(Lists.newArrayList(lockComponent), HiveHadoopUtil.currentUser(), hostName);
-
-    // Only works in Hive 2 or later.
-    if (HiveVersion.min(HiveVersion.HIVE_2)) {
-      lockRequest.setAgentInfo(agentInfo);
-    }
+    lockRequest.setAgentInfo(agentInfo);
 
     AtomicBoolean interrupted = new AtomicBoolean(false);
     Tasks.foreach(lockRequest)
         .retry(Integer.MAX_VALUE - 100)
         .exponentialBackoff(
             lockCreationMinWaitTime, lockCreationMaxWaitTime, lockCreationTimeout, 2.0)
-        .shouldRetryTest(
-            e ->
-                !interrupted.get()
-                    && e instanceof LockException
-                    && HiveVersion.min(HiveVersion.HIVE_2))
+        .shouldRetryTest(e -> !interrupted.get() && e instanceof LockException)
         .throwFailureWhenFinished()
         .run(
             request -> {
@@ -310,14 +301,12 @@ class MetastoreLock implements HiveLock {
                 try {
                   // If we can not check for lock, or we do not find it, then rethrow the exception
                   // Otherwise we are happy as the findLock sets the lockId and the state correctly
-                  if (HiveVersion.min(HiveVersion.HIVE_2)) {
-                    LockInfo lockFound = findLock();
-                    if (lockFound != null) {
-                      lockInfo.lockId = lockFound.lockId;
-                      lockInfo.lockState = lockFound.lockState;
-                      LOG.info("Found lock {} by agentInfo {}", lockInfo, agentInfo);
-                      return;
-                    }
+                  LockInfo lockFound = findLock();
+                  if (lockFound != null) {
+                    lockInfo.lockId = lockFound.lockId;
+                    lockInfo.lockState = lockFound.lockState;
+                    LOG.info("Found lock {} by agentInfo {}", lockInfo, agentInfo);
+                    return;
                   }
 
                   throw new LockException(
@@ -360,9 +349,6 @@ class MetastoreLock implements HiveLock {
    * @return The {@link LockInfo} for the found lock, or <code>null</code> if nothing found
    */
   private LockInfo findLock() throws LockException, InterruptedException {
-    Preconditions.checkArgument(
-        HiveVersion.min(HiveVersion.HIVE_2),
-        "Minimally Hive 2 HMS client is needed to find the Lock using the showLocks API call");
     ShowLocksRequest showLocksRequest = new ShowLocksRequest();
     showLocksRequest.setDbname(databaseName);
     showLocksRequest.setTablename(tableName);
@@ -388,19 +374,14 @@ class MetastoreLock implements HiveLock {
     try {
       if (!lockId.isPresent()) {
         // Try to find the lock based on agentInfo. Only works with Hive 2 or later.
-        if (HiveVersion.min(HiveVersion.HIVE_2)) {
-          LockInfo lockInfo = findLock();
-          if (lockInfo == null) {
-            // No lock found
-            LOG.info("No lock found with {} agentInfo", agentInfo);
-            return;
-          }
-
-          id = lockInfo.lockId;
-        } else {
-          LOG.warn("Could not find lock with HMSClient {}", HiveVersion.current());
+        LockInfo lockInfo = findLock();
+        if (lockInfo == null) {
+          // No lock found
+          LOG.info("No lock found with {} agentInfo", agentInfo);
           return;
         }
+
+        id = lockInfo.lockId;
       } else {
         id = lockId.get();
       }

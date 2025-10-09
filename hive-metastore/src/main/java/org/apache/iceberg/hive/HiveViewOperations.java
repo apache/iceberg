@@ -325,7 +325,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
     if (hiveLockEnabled(conf)) {
       return new MetastoreLock(conf, metaClients, catalogName, database, viewName);
     } else {
-      return new NoLock();
+      return NoLock.get();
     }
   }
 

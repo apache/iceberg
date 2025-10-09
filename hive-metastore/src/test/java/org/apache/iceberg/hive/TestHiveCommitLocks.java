@@ -30,8 +30,6 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
@@ -80,7 +78,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
-import org.mockito.MockedStatic;
 import org.mockito.invocation.InvocationOnMock;
 
 public class TestHiveCommitLocks {
@@ -495,32 +492,6 @@ public class TestHiveCommitLocks {
         .isInstanceOf(RuntimeException.class)
         .hasMessage(
             "org.apache.iceberg.hive.LockException: Metastore operation failed for hivedb.tbl");
-  }
-
-  @Test
-  public void testPassThroughThriftExceptionsForHiveVersion_1()
-      throws TException, InterruptedException {
-    try (MockedStatic<HiveVersion> ignore = mockStatic(HiveVersion.class)) {
-      // default order is 0, meets the requirements of this test
-      HiveVersion version = mock(HiveVersion.class);
-      when(HiveVersion.current()).thenReturn(version);
-
-      doReturn(emptyLocks).when(spyClient).showLocks(any());
-      doThrow(new TException("Failed to connect to HMS"))
-          .doReturn(waitLockResponse)
-          .when(spyClient)
-          .lock(any());
-      doReturn(waitLockResponse)
-          .doReturn(acquiredLockResponse)
-          .when(spyClient)
-          .checkLock(eq(dummyLockId));
-      doNothing().when(spyClient).heartbeat(eq(0L), eq(dummyLockId));
-
-      assertThatThrownBy(() -> spyOps.doCommit(metadataV2, metadataV1))
-          .isInstanceOf(CommitFailedException.class)
-          .hasMessage(
-              "org.apache.iceberg.hive.LockException: Failed to find lock for table hivedb.tbl");
-    }
   }
 
   @Test

@@ -375,7 +375,7 @@ public class TestHiveViewCommits {
     HiveViewOperations spyOps = spy(ops);
 
     // Sets NoLock
-    doReturn(new NoLock()).when(spyOps).lockObject();
+    doReturn(NoLock.get()).when(spyOps).lockObject();
 
     // Simulate a concurrent view modification error
     doThrow(

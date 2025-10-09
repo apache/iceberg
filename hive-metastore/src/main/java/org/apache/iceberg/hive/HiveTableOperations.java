@@ -380,7 +380,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     if (hiveLockEnabled(metadata, conf)) {
       return new MetastoreLock(conf, metaClients, catalogName, database, tableName);
     } else {
-      return new NoLock();
+      return NoLock.get();
     }
   }
 }

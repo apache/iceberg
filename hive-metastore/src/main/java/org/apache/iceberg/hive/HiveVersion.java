@@ -26,7 +26,6 @@ public enum HiveVersion {
   HIVE_4(4),
   HIVE_3(3),
   HIVE_2(2),
-  HIVE_1_2(1),
   NOT_SUPPORTED(0);
 
   private final int order;
@@ -54,12 +53,6 @@ public enum HiveVersion {
         return HIVE_3;
       case "2":
         return HIVE_2;
-      case "1":
-        if (versions.get(1).equals("2")) {
-          return HIVE_1_2;
-        } else {
-          return NOT_SUPPORTED;
-        }
       default:
         return NOT_SUPPORTED;
     }

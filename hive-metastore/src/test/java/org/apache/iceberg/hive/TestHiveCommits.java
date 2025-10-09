@@ -336,7 +336,7 @@ public class TestHiveCommits extends HiveTableTestBase {
     HiveTableOperations spyOps = spy(ops);
 
     // Sets NoLock
-    doReturn(new NoLock()).when(spyOps).lockObject(any());
+    doReturn(NoLock.get()).when(spyOps).lockObject(any());
 
     // Simulate a concurrent table modification error
     doThrow(
