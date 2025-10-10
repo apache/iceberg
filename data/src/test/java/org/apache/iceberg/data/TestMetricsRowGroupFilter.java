@@ -255,7 +255,6 @@ public class TestMetricsRowGroupFilter {
       GenericRecord structNotNull = GenericRecord.create(UNDERSCORE_STRUCT_FIELD_TYPE);
       structNotNull.setField("_int_field", INT_MIN_VALUE + i);
       builder.setField("_struct_not_null", structNotNull); // struct with int
-
       builder.setField("_uuid_col", (i % 2 == 0) ? UUID_WITH_ZEROS : null);
 
       records.add(builder);
