@@ -33,6 +33,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -404,6 +405,16 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       return ROWS_CANNOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<BoundingBox> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<BoundingBox> lit) {
+      return ROWS_MIGHT_MATCH;
     }
 
     @SuppressWarnings("unchecked")

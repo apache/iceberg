@@ -31,8 +31,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -45,6 +48,9 @@ import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestExpressionUtil {
   private static final Schema SCHEMA =
@@ -1303,6 +1309,48 @@ public class TestExpressionUtil {
         VariantTestUtil.createArray(
             VariantTestUtil.createString("iceberg"), nestedObject, nestedArray);
     return (VariantArray) VariantValue.from(metadata, variantBB);
+  }
+
+  private static Stream<Arguments> geospatialPredicateParameters() {
+    return Stream.of(
+        Arguments.of(Expression.Operation.ST_INTERSECTS, "geom"),
+        Arguments.of(Expression.Operation.ST_INTERSECTS, "geog"),
+        Arguments.of(Expression.Operation.ST_DISJOINT, "geom"),
+        Arguments.of(Expression.Operation.ST_DISJOINT, "geog"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("geospatialPredicateParameters")
+  public void testSanitizeGeospatialPredicates(Expression.Operation operation, String columnName) {
+    // Create a schema with geometry and geography fields
+    Schema geoSchema =
+        new Schema(
+            Types.NestedField.required(1, "geom", Types.GeometryType.crs84()),
+            Types.NestedField.required(2, "geog", Types.GeographyType.crs84()));
+    Types.StructType geoStruct = geoSchema.asStruct();
+
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    UnboundPredicate<ByteBuffer> geoPredicate =
+        Expressions.geospatialPredicate(operation, columnName, bbox);
+    Expression predicateSanitized =
+        Expressions.geospatialPredicate(operation, columnName, BoundingBox.empty());
+    assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoPredicate));
+    assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoStruct, geoPredicate, true));
+
+    String opString = operation.name();
+    String expectedSanitizedString = columnName + " " + opString + " WITH (bounding-box)";
+
+    assertThat(ExpressionUtil.toSanitizedString(geoPredicate))
+        .as("Sanitized string should be identical for geospatial predicates")
+        .isEqualTo(expectedSanitizedString);
+
+    assertThat(ExpressionUtil.toSanitizedString(geoStruct, geoPredicate, true))
+        .as("Sanitized string should be identical for geospatial predicates")
+        .isEqualTo(expectedSanitizedString);
   }
 
   private void assertEquals(Expression expected, Expression actual) {

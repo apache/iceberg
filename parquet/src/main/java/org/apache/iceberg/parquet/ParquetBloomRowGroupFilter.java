@@ -32,6 +32,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -256,6 +257,18 @@ public class ParquetBloomRowGroupFilter {
     @Override
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on startsWith
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<BoundingBox> lit) {
+      // bloom filter is based on hash and cannot eliminate based on stIntersects
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<BoundingBox> lit) {
+      // bloom filter is based on hash and cannot eliminate based on stDisjoint
       return ROWS_MIGHT_MATCH;
     }
 

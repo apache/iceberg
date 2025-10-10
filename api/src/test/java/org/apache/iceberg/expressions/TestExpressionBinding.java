@@ -40,6 +40,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
@@ -55,7 +57,9 @@ public class TestExpressionBinding {
           required(3, "data", Types.StringType.get()),
           required(4, "var", Types.VariantType.get()),
           optional(5, "nullable", Types.IntegerType.get()),
-          optional(6, "always_null", Types.UnknownType.get()));
+          optional(6, "always_null", Types.UnknownType.get()),
+          required(7, "point", Types.GeometryType.crs84()),
+          required(8, "geography", Types.GeographyType.crs84()));
 
   @Test
   public void testMissingReference() {
@@ -420,5 +424,67 @@ public class TestExpressionBinding {
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
     assertThat(pred.term()).as("Should use a BoundExtract").isInstanceOf(BoundExtract.class);
     assertThat(pred.term().type()).isEqualTo(Types.fromPrimitiveString(typeName));
+  }
+
+  @Test
+  public void testStIntersects() {
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    Expression expr =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "point", bbox);
+    Expression bound = Binder.bind(STRUCT, expr);
+
+    TestHelpers.assertAllReferencesBound("BoundGeospatialPredicate", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
+    assertThat(pred.term().ref().fieldId()).as("Should bind point correctly").isEqualTo(7);
+    assertThat(bound).isInstanceOf(BoundGeospatialPredicate.class);
+    BoundGeospatialPredicate predicate = (BoundGeospatialPredicate) bound;
+    assertThat(predicate.literal().value()).isEqualTo(bbox);
+  }
+
+  @Test
+  public void testStDisjoint() {
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    Expression expr =
+        Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geography", bbox);
+    Expression bound = Binder.bind(STRUCT, expr);
+
+    TestHelpers.assertAllReferencesBound("BoundGeospatialPredicate", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    assertThat(pred.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
+    assertThat(pred.term().ref().fieldId()).as("Should bind geography correctly").isEqualTo(8);
+    assertThat(bound).isInstanceOf(BoundGeospatialPredicate.class);
+    BoundGeospatialPredicate predicate = (BoundGeospatialPredicate) bound;
+    assertThat(predicate.literal().value()).isEqualTo(bbox);
+  }
+
+  @Test
+  public void testGeospatialPredicateWithInvalidField() {
+    // Create a bounding box for testing
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    // Test with a field that doesn't exist
+    Expression expr =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "nonexistent", bbox);
+    assertThatThrownBy(() -> Binder.bind(STRUCT, expr))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'nonexistent' in struct");
+
+    // Test with a field that is not a geometry or geography type
+    Expression expr2 =
+        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "x", bbox);
+    assertThatThrownBy(() -> Binder.bind(STRUCT, expr2))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot bind geospatial operation to non-geospatial type");
   }
 }

@@ -72,6 +72,11 @@ public class TestParquetEncryptionWithWriteSupport extends DataTestBase {
   }
 
   @Override
+  protected boolean supportsGeospatial() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
     writeAndValidate(schema, expected);

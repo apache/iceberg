@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
 
 /** Utils for traversing {@link Expression expressions}. */
 public class ExpressionVisitors {
@@ -126,6 +127,16 @@ public class ExpressionVisitors {
           "notStartsWith expression is not supported by the visitor");
     }
 
+    public <T> R stIntersects(BoundReference<T> ref, Literal<BoundingBox> lit) {
+      throw new UnsupportedOperationException(
+          "stIntersects expression is not supported by the visitor");
+    }
+
+    public <T> R stDisjoint(BoundReference<T> ref, Literal<BoundingBox> lit) {
+      throw new UnsupportedOperationException(
+          "stDisjoint expression is not supported by the visitor");
+    }
+
     /**
      * Handle a non-reference value in this visitor.
      *
@@ -195,6 +206,19 @@ public class ExpressionVisitors {
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());
+        }
+
+      } else if (pred.isGeospatialPredicate()) {
+        switch (pred.op()) {
+          case ST_INTERSECTS:
+            return stIntersects(
+                (BoundReference<T>) pred.term(), pred.asGeospatialPredicate().literal());
+          case ST_DISJOINT:
+            return stDisjoint(
+                (BoundReference<T>) pred.term(), pred.asGeospatialPredicate().literal());
+          default:
+            throw new IllegalStateException(
+                "Invalid operation for BoundGeospatialPredicate: " + pred.op());
         }
       }
 
@@ -266,6 +290,14 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
+    public <T> R stIntersects(Bound<T> term, Literal<BoundingBox> literal) {
+      throw new UnsupportedOperationException("ST_INTERSECTS is not supported by the visitor");
+    }
+
+    public <T> R stDisjoint(Bound<T> term, Literal<BoundingBox> literal) {
+      throw new UnsupportedOperationException("ST_DISJOINT is not supported by the visitor");
+    }
+
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
       if (pred.isLiteralPredicate()) {
@@ -317,8 +349,15 @@ public class ExpressionVisitors {
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());
         }
-      }
 
+      } else if (pred.isGeospatialPredicate()) {
+        switch (pred.op()) {
+          case ST_INTERSECTS:
+            return stIntersects(pred.term(), pred.asGeospatialPredicate().literal());
+          case ST_DISJOINT:
+            return stDisjoint(pred.term(), pred.asGeospatialPredicate().literal());
+        }
+      }
       throw new IllegalStateException("Unsupported bound predicate: " + pred.getClass().getName());
     }
 
@@ -495,6 +534,13 @@ public class ExpressionVisitors {
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());
         }
+      } else if (pred.isGeospatialPredicate()) {
+        switch (pred.op()) {
+          case ST_INTERSECTS:
+            return stIntersects(pred.term(), pred.asGeospatialPredicate().literal());
+          case ST_DISJOINT:
+            return stDisjoint(pred.term(), pred.asGeospatialPredicate().literal());
+        }
       }
 
       throw new IllegalStateException("Unsupported bound predicate: " + pred.getClass().getName());
@@ -553,6 +599,14 @@ public class ExpressionVisitors {
     }
 
     public <T> R notStartsWith(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R stIntersects(BoundTerm<T> term, Literal<BoundingBox> lit) {
+      return null;
+    }
+
+    public <T> R stDisjoint(BoundTerm<T> term, Literal<BoundingBox> lit) {
       return null;
     }
   }
