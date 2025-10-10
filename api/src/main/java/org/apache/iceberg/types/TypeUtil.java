@@ -420,8 +420,10 @@ public class TypeUtil {
         }
 
         Types.DecimalType toDecimal = (Types.DecimalType) to;
-        return fromDecimal.scale() == toDecimal.scale()
-            && fromDecimal.precision() <= toDecimal.precision();
+        return toDecimal.scale() >= fromDecimal.scale()
+            && toDecimal.precision() >= fromDecimal.precision()
+            && (toDecimal.precision() - toDecimal.scale())
+                >= (fromDecimal.precision() - fromDecimal.scale());
     }
 
     return false;
