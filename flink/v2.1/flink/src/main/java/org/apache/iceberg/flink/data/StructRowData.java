@@ -191,8 +191,8 @@ public class StructRowData implements RowData {
     // Convert all timestamp types to nanoseconds (smallest unit)
     long nanos;
     if (timestampVal instanceof Long) {
-      // Long values: nanoseconds for timestamp_ns (precision 9), microseconds otherwise
-      nanos = precision == 9 ? (Long) timestampVal : ((Long) timestampVal) * 1000;
+      // Long values: nanoseconds for timestamp_ns (precision > 6), microseconds otherwise
+      nanos = precision > 6 ? (Long) timestampVal : ((Long) timestampVal) * 1000;
     } else if (timestampVal instanceof OffsetDateTime) {
       nanos = Duration.between(Instant.EPOCH, (OffsetDateTime) timestampVal).toNanos();
     } else if (timestampVal instanceof LocalDateTime) {
@@ -205,12 +205,12 @@ public class StructRowData implements RowData {
     }
 
     // Convert nanoseconds to TimestampData based on precision
-    if (precision == 9) {
-      // Nanosecond precision: use nanos directly
+    if (precision > 6) {
+      // Nanosecond precision (7, 8, 9): use nanos directly
       return TimestampData.fromEpochMillis(
-          Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
+          Math.floorDiv(nanos, 1_000_000_000L), (int) Math.floorMod(nanos, 1_000_000_000L));
     } else {
-      // Microsecond precision: convert nanos to micros
+      // Microsecond precision (0-6): convert nanos to micros
       long micros = nanos / 1000;
       return TimestampData.fromEpochMillis(micros / 1000, (int) (micros % 1000) * 1000);
     }

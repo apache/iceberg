@@ -142,7 +142,7 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
       throw new IllegalArgumentException(
           "Unsupported timestamp precision: " + precision + ". Maximum supported precision is 9.");
     }
-    if (precision == 9) {
+    if (precision > 6) {
       return Types.TimestampNanoType.withoutZone();
     } else {
       return Types.TimestampType.withoutZone();
@@ -156,7 +156,7 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
       throw new IllegalArgumentException(
           "Unsupported timestamp precision: " + precision + ". Maximum supported precision is 9.");
     }
-    if (precision == 9) {
+    if (precision > 6) {
       return Types.TimestampNanoType.withZone();
     } else {
       return Types.TimestampType.withZone();

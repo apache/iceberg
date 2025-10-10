@@ -92,21 +92,4 @@ public class HadoopTableExtension extends HadoopCatalogExtension {
     return table;
   }
 
-  /** Create a HadoopTableExtension with format version 3 for nanosecond timestamp support. */
-  public static HadoopTableExtension withFormatVersion3(
-      String database, String tableName, Schema schema) {
-    return new HadoopTableExtension(
-        database, tableName, schema, ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
-  }
-
-  /** Create a HadoopTableExtension with format version 3 for nanosecond timestamp support. */
-  public static HadoopTableExtension withFormatVersion3(
-      String database, String tableName, Schema schema, PartitionSpec partitionSpec) {
-    return new HadoopTableExtension(
-        database,
-        tableName,
-        schema,
-        partitionSpec,
-        ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
-  }
 }

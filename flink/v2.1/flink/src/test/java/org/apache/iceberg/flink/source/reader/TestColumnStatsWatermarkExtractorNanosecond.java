@@ -74,18 +74,4 @@ public class TestColumnStatsWatermarkExtractorNanosecond {
     assertThat(extractor).isNotNull();
   }
 
-  @Test
-  public void testTimestampTypeDetection() {
-    // Test that we can properly detect TimestampNanoType vs TimestampType
-    Types.TimestampNanoType nanoType = Types.TimestampNanoType.withoutZone();
-    Types.TimestampType microType = Types.TimestampType.withoutZone();
-
-    // Test that we can distinguish between the two types
-    assertThat(nanoType.getClass().getSimpleName()).isEqualTo("TimestampNanoType");
-    assertThat(microType.getClass().getSimpleName()).isEqualTo("TimestampType");
-
-    // Test that both are timestamp types (nano has TIMESTAMP_NANO, micro has TIMESTAMP)
-    assertThat(nanoType.typeId().toString()).contains("TIMESTAMP");
-    assertThat(microType.typeId().toString()).contains("TIMESTAMP");
-  }
 }

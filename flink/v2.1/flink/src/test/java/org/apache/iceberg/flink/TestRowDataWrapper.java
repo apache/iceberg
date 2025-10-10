@@ -21,8 +21,12 @@ package org.apache.iceberg.flink;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Iterator;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.RecordWrapperTestBase;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -66,31 +70,166 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
   /** Test that nanosecond precision timestamps are preserved correctly. */
   @Test
   public void testNanosecondTimestampPrecision() {
-    // Create a specific timestamp with nanosecond precision
-    LocalDateTime testTime = LocalDateTime.of(2025, 10, 2, 10, 15, 30, 123456789);
+    // Test multiple timestamp values with different nanosecond precisions
+    // Focus on last non-zero digit to validate nanosecond precision preservation
+    LocalDateTime[] testTimes = {
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 0),           // No nanoseconds
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789),   // Last non-zero: 9
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 999999999),   // Last non-zero: 9
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 1),           // Last non-zero: 1
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456),      // Last non-zero: 6
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 100000000),   // Last non-zero: 1
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 200000000),   // Last non-zero: 2
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 300000000),   // Last non-zero: 3
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 400000000),   // Last non-zero: 4
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 500000000),   // Last non-zero: 5
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 600000000),   // Last non-zero: 6
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 700000000),   // Last non-zero: 7
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 800000000),   // Last non-zero: 8
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 900000000),   // Last non-zero: 9
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456789),   // Last non-zero: 9
+        LocalDateTime.of(2023, 1, 1, 12, 0, 0, 987654321)    // Last non-zero: 1
+    };
+
+    for (LocalDateTime testTime : testTimes) {
+      testTimestampPrecision(testTime);
+    }
+  }
+
+  private void testTimestampPrecision(LocalDateTime testTime) {
+    // Create schemas for both precision types
+    Schema microsSchema = new Schema(
+        Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone()));
+    Schema nanosSchema = new Schema(
+        Types.NestedField.required(1, "timestamp_nanos", Types.TimestampNanoType.withoutZone()));
+
+    // Create wrappers
+    RowDataWrapper microsWrapper = new RowDataWrapper(
+        FlinkSchemaUtil.convert(microsSchema), microsSchema.asStruct());
+    RowDataWrapper nanosWrapper = new RowDataWrapper(
+        FlinkSchemaUtil.convert(nanosSchema), nanosSchema.asStruct());
+
+    // Create RowData with the test timestamp
+    GenericRowData microsRowData = new GenericRowData(1);
+    microsRowData.setField(0, TimestampData.fromLocalDateTime(testTime));
+    
+    GenericRowData nanosRowData = new GenericRowData(1);
+    nanosRowData.setField(0, TimestampData.fromLocalDateTime(testTime));
+
+    // Wrap and extract values
+    StructLike microsStructLike = microsWrapper.wrap(microsRowData);
+    StructLike nanosStructLike = nanosWrapper.wrap(nanosRowData);
+
+    Long microsValue = microsStructLike.get(0, Long.class);
+    Long nanosValue = nanosStructLike.get(0, Long.class);
+
+    // Verify values are not null
+    assertThat(microsValue).isNotNull();
+    assertThat(nanosValue).isNotNull();
+
+    // Calculate expected values using DateTimeUtil
     long expectedMicros = DateTimeUtil.microsFromTimestamp(testTime);
     long expectedNanos = DateTimeUtil.nanosFromTimestamp(testTime);
 
-    // Microsecond precision schema (should use microsFromTimestamp)
-    Schema microsSchema =
-        new Schema(
-            Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone()));
+    // Verify microsecond precision
+    assertThat(microsValue)
+        .as("Microsecond value should match DateTimeUtil.microsFromTimestamp for %s", testTime)
+        .isEqualTo(expectedMicros);
 
-    // Nanosecond precision schema (should use nanosFromTimestamp)
-    Schema nanosSchema =
-        new Schema(
-            Types.NestedField.required(
-                1, "timestamp_nanos", Types.TimestampNanoType.withoutZone()));
+    // Verify nanosecond precision
+    assertThat(nanosValue)
+        .as("Nanosecond value should match DateTimeUtil.nanosFromTimestamp for %s", testTime)
+        .isEqualTo(expectedNanos);
 
-    // Create wrappers for both schemas
-    RowDataWrapper microsWrapper =
-        new RowDataWrapper(FlinkSchemaUtil.convert(microsSchema), microsSchema.asStruct());
-    RowDataWrapper nanosWrapper =
-        new RowDataWrapper(FlinkSchemaUtil.convert(nanosSchema), nanosSchema.asStruct());
+    // Verify nanosecond precision using last non-zero digit
+    int originalNanos = testTime.getNano();
+    int lastNonZeroDigit = getLastNonZeroDigit(originalNanos);
+    
+    if (originalNanos > 0) {
+      // Extract the last non-zero digit from the nanosecond value
+      int actualLastNonZeroDigit = getLastNonZeroDigit((int) (nanosValue % 1_000_000_000));
+      
+      assertThat(actualLastNonZeroDigit)
+          .as("Last non-zero digit should be preserved for nanosecond precision. Original: %d, Actual: %d, Timestamp: %s", 
+              lastNonZeroDigit, actualLastNonZeroDigit, testTime)
+          .isEqualTo(lastNonZeroDigit);
+    }
 
-    // Test with the same seed to get comparable data
-    RowData microsRowData = RandomRowData.generate(microsSchema, 1, 42L).iterator().next();
-    RowData nanosRowData = RandomRowData.generate(nanosSchema, 1, 42L).iterator().next();
+    // Verify that nanosecond precision is actually higher than microsecond precision
+    // when there are sub-microsecond components
+    int nanosInMicro = testTime.getNano() % 1000;
+    if (nanosInMicro > 0) {
+      assertThat(nanosValue)
+          .as("Nanosecond value should be different from microsecond value when sub-microsecond precision exists for %s", testTime)
+          .isNotEqualTo(microsValue);
+    }
+
+    // Verify the relationship between microsecond and nanosecond values
+    // Nanosecond value should be 1000x microsecond value (plus any sub-microsecond precision)
+    long expectedNanosFromMicros = microsValue * 1000 + nanosInMicro;
+    assertThat(nanosValue)
+        .as("Nanosecond value should be 1000x microsecond value plus sub-microsecond precision for %s", testTime)
+        .isEqualTo(expectedNanosFromMicros);
+  }
+
+  /**
+   * Extract the last non-zero digit from a number.
+   * For example: 123456789 -> 9, 100000000 -> 1, 123456 -> 6
+   */
+  private int getLastNonZeroDigit(int value) {
+    if (value == 0) {
+      return 0;
+    }
+    
+    while (value > 0) {
+      int digit = value % 10;
+      if (digit != 0) {
+        return digit;
+      }
+      value /= 10;
+    }
+    
+    return 0;
+  }
+
+  @Test
+  public void testNanosecondTimestampPrecisionWithTimeZone() {
+    // Test with timezone-aware timestamps using last non-zero digit validation
+    OffsetDateTime[] testTimes = {
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 123456789, ZoneOffset.UTC),  // Last non-zero: 9
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 987654321, ZoneOffset.UTC),  // Last non-zero: 1
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 100000000, ZoneOffset.UTC),  // Last non-zero: 1
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 200000000, ZoneOffset.UTC),  // Last non-zero: 2
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 300000000, ZoneOffset.UTC),  // Last non-zero: 3
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 400000000, ZoneOffset.UTC),  // Last non-zero: 4
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 500000000, ZoneOffset.UTC),  // Last non-zero: 5
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 600000000, ZoneOffset.UTC),  // Last non-zero: 6
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 700000000, ZoneOffset.UTC),  // Last non-zero: 7
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 800000000, ZoneOffset.UTC),  // Last non-zero: 8
+        OffsetDateTime.of(2023, 1, 1, 12, 0, 0, 900000000, ZoneOffset.UTC)   // Last non-zero: 9
+    };
+
+    for (OffsetDateTime testTime : testTimes) {
+      testTimestampPrecisionWithTimeZone(testTime);
+    }
+  }
+
+  private void testTimestampPrecisionWithTimeZone(OffsetDateTime testTime) {
+    Schema microsSchema = new Schema(
+        Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withZone()));
+    Schema nanosSchema = new Schema(
+        Types.NestedField.required(1, "timestamp_nanos", Types.TimestampNanoType.withZone()));
+
+    RowDataWrapper microsWrapper = new RowDataWrapper(
+        FlinkSchemaUtil.convert(microsSchema), microsSchema.asStruct());
+    RowDataWrapper nanosWrapper = new RowDataWrapper(
+        FlinkSchemaUtil.convert(nanosSchema), nanosSchema.asStruct());
+
+    GenericRowData microsRowData = new GenericRowData(1);
+    microsRowData.setField(0, TimestampData.fromLocalDateTime(testTime.toLocalDateTime()));
+    
+    GenericRowData nanosRowData = new GenericRowData(1);
+    nanosRowData.setField(0, TimestampData.fromLocalDateTime(testTime.toLocalDateTime()));
 
     StructLike microsStructLike = microsWrapper.wrap(microsRowData);
     StructLike nanosStructLike = nanosWrapper.wrap(nanosRowData);
@@ -98,20 +237,47 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
     Long microsValue = microsStructLike.get(0, Long.class);
     Long nanosValue = nanosStructLike.get(0, Long.class);
 
-    // Verify both values are not null
     assertThat(microsValue).isNotNull();
     assertThat(nanosValue).isNotNull();
 
-    // Calculate the actual ratio
-    double ratio = (double) nanosValue / microsValue;
+    long expectedMicros = DateTimeUtil.microsFromTimestamptz(testTime);
+    long expectedNanos = DateTimeUtil.nanosFromTimestamptz(testTime);
 
-    // For the same timestamp, nanosecond precision should produce values that are
-    // approximately 1000x larger than microsecond precision
-    assertThat(nanosValue).isGreaterThan(microsValue); // Nanosecond should be larger
+    assertThat(microsValue).isEqualTo(expectedMicros);
+    assertThat(nanosValue).isEqualTo(expectedNanos);
 
-    // The ratio should be close to 1000 (nanoseconds vs microseconds)
-    // Allow some tolerance since we're using random data
-    assertThat(ratio).isGreaterThan(100.0); // At least 100x larger
+    // Verify nanosecond precision using last non-zero digit
+    int originalNanos = testTime.getNano();
+    int lastNonZeroDigit = getLastNonZeroDigit(originalNanos);
+    
+    if (originalNanos > 0) {
+      // Extract the last non-zero digit from the nanosecond value
+      int actualLastNonZeroDigit = getLastNonZeroDigit((int) (nanosValue % 1_000_000_000));
+      
+      assertThat(actualLastNonZeroDigit)
+          .as("Last non-zero digit should be preserved for timezone-aware nanosecond precision. Original: %d, Actual: %d, Timestamp: %s", 
+              lastNonZeroDigit, actualLastNonZeroDigit, testTime)
+          .isEqualTo(lastNonZeroDigit);
+    }
+  }
+
+  @Test
+  public void testNanosecondTimestampPrecisionEdgeCases() {
+    // Test edge cases with last non-zero digit validation
+    LocalDateTime[] edgeCases = {
+        LocalDateTime.of(1970, 1, 1, 0, 0, 0, 0),           // Epoch - no nanoseconds
+        LocalDateTime.of(2038, 1, 19, 3, 14, 7, 999999999), // Near 32-bit limit - Last non-zero: 9
+        LocalDateTime.of(2000, 2, 29, 12, 0, 0, 123456789), // Leap year - Last non-zero: 9
+        LocalDateTime.of(2023, 12, 31, 23, 59, 59, 999999999), // End of year - Last non-zero: 9
+        LocalDateTime.of(1970, 1, 1, 0, 0, 0, 1),           // Epoch + 1 nanosecond - Last non-zero: 1
+        LocalDateTime.of(2038, 1, 19, 3, 14, 7, 100000000), // Near 32-bit limit - Last non-zero: 1
+        LocalDateTime.of(2000, 2, 29, 12, 0, 0, 200000000), // Leap year - Last non-zero: 2
+        LocalDateTime.of(2023, 12, 31, 23, 59, 59, 300000000) // End of year - Last non-zero: 3
+    };
+
+    for (LocalDateTime testTime : edgeCases) {
+      testTimestampPrecision(testTime);
+    }
   }
 
   @Override

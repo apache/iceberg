@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.util.function.Function;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -32,7 +33,6 @@ import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 
 /**
  * This util class converts Avro GenericRecord to Flink RowData. <br>
@@ -45,115 +45,61 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericRecord, RowData> {
 
   private final AvroToRowDataConverters.AvroToRowDataConverter converter;
-  private final Schema avroSchema;
-  private final Function<GenericRecord, RowData> customConverter;
+  private final int[] timestampNanosFieldIndices;
 
   AvroGenericRecordToRowDataMapper(RowType rowType, Schema avroSchema) {
-    this.avroSchema = avroSchema;
     this.converter = AvroToRowDataConverters.createRowConverter(rowType);
-    // Check if we need custom conversion for timestamp-nanos
-    this.customConverter = needsCustomConversion(avroSchema) ? this::convertWithNanos : null;
+    this.timestampNanosFieldIndices = findTimestampNanosFields(avroSchema);
   }
 
-  private boolean needsCustomConversion(Schema schema) {
-    for (Schema.Field field : schema.getFields()) {
+  private int[] findTimestampNanosFields(Schema schema) {
+    List<Integer> indices = new ArrayList<>();
+    for (int i = 0; i < schema.getFields().size(); i++) {
+      Schema.Field field = schema.getFields().get(i);
       if (field.schema().getLogicalType() instanceof LogicalTypes.TimestampNanos) {
-        return true;
+        indices.add(i);
       }
     }
-    return false;
+    return indices.stream().mapToInt(Integer::intValue).toArray();
   }
 
-  private RowData convertWithNanos(GenericRecord genericRecord) {
-    RowData baseRowData = (RowData) converter.convert(genericRecord);
+  private RowData postProcessTimestampNanos(RowData baseRowData, GenericRecord genericRecord) {
+    if (timestampNanosFieldIndices.length == 0) {
+      return baseRowData; // No timestamp-nanos fields to process
+    }
+
     GenericRowData result = new GenericRowData(baseRowData.getArity());
     result.setRowKind(baseRowData.getRowKind());
 
-    for (int i = 0; i < avroSchema.getFields().size(); i++) {
-      Schema.Field field = avroSchema.getFields().get(i);
-      if (field.schema().getLogicalType() instanceof LogicalTypes.TimestampNanos) {
-        // Handle timestamp-nanos by converting from long nanos to TimestampData
-        Long nanos = (Long) genericRecord.get(i);
-        if (nanos == null) {
-          result.setField(i, null);
-        } else {
-          long millis = Math.floorDiv(nanos, 1_000_000L);
-          int nanoOfMillis = (int) Math.floorMod(nanos, 1_000_000L);
-          result.setField(i, TimestampData.fromEpochMillis(millis, nanoOfMillis));
-        }
+    // Copy all fields from base conversion
+    for (int i = 0; i < baseRowData.getArity(); i++) {
+      if (baseRowData.isNullAt(i)) {
+        result.setField(i, null);
       } else {
-        // Copy from base conversion
-        if (baseRowData.isNullAt(i)) {
-          result.setField(i, null);
-        } else {
-          // Get the value from baseRowData using the appropriate getter
-          result.setField(i, getFieldValue(baseRowData, i, field));
-        }
+        result.setField(i, ((GenericRowData) baseRowData).getField(i));
       }
     }
+
+    // Override only timestamp-nanos fields with correct nanosecond precision
+    for (int fieldIndex : timestampNanosFieldIndices) {
+      Long nanos = (Long) genericRecord.get(fieldIndex);
+      if (nanos == null) {
+        result.setField(fieldIndex, null);
+      } else {
+        // Preserve full nanosecond precision using correct conversion
+        long millis = Math.floorDiv(nanos, 1_000_000_000L);
+        int nanoOfMillis = (int) Math.floorMod(nanos, 1_000_000_000L);
+        result.setField(fieldIndex, TimestampData.fromEpochMillis(millis, nanoOfMillis));
+      }
+    }
+
     return result;
-  }
-
-  private Object getFieldValue(RowData rowData, int pos, Schema.Field field) {
-    // This is a simplified version - you may need to handle more types
-    Schema fieldSchema = field.schema();
-    if (fieldSchema.getType() == Schema.Type.UNION) {
-      // Handle nullable fields
-      for (Schema unionSchema : fieldSchema.getTypes()) {
-        if (unionSchema.getType() != Schema.Type.NULL) {
-          fieldSchema = unionSchema;
-          break;
-        }
-      }
-    }
-
-    // Check for logical types first
-    if (fieldSchema.getLogicalType() != null) {
-      if (fieldSchema.getLogicalType() instanceof LogicalTypes.TimestampMillis
-          || fieldSchema.getLogicalType() instanceof LogicalTypes.TimestampMicros) {
-        return rowData.getTimestamp(pos, 6);
-      } else if (fieldSchema.getLogicalType() instanceof LogicalTypes.Decimal) {
-        LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) fieldSchema.getLogicalType();
-        return rowData.getDecimal(pos, decimal.getPrecision(), decimal.getScale());
-      }
-      // timestamp-nanos is handled separately in convertWithNanos
-    }
-
-    switch (fieldSchema.getType()) {
-      case BOOLEAN:
-        return rowData.getBoolean(pos);
-      case INT:
-        return rowData.getInt(pos);
-      case LONG:
-        return rowData.getLong(pos);
-      case FLOAT:
-        return rowData.getFloat(pos);
-      case DOUBLE:
-        return rowData.getDouble(pos);
-      case STRING:
-        return rowData.getString(pos);
-      case BYTES:
-        return rowData.getBinary(pos);
-      case FIXED:
-        return rowData.getBinary(pos);
-      case RECORD:
-        return rowData.getRow(pos, fieldSchema.getFields().size());
-      case ARRAY:
-        return rowData.getArray(pos);
-      case MAP:
-        return rowData.getMap(pos);
-      default:
-        // For complex types, just return as-is
-        return ((GenericRowData) rowData).getField(pos);
-    }
   }
 
   @Override
   public RowData map(GenericRecord genericRecord) throws Exception {
-    if (customConverter != null) {
-      return customConverter.apply(genericRecord);
-    }
-    return (RowData) converter.convert(genericRecord);
+    RowData baseRowData = (RowData) converter.convert(genericRecord);
+    return postProcessTimestampNanos(baseRowData, genericRecord);
   }
 
   /** Create a mapper based on Avro schema. */
