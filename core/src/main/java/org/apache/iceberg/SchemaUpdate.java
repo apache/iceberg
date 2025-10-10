@@ -73,7 +73,7 @@ class SchemaUpdate implements UpdateSchema {
 
   /** For testing only. */
   SchemaUpdate(TableMetadata base) {
-    this(null, base, base.schema(), base.lastColumnId(), TableProperties.DEFAULT_FORMAT_VERSION);
+    this(null, base, base.schema(), base.lastColumnId(), base.formatVersion());
   }
 
   /** For testing only. */
@@ -307,9 +307,11 @@ class SchemaUpdate implements UpdateSchema {
             ? this.base.spec().getFieldsBySourceId(field.fieldId())
             : Lists.newArrayList();
 
+    boolean isBucketPartitioned =
+        partitionFields.stream().anyMatch(pf -> pf.transform().toString().startsWith("bucket["));
+
     Preconditions.checkArgument(
-        TypeUtil.isPromotionAllowed(
-            field.type(), newType, formatVersion, !partitionFields.isEmpty()),
+        TypeUtil.isPromotionAllowed(field.type(), newType, formatVersion, isBucketPartitioned),
         "Cannot change column type: %s: %s -> %s",
         name,
         field.type(),
