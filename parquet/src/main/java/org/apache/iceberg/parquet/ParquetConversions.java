@@ -83,6 +83,9 @@ class ParquetConversions {
       } else if (icebergType.typeId() == Type.TypeID.DOUBLE
           && parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
+      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP
+          && parquetType.getOriginalType() == org.apache.parquet.schema.OriginalType.DATE) {
+        return value -> (long) ((Integer) fromParquet.apply(value)) * 86400_000_000L;
       }
     }
 

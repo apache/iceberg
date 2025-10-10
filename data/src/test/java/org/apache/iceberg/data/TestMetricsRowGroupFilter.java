@@ -45,6 +45,8 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -990,6 +992,55 @@ public class TestMetricsRowGroupFilter {
         new ParquetMetricsRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
     assertThat(shouldRead).as("Should succeed with promoted schema").isTrue();
+  }
+
+  @TestTemplate
+  public void testParquetDateToTimestampPromotion() throws IOException {
+    assumeThat(format).as("Only valid for Parquet").isEqualTo(FileFormat.PARQUET);
+
+    Schema dateSchema = new Schema(required(1, "dt", Types.DateType.get()));
+    List<GenericRecord> records = Lists.newArrayList();
+    GenericRecord record1 = GenericRecord.create(dateSchema);
+    record1.setField("dt", java.time.LocalDate.parse("2018-01-01"));
+    records.add(record1);
+    GenericRecord record2 = GenericRecord.create(dateSchema);
+    record2.setField("dt", java.time.LocalDate.parse("2018-01-31"));
+    records.add(record2);
+    File parquetFile = writeParquetFile("test-date-promotion", dateSchema, records);
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(parquetInputFile(Files.localInput(parquetFile)))) {
+      assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
+      BlockMetaData rowGroup = reader.getRowGroups().get(0);
+      MessageType parquetSchema = reader.getFileMetaData().getSchema();
+
+      Schema promotedSchema = new Schema(required(1, "dt", Types.TimestampType.withoutZone()));
+      boolean shouldRead =
+          new ParquetMetricsRowGroupFilter(
+                  promotedSchema,
+                  lessThan(
+                      "dt",
+                      java.time.LocalDateTime.parse("2018-01-15T12:00:00")
+                          .toInstant(java.time.ZoneOffset.UTC)
+                          .toEpochMilli()
+                          * 1000),
+                  true)
+              .shouldRead(parquetSchema, rowGroup);
+      assertThat(shouldRead).as("Should read: one possible date").isTrue();
+
+      shouldRead =
+          new ParquetMetricsRowGroupFilter(
+                  promotedSchema,
+                  lessThan(
+                      "dt",
+                      java.time.LocalDateTime.parse("2017-12-01T12:00:00")
+                          .toInstant(java.time.ZoneOffset.UTC)
+                          .toEpochMilli()
+                          * 1000),
+                  true)
+              .shouldRead(parquetSchema, rowGroup);
+      assertThat(shouldRead).as("Should not read: date range below lower bound").isFalse();
+    }
   }
 
   @TestTemplate
