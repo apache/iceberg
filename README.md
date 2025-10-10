@@ -72,6 +72,7 @@ Iceberg table support is organized in library modules:
 Iceberg also has modules for adding Iceberg support to processing engines:
 
 * `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
+    * When packaging user projects, keep only `iceberg-spark-runtime` in the uberjar. All other functional modules such as `iceberg-core` or `iceberg-parquet` (and their transitive dependencies) should be excluded from uberjar, because some libraries (`parquet`, `avro`, etc) they use may be of versions incompatible with those provided in Spark runtime classpath.
 * `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 
