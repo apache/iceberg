@@ -25,6 +25,9 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.ContentStats;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ContentFileParser {
@@ -49,6 +52,7 @@ public class ContentFileParser {
   private static final String REFERENCED_DATA_FILE = "referenced-data-file";
   private static final String CONTENT_OFFSET = "content-offset";
   private static final String CONTENT_SIZE = "content-size-in-bytes";
+  private static final String CONTENT_STATS = "content-stats";
 
   private ContentFileParser() {}
 
@@ -114,6 +118,12 @@ public class ContentFileParser {
     }
 
     JsonUtil.writeLongFieldIfPresent(FIRST_ROW_ID, contentFile.firstRowId(), generator);
+    if (contentFile.contentStats() != null) {
+      generator.writeFieldName(CONTENT_STATS);
+      SingleValueParser.toJson(
+        DataFile.getType(spec).field(DataFile.CONTENT_STATS.fieldId()).type(), contentFile.contentStats(), generator
+      );
+    }
 
     if (contentFile instanceof DeleteFile) {
       DeleteFile deleteFile = (DeleteFile) contentFile;
@@ -168,6 +178,8 @@ public class ContentFileParser {
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
     Metrics metrics = metricsFromJson(jsonNode);
+    ContentStats stats = contentStatsFromJson(spec, jsonNode);
+
     ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
     List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
     int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
@@ -185,6 +197,7 @@ public class ContentFileParser {
           partitionData,
           fileSizeInBytes,
           metrics,
+          stats,
           keyMetadata,
           splitOffsets,
           sortOrderId,
@@ -198,6 +211,7 @@ public class ContentFileParser {
           partitionData,
           fileSizeInBytes,
           metrics,
+          stats,
           equalityFieldIds,
           sortOrderId,
           splitOffsets,
@@ -300,5 +314,24 @@ public class ContentFileParser {
         nanValueCounts,
         lowerBounds,
         upperBounds);
+  }
+
+  private static ContentStats contentStatsFromJson(PartitionSpec spec, JsonNode jsonNode) {
+    if (jsonNode == null || !jsonNode.has(CONTENT_STATS)) {
+      return null;
+    }
+    JsonNode contentStatsNode = jsonNode.get(CONTENT_STATS);
+    // Get the content-stats type.
+    Types.StructType contentStatsType =
+      (Types.StructType) DataFile.getType(spec).field(DataFile.CONTENT_STATS.fieldId()).type();
+    StructLike structLike =
+      (StructLike) SingleValueParser.fromJson(contentStatsType, contentStatsNode);
+    // Create BaseContentStats with the projection type
+    BaseContentStats contentStats = new BaseContentStats(contentStatsType);
+    // Populate the stats by copying from structLike
+    for (int i = 0; i < structLike.size(); i++) {
+      contentStats.set(i, structLike.get(i, Object.class));
+    }
+    return contentStats;
   }
 }

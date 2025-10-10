@@ -59,7 +59,7 @@ public class TestBase {
   // Schema passed to create tables
   public static final Schema SCHEMA =
       new Schema(
-          required(3, "id", Types.IntegerType.get()), required(4, "data", Types.StringType.get()));
+          required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
 
   protected static final int BUCKETS_NUMBER = 16;
 
@@ -176,20 +176,20 @@ public class TestBase {
           .withMetrics(
               new Metrics(
                   10L,
-                  ImmutableMap.of(3, 100L, 4, 200L), // column sizes
-                  ImmutableMap.of(3, 90L, 4, 180L), // value counts
-                  ImmutableMap.of(3, 10L, 4, 20L), // null value counts
-                  ImmutableMap.of(3, 0L, 4, 0L), // nan value counts
+                  ImmutableMap.of(1, 100L, 2, 200L), // column sizes
+                  ImmutableMap.of(1, 90L, 2, 180L), // value counts
+                  ImmutableMap.of(1, 10L, 2, 20L), // null value counts
+                  ImmutableMap.of(1, 0L, 2, 0L), // nan value counts
                   ImmutableMap.of(
-                      3,
+                      1,
                       Conversions.toByteBuffer(Types.IntegerType.get(), 1),
-                      4,
-                      Conversions.toByteBuffer(Types.IntegerType.get(), 2)), // lower bounds
+                      2,
+                      Conversions.toByteBuffer(Types.StringType.get(), "aa")), // lower bounds
                   ImmutableMap.of(
-                      3,
+                      1,
                       Conversions.toByteBuffer(Types.IntegerType.get(), 5),
-                      4,
-                      Conversions.toByteBuffer(Types.IntegerType.get(), 10)) // upperbounds
+                      2,
+                      Conversions.toByteBuffer(Types.StringType.get(), "zz")) // upperbounds
                   ))
           .withFileSizeInBytes(350)
           .build();
@@ -391,7 +391,7 @@ public class TestBase {
         manifestEntrySchema = V3Metadata.entrySchema(table.spec().partitionType());
         break;
       case 4:
-        manifestEntrySchema = V4Metadata.entrySchema(table.spec().partitionType());
+        manifestEntrySchema = V4Metadata.entrySchema(table.spec());
         break;
       default:
         throw new IllegalArgumentException(
