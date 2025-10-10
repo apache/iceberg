@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.function.Function;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.formats.avro.RowDataToAvroConverters;
@@ -77,7 +76,8 @@ public class RowDataToAvroGenericRecordConverter implements Function<RowData, Ge
         int precision = 9; // Default to nanosecond precision for timestamp-nanos
         TimestampData timestampData = rowData.getTimestamp(fieldIndex, precision);
         // Use correct nanosecond precision conversion
-        long nanos = timestampData.getMillisecond() * 1_000_000_000L + timestampData.getNanoOfMillisecond();
+        long nanos =
+            timestampData.getMillisecond() * 1_000_000_000L + timestampData.getNanoOfMillisecond();
         baseRecord.put(fieldIndex, nanos);
       }
     }

@@ -195,7 +195,8 @@ public class FlinkValueReaders {
       long mills = Math.floorDiv(nanos, 1_000_000_000L);
       long leftoverNanos = Math.floorMod(nanos, 1_000_000_000L);
       return TimestampData.fromEpochMillis(
-          mills + Math.floorDiv(leftoverNanos, 1_000_000L), (int) Math.floorMod(leftoverNanos, 1_000_000L));
+          mills + Math.floorDiv(leftoverNanos, 1_000_000L),
+          (int) Math.floorMod(leftoverNanos, 1_000_000L));
     }
   }
 

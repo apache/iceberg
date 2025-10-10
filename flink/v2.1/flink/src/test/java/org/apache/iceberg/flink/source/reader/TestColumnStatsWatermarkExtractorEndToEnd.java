@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.source.reader;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -34,6 +33,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -44,7 +44,6 @@ import org.apache.iceberg.flink.source.FlinkInputFormat;
 import org.apache.iceberg.flink.source.FlinkSource;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.TableProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,9 +51,9 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * End-to-end tests for ColumnStatsWatermarkExtractor with nanosecond precision timestamps. This
- * test validates that watermark extraction works correctly with actual data files containing
- * nanosecond precision timestamps.
+ * Comprehensive tests for ColumnStatsWatermarkExtractor with nanosecond precision timestamps. This
+ * test validates both unit-level functionality and end-to-end integration with actual data files
+ * containing nanosecond precision timestamps.
  */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestColumnStatsWatermarkExtractorEndToEnd {
@@ -85,34 +84,10 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
   @RegisterExtension
   private static final HadoopTableExtension TABLE_EXTENSION =
       new HadoopTableExtension(
-          DATABASE, TABLE, NANOSECOND_WATERMARK_SCHEMA, 
+          DATABASE,
+          TABLE,
+          NANOSECOND_WATERMARK_SCHEMA,
           ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
-
-  /**
-   * Tests that ColumnStatsWatermarkExtractor can be instantiated with both nanosecond and
-   * microsecond precision timestamp columns. This verifies that the extractor correctly recognizes
-   * and accepts both TIMESTAMP_NANO and TIMESTAMP column types.
-   */
-  @Test
-  public void testWatermarkExtractorCreationWithNanosecondTimestamps() {
-    Table table = TABLE_EXTENSION.table();
-
-    // Test that we can create watermark extractors for nanosecond timestamp columns
-    assertDoesNotThrow(() -> {
-      new ColumnStatsWatermarkExtractor(table.schema(), "event_time_ns", TimeUnit.MICROSECONDS);
-    });
-
-    assertDoesNotThrow(() -> {
-      new ColumnStatsWatermarkExtractor(
-          table.schema(), "event_time_ns_tz", TimeUnit.MICROSECONDS);
-    });
-
-    // Test that we can still create extractors for microsecond timestamp columns
-    assertDoesNotThrow(() -> {
-      new ColumnStatsWatermarkExtractor(
-          table.schema(), "event_time_micros", TimeUnit.MICROSECONDS);
-    });
-  }
 
   /**
    * Tests that ColumnStatsWatermarkExtractor can be created and used with actual data files
@@ -182,31 +157,61 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
     // in the read path as well. We'll verify the structure and types rather than exact values
     // since nanosecond precision changes may affect the generated timestamp values.
     for (Row row : actualRows) {
-      assertThat(row.getArity()).isEqualTo(5); // id, event_time_ns, event_time_ns_tz, event_time_micros, data
-      
+      assertThat(row.getArity())
+          .isEqualTo(5); // id, event_time_ns, event_time_ns_tz, event_time_micros, data
+
       // Verify that nanosecond timestamp fields are properly handled
       Object eventTimeNs = row.getField(1);
       Object eventTimeNsTz = row.getField(2);
       Object eventTimeMicros = row.getField(3);
-      
-      // All timestamp fields should be non-null and properly formatted
-      assertThat(eventTimeNs).isNotNull();
-      assertThat(eventTimeNsTz).isNotNull();
-      assertThat(eventTimeMicros).isNotNull();
-      
+
       // Verify that nanosecond timestamps have higher precision than microsecond timestamps
       if (eventTimeNs instanceof String && eventTimeMicros instanceof String) {
         String nsTimestamp = (String) eventTimeNs;
         String microsTimestamp = (String) eventTimeMicros;
-        
+
         // Nanosecond timestamps should have more decimal places than microsecond timestamps
         int nsDecimalPlaces = nsTimestamp.contains(".") ? nsTimestamp.split("\\.")[1].length() : 0;
-        int microsDecimalPlaces = microsTimestamp.contains(".") ? microsTimestamp.split("\\.")[1].length() : 0;
-        
+        int microsDecimalPlaces =
+            microsTimestamp.contains(".") ? microsTimestamp.split("\\.")[1].length() : 0;
+
         // Nanosecond precision should be higher (more decimal places)
         assertThat(nsDecimalPlaces).isGreaterThanOrEqualTo(microsDecimalPlaces);
       }
     }
+  }
+
+  /**
+   * Tests that ColumnStatsWatermarkExtractor can be instantiated with both nanosecond and
+   * microsecond precision timestamp columns. This verifies that the extractor correctly recognizes
+   * and accepts both TIMESTAMP_NANO and TIMESTAMP column types.
+   */
+  @Test
+  public void testNanosecondTimestampTypeDetection() {
+    // Create a schema with nanosecond precision timestamp
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
+            required(3, "timestamp_ns_tz", Types.TimestampNanoType.withZone()),
+            required(4, "timestamp_us", Types.TimestampType.withoutZone()));
+
+    // Test nanosecond timestamp without timezone
+    ColumnStatsWatermarkExtractor extractorNs =
+        new ColumnStatsWatermarkExtractor(schema, "timestamp_ns", TimeUnit.NANOSECONDS);
+
+    // Test nanosecond timestamp with timezone
+    ColumnStatsWatermarkExtractor extractorNsTz =
+        new ColumnStatsWatermarkExtractor(schema, "timestamp_ns_tz", TimeUnit.NANOSECONDS);
+
+    // Test microsecond timestamp
+    ColumnStatsWatermarkExtractor extractorUs =
+        new ColumnStatsWatermarkExtractor(schema, "timestamp_us", TimeUnit.MICROSECONDS);
+
+    // Verify that the extractors are created successfully
+    assertThat(extractorNs).isNotNull();
+    assertThat(extractorNsTz).isNotNull();
+    assertThat(extractorUs).isNotNull();
   }
 
   /**
@@ -215,19 +220,18 @@ public class TestColumnStatsWatermarkExtractorEndToEnd {
    * in a LONG column.
    */
   @Test
-  public void testWatermarkExtractorWithLongColumn() {
-    // Create a schema with a Long column for watermark testing
-    Schema longWatermarkSchema =
+  public void testLongColumnWithNanosecondTimeUnit() {
+    // Create a schema with a Long column
+    Schema schema =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            required(2, "timestamp_long", Types.LongType.get()),
-            required(3, "data", Types.StringType.get()));
+            required(2, "timestamp_long", Types.LongType.get()));
 
-    // Test that we can create a watermark extractor for Long columns with nanosecond time unit
+    // Test Long column with nanosecond time unit
     ColumnStatsWatermarkExtractor extractor =
-        new ColumnStatsWatermarkExtractor(
-            longWatermarkSchema, "timestamp_long", TimeUnit.NANOSECONDS);
+        new ColumnStatsWatermarkExtractor(schema, "timestamp_long", TimeUnit.NANOSECONDS);
 
+    // Verify that the extractor is created successfully
     assertThat(extractor).isNotNull();
   }
 

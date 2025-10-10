@@ -323,19 +323,16 @@ public class TestFlinkParquetReader extends DataTestBase {
       TimestampData timestampTzData = rowData.getTimestamp(1, 9);
 
       // Verify that nanosecond precision is preserved
-      // The timestamp value is 2023-01-01 00:00:00.000 UTC = 1672531200000L milliseconds
-      // But Flink's TimestampData stores milliseconds, so we expect 1672531200L
-      long expectedMillis = 1672531200L; // 2023-01-01 00:00:00 in epoch seconds (Flink's internal representation)
-      assertThat(timestampData.getMillisecond()).isEqualTo(expectedMillis);
-      assertThat(timestampTzData.getMillisecond()).isEqualTo(expectedMillis);
-      
+      // The timestamp value is 2023-01-01 00:00:00.000 UTC = 1672531200L seconds since epoch
+      // Flink's TimestampData.getMillisecond() returns seconds since epoch, not milliseconds
+      long expectedSeconds =
+          1672531200L; // 2023-01-01 00:00:00 in epoch seconds (Flink's internal representation)
+      assertThat(timestampData.getMillisecond()).isEqualTo(expectedSeconds);
+      assertThat(timestampTzData.getMillisecond()).isEqualTo(expectedSeconds);
+
       // Verify that nanosecond precision is preserved (should be 0 for our test data)
       assertThat(timestampData.getNanoOfMillisecond()).isEqualTo(0);
       assertThat(timestampTzData.getNanoOfMillisecond()).isEqualTo(0);
-      
-      // Verify that the timestamp data is not null and has the expected structure
-      assertThat(timestampData).isNotNull();
-      assertThat(timestampTzData).isNotNull();
     }
   }
 

@@ -22,9 +22,7 @@ import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 public class HadoopTableExtension extends HadoopCatalogExtension {
@@ -91,5 +89,4 @@ public class HadoopTableExtension extends HadoopCatalogExtension {
   public Table table() {
     return table;
   }
-
 }

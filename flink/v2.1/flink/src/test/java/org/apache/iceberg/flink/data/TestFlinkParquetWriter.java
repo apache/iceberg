@@ -122,10 +122,9 @@ public class TestFlinkParquetWriter extends DataTestBase {
     writeAndValidate(binaryRowList, schema);
   }
 
-  /** Test that nanosecond precision timestamps are preserved when writing to Parquet files. This */
+  /** Test that nanosecond precision timestamps are preserved when writing to Parquet files. */
   @Test
   public void testNanosecondTimestampPrecision() throws IOException {
-    // Create a schema with nanosecond timestamp
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "timestamp_ns", Types.TimestampNanoType.withoutZone()),
@@ -133,7 +132,6 @@ public class TestFlinkParquetWriter extends DataTestBase {
 
     List<RowData> testData = Lists.newArrayList(RandomRowData.generate(schema, 1, 42L));
 
-    // Write to Parquet file
     OutputFile outputFile = new InMemoryOutputFile();
     LogicalType logicalType = FlinkSchemaUtil.convert(schema);
 
@@ -176,14 +174,12 @@ public class TestFlinkParquetWriter extends DataTestBase {
   /** Test that microsecond precision timestamps work correctly (regression test). */
   @Test
   public void testMicrosecondTimestampPrecision() throws IOException {
-    // Create a schema with microsecond timestamp
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "timestamp_micros", Types.TimestampType.withoutZone()));
 
     List<RowData> testData = Lists.newArrayList(RandomRowData.generate(schema, 1, 42L));
 
-    // Write to Parquet file
     OutputFile outputFile = new InMemoryOutputFile();
     LogicalType logicalType = FlinkSchemaUtil.convert(schema);
 
