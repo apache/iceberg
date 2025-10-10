@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.avro.LogicalTypes;
@@ -36,6 +35,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * This is not serializable because Avro {@link Schema} is not actually serializable, even though it
@@ -54,7 +54,7 @@ public class RowDataToAvroGenericRecordConverter implements Function<RowData, Ge
   }
 
   private int[] findTimestampNanosFields(Schema schema) {
-    List<Integer> indices = new ArrayList<>();
+    List<Integer> indices = Lists.newArrayList();
     for (int i = 0; i < schema.getFields().size(); i++) {
       Schema.Field field = schema.getFields().get(i);
       if (field.schema().getLogicalType() instanceof LogicalTypes.TimestampNanos) {

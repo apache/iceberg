@@ -176,12 +176,13 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
       return 0;
     }
 
-    while (value > 0) {
-      int digit = value % 10;
+    int remainingValue = value;
+    while (remainingValue > 0) {
+      int digit = remainingValue % 10;
       if (digit != 0) {
         return digit;
       }
-      value /= 10;
+      remainingValue /= 10;
     }
 
     return 0;

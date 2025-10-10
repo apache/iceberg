@@ -28,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -290,7 +289,7 @@ public class TestFlinkParquetReader extends DataTestBase {
             Types.NestedField.required(2, "timestamp_ns_tz", Types.TimestampNanoType.withZone()));
 
     // Create test data with reasonable timestamp values (within Flink's supported range)
-    List<Record> testData = new ArrayList<>();
+    List<Record> testData = Lists.newArrayList();
     Record record = org.apache.iceberg.data.GenericRecord.create(schema);
     // Use a timestamp from 2023-01-01 with nanosecond precision
     LocalDateTime timestamp = LocalDateTime.of(2023, 1, 1, 0, 0, 0, 0);

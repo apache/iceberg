@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -33,6 +32,7 @@ import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * This util class converts Avro GenericRecord to Flink RowData. <br>
@@ -53,7 +53,7 @@ public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericReco
   }
 
   private int[] findTimestampNanosFields(Schema schema) {
-    List<Integer> indices = new ArrayList<>();
+    List<Integer> indices = Lists.newArrayList();
     for (int i = 0; i < schema.getFields().size(); i++) {
       Schema.Field field = schema.getFields().get(i);
       if (field.schema().getLogicalType() instanceof LogicalTypes.TimestampNanos) {
