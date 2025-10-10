@@ -18,16 +18,24 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -118,5 +126,89 @@ public class PartitionUtil {
     }
 
     return builder.build();
+  }
+
+  // Return a function that extracts partition data from the source spec to the output spec.
+  public static UnaryOperator<StructLike> extractor(
+      PartitionSpec sourceSpec, PartitionSpec outputSpec) {
+
+    if (sourceSpec.equals(outputSpec)) {
+      return partition -> partition;
+    }
+
+    List<AbstractMap.SimpleEntry<Integer, PartitionField>> indexedByPos =
+        IntStream.range(0, sourceSpec.fields().size())
+            .mapToObj(i -> new AbstractMap.SimpleEntry<>(i, sourceSpec.fields().get(i)))
+            .collect(Collectors.toList());
+    Map<Integer, List<AbstractMap.SimpleEntry<Integer, PartitionField>>> bySourceId =
+        indexedByPos.stream().collect(Collectors.groupingBy(entry -> entry.getValue().sourceId()));
+
+    // every output partition field must be able to derive from a source partition field
+    return (StructLike inPartition) -> {
+      StructLike outPartition = GenericRecord.create(outputSpec.partitionType());
+
+      // fill the output partition with the source partition data
+      for (int outIdx = 0; outIdx < outputSpec.fields().size(); outIdx++) {
+        PartitionField outField = outputSpec.fields().get(outIdx);
+        final int finalOutIdx = outIdx;
+        // best effort, some field can be null and it's ok.
+        bySourceId
+            .getOrDefault(outField.sourceId(), Collections.emptyList())
+            .forEach(
+                entry -> {
+                  int idx = entry.getKey();
+                  PartitionField inField = entry.getValue();
+                  if (inField.transform().equals(outField.transform())) {
+                    outPartition.set(finalOutIdx, inPartition.get(idx, Object.class));
+                  } else if (inField.transform().satisfiesOrderOf(outField.transform())) {
+                    Integer inValue = inPartition.get(idx, Integer.class);
+                    Object outValue =
+                        convertPartitionValue(inField.transform(), outField.transform(), inValue);
+                    outPartition.set(finalOutIdx, outValue);
+                  }
+                });
+      }
+      return outPartition;
+    };
+  }
+
+  // Whether output spec can be derived from sourceSpec
+  public static boolean isCompatible(PartitionSpec sourceSpec, PartitionSpec outputSpec) {
+    Map<Integer, List<PartitionField>> sourcePartitionFields =
+        sourceSpec.fields().stream().collect(Collectors.groupingBy(PartitionField::sourceId));
+    Map<Integer, List<PartitionField>> outputPartitionFields =
+        outputSpec.fields().stream().collect(Collectors.groupingBy(PartitionField::sourceId));
+
+    if (!sourcePartitionFields.keySet().containsAll(outputPartitionFields.keySet())) {
+      return false;
+    }
+
+    return outputSpec.fields().stream()
+        .allMatch(
+            outField -> {
+              return sourcePartitionFields.get(outField.sourceId()).stream()
+                  .anyMatch(
+                      inField -> {
+                        return inField.transform().equals(outField.transform())
+                            || inField.transform().satisfiesOrderOf(outField.transform());
+                      });
+            });
+  }
+
+  private static Object convertPartitionValue(
+      Transform<?, ?> inTransform, Transform<?, ?> outTransform, Integer inValue) {
+    if (inTransform.toString().equals(Transforms.hour().toString())
+        && outTransform.toString().equals(Transforms.day().toString())) {
+      return DateTimeUtil.hoursToDays(inValue);
+    } else if (inTransform.toString().equals(Transforms.day().toString())
+        && outTransform.toString().equals(Transforms.month().toString())) {
+      return DateTimeUtil.daysToMonths(inValue);
+    } else if (inTransform.toString().equals(Transforms.day().toString())
+        && outTransform.toString().equals(Transforms.year().toString())) {
+      return DateTimeUtil.daysToYears(inValue);
+    } else {
+      throw new IllegalArgumentException(
+          "Cannot convert partition value from " + inTransform + " to " + outTransform);
+    }
   }
 }
