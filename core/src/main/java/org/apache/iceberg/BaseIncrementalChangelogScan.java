@@ -30,6 +30,7 @@ import org.apache.iceberg.ManifestGroup.TaskContext;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
@@ -157,7 +158,7 @@ class BaseIncrementalChangelogScan
   /**
    * Builds a delete file index for existing deletes that were present before the start snapshot.
    * These deletes should be applied to data files but should not generate DELETE changelog rows.
-   * Uses caching to avoid re-parsing manifests.
+   * Uses manifest pruning and caching to optimize performance.
    */
   private DeleteFileIndex buildExistingDeleteIndex(Long fromSnapshotIdExclusive) {
     if (fromSnapshotIdExclusive == null) {
@@ -174,8 +175,14 @@ class BaseIncrementalChangelogScan
       return DeleteFileIndex.builderFor(ImmutableList.of()).build();
     }
 
+    // Prune manifests based on partition filter to avoid processing irrelevant manifests
+    List<ManifestFile> prunedManifests = pruneManifestsByPartition(existingDeleteManifests);
+    if (prunedManifests.isEmpty()) {
+      return DeleteFileIndex.builderFor(ImmutableList.of()).build();
+    }
+
     // Load delete files with caching to avoid redundant manifest parsing
-    List<DeleteFile> deleteFiles = loadDeleteFilesWithCache(existingDeleteManifests);
+    List<DeleteFile> deleteFiles = loadDeleteFilesWithCache(prunedManifests);
 
     return DeleteFileIndex.builderFor(deleteFiles)
         .specsById(table().specs())
@@ -461,6 +468,65 @@ class BaseIncrementalChangelogScan
     }
 
     return allDeleteFiles;
+  }
+
+  /**
+   * Prunes delete manifests based on partition filter to avoid processing irrelevant manifests.
+   * This significantly improves performance when only a subset of partitions are relevant to the scan.
+   *
+   * @param manifests all delete manifests to consider
+   * @return list of manifests that might contain relevant delete files
+   */
+  private List<ManifestFile> pruneManifestsByPartition(List<ManifestFile> manifests) {
+    Expression currentFilter = filter();
+    
+    // If there's no filter, return all manifests
+    if (currentFilter == null || currentFilter.equals(Expressions.alwaysTrue())) {
+      return manifests;
+    }
+    
+    List<ManifestFile> prunedManifests = Lists.newArrayList();
+    
+    for (ManifestFile manifest : manifests) {
+      PartitionSpec spec = table().specs().get(manifest.partitionSpecId());
+      if (spec == null || spec.isUnpartitioned()) {
+        // Include unpartitioned manifests
+        prunedManifests.add(manifest);
+        continue;
+      }
+      
+      // Check if manifest partition range overlaps with filter
+      if (manifestOverlapsFilter(manifest, spec, currentFilter)) {
+        prunedManifests.add(manifest);
+      }
+    }
+    
+    return prunedManifests;
+  }
+
+  /**
+   * Checks if a manifest's partition range overlaps with the given filter.
+   *
+   * @param manifest the manifest to check
+   * @param spec the partition spec for the manifest
+   * @param filter the scan filter
+   * @return true if the manifest might contain matching partitions, false otherwise
+   */
+  private boolean manifestOverlapsFilter(ManifestFile manifest, PartitionSpec spec, Expression filter) {
+    try {
+      // Use inclusive projection to transform row filter to partition filter
+      Expression partitionFilter = Projections.inclusive(spec, isCaseSensitive()).project(filter);
+      
+      // Create evaluator for the partition filter
+      ManifestEvaluator evaluator = ManifestEvaluator.forPartitionFilter(
+          partitionFilter, spec, isCaseSensitive());
+      
+      // Check if manifest could contain matching partitions
+      return evaluator.eval(manifest);
+    } catch (Exception e) {
+      // If evaluation fails, be conservative and include the manifest
+      return true;
+    }
   }
 
   /**
