@@ -23,11 +23,13 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
@@ -73,6 +75,7 @@ class ParquetConversions {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static Function<Object, Object> converterFromParquet(
       PrimitiveType parquetType, Type icebergType) {
     Function<Object, Object> fromParquet = converterFromParquet(parquetType);
@@ -83,6 +86,19 @@ class ParquetConversions {
       } else if (icebergType.typeId() == Type.TypeID.DOUBLE
           && parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
+      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP
+          && parquetType.getOriginalType() == org.apache.parquet.schema.OriginalType.DATE) {
+          LogicalTypeAnnotation logicalType = parquetType.getLogicalTypeAnnotation();
+          if(logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation && ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType).isAdjustedToUTC()) {
+              return fromParquet;
+          }
+        return value -> (long) ((Integer) fromParquet.apply(value)) * TimeUnit.DAYS.toMicros(1);
+      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO && parquetType.getOriginalType() == org.apache.parquet.schema.OriginalType.DATE) {
+          LogicalTypeAnnotation logicalType = parquetType.getLogicalTypeAnnotation();
+          if(logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation && ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType).isAdjustedToUTC()) {
+              return fromParquet;
+          }
+          return value -> (long) ((Integer) fromParquet.apply(value)) * TimeUnit.DAYS.toNanos(1);
       } else if (icebergType.typeId() == Type.TypeID.UUID) {
         return binary -> UUIDUtil.convert(((Binary) binary).toByteBuffer());
       }
