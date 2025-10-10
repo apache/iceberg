@@ -42,6 +42,10 @@ Iceberg provides a runtime connector jar for each supported version of Spark, Fl
 When using Iceberg with these engines, the runtime jar is the only addition to the classpath needed in addition to vendor dependencies.
 For example, to use Iceberg with Spark 3.5 and AWS integrations, `iceberg-spark-runtime-3.5_2.12` and AWS SDK dependencies are needed for the Spark installation.
 
+> ℹ️ It's important to make sure that only the runtime jars (plus storage specific bundles if needed, eg. `iceberg-aws-bundle` or `iceberg-gcp-bundle`) are included in the runtime classpath.
+> All other modules should be excluded as they may introduce dependency version conflicts with engine runtimes.
+> For example, when packaging uberjar for a Spark application, we should include `iceberg-spark-runtime` and exclude modules such as `iceberg-core` or `iceberg-parquet`.
+
 Spark and Flink provide different runtime jars for each supported engine version.
 Hive 2 and Hive 3 currently share the same runtime jar.
 The runtime jar names and latest version download links are listed in [the tables below](#current-engine-version-lifecycle-status).
