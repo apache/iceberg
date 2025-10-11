@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.apache.iceberg.rest.RESTCatalogAdapter.Route.CONFIG;
-
 import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -58,7 +56,7 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
               HTTPRequest httpRequest,
               Class<T> responseType,
               Consumer<Map<String, String>> responseHeaders) {
-            if (CONFIG == route) {
+            if (Route.CONFIG == route) {
               // simulate a legacy server that doesn't send back supported endpoints
               return castResponse(responseType, ConfigResponse.builder().build());
             }

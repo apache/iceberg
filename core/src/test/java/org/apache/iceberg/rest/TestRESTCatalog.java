@@ -2272,7 +2272,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // verify initial request with empty pageToken
     Mockito.verify(adapter)
         .handleRequest(
-            eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
+            eq(Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "", "pageSize", "10")),
             any(),
             eq(ListNamespacesResponse.class),
@@ -2281,7 +2281,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // verify second request with updated pageToken
     Mockito.verify(adapter)
         .handleRequest(
-            eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
+            eq(Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10")),
             any(),
             eq(ListNamespacesResponse.class),
@@ -2290,7 +2290,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // verify third request with update pageToken
     Mockito.verify(adapter)
         .handleRequest(
-            eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
+            eq(Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10")),
             any(),
             eq(ListNamespacesResponse.class),
@@ -2334,7 +2334,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // verify initial request with empty pageToken
     Mockito.verify(adapter)
         .handleRequest(
-            eq(RESTCatalogAdapter.Route.LIST_TABLES),
+            eq(Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class),
@@ -2343,7 +2343,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // verify second request with updated pageToken
     Mockito.verify(adapter)
         .handleRequest(
-            eq(RESTCatalogAdapter.Route.LIST_TABLES),
+            eq(Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class),
@@ -2352,7 +2352,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // verify third request with update pageToken
     Mockito.verify(adapter)
         .handleRequest(
-            eq(RESTCatalogAdapter.Route.LIST_TABLES),
+            eq(Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class),
@@ -2882,6 +2882,85 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ((BaseTable) tbl).operations().current().metadataFileLocation());
 
     assertThat(respHeaders).containsEntry(HttpHeaders.ETAG, eTag);
+  }
+
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
+  @Test
+  public void testNotModified() {
+    catalog().createNamespace(TABLE.namespace());
+
+    Table table = catalog().createTable(TABLE, SCHEMA);
+
+    String eTag =
+        ETagProvider.of(((BaseTable) table).operations().current().metadataFileLocation());
+    String metadataTableName = "partitions";
+
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+
+                // For LOAD_TABLE requests for non metadata tables, fill in the IF_NONE_MATCH input
+                // header.
+                if (Route.from(request.method(), request.path()).first().equals(Route.LOAD_TABLE)
+                    && !request.path().contains(metadataTableName)) {
+                  HTTPHeaders extendedHeaders =
+                      ImmutableHTTPHeaders.copyOf(request.headers())
+                          .putIfAbsent(
+                              ImmutableHTTPHeader.builder()
+                                  .name(HttpHeaders.IF_NONE_MATCH)
+                                  .value(eTag)
+                                  .build());
+
+                  ImmutableHTTPRequest extendedRequest =
+                      ImmutableHTTPRequest.builder().from(request).headers(extendedHeaders).build();
+
+                  assertThat(
+                          super.execute(
+                              extendedRequest, responseType, errorHandler, responseHeaders))
+                      .isNull();
+
+                  return null;
+                }
+
+                return super.execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    RESTCatalog catalog = catalog(adapter);
+
+    // TODO: This won't throw when client side of freshness-aware loading is implemented
+    assertThatThrownBy(() -> catalog.loadTable(TABLE)).isInstanceOf(NullPointerException.class);
+
+    TableIdentifier metadataTableIdentifier =
+        TableIdentifier.of(TABLE.namespace().toString(), TABLE.name(), metadataTableName);
+
+    // TODO: This won't throw when client side of freshness-aware loading is implemented
+    assertThatThrownBy(() -> catalog.loadTable(metadataTableIdentifier))
+        .isInstanceOf(NullPointerException.class);
+
+    Mockito.verify(adapter, times(2))
+        .handleRequest(
+            eq(Route.LOAD_TABLE),
+            any(),
+            reqMatcher(
+                HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, eTag)),
+            eq(LoadTableResponse.class),
+            any());
+
+    verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(metadataTableIdentifier), Map.of()),
+            any(),
+            any(),
+            any());
   }
 
   private RESTCatalog catalogWithResponseHeaders(Map<String, String> respHeaders) {
