@@ -46,6 +46,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -73,6 +74,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -281,6 +283,39 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
         .isEqualTo("thrift://examplehost:9083");
     assertThat(hiveCatalog.getConf().get("hive.metastore.warehouse.dir"))
         .isEqualTo("/user/hive/testwarehouse");
+  }
+
+  @Test
+  public void testRegisterTableFailsOnCommit() {
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    TableIdentifier identifier2 = TableIdentifier.of("b", "t2");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    catalog.createTable(identifier, SCHEMA);
+    Table sourceTable = catalog.loadTable(identifier);
+    TableOperations ops = ((BaseTable) sourceTable).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+
+    assertThatThrownBy(() -> catalog.registerTable(identifier2, metadataLocation))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Invalid Hive object for");
+
+    assertThatThrownBy(() -> catalog.loadTable(identifier2))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist:");
+
+    // The failed register table operation do not affect the source table
+    Table sourceTableAfter = catalog.loadTable(identifier);
+    assertThat(((BaseTable) sourceTableAfter).operations().current().metadataFileLocation())
+        .isEqualTo(metadataLocation);
+    assertThat(catalog.dropTable(identifier)).isTrue();
+  }
+
+  protected Table failWhenRegisterTable(TableIdentifier identifier, String metadataFileLocation) {
+    throw new UnsupportedOperationException("Registering tables is not supported");
   }
 
   @Test

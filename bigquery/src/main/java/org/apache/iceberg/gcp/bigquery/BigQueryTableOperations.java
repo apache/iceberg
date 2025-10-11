@@ -77,10 +77,8 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   // atomically
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation =
-        base == null && metadata.metadataFileLocation() != null
-            ? metadata.metadataFileLocation()
-            : writeNewMetadata(metadata, currentVersion() + 1);
+    boolean newTable = base == null;
+    String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     BaseMetastoreOperations.CommitStatus commitStatus =
         BaseMetastoreOperations.CommitStatus.FAILURE;
     try {
@@ -110,7 +108,9 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
       try {
         if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
           LOG.warn("Failed to commit updates to table {}", tableName());
-          io().deleteFile(newMetadataLocation);
+          if (!reuseMetadataLocation(newTable, metadata)) {
+            io().deleteFile(newMetadataLocation);
+          }
         }
       } catch (RuntimeException e) {
         LOG.error(
