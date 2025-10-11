@@ -26,10 +26,14 @@ import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_
 import static org.apache.iceberg.BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP;
 import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
+import static org.apache.iceberg.TableProperties.HIVE_LOCK_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -60,7 +65,9 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -74,6 +81,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -117,6 +125,66 @@ public class TestHiveTable extends HiveTableTestBase {
     final Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     // Iceberg schema should match the loaded table
     assertThat(icebergTable.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
+  }
+
+  @Test
+  public void testCreateTableWithNoLock() {
+    testCreateTableEndToEnd(false);
+  }
+
+  @Test
+  public void testCreateTableWithLock() {
+    testCreateTableEndToEnd(true);
+  }
+
+  private void testCreateTableEndToEnd(boolean lockEnabled) {
+    String tableName = lockEnabled ? "new_table_lock_e2e" : "new_table_no_lock_e2e";
+    TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, tableName);
+
+    try {
+      // Create table with lock setting via catalog
+      // We will spy the call to create table operation and capture the lock object being returned
+      HiveCatalog spyCatalog = spy(catalog);
+      AtomicReference<HiveLock> lockRef = new AtomicReference<>();
+      doAnswer(
+              (args) -> {
+                TableOperations ops =
+                    catalog.newTableOps(args.getArgument(0, TableIdentifier.class));
+                HiveTableOperations spyOps = (HiveTableOperations) spy(ops);
+                doAnswer(
+                        (lockArgs) -> {
+                          lockRef.set(
+                              ((HiveTableOperations) ops)
+                                  .lockObject(lockArgs.getArgument(0, TableMetadata.class)));
+                          return lockRef.get();
+                        })
+                    .when(spyOps)
+                    .lockObject(any());
+                return spyOps;
+              })
+          .when(spyCatalog)
+          .newTableOps(newTableIdentifier);
+
+      spyCatalog.createTable(
+          newTableIdentifier,
+          SCHEMA,
+          PartitionSpec.unpartitioned(),
+          ImmutableMap.of(HIVE_LOCK_ENABLED, String.valueOf(lockEnabled)));
+
+      Class<? extends HiveLock> expectedLockClass =
+          lockEnabled ? MetastoreLock.class : NoLock.class;
+      assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
+      assertThat(lockRef.get())
+          .as(
+              "Table created with HIVE_LOCK_ENABLED="
+                  + lockEnabled
+                  + " should use "
+                  + expectedLockClass.getSimpleName()
+                  + ")")
+          .isInstanceOf(expectedLockClass);
+    } finally {
+      catalog.dropTable(newTableIdentifier, true);
+    }
   }
 
   @Test
