@@ -25,12 +25,15 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PartitioningDVWriter;
 
 class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   private final RowDataDeltaWriter writer;
+  private PartitioningDVWriter dvFileWriter;
 
   UnpartitionedDeltaWriter(
       PartitionSpec spec,
@@ -42,7 +45,8 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
       Schema schema,
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
-      boolean upsert) {
+      boolean upsert,
+      boolean userDv) {
     super(
         spec,
         format,
@@ -53,8 +57,10 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
         schema,
         flinkSchema,
         equalityFieldIds,
-        upsert);
-    this.writer = new RowDataDeltaWriter(null);
+        upsert,
+        userDv);
+    this.dvFileWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
+    this.writer = new RowDataDeltaWriter(null, dvFileWriter);
   }
 
   @Override
@@ -65,5 +71,16 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   @Override
   public void close() throws IOException {
     writer.close();
+    if (dvFileWriter != null) {
+      try {
+        // complete will call close
+        dvFileWriter.close();
+        DeleteWriteResult result = dvFileWriter.result();
+        addCompletedDeleteFiles(result.deleteFiles());
+        addReferencedDataFiles(result.referencedDataFiles());
+      } finally {
+        dvFileWriter = null;
+      }
+    }
   }
 }

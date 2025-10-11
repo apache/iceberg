@@ -35,6 +35,7 @@ import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 
@@ -46,6 +47,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   private final RowDataWrapper keyWrapper;
   private final RowDataProjection keyProjection;
   private final boolean upsert;
+  private final boolean useDv;
 
   BaseDeltaTaskWriter(
       PartitionSpec spec,
@@ -57,7 +59,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       Schema schema,
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
-      boolean upsert) {
+      boolean upsert,
+      boolean useDv) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
@@ -67,6 +70,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     this.keyProjection =
         RowDataProjection.create(flinkSchema, schema.asStruct(), deleteSchema.asStruct());
     this.upsert = upsert;
+    this.useDv = useDv;
   }
 
   abstract RowDataDeltaWriter route(RowData row);
@@ -109,8 +113,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   }
 
   protected class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
-    RowDataDeltaWriter(PartitionKey partition) {
-      super(partition, schema, deleteSchema, DeleteGranularity.FILE);
+    RowDataDeltaWriter(PartitionKey partition, PartitioningDVWriter dvFileWriter) {
+      super(partition, schema, deleteSchema, DeleteGranularity.FILE, dvFileWriter, useDv);
     }
 
     @Override
@@ -121,6 +125,15 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     @Override
     protected StructLike asStructLikeKey(RowData data) {
       return keyWrapper.wrap(data);
+    }
+
+    @Override
+    protected void closePositionWriter() throws IOException {
+      // We should not close dvFileWriter here, because we may have multiple writers share the same
+      // dvFileWriter.
+      if (!useDv) {
+        super.closePositionWriter();
+      }
     }
   }
 }
