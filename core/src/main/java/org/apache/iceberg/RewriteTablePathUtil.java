@@ -449,12 +449,13 @@ public class RewriteTablePathUtil {
         String targetDeleteFilePath = newPath(file.location(), sourcePrefix, targetPrefix);
         Metrics metricsWithTargetPath =
             ContentFileUtil.replacePathBounds(file, sourcePrefix, targetPrefix);
-        DeleteFile movedFile =
+        FileMetadata.Builder builder =
             FileMetadata.deleteFileBuilder(spec)
                 .copy(file)
                 .withPath(targetDeleteFilePath)
-                .withMetrics(metricsWithTargetPath)
-                .build();
+                .withMetrics(metricsWithTargetPath);
+
+        DeleteFile movedFile = builder.build();
         appendEntryWithFile(entry, writer, movedFile);
         // keep the following entries in metadata but exclude them from copyPlan
         // 1) deleted position delete files
