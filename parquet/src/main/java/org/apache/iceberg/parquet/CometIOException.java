@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.parquet;
 
-import java.io.IOException;
-
 /**
  * Exception class for handling both IOException and general Exception cases when working with Comet
  * FileReader operations. This provides a unified way to handle exceptions that may occur during
@@ -27,26 +25,8 @@ import java.io.IOException;
  */
 public class CometIOException extends RuntimeException {
 
-  public CometIOException(String message) {
-    super(message);
-  }
-
   public CometIOException(String message, Throwable cause) {
     super(message, cause);
-  }
-
-  public CometIOException(Throwable cause) {
-    super(cause);
-  }
-
-  /** Creates a CometIOException from an IOException. */
-  public static CometIOException fromIOException(IOException cause) {
-    return new CometIOException("Comet IO operation failed", cause);
-  }
-
-  /** Creates a CometIOException from a general Exception. */
-  public static CometIOException fromException(Exception cause) {
-    return new CometIOException("Comet operation failed", cause);
   }
 
   /** Creates a CometIOException with a custom message and cause. */

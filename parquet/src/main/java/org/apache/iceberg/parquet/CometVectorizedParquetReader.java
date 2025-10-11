@@ -28,6 +28,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -121,7 +122,6 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {
-    // private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
     private final VectorizedReader<T> model;
     private final long totalValues;
@@ -175,7 +175,13 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
         ByteBuffer fileAADPrefix) {
       CometBridge.FileReaderWrapper fileReader = null;
       try {
-        Object cometOptions = CometBridge.createReadOptions(new Configuration());
+        Configuration conf;
+        if (file instanceof HadoopInputFile) {
+          conf = new Configuration(((HadoopInputFile) file).getConf());
+        } else {
+          conf = new Configuration();
+        }
+        Object cometOptions = CometBridge.createReadOptions(conf);
 
         fileReader =
             CometBridge.FileReaderWrapper.create(
