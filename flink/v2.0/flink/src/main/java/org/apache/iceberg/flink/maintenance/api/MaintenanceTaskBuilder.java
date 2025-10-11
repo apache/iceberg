@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.operators.util.OperatorValidationUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -37,6 +38,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
   private String uidSuffix = null;
   private String slotSharingGroup = null;
   private Integer parallelism = null;
+  private boolean collectResults;
   private final TriggerEvaluator.Builder triggerEvaluator = new TriggerEvaluator.Builder();
 
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
@@ -159,6 +161,16 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     return (T) this;
   }
 
+  /**
+   * Set whether to collect the results of the task.
+   *
+   * @param newCollectResults whether to collect the results.
+   */
+  public T collectResults(boolean newCollectResults) {
+    this.collectResults = newCollectResults;
+    return (T) this;
+  }
+
   protected int index() {
     return index;
   }
@@ -187,6 +199,10 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     return parallelism;
   }
 
+  protected boolean collectResults() {
+    return collectResults;
+  }
+
   protected String operatorName(String operatorNameBase) {
     return operatorNameBase + "[" + index() + "]";
   }
@@ -195,7 +211,8 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     return triggerEvaluator.build();
   }
 
-  DataStream<TaskResult> append(
+  @Internal
+  public DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
       String newTableName,
       String newTaskName,
