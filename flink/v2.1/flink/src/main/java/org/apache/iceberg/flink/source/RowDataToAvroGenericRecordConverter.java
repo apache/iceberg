@@ -19,19 +19,23 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.function.Function;
+import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.formats.avro.RowDataToAvroConverters;
 import org.apache.flink.formats.avro.typeutils.AvroSchemaConverter;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * This is not serializable because Avro {@link Schema} is not actually serializable, even though it
@@ -41,15 +45,50 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 public class RowDataToAvroGenericRecordConverter implements Function<RowData, GenericRecord> {
   private final RowDataToAvroConverters.RowDataToAvroConverter converter;
   private final Schema avroSchema;
+  private final int[] timestampNanosFieldIndices;
 
   private RowDataToAvroGenericRecordConverter(RowType rowType, Schema avroSchema) {
     this.converter = RowDataToAvroConverters.createConverter(rowType);
     this.avroSchema = avroSchema;
+    this.timestampNanosFieldIndices = findTimestampNanosFields(avroSchema);
+  }
+
+  private int[] findTimestampNanosFields(Schema schema) {
+    List<Integer> indices = Lists.newArrayList();
+    for (int i = 0; i < schema.getFields().size(); i++) {
+      Schema.Field field = schema.getFields().get(i);
+      if (field.schema().getLogicalType() instanceof LogicalTypes.TimestampNanos) {
+        indices.add(i);
+      }
+    }
+    return indices.stream().mapToInt(Integer::intValue).toArray();
+  }
+
+  private GenericRecord postProcessTimestampNanos(GenericRecord baseRecord, RowData rowData) {
+    if (timestampNanosFieldIndices.length == 0) {
+      return baseRecord; // No timestamp-nanos fields to process
+    }
+
+    // Override only timestamp-nanos fields with correct nanosecond precision
+    for (int fieldIndex : timestampNanosFieldIndices) {
+      if (!rowData.isNullAt(fieldIndex)) {
+        // Get precision from the rowType (assuming it's available in the context)
+        int precision = 9; // Default to nanosecond precision for timestamp-nanos
+        TimestampData timestampData = rowData.getTimestamp(fieldIndex, precision);
+        // Use correct nanosecond precision conversion
+        long nanos =
+            timestampData.getMillisecond() * 1_000_000_000L + timestampData.getNanoOfMillisecond();
+        baseRecord.put(fieldIndex, nanos);
+      }
+    }
+
+    return baseRecord;
   }
 
   @Override
   public GenericRecord apply(RowData rowData) {
-    return (GenericRecord) converter.convert(avroSchema, rowData);
+    GenericRecord baseRecord = (GenericRecord) converter.convert(avroSchema, rowData);
+    return postProcessTimestampNanos(baseRecord, rowData);
   }
 
   /** Create a converter based on Iceberg schema */
