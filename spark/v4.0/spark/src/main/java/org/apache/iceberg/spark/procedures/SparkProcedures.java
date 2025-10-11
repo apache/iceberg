@@ -60,6 +60,7 @@ public class SparkProcedures {
     mapBuilder.put(ComputeTableStatsProcedure.NAME, ComputeTableStatsProcedure::builder);
     mapBuilder.put(ComputePartitionStatsProcedure.NAME, ComputePartitionStatsProcedure::builder);
     mapBuilder.put(RewriteTablePathProcedure.NAME, RewriteTablePathProcedure::builder);
+    mapBuilder.put(Hive2IcebergProcedure.NAME, Hive2IcebergProcedure::builder);
     return mapBuilder.build();
   }
 
