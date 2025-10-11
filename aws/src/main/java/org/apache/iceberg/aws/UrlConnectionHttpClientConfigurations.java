@@ -21,9 +21,13 @@ package org.apache.iceberg.aws;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.urlconnection.ProxyConfiguration;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 
@@ -36,10 +40,27 @@ class UrlConnectionHttpClientConfigurations {
   private UrlConnectionHttpClientConfigurations() {}
 
   public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
-    UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
-        UrlConnectionHttpClient.builder();
-    configureUrlConnectionHttpClientBuilder(urlConnectionHttpClientBuilder);
-    awsClientBuilder.httpClientBuilder(urlConnectionHttpClientBuilder);
+    configureHttpClientBuilder(awsClientBuilder, Maps.newHashMap());
+  }
+
+  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(
+      T awsClientBuilder, Map<String, String> properties) {
+
+    String cacheKey = generateHttpClientCacheKey();
+
+    SdkHttpClient managedHttpClient =
+        ManagedHttpClientRegistry.getInstance()
+            .getOrCreateClient(
+                cacheKey,
+                () -> {
+                  UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
+                      UrlConnectionHttpClient.builder();
+                  configureUrlConnectionHttpClientBuilder(urlConnectionHttpClientBuilder);
+                  return urlConnectionHttpClientBuilder.build();
+                },
+                properties);
+
+    awsClientBuilder.httpClient(managedHttpClient);
   }
 
   private void initialize(Map<String, String> httpClientProperties) {
@@ -69,6 +90,23 @@ class UrlConnectionHttpClientConfigurations {
       urlConnectionHttpClientBuilder.proxyConfiguration(
           ProxyConfiguration.builder().endpoint(URI.create(proxyEndpoint)).build());
     }
+  }
+
+  /**
+   * Generate a cache key based on HTTP client configuration. This ensures clients with identical
+   * configurations share the same HTTP client instance.
+   */
+  private String generateHttpClientCacheKey() {
+    Map<String, Object> keyComponents = Maps.newTreeMap(); // TreeMap for consistent ordering
+
+    keyComponents.put("type", "urlconnection");
+    keyComponents.put("connectionTimeoutMs", httpClientUrlConnectionConnectionTimeoutMs);
+    keyComponents.put("socketTimeoutMs", httpClientUrlConnectionSocketTimeoutMs);
+    keyComponents.put("proxyEndpoint", proxyEndpoint);
+
+    return keyComponents.entrySet().stream()
+        .map(entry -> entry.getKey() + "=" + Objects.toString(entry.getValue(), "null"))
+        .collect(Collectors.joining(",", "urlconnection[", "]"));
   }
 
   public static UrlConnectionHttpClientConfigurations create(
