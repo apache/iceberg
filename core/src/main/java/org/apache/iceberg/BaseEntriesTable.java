@@ -251,6 +251,16 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         return ROWS_MIGHT_MATCH;
       }
 
+      @Override
+      public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       private <T> boolean fileContent(BoundReference<T> ref) {
         return ref.fieldId() == DataFile.CONTENT.fieldId();
       }

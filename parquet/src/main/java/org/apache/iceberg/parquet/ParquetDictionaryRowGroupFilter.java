@@ -406,6 +406,18 @@ public class ParquetDictionaryRowGroupFilter {
       return ROWS_CANNOT_MATCH;
     }
 
+    @Override
+    public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: Efficiently determine whether some dictionary value contains the literal
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: Efficiently determine whether some dictionary value does not contain the literal
+      return ROWS_MIGHT_MATCH;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> Set<T> dict(int id, Comparator<T> comparator) {
       Preconditions.checkNotNull(dictionaries, "Dictionary is required");
