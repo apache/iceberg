@@ -1052,21 +1052,9 @@ public class TestMetricsRowGroupFilter {
   public void testVariantFieldEq() throws IOException {
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
-    List<GenericRecord> records = Lists.newArrayListWithExpectedSize(2);
-
-    GenericRecord r0 = GenericRecord.create(VARIANT_SCHEMA);
-    r0.setField("id", 0);
     VariantMetadata md = Variants.metadata("k");
-    ShreddedObject obj = Variants.object(md);
-    obj.put("k", Variants.of("v0"));
-    Variant v0 = Variant.of(md, obj);
-    r0.setField("variant_field", v0);
-    records.add(r0);
-
-    GenericRecord r1 = GenericRecord.create(VARIANT_SCHEMA);
-    r1.setField("id", 1);
-    r1.setField("variant_field", null);
-    records.add(r1);
+    Variant v0 = createVariantWithKey(md, "v0");
+    List<GenericRecord> records = createVariantRecords(v0);
 
     boolean shouldRead = shouldReadVariant(equal("variant_field", v0), records);
     assertThat(shouldRead)
@@ -1078,26 +1066,10 @@ public class TestMetricsRowGroupFilter {
   public void testVariantFieldIn() throws IOException {
     assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
-    List<GenericRecord> records = Lists.newArrayListWithExpectedSize(2);
-
     VariantMetadata md = Variants.metadata("k");
-
-    GenericRecord r0 = GenericRecord.create(VARIANT_SCHEMA);
-    r0.setField("id", 0);
-    ShreddedObject obj0 = Variants.object(md);
-    obj0.put("k", Variants.of("v0"));
-    Variant v0 = Variant.of(md, obj0);
-    r0.setField("variant_field", v0);
-    records.add(r0);
-
-    GenericRecord r1 = GenericRecord.create(VARIANT_SCHEMA);
-    r1.setField("id", 1);
-    r1.setField("variant_field", null);
-    records.add(r1);
-
-    ShreddedObject obj1 = Variants.object(md);
-    obj1.put("k", Variants.of("v1"));
-    Variant v1 = Variant.of(md, obj1);
+    Variant v0 = createVariantWithKey(md, "v0");
+    Variant v1 = createVariantWithKey(md, "v1");
+    List<GenericRecord> records = createVariantRecords(v0);
 
     boolean shouldRead = shouldReadVariant(in("variant_field", v0, v1), records);
     assertThat(shouldRead)
@@ -1158,6 +1130,30 @@ public class TestMetricsRowGroupFilter {
           new ParquetMetricsRowGroupFilter(VARIANT_SCHEMA, expression, true);
       return rowGroupFilter.shouldRead(fileSchema, blockMetaData);
     }
+  }
+
+  // Helper method to create a Variant with a single key-value pair
+  private Variant createVariantWithKey(VariantMetadata md, String value) {
+    ShreddedObject obj = Variants.object(md);
+    obj.put("k", Variants.of(value));
+    return Variant.of(md, obj);
+  }
+
+  // Helper method to create test records with variant field
+  private List<GenericRecord> createVariantRecords(Variant variantValue) {
+    List<GenericRecord> records = Lists.newArrayListWithExpectedSize(2);
+
+    GenericRecord r0 = GenericRecord.create(VARIANT_SCHEMA);
+    r0.setField("id", 0);
+    r0.setField("variant_field", variantValue);
+    records.add(r0);
+
+    GenericRecord r1 = GenericRecord.create(VARIANT_SCHEMA);
+    r1.setField("id", 1);
+    r1.setField("variant_field", null);
+    records.add(r1);
+
+    return records;
   }
 
   private org.apache.parquet.io.InputFile parquetInputFile(InputFile inFile) {
