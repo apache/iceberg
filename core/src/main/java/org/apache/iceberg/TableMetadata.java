@@ -50,7 +50,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 
 /** Metadata for a table. */
-public class TableMetadata implements Serializable {
+public class TableMetadata implements Serializable, ReadonlyTableMetadata {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
@@ -398,94 +398,117 @@ public class TableMetadata implements Serializable {
     validateCurrentSnapshot();
   }
 
+  @Override
   public int formatVersion() {
     return formatVersion;
   }
 
+  @Override
   public String metadataFileLocation() {
     return metadataFileLocation;
   }
 
+  @Override
   public String uuid() {
     return uuid;
   }
 
+  @Override
   public long lastSequenceNumber() {
     return lastSequenceNumber;
   }
 
+  @Override
   public long nextSequenceNumber() {
     return formatVersion > 1 ? lastSequenceNumber + 1 : INITIAL_SEQUENCE_NUMBER;
   }
 
+  @Override
   public long lastUpdatedMillis() {
     return lastUpdatedMillis;
   }
 
+  @Override
   public int lastColumnId() {
     return lastColumnId;
   }
 
+  @Override
   public Schema schema() {
     return schemasById.get(currentSchemaId);
   }
 
+  @Override
   public List<Schema> schemas() {
     return schemas;
   }
 
+  @Override
   public Map<Integer, Schema> schemasById() {
     return schemasById;
   }
 
+  @Override
   public int currentSchemaId() {
     return currentSchemaId;
   }
 
+  @Override
   public PartitionSpec spec() {
     return specsById.get(defaultSpecId);
   }
 
+  @Override
   public PartitionSpec spec(int id) {
     return specsById.get(id);
   }
 
+  @Override
   public List<PartitionSpec> specs() {
     return specs;
   }
 
+  @Override
   public Map<Integer, PartitionSpec> specsById() {
     return specsById;
   }
 
+  @Override
   public int lastAssignedPartitionId() {
     return lastAssignedPartitionId;
   }
 
+  @Override
   public int defaultSpecId() {
     return defaultSpecId;
   }
 
+  @Override
   public int defaultSortOrderId() {
     return defaultSortOrderId;
   }
 
+  @Override
   public SortOrder sortOrder() {
     return sortOrdersById.get(defaultSortOrderId);
   }
 
+  @Override
   public List<SortOrder> sortOrders() {
     return sortOrders;
   }
 
+  @Override
   public Map<Integer, SortOrder> sortOrdersById() {
     return sortOrdersById;
   }
 
+  @Override
   public String location() {
     return location;
   }
 
+  @Override
   public Map<String, String> properties() {
     return properties;
   }
@@ -518,10 +541,12 @@ public class TableMetadata implements Serializable {
     return snapshotsById.get(snapshotId);
   }
 
+  @Override
   public Snapshot currentSnapshot() {
     return snapshotsById.get(currentSnapshotId);
   }
 
+  @Override
   public List<Snapshot> snapshots() {
     ensureSnapshotsLoaded();
 
@@ -544,22 +569,27 @@ public class TableMetadata implements Serializable {
     }
   }
 
+  @Override
   public SnapshotRef ref(String name) {
     return refs.get(name);
   }
 
+  @Override
   public Map<String, SnapshotRef> refs() {
     return refs;
   }
 
+  @Override
   public List<StatisticsFile> statisticsFiles() {
     return statisticsFiles;
   }
 
+  @Override
   public List<PartitionStatisticsFile> partitionStatisticsFiles() {
     return partitionStatisticsFiles;
   }
 
+  @Override
   public List<HistoryEntry> snapshotLog() {
     return snapshotLog;
   }
