@@ -60,6 +60,7 @@ public class SparkTestHelperBase {
     assertThat(actualRows)
         .as("%s: number of results should match", context)
         .hasSameSizeAs(expectedRows);
+    assertThat(actualRows).containsExactlyElementsOf(expectedRows);
     for (int row = 0; row < expectedRows.size(); row += 1) {
       Object[] expected = expectedRows.get(row);
       Object[] actual = actualRows.get(row);
