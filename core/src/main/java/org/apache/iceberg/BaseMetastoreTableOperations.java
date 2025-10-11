@@ -214,7 +214,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     this.shouldRefresh = false;
   }
 
-  private String metadataFileLocation(TableMetadata metadata, String filename) {
+  protected String metadataFileLocation(TableMetadata metadata, String filename) {
     String metadataLocation = metadata.properties().get(TableProperties.WRITE_METADATA_LOCATION);
 
     if (metadataLocation != null) {
