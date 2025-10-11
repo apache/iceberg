@@ -945,8 +945,7 @@ public class TestIcebergFilesCommitter extends TestBase {
             table.properties(),
             table.spec(),
             new int[] {table.schema().findField("id").fieldId()},
-            table.schema(),
-            null);
+            table.schema());
 
     try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
         createStreamSink(jobId)) {
@@ -1115,8 +1114,7 @@ public class TestIcebergFilesCommitter extends TestBase {
         table.properties(),
         table.spec(),
         equalityFieldIds,
-        table.schema(),
-        null);
+        table.schema());
   }
 
   private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)

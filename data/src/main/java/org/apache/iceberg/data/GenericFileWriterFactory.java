@@ -45,6 +45,33 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
       FileFormat deleteFileFormat,
       int[] equalityFieldIds,
       Schema equalityDeleteRowSchema,
+      SortOrder equalityDeleteSortOrder) {
+    super(
+        table,
+        dataFileFormat,
+        dataSchema,
+        dataSortOrder,
+        deleteFileFormat,
+        equalityFieldIds,
+        equalityDeleteRowSchema,
+        equalityDeleteSortOrder);
+  }
+
+  /**
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #GenericFileWriterFactory(Table, FileFormat, Schema, SortOrder, FileFormat, int[], Schema,
+   *     SortOrder)} instead.
+   */
+  @Deprecated
+  GenericFileWriterFactory(
+      Table table,
+      FileFormat dataFileFormat,
+      Schema dataSchema,
+      SortOrder dataSortOrder,
+      FileFormat deleteFileFormat,
+      int[] equalityFieldIds,
+      Schema equalityDeleteRowSchema,
       SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema) {
     super(
@@ -169,6 +196,11 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
       return this;
     }
 
+    /**
+     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+     *     Position deletes that include row data are no longer supported.
+     */
+    @Deprecated
     Builder positionDeleteRowSchema(Schema newPositionDeleteRowSchema) {
       this.positionDeleteRowSchema = newPositionDeleteRowSchema;
       return this;
