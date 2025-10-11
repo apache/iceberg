@@ -20,11 +20,16 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import org.apache.flink.shaded.curator5.org.apache.curator.RetryPolicy;
 import org.apache.flink.shaded.curator5.org.apache.curator.framework.CuratorFramework;
 import org.apache.flink.shaded.curator5.org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.flink.shaded.curator5.org.apache.curator.framework.recipes.shared.SharedCount;
 import org.apache.flink.shaded.curator5.org.apache.curator.framework.recipes.shared.VersionedValue;
+import org.apache.flink.shaded.curator5.org.apache.curator.retry.BoundedExponentialBackoffRetry;
 import org.apache.flink.shaded.curator5.org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.flink.shaded.curator5.org.apache.curator.retry.RetryNTimes;
+import org.apache.flink.shaded.curator5.org.apache.curator.retry.RetryOneTime;
+import org.apache.flink.shaded.curator5.org.apache.curator.retry.RetryUntilElapsed;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +46,8 @@ public class ZkLockFactory implements TriggerLockFactory {
   private final int connectionTimeoutMs;
   private final int baseSleepTimeMs;
   private final int maxRetries;
+  private final String retryPolicyName;
+  private final int maxSleepTimeMs;
   private transient CuratorFramework client;
   private transient SharedCount taskSharedCount;
   private transient SharedCount recoverySharedCount;
@@ -62,7 +69,9 @@ public class ZkLockFactory implements TriggerLockFactory {
       int sessionTimeoutMs,
       int connectionTimeoutMs,
       int baseSleepTimeMs,
-      int maxRetries) {
+      int maxRetries,
+      int maxSleepTimeMs,
+      String retryPolicyName) {
     Preconditions.checkNotNull(connectString, "Zookeeper connection string cannot be null");
     Preconditions.checkNotNull(lockId, "Lock ID cannot be null");
     Preconditions.checkArgument(
@@ -75,12 +84,22 @@ public class ZkLockFactory implements TriggerLockFactory {
         baseSleepTimeMs >= 0, "Base sleep time must be positive, got: %s", baseSleepTimeMs);
     Preconditions.checkArgument(
         maxRetries >= 0, "Max retries must be non-negative, got: %s", maxRetries);
+    Preconditions.checkArgument(
+        maxSleepTimeMs >= 0, "Max sleep time must be positive, got: %s", maxSleepTimeMs);
+    Preconditions.checkArgument(
+        maxSleepTimeMs >= baseSleepTimeMs,
+        "Max sleep time (%s ms) must be greater than or equal to base sleep time (%s ms)",
+        maxSleepTimeMs,
+        baseSleepTimeMs);
+
     this.connectString = connectString;
     this.lockId = lockId;
     this.sessionTimeoutMs = sessionTimeoutMs;
     this.connectionTimeoutMs = connectionTimeoutMs;
     this.baseSleepTimeMs = baseSleepTimeMs;
     this.maxRetries = maxRetries;
+    this.retryPolicyName = retryPolicyName;
+    this.maxSleepTimeMs = maxSleepTimeMs;
   }
 
   @Override
@@ -89,13 +108,12 @@ public class ZkLockFactory implements TriggerLockFactory {
       LOG.debug("ZkLockFactory already opened for lockId: {}.", lockId);
       return;
     }
-
     this.client =
         CuratorFrameworkFactory.builder()
             .connectString(connectString)
             .sessionTimeoutMs(sessionTimeoutMs)
             .connectionTimeoutMs(connectionTimeoutMs)
-            .retryPolicy(new ExponentialBackoffRetry(baseSleepTimeMs, maxRetries))
+            .retryPolicy(createRetryPolicy())
             .build();
     client.start();
 
@@ -220,6 +238,34 @@ public class ZkLockFactory implements TriggerLockFactory {
         LOG.warn("Failed to release lock for path: {}", lockPath, e);
         throw new RuntimeException("Failed to release lock", e);
       }
+    }
+  }
+
+  RetryPolicy createRetryPolicy() {
+
+    ZKRetryPolicies policy;
+    try {
+      policy = ZKRetryPolicies.valueOf(retryPolicyName);
+    } catch (IllegalArgumentException e) {
+      policy = ZKRetryPolicies.EXPONENTIAL_BACKOFF;
+    }
+
+    switch (policy) {
+      case ONE_TIME:
+        return new RetryOneTime(baseSleepTimeMs);
+
+      case N_TIME:
+        return new RetryNTimes(maxRetries, baseSleepTimeMs);
+
+      case BOUNDED_EXPONENTIAL_BACKOFF:
+        return new BoundedExponentialBackoffRetry(baseSleepTimeMs, maxSleepTimeMs, maxRetries);
+
+      case UNTIL_ELAPSED:
+        return new RetryUntilElapsed(maxSleepTimeMs, baseSleepTimeMs);
+
+      case EXPONENTIAL_BACKOFF:
+      default:
+        return new ExponentialBackoffRetry(maxSleepTimeMs, maxRetries);
     }
   }
 }
