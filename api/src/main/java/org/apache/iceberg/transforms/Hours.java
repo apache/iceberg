@@ -20,6 +20,8 @@ package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -51,6 +53,12 @@ public class Hours<T> extends TimeTransform<T> {
   @Override
   public Type getResultType(Type sourceType) {
     return Types.IntegerType.get();
+  }
+
+  @Override
+  public Type getResultType(List<Type> sourceTypes) {
+    Preconditions.checkArgument(sourceTypes.size() == 1, "Only one source type is accepted");
+    return getResultType(sourceTypes.get(0));
   }
 
   @Override
