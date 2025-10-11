@@ -66,8 +66,7 @@ public class TestLoadTableResponseParser {
         TableMetadata.buildFromEmpty(1)
             .assignUUID(uuid)
             .setLocation("location")
-            .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .setCurrentSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
@@ -147,8 +146,7 @@ public class TestLoadTableResponseParser {
         TableMetadata.buildFromEmpty(formatVersion)
             .assignUUID(uuid)
             .setLocation("location")
-            .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .setCurrentSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
@@ -217,8 +215,7 @@ public class TestLoadTableResponseParser {
         TableMetadata.buildFromEmpty(2)
             .assignUUID(uuid)
             .setLocation("location")
-            .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .setCurrentSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
@@ -286,8 +283,7 @@ public class TestLoadTableResponseParser {
         TableMetadata.buildFromEmpty()
             .assignUUID(uuid)
             .setLocation("location")
-            .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .setCurrentSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
@@ -363,8 +359,7 @@ public class TestLoadTableResponseParser {
         TableMetadata.buildFromEmpty()
             .assignUUID(uuid)
             .setLocation("location")
-            .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .setCurrentSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
