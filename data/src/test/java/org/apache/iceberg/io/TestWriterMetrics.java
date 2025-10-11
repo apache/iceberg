@@ -174,14 +174,7 @@ public abstract class TestWriterMetrics<T> {
         .isEqualTo(CharBuffer.wrap("File A"));
     assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(posFieldId)))
         .isEqualTo(1L);
-
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)))
-        .isEqualTo(3);
-    assertThat(lowerBounds).doesNotContainKey(2);
-    assertThat(lowerBounds).doesNotContainKey(3);
-    assertThat(lowerBounds).doesNotContainKey(4);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)))
-        .isEqualTo(3L);
+    checkRowStatistics(lowerBounds);
 
     Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
 
@@ -189,14 +182,7 @@ public abstract class TestWriterMetrics<T> {
         .isEqualTo(CharBuffer.wrap("File A"));
     assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(posFieldId)))
         .isEqualTo(1L);
-
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)))
-        .isEqualTo(3);
-    assertThat(upperBounds).doesNotContainKey(2);
-    assertThat(upperBounds).doesNotContainKey(3);
-    assertThat(upperBounds).doesNotContainKey(4);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)))
-        .isEqualTo(3L);
+    checkRowStatistics(lowerBounds);
   }
 
   @TestTemplate
@@ -222,19 +208,8 @@ public abstract class TestWriterMetrics<T> {
     DeleteFile deleteFile = deleteWriter.toDeleteFile();
 
     // should have NO bounds for path and position as the file covers multiple data paths
-    Map<Integer, ByteBuffer> lowerBounds = deleteFile.lowerBounds();
-    assertThat(lowerBounds).hasSize(2);
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)))
-        .isEqualTo(3);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)))
-        .isEqualTo(3L);
-
-    Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
-    assertThat(upperBounds).hasSize(2);
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)))
-        .isEqualTo(3);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)))
-        .isEqualTo(3L);
+    checkNotExistingRowStatistics(deleteFile.lowerBounds());
+    checkNotExistingRowStatistics(deleteFile.upperBounds());
   }
 
   @TestTemplate
@@ -377,5 +352,24 @@ public abstract class TestWriterMetrics<T> {
       assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)))
           .isEqualTo(1);
     }
+  }
+
+  protected void checkRowStatistics(Map<Integer, ByteBuffer> bounds) {
+    assertThat(bounds).hasSize(4);
+    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), bounds.get(1)))
+        .isEqualTo(3);
+    assertThat(bounds).doesNotContainKey(2);
+    assertThat(bounds).doesNotContainKey(3);
+    assertThat(bounds).doesNotContainKey(4);
+    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), bounds.get(5)))
+        .isEqualTo(3L);
+  }
+
+  protected void checkNotExistingRowStatistics(Map<Integer, ByteBuffer> bounds) {
+    assertThat(bounds).hasSize(2);
+    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), bounds.get(1)))
+        .isEqualTo(3);
+    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), bounds.get(5)))
+        .isEqualTo(3L);
   }
 }
