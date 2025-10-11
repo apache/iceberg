@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
@@ -84,6 +85,11 @@ public class ManifestFiles {
   public static void dropCache(FileIO fileIO) {
     CONTENT_CACHES.invalidate(fileIO);
     CONTENT_CACHES.cleanUp();
+  }
+
+  /** Get statistics of the manifest file content cache for a FileIO. */
+  public static CacheStats contentCacheStats(FileIO io) {
+    return contentCache(io).stats();
   }
 
   /**
