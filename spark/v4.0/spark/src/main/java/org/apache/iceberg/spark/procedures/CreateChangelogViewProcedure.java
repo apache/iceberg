@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -184,16 +185,9 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         identifierColumns.length > 0,
         "Cannot compute the update images because identifier columns are not set");
 
-    Column[] repartitionSpec = new Column[identifierColumns.length + 1];
-    for (int i = 0; i < identifierColumns.length; i++) {
-      repartitionSpec[i] = df.col(CreateChangelogViewProcedure.delimitedName(identifierColumns[i]));
-    }
-
-    repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
-
-    String[] identifierFields = Arrays.copyOf(identifierColumns, identifierColumns.length + 1);
-    identifierFields[identifierFields.length - 1] = MetadataColumns.CHANGE_ORDINAL.name();
-
+    String[] identifierFields =
+        ArrayUtil.add(identifierColumns, MetadataColumns.CHANGE_ORDINAL.name());
+    Column[] repartitionSpec = getColumnReferences(df, identifierFields);
     return applyChangelogIterator(df, repartitionSpec, identifierFields);
   }
 
@@ -312,6 +306,21 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     System.arraycopy(extraColumns, 0, sortSpec, repartitionSpec.length, extraColumns.length);
 
     return sortSpec;
+  }
+
+  /**
+   * Retrieves the delimited column references for the given column names
+   *
+   * @param df dataframe to use for column references
+   * @param columnNames list of column names
+   * @return combined list of column references for the given 2 lists of column names
+   */
+  private static Column[] getColumnReferences(Dataset<Row> df, String[] columnNames) {
+    Column[] columns = new Column[columnNames.length];
+    for (int i = 0; i < columnNames.length; i++) {
+      columns[i] = df.col(CreateChangelogViewProcedure.delimitedName(columnNames[i]));
+    }
+    return columns;
   }
 
   private InternalRow[] toOutputRows(String viewName) {
