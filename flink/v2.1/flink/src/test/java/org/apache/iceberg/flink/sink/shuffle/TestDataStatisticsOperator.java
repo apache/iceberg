@@ -242,6 +242,12 @@ public class TestDataStatisticsOperator {
       testHarness2.setup();
       testHarness2.initializeState(snapshot);
 
+      // When we restore from the savepoint, we should ensure that `globalStatisticsState` has been
+      // completely cleaned up
+      Iterable<GlobalStatistics> globalStatisticsIterable =
+          restoredOperator.globalStatisticsState().get();
+      assertThat(globalStatisticsIterable).isEmpty();
+
       GlobalStatistics globalStatistics = restoredOperator.globalStatistics();
       // global statistics is always restored and used initially even if
       // downstream parallelism changed.
@@ -258,62 +264,6 @@ public class TestDataStatisticsOperator {
         assertThat(globalStatistics.mapAssignment()).isNull();
         assertThat(globalStatistics.rangeBounds()).isEqualTo(rangeBounds);
       }
-    }
-  }
-
-  @ParameterizedTest
-  @MethodSource("provideRestoreStateParameters")
-  public void testRestoreStateClearGlobalStatistic(StatisticsType type, int parallelismAdjustment)
-      throws Exception {
-    Map<SortKey, Long> keyFrequency =
-        ImmutableMap.of(CHAR_KEYS.get("a"), 2L, CHAR_KEYS.get("b"), 1L, CHAR_KEYS.get("c"), 1L);
-    SortKey[] rangeBounds = new SortKey[] {CHAR_KEYS.get("a")};
-    MapAssignment mapAssignment =
-        MapAssignment.fromKeyFrequency(2, keyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
-    DataStatisticsOperator operator = createOperator(type, Fixtures.NUM_SUBTASKS);
-    OperatorSubtaskState snapshot;
-    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness1 =
-        createHarness(operator)) {
-      GlobalStatistics statistics;
-      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        statistics = GlobalStatistics.fromMapAssignment(1L, mapAssignment);
-      } else {
-        statistics = GlobalStatistics.fromRangeBounds(1L, rangeBounds);
-      }
-
-      StatisticsEvent event =
-          StatisticsEvent.createGlobalStatisticsEvent(
-              statistics, Fixtures.GLOBAL_STATISTICS_SERIALIZER, false);
-      operator.handleOperatorEvent(event);
-
-      GlobalStatistics globalStatistics = operator.globalStatistics();
-      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
-      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(globalStatistics.mapAssignment()).isEqualTo(mapAssignment);
-        assertThat(globalStatistics.rangeBounds()).isNull();
-      } else {
-        assertThat(globalStatistics.mapAssignment()).isNull();
-        assertThat(globalStatistics.rangeBounds()).isEqualTo(rangeBounds);
-      }
-
-      snapshot = testHarness1.snapshot(1L, 0);
-    }
-
-    // Use the snapshot to initialize state for another new operator and then verify that the global
-    // statistics for the new operator is same as before
-    MockOperatorEventGateway spyGateway = Mockito.spy(new MockOperatorEventGateway());
-    DataStatisticsOperator restoredOperator =
-        createOperator(type, Fixtures.NUM_SUBTASKS + parallelismAdjustment, spyGateway);
-    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness2 =
-        new OneInputStreamOperatorTestHarness<>(restoredOperator, 2, 2, 1)) {
-      testHarness2.setup();
-      testHarness2.initializeState(snapshot);
-
-      // When we restore from the savepoint, we should ensure that `globalStatisticsState` has been
-      // completely cleaned up
-      Iterable<GlobalStatistics> globalStatisticsIterable =
-          restoredOperator.globalStatisticsState().get();
-      assertThat(globalStatisticsIterable).isEmpty();
     }
   }
 
