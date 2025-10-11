@@ -122,7 +122,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     this.backendCatalog = new InMemoryCatalog();
     this.backendCatalog.initialize(
         "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
+        ImmutableMap.of(
+            CatalogProperties.WAREHOUSE_LOCATION,
+            warehouse.getAbsolutePath(),
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            "true"));
 
     HTTPHeaders catalogHeaders =
         HTTPHeaders.of(
