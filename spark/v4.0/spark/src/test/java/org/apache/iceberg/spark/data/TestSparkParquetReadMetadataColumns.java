@@ -131,8 +131,7 @@ public class TestSparkParquetReadMetadataColumns {
     StructType struct = SparkSchemaUtil.convert(DATA_SCHEMA);
     Configuration conf = new Configuration();
 
-    testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    testFile = temp.resolve("file.parquet").toFile();
     ParquetFileWriter parquetFileWriter =
         new ParquetFileWriter(
             conf,
@@ -141,8 +140,7 @@ public class TestSparkParquetReadMetadataColumns {
 
     parquetFileWriter.start();
     for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
-      File split = File.createTempFile("junit", null, temp.toFile());
-      assertThat(split.delete()).as("Delete should succeed").isTrue();
+      File split = temp.resolve("split-" + i).toFile();
       fileSplits.add(new Path(split.getAbsolutePath()));
       try (FileAppender<InternalRow> writer =
           Parquet.write(Files.localOutput(split))

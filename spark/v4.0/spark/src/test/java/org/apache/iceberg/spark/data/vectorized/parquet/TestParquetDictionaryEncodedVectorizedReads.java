@@ -97,24 +97,21 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
   @Test
   public void testMixedDictionaryNonDictionaryReads() throws IOException {
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    File dictionaryEncodedFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dictionaryEncodedFile.delete()).as("Delete should succeed").isTrue();
+    File dictionaryEncodedFile = temp.resolve("dictionary.parquet").toFile();
     Iterable<Record> dictionaryEncodableData =
         RandomGenericData.generateDictionaryEncodableRecords(schema, 10000, 0L);
     try (FileAppender<Record> writer = getParquetWriter(schema, dictionaryEncodedFile)) {
       writer.addAll(dictionaryEncodableData);
     }
 
-    File plainEncodingFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(plainEncodingFile.delete()).as("Delete should succeed").isTrue();
+    File plainEncodingFile = temp.resolve("plain.parquet").toFile();
     Iterable<Record> nonDictionaryData = RandomGenericData.generate(schema, 10000, 0L);
     try (FileAppender<Record> writer = getParquetWriter(schema, plainEncodingFile)) {
       writer.addAll(nonDictionaryData);
     }
 
     int rowGroupSize = PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
-    File mixedFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(mixedFile.delete()).as("Delete should succeed").isTrue();
+    File mixedFile = temp.resolve("mixed.parquet").toFile();
     Parquet.concat(
         ImmutableList.of(dictionaryEncodedFile, plainEncodingFile, dictionaryEncodedFile),
         mixedFile,
@@ -133,8 +130,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
   @Test
   public void testBinaryNotAllPagesDictionaryEncoded() throws IOException {
     Schema schema = new Schema(Types.NestedField.required(1, "bytes", Types.BinaryType.get()));
-    File parquetFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(parquetFile.delete()).as("Delete should succeed").isTrue();
+    File parquetFile = temp.resolve("file.parquet").toFile();
 
     Iterable<Record> records = RandomGenericData.generateFallbackRecords(schema, 500, 0L, 100);
     try (FileAppender<Record> writer =

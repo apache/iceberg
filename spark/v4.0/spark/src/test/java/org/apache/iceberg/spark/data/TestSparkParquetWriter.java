@@ -102,8 +102,7 @@ public class TestSparkParquetWriter {
     int numRows = 50_000;
     Iterable<InternalRow> records = RandomData.generateSpark(COMPLEX_SCHEMA, numRows, 19981);
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("file.parquet").toFile();
 
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(testFile))
@@ -133,7 +132,7 @@ public class TestSparkParquetWriter {
 
   @Test
   public void testFpp() throws IOException, NoSuchFieldException, IllegalAccessException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
+    File testFile = temp.resolve("file.parquet").toFile();
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(testFile))
             .schema(SCHEMA)

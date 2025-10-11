@@ -42,8 +42,7 @@ public class TestOrcWrite {
 
   @Test
   public void splitOffsets() throws IOException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("file.orc").toFile();
 
     Iterable<InternalRow> rows = RandomData.generateSpark(SCHEMA, 1, 0L);
     FileAppender<InternalRow> writer =
