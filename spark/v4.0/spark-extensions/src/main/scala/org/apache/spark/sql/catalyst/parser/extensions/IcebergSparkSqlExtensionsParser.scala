@@ -136,6 +136,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       .replaceAll("`", "")
       .trim()
 
+      isCreateTableLike(normalized) || (
       normalized.startsWith("alter table") && (
           normalized.contains("add partition field") ||
           normalized.contains("drop partition field") ||
@@ -146,7 +147,11 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
           normalized.contains("write unordered") ||
           normalized.contains("set identifier fields") ||
           normalized.contains("drop identifier fields") ||
-          isSnapshotRefDdl(normalized))
+          isSnapshotRefDdl(normalized)))
+  }
+
+  private def isCreateTableLike(normalized: String): Boolean = {
+    normalized.startsWith("create table") && normalized.contains(" like ")
   }
 
   private def isSnapshotRefDdl(normalized: String): Boolean = {
