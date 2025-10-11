@@ -120,6 +120,17 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   ExpireSnapshots cleanExpiredFiles(boolean clean);
 
   /**
+   * Skip the cleanup of orphaned data files as part of snapshot expiration
+   *
+   * @param retain true to retain orphaned data files only reachable by expired snapshots
+   * @return this for method chaining
+   */
+  default ExpireSnapshots retainOrphanedDataFiles(boolean retain) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement retainOrphanedDataFiles");
+  }
+
+  /**
    * Enable cleaning up unused metadata, such as partition specs, schemas, etc.
    *
    * @param clean remove unused partition specs, schemas, or other metadata when true

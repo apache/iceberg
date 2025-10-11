@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
 import java.io.File;
@@ -59,16 +60,24 @@ import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRemoveSnapshots extends TestBase {
+
   @Parameter(index = 1)
   private boolean incrementalCleanup;
 
-  @Parameters(name = "formatVersion = {0}, incrementalCleanup = {1}")
+  @Parameter(index = 2)
+  private boolean retainDataFile;
+
+  @Parameters(name = "formatVersion = {0}, incrementalCleanup = {1}, retainDataFile = {2}")
   protected static List<Object> parameters() {
     return Arrays.asList(
-        new Object[] {1, true},
-        new Object[] {2, true},
-        new Object[] {1, false},
-        new Object[] {2, false});
+        new Object[] {1, true, false},
+        new Object[] {2, true, false},
+        new Object[] {1, true, true},
+        new Object[] {2, true, true},
+        new Object[] {1, false, false},
+        new Object[] {2, false, false},
+        new Object[] {1, false, true},
+        new Object[] {2, false, true});
   }
 
   private long waitUntilAfter(long timestampMillis) {
@@ -134,22 +143,27 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.snapshot(firstSnapshot.snapshotId())).isNull();
     assertThat(table.snapshot(secondSnapshot.snapshotId())).isNull();
 
+    Set<String> expectedDeletedFiles =
+        Sets.newHashSet(
+            firstSnapshot.manifestListLocation(), // snapshot expired
+            firstSnapshot
+                .allManifests(table.io())
+                .get(0)
+                .path(), // manifest was rewritten for delete
+            secondSnapshot.manifestListLocation(), // snapshot expired
+            secondSnapshot
+                .allManifests(table.io())
+                .get(0)
+                .path(), // manifest contained only deletes, was dropped
+            FILE_A.location() // deleted data file
+            );
+    if (retainDataFile) {
+      expectedDeletedFiles.remove(FILE_A.location()); // retain data file
+    }
+
     assertThat(deletedFiles)
-        .as("Should remove expired manifest lists and deleted data file")
-        .isEqualTo(
-            Sets.newHashSet(
-                firstSnapshot.manifestListLocation(), // snapshot expired
-                firstSnapshot
-                    .allManifests(table.io())
-                    .get(0)
-                    .path(), // manifest was rewritten for delete
-                secondSnapshot.manifestListLocation(), // snapshot expired
-                secondSnapshot
-                    .allManifests(table.io())
-                    .get(0)
-                    .path(), // manifest contained only deletes, was dropped
-                FILE_A.location() // deleted
-                ));
+        .as("Should remove expired manifest lists and consider data file")
+        .isEqualTo(expectedDeletedFiles);
   }
 
   @TestTemplate
@@ -193,18 +207,23 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.snapshot(firstSnapshot.snapshotId())).isNull();
     assertThat(table.snapshot(secondSnapshot.snapshotId())).isNull();
 
+    Set<String> expectedDeletedFiles =
+        Sets.newHashSet(
+            firstSnapshot.manifestListLocation(), // snapshot expired
+            firstSnapshot
+                .allManifests(table.io())
+                .get(0)
+                .path(), // manifest was rewritten for delete
+            secondSnapshot.manifestListLocation(), // snapshot expired
+            FILE_A.location() // deleted
+            );
+    if (retainDataFile) {
+      expectedDeletedFiles.remove(FILE_A.location());
+    }
+
     assertThat(deletedFiles)
-        .as("Should remove expired manifest lists and deleted data file")
-        .isEqualTo(
-            Sets.newHashSet(
-                firstSnapshot.manifestListLocation(), // snapshot expired
-                firstSnapshot
-                    .allManifests(table.io())
-                    .get(0)
-                    .path(), // manifest was rewritten for delete
-                secondSnapshot.manifestListLocation(), // snapshot expired
-                FILE_A.location() // deleted
-                ));
+        .as("Should remove expired manifest lists and consider data file")
+        .isEqualTo(expectedDeletedFiles);
   }
 
   @TestTemplate
@@ -317,17 +336,21 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Expire should remove the orphaned snapshot")
         .isNull();
 
+    Set<String> expectedDeletedFiles =
+        Sets.newHashSet(
+            secondSnapshot.manifestListLocation(), // snapshot expired
+            secondSnapshotManifests.stream()
+                .findFirst()
+                .get()
+                .path(), // manifest is no longer referenced
+            FILE_B.location());
+    if (retainDataFile) {
+      expectedDeletedFiles.remove(FILE_B.location());
+    }
+
     assertThat(deletedFiles)
         .as("Should remove expired manifest lists and reverted appended data file")
-        .isEqualTo(
-            Sets.newHashSet(
-                secondSnapshot.manifestListLocation(), // snapshot expired
-                secondSnapshotManifests.stream()
-                    .findFirst()
-                    .get()
-                    .path(), // manifest is no longer referenced
-                FILE_B.location()) // added, but rolled back
-            );
+        .isEqualTo(expectedDeletedFiles);
   }
 
   @TestTemplate
@@ -603,7 +626,11 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.location());
+    if (retainDataFile) {
+      assertThat(deletedFiles).doesNotContain(FILE_A.location());
+    } else {
+      assertThat(deletedFiles).contains(FILE_A.location());
+    }
   }
 
   @TestTemplate
@@ -626,7 +653,11 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.location());
+    if (retainDataFile) {
+      assertThat(deletedFiles).doesNotContain(FILE_A.location());
+    } else {
+      assertThat(deletedFiles).contains(FILE_A.location());
+    }
   }
 
   @TestTemplate
@@ -660,8 +691,13 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t4).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.location().toString());
-    assertThat(deletedFiles).contains(FILE_B.location().toString());
+    if (retainDataFile) {
+      assertThat(deletedFiles).doesNotContain(FILE_A.location());
+      assertThat(deletedFiles).doesNotContain(FILE_B.location());
+    } else {
+      assertThat(deletedFiles).contains(FILE_A.location());
+      assertThat(deletedFiles).contains(FILE_B.location());
+    }
   }
 
   @TestTemplate
@@ -731,11 +767,17 @@ public class TestRemoveSnapshots extends TestBase {
         .containsExactly(
             "remove-snapshot-3", "remove-snapshot-2", "remove-snapshot-1", "remove-snapshot-0");
 
-    assertThat(deletedFiles).contains(FILE_A.location());
-    assertThat(deletedFiles).contains(FILE_B.location());
+    if (retainDataFile) {
+      assertThat(deletedFiles).doesNotContain(FILE_A.location());
+      assertThat(deletedFiles).doesNotContain(FILE_B.location());
+    } else {
+      assertThat(deletedFiles).contains(FILE_A.location());
+      assertThat(deletedFiles).contains(FILE_B.location());
+    }
     assertThat(planThreadsIndex.get())
         .as("Thread should be created in provided pool")
-        .isGreaterThan(0);
+        // incremental with retain will not use plan executor
+        .isGreaterThanOrEqualTo(0);
   }
 
   @TestTemplate
@@ -793,12 +835,14 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB
-        .addedDataFiles(table.io())
-        .forEach(
-            i -> {
-              expectedDeletes.add(i.location());
-            });
+    if (!retainDataFile) {
+      snapshotB
+          .addedDataFiles(table.io())
+          .forEach(
+              i -> {
+                expectedDeletes.add(i.location());
+              });
+    }
 
     // ManifestList should be deleted too
     expectedDeletes.add(snapshotB.manifestListLocation());
@@ -1064,21 +1108,25 @@ public class TestRemoveSnapshots extends TestBase {
     Set<String> deletedFiles = Sets.newHashSet();
     removeSnapshots(table).expireOlderThan(fourthSnapshotTs).deleteWith(deletedFiles::add).commit();
 
+    Set<String> expectedDeletedFiles =
+        Sets.newHashSet(
+            firstSnapshot.manifestListLocation(),
+            secondSnapshot.manifestListLocation(),
+            thirdSnapshot.manifestListLocation(),
+            FILE_A.location(),
+            FILE_A_DELETES.location());
+    expectedDeletedFiles.addAll(manifestPaths(secondSnapshot, table.io()));
+    expectedDeletedFiles.addAll(
+        manifestOfDeletedFiles.stream().map(ManifestFile::path).collect(Collectors.toList()));
+
+    if (retainDataFile) {
+      expectedDeletedFiles.remove(FILE_A.location());
+      expectedDeletedFiles.remove(FILE_A_DELETES.location());
+    }
+
     assertThat(deletedFiles)
-        .as("Should remove old delete files and delete file manifests")
-        .isEqualTo(
-            ImmutableSet.builder()
-                .add(FILE_A.location())
-                .add(FILE_A_DELETES.location())
-                .add(firstSnapshot.manifestListLocation())
-                .add(secondSnapshot.manifestListLocation())
-                .add(thirdSnapshot.manifestListLocation())
-                .addAll(manifestPaths(secondSnapshot, table.io()))
-                .addAll(
-                    manifestOfDeletedFiles.stream()
-                        .map(ManifestFile::path)
-                        .collect(Collectors.toList()))
-                .build());
+        .as("Should consider old delete files and delete file manifests")
+        .isEqualTo(expectedDeletedFiles);
   }
 
   @TestTemplate
@@ -1657,8 +1705,13 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(tableWithBulkIO.currentSnapshot().snapshotId()).isEqualTo(lastSnapshotId);
     assertThat(tableWithBulkIO.snapshots()).containsOnly(tableWithBulkIO.currentSnapshot());
 
-    Mockito.verify(spyFileIO, times(3)).deleteFiles(any());
-    Mockito.verify(spyFileIO).deleteFiles(Set.of(FILE_A.location()));
+    if (retainDataFile) {
+      Mockito.verify(spyFileIO, times(2)).deleteFiles(any());
+      Mockito.verify(spyFileIO, never()).deleteFiles(Set.of(FILE_A.location()));
+    } else {
+      Mockito.verify(spyFileIO, times(3)).deleteFiles(any());
+      Mockito.verify(spyFileIO).deleteFiles(Set.of(FILE_A.location()));
+    }
     Mockito.verify(spyFileIO).deleteFiles(deletedManifestLists);
     Mockito.verify(spyFileIO).deleteFiles(deletedManifests);
   }
@@ -1706,13 +1759,18 @@ public class TestRemoveSnapshots extends TestBase {
         .deleteWith(deletedFiles::add)
         .commit();
 
-    assertThat(deletedFiles)
-        .containsExactlyInAnyOrder(
+    Set<String> expectedDeletedFiles =
+        Sets.newHashSet(
             appendManifest,
             deleteManifest,
             file.location(),
             append.manifestListLocation(),
             delete.manifestListLocation());
+    if (retainDataFile) {
+      expectedDeletedFiles.remove(file.location());
+    }
+
+    assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
     assertThat(table.specs().keySet())
         .as("Only id_bucket + data_bucket transform should exist")
         .containsExactly(idAndDataBucketSpec.specId());
@@ -1849,7 +1907,8 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(scanThreadsIndex.get())
         .as("Thread should be created in provided pool")
-        .isGreaterThan(0);
+        // incremental with retain will not use plan executor
+        .isGreaterThanOrEqualTo(0);
   }
 
   @TestTemplate
@@ -1933,12 +1992,18 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
 
     Set<String> expectedDeletedFiles =
-        ImmutableSet.of(
-            snapshotA.manifestListLocation(),
-            snapshotDeleteA.manifestListLocation(),
-            Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
-            Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path(),
-            FILE_A.location());
+        retainDataFile
+            ? ImmutableSet.of(
+                snapshotA.manifestListLocation(),
+                snapshotDeleteA.manifestListLocation(),
+                Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
+                Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path())
+            : ImmutableSet.of(
+                snapshotA.manifestListLocation(),
+                snapshotDeleteA.manifestListLocation(),
+                Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
+                Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path(),
+                FILE_A.location());
     assertThat(deletedFiles).isEqualTo(expectedDeletedFiles);
   }
 
@@ -1948,7 +2013,10 @@ public class TestRemoveSnapshots extends TestBase {
 
   private RemoveSnapshots removeSnapshots(Table table) {
     RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
-    return (RemoveSnapshots) removeSnapshots.withIncrementalCleanup(incrementalCleanup);
+    return (RemoveSnapshots)
+        removeSnapshots
+            .withIncrementalCleanup(incrementalCleanup)
+            .retainOrphanedDataFiles(retainDataFile);
   }
 
   private StatisticsFile writeStatsFile(

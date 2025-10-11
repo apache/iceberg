@@ -44,8 +44,9 @@ class ReachableFileCleanup extends FileCleanupStrategy {
       FileIO fileIO,
       ExecutorService deleteExecutorService,
       ExecutorService planExecutorService,
-      Consumer<String> deleteFunc) {
-    super(fileIO, deleteExecutorService, planExecutorService, deleteFunc);
+      Consumer<String> deleteFunc,
+      boolean retainDataFiles) {
+    super(fileIO, deleteExecutorService, planExecutorService, deleteFunc, retainDataFiles);
   }
 
   @Override
@@ -72,10 +73,15 @@ class ReachableFileCleanup extends FileCleanupStrategy {
               snapshotsAfterExpiration, deletionCandidates, currentManifests::add);
 
       if (!manifestsToDelete.isEmpty()) {
-        Set<String> dataFilesToDelete = findFilesToDelete(manifestsToDelete, currentManifests);
-        deleteFiles(dataFilesToDelete, "data");
+        if (!retainDataFiles) {
+          Set<String> dataFilesToDelete = findFilesToDelete(manifestsToDelete, currentManifests);
+          LOG.debug("Deleting {} data files", dataFilesToDelete.size());
+          deleteFiles(dataFilesToDelete, "data");
+        }
+
         Set<String> manifestPathsToDelete =
             manifestsToDelete.stream().map(ManifestFile::path).collect(Collectors.toSet());
+        LOG.debug("Deleting {} manifest files", manifestPathsToDelete.size());
         deleteFiles(manifestPathsToDelete, "manifest");
       }
     }
