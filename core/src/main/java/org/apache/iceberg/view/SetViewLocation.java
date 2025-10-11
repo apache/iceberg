@@ -27,13 +27,12 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
-import org.apache.iceberg.UpdateLocation;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 
-class SetViewLocation implements UpdateLocation {
+class SetViewLocation implements UpdateViewLocation {
   private final ViewOperations ops;
   private String newLocation = null;
 
@@ -48,7 +47,7 @@ class SetViewLocation implements UpdateLocation {
   }
 
   @Override
-  public void commit() {
+  public Void commit() {
     ViewMetadata base = ops.refresh();
     Tasks.foreach(ops)
         .retry(
@@ -66,10 +65,11 @@ class SetViewLocation implements UpdateLocation {
         .run(
             taskOps ->
                 taskOps.commit(base, ViewMetadata.buildFrom(base).setLocation(apply()).build()));
+    return null;
   }
 
   @Override
-  public UpdateLocation setLocation(String location) {
+  public UpdateViewLocation setLocation(String location) {
     this.newLocation = location;
     return this;
   }
