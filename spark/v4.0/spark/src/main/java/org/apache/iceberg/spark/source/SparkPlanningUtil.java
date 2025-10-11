@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ScanTask;
@@ -43,12 +44,21 @@ class SparkPlanningUtil {
       FileIO io, List<? extends ScanTaskGroup<?>> taskGroups) {
     String[][] locations = new String[taskGroups.size()][];
 
-    Tasks.range(taskGroups.size())
-        .stopOnFailure()
-        .executeWith(ThreadPools.getWorkerPool())
-        .run(index -> locations[index] = Util.blockLocations(io, taskGroups.get(index)));
+    final ExecutorService workerPool =
+            ThreadPools.newWorkerPool("iceberg-local-plan-worker-pool", ThreadPools.WORKER_THREAD_POOL_SIZE);
 
-    return locations;
+    try {
+      Tasks.range(taskGroups.size())
+              .stopOnFailure()
+              .executeWith(workerPool)
+              .run(
+                      index -> {
+                        locations[index] = Util.blockLocations(io, taskGroups.get(index));
+                      });
+      return locations;
+    } finally {
+      workerPool.shutdown();
+    }
   }
 
   public static String[][] assignExecutors(
