@@ -25,8 +25,8 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 
 class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
@@ -35,7 +35,7 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   UnpartitionedDeltaWriter(
       PartitionSpec spec,
       FileFormat format,
-      FileAppenderFactory<RowData> appenderFactory,
+      FileWriterFactory<RowData> fileWriterFactory,
       OutputFileFactory fileFactory,
       FileIO io,
       long targetFileSize,
@@ -46,7 +46,7 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
     super(
         spec,
         format,
-        appenderFactory,
+        fileWriterFactory,
         fileFactory,
         io,
         targetFileSize,

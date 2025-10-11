@@ -33,10 +33,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynFields;
+import org.apache.iceberg.data.BaseFileWriterFactory;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.io.BaseTaskWriter;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -241,14 +242,14 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     DynFields.BoundField<Map<WriteTarget, TaskWriter<RowData>>> writerField =
         DynFields.builder().hiddenImpl(dynamicWriter.getClass(), "writers").build(dynamicWriter);
 
-    DynFields.BoundField<FlinkAppenderFactory> appenderField =
+    DynFields.BoundField<FileWriterFactory> writerFactoryField =
         DynFields.builder()
-            .hiddenImpl(BaseTaskWriter.class, "appenderFactory")
+            .hiddenImpl(BaseTaskWriter.class, "writerFactory")
             .build(writerField.get().values().iterator().next());
     DynFields.BoundField<Map<String, String>> propsField =
         DynFields.builder()
-            .hiddenImpl(FlinkAppenderFactory.class, "props")
-            .build(appenderField.get());
+            .hiddenImpl(BaseFileWriterFactory.class, "writerProperties")
+            .build(writerFactoryField.get());
     return propsField.get();
   }
 }

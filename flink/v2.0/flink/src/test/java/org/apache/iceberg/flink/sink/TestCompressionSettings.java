@@ -35,10 +35,12 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynFields;
+import org.apache.iceberg.data.BaseFileWriterFactory;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.BaseTaskWriter;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
@@ -244,14 +246,14 @@ public class TestCompressionSettings {
           DynFields.builder()
               .hiddenImpl(IcebergStreamWriter.class, "writer")
               .build(operatorField.get());
-      DynFields.BoundField<FlinkAppenderFactory> appenderField =
+      DynFields.BoundField<FileWriterFactory> writerFactoryField =
           DynFields.builder()
-              .hiddenImpl(BaseTaskWriter.class, "appenderFactory")
+              .hiddenImpl(BaseTaskWriter.class, "writerFactory")
               .build(writerField.get());
       DynFields.BoundField<Map<String, String>> propsField =
           DynFields.builder()
-              .hiddenImpl(FlinkAppenderFactory.class, "props")
-              .build(appenderField.get());
+              .hiddenImpl(BaseFileWriterFactory.class, "writerProperties")
+              .build(writerFactoryField.get());
       return propsField.get();
     }
   }

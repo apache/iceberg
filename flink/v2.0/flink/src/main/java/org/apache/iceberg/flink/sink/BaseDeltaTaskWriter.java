@@ -32,8 +32,8 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.io.BaseTaskWriter;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -50,7 +50,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   BaseDeltaTaskWriter(
       PartitionSpec spec,
       FileFormat format,
-      FileAppenderFactory<RowData> appenderFactory,
+      FileWriterFactory<RowData> fileWriterFactory,
       OutputFileFactory fileFactory,
       FileIO io,
       long targetFileSize,
@@ -58,7 +58,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
       boolean upsert) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
     this.wrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
