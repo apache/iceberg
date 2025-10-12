@@ -291,20 +291,17 @@ public abstract class DeleteFilter<T> {
       return requestedSchema;
     }
 
-    // Add missing columns required for delete operations, including nested columns
-    List<Types.NestedField> columns = Lists.newArrayList(requestedSchema.columns());
-    for (int fieldId : missingIds) {
-      if (fieldId == MetadataColumns.ROW_POSITION.fieldId()
-          || fieldId == MetadataColumns.IS_DELETED.fieldId()) {
-        continue; // add _pos and _deleted at the end
-      }
+    // Merge requested schema fields with missing IDs (excluding metadata columns)
+    Set<Integer> allRequiredIds = mergeFieldIds(requestedSchema, missingIds);
 
-      Types.NestedField field = getFieldFromTableSchema(tableSchema, fieldId);
-      Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
+    // Convert field IDs to full column names to preserve nested field paths
+    Set<String> columnNames = getColumnNamesForFieldIds(tableSchema, allRequiredIds);
 
-      columns.add(field);
-    }
+    // Use Schema.select() to create a projection that preserves the full nested structure
+    Schema projection = tableSchema.select(columnNames);
 
+    // Add metadata columns if needed
+    List<Types.NestedField> columns = Lists.newArrayList(projection.columns());
     if (missingIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
       columns.add(MetadataColumns.ROW_POSITION);
     }
@@ -317,10 +314,42 @@ public abstract class DeleteFilter<T> {
   }
 
   /**
-   * Get field from table schema by ID, supporting both top-level and nested fields. This replaces
-   * the previous tableSchema.asStruct().field(fieldId) which only worked for top-level fields.
+   * Merges field IDs from requested schema with missing IDs, excluding metadata columns.
+   *
+   * @param requestedSchema the schema requested by the user
+   * @param missingIds the set of field IDs missing from the requested schema
+   * @return combined set of field IDs (metadata columns excluded)
    */
-  private static Types.NestedField getFieldFromTableSchema(Schema tableSchema, int fieldId) {
-    return tableSchema.findField(fieldId);
+  private static Set<Integer> mergeFieldIds(Schema requestedSchema, Set<Integer> missingIds) {
+    Set<Integer> allRequiredIds = Sets.newLinkedHashSet();
+    allRequiredIds.addAll(TypeUtil.getProjectedIds(requestedSchema));
+
+    // Add missing field IDs, excluding metadata columns (they'll be added at the end)
+    for (int fieldId : missingIds) {
+      if (fieldId != MetadataColumns.ROW_POSITION.fieldId()
+          && fieldId != MetadataColumns.IS_DELETED.fieldId()) {
+        allRequiredIds.add(fieldId);
+      }
+    }
+
+    return allRequiredIds;
+  }
+
+  /**
+   * Converts field IDs to full column names (e.g., "structData.nestedField").
+   *
+   * @param tableSchema the table schema to look up field names
+   * @param fieldIds the set of field IDs to convert
+   * @return a set of full column names preserving nested field paths
+   */
+  private static Set<String> getColumnNamesForFieldIds(Schema tableSchema, Set<Integer> fieldIds) {
+    Set<String> columnNames = Sets.newLinkedHashSet();
+    for (int fieldId : fieldIds) {
+      String columnName = tableSchema.findColumnName(fieldId);
+      Preconditions.checkArgument(
+          columnName != null, "Cannot find required field for ID %s", fieldId);
+      columnNames.add(columnName);
+    }
+    return columnNames;
   }
 }

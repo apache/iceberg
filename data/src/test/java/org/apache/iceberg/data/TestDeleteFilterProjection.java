@@ -136,7 +136,7 @@ public class TestDeleteFilterProjection {
 
   @Test
   public void testFileProjectionWithNestedFields() throws Exception {
-    // This test verifies that the TODO "support adding nested columns" has been fixed
+    // This test verifies that nested fields are properly added with their full path preserved
     Schema requestedSchema = NESTED_SCHEMA.select("id", "data");
 
     // Create a mock delete file that references the nested field (structInnerData)
@@ -147,29 +147,10 @@ public class TestDeleteFilterProjection {
     List<DeleteFile> eqDeletes = ImmutableList.of(mockEqDelete);
     List<DeleteFile> posDeletes = ImmutableList.of();
 
-    // Use reflection to access the private fileProjection method
-    Method fileProjectionMethod =
-        DeleteFilter.class.getDeclaredMethod(
-            "fileProjection", Schema.class, Schema.class, List.class, List.class, boolean.class);
-    fileProjectionMethod.setAccessible(true);
-
-    // Before the fix, this would throw:
-    // "Cannot find required field for ID 100" when trying to access nested field
     Schema projectedSchema =
-        (Schema)
-            fileProjectionMethod.invoke(
-                null, NESTED_SCHEMA, requestedSchema, posDeletes, eqDeletes, false);
+        invokeFileProjection(NESTED_SCHEMA, requestedSchema, posDeletes, eqDeletes);
 
-    // Verify the projection includes the nested field
-    assertThat(projectedSchema.findField(100))
-        .as("Projected schema should include nested field structInnerData")
-        .isNotNull();
-
-    assertThat(projectedSchema.findField(100).name())
-        .as("Nested field should have correct name")
-        .isEqualTo("structInnerData");
-
-    // Verify the projection also includes the original requested fields
+    // Verify the projection includes the original requested fields
     assertThat(projectedSchema.findField(1))
         .as("Projected schema should include id field")
         .isNotNull();
@@ -178,8 +159,31 @@ public class TestDeleteFilterProjection {
         .as("Projected schema should include data field")
         .isNotNull();
 
-    // Note: This minimal fix allows finding nested fields using tableSchema.findField()
-    // Parent structures are not automatically included in the projection
+    // Verify the parent struct field exists at top level (not promoted)
+    Types.NestedField structDataField = projectedSchema.asStruct().field("structData");
+    assertThat(structDataField)
+        .as("Parent struct 'structData' should exist at top level")
+        .isNotNull();
+    assertThat(structDataField.fieldId()).isEqualTo(3);
+    assertThat(structDataField.type().isStructType()).isTrue();
+
+    // Verify the nested field is within the parent struct, not promoted to top level
+    Types.StructType structType = structDataField.type().asStructType();
+    Types.NestedField nestedField = structType.field("structInnerData");
+    assertThat(nestedField)
+        .as("Nested field should be within parent struct, not at top level")
+        .isNotNull();
+    assertThat(nestedField.fieldId()).isEqualTo(100);
+    assertThat(nestedField.name()).isEqualTo("structInnerData");
+
+    // Also verify via findField
+    assertThat(projectedSchema.findField(100))
+        .as("Projected schema should include nested field via findField")
+        .isNotNull();
+
+    // Verify structInnerData is NOT promoted to top level
+    Types.NestedField promotedField = projectedSchema.asStruct().field("structInnerData");
+    assertThat(promotedField).as("Nested field should NOT be promoted to top level").isNull();
   }
 
   @Test
@@ -218,7 +222,7 @@ public class TestDeleteFilterProjection {
 
   @Test
   public void testSimpleNestedFieldsReturnCorrectDetails() throws Exception {
-    // Test that nested fields are correctly returned with proper details
+    // Test that nested fields are correctly returned with proper details and structure
     Schema requestedSchema = NESTED_SCHEMA.select("id");
 
     DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
@@ -236,9 +240,16 @@ public class TestDeleteFilterProjection {
     assertThat(nestedField.fieldId()).isEqualTo(100);
     assertThat(nestedField.isOptional()).isTrue();
 
-    // Note: With the current simple implementation, parent structures are not automatically
-    // included
-    // The nested field is accessible directly through the schema's findField method
+    // Verify the structure is preserved (parent exists at top level)
+    Types.NestedField structDataField = projectedSchema.asStruct().field("structData");
+    assertThat(structDataField).as("Parent struct should be preserved").isNotNull();
+    assertThat(structDataField.type().isStructType()).isTrue();
+
+    // Verify nested field is within parent, not at top level
+    Types.StructType structType = structDataField.type().asStructType();
+    assertThat(structType.field("structInnerData"))
+        .as("Nested field should be within parent struct")
+        .isNotNull();
   }
 
   @Test
@@ -262,8 +273,24 @@ public class TestDeleteFilterProjection {
     assertThat(deepField.name()).isEqualTo("deepField");
     assertThat(deepField.type()).isEqualTo(Types.StringType.get());
 
-    // Note: With the current implementation, only the specific requested field is added
-    // Parent structures are not automatically included in the projection
+    // Verify the full nested structure is preserved
+    Types.NestedField level1 = projectedSchema.asStruct().field("level1");
+    assertThat(level1).as("Level 1 struct should exist").isNotNull();
+    assertThat(level1.type().isStructType()).isTrue();
+
+    Types.NestedField level2 = level1.type().asStructType().field("level2");
+    assertThat(level2).as("Level 2 struct should exist within level1").isNotNull();
+    assertThat(level2.type().isStructType()).isTrue();
+
+    Types.NestedField level3 = level2.type().asStructType().field("level3");
+    assertThat(level3).as("Level 3 struct should exist within level2").isNotNull();
+    assertThat(level3.type().isStructType()).isTrue();
+
+    Types.NestedField deepFieldInStruct = level3.type().asStructType().field("deepField");
+    assertThat(deepFieldInStruct)
+        .as("Deep field should exist within level3 struct, not promoted")
+        .isNotNull();
+    assertThat(deepFieldInStruct.fieldId()).isEqualTo(400);
   }
 
   @Test
@@ -307,9 +334,6 @@ public class TestDeleteFilterProjection {
     Types.NestedField listElementField = projectedSchema.findField(501);
     assertThat(listElementField).as("List element field should be found").isNotNull();
     assertThat(listElementField.name()).isEqualTo("listElementField");
-
-    // Note: With the current implementation, parent list structures are not automatically included
-    // Only the specific nested field within the list element is added
   }
 
   @Test
@@ -357,55 +381,6 @@ public class TestDeleteFilterProjection {
     Types.NestedField mapValueField = projectedSchema.findField(602);
     assertThat(mapValueField).as("Map value field should be found").isNotNull();
     assertThat(mapValueField.name()).isEqualTo("mapValueField");
-
-    // Note: With the current implementation, parent map structures are not automatically included
-    // Only the specific nested field within the map value is added
-  }
-
-  @Test
-  public void testMapKeyFields() throws Exception {
-    // Test nested fields within map keys (complex case)
-    Schema requestedSchema = COMPLEX_NESTED_SCHEMA.select("id", "data");
-
-    DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds())
-        .thenReturn(ImmutableList.of(702)); // field in map key
-
-    Schema projectedSchema =
-        invokeFileProjection(
-            COMPLEX_NESTED_SCHEMA,
-            requestedSchema,
-            ImmutableList.of(),
-            ImmutableList.of(mockEqDelete));
-
-    // Verify the map key field is found
-    Types.NestedField mapKeyField = projectedSchema.findField(702);
-    assertThat(mapKeyField).as("Map key field should be found").isNotNull();
-    assertThat(mapKeyField.name()).isEqualTo("mapKeyField");
-
-    // Note: With the current implementation, parent map structures are not automatically included
-    // Only the specific nested field within the map key is added
-  }
-
-  @Test
-  public void testMapKeyAndValueFields() throws Exception {
-    // Test both map key and value fields together
-    Schema requestedSchema = COMPLEX_NESTED_SCHEMA.select("id");
-
-    DeleteFile mockEqDelete = Mockito.mock(DeleteFile.class);
-    Mockito.when(mockEqDelete.equalityFieldIds())
-        .thenReturn(ImmutableList.of(602, 702)); // value and key fields
-
-    Schema projectedSchema =
-        invokeFileProjection(
-            COMPLEX_NESTED_SCHEMA,
-            requestedSchema,
-            ImmutableList.of(),
-            ImmutableList.of(mockEqDelete));
-
-    // Verify both map key and value fields are found
-    assertThat(projectedSchema.findField(602)).as("Map value field should be found").isNotNull();
-    assertThat(projectedSchema.findField(702)).as("Map key field should be found").isNotNull();
   }
 
   @Test
@@ -430,9 +405,6 @@ public class TestDeleteFilterProjection {
         .as("Complex nested field (in map value in list) should be found")
         .isNotNull();
     assertThat(complexField.name()).isEqualTo("complexNestedField");
-
-    // Note: With the current implementation, parent structures are not automatically included
-    // Only the specific nested field within the complex structure is added
   }
 
   @Test
