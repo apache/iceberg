@@ -1073,7 +1073,7 @@ public class TestMetricsRowGroupFilter {
 
     boolean shouldRead = shouldReadVariant(in("variant_field", v0, v1), records);
     assertThat(shouldRead)
-        .as("Should read: variant in filters must be evaluated post scan")
+        .as("Should read RowGroups: variant in filters must be evaluated post scan")
         .isTrue();
   }
 
