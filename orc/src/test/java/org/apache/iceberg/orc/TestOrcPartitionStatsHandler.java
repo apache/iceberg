@@ -16,9 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.orc;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionStatsHandlerTestBase;
 
 public class TestOrcPartitionStatsHandler extends PartitionStatsHandlerTestBase {
 
