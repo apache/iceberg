@@ -2031,7 +2031,7 @@ components:
           See https://datatracker.ietf.org/doc/html/rfc9562#sampleStringUUID for the textual
           representation specification.
         - The idempotency key must be globally unique (no reuse across different operations).
-        - Catalogs MUST NOT expire keys before the end of the advertised token lifetime.
+        - Catalogs SHOULD NOT expire keys before the end of the advertised token lifetime.
         - If Idempotency-Key is used, clients MUST reuse the same key when retrying the same
           logical operation and MUST generate a new key for a different operation.
 
