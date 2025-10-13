@@ -90,14 +90,14 @@ public class TestSparkVariantRead extends TestBase {
     Object v1row2 = directRows.get(1).get(1);
     Variant vv1;
     Variant vv2;
-    if (v1row1 instanceof Variant) {
-      vv1 = (Variant) v1row1;
-      vv2 = (Variant) v1row2;
-    } else if (v1row1 instanceof VariantVal) {
+    if (v1row1 instanceof VariantVal) {
       vv1 = new Variant(((VariantVal) v1row1).getValue(), ((VariantVal) v1row1).getMetadata());
       vv2 = new Variant(((VariantVal) v1row2).getValue(), ((VariantVal) v1row2).getMetadata());
     } else {
-      fail("Expected Variant/VariantVal but got: " + (v1row1 == null ? "null" : v1row1.getClass()));
+      fail(
+          "Expected VariantVal but got: row1=%s, row2=%s",
+          (v1row1 == null ? "null" : v1row1.getClass()),
+          (v1row2 == null ? "null" : v1row2.getClass()));
       return;
     }
 
