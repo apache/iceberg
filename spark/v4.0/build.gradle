@@ -80,7 +80,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'org.roaringbitmap'
     }
 
-    compileOnly "org.apache.datafusion:comet-spark-spark3.5_2.13:${libs.versions.comet.get()}"
+    compileOnly "org.apache.datafusion:comet-spark-spark${sparkMajorVersion}_2.13:${libs.versions.comet.get()}"
 
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
@@ -190,7 +190,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
     testImplementation libs.awaitility
-    testImplementation "org.apache.datafusion:comet-spark-spark3.5_2.13:${libs.versions.comet.get()}"
+    testImplementation "org.apache.datafusion:comet-spark-spark${sparkMajorVersion}_2.13:${libs.versions.comet.get()}"
     testImplementation(testFixtures(project(':iceberg-parquet')))
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
