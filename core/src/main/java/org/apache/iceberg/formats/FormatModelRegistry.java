@@ -21,7 +21,6 @@ package org.apache.iceberg.formats;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
@@ -32,7 +31,6 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -148,25 +146,6 @@ public final class FormatModelRegistry {
       FileFormat format, Class<D> type, InputFile inputFile) {
     FormatModel<D, S> factory = factoryFor(format, type);
     return factory.readBuilder(inputFile);
-  }
-
-  /**
-   * Returns a writer builder for appending data to the specified output file.
-   *
-   * <p>The returned builder produces a {@link FileAppender} that accepts records defined by the
-   * specified object model and persists them using the given file format. Data is written to the
-   * output file, but this basic writer does not collect or return {@link ContentFile} metadata.
-   *
-   * @param format the file format used for writing
-   * @param type the input type
-   * @param outputFile destination for the written data
-   * @param <D> the type of data records the writer will accept
-   * @return a configured writer builder for creating the appender
-   */
-  public static <D> WriteBuilder writeBuilder(
-      FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
-    FormatModel<D, ?> factory = factoryFor(format, type);
-    return factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
   }
 
   /**
