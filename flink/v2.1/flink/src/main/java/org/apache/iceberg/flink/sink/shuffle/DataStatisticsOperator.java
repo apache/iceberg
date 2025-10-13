@@ -124,6 +124,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
 
       // Perform a cleanup first to ensure that the state is empty.
       globalStatisticsState.clear();
+
       // Always request for new statistics from coordinator upon task initialization.
       // There are a few scenarios this is needed
       // 1. downstream writer parallelism changed due to rescale.
