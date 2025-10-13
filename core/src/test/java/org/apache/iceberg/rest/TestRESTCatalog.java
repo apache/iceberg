@@ -64,10 +64,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.NotAuthorizedException;
-import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.exceptions.ServiceFailureException;
+import org.apache.iceberg.exceptions.*;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -2898,6 +2895,113 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         };
 
     return catalog(adapter);
+  }
+
+  @Test
+  public void testUnknownWithoutReconcileThrowsAndNoRetry() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    // property omitted or set to false: reconciliation disabled
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD, "false"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    Mockito.doAnswer(
+            invocation -> {
+              invocation.callRealMethod();
+              throw new CommitStateUnknownException(
+                  new ServiceFailureException("Service failed: 503"));
+            })
+        .when(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    Table table = catalog.loadTable(TABLE);
+
+    assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_A).commit())
+        .isInstanceOf(CommitStateUnknownException.class);
+  }
+
+  @Test
+  public void testReconcileOnUnknownSnapshotAddMatchesSnapshotId() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD, "true"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    // Simulate: server commits, but client receives CommitStateUnknown (transient 5xx)
+    Mockito.doAnswer(
+            invocation -> {
+              invocation.callRealMethod();
+              throw new CommitStateUnknownException(
+                  new ServiceFailureException("Service failed: 503"));
+            })
+        .when(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    Table table = catalog.loadTable(TABLE);
+
+    // Perform a snapshot-adding commit; should reconcile instead of failing
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    // Extract the snapshot id we attempted to commit from the request body
+    long expectedSnapshotId =
+        allRequests(adapter).stream()
+            .filter(
+                r -> r.method() == HTTPMethod.POST && r.path().equals(RESOURCE_PATHS.table(TABLE)))
+            .map(HTTPRequest::body)
+            .filter(UpdateTableRequest.class::isInstance)
+            .map(UpdateTableRequest.class::cast)
+            .map(
+                req ->
+                    (MetadataUpdate.AddSnapshot)
+                        req.updates().stream()
+                            .filter(u -> u instanceof MetadataUpdate.AddSnapshot)
+                            .findFirst()
+                            .orElseThrow())
+            .map(add -> add.snapshot().snapshotId())
+            .findFirst()
+            .orElseThrow();
+
+    Table reloaded = catalog.loadTable(TABLE);
+    assertThat(reloaded.currentSnapshot()).isNotNull();
+    assertThat(reloaded.currentSnapshot().snapshotId()).isEqualTo(expectedSnapshotId);
+
+    // Verify the POST was not re-executed
+    Mockito.verify(adapter, times(1))
+        .execute(
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {

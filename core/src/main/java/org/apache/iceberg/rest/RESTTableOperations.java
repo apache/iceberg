@@ -26,12 +26,14 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -60,6 +62,7 @@ class RESTTableOperations implements TableOperations {
   private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
+  private boolean reconcileOnUnknownSnapshotAdd = false;
 
   RESTTableOperations(
       RESTClient client,
@@ -155,8 +158,26 @@ class RESTTableOperations implements TableOperations {
     // the error handler will throw necessary exceptions like CommitFailedException and
     // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
-    LoadTableResponse response =
-        client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+    LoadTableResponse response;
+    try {
+      response = client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+    } catch (CommitStateUnknownException e) {
+      // Lightweight reconciliation for snapshot-add-only updates on transient unknown commit state
+      if (reconcileOnUnknownSnapshotAdd && updateType == UpdateType.SIMPLE) {
+        Long expectedSnapshotId = expectedSnapshotIdIfSnapshotAddOnly(updates);
+        if (expectedSnapshotId != null) {
+          // attempt to refresh and verify the expected snapshot became current
+          TableMetadata refreshed = refresh();
+          if (refreshed != null
+              && refreshed.currentSnapshot() != null
+              && refreshed.currentSnapshot().snapshotId() == expectedSnapshotId) {
+            return;
+          }
+        }
+      }
+
+      throw e;
+    }
 
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
@@ -167,6 +188,43 @@ class RESTTableOperations implements TableOperations {
   @Override
   public FileIO io() {
     return io;
+  }
+
+  void setReconcileOnUnknownSnapshotAdd(boolean enabled) {
+    this.reconcileOnUnknownSnapshotAdd = enabled;
+  }
+
+  private static Long expectedSnapshotIdIfSnapshotAddOnly(List<MetadataUpdate> updates) {
+    Long addedSnapshotId = null;
+    Long mainRefSnapshotId = null;
+
+    for (MetadataUpdate update : updates) {
+      if (update instanceof MetadataUpdate.AddSnapshot) {
+        if (addedSnapshotId != null) {
+          return null; // multiple snapshot adds -> not safe
+        }
+        addedSnapshotId = ((MetadataUpdate.AddSnapshot) update).snapshot().snapshotId();
+      } else if (update instanceof MetadataUpdate.SetSnapshotRef) {
+        MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
+        if (!SnapshotRef.MAIN_BRANCH.equals(setRef.name())) {
+          return null; // only allow main ref update
+        }
+        mainRefSnapshotId = setRef.snapshotId();
+      } else {
+        // any other update type makes this not a pure snapshot-add
+        return null;
+      }
+    }
+
+    if (addedSnapshotId == null) {
+      return null;
+    }
+
+    if (mainRefSnapshotId != null && !addedSnapshotId.equals(mainRefSnapshotId)) {
+      return null;
+    }
+
+    return addedSnapshotId;
   }
 
   private TableMetadata updateCurrentMetadata(LoadTableResponse response) {

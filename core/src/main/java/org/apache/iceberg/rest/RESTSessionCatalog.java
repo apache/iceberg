@@ -159,6 +159,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
+  private boolean reconcileOnUnknownSnapshotAdd;
 
   public RESTSessionCatalog() {
     this(
@@ -248,6 +249,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                     RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
                     RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
                 .toUpperCase(Locale.US));
+
+    this.reconcileOnUnknownSnapshotAdd =
+        PropertyUtil.propertyAsBoolean(
+            mergedProps,
+            RESTCatalogProperties.RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD,
+            RESTCatalogProperties.RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD_DEFAULT);
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
 
@@ -457,6 +464,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             tableFileIO(context, tableConf, response.credentials()),
             tableMetadata,
             endpoints);
+    ops.setReconcileOnUnknownSnapshotAdd(reconcileOnUnknownSnapshotAdd);
 
     trackFileIO(ops);
 
@@ -536,6 +544,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             tableFileIO(context, tableConf, response.credentials()),
             response.tableMetadata(),
             endpoints);
+    ops.setReconcileOnUnknownSnapshotAdd(reconcileOnUnknownSnapshotAdd);
 
     trackFileIO(ops);
 
@@ -824,6 +833,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               createChanges(meta),
               meta,
               endpoints);
+      ops.setReconcileOnUnknownSnapshotAdd(reconcileOnUnknownSnapshotAdd);
 
       trackFileIO(ops);
 
@@ -887,6 +897,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               changes.build(),
               base,
               endpoints);
+      ops.setReconcileOnUnknownSnapshotAdd(reconcileOnUnknownSnapshotAdd);
 
       trackFileIO(ops);
 
