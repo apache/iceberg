@@ -67,6 +67,9 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   public static final String STREAM_RESULTS = "stream-results";
   public static final boolean STREAM_RESULTS_DEFAULT = false;
+  public static final String LOG_EXPIRE_FILES = "log-expire-files";
+  public static final boolean LOG_EXPIRE_FILES_DEFAULT = false;
+  private static final int LOG_BATCH_SIZE = 10000;
 
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsSparkAction.class);
 
@@ -169,6 +172,20 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         expireSnapshots.cleanExpiredMetadata(cleanExpiredMetadata);
       }
 
+      // Add option to print additional logging for expireFiles
+      boolean logExpireFiles =
+          PropertyUtil.propertyAsBoolean(options(), LOG_EXPIRE_FILES, LOG_EXPIRE_FILES_DEFAULT);
+      if (logExpireFiles) {
+        LOG.info(
+            "Table metadata before expiration, Current snapshot ID: {}",
+            originalMetadata.currentSnapshot() != null
+                ? originalMetadata.currentSnapshot().snapshotId()
+                : "none");
+
+        // Log which snapshots will be expired and why
+        logSnapshotExpirationReasons(originalMetadata);
+      }
+
       expireSnapshots.cleanExpiredFiles(false).commit();
 
       // fetch valid files after expiration
@@ -181,6 +198,16 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
       // determine expired files
       this.expiredFileDS = deleteCandidateFileDS.except(validFileDS);
+
+      if (logExpireFiles) {
+        // Enhanced logging for debugging file deletion issues
+        logSnapshotDeletionSummary(originalMetadata, deletedSnapshotIds);
+        LOG.info(
+            "Table metadata after expiration, Current snapshot ID: {}",
+            updatedMetadata.currentSnapshot() != null
+                ? updatedMetadata.currentSnapshot().snapshotId()
+                : "none");
+      }
     }
 
     return expiredFileDS;
@@ -281,5 +308,114 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         .deletedManifestListsCount(summary.manifestListsCount())
         .deletedStatisticsFilesCount(summary.statisticsFilesCount())
         .build();
+  }
+
+  /**
+   * Logs which snapshots will be expired and the reasons for expiration. This helps debug issues
+   * where more files than expected were deleted.
+   */
+  private void logSnapshotExpirationReasons(TableMetadata metadata) {
+    LOG.info("=== Snapshot Expiration Analysis ===");
+
+    // Determine snapshots that will be kept for retain_last calculation
+    Set<Long> snapshotsToKeep = Sets.newHashSet();
+    if (retainLastValue != null) {
+      List<Snapshot> sortedSnapshots =
+          metadata.snapshots().stream()
+              .sorted((s1, s2) -> Long.compare(s2.timestampMillis(), s1.timestampMillis()))
+              .collect(Collectors.toList());
+
+      sortedSnapshots.stream()
+          .limit(retainLastValue)
+          .map(Snapshot::snapshotId)
+          .forEach(snapshotsToKeep::add);
+
+      LOG.info("Snapshots to keep (retain_last={}): {}", retainLastValue, snapshotsToKeep);
+    }
+
+    // Analyze each snapshot and log expiration reason
+    for (Snapshot snapshot : metadata.snapshots()) {
+      long snapshotId = snapshot.snapshotId();
+      boolean willExpire = false;
+      String reason = "";
+
+      // Check explicit snapshot IDs
+      if (expiredSnapshotIds.contains(snapshotId)) {
+        willExpire = true;
+        reason = "explicitly marked for expiration";
+      }
+      // Check time-based criteria
+      else if (expireOlderThanValue != null && snapshot.timestampMillis() < expireOlderThanValue) {
+        willExpire = true;
+        reason = "older than threshold (" + new java.util.Date(expireOlderThanValue) + ")";
+      }
+      // Check count-based criteria
+      else if (retainLastValue != null && !snapshotsToKeep.contains(snapshotId)) {
+        willExpire = true;
+        reason = "beyond retain_last limit (" + retainLastValue + ")";
+      }
+
+      if (willExpire) {
+        LOG.info(
+            "WILL EXPIRE snapshot {} created at {} - reason: {}",
+            snapshotId,
+            new java.util.Date(snapshot.timestampMillis()),
+            reason);
+      }
+    }
+  }
+
+  /**
+   * Logs detailed information about files that will be deleted, organized by snapshot. This
+   * provides the file-to-snapshot mapping requested for debugging.
+   */
+  private void logSnapshotDeletionSummary(
+      TableMetadata originalMetadata, Set<Long> deletedSnapshotIds) {
+    LOG.info("=== File Deletion Analysis by Snapshot ===");
+
+    for (Long snapshotId : deletedSnapshotIds) {
+      Set<Long> singleSnapshotSet = Sets.newHashSet(snapshotId);
+      Dataset<FileInfo> snapshotFiles = fileDS(originalMetadata, singleSnapshotSet);
+
+      // Use memory-efficient streaming to avoid OOM with large snapshots
+      long totalFiles = snapshotFiles.count();
+      LOG.info("Snapshot {} contributes {} files for deletion:", snapshotId, totalFiles);
+
+      long processedFiles = 0;
+      Iterator<FileInfo> fileIterator = snapshotFiles.toLocalIterator();
+      while (fileIterator.hasNext()) {
+        List<FileInfo> batch = Lists.newArrayListWithCapacity(LOG_BATCH_SIZE);
+
+        // Collect up to BATCH_SIZE files
+        for (int i = 0; i < LOG_BATCH_SIZE && fileIterator.hasNext(); i++) {
+          batch.add(fileIterator.next());
+        }
+
+        // Group files by type for better organization
+        final long currentProcessedFiles = processedFiles;
+        batch.stream()
+            .collect(Collectors.groupingBy(FileInfo::getType))
+            .forEach(
+                (fileType, fileList) -> {
+                  LOG.info(
+                      "  {} files of type {} (batch {}-{})",
+                      fileList.size(),
+                      fileType,
+                      currentProcessedFiles + 1,
+                      currentProcessedFiles + fileList.size());
+
+                  // Log individual files with enhanced information
+                  fileList.forEach(
+                      fileInfo ->
+                          LOG.info(
+                              "    DELETE: {} (from expired snapshot: {}, type: {})",
+                              fileInfo.getPath(),
+                              snapshotId,
+                              fileInfo.getType()));
+                });
+
+        processedFiles += batch.size();
+      }
+    }
   }
 }
