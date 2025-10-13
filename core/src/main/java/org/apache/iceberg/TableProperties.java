@@ -167,6 +167,15 @@ public class TableProperties {
       "write.parquet.bloom-filter-max-bytes";
   public static final int PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT = 1024 * 1024;
 
+  /**
+   * Controls whether to use ParquetFileMerger for row-group level merging during compaction.
+   * When enabled, Parquet files are merged at the row-group level without full deserialization,
+   * providing significant performance improvements (up to 13x faster) compared to traditional
+   * read-rewrite approaches.
+   */
+  public static final String PARQUET_USE_FILE_MERGER = "write.parquet.use-file-merger";
+  public static final boolean PARQUET_USE_FILE_MERGER_DEFAULT = false;
+
   public static final String PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX =
       "write.parquet.bloom-filter-fpp.column.";
   public static final double PARQUET_BLOOM_FILTER_COLUMN_FPP_DEFAULT = 0.01;
