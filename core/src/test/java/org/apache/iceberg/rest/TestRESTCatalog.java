@@ -93,7 +93,6 @@ import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.BaseScanTaskResponse;
-import org.apache.iceberg.rest.responses.BaseScanTaskResponse;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -176,9 +175,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
                 T response = super.execute(req, responseType, errorHandler, responseHeaders);
                 if (response instanceof BaseScanTaskResponse) {
-                    // This is for the case where the response does not roundTrip
-                    // the plan table related responses follow this case
-                    return response;
+                  // This is for the case where the response does not roundTrip
+                  // the plan table related responses follow this case
+                  return response;
                 }
                 T responseAfterSerialization = roundTripSerialize(response, "response");
                 return responseAfterSerialization;
