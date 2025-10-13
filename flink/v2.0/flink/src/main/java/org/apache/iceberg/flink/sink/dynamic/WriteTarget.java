@@ -85,6 +85,8 @@ class WriteTarget implements Serializable {
     for (Integer equalityField : equalityFields) {
       view.writeInt(equalityField);
     }
+
+    int i = 0;
   }
 
   static WriteTarget deserializeFrom(DataInputView view) throws IOException {
