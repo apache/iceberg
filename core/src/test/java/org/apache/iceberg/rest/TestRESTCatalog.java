@@ -2932,7 +2932,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Table table = catalog.loadTable(TABLE);
 
     assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_A).commit())
-        .isInstanceOf(CommitStateUnknownException.class);
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Cannot determine whether the commit was successful");
   }
 
   @Test
