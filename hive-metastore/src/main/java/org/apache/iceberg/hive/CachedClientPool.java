@@ -133,11 +133,18 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   public <R> R run(Action<R, IMetaStoreClient, TException> action)
       throws TException, InterruptedException {
     if (isolatedClassLoader != null) {
-      return isolatedClassLoader.withClassLoader(
-          cl -> {
-            return clientPool(Optional.of(cl)).run(action);
-          },
-          RuntimeException.class);
+      try {
+        return isolatedClassLoader.withClassLoader(
+            cl -> {
+              return clientPool(Optional.of(cl)).run(action);
+            },
+            RuntimeException.class);
+      } catch (RuntimeException e) {
+        if (e.getCause() instanceof TException) {
+          throw (TException) e.getCause();
+        }
+        throw e;
+      }
     } else {
       return clientPool().run(action);
     }
@@ -147,11 +154,18 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   public <R> R run(Action<R, IMetaStoreClient, TException> action, boolean retry)
       throws TException, InterruptedException {
     if (isolatedClassLoader != null) {
-      return isolatedClassLoader.withClassLoader(
-          cl -> {
-            return clientPool(Optional.of(cl)).run(action);
-          },
-          RuntimeException.class);
+      try {
+        return isolatedClassLoader.withClassLoader(
+            cl -> {
+              return clientPool(Optional.of(cl)).run(action);
+            },
+            RuntimeException.class);
+      } catch (RuntimeException e) {
+        if (e.getCause() instanceof TException) {
+          throw (TException) e.getCause();
+        }
+        throw e;
+      }
     } else {
       return clientPool().run(action, retry);
     }

@@ -259,6 +259,7 @@ public class IsolatedClassLoader implements Closeable {
         name.startsWith("org.apache.hadoop.") && !name.startsWith("org.apache.hadoop.hive.");
     return isCommonClass(name)
         || name.startsWith("org.apache.iceberg.")
+        || name.startsWith("org.apache.spark.")
         || isHadoopClass
         || sharedClasses.stream().anyMatch(name::startsWith);
   }
