@@ -81,6 +81,7 @@ public class RewriteDataFilesSparkAction
           REWRITE_JOB_ORDER,
           OUTPUT_SPEC_ID,
           REMOVE_DANGLING_DELETES,
+          USE_PARQUET_FILE_MERGER,
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
@@ -119,7 +120,7 @@ public class RewriteDataFilesSparkAction
   @Override
   public RewriteDataFilesSparkAction binPack() {
     ensureRunnerNotSet();
-    this.runner = new SparkBinPackFileRewriteRunner(spark(), table);
+    this.runner = createBinPackRunner();
     return this;
   }
 
@@ -149,6 +150,19 @@ public class RewriteDataFilesSparkAction
         runner == null,
         "Cannot set rewrite mode, it has already been set to %s",
         runner == null ? null : runner.description());
+  }
+
+  private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
+      createBinPackRunner() {
+    boolean useParquetFileMerger =
+        PropertyUtil.propertyAsBoolean(
+            options(), USE_PARQUET_FILE_MERGER, USE_PARQUET_FILE_MERGER_DEFAULT);
+
+    if (useParquetFileMerger) {
+      return new SparkParquetFileMergeRunner(spark(), table);
+    } else {
+      return new SparkBinPackFileRewriteRunner(spark(), table);
+    }
   }
 
   @Override
@@ -199,7 +213,7 @@ public class RewriteDataFilesSparkAction
 
     // Default to BinPack if no strategy selected
     if (this.runner == null) {
-      this.runner = new SparkBinPackFileRewriteRunner(spark(), table);
+      this.runner = createBinPackRunner();
     }
 
     validateAndInitOptions();

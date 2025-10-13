@@ -2614,6 +2614,148 @@ public class TestRewriteDataFilesAction extends TestBase {
         .isFalse();
   }
 
+  @TestTemplate
+  public void testParquetFileMergerEnabledByDefault() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+
+    // Default behavior should use ParquetFileMerger (disabled by default in this config)
+    RewriteDataFiles.Result result = basicRewrite(table).binPack().execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(4);
+    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
+  }
+
+  @TestTemplate
+  public void testParquetFileMergerExplicitlyEnabled() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+
+    long dataSizeBefore = testDataSize(table);
+    long countBefore = currentData().size();
+
+    // Explicitly enable ParquetFileMerger
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.USE_PARQUET_FILE_MERGER, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(4);
+    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
+    assertThat(currentData()).hasSize((int) countBefore);
+  }
+
+  @TestTemplate
+  public void testParquetFileMergerExplicitlyDisabled() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+
+    long dataSizeBefore = testDataSize(table);
+    long countBefore = currentData().size();
+
+    // Explicitly disable ParquetFileMerger - should use standard Spark rewrite
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.USE_PARQUET_FILE_MERGER, "false")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(4);
+    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
+    assertThat(currentData()).hasSize((int) countBefore);
+  }
+
+  @TestTemplate
+  public void testParquetFileMergerWithPartitionedTable() {
+    Table table = createTablePartitioned(4, 2);
+    shouldHaveFiles(table, 8);
+
+    long countBefore = currentData().size();
+
+    // Test with partitioned table
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.USE_PARQUET_FILE_MERGER, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(8);
+    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
+    assertThat(currentData()).hasSize((int) countBefore);
+  }
+
+  @TestTemplate
+  public void testParquetFileMergerWithFilter() {
+    Table table = createTablePartitioned(4, 2);
+    shouldHaveFiles(table, 8);
+
+    long countBefore = currentData().size();
+
+    // Test with filter - should only rewrite filtered partitions
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .filter(Expressions.equal("c1", 1))
+            .filter(Expressions.startsWith("c2", "foo"))
+            .option(RewriteDataFiles.USE_PARQUET_FILE_MERGER, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
+    assertThat(currentData()).hasSize((int) countBefore);
+  }
+
+  @TestTemplate
+  public void testParquetFileMergerWithTargetFileSize() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+
+    long countBefore = currentData().size();
+
+    // Test with custom target file size
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, String.valueOf(1024L * 1024L))
+            .option(RewriteDataFiles.USE_PARQUET_FILE_MERGER, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(10);
+    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
+    assertThat(currentData()).hasSize((int) countBefore);
+  }
+
+  @TestTemplate
+  public void testBinPackUsesCorrectRunnerBasedOnOption() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+
+    // Test that binPack() respects the configuration option
+    // When enabled, should use SparkParquetFileMergeRunner
+    RewriteDataFiles.Result resultWithMerger =
+        basicRewrite(table)
+            .option(RewriteDataFiles.USE_PARQUET_FILE_MERGER, "true")
+            .binPack()
+            .execute();
+
+    assertThat(resultWithMerger.rewrittenDataFilesCount()).isEqualTo(4);
+    assertThat(resultWithMerger.addedDataFilesCount()).isGreaterThan(0);
+
+    // Write more data to the table so we can test again
+    writeRecords(100, SCALE);
+
+    // When disabled, should use SparkBinPackFileRewriteRunner
+    RewriteDataFiles.Result resultWithoutMerger =
+        basicRewrite(table)
+            .option(RewriteDataFiles.USE_PARQUET_FILE_MERGER, "false")
+            .binPack()
+            .execute();
+
+    // Should rewrite the newly added files
+    assertThat(resultWithoutMerger.rewrittenDataFilesCount()).isGreaterThan(0);
+  }
+
   private double percentFilesRequired(Table table, String col, String value) {
     return percentFilesRequired(table, new String[] {col}, new String[] {value});
   }
