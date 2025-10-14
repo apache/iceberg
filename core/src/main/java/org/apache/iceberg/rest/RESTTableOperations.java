@@ -166,10 +166,15 @@ class RESTTableOperations implements TableOperations {
       if (reconcileOnUnknownSnapshotAdd && updateType == UpdateType.SIMPLE) {
         Long expectedSnapshotId = expectedSnapshotIdIfSnapshotAddOnly(updates);
         if (expectedSnapshotId != null) {
-          // attempt to refresh and verify the expected snapshot became current
-          TableMetadata refreshed = refresh();
-          if (refreshed != null && refreshed.snapshot(expectedSnapshotId) != null) {
-            return;
+          // attempt to refresh and verify the expected snapshot is present in history
+          try {
+            TableMetadata refreshed = refresh();
+            if (refreshed != null && refreshed.snapshot(expectedSnapshotId) != null) {
+              return;
+            }
+          } catch (RuntimeException reconEx) {
+            // Best-effort reconciliation failed; preserve diagnostics but rethrow original
+            e.addSuppressed(reconEx);
           }
         }
       }

@@ -39,9 +39,9 @@ public final class RESTCatalogProperties {
   // when the server responds with CommitStateUnknown (e.g., transient 5xx). When enabled, the
   // client will refresh the table and verify the expected snapshot is present in history; if so,
   // the commit is treated as successful without re-executing.
-  public static final String RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD =
-      "rest-reconcile-on-unknown-snapshot-add";
-  public static final boolean RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD_DEFAULT = false;
+  public static final String RECONCILE_ON_COMMIT_STATE_UNKNOWN =
+      "rest-reconcile-on-commit-state-unknown";
+  public static final boolean RECONCILE_ON_COMMIT_STATE_UNKNOWN_DEFAULT = false;
 
   public enum SnapshotMode {
     ALL,

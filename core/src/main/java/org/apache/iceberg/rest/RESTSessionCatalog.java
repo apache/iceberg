@@ -253,8 +253,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.reconcileOnUnknownSnapshotAdd =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
-            RESTCatalogProperties.RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD,
-            RESTCatalogProperties.RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD_DEFAULT);
+            RESTCatalogProperties.RECONCILE_ON_COMMIT_STATE_UNKNOWN,
+            RESTCatalogProperties.RECONCILE_ON_COMMIT_STATE_UNKNOWN_DEFAULT);
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
 

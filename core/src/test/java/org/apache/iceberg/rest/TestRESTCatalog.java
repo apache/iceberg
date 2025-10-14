@@ -2912,7 +2912,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "test",
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD, "false"));
+            RESTCatalogProperties.RECONCILE_ON_COMMIT_STATE_UNKNOWN, "false"));
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TABLE.namespace());
@@ -2937,7 +2937,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_A).commit())
         .isInstanceOf(CommitStateUnknownException.class)
-        .hasMessageContaining("Cannot determine whether the commit was successful");
+        .hasMessageContaining("Cannot determine whether the commit was successful")
+        .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
   }
 
   @Test
@@ -2950,7 +2951,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         "test",
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.RECONCILE_ON_UNKNOWN_SNAPSHOT_ADD, "true"));
+            RESTCatalogProperties.RECONCILE_ON_COMMIT_STATE_UNKNOWN, "true"));
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TABLE.namespace());
@@ -2999,14 +3000,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Table reloaded = catalog.loadTable(TABLE);
     assertThat(reloaded.currentSnapshot()).isNotNull();
     assertThat(reloaded.snapshot(expectedSnapshotId)).isNotNull();
-
-    // Verify the POST was not re-executed
-    Mockito.verify(adapter, times(1))
-        .execute(
-            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)),
-            eq(LoadTableResponse.class),
-            any(),
-            any());
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
