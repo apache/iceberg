@@ -28,16 +28,16 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetFileMerger;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,12 +102,13 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
     // Generate output file path
     String outputFileName = String.format("%s-%s.parquet", groupId, UUID.randomUUID());
+    PartitionSpec spec = table().specs().get(group.outputSpecId());
     String outputLocation =
-        table().locationProvider().newDataLocation(group.info().partition(), outputFileName);
+        table().locationProvider().newDataLocation(spec, group.info().partition(), outputFileName);
     Path outputPath = new Path(outputLocation);
 
     // Get Hadoop configuration from Spark
-    Configuration conf = SparkUtil.hadoopConfiguration(spark().sparkContext());
+    Configuration conf = spark().sparkContext().hadoopConfiguration();
 
     // Create ParquetFileMerger and merge files
     ParquetFileMerger merger = new ParquetFileMerger(conf);
@@ -117,7 +118,6 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     Metrics metrics = readParquetMetrics(outputPath, conf);
 
     // Create DataFile from the merged output
-    PartitionSpec spec = table().specs().get(group.outputSpecId());
     DataFile mergedFile =
         org.apache.iceberg.DataFiles.builder(spec)
             .withPath(outputLocation)
@@ -142,11 +142,12 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
   private Metrics readParquetMetrics(Path filePath, Configuration conf) throws IOException {
     // Use Iceberg's Parquet reader to get metrics
     FileIO fileIO = table().io();
+    MetricsConfig metricsConfig = MetricsConfig.forTable(table());
     if (fileIO instanceof HadoopFileIO) {
-      return Parquet.fileMetrics(
-          ((HadoopFileIO) fileIO).newInputFile(filePath.toString()), table().schema());
+      return ParquetUtil.fileMetrics(
+          ((HadoopFileIO) fileIO).newInputFile(filePath.toString()), metricsConfig);
     } else {
-      return Parquet.fileMetrics(fileIO.newInputFile(filePath.toString()), table().schema());
+      return ParquetUtil.fileMetrics(fileIO.newInputFile(filePath.toString()), metricsConfig);
     }
   }
 
