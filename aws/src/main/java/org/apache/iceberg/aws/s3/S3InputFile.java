@@ -76,7 +76,7 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
     if (s3FileIOProperties().isS3AnalyticsAcceleratorEnabled()) {
       return AnalyticsAcceleratorUtil.newStream(this);
     }
-    return new S3InputStream(client(), uri(), s3FileIOProperties(), metrics());
+    return new S3InputStream(client(), uri(), s3FileIOProperties(), metrics(), getLength());
   }
 
   @Override

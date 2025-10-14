@@ -28,6 +28,7 @@ import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.List;
 import javax.net.ssl.SSLException;
+import org.apache.http.ConnectionClosedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
@@ -53,7 +54,11 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
 
   private static final List<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
-      ImmutableList.of(SSLException.class, SocketTimeoutException.class, SocketException.class);
+      ImmutableList.of(
+          SSLException.class,
+          SocketTimeoutException.class,
+          SocketException.class,
+          ConnectionClosedException.class);
 
   private final StackTraceElement[] createStack;
   private final S3Client s3;
@@ -63,6 +68,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private InputStream stream;
   private long pos = 0;
   private long next = 0;
+  private long contentLength = 0;
   private boolean closed = false;
 
   private final Counter readBytes;
@@ -86,15 +92,20 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
           .withMaxRetries(3)
           .build();
 
-  S3InputStream(S3Client s3, S3URI location) {
-    this(s3, location, new S3FileIOProperties(), MetricsContext.nullMetrics());
+  S3InputStream(S3Client s3, S3URI location, long contentLength) {
+    this(s3, location, new S3FileIOProperties(), MetricsContext.nullMetrics(), contentLength);
   }
 
   S3InputStream(
-      S3Client s3, S3URI location, S3FileIOProperties s3FileIOProperties, MetricsContext metrics) {
+      S3Client s3,
+      S3URI location,
+      S3FileIOProperties s3FileIOProperties,
+      MetricsContext metrics,
+      long contentLength) {
     this.s3 = s3;
     this.location = location;
     this.s3FileIOProperties = s3FileIOProperties;
+    this.contentLength = contentLength;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
     this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
@@ -278,12 +289,16 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
   private void abortStream() {
     try {
-      if (stream instanceof Abortable && stream.read() != -1) {
+      if (stream instanceof Abortable && remainingInCurrentRequest() > 0) {
         ((Abortable) stream).abort();
       }
     } catch (Exception e) {
       LOG.warn("An error occurred while aborting the stream", e);
     }
+  }
+
+  private long remainingInCurrentRequest() {
+    return this.contentLength - this.pos;
   }
 
   public void setSkipSize(int skipSize) {

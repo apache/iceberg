@@ -20,17 +20,21 @@ package org.apache.iceberg.aws.s3;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.util.Arrays;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
@@ -38,15 +42,22 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 public final class TestS3InputStream {
 
   @Mock private S3Client s3Client;
-  @Mock private InputStream inputStream;
+  private AbortableInputStream inputStream;
 
   private S3InputStream s3InputStream;
 
+  private static final int CONTENT_LENGTH = 1024;
+
   @BeforeEach
   void before() {
+    byte[] writeValue = new byte[CONTENT_LENGTH];
+    Arrays.fill(writeValue, (byte) 1);
+
+    inputStream =
+        spy(AbortableInputStream.create(new ByteArrayInputStream(new byte[CONTENT_LENGTH])));
     when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
         .thenReturn(inputStream);
-    s3InputStream = new S3InputStream(s3Client, mock());
+    s3InputStream = new S3InputStream(s3Client, mock(), CONTENT_LENGTH);
   }
 
   @Test
@@ -61,5 +72,25 @@ public final class TestS3InputStream {
     s3InputStream.readTail(new byte[0], 0, 0);
 
     verify(inputStream).close();
+  }
+
+  @Test
+  void testAbortIsCalledAfterPartialRead() throws IOException {
+    byte[] buff = new byte[500];
+    s3InputStream.read(buff);
+
+    // close after reading partial object, should call abort
+    s3InputStream.close();
+    verify(inputStream).abort();
+  }
+
+  @Test
+  void testAbortIsCalledAfterFullRead() throws IOException {
+    byte[] buff = new byte[CONTENT_LENGTH];
+    s3InputStream.read(buff);
+
+    // If we're at EoF, this should not call abort.
+    s3InputStream.close();
+    verify(inputStream, never()).abort();
   }
 }

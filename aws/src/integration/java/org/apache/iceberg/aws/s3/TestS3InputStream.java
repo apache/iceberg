@@ -46,6 +46,8 @@ public class TestS3InputStream {
   private final S3Client s3 = MinioUtil.createS3Client(MINIO);
   private final Random random = new Random(1);
 
+  private static final int CONTENT_LENGTH = 1024 * 1024 * 10; // 10MB
+
   @BeforeEach
   public void before() {
     createBucket("bucket");
@@ -57,13 +59,13 @@ public class TestS3InputStream {
   }
 
   S3InputStream newInputStream(S3Client s3Client, S3URI uri) {
-    return new S3InputStream(s3Client, uri);
+    return new S3InputStream(s3Client, uri, CONTENT_LENGTH);
   }
 
   protected void testRead(S3Client s3Client) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
-    int dataSize = 1024 * 1024 * 10;
-    byte[] data = randomData(dataSize);
+
+    byte[] data = randomData(CONTENT_LENGTH);
 
     writeS3Data(uri, data);
 
@@ -121,9 +123,9 @@ public class TestS3InputStream {
 
   protected void testRangeRead(S3Client s3Client) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/range-read.dat");
-    int dataSize = 1024 * 1024 * 10;
-    byte[] expected = randomData(dataSize);
-    byte[] actual = new byte[dataSize];
+
+    byte[] expected = randomData(CONTENT_LENGTH);
+    byte[] actual = new byte[CONTENT_LENGTH];
 
     long position;
     int offset;
@@ -139,13 +141,13 @@ public class TestS3InputStream {
       readAndCheckRanges(in, expected, position, actual, offset, length);
 
       // last 1k
-      position = dataSize - 1024;
-      offset = dataSize - 1024;
+      position = CONTENT_LENGTH - 1024;
+      offset = CONTENT_LENGTH - 1024;
       readAndCheckRanges(in, expected, position, actual, offset, length);
 
       // middle 2k
-      position = dataSize / 2 - 1024;
-      offset = dataSize / 2 - 1024;
+      position = CONTENT_LENGTH / 2 - 1024;
+      offset = CONTENT_LENGTH / 2 - 1024;
       length = 1024 * 2;
       readAndCheckRanges(in, expected, position, actual, offset, length);
     }
