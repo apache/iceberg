@@ -48,6 +48,11 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
+/**
+ * @deprecated Deprecated as of 1.11.0 in favor of {@link FlinkFileWriterFactory}. This class will
+ *     be removed in the 1.12.0.
+ */
+@Deprecated
 public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
   private final Schema schema;
   private final RowType flinkSchema;

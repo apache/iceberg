@@ -56,6 +56,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final PartitionSpec spec;
   private final FileFormat format;
   private final FileAppenderFactory<T> appenderFactory;
+  private final FileWriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSize;
@@ -71,6 +72,23 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     this.spec = spec;
     this.format = format;
     this.appenderFactory = appenderFactory;
+    this.writerFactory = null;
+    this.fileFactory = fileFactory;
+    this.io = io;
+    this.targetFileSize = targetFileSize;
+  }
+
+  protected BaseTaskWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize) {
+    this.spec = spec;
+    this.format = format;
+    this.appenderFactory = null;
+    this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
     this.targetFileSize = targetFileSize;
@@ -138,7 +156,15 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter =
           new SortingPositionOnlyDeleteWriter<>(
-              () -> appenderFactory.newPosDeleteWriter(newOutputFile(partition), format, partition),
+              () -> {
+                if (writerFactory != null) {
+                  return writerFactory.newPositionDeleteWriter(
+                      newOutputFile(partition), spec, partition);
+                } else {
+                  return appenderFactory.newPosDeleteWriter(
+                      newOutputFile(partition), format, partition);
+                }
+              },
               deleteGranularity);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
     }
@@ -388,7 +414,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     @Override
     DataWriter<T> newWriter(EncryptedOutputFile file, StructLike partitionKey) {
-      return appenderFactory.newDataWriter(file, format, partitionKey);
+      if (writerFactory != null) {
+        return writerFactory.newDataWriter(file, spec, partitionKey);
+      } else {
+        return appenderFactory.newDataWriter(file, format, partitionKey);
+      }
     }
 
     @Override
@@ -414,7 +444,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     @Override
     EqualityDeleteWriter<T> newWriter(EncryptedOutputFile file, StructLike partitionKey) {
-      return appenderFactory.newEqDeleteWriter(file, format, partitionKey);
+      if (writerFactory != null) {
+        return writerFactory.newEqualityDeleteWriter(file, spec, partitionKey);
+      } else {
+        return appenderFactory.newEqDeleteWriter(file, format, partitionKey);
+      }
     }
 
     @Override
