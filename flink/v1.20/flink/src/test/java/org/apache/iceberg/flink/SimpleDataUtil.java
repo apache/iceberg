@@ -38,7 +38,6 @@ import org.apache.flink.types.RowKind;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -56,16 +55,18 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
-import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.flink.sink.FlinkFileWriterFactory;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
+import org.apache.iceberg.io.FileWriterFactory;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -175,26 +176,19 @@ public class SimpleDataUtil {
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
 
-    RowType flinkSchema = FlinkSchemaUtil.convert(schema);
-    FileAppenderFactory<RowData> appenderFactory =
-        new FlinkAppenderFactory(
-            table, schema, flinkSchema, ImmutableMap.of(), spec, null, null, null);
+    FileWriterFactory<RowData> writerFactory =
+        new FlinkFileWriterFactory.Builder(table)
+            .dataFileFormat(fileFormat)
+            .dataSchema(schema)
+            .build();
 
-    FileAppender<RowData> appender = appenderFactory.newAppender(fromPath(path, conf), fileFormat);
-    try (FileAppender<RowData> closeableAppender = appender) {
-      closeableAppender.addAll(rows);
-    }
+    DataWriter<RowData> writer =
+        writerFactory.newDataWriter(encrypt(fromPath(path, conf)), spec, partition);
 
-    DataFiles.Builder builder =
-        DataFiles.builder(spec)
-            .withInputFile(HadoopInputFile.fromPath(path, conf))
-            .withMetrics(appender.metrics());
+    writer.write(rows);
+    writer.close();
 
-    if (partition != null) {
-      builder = builder.withPartition(partition);
-    }
-
-    return builder.build();
+    return writer.toDataFile();
   }
 
   public static DeleteFile writeEqDeleteFile(
@@ -205,15 +199,32 @@ public class SimpleDataUtil {
       List<RowData> deletes)
       throws IOException {
     EncryptedOutputFile outputFile =
-        table
-            .encryption()
-            .encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
+        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
 
     EqualityDeleteWriter<RowData> eqWriter =
         appenderFactory.newEqDeleteWriter(outputFile, format, null);
     try (EqualityDeleteWriter<RowData> writer = eqWriter) {
       writer.write(deletes);
     }
+    return eqWriter.toDeleteFile();
+  }
+
+  public static DeleteFile writeEqDeleteFile(
+      Table table,
+      PartitionSpec spec,
+      String filename,
+      FileWriterFactory<RowData> writerFactory,
+      List<RowData> deletes)
+      throws IOException {
+    EncryptedOutputFile outputFile =
+        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
+
+    EqualityDeleteWriter<RowData> eqWriter =
+        writerFactory.newEqualityDeleteWriter(outputFile, spec, null);
+    try (EqualityDeleteWriter<RowData> writer = eqWriter) {
+      writer.write(deletes);
+    }
+
     return eqWriter.toDeleteFile();
   }
 
@@ -225,9 +236,7 @@ public class SimpleDataUtil {
       List<Pair<CharSequence, Long>> positions)
       throws IOException {
     EncryptedOutputFile outputFile =
-        table
-            .encryption()
-            .encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
+        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
 
     PositionDeleteWriter<RowData> posWriter =
         appenderFactory.newPosDeleteWriter(outputFile, format, null);
@@ -237,6 +246,28 @@ public class SimpleDataUtil {
         writer.write(posDelete.set(p.first(), p.second(), null));
       }
     }
+    return posWriter.toDeleteFile();
+  }
+
+  public static DeleteFile writePosDeleteFile(
+      Table table,
+      PartitionSpec spec,
+      String filename,
+      FileWriterFactory<RowData> writerFactory,
+      List<Pair<CharSequence, Long>> positions)
+      throws IOException {
+    EncryptedOutputFile outputFile =
+        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
+
+    PositionDeleteWriter<RowData> posWriter =
+        writerFactory.newPositionDeleteWriter(outputFile, spec, null);
+    PositionDelete<RowData> posDelete = PositionDelete.create();
+    try (PositionDeleteWriter<RowData> writer = posWriter) {
+      for (Pair<CharSequence, Long> p : positions) {
+        writer.write(posDelete.set(p.first(), p.second(), null));
+      }
+    }
+
     return posWriter.toDeleteFile();
   }
 
@@ -465,5 +496,9 @@ public class SimpleDataUtil {
               return wrapper.equals(expected);
             })
         .collect(Collectors.toList());
+  }
+
+  private static EncryptedOutputFile encrypt(OutputFile out) {
+    return EncryptedFiles.encryptedOutput(out, EncryptionKeyMetadata.EMPTY);
   }
 }
