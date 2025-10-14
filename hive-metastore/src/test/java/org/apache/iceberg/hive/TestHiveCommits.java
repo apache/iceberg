@@ -511,7 +511,7 @@ public class TestHiveCommits extends HiveTableTestBase {
   }
 
   @Test
-  public void testFirstHivCommitWithLock() {
+  public void testFirstHiveCommitWithLock() {
     testFirstHivCommitWithLockSetting(true);
   }
 
