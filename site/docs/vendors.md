@@ -95,6 +95,10 @@ With Dremio, an organization can easily build and manage a data lakehouse in whi
 * [Dremio Sonar](https://www.dremio.com/platform/sonar/) is a lakehouse query engine that provides interactive performance and DML on Apache Iceberg, as well as other formats and data sources.
 * [Dremio Arctic](https://www.dremio.com/platform/arctic/) is a lakehouse catalog and optimization service for Apache Iceberg. Arctic automatically optimizes tables in the background to ensure high-performance access for any engine. Arctic also simplifies experimentation, data engineering, and data governance by providing Git concepts like branches and tags on Apache Iceberg tables.
 
+### [DuckDB](https://duckdb.org/)
+
+DuckDB is an open-source, in-process SQL database optimized for fast analytical queries. DuckDB is not only lightweight &mdash;just a small binary&mdash;, but also extensible. One of the core extensions supported by DuckDB is the [`duckdb-iceberg` extension](https://duckdb.org/docs/stable/core_extensions/iceberg/overview), which allows DuckDB users to attach to an Iceberg catalog, query data and write to Iceberg tables. This functionality is all natively implemented in DuckDB with no external dependencies.
+
 ### [Estuary](https://estuary.dev)
 
 A low-latency, high-fidelity data movement platform, Estuary lets developers quickly set up pipelines to connect their entire data architecture. Intelligent schema inference and evolution determines field data types based on usage and keeps pipelines running when fields change. Flexible [deployment options](https://estuary.dev/deployment-options/) include public, private, and BYOC (Bring Your Own Cloud) for a range of compliance and privacy-oriented use cases.
