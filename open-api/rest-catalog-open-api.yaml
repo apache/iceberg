@@ -1691,12 +1691,17 @@ paths:
                 ViewToUpdateDoesNotExist:
                   $ref: '#/components/examples/NoSuchViewError'
         409:
-          description:
-            Conflict - CommitFailedException. The client may retry.
+          description: |
+            Conflict - Multiple conflict scenarios possible:
+            - CommitFailedException. The client may retry.
+            - A request with the same Idempotency-Key is already in progress
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
+              examples:
+                IdempotencyInProgress:
+                  $ref: '#/components/examples/IdempotencyInProgressError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         500:
@@ -2101,7 +2106,7 @@ components:
         idempotency-key-lifetime:
           type: string
           format: duration
-          description: >
+          description:
             Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H).
             Interpreted as the maximum time from the first submission using a key to the last retry
             during which a client may reuse that key. Servers SHOULD accept retries for at least this
