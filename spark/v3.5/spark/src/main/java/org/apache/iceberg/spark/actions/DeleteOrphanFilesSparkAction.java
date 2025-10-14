@@ -263,13 +263,15 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   /**
    * Deletes orphan files in streaming mode using toLocalIterator(). Files are processed one
    * partition at a time to avoid collecting all file paths to driver memory. Returns a sample of
-   * file paths (up to MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING) plus a summary row as the last row.
+   * file paths (up to MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING) plus a summary row as the
+   * last row.
    *
    * @param orphanFiles iterator of file paths to delete (streamed from executors)
    * @return result with sample file paths and optional summary row
    */
   private DeleteOrphanFiles.Result deleteFilesStreaming(Iterator<String> orphanFiles) {
-    List<String> samplePaths = Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
+    List<String> samplePaths =
+        Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
     long filesCount = 0;
 
     if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
@@ -305,7 +307,9 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       filesCount = filesList.size();
 
       // Collect sample paths
-      for (int i = 0; i < Math.min(filesList.size(), MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING); i++) {
+      for (int i = 0;
+          i < Math.min(filesList.size(), MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
+          i++) {
         samplePaths.add(filesList.get(i));
       }
 
@@ -333,9 +337,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     String summary = String.format("[Total removed: %d files.]", filesCount);
     samplePaths.add(summary);
 
-    return ImmutableDeleteOrphanFiles.Result.builder()
-        .orphanFileLocations(samplePaths)
-        .build();
+    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(samplePaths).build();
   }
 
   /**
@@ -394,14 +396,14 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
       throw new ValidationException(
-          "Unable to determine whether certain files are orphan. "
-              + "Metadata references files that match listed/provided files except for authority/scheme. "
-              + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
-              + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
-              + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
-              + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
-              + "authorities/schemes are different. It will be impossible to recover deleted files. "
-              + "Conflicting authorities/schemes: %s.",
+          "Unable to determine whether certain files are orphan. Metadata references files that"
+              + " match listed/provided files except for authority/scheme. Please, inspect the"
+              + " conflicting authorities/schemes and provide which of them are equal by further"
+              + " configuring the action via equalSchemes() and equalAuthorities() methods. Set the"
+              + " prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting"
+              + " authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that"
+              + " remaining conflicting authorities/schemes are different. It will be impossible to"
+              + " recover deleted files. Conflicting authorities/schemes: %s.",
           conflicts.value());
     }
 
@@ -486,7 +488,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-
   private static Map<String, String> flattenMap(Map<String, String> map) {
     Map<String, String> flattenedMap = Maps.newHashMap();
     if (map != null) {
@@ -545,8 +546,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   @VisibleForTesting
-  static class FindOrphanFiles
-      implements MapPartitionsFunction<Tuple2<FileURI, FileURI>, String> {
+  static class FindOrphanFiles implements MapPartitionsFunction<Tuple2<FileURI, FileURI>, String> {
 
     private final PrefixMismatchMode mode;
     private final SetAccumulator<Pair<String, String>> conflicts;

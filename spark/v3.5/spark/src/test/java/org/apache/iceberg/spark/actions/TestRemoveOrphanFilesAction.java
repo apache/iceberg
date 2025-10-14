@@ -64,6 +64,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -79,7 +80,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBase;
-import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.StringToFileURI;
 import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -1150,7 +1150,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   public void testDefaultToHadoopListing() {
     assumeThat(usePrefixListing)
         .as(
-            "This test verifies default listing behavior and does not require prefix listing to be enabled.")
+            "This test verifies default listing behavior and does not require prefix listing to be"
+                + " enabled.")
         .isEqualTo(false);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
@@ -1225,14 +1226,14 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     if (mode == DeleteOrphanFiles.PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
       throw new ValidationException(
-          "Unable to determine whether certain files are orphan. "
-              + "Metadata references files that match listed/provided files except for authority/scheme. "
-              + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
-              + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
-              + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
-              + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
-              + "authorities/schemes are different. It will be impossible to recover deleted files. "
-              + "Conflicting authorities/schemes: %s.",
+          "Unable to determine whether certain files are orphan. Metadata references files that"
+              + " match listed/provided files except for authority/scheme. Please, inspect the"
+              + " conflicting authorities/schemes and provide which of them are equal by further"
+              + " configuring the action via equalSchemes() and equalAuthorities() methods. Set the"
+              + " prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting"
+              + " authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that"
+              + " remaining conflicting authorities/schemes are different. It will be impossible to"
+              + " recover deleted files. Conflicting authorities/schemes: %s.",
           conflicts.value());
     }
 
@@ -1297,15 +1298,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     // Verify orphan files were actually deleted
     FileSystem fs = new Path(tableLocation).getFileSystem(spark.sessionState().newHadoopConf());
-    assertThat(fs.exists(new Path(orphanFile1)))
-        .as("Orphan file 1 should be deleted")
-        .isFalse();
-    assertThat(fs.exists(new Path(orphanFile2)))
-        .as("Orphan file 2 should be deleted")
-        .isFalse();
-    assertThat(fs.exists(new Path(orphanFile3)))
-        .as("Orphan file 3 should be deleted")
-        .isFalse();
+    assertThat(fs.exists(new Path(orphanFile1))).as("Orphan file 1 should be deleted").isFalse();
+    assertThat(fs.exists(new Path(orphanFile2))).as("Orphan file 2 should be deleted").isFalse();
+    assertThat(fs.exists(new Path(orphanFile3))).as("Orphan file 3 should be deleted").isFalse();
 
     // Verify valid files still exist
     for (String validFile : validFiles) {
@@ -1344,9 +1339,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     // Verify file was deleted
     FileSystem fs = new Path(tableLocation).getFileSystem(spark.sessionState().newHadoopConf());
-    assertThat(fs.exists(new Path(orphanFile)))
-        .as("Orphan file should be deleted")
-        .isFalse();
+    assertThat(fs.exists(new Path(orphanFile))).as("Orphan file should be deleted").isFalse();
   }
 
   @TestTemplate
