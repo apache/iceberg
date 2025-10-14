@@ -175,21 +175,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter =
-          new SortingPositionOnlyDeleteWriter<>(
-              () -> {
-                if (writerFactory != null) {
-                  return writerFactory.newPositionDeleteWriter(
-                      newOutputFile(partition), spec, partition);
-                } else {
-                  return appenderFactory.newPosDeleteWriter(
-                      newOutputFile(partition), format, partition);
-                }
-              },
-              deleteGranularity);
-      this.dvFileWriter =
-          null == partitioningDVWriter
-              ? new PartitioningDVWriter<>(fileFactory, p -> null)
-              : partitioningDVWriter;
+          createPositionDeleteWriter(partition, useDv, deleteGranularity, partitioningDVWriter);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
       this.partitionKey = partition;
     }
@@ -227,7 +213,15 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
             : partitioningDVWriter;
       } else {
         return new PartitionSortingPositionOnlyDeleteWriterWrap<>(
-            () -> appenderFactory.newPosDeleteWriter(newOutputFile(partition), format, partition),
+            () -> {
+              if (writerFactory != null) {
+                return writerFactory.newPositionDeleteWriter(
+                    newOutputFile(partition), spec, partition);
+              } else {
+                return appenderFactory.newPosDeleteWriter(
+                    newOutputFile(partition), format, partition);
+              }
+            },
             deleteGranularity);
       }
     }
