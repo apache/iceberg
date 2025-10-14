@@ -707,7 +707,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
           clients.run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
       if (databaseData.getLocationUri() != null) {
         // If the database location is set use it as a base.
-        return String.format("%s/%s", databaseData.getLocationUri(), tableIdentifier.name());
+        String databaseLocation = LocationUtil.stripTrailingSlash(databaseData.getLocationUri());
+        return String.format("%s/%s", databaseLocation, tableIdentifier.name());
       }
 
     } catch (NoSuchObjectException e) {
