@@ -187,7 +187,11 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     String[] identifierFields =
         ArrayUtil.add(identifierColumns, MetadataColumns.CHANGE_ORDINAL.name());
-    Column[] repartitionSpec = getColumnReferences(df, identifierFields);
+    Column[] repartitionSpec =
+        Arrays.stream(identifierFields)
+            .map(CreateChangelogViewProcedure::delimitedName)
+            .map(df::col)
+            .toArray(Column[]::new);
     return applyChangelogIterator(df, repartitionSpec, identifierFields);
   }
 
@@ -306,21 +310,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     System.arraycopy(extraColumns, 0, sortSpec, repartitionSpec.length, extraColumns.length);
 
     return sortSpec;
-  }
-
-  /**
-   * Retrieves the delimited column references for the given column names
-   *
-   * @param df dataframe to use for column references
-   * @param columnNames list of column names
-   * @return combined list of column references for the given 2 lists of column names
-   */
-  private static Column[] getColumnReferences(Dataset<Row> df, String[] columnNames) {
-    Column[] columns = new Column[columnNames.length];
-    for (int i = 0; i < columnNames.length; i++) {
-      columns[i] = df.col(CreateChangelogViewProcedure.delimitedName(columnNames[i]));
-    }
-    return columns;
   }
 
   private InternalRow[] toOutputRows(String viewName) {
