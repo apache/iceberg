@@ -1282,6 +1282,16 @@ public class TestDictionaryRowGroupFilter {
     UUID nonExistentUuid = UUID.fromString("99999999-9999-9999-9999-999999999999");
 
     boolean shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, equal("uuid_col", UUID_WITH_ZEROS))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: column contains the value").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, equal("uuid_col", nonExistentUuid))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: column does not contain the value").isFalse();
+
+    shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("uuid_col", UUID_WITH_ZEROS))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     assertThat(shouldRead).as("Should read: column contains nulls").isTrue();
@@ -1290,6 +1300,26 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(SCHEMA, notEqual("uuid_col", nonExistentUuid))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     assertThat(shouldRead).as("Should read: column contains non-matching values").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("uuid_col", UUID_WITH_ZEROS))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no uuid less than lower bound").isFalse();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, lessThanOrEqual("uuid_col", UUID_WITH_ZEROS))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("uuid_col", UUID_WITH_ZEROS))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no uuid greater than upper bound").isFalse();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("uuid_col", UUID_WITH_ZEROS))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("uuid_col"))

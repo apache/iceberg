@@ -215,7 +215,6 @@ public class TestMetricsRowGroupFilter {
         GenericRecord structNotNull = GenericRecord.create(UNDERSCORE_STRUCT_FIELD_TYPE);
         structNotNull.setField("_int_field", INT_MIN_VALUE + i);
         record.setField("_struct_not_null", structNotNull); // struct with int
-
         record.setField("_uuid_col", (i % 2 == 0) ? UUID_WITH_ZEROS : null);
 
         appender.add(record);
@@ -1078,11 +1077,29 @@ public class TestMetricsRowGroupFilter {
 
     UUID nonExistentUuid = UUID.fromString("99999999-9999-9999-9999-999999999999");
 
-    boolean shouldRead = shouldRead(notEqual("uuid_col", UUID_WITH_ZEROS));
+    boolean shouldRead = shouldRead(equal("uuid_col", UUID_WITH_ZEROS));
+    assertThat(shouldRead).as("Should read: column contains the value").isTrue();
+
+    shouldRead = shouldRead(equal("uuid_col", nonExistentUuid));
+    assertThat(shouldRead).as("Should skip: column does not contain the value").isFalse();
+
+    shouldRead = shouldRead(notEqual("uuid_col", UUID_WITH_ZEROS));
     assertThat(shouldRead).as("Should read: column contains nulls").isTrue();
 
     shouldRead = shouldRead(notEqual("uuid_col", nonExistentUuid));
     assertThat(shouldRead).as("Should read: column contains non-matching values").isTrue();
+
+    shouldRead = shouldRead(lessThan("uuid_col", UUID_WITH_ZEROS));
+    assertThat(shouldRead).as("Should skip: no values lower").isFalse();
+
+    shouldRead = shouldRead(lessThanOrEqual("uuid_col", UUID_WITH_ZEROS));
+    assertThat(shouldRead).as("Should read: column contains the value").isTrue();
+
+    shouldRead = shouldRead(greaterThan("uuid_col", UUID_WITH_ZEROS));
+    assertThat(shouldRead).as("Should skip: no values greater").isFalse();
+
+    shouldRead = shouldRead(greaterThanOrEqual("uuid_col", UUID_WITH_ZEROS));
+    assertThat(shouldRead).as("Should read: column contains the value").isTrue();
 
     shouldRead = shouldRead(isNull("uuid_col"));
     assertThat(shouldRead).as("Should read: column contains null values").isTrue();
