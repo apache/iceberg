@@ -168,9 +168,7 @@ class RESTTableOperations implements TableOperations {
         if (expectedSnapshotId != null) {
           // attempt to refresh and verify the expected snapshot became current
           TableMetadata refreshed = refresh();
-          if (refreshed != null
-              && refreshed.currentSnapshot() != null
-              && refreshed.currentSnapshot().snapshotId() == expectedSnapshotId) {
+          if (refreshed != null && refreshed.snapshot(expectedSnapshotId) != null) {
             return;
           }
         }

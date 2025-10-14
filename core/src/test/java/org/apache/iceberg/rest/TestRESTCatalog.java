@@ -2998,7 +2998,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Table reloaded = catalog.loadTable(TABLE);
     assertThat(reloaded.currentSnapshot()).isNotNull();
-    assertThat(reloaded.currentSnapshot().snapshotId()).isEqualTo(expectedSnapshotId);
+    assertThat(reloaded.snapshot(expectedSnapshotId)).isNotNull();
 
     // Verify the POST was not re-executed
     Mockito.verify(adapter, times(1))
