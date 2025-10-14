@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.Optional;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -227,6 +228,56 @@ public interface UpdateRequirement {
         throw new CommitFailedException(
             "Requirement failed: default sort order changed: expected id %s != %s",
             sortOrderId, base.defaultSortOrderId());
+      }
+    }
+  }
+
+  class AssertCurrentViewVersionID implements UpdateRequirement {
+    private final int viewVersionId;
+
+    public AssertCurrentViewVersionID(int viewVersionId) {
+      this.viewVersionId = viewVersionId;
+    }
+
+    public int viewVersionId() {
+      return viewVersionId;
+    }
+
+    @Override
+    public void validate(ViewMetadata base) {
+      if (viewVersionId != base.currentVersionId()) {
+        throw new CommitFailedException(
+            "Requirement failed: current view version changed: expected version %s != %s",
+            viewVersionId, base.currentVersionId());
+      }
+    }
+  }
+
+  /**
+   * Assuming that view ID is incrementing integers, so the last assigned view version ID
+   * is always the max ID that has been assigned.
+   */
+  class AssertLastAssignedViewVersionID implements UpdateRequirement {
+    private final int lastAssignedViewVersionId;
+
+    public AssertLastAssignedViewVersionID(int lastAssignedViewVersionId) {
+      this.lastAssignedViewVersionId = lastAssignedViewVersionId;
+    }
+
+    public int lastAssignedViewId() {
+      return lastAssignedViewVersionId;
+    }
+
+    @Override
+    public void validate(ViewMetadata base) {
+      Optional<Integer> maxAssignedViewVersionID =
+          base.versionsById().keySet().stream().max(Integer::compareTo);
+      if (base != null &&
+          maxAssignedViewVersionID.isPresent() &&
+          maxAssignedViewVersionID.get() != lastAssignedViewVersionId) {
+        throw new CommitFailedException(
+            "Requirement failed: last assigned view id changed: expected id %s != %s",
+            lastAssignedViewVersionId, maxAssignedViewVersionID.get());
       }
     }
   }

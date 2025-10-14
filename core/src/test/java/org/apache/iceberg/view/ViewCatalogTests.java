@@ -22,9 +22,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
@@ -56,6 +59,12 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   private static final Schema OTHER_SCHEMA =
       new Schema(7, required(1, "some_id", Types.IntegerType.get()));
+
+  private static final Schema SCHEMA_WITH_EXTRA_COL =
+      new Schema(9,
+          required(3, "id", Types.IntegerType.get(), "unique ID"),
+          required(4, "data", Types.StringType.get()),
+          required(8, "extra", Types.StringType.get()));
 
   protected abstract C catalog();
 
@@ -1843,6 +1852,92 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                           .build())
                   .build());
     }
+  }
+
+  @Test
+  public void concurrentSchemaUpdatesOnView() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("flink", "select id, data from ns.tbl")
+            .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
+            .create();
+
+    // mimic concurrent update 1 from trino to add an extra column
+    ReplaceViewVersion schemaUpdateFromTrino =
+        view.replaceVersion()
+            .withQuery("trino", "select id, data, extra from ns.tbl")
+            .withSchema(SCHEMA_WITH_EXTRA_COL)
+            .withDefaultNamespace(identifier.namespace());
+
+    // mimic concurrent update 2 from spark to change the query and schema
+    ReplaceViewVersion schemaUpdateFromSpark =
+        view.replaceVersion()
+            .withQuery("spark", "select count(some_id) from ns.tbl")
+            .withSchema(OTHER_SCHEMA)
+            .withDefaultNamespace(identifier.namespace());
+
+    // simulate concurrent schema update
+    ViewOperations viewOps = ((BaseView) view).operations();
+    ViewMetadata current = viewOps.current();
+
+    // one of the updates succeeds
+    viewOps.commit(current, ((ViewVersionReplace) schemaUpdateFromTrino).internalApply());
+    // the other update should fail with a conflict
+    assertThatThrownBy(() -> viewOps.commit(current, ((ViewVersionReplace) schemaUpdateFromSpark).internalApply()))
+        .isInstanceOf(CommitFailedException.class);
+
+    // regardless of the conflicting update, the view should be in a consistent state,
+    // which should reflect the first successful commit
+    ViewMetadata refreshed = viewOps.refresh();
+    // aside from the conflicting commit, there should be 2 versions:
+    // the original and the first update
+    assertThat(refreshed.currentVersionId()).isEqualTo(2);
+    assertThat(refreshed.versions()).hasSize(2);
+    // assert the first version reflect the creation commit
+    assertThat(refreshed.version(1).representations())
+        .isEqualTo(List.of(ImmutableSQLViewRepresentation.builder()
+            .sql("select id, data from ns.tbl")
+            .dialect("flink")
+            .build()));
+    assertTrue(SCHEMA.sameSchema(
+        refreshed.schemasById().get(refreshed.version(1).schemaId())));
+    // assert the second version reflect the first update commit
+    assertThat(refreshed.version(2).representations())
+        .isEqualTo(List.of(ImmutableSQLViewRepresentation.builder()
+            .sql("select id, data, extra from ns.tbl")
+            .dialect("trino")
+            .build()));
+    assertTrue(SCHEMA_WITH_EXTRA_COL.sameSchema(
+        refreshed.schemasById().get(refreshed.version(2).schemaId())));
+    // assert that the same conflicting update can go through after client side
+    // retry through the catalog API
+    catalog()
+        .loadView(identifier)
+        .replaceVersion()
+        .withQuery("spark", "select count(some_id) from ns.tbl")
+        .withSchema(OTHER_SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .commit();
+    ViewMetadata finalState = viewOps.refresh();
+    assertThat(finalState.currentVersionId()).isEqualTo(3);
+    assertThat(finalState.versions()).hasSize(3);
+    // assert the third version reflect the second update commit
+    assertThat(finalState.version(3).representations())
+        .isEqualTo(List.of(ImmutableSQLViewRepresentation.builder()
+            .sql("select count(some_id) from ns.tbl")
+            .dialect("spark")
+            .build()));
+    assertTrue(OTHER_SCHEMA.sameSchema(
+        finalState.schemasById().get(finalState.version(3).schemaId())));
   }
 
   @Test
