@@ -30,7 +30,6 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
-import org.apache.iceberg.util.Try;
 
 /**
  * A read-only serializable table that can be sent to other nodes in a cluster.
@@ -86,7 +85,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
     this.io = fileIO(table);
     this.encryption = table.encryption();
-    this.locationProviderTry = Try.capture(table::locationProvider);
+    this.locationProviderTry = Try.of(table::locationProvider);
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
     this.formatVersion = formatVersion(table);

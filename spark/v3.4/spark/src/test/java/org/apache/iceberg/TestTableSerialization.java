@@ -172,6 +172,26 @@ public class TestTableSerialization {
     verify(spyTable, times(1)).locationProvider();
   }
 
+  @TestTemplate
+  public void testLocationProviderExceptionSerializationRoundTrip()
+      throws IOException, ClassNotFoundException {
+    Table spyTable = spy(table);
+    RuntimeException failure = new RuntimeException("location provider failure");
+    when(spyTable.locationProvider()).thenThrow(failure);
+
+    Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+
+    Table javaDeserialized = TestHelpers.roundTripSerialize(serializableTable);
+    assertThatThrownBy(javaDeserialized::locationProvider)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("location provider failure");
+
+    Table kryoDeserialized = KryoHelpers.roundTripSerialize(serializableTable);
+    assertThatThrownBy(kryoDeserialized::locationProvider)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("location provider failure");
+  }
+
   private List<Table> tables() {
     List<Table> tables = Lists.newArrayList();
 

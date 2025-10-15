@@ -220,6 +220,26 @@ public class TestTableSerialization extends HadoopTableTestBase {
     verify(spyTable, times(1)).locationProvider();
   }
 
+  @Test
+  public void testLocationProviderExceptionSerializationRoundTrip()
+      throws IOException, ClassNotFoundException {
+    Table spyTable = spy(table);
+    RuntimeException failure = new RuntimeException("location provider failure");
+    when(spyTable.locationProvider()).thenThrow(failure);
+
+    Table serializableTable = SerializableTable.copyOf(spyTable);
+
+    Table javaDeserialized = TestHelpers.roundTripSerialize(serializableTable);
+    assertThatThrownBy(javaDeserialized::locationProvider)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("location provider failure");
+
+    Table kryoDeserialized = TestHelpers.KryoHelpers.roundTripSerialize(serializableTable);
+    assertThatThrownBy(kryoDeserialized::locationProvider)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("location provider failure");
+  }
+
   private static Set<CharSequence> getFiles(Table table) throws IOException {
     Set<CharSequence> files = Sets.newHashSet();
     if (table instanceof PositionDeletesTable
