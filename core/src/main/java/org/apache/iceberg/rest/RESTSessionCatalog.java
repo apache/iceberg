@@ -249,7 +249,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                     RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
                 .toUpperCase(Locale.US));
 
-
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
 
     this.reportingViaRestEnabled =
