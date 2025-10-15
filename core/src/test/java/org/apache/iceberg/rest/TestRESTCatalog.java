@@ -2911,8 +2911,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "test",
         ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.RECONCILE_ON_COMMIT_STATE_UNKNOWN, "false"));
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TABLE.namespace());
@@ -2950,8 +2949,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "test",
         ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.RECONCILE_ON_COMMIT_STATE_UNKNOWN, "true"));
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TABLE.namespace());

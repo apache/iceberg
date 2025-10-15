@@ -62,7 +62,6 @@ class RESTTableOperations implements TableOperations {
   private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
-  private boolean reconcileOnUnknownSnapshotAdd = false;
 
   RESTTableOperations(
       RESTClient client,
@@ -163,9 +162,7 @@ class RESTTableOperations implements TableOperations {
       response = client.post(path, request, LoadTableResponse.class, headers, errorHandler);
     } catch (CommitStateUnknownException e) {
       // Lightweight reconciliation for snapshot-add-only updates on transient unknown commit state
-      if (reconcileOnUnknownSnapshotAdd
-          && updateType == UpdateType.SIMPLE
-          && reconcileOnSimpleUpdate(updates, e)) {
+      if (updateType == UpdateType.SIMPLE && reconcileOnSimpleUpdate(updates, e)) {
         return;
       }
 
@@ -205,10 +202,6 @@ class RESTTableOperations implements TableOperations {
   @Override
   public FileIO io() {
     return io;
-  }
-
-  void setReconcileOnUnknownSnapshotAdd(boolean enabled) {
-    this.reconcileOnUnknownSnapshotAdd = enabled;
   }
 
   private static Long expectedSnapshotIdIfSnapshotAddOnly(List<MetadataUpdate> updates) {
