@@ -59,36 +59,15 @@ case class CreateV2TableLikeExec(
     }
 
     val schema: Schema = sourceTable.table().schema()
-    val partitionSpec: PartitionSpec = sourceTable.table().spec()
-    val sortOrder: SortOrder = sourceTable.table().sortOrder()
-
     val columns = SparkSchemaUtil.convert(schema).fields.map {
       case StructField(name, dataType, nullable, _) =>
         Column.create(name, dataType, nullable)
     }
+
+    val partitionSpec: PartitionSpec = sourceTable.table().spec()
     val partitioning: Array[Transform] = Spark3Util.toTransforms(partitionSpec)
-    val sourceProps = sourceTable.table().properties().asScala.toMap
-    val mergedProps = sourceProps ++ tableProps
 
-    catalog.createTable(ident, columns, partitioning, mergedProps.asJava)
-
-    if (sortOrder.isSorted) {
-      catalog.loadTable(ident) match {
-        case sparkTable: SparkTable =>
-          val replaceSortOrder = sparkTable.table().replaceSortOrder()
-          sortOrder.fields().asScala.foreach { field =>
-            val fieldName = schema.findColumnName(field.sourceId())
-            field.direction() match {
-              case SortDirection.ASC => replaceSortOrder.asc(fieldName)
-              case SortDirection.DESC => replaceSortOrder.desc(fieldName)
-            }
-          }
-          replaceSortOrder.commit()
-        case table =>
-          throw new UnsupportedOperationException(s"Cannot create table like for non-Iceberg table: $table")
-
-      }
-    }
+    catalog.createTable(ident, columns, partitioning, tableProps.asJava)
 
     Nil
   }
