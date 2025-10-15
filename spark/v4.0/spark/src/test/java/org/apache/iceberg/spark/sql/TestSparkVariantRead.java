@@ -88,18 +88,12 @@ public class TestSparkVariantRead extends TestBase {
     List<Row> directRows = df.collectAsList();
     Object v1row1 = directRows.get(0).get(1);
     Object v1row2 = directRows.get(1).get(1);
-    Variant vv1;
-    Variant vv2;
-    if (v1row1 instanceof VariantVal) {
-      vv1 = new Variant(((VariantVal) v1row1).getValue(), ((VariantVal) v1row1).getMetadata());
-      vv2 = new Variant(((VariantVal) v1row2).getValue(), ((VariantVal) v1row2).getMetadata());
-    } else {
-      fail(
-          "Expected VariantVal but got: row1=%s, row2=%s",
-          (v1row1 == null ? "null" : v1row1.getClass()),
-          (v1row2 == null ? "null" : v1row2.getClass()));
-      return;
-    }
+    assertThat(v1row1).isInstanceOf(VariantVal.class);
+    assertThat(v1row2).isInstanceOf(VariantVal.class);
+    VariantVal r1 = (VariantVal) v1row1;
+    VariantVal r2 = (VariantVal) v1row2;
+    Variant vv1 = new Variant(r1.getValue(), r1.getMetadata());
+    Variant vv2 = new Variant(r2.getValue(), r2.getMetadata());
 
     // row 1 has {"a":1}
     Variant fieldA = vv1.getFieldByKey("a");
