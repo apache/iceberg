@@ -53,9 +53,7 @@ class Try<T> implements Serializable {
     }
   }
 
-  /**
-   * Returns the value if present or throws the original exception if the operation failed.
-   */
+  /** Returns the value if present or throws the original exception if the operation failed. */
   T getOrThrow() {
     if (exception != null) {
       sneakyThrow(exception);
@@ -68,5 +66,3 @@ class Try<T> implements Serializable {
     throw (E) e;
   }
 }
-
-
