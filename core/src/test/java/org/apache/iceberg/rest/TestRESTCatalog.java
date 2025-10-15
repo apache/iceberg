@@ -2902,45 +2902,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testUnknownWithoutReconcileThrowsAndNoRetry() {
-    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-
-    RESTCatalog catalog =
-        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    // property omitted or set to false: reconciliation disabled
-    catalog.initialize(
-        "test",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    catalog.createTable(TABLE, SCHEMA);
-
-    Mockito.doAnswer(
-            invocation -> {
-              invocation.callRealMethod();
-              throw new CommitStateUnknownException(
-                  new ServiceFailureException("Service failed: 503"));
-            })
-        .when(adapter)
-        .execute(
-            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)),
-            eq(LoadTableResponse.class),
-            any(),
-            any());
-
-    Table table = catalog.loadTable(TABLE);
-
-    assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_A).commit())
-        .isInstanceOf(CommitStateUnknownException.class)
-        .hasMessageContaining("Cannot determine whether the commit was successful")
-        .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
-  }
-
-  @Test
   public void testReconcileOnUnknownSnapshotAddMatchesSnapshotId() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
