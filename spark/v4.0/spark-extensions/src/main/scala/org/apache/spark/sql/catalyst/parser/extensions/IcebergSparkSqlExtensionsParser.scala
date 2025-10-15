@@ -28,7 +28,6 @@ import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.ExtendedParser
 import org.apache.iceberg.spark.ExtendedParser.RawOrderField
-import org.apache.iceberg.spark.procedures.SparkProcedures
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
@@ -321,8 +320,8 @@ class IcebergParseException(
     val builder = new StringBuilder
     builder ++= "\n" ++= message
     start match {
-      case Origin(Some(l), Some(p), Some(startIndex), Some(stopIndex), Some(sqlText), Some(objectType),
-        Some(objectName), _, _) =>
+      case Origin(Some(l), Some(p), Some(_), Some(_), Some(_), Some(_),
+        Some(_), _, _) =>
         builder ++= s"(line $l, pos $p)\n"
         command.foreach { cmd =>
           val (above, below) = cmd.split("\n").splitAt(l)

@@ -19,6 +19,7 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
@@ -37,9 +38,10 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /** A base writer factory to be extended by query engine integrations. */
-public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
+public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, Serializable {
   private final Table table;
   private final FileFormat dataFileFormat;
   private final Schema dataSchema;
@@ -49,7 +51,32 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   private final Schema equalityDeleteRowSchema;
   private final SortOrder equalityDeleteSortOrder;
   private final Schema positionDeleteRowSchema;
+  private final Map<String, String> writerProperties;
 
+  protected BaseFileWriterFactory(
+      Table table,
+      FileFormat dataFileFormat,
+      Schema dataSchema,
+      SortOrder dataSortOrder,
+      FileFormat deleteFileFormat,
+      int[] equalityFieldIds,
+      Schema equalityDeleteRowSchema,
+      SortOrder equalityDeleteSortOrder,
+      Schema positionDeleteRowSchema,
+      Map<String, String> writerProperties) {
+    this.table = table;
+    this.dataFileFormat = dataFileFormat;
+    this.dataSchema = dataSchema;
+    this.dataSortOrder = dataSortOrder;
+    this.deleteFileFormat = deleteFileFormat;
+    this.equalityFieldIds = equalityFieldIds;
+    this.equalityDeleteRowSchema = equalityDeleteRowSchema;
+    this.equalityDeleteSortOrder = equalityDeleteSortOrder;
+    this.positionDeleteRowSchema = positionDeleteRowSchema;
+    this.writerProperties = writerProperties;
+  }
+
+  @Deprecated
   protected BaseFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
@@ -69,6 +96,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     this.equalityDeleteRowSchema = equalityDeleteRowSchema;
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
+    this.writerProperties = ImmutableMap.of();
   }
 
   protected abstract void configureDataWrite(Avro.DataWriteBuilder builder);
@@ -103,6 +131,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               Avro.writeData(file)
                   .schema(dataSchema)
                   .setAll(properties)
+                  .setAll(writerProperties)
                   .metricsConfig(metricsConfig)
                   .withSpec(spec)
                   .withPartition(partition)
@@ -119,6 +148,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               Parquet.writeData(file)
                   .schema(dataSchema)
                   .setAll(properties)
+                  .setAll(writerProperties)
                   .metricsConfig(metricsConfig)
                   .withSpec(spec)
                   .withPartition(partition)
@@ -135,6 +165,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               ORC.writeData(file)
                   .schema(dataSchema)
                   .setAll(properties)
+                  .setAll(writerProperties)
                   .metricsConfig(metricsConfig)
                   .withSpec(spec)
                   .withPartition(partition)
@@ -168,6 +199,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
           Avro.DeleteWriteBuilder avroBuilder =
               Avro.writeDeletes(file)
                   .setAll(properties)
+                  .setAll(writerProperties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(equalityDeleteRowSchema)
                   .equalityFieldIds(equalityFieldIds)
@@ -185,6 +217,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
           Parquet.DeleteWriteBuilder parquetBuilder =
               Parquet.writeDeletes(file)
                   .setAll(properties)
+                  .setAll(writerProperties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(equalityDeleteRowSchema)
                   .equalityFieldIds(equalityFieldIds)
@@ -202,6 +235,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
           ORC.DeleteWriteBuilder orcBuilder =
               ORC.writeDeletes(file)
                   .setAll(properties)
+                  .setAll(writerProperties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(equalityDeleteRowSchema)
                   .equalityFieldIds(equalityFieldIds)
@@ -237,6 +271,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
           Avro.DeleteWriteBuilder avroBuilder =
               Avro.writeDeletes(file)
                   .setAll(properties)
+                  .setAll(writerProperties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)
                   .withSpec(spec)
@@ -252,6 +287,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
           Parquet.DeleteWriteBuilder parquetBuilder =
               Parquet.writeDeletes(file)
                   .setAll(properties)
+                  .setAll(writerProperties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)
                   .withSpec(spec)
@@ -267,6 +303,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
           ORC.DeleteWriteBuilder orcBuilder =
               ORC.writeDeletes(file)
                   .setAll(properties)
+                  .setAll(writerProperties)
                   .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)
                   .withSpec(spec)

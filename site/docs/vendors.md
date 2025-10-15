@@ -95,6 +95,10 @@ With Dremio, an organization can easily build and manage a data lakehouse in whi
 * [Dremio Sonar](https://www.dremio.com/platform/sonar/) is a lakehouse query engine that provides interactive performance and DML on Apache Iceberg, as well as other formats and data sources.
 * [Dremio Arctic](https://www.dremio.com/platform/arctic/) is a lakehouse catalog and optimization service for Apache Iceberg. Arctic automatically optimizes tables in the background to ensure high-performance access for any engine. Arctic also simplifies experimentation, data engineering, and data governance by providing Git concepts like branches and tags on Apache Iceberg tables.
 
+### [DuckDB](https://duckdb.org/)
+
+DuckDB is an open-source, in-process SQL database optimized for fast analytical queries. DuckDB is not only lightweight &mdash;just a small binary&mdash;, but also extensible. One of the core extensions supported by DuckDB is the [`duckdb-iceberg` extension](https://duckdb.org/docs/stable/core_extensions/iceberg/overview), which allows DuckDB users to attach to an Iceberg catalog, query data and write to Iceberg tables. This functionality is all natively implemented in DuckDB with no external dependencies.
+
 ### [Estuary](https://estuary.dev)
 
 A low-latency, high-fidelity data movement platform, Estuary lets developers quickly set up pipelines to connect their entire data architecture. Intelligent schema inference and evolution determines field data types based on usage and keeps pipelines running when fields change. Flexible [deployment options](https://estuary.dev/deployment-options/) include public, private, and BYOC (Bring Your Own Cloud) for a range of compliance and privacy-oriented use cases.
@@ -122,6 +126,9 @@ Developers can leverage the benefits of Iceberg tables and take advantage of hig
 ### [IOMETE](https://iomete.com/)
 
 IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE optimizes clustering, compaction, and access control to Apache Iceberg tables. Customer data remains on customer's account to prevent vendor lock-in. The core of IOMETE platform is a serverless Lakehouse that leverages Apache Iceberg as its core table format. IOMETE platform also includes Serverless Spark, an SQL Editor, A Data Catalog, and granular data access control. IOMETE supports Hybrid-multi-cloud setups. 
+
+### [Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/)
+[Microsoft OneLake](https://learn.microsoft.com/en-us/fabric/onelake/) is a single unified data lake that brings together your entire data estate into an open, secure foundation for analytics across the organization. Built into Microsoft Fabric, OneLake delivers two powerful APIs: the Tables API and the Files API. The [OneLake Tables API](https://aka.ms/onelakeircdocs) supports the Apache Iceberg REST Catalog (IRC) specification, making it simple to create, manage, and integrate Iceberg tables with existing tools and workflows. The OneLake Files API offers full Azure Data Lake Storage (ADLS) compatibility, enabling seamless file operations and interoperability with familiar ADLS tools. Together, these APIs make OneLake a truly open and interoperable data lake, delivering flexibility and connectivity for modern analytics and AI-driven pipelines.
 
 ### [PuppyGraph](https://puppygraph.com)
 
