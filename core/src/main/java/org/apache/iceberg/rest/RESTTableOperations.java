@@ -163,20 +163,10 @@ class RESTTableOperations implements TableOperations {
       response = client.post(path, request, LoadTableResponse.class, headers, errorHandler);
     } catch (CommitStateUnknownException e) {
       // Lightweight reconciliation for snapshot-add-only updates on transient unknown commit state
-      if (reconcileOnUnknownSnapshotAdd && updateType == UpdateType.SIMPLE) {
-        Long expectedSnapshotId = expectedSnapshotIdIfSnapshotAddOnly(updates);
-        if (expectedSnapshotId != null) {
-          // attempt to refresh and verify the expected snapshot is present in history
-          try {
-            TableMetadata refreshed = refresh();
-            if (refreshed != null && refreshed.snapshot(expectedSnapshotId) != null) {
-              return;
-            }
-          } catch (RuntimeException reconEx) {
-            // Best-effort reconciliation failed; preserve diagnostics but rethrow original
-            e.addSuppressed(reconEx);
-          }
-        }
+      if (reconcileOnUnknownSnapshotAdd
+          && updateType == UpdateType.SIMPLE
+          && reconcileOnSimpleUpdate(updates, e)) {
+        return;
       }
 
       throw e;
@@ -186,6 +176,30 @@ class RESTTableOperations implements TableOperations {
     this.updateType = UpdateType.SIMPLE;
 
     updateCurrentMetadata(response);
+  }
+
+  /**
+   * Attempt best-effort reconciliation for SIMPLE updates that only add a snapshot.
+   *
+   * <p>Returns true if the expected snapshot is observed in the refreshed table state. Returns
+   * false if the expected snapshot cannot be determined, is not present after refresh, or if the
+   * refresh fails. In case of refresh failure, the failure is recorded as suppressed on the
+   * provided {@code original} exception to aid diagnostics.
+   */
+  private boolean reconcileOnSimpleUpdate(
+      List<MetadataUpdate> updates, CommitStateUnknownException original) {
+    Long expectedSnapshotId = expectedSnapshotIdIfSnapshotAddOnly(updates);
+    if (expectedSnapshotId == null) {
+      return false;
+    }
+
+    try {
+      TableMetadata refreshed = refresh();
+      return refreshed != null && refreshed.snapshot(expectedSnapshotId) != null;
+    } catch (RuntimeException reconEx) {
+      original.addSuppressed(reconEx);
+      return false;
+    }
   }
 
   @Override
