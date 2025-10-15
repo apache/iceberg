@@ -44,7 +44,7 @@ public class TestTables extends ExtensionsTestBase {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) "
             + "USING iceberg PARTITIONED BY (truncate(id, 3))",
-            srcTableName);
+        srcTableName);
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e')", srcTableName);
   }
 
@@ -102,18 +102,17 @@ public class TestTables extends ExtensionsTestBase {
     sql("CREATE TABLE %s LIKE %s", tableName, srcTableName);
 
     Schema expectedSchema =
-            new Schema(
-                    Types.NestedField.required(1, "id", Types.LongType.get()),
-                    Types.NestedField.optional(2, "data", Types.StringType.get()));
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
 
     PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema).truncate("id", 3).build();
 
     Table table = validationCatalog.loadTable(tableIdent);
 
     assertThat(table.schema().asStruct())
-            .as("Should have expected nullable schema")
-            .isEqualTo(expectedSchema.asStruct());
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
     assertThat(table.spec()).as("Should be partitioned by id").isEqualTo(expectedSpec);
   }
-
 }
