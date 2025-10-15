@@ -30,11 +30,11 @@ class Try<T> implements Serializable {
   private static final long serialVersionUID = 1L;
 
   private final T value;
-  private final Throwable exception;
+  private final Throwable throwable;
 
-  private Try(T value, Throwable exception) {
+  private Try(T value, Throwable throwable) {
     this.value = value;
-    this.exception = exception;
+    this.throwable = throwable;
   }
 
   /**
@@ -48,21 +48,21 @@ class Try<T> implements Serializable {
   static <T> Try<T> of(SerializableSupplier<T> supplier) {
     try {
       return new Try<>(supplier.get(), null);
-    } catch (Throwable e) {
-      return new Try<>(null, e);
+    } catch (Throwable t) {
+      return new Try<>(null, t);
     }
   }
 
   /** Returns the value if present or throws the original exception if the operation failed. */
   T getOrThrow() {
-    if (exception != null) {
-      sneakyThrow(exception);
+    if (throwable != null) {
+      sneakyThrow(throwable);
     }
     return value;
   }
 
   @SuppressWarnings("unchecked")
-  private static <E extends Throwable> void sneakyThrow(Throwable e) throws E {
-    throw (E) e;
+  private static <E extends Throwable> void sneakyThrow(Throwable throwable) throws E {
+    throw (E) throwable;
   }
 }
