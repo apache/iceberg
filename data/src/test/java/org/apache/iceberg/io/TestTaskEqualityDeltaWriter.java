@@ -583,6 +583,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
   private static class GenericTaskDeltaWriter extends BaseTaskWriter<Record> {
     private final GenericEqualityDeltaWriter deltaWriter;
+    private PartitioningDVWriter dvFileWriter;
 
     private GenericTaskDeltaWriter(
         Schema schema,
@@ -596,10 +597,10 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         DeleteGranularity deleteGranularity,
         boolean useDv) {
       super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
-      PartitioningDVWriter<Object> dvWriter =
-          useDv ? new PartitioningDVWriter<>(fileFactory, p -> null) : null;
+      this.dvFileWriter = useDv ? new PartitioningDVWriter<>(fileFactory, p -> null) : null;
       this.deltaWriter =
-          new GenericEqualityDeltaWriter(null, schema, deleteSchema, deleteGranularity, dvWriter);
+          new GenericEqualityDeltaWriter(
+              null, schema, deleteSchema, deleteGranularity, dvFileWriter);
     }
 
     @Override
@@ -619,6 +620,17 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     @Override
     public void close() throws IOException {
       deltaWriter.close();
+      if (dvFileWriter != null) {
+        try {
+          // complete will call close
+          dvFileWriter.close();
+          DeleteWriteResult result = dvFileWriter.result();
+          addCompletedDeleteFiles(result.deleteFiles());
+          addReferencedDataFiles(result.referencedDataFiles());
+        } finally {
+          dvFileWriter = null;
+        }
+      }
     }
 
     private class GenericEqualityDeltaWriter extends BaseEqualityDeltaWriter {
