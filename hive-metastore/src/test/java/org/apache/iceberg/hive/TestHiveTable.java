@@ -90,6 +90,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHiveTable extends HiveTableTestBase {
   static final String NON_DEFAULT_DATABASE = "nondefault";
@@ -127,17 +128,9 @@ public class TestHiveTable extends HiveTableTestBase {
     assertThat(icebergTable.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
   }
 
-  @Test
-  public void testCreateTableWithNoLock() {
-    testCreateTableEndToEnd(false);
-  }
-
-  @Test
-  public void testCreateTableWithLock() {
-    testCreateTableEndToEnd(true);
-  }
-
-  private void testCreateTableEndToEnd(boolean lockEnabled) {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testCreateTableEndToEnd(boolean lockEnabled) {
     String tableName = lockEnabled ? "new_table_lock_e2e" : "new_table_no_lock_e2e";
     TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, tableName);
 
@@ -176,11 +169,8 @@ public class TestHiveTable extends HiveTableTestBase {
       assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
       assertThat(lockRef.get())
           .as(
-              "Table created with HIVE_LOCK_ENABLED="
-                  + lockEnabled
-                  + " should use "
-                  + expectedLockClass.getSimpleName()
-                  + ")")
+              "Table %s created with HIVE_LOCK_ENABLED=%s should be created with lock class (%s)",
+              tableName, lockEnabled, expectedLockClass.getSimpleName())
           .isInstanceOf(expectedLockClass);
     } finally {
       catalog.dropTable(newTableIdentifier, true);

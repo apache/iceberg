@@ -46,6 +46,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.platform.commons.support.ReflectionSupport;
 
 public class TestHiveCommits extends HiveTableTestBase {
@@ -505,17 +507,9 @@ public class TestHiveCommits extends HiveTableTestBase {
         .hasSameClassAs(initialLock);
   }
 
-  @Test
-  public void testFirstHiveCommitNoLock() {
-    testFirstHivCommitWithLockSetting(false);
-  }
-
-  @Test
-  public void testFirstHiveCommitWithLock() {
-    testFirstHivCommitWithLockSetting(true);
-  }
-
-  private void testFirstHivCommitWithLockSetting(boolean lockEnabled) {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testFirstHiveCommitWithLockSetting(boolean lockEnabled) {
     String tableName = lockEnabled ? "new_table_with_lock" : "new_table_with_no_lock";
     TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, tableName);
 
@@ -552,7 +546,7 @@ public class TestHiveCommits extends HiveTableTestBase {
           lockEnabled ? MetastoreLock.class : NoLock.class;
       assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
       assertThat(lockRef.get())
-          .as("Lock mechanism should use metadata (%s)", expectedLockClass.getSimpleName())
+          .as("Lock mechanism should use (%s)", expectedLockClass.getSimpleName())
           .isInstanceOf(expectedLockClass);
     } finally {
       catalog.dropTable(newTableIdentifier, true);
