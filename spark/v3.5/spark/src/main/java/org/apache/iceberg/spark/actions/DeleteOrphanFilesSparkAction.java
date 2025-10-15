@@ -249,12 +249,17 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     Dataset<FileURI> actualFileIdentDS = actualFileIdentDS();
     Dataset<FileURI> validFileIdentDS = validFileIdentDS();
 
-    Dataset<String> orphanFileDS = findOrphanFilesAsDataset(actualFileIdentDS, validFileIdentDS);
+    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
+    spark().sparkContext().register(conflicts);
+
+    Dataset<String> orphanFileDS =
+        findOrphanFilesAsDataset(actualFileIdentDS, validFileIdentDS, conflicts);
 
     if (streamResults()) {
-      return deleteFilesStreaming(orphanFileDS.toLocalIterator());
+      return deleteFilesStreaming(orphanFileDS.toLocalIterator(), conflicts);
     } else {
       List<String> orphanFiles = orphanFileDS.collectAsList();
+      validateNoConflicts(conflicts);
       deleteFilesCollected(orphanFiles);
       return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFiles).build();
     }
@@ -267,9 +272,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
    * last row.
    *
    * @param orphanFiles iterator of file paths to delete (streamed from executors)
+   * @param conflicts accumulator for tracking prefix mismatches
    * @return result with sample file paths and optional summary row
    */
-  private DeleteOrphanFiles.Result deleteFilesStreaming(Iterator<String> orphanFiles) {
+  private DeleteOrphanFiles.Result deleteFilesStreaming(
+      Iterator<String> orphanFiles, SetAccumulator<Pair<String, String>> conflicts) {
     List<String> samplePaths =
         Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
     long filesCount = 0;
@@ -333,6 +340,9 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     LOG.info("Deleted {} orphan files", filesCount);
 
+    // Validate no conflicts after processing all partitions
+    validateNoConflicts(conflicts);
+
     // Always add summary row for consistency (same format regardless of result size)
     String summary = String.format("[Total removed: %d files.]", filesCount);
     samplePaths.add(summary);
@@ -382,18 +392,18 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   private Dataset<String> findOrphanFilesAsDataset(
-      Dataset<FileURI> actualFileIdentDS, Dataset<FileURI> validFileIdentDS) {
-
-    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
-    spark().sparkContext().register(conflicts);
+      Dataset<FileURI> actualFileIdentDS,
+      Dataset<FileURI> validFileIdentDS,
+      SetAccumulator<Pair<String, String>> conflicts) {
 
     Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
 
-    Dataset<String> orphanFileDS =
-        actualFileIdentDS
-            .joinWith(validFileIdentDS, joinCond, "leftouter")
-            .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
+    return actualFileIdentDS
+        .joinWith(validFileIdentDS, joinCond, "leftouter")
+        .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
+  }
 
+  private void validateNoConflicts(SetAccumulator<Pair<String, String>> conflicts) {
     if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
       throw new ValidationException(
           "Unable to determine whether certain files are orphan. Metadata references files that"
@@ -406,8 +416,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
               + " recover deleted files. Conflicting authorities/schemes: %s.",
           conflicts.value());
     }
-
-    return orphanFileDS;
   }
 
   private Dataset<FileURI> validFileIdentDS() {
