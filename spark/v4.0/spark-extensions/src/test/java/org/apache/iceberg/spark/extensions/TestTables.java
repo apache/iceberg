@@ -37,23 +37,24 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestTables extends ExtensionsTestBase {
 
   @Parameter(index = 3)
-  private String sourceName;
+  private String srcTableName;
 
   @BeforeEach
-  public void createTableIfNotExists() {
+  public void beforeEach() {
     sql(
-        "CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) "
+        "CREATE TABLE %s (id bigint NOT NULL, data string) "
             + "USING iceberg PARTITIONED BY (truncate(id, 3))",
-        sourceName);
-    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e')", sourceName);
+            srcTableName);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e')", srcTableName);
   }
 
   @AfterEach
-  public void removeTables() {
+  public void afterEach() {
+    sql("DROP TABLE IF EXISTS %s", srcTableName);
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, sourceName = {3}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, srcTableName = {3}")
   protected static Object[][] parameters() {
     return new Object[][] {
       {
@@ -78,21 +79,41 @@ public class TestTables extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testPartitionedTable() {
-    sql("CREATE TABLE %s LIKE %s", tableName, sourceName);
+  public void testNotPartitionedTable() {
+    sql("CREATE OR REPLACE TABLE %s (id bigint NOT NULL, data string) USING iceberg", srcTableName);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e')", srcTableName);
+    sql("CREATE TABLE %s LIKE %s", tableName, srcTableName);
 
     Schema expectedSchema =
         new Schema(
             Types.NestedField.required(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "data", Types.StringType.get()));
 
-    PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema).truncate("id", 3).build();
-
     Table table = validationCatalog.loadTable(tableIdent);
 
     assertThat(table.schema().asStruct())
         .as("Should have expected nullable schema")
         .isEqualTo(expectedSchema.asStruct());
+    assertThat(table.spec().fields()).as("Should be an unpartitioned table").isEmpty();
+  }
+
+  @TestTemplate
+  public void testPartitionedTable() {
+    sql("CREATE TABLE %s LIKE %s", tableName, srcTableName);
+
+    Schema expectedSchema =
+            new Schema(
+                    Types.NestedField.required(1, "id", Types.LongType.get()),
+                    Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema).truncate("id", 3).build();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.schema().asStruct())
+            .as("Should have expected nullable schema")
+            .isEqualTo(expectedSchema.asStruct());
     assertThat(table.spec()).as("Should be partitioned by id").isEqualTo(expectedSpec);
   }
+
 }
