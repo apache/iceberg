@@ -552,7 +552,7 @@ public class TestHiveCommits extends HiveTableTestBase {
           lockEnabled ? MetastoreLock.class : NoLock.class;
       assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
       assertThat(lockRef.get())
-          .as("Lock mechanism should use metadata (" + expectedLockClass.getSimpleName() + ")")
+          .as("Lock mechanism should use metadata (%s)", expectedLockClass.getSimpleName())
           .isInstanceOf(expectedLockClass);
     } finally {
       catalog.dropTable(newTableIdentifier, true);
