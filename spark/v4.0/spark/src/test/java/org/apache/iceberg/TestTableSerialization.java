@@ -173,21 +173,30 @@ public class TestTableSerialization {
   }
 
   @TestTemplate
-  public void testLocationProviderExceptionSerializationRoundTrip()
+  public void testLocationProviderExceptionJavaSerialization()
       throws IOException, ClassNotFoundException {
     Table spyTable = spy(table);
     RuntimeException failure = new RuntimeException("location provider failure");
     when(spyTable.locationProvider()).thenThrow(failure);
 
     Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+    Table deserialized = TestHelpers.roundTripSerialize(serializableTable);
 
-    Table javaDeserialized = TestHelpers.roundTripSerialize(serializableTable);
-    assertThatThrownBy(javaDeserialized::locationProvider)
+    assertThatThrownBy(deserialized::locationProvider)
         .isInstanceOf(RuntimeException.class)
         .hasMessage("location provider failure");
+  }
 
-    Table kryoDeserialized = KryoHelpers.roundTripSerialize(serializableTable);
-    assertThatThrownBy(kryoDeserialized::locationProvider)
+  @TestTemplate
+  public void testLocationProviderExceptionKryoSerialization() throws IOException {
+    Table spyTable = spy(table);
+    RuntimeException failure = new RuntimeException("location provider failure");
+    when(spyTable.locationProvider()).thenThrow(failure);
+
+    Table serializableTable = SerializableTableWithSize.copyOf(spyTable);
+    Table deserialized = KryoHelpers.roundTripSerialize(serializableTable);
+
+    assertThatThrownBy(deserialized::locationProvider)
         .isInstanceOf(RuntimeException.class)
         .hasMessage("location provider failure");
   }
