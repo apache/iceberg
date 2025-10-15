@@ -231,6 +231,10 @@ class RESTTableOperations implements TableOperations {
     }
 
     if (mainRefSnapshotId != null && !addedSnapshotId.equals(mainRefSnapshotId)) {
+      // Only handle "append to main" here. In this request, main is being set to a snapshot ID
+      // that is different from the snapshot we just added (e.g., rollback or move main elsewhere).
+      // In that case, finding the added snapshot in history doesn't tell us whether main moved to it,
+      // so skip reconciliation.
       return null;
     }
 
