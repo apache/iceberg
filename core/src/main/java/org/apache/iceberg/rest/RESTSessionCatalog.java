@@ -399,17 +399,42 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       throw new IllegalStateException("Invalid view identifier in context: " + viewIdentifierObj);
     }
 
-    String[] parts = (viewIdentifierObj.toString()).split("\\.");
-    if (parts.length < 2) {
-      throw new IllegalStateException("Invalid view identifier in context: " + viewIdentifierObj);
-    }
+    String viewIdentifierStr = viewIdentifierObj.toString();
 
-    String[] namespaceParts = Arrays.copyOf(parts, parts.length - 1);
-    String viewName = parts[parts.length - 1];
+    // Split the comma-separated view chain and encode each view
+    String[] viewIdentifiers = viewIdentifierStr.split(",");
+    String encodedViewChain =
+        Arrays.stream(viewIdentifiers)
+            .map(String::trim)
+            .map(
+                viewId -> {
+                  String[] parts = viewId.split("\\.");
+                  if (parts.length == 0) {
+                    throw new IllegalStateException(
+                        "Invalid view identifier in context: " + viewId);
+                  }
 
-    String encodedNamespace = RESTUtil.encodeNamespace(Namespace.of(namespaceParts));
-    String encodedViewName = RESTUtil.encodeString("." + viewName);
-    queryParams.put("referenced-by", encodedNamespace + encodedViewName);
+                  // Handle both qualified (namespace.view) and unqualified (view) identifiers
+                  String[] namespaceParts;
+                  String viewName;
+
+                  if (parts.length == 1) {
+                    // Unqualified view name - use empty namespace
+                    namespaceParts = new String[0];
+                    viewName = parts[0];
+                  } else {
+                    // Qualified view name - extract namespace and view name
+                    namespaceParts = Arrays.copyOf(parts, parts.length - 1);
+                    viewName = parts[parts.length - 1];
+                  }
+
+                  String encodedNamespace = RESTUtil.encodeNamespace(Namespace.of(namespaceParts));
+                  String encodedViewName = RESTUtil.encodeString("." + viewName);
+                  return encodedNamespace + encodedViewName;
+                })
+            .collect(Collectors.joining(","));
+
+    queryParams.put("referenced-by", encodedViewChain);
 
     return queryParams;
   }

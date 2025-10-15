@@ -112,24 +112,16 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
         viewPlan
       } else {
         // It's a table reference, try to load it
-        try {
-          val table = catalog match {
-            case contextAwareCatalog: ContextAwareTableCatalog =>
-              contextAwareCatalog.loadTableWithContext(tableIdent, context)
-            case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareTableCatalog] =>
-              catalog.asTableCatalog.asInstanceOf[ContextAwareTableCatalog]
-                .loadTableWithContext(tableIdent, context)
-            case _ =>
-              catalog.asTableCatalog.loadTable(tableIdent)
-          }
-          DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-        } catch {
-          case e: Exception =>
-            val viewPath = viewChain.map(_.mkString(".")).mkString(" → ")
-            val fullTableName = s"`${tableParts.mkString("`.`")}`"
-            throw new IcebergAnalysisException(
-              s"The table or view $fullTableName cannot be found (referenced by view chain: $viewPath)")
+        val table = catalog match {
+          case contextAwareCatalog: ContextAwareTableCatalog =>
+            contextAwareCatalog.loadTableWithContext(tableIdent, context)
+          case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareTableCatalog] =>
+            catalog.asTableCatalog.asInstanceOf[ContextAwareTableCatalog]
+              .loadTableWithContext(tableIdent, context)
+          case _ =>
+            catalog.asTableCatalog.loadTable(tableIdent)
         }
+        DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
       }
 
     case c@CreateIcebergView(ResolvedIdentifier(_, _), _, query, columnAliases, columnComments, _, _, _, _, _, _)
