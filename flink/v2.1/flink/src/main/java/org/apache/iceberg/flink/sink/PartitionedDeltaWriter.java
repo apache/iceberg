@@ -29,7 +29,6 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.DeleteWriteResult;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -43,6 +42,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
   private final OutputFileFactory fileFactory;
   private final Map<PartitionKey, RowDataDeltaWriter> writers = Maps.newHashMap();
   private PartitioningDVWriter dvFileWriter;
+  private final boolean useDv;
 
   PartitionedDeltaWriter(
       PartitionSpec spec,
@@ -66,10 +66,10 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
         schema,
         flinkSchema,
         equalityFieldIds,
-        upsert,
-        userDv);
+        upsert);
     this.partitionKey = new PartitionKey(spec, schema);
     this.fileFactory = fileFactory;
+    this.useDv = userDv;
   }
 
   @Override
@@ -81,7 +81,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in
       // writers.
       PartitionKey copiedKey = partitionKey.copy();
-      if (dvFileWriter == null) {
+      if (dvFileWriter == null && useDv) {
         this.dvFileWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
       }
 

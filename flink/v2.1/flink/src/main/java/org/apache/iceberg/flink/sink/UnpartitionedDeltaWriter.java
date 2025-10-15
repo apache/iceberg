@@ -26,7 +26,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.DeleteWriteResult;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -58,9 +57,11 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
         schema,
         flinkSchema,
         equalityFieldIds,
-        upsert,
-        userDv);
-    this.dvFileWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
+        upsert);
+    if (userDv) {
+      this.dvFileWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
+    }
+
     this.writer = new RowDataDeltaWriter(null, dvFileWriter);
   }
 

@@ -40,7 +40,6 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.io.WriteResult;

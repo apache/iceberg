@@ -596,10 +596,10 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         DeleteGranularity deleteGranularity,
         boolean useDv) {
       super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
-      PartitioningDVWriter<Object> dvWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
+      PartitioningDVWriter<Object> dvWriter =
+          useDv ? new PartitioningDVWriter<>(fileFactory, p -> null) : null;
       this.deltaWriter =
-          new GenericEqualityDeltaWriter(
-              null, schema, deleteSchema, deleteGranularity, dvWriter, useDv);
+          new GenericEqualityDeltaWriter(null, schema, deleteSchema, deleteGranularity, dvWriter);
     }
 
     @Override
@@ -627,9 +627,8 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
           Schema schema,
           Schema eqDeleteSchema,
           DeleteGranularity deleteGranularity,
-          PartitioningDVWriter dvWriter,
-          boolean useDv) {
-        super(partition, schema, eqDeleteSchema, deleteGranularity, dvWriter, useDv);
+          PartitioningDVWriter dvWriter) {
+        super(partition, schema, eqDeleteSchema, deleteGranularity, dvWriter);
       }
 
       @Override
