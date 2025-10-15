@@ -49,14 +49,18 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
-  override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
+  override def apply(plan: LogicalPlan): LogicalPlan = applyWithViewChain(plan, Seq.empty)
+
+  private def applyWithViewChain(
+      plan: LogicalPlan,
+      currentViewChain: Seq[Seq[String]]): LogicalPlan = plan resolveOperators {
     case u@UnresolvedRelation(nameParts, _, _)
       if catalogManager.v1SessionCatalog.isTempView(nameParts) =>
       u
 
     case u@UnresolvedRelation(parts@CatalogAndIdentifier(catalog, ident), _, _) =>
       ViewUtil.loadView(catalog, ident)
-        .map(createViewRelation(parts, _))
+        .map(view => createViewRelation(parts, view, currentViewChain))
         .getOrElse(u)
 
     case u@UnresolvedTableOrView(CatalogAndIdentifier(catalog, ident), _, _) =>
@@ -65,25 +69,67 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
         .getOrElse(u)
 
     case u @ UnResolvedRelationFromView(
-      tableParts @ CatalogAndIdentifier(catalog, tableIdent), viewParts, options, isStreaming) =>
-      val context = new java.util.HashMap[String, Object]()
-      context.put(
-        org.apache.iceberg.catalog.ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, viewParts.mkString("."))
-      try {
-        catalog match {
-          case contextAwareCatalog: ContextAwareTableCatalog =>
-            val table = contextAwareCatalog.loadTableWithContext(tableIdent, context)
-            DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-          case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareTableCatalog] =>
-            val table =
-              catalog.asTableCatalog.asInstanceOf[ContextAwareTableCatalog].loadTableWithContext(tableIdent, context)
-            DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-          case _ =>
-            val table = catalog.asTableCatalog.loadTable(tableIdent)
-            DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+      tableParts @ CatalogAndIdentifier(catalog, tableIdent), viewChain, options, isStreaming) =>
+      
+      // Check for recursive cycles before attempting to load the table
+      // Normalize both the current table and view chain for comparison
+      def normalize(parts: Seq[String]): String = {
+        parts match {
+          case Seq(catalog, namespace, table) => s"$catalog.$namespace.$table"
+          case Seq(namespace, table) => s"$namespace.$table"
+          case Seq(table) => table
+          case _ => parts.mkString(".")
         }
-      } catch {
-        case _: Throwable => UnresolvedRelation(tableParts, options, isStreaming)
+      }
+      
+      val normalizedTable = normalize(tableParts)
+      val matchesViewInChain = viewChain.exists { viewParts =>
+        val normalizedView = normalize(viewParts)
+        normalizedView == normalizedTable ||
+        normalizedView.endsWith("." + normalizedTable) ||
+        normalizedTable.endsWith("." + normalizedView)
+      }
+      
+      if (matchesViewInChain) {
+        val currentView = normalize(viewChain.head)
+        val cycleStart = normalizedTable
+        val cyclePath = (viewChain.tail.map(normalize) :+ cycleStart).mkString(" -> ")
+        throw new IcebergAnalysisException(
+          s"Recursive cycle in view detected: $currentView (cycle: $currentView -> $cyclePath)")
+      }
+      
+      val context = new java.util.HashMap[String, Object]()
+      val viewIdentifierList = viewChain.map(_.mkString(".")).mkString(",")
+      context.put(
+        org.apache.iceberg.catalog.ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, viewIdentifierList)
+      
+      // First check if this is a view reference
+      val maybeView = ViewUtil.loadView(catalog, tableIdent)
+      if (maybeView.isDefined) {
+        // It's a view, not a table - recursively resolve it
+        val view = maybeView.get
+        val viewPlan = createViewRelation(tableParts, view, viewChain)
+        viewPlan
+      } else {
+        // It's a table reference, try to load it
+        try {
+          val table = catalog match {
+            case contextAwareCatalog: ContextAwareTableCatalog =>
+              contextAwareCatalog.loadTableWithContext(tableIdent, context)
+            case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareTableCatalog] =>
+              catalog.asTableCatalog.asInstanceOf[ContextAwareTableCatalog]
+                .loadTableWithContext(tableIdent, context)
+            case _ =>
+              catalog.asTableCatalog.loadTable(tableIdent)
+          }
+          DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+        } catch {
+          case e: Exception =>
+            val viewPath = viewChain.map(_.mkString(".")).mkString(" → ")
+            val fullTableName = s"`${tableParts.mkString("`.`")}`"
+            throw new IcebergAnalysisException(
+              s"The table or view $fullTableName cannot be found (referenced by view chain: $viewPath)")
+        }
       }
 
     case c@CreateIcebergView(ResolvedIdentifier(_, _), _, query, columnAliases, columnComments, _, _, _, _, _, _)
@@ -112,13 +158,17 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   }
 
 
-  private def createViewRelation(nameParts: Seq[String], view: View): LogicalPlan = {
+  private def createViewRelation(
+      nameParts: Seq[String],
+      view: View,
+      currentViewChain: Seq[Seq[String]]): LogicalPlan = {
     val parsed = parseViewText(nameParts.quoted, view.query)
 
     // Apply any necessary rewrites to preserve correct resolution
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
     val qualifiedNameParts = Seq(view.currentNamespace.mkString("."), nameParts.last)
-    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, Some(qualifiedNameParts))
+    val updatedViewChain = currentViewChain :+ nameParts
+    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, Some(qualifiedNameParts), updatedViewChain)
 
     // Apply the field aliases and column comments
     // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
@@ -148,16 +198,20 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   }
 
   private def rewriteIdentifiers(
-    plan: LogicalPlan,
-    catalogAndNamespace: Seq[String],
-    viewIdentifier: Option[Seq[String]] = None): LogicalPlan = {
+      plan: LogicalPlan,
+      catalogAndNamespace: Seq[String],
+      viewIdentifier: Option[Seq[String]] = None,
+      viewChain: Seq[Seq[String]] = Seq.empty): LogicalPlan = {
     // Substitute CTEs and Unresolved Ordinals within the view, then rewrite unresolved functions and relations
-    qualifyTableIdentifiers(
-      qualifyFunctionIdentifiers(
-        SubstituteUnresolvedOrdinals.apply(CTESubstitution.apply(plan)),
-        catalogAndNamespace),
+    val substituted = SubstituteUnresolvedOrdinals.apply(CTESubstitution.apply(plan))
+    val withQualifiedFunctions = qualifyFunctionIdentifiers(substituted, catalogAndNamespace)
+    val withQualifiedTables = qualifyTableIdentifiers(
+      withQualifiedFunctions,
       catalogAndNamespace,
-      viewIdentifier)
+      viewIdentifier,
+      viewChain)
+    // Recursively apply resolution with the current view chain
+    applyWithViewChain(withQualifiedTables, viewChain)
   }
 
   private def qualifyFunctionIdentifiers(
@@ -177,9 +231,10 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
    * Qualify table identifiers with default catalog and namespace if necessary.
    */
   private def qualifyTableIdentifiers(
-    child: LogicalPlan,
-    catalogAndNamespace: Seq[String],
-    viewIdentifier: Option[Seq[String]]): LogicalPlan = {
+      child: LogicalPlan,
+      catalogAndNamespace: Seq[String],
+      viewIdentifier: Option[Seq[String]],
+      viewChain: Seq[Seq[String]]): LogicalPlan = {
     child transform {
       case u @ UnresolvedRelation(parts, options, isStreaming) =>
         val qualifiedTableId = parts match {
@@ -190,14 +245,15 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
         viewIdentifier match {
           case Some(viewId) =>
-            UnResolvedRelationFromView(qualifiedTableId, viewId, options, isStreaming)
+            val fullViewChain = viewChain :+ viewId
+            UnResolvedRelationFromView(qualifiedTableId, fullViewChain, options, isStreaming)
           case _ =>
             u.copy(multipartIdentifier = qualifiedTableId)
         }
       case other =>
         other.transformExpressions {
           case subquery: SubqueryExpression =>
-            subquery.withNewPlan(qualifyTableIdentifiers(subquery.plan, catalogAndNamespace, viewIdentifier))
+            subquery.withNewPlan(qualifyTableIdentifiers(subquery.plan, catalogAndNamespace, viewIdentifier, viewChain))
         }
     }
   }

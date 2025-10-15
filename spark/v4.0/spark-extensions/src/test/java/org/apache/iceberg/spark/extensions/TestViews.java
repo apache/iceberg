@@ -2113,6 +2113,46 @@ public class TestViews extends ExtensionsTestBase {
                 ""));
   }
 
+  @TestTemplate
+  public void testNestedViewWithMissingTable() throws NoSuchTableException {
+    String view1 = viewName("outer_view");
+    String view2 = viewName("inner_view");
+    String missingTable = "non_existent_table";
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    // Create inner view referencing non-existent table
+    String innerSQL = String.format("SELECT id FROM %s", missingTable);
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, view2))
+        .withQuery("spark", innerSQL)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(String.format("SELECT id FROM %s", tableName)))
+        .create();
+
+    // Create outer view referencing inner view
+    String outerSQL = String.format("SELECT id FROM %s", view2);
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, view1))
+        .withQuery("spark", outerSQL)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(String.format("SELECT id FROM %s", tableName)))
+        .create();
+
+    // Querying outer view should fail with error message including view chain
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", view1))
+        .isInstanceOf(AnalysisException.class)
+        .satisfies(
+            e -> {
+              String message = e.getMessage().toLowerCase();
+              assertThat(message).contains(view1.toLowerCase());
+              assertThat(message).contains(view2.toLowerCase());
+              assertThat(message).contains("view chain");
+            });
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {

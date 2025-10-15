@@ -25,24 +25,25 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /**
  * Represents an unresolved table/relation that was referenced from within a view.
- * This node carries both the table identifier and the view identifier that
- * referenced it, enabling view-aware authorization and security mechanisms.
+ * This node carries both the table identifier and the chain of view identifiers that
+ * referenced it, enabling view-aware authorization and security mechanisms for nested views.
  *
  * This allows catalogs to implement different security models such as:
  * - Definer rights: Use view creator's permissions to access the underlying table
  * - Invoker rights: Use current user's permissions to access the underlying table
  *
- * When passed to REST catalogs, the view identifier is encoded using unit separator
- * character (0x1F) for nested namespaces in the "referenced-by" query parameter.
+ * When passed to REST catalogs, the view chain is encoded as a comma-separated list
+ * with unit separator character (0x1F) for nested namespaces in the "referenced-by" query parameter.
+ * The chain is ordered from outermost to innermost view.
  *
  * @param tableMultipartIdentifier The multipart identifier for the target table
- * @param viewMultipartIdentifier The multipart identifier for the view that references this table
+ * @param viewMultipartIdentifierChain The chain of view identifiers (outermost first) referencing this table
  * @param options Options passed to the table (similar to UnresolvedRelation)
  * @param isStreaming Whether this is a streaming relation
  */
 case class UnResolvedRelationFromView(
   tableMultipartIdentifier: Seq[String],
-  viewMultipartIdentifier: Seq[String],
+  viewMultipartIdentifierChain: Seq[Seq[String]],
   options: CaseInsensitiveStringMap = CaseInsensitiveStringMap.empty(),
   override val isStreaming: Boolean = false) extends LeafNode {
 
@@ -52,15 +53,20 @@ case class UnResolvedRelationFromView(
 
   def tableName: String = tableMultipartIdentifier.map(quoteIfNeeded).mkString(".")
 
-  def viewName: String = viewMultipartIdentifier.map(quoteIfNeeded).mkString(".")
+  def viewChainAsString: String = viewMultipartIdentifierChain
+    .map(_.map(quoteIfNeeded).mkString("."))
+    .mkString(" → ")
 
   override def simpleString(maxFields: Int): String = {
-    s"'UnresolvedRelationFromView [table=$tableName, view=$viewName, " +
+    s"'UnresolvedRelationFromView [table=$tableName, viewChain=$viewChainAsString, " +
       s"${if (isStreaming) "streaming=true, " else ""}options=$options]"
   }
 
   override def toString: String = {
+    val viewChainStr = viewMultipartIdentifierChain
+      .map(v => s"[${v.mkString(", ")}]")
+      .mkString(", ")
     s"UnresolvedRelationFromView([${tableMultipartIdentifier.mkString(", ")}], " +
-      s"[${viewMultipartIdentifier.mkString(", ")}], $isStreaming)"
+      s"[$viewChainStr], $isStreaming)"
   }
 }
