@@ -945,4 +945,33 @@ public class TestTypeUtil {
     assertThat(TypeUtil.ancestorFields(schema, 16)).containsExactly(pointsElement, points);
     assertThat(TypeUtil.ancestorFields(schema, 17)).containsExactly(pointsElement, points);
   }
+
+  @Test
+  public void testDateToTimestampPromotion() {
+    // Format version < 3 should not be accepted.
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampType.withoutZone(), 2, false))
+        .isFalse();
+    // Timezone should not be accepted.
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampType.withZone(), 3, false))
+        .isFalse();
+    // Timezone nano should not be accepted.
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampNanoType.withZone(), 3, false))
+        .isFalse();
+    // Timestamp without timezone should be accepted.
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampType.withoutZone(), 3, false))
+        .isTrue();
+    // Timestamp nano without timezone should be accepted.
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampNanoType.withoutZone(), 3, false))
+        .isTrue();
+  }
 }
