@@ -116,6 +116,18 @@ Learn more about querying Iceberg with Firebolt [here](https://www.firebolt.io/b
 ### [Fivetran](https://www.fivetran.com)
 [Fivetran](https://www.fivetran.com), the global leader in data movement, is trusted by Enterprises to centralize data from SaaS applications and databases into cloud destinations, including [Managed Data Lakes](https://fivetran.com/docs/destinations/managed-data-lake-service). Fivetran Managed Data Lakes provides a fully managed Iceberg Data Lake for users. Users can connect any of the 700+ connections that Fivetran supports and write them directly into a Storage Location of their choice. Fivetran Managed Data Lake Service handles the ingestion and maintenance of their Iceberg tables and hosts a Iceberg Rest Complaint catalog endpoint for downstream consumption.
 
+### [Google Cloud](https://cloud.google.com)
+Google Cloud offers first class support for Apache Iceberg through BigLake to
+help you build an open, managed and high-performance Iceberg lakehouse so you
+can enable advanced analytics and data science with automated data management
+and built-in governance. [BigLake metastore](https://cloud.google.com/biglake?hl=en) is a serverless metastore for all
+your Iceberg tables that works across engines like Apache Spark, BigQuery and
+third party platforms to create and manage tables, giving you a consistent view
+of your data and unified access controls. BigLake metastore supports the Apache
+Iceberg REST Catalog for easy integration with OSS and third party engines.
+[BigLake tables for Apache Iceberg](https://cloud.google.com/biglake?hl=en) offer an enterprise-ready, fully managed
+Iceberg experience when used with BigQuery.
+
 
 ### [IBM watsonx.data](https://www.ibm.com/products/watsonx-data)
 
