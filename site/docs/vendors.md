@@ -124,7 +124,7 @@ and built-in governance. [BigLake metastore](https://cloud.google.com/biglake?hl
 your Iceberg tables that works across engines like Apache Spark, BigQuery and
 third party platforms to create and manage tables, giving you a consistent view
 of your data and unified access controls. BigLake metastore supports the Apache
-Iceberg Rest Catalog for easy integration with OSS and third party engines.
+Iceberg REST Catalog for easy integration with OSS and third party engines.
 [BigLake tables for Apache Iceberg](https://cloud.google.com/biglake?hl=en) offer an enterprise-ready, fully managed
 Iceberg experience when used with BigQuery.
 
