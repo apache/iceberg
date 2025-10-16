@@ -25,7 +25,7 @@ title: "SQL UDF Spec"
 A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters, executes a function body.
 Depending on the function type, the result can be:
 
-- **UDFs** – return a scalar value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
+- **Scalar functions (UDFs)** – return a scalar value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
 - **Table functions (UDTFs)** – return a table, i.e., a table with zero or more rows and columns with a uniform schema.
 
 Many compute engines (e.g., Spark, Trino) already support UDFs, but in different and incompatible ways. Without a common
@@ -53,17 +53,17 @@ properties, and engine-specific representations.
 ### UDF Metadata
 The UDF metadata file has the following fields:
 
-| Requirement | Field name        | Type                    | Description                                                                                                              |
-|-------------|-------------------|-------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| *required*  | `function-uuid`   | `string`                | A UUID that identifies the function, generated once at creation.                                                         |
-| *required*  | `format-version`  | `int`                   | Metadata format version (must be `1`).                                                                                   |
-| *required*  | `definitions`     | `array<overload>`       | List of function [overload](#overload) entities.                                                                         |
-| *required*  | `definition-log`  | `array<definition-log>` | History of [definition snapshots](#definition-log).                                                                      |
-| *required*  | `max-overload-id` | `long`                  | Highest `overload-id` currently assigned in this metadata file. Used to allocate new overload identifiers monotonically. |
-| *optional*  | `location`        | `string`                | Storage location of metadata files.                                                                                      |
-| *optional*  | `properties`      | `map`                   | Arbitrary key–value pairs.                                                                                               |
-| *optional*  | `secure`          | `boolean`               | Whether it is a secure function. Default: `false`.                                                                       |
-| *optional*  | `doc`             | `string`                | Documentation string.                                                                                                    |
+| Requirement | Field name        | Type                   | Description                                                                                                     |
+|-------------|-------------------|------------------------|-----------------------------------------------------------------------------------------------------------------|
+| *required*  | `function-uuid`   | `string`               | A UUID that identifies the function, generated once at creation.                                                |
+| *required*  | `format-version`  | `int`                  | Metadata format version (must be `1`).                                                                          |
+| *required*  | `definitions`     | `list<overload>`       | List of function [overload](#overload) entities.                                                                |
+| *required*  | `definition-log`  | `list<definition-log>` | History of [definition snapshots](#definition-log).                                                             |
+| *required*  | `max-overload-id` | `long`                 | Highest `overload-id` currently assigned for this UDF. Used to allocate new overload identifiers monotonically. |
+| *optional*  | `location`        | `string`               | Storage location of metadata files.                                                                             |
+| *optional*  | `properties`      | `map`                  | A string to string map of properties.                                                                           |
+| *optional*  | `secure`          | `boolean`              | Whether it is a secure function. Default: `false`.                                                              |
+| *optional*  | `doc`             | `string`               | Documentation string.                                                                                           |
 
 Notes:
 1. When `secure` is `true`,
@@ -75,22 +75,22 @@ Notes:
 Function overloads allow multiple implementations of the same function name with different signatures. Each overload has
 the following fields:
 
-| Requirement | Field name                 | Type                                          | Description                                                                                   |
-|-------------|----------------------------|-----------------------------------------------|-----------------------------------------------------------------------------------------------|
-| *required*  | `overload-id`              | `long`                                        | Monotonically increasing identifier of this function overload.                                |
-| *required*  | `parameters`               | `array<parameter>`                            | Ordered list of [function parameters](#parameter). Invocation order **must** match this list. |
-| *required*  | `return-type`              | `Type` (Iceberg data type; `struct` for UDTF) | Return type. Example: `"string"`, `"struct<...>"`.                                            |
-| *required*  | `versions`                 | `array<overload-version>`                     | [Versioned implementations](#overload-version) of this overload.                              |
-| *required*  | `current-overload-version` | `long`                                        | Monotonically increasing identifier of the current overload version.                          |
-| *optional*  | `function-type`            | `enum { "udf", "udtf" }` (default `"udf"`)    | If `"udtf"`, `return-type` must be a `struct` describing the output schema.                   |
-| *optional*  | `doc`                      | `string`                                      | Documentation string.                                                                         |
+| Requirement | Field name                 | Type                                                   | Description                                                                                   |
+|-------------|----------------------------|--------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| *required*  | `overload-id`              | `long`                                                 | Monotonically increasing identifier of this function overload.                                |
+| *required*  | `parameters`               | `list<parameter>`                                      | Ordered list of [function parameters](#parameter). Invocation order **must** match this list. |
+| *required*  | `return-type`              | `string` (Iceberg data type)                           | Return type. Example: `"string"`, `"struct<...>"`.                                            |
+| *required*  | `versions`                 | `list<overload-version>`                               | [Versioned implementations](#overload-version) of this overload.                              |
+| *required*  | `current-overload-version` | `long`                                                 | Monotonically increasing identifier of the current overload version.                          |
+| *optional*  | `function-type`            | `string` (either `"udf"` or `"udtf"`, default `"udf"`) | If `"udtf"`, `return-type` must be a `struct` describing the output schema.                   |
+| *optional*  | `doc`                      | `string`                                               | Documentation string.                                                                         |
 
 ### Parameter
-| Requirement | Field  | Type     | Description              |
-|-------------|--------|----------|--------------------------|
-| *required*  | `name` | `string` | Parameter name.          |
-| *required*  | `type` | `Type`   | Parameter data type.     |
-| *optional*  | `doc`  | `string` | Parameter documentation. |
+| Requirement | Field  | Type                         | Description              |
+|-------------|--------|------------------------------|--------------------------|
+| *required*  | `name` | `string`                     | Parameter name.          |
+| *required*  | `type` | `string` (Iceberg data type) | Parameter data type.     |
+| *optional*  | `doc`  | `string`                     | Parameter documentation. |
 
 Notes:
 1. The `name` and `type` of a `parameter` are immutable. To change them, a new overload must be created. Only the optional documentation field (`doc`) can be updated in-place.
@@ -100,17 +100,17 @@ Notes:
 Each overload can evolve over time by introducing new versions. An overload version represents a specific implementation
 of the overload at a given point in time.
 
-| Requirement | Field name            | Type                                                                     | Description                                                                             |
-|-------------|-----------------------|--------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| *required*  | `overload-version-id` | `long`                                                                   | Monotonically increasing identifier of the overload version.                            |
-| *required*  | `representations`     | `array<representation>`                                                  | [Dialect-specific implementations](#representation).                                    |
-| *optional*  | `deterministic`       | `boolean` (default `false`)                                              | Whether the function is deterministic.                                                  |
-| *optional*  | `null-handling`       | `enum { "returns_null", "called_on_null" }` (default `"called_on_null"`) | Hint describing how the function behaves with NULL input values. See below for details. |
-| *required*  | `timestamp-ms`        | `long` (epoch millis)                                                    | Creation timestamp of this version.                                                     |
+| Requirement | Field name            | Type                                                                                 | Description                                                                             |
+|-------------|-----------------------|--------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| *required*  | `overload-version-id` | `long`                                                                               | Monotonically increasing identifier of the overload version.                            |
+| *required*  | `representations`     | `list<representation>`                                                               | [Dialect-specific implementations](#representation).                                    |
+| *optional*  | `deterministic`       | `boolean` (default `false`)                                                          | Whether the function is deterministic.                                                  |
+| *optional*  | `null-handling`       | `string` (either `"returns_null"` or `"called_on_null"`, default `"called_on_null"`) | Hint describing how the function behaves with NULL input values. See below for details. |
+| *required*  | `timestamp-ms`        | `long` (epoch millis)                                                                | Creation timestamp of this version.                                                     |
 
 Note:
 
-`null-handling` provides an optimization hint for query engines:
+`null-handling` provides an optimization hint for query engines, its value can be either `"returns_null"` or `"called_on_null"`:
 1. `returns_null`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
 the engine can safely rewrite `WHERE f(a,b) > 0` as `WHERE a IS NOT NULL AND b IS NOT NULL AND f(a,b) > 0`.
 2. `called_on_null`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must execute the function even if some inputs are `NULL`.
@@ -126,10 +126,10 @@ A representation encodes how the overload version is expressed in a specific SQL
 Note: The `body` must be valid SQL in the specified dialect; validation is the responsibility of the consuming engine.
 
 ### Definition log
-| Requirement | Field name          | Type                                                      | Description                                                     |
-|-------------|---------------------|-----------------------------------------------------------|-----------------------------------------------------------------|
-| *required*  | `timestamp-ms`      | `long` (epoch millis)                                     | When the definition snapshot was created or updated.            |
-| *required*  | `overload-versions` | `array<{ overload-id: long, overload-version-id: long }>` | Mapping of each overload to its selected version at this point. |
+| Requirement | Field name          | Type                                                     | Description                                                     |
+|-------------|---------------------|----------------------------------------------------------|-----------------------------------------------------------------|
+| *required*  | `timestamp-ms`      | `long` (epoch millis)                                    | When the definition snapshot was created or updated.            |
+| *required*  | `overload-versions` | `list<{ overload-id: long, overload-version-id: long }>` | Mapping of each overload to its selected version at this point. |
 
 ## Function Resolution in Engines
 Resolution rule is decided by engines, but engines SHOULD:
