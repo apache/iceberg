@@ -267,13 +267,11 @@ public class TestBaseIncrementalChangelogScan
     assertThat(tasks).as("Must have 1 task").hasSize(1);
 
     DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
-    assertThat(task.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
-    assertThat(task.addedDeletes()).as("Must have added deletes").hasSize(1);
-    assertThat(task.addedDeletes().get(0).location())
-        .as("Added delete must match")
-        .isEqualTo(FILE_A_DELETES.location());
+    assertThat(task.addedDeletes()).as("Must have added deletes").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
     assertThat(task.existingDeletes()).as("Must have no existing deletes").isEmpty();
   }
 
@@ -298,13 +296,11 @@ public class TestBaseIncrementalChangelogScan
     assertThat(tasks).as("Must have 1 task").hasSize(1);
 
     DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
-    assertThat(task.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A2.location());
-    assertThat(task.addedDeletes()).as("Must have added deletes").hasSize(1);
-    assertThat(task.addedDeletes().get(0).location())
-        .as("Added delete must match")
-        .isEqualTo(FILE_A2_DELETES.location());
+    assertThat(task.addedDeletes()).as("Must have added deletes").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
     assertThat(task.existingDeletes()).as("Must have no existing deletes").isEmpty();
   }
 
@@ -330,7 +326,6 @@ public class TestBaseIncrementalChangelogScan
     assertThat(tasks).as("Must have 1 task").hasSize(1);
 
     AddedRowsScanTask task = (AddedRowsScanTask) Iterables.getOnlyElement(tasks);
-    assertThat(task.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_B.location());
     assertThat(task.deletes()).as("Must have no deletes").isEmpty();
@@ -360,13 +355,11 @@ public class TestBaseIncrementalChangelogScan
     assertThat(tasks).as("Must have 1 task").hasSize(1);
 
     DeletedDataFileScanTask task = (DeletedDataFileScanTask) Iterables.getOnlyElement(tasks);
-    assertThat(task.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
-    assertThat(task.existingDeletes()).as("Must have existing deletes").hasSize(1);
-    assertThat(task.existingDeletes().get(0).location())
-        .as("Existing delete must match")
-        .isEqualTo(FILE_A_DELETES.location());
+    assertThat(task.existingDeletes()).as("Must have existing deletes").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
   }
 
   @TestTemplate
@@ -486,14 +479,12 @@ public class TestBaseIncrementalChangelogScan
     assertThat(tasks).as("Must have 1 task").hasSize(1);
 
     AddedRowsScanTask task = (AddedRowsScanTask) Iterables.getOnlyElement(tasks);
-    assertThat(task.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
     // The delete should be attached to the added file task
-    assertThat(task.deletes()).as("Must have deletes").hasSize(1);
-    assertThat(task.deletes().get(0).location())
-        .as("Delete must match")
-        .isEqualTo(FILE_A_DELETES.location());
+    assertThat(task.deletes()).as("Must have deletes").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
   }
 
   @TestTemplate
@@ -523,24 +514,21 @@ public class TestBaseIncrementalChangelogScan
     DeletedRowsScanTask task1 = (DeletedRowsScanTask) tasks.get(0);
     assertThat(task1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(task1.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
-    assertThat(task1.addedDeletes()).as("Must have 1 added delete").hasSize(1);
-    assertThat(task1.addedDeletes().get(0).location())
-        .as("Must be position delete")
-        .isEqualTo(FILE_A_DELETES.location());
+    assertThat(task1.addedDeletes()).as("Must have 1 added delete").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
     assertThat(task1.existingDeletes()).as("Must have no existing deletes").isEmpty();
 
     DeletedRowsScanTask task2 = (DeletedRowsScanTask) tasks.get(1);
     assertThat(task2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
     assertThat(task2.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
-    assertThat(task2.addedDeletes()).as("Must have 1 added delete").hasSize(1);
-    assertThat(task2.addedDeletes().get(0).location())
-        .as("Must be equality delete")
-        .isEqualTo(FILE_A2_DELETES.location());
+    assertThat(task2.addedDeletes()).as("Must have 1 added delete").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
     // The position delete from snap2 should be an existing delete for snap3
-    assertThat(task2.existingDeletes()).as("Must have 1 existing delete").hasSize(1);
-    assertThat(task2.existingDeletes().get(0).location())
-        .as("Must be position delete from previous snapshot")
-        .isEqualTo(FILE_A_DELETES.location());
+    assertThat(task2.existingDeletes()).as("Must be 1 position delete from previous snapshot").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
   }
 
   @TestTemplate
@@ -577,14 +565,12 @@ public class TestBaseIncrementalChangelogScan
     DeletedRowsScanTask task2 = (DeletedRowsScanTask) tasks.get(1);
     assertThat(task2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
     assertThat(task2.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
-    assertThat(task2.addedDeletes()).as("Must have newly added delete").hasSize(1);
-    assertThat(task2.addedDeletes().get(0).location())
-        .as("Added delete must be equality delete")
-        .isEqualTo(FILE_A2_DELETES.location());
-    assertThat(task2.existingDeletes()).as("Must have existing delete").hasSize(1);
-    assertThat(task2.existingDeletes().get(0).location())
-        .as("Existing delete must be position delete")
-        .isEqualTo(FILE_A_DELETES.location());
+    assertThat(task2.addedDeletes()).as("Must have newly added delete").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
+    assertThat(task2.existingDeletes()).as("Must have existing delete").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
   }
 
   @TestTemplate
@@ -610,19 +596,14 @@ public class TestBaseIncrementalChangelogScan
     assertThat(tasks).as("Must have 2 tasks").hasSize(2);
 
     AddedRowsScanTask addedTask = (AddedRowsScanTask) tasks.get(0);
-    assertThat(addedTask.file().location())
-        .as("Added file must match")
-        .isEqualTo(FILE_A2.location());
+    assertThat(addedTask.file().location()).as("Added file must match").isEqualTo(FILE_A2.location());
 
     DeletedDataFileScanTask deletedTask = (DeletedDataFileScanTask) tasks.get(1);
-    assertThat(deletedTask.file().location())
-        .as("Deleted file must match")
-        .isEqualTo(FILE_A.location());
+    assertThat(deletedTask.file().location()).as("Deleted file must match").isEqualTo(FILE_A.location());
     // FILE_A had existing deletes which should be included
-    assertThat(deletedTask.existingDeletes()).as("Must have existing deletes").hasSize(1);
-    assertThat(deletedTask.existingDeletes().get(0).location())
-        .as("Existing delete must match")
-        .isEqualTo(FILE_A_DELETES.location());
+    assertThat(deletedTask.existingDeletes()).as("Must have existing deletes").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
   }
 
   @TestTemplate
@@ -680,10 +661,9 @@ public class TestBaseIncrementalChangelogScan
     // The DeleteFileIndex should prune out the other partition's delete files
     assertThat(task.addedDeletes())
         .as("Must have only 1 delete (partition pruning should eliminate others)")
-        .hasSize(1);
-    assertThat(task.addedDeletes().get(0).location())
-        .as("Must be the delete file in partition 0")
-        .isEqualTo(eqDelete1.location());
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(eqDelete1.location());
   }
 
   // plans tasks and reorders them to have deterministic order
@@ -730,10 +710,9 @@ public class TestBaseIncrementalChangelogScan
     // FILE_C2_DELETES should have been pruned because:
     // - Its partition (data_bucket=2) doesn't contain any data files
     // - The partition pruning optimization skips it during accumulation
-    assertThat(task.addedDeletes()).as("Must have added deletes").hasSize(1);
-    assertThat(task.addedDeletes().get(0).location())
-        .as("Added delete must match")
-        .isEqualTo(FILE_A_DELETES.location());
+    assertThat(task.addedDeletes()).as("Must have added deletes").hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
   }
 
   private Comparator<? super ChangelogScanTask> taskComparator() {
