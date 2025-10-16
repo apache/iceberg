@@ -200,78 +200,25 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testGeometryWrapAroundOnA() {
+  public void testGeometryBoxesWithEmptyXRange() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
 
-    // First box wraps around antimeridian (min.x > max.x), second doesn't
     GeospatialBound min1 = GeospatialBound.createXY(170.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(-170.0, 10.0);
     BoundingBox box1 = new BoundingBox(min1, max1);
-
-    // Box that overlaps with the part after the wrap around
     GeospatialBound min2 = GeospatialBound.createXY(-175.0, 5.0);
     GeospatialBound max2 = GeospatialBound.createXY(-160.0, 15.0);
     BoundingBox box2 = new BoundingBox(min2, max2);
-
-    assertThat(evaluator.intersects(box1, box2)).isTrue();
-    assertThat(evaluator.intersects(box2, box1)).isTrue();
-
-    // Box that overlaps with the part before the wrap around
-    GeospatialBound min3 = GeospatialBound.createXY(160.0, 5.0);
-    GeospatialBound max3 = GeospatialBound.createXY(175.0, 15.0);
+    GeospatialBound min3 = GeospatialBound.createXY(160.0, 0.0);
+    GeospatialBound max3 = GeospatialBound.createXY(-160.0, 10.0);
     BoundingBox box3 = new BoundingBox(min3, max3);
 
-    assertThat(evaluator.intersects(box1, box3)).isTrue();
-    assertThat(evaluator.intersects(box3, box1)).isTrue();
-
-    // Box that doesn't overlap with either part
-    GeospatialBound min4 = GeospatialBound.createXY(-150.0, 20.0);
-    GeospatialBound max4 = GeospatialBound.createXY(-140.0, 30.0);
-    BoundingBox box4 = new BoundingBox(min4, max4);
-
-    assertThat(evaluator.intersects(box1, box4)).isFalse();
-    assertThat(evaluator.intersects(box4, box1)).isFalse();
-  }
-
-  @Test
-  public void testGeometryWrapAroundOnB() {
-    Type geometryType = Types.GeometryType.crs84();
-    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
-        GeospatialPredicateEvaluators.create(geometryType);
-
-    // First box doesn't wrap around, second does (min.x > max.x)
-    GeospatialBound min1 = GeospatialBound.createXY(-175.0, 5.0);
-    GeospatialBound max1 = GeospatialBound.createXY(-160.0, 15.0);
-    BoundingBox box1 = new BoundingBox(min1, max1);
-
-    GeospatialBound min2 = GeospatialBound.createXY(170.0, 0.0);
-    GeospatialBound max2 = GeospatialBound.createXY(-170.0, 10.0);
-    BoundingBox box2 = new BoundingBox(min2, max2);
-
-    assertThat(evaluator.intersects(box1, box2)).isTrue();
-    assertThat(evaluator.intersects(box2, box1)).isTrue();
-  }
-
-  @Test
-  public void testBothGeometriesWrappingAround() {
-    Type geometryType = Types.GeometryType.crs84();
-    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
-        GeospatialPredicateEvaluators.create(geometryType);
-
-    // Both boxes wrap around (min.x > max.x)
-    GeospatialBound min1 = GeospatialBound.createXY(170.0, 0.0);
-    GeospatialBound max1 = GeospatialBound.createXY(-170.0, 10.0);
-    BoundingBox box1 = new BoundingBox(min1, max1);
-
-    GeospatialBound min2 = GeospatialBound.createXY(160.0, 5.0);
-    GeospatialBound max2 = GeospatialBound.createXY(-160.0, 15.0);
-    BoundingBox box2 = new BoundingBox(min2, max2);
-
-    // When both wrap around, they must intersect
-    assertThat(evaluator.intersects(box1, box2)).isTrue();
-    assertThat(evaluator.intersects(box2, box1)).isTrue();
+    assertThat(evaluator.intersects(box1, box2)).isFalse();
+    assertThat(evaluator.intersects(box2, box1)).isFalse();
+    assertThat(evaluator.intersects(box1, box3)).isFalse();
+    assertThat(evaluator.intersects(box3, box1)).isFalse();
   }
 
   @Test
