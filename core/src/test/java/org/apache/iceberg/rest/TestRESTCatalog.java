@@ -2961,6 +2961,41 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(reloaded.snapshot(expectedSnapshotId)).isNotNull();
   }
 
+  @Test
+  public void testCommitStateUnknownNotReconciled() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    // Simulate: server returns CommitStateUnknown and does NOT apply the commit
+    Mockito.doThrow(
+            new CommitStateUnknownException(new ServiceFailureException("Service failed: 503")))
+        .when(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    Table table = catalog.loadTable(TABLE);
+
+    assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_A).commit())
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Cannot determine whether the commit was successful")
+        .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
