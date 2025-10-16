@@ -19,26 +19,27 @@
 package org.apache.iceberg.aws;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.http.SdkHttpClient;
 
 /**
  * A registry that manages the lifecycle of shared HTTP clients for AWS SDK v2 using reference
- * counting. HTTP clients are closed when their reference count reaches zero.
+ * counting.
  */
-class ManagedHttpClientRegistry {
+public final class ManagedHttpClientRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(ManagedHttpClientRegistry.class);
 
-  private final ConcurrentHashMap<String, ManagedHttpClient> clientMap;
+  private final ConcurrentMap<String, ManagedHttpClient> clientMap;
 
   private static volatile ManagedHttpClientRegistry instance;
 
-  static ManagedHttpClientRegistry getInstance() {
+  public static ManagedHttpClientRegistry getInstance() {
     if (instance == null) {
       synchronized (ManagedHttpClientRegistry.class) {
         if (instance == null) {
@@ -50,7 +51,7 @@ class ManagedHttpClientRegistry {
   }
 
   private ManagedHttpClientRegistry() {
-    this.clientMap = new ConcurrentHashMap<>();
+    this.clientMap = Maps.newConcurrentMap();
   }
 
   /**
@@ -62,7 +63,7 @@ class ManagedHttpClientRegistry {
    * @param properties configuration properties for this client
    * @return a managed HTTP client with incremented reference count
    */
-  SdkHttpClient getOrCreateClient(
+  public SdkHttpClient getOrCreateClient(
       String clientKey, Supplier<SdkHttpClient> clientFactory, Map<String, String> properties) {
     ManagedHttpClient managedClient =
         clientMap.computeIfAbsent(
@@ -81,7 +82,7 @@ class ManagedHttpClientRegistry {
    *
    * @param clientKey the key identifying the client to release
    */
-  void releaseClient(String clientKey) {
+  public void releaseClient(String clientKey) {
     ManagedHttpClient managedClient = clientMap.get(clientKey);
     if (managedClient != null) {
       if (managedClient.release()) {
@@ -92,7 +93,7 @@ class ManagedHttpClientRegistry {
   }
 
   @VisibleForTesting
-  ConcurrentHashMap<String, ManagedHttpClient> getClientMap() {
+  ConcurrentMap<String, ManagedHttpClient> getClientMap() {
     return clientMap;
   }
 
@@ -140,12 +141,21 @@ class ManagedHttpClientRegistry {
      * @return true if the client was closed, false otherwise
      */
     boolean release() {
+      if (closed) {
+        LOG.warn("Attempted to release already closed HTTP client: key={}", clientKey);
+        return false;
+      }
+
       int count = refCount.decrementAndGet();
       LOG.debug("Released HTTP client: key={}, refCount={}", clientKey, count);
       if (count == 0) {
         return close();
       } else if (count < 0) {
-        LOG.warn("HTTP client reference count went negative: key={}, refCount={}", clientKey, count);
+        LOG.error(
+            "HTTP client reference count went negative despite closed check: key={}, refCount={}",
+            clientKey,
+            count);
+        refCount.set(0); // Reset to prevent further corruption
       }
       return false;
     }

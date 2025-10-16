@@ -44,4 +44,13 @@ public interface S3FileIOAwsClientFactory extends Serializable {
    * @param properties catalog properties
    */
   void initialize(Map<String, String> properties);
+
+  /**
+   * Get the HTTP client key used for resource management.
+   *
+   * @return HTTP client key, or null if not available
+   */
+  default String httpClientKey() {
+    return null;
+  }
 }

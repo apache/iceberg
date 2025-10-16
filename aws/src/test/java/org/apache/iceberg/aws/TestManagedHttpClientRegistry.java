@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
@@ -157,7 +157,7 @@ public class TestManagedHttpClientRegistry {
     SdkHttpClient client1 = registry.getOrCreateClient(cacheKey, mockFactory1, properties);
     assertThat(client1).isNotNull();
 
-    ConcurrentHashMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
+    ConcurrentMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
         registry.getClientMap();
     assertThat(clientMap).containsKey(cacheKey);
 
@@ -217,7 +217,7 @@ public class TestManagedHttpClientRegistry {
 
   @Test
   public void testRegistryShutdown() {
-    ConcurrentHashMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
+    ConcurrentMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
         registry.getClientMap();
     Map<String, String> properties = Maps.newHashMap();
 
@@ -237,5 +237,62 @@ public class TestManagedHttpClientRegistry {
     // Both clients should be closed
     verify(mockHttpClient1, times(1)).close();
     verify(mockHttpClient2, times(1)).close();
+  }
+
+  @Test
+  public void testDoubleReleaseDoesNotCauseNegativeRefCount() throws Exception {
+    SdkHttpClient mockClient = mock(SdkHttpClient.class);
+    String cacheKey = "test-key";
+
+    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
+        new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
+
+    // Acquire once
+    SdkHttpClient client = managedClient.acquire();
+    assertThat(client).isSameAs(mockClient);
+    assertThat(managedClient.getRefCount()).isEqualTo(1);
+
+    // First release should close the client (refCount goes to 0)
+    boolean closed = managedClient.release();
+    assertThat(closed).isTrue();
+    assertThat(managedClient.getRefCount()).isEqualTo(0);
+    assertThat(managedClient.isClosed()).isTrue();
+    verify(mockClient, times(1)).close();
+
+    // Second release on already closed client should be a no-op
+    // The closed flag prevents decrement, so refCount stays at 0
+    boolean closedAgain = managedClient.release();
+    assertThat(closedAgain).isFalse();
+    assertThat(managedClient.getRefCount()).isEqualTo(0); // Should still be 0, not negative
+    assertThat(managedClient.isClosed()).isTrue();
+    verify(mockClient, times(1)).close(); // Close should not be called again
+  }
+
+  @Test
+  public void testMultipleReleasesAfterClose() throws Exception {
+    SdkHttpClient mockClient = mock(SdkHttpClient.class);
+    String cacheKey = "test-key";
+
+    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
+        new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
+
+    // Acquire once
+    managedClient.acquire();
+    assertThat(managedClient.getRefCount()).isEqualTo(1);
+
+    // Release to close
+    managedClient.release();
+    assertThat(managedClient.isClosed()).isTrue();
+    assertThat(managedClient.getRefCount()).isEqualTo(0);
+
+    // Try releasing multiple more times (simulating a bug in caller code)
+    for (int i = 0; i < 5; i++) {
+      boolean result = managedClient.release();
+      assertThat(result).isFalse(); // Should return false, not try to close again
+      assertThat(managedClient.getRefCount()).isEqualTo(0); // RefCount should never go negative
+    }
+
+    // Close should only have been called once
+    verify(mockClient, times(1)).close();
   }
 }
