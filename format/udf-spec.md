@@ -22,7 +22,7 @@ title: "SQL UDF Spec"
 
 ## Background and Motivation
 
-A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters, executes a function body.
+A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters and executes a function body.
 Depending on the function type, the result can be:
 
 - **Scalar functions (UDFs)** – return a scalar value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
@@ -111,9 +111,9 @@ of the overload at a given point in time.
 Note:
 
 `null-handling` provides an optimization hint for query engines, its value can be either `"returns_null"` or `"called_on_null"`:
-1. `returns_null`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
+1. If set to `returns_null`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
 the engine can safely rewrite `WHERE f(a,b) > 0` as `WHERE a IS NOT NULL AND b IS NOT NULL AND f(a,b) > 0`.
-2. `called_on_null`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must execute the function even if some inputs are `NULL`.
+2. If set to `called_on_null`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must execute the function even if some inputs are `NULL`.
 
 ### Representation
 A representation encodes how the overload version is expressed in a specific SQL dialect.
