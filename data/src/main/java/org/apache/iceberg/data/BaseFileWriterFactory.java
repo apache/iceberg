@@ -62,6 +62,35 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
       int[] equalityFieldIds,
       Schema equalityDeleteRowSchema,
       SortOrder equalityDeleteSortOrder,
+      Map<String, String> writerProperties) {
+    this.table = table;
+    this.dataFileFormat = dataFileFormat;
+    this.dataSchema = dataSchema;
+    this.dataSortOrder = dataSortOrder;
+    this.deleteFileFormat = deleteFileFormat;
+    this.equalityFieldIds = equalityFieldIds;
+    this.equalityDeleteRowSchema = equalityDeleteRowSchema;
+    this.equalityDeleteSortOrder = equalityDeleteSortOrder;
+    this.writerProperties = writerProperties;
+    this.positionDeleteRowSchema = null;
+  }
+
+  /**
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #BaseFileWriterFactory(Table, FileFormat, Schema, SortOrder, FileFormat, int[], Schema,
+   *     SortOrder, Map)} instead.
+   */
+  @Deprecated
+  protected BaseFileWriterFactory(
+      Table table,
+      FileFormat dataFileFormat,
+      Schema dataSchema,
+      SortOrder dataSortOrder,
+      FileFormat deleteFileFormat,
+      int[] equalityFieldIds,
+      Schema equalityDeleteRowSchema,
+      SortOrder equalityDeleteSortOrder,
       Schema positionDeleteRowSchema,
       Map<String, String> writerProperties) {
     this.table = table;
@@ -333,6 +362,11 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
     return equalityDeleteRowSchema;
   }
 
+  /**
+   * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported.
+   */
+  @Deprecated
   protected Schema positionDeleteRowSchema() {
     return positionDeleteRowSchema;
   }
