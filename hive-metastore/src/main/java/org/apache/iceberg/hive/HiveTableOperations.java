@@ -216,12 +216,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     encryptionPropsFromMetadata(metadata.properties());
 
     String newMetadataLocation;
-    EncryptionManager encryptionManager = encryption();
-    if (encryptionManager instanceof StandardEncryptionManager) {
+    EncryptionManager encrManager = encryption();
+    if (encrManager instanceof StandardEncryptionManager) {
       // Add new encryption keys to the metadata
       TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
       for (Map.Entry<String, EncryptedKey> entry :
-          EncryptionUtil.encryptionKeys(encryptionManager).entrySet()) {
+          EncryptionUtil.encryptionKeys(encrManager).entrySet()) {
         builder.addEncryptionKey(entry.getValue());
       }
 
