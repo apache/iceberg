@@ -601,10 +601,11 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
     sql("INSERT INTO %s VALUES (3000, CAST('2024-05-01 19:25:00' as TIMESTAMP), 2300)", tableName);
     sql("ALTER TABLE %s DROP COLUMN %s", tableName, column);
 
-    assertEquals(
-        "Should return correct data",
-        expected,
-        sql("SELECT * FROM %s WHERE %s ORDER BY col_int", tableName, predicate));
+    assertThat(sql("SELECT * FROM %s WHERE %s ORDER BY col_int", tableName, predicate))
+        .containsExactlyElementsOf(expected);
+
+    sql("DELETE FROM %s WHERE %s", tableName, predicate);
+    assertThat(sql("SELECT * FROM %s WHERE %s", tableName, predicate)).isEmpty();
   }
 
   @TestTemplate
