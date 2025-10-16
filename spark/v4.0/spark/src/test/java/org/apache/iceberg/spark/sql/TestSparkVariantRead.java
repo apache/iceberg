@@ -169,4 +169,112 @@ public class TestSparkVariantRead extends TestBase {
     assertThat(row.getLong(0)).isEqualTo(10L);
     assertThat(row.isNullAt(1)).isTrue();
   }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testNestedStructVariant(boolean vectorized) {
+    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
+    spark.conf().set("spark.sql.parquet.enableVectorizedReader", String.valueOf(vectorized));
+
+    String structTable = CATALOG + ".default.var_struct";
+    sql("DROP TABLE IF EXISTS %s", structTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, s STRUCT<v: VARIANT>) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'read.parquet.vectorization.enabled'='false')",
+        structTable);
+
+    String j1 = "{\"a\":1}";
+    String j2 = "{\"b\":2}";
+    sql("INSERT INTO %s SELECT 1, named_struct('v', parse_json('%s'))", structTable, j1);
+    sql("INSERT INTO %s SELECT 2, named_struct('v', parse_json('%s'))", structTable, j2);
+
+    Dataset<Row> df =
+        spark.table(structTable).selectExpr("id", "to_json(s.v) as v_json").orderBy("id");
+    java.util.List<Row> rows = df.collectAsList();
+    assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
+    assertThat(rows.get(0).getString(1)).isEqualTo("{\"a\":1}");
+    assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
+    assertThat(rows.get(1).getString(1)).isEqualTo("{\"b\":2}");
+
+    sql("DROP TABLE IF EXISTS %s", structTable);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testNestedArrayVariant(boolean vectorized) {
+    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
+    spark.conf().set("spark.sql.parquet.enableVectorizedReader", String.valueOf(vectorized));
+
+    String arrayTable = CATALOG + ".default.var_array";
+    sql("DROP TABLE IF EXISTS %s", arrayTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, arr ARRAY<VARIANT>) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'read.parquet.vectorization.enabled'='false')",
+        arrayTable);
+
+    String a1 = "{\"a\":1}";
+    String a2 = "{\"x\":10}";
+    String b1 = "{\"b\":2}";
+    String b2 = "{\"y\":20}";
+    sql("INSERT INTO %s SELECT 1, array(parse_json('%s'), parse_json('%s'))", arrayTable, a1, a2);
+    sql("INSERT INTO %s SELECT 2, array(parse_json('%s'), parse_json('%s'))", arrayTable, b1, b2);
+
+    Dataset<Row> df =
+        spark
+            .table(arrayTable)
+            .selectExpr("id", "to_json(arr[0]) as e0_json", "to_json(arr[1]) as e1_json")
+            .orderBy("id");
+    java.util.List<Row> rows = df.collectAsList();
+    assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
+    assertThat(rows.get(0).getString(1)).isEqualTo("{\"a\":1}");
+    assertThat(rows.get(0).getString(2)).isEqualTo("{\"x\":10}");
+    assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
+    assertThat(rows.get(1).getString(1)).isEqualTo("{\"b\":2}");
+    assertThat(rows.get(1).getString(2)).isEqualTo("{\"y\":20}");
+
+    sql("DROP TABLE IF EXISTS %s", arrayTable);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testNestedMapVariant(boolean vectorized) {
+    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
+    spark.conf().set("spark.sql.parquet.enableVectorizedReader", String.valueOf(vectorized));
+
+    String mapTable = CATALOG + ".default.var_map";
+    sql("DROP TABLE IF EXISTS %s", mapTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, m MAP<STRING, VARIANT>) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'read.parquet.vectorization.enabled'='false')",
+        mapTable);
+
+    String k1a = "{\"a\":1}";
+    String k2x = "{\"x\":10}";
+    String k1b = "{\"b\":2}";
+    String k2y = "{\"y\":20}";
+    sql(
+        "INSERT INTO %s SELECT 1, map('k1', parse_json('%s'), 'k2', parse_json('%s'))",
+        mapTable, k1a, k2x);
+    sql(
+        "INSERT INTO %s SELECT 2, map('k1', parse_json('%s'), 'k2', parse_json('%s'))",
+        mapTable, k1b, k2y);
+
+    Dataset<Row> df =
+        spark
+            .table(mapTable)
+            .selectExpr(
+                "id",
+                "to_json(element_at(m, 'k1')) as k1_json",
+                "to_json(element_at(m, 'k2')) as k2_json")
+            .orderBy("id");
+    java.util.List<Row> rows = df.collectAsList();
+    assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
+    assertThat(rows.get(0).getString(1)).isEqualTo("{\"a\":1}");
+    assertThat(rows.get(0).getString(2)).isEqualTo("{\"x\":10}");
+    assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
+    assertThat(rows.get(1).getString(1)).isEqualTo("{\"b\":2}");
+    assertThat(rows.get(1).getString(2)).isEqualTo("{\"y\":20}");
+
+    sql("DROP TABLE IF EXISTS %s", mapTable);
+  }
 }
