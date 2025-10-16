@@ -25,11 +25,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.function.IntFunction;
 import javax.net.ssl.SSLException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.io.FileRange;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -40,7 +46,11 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
@@ -67,6 +77,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
   private final Counter readBytes;
   private final Counter readOperations;
+  private ExecutorService executorService;
 
   private int skipSize = 1024 * 1024;
   private RetryPolicy<Object> retryPolicy =
@@ -87,14 +98,24 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
           .build();
 
   S3InputStream(S3Client s3, S3URI location) {
-    this(s3, location, new S3FileIOProperties(), MetricsContext.nullMetrics());
+    this(s3, location, new S3FileIOProperties(), MetricsContext.nullMetrics(), null);
   }
 
   S3InputStream(
       S3Client s3, S3URI location, S3FileIOProperties s3FileIOProperties, MetricsContext metrics) {
+    this(s3, location, s3FileIOProperties, metrics, null);
+  }
+
+  S3InputStream(
+      S3Client s3,
+      S3URI location,
+      S3FileIOProperties s3FileIOProperties,
+      MetricsContext metrics,
+      ExecutorService executorService) {
     this.s3 = s3;
     this.location = location;
     this.s3FileIOProperties = s3FileIOProperties;
+    this.executorService = executorService;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
     this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
@@ -105,6 +126,15 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   @Override
   public long getPos() {
     return next;
+  }
+
+  private ExecutorService executorService() {
+    if (executorService == null) {
+      executorService =
+          ThreadPools.newExitingWorkerPool(
+              "iceberg-s3fileio-read", s3FileIOProperties.readThreads());
+    }
+    return executorService;
   }
 
   @Override
@@ -188,6 +218,116 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
     return s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+  }
+
+  /**
+   * Vectored read implementation that coalesces nearby ranges to reduce S3 requests. Step Through
+   * Process: 1. Coalesce ranges - merge nearby ranges within skipSize tolerance and create linked
+   * lists to populate 2. Submit S3 requests concurrently for each coalesced range 3. For each S3
+   * response stream, skip gaps and read into individual range buffers Given ranges [0-100],
+   * [200-300], [10000-10100] with skipSize=1024: - First two ranges are close (gap=100 < 1024) so
+   * they coalesce into [0-300] - Third range is far (gap=9700 > 1024) so it stays separate as
+   * [10000-10100] - Results in 2 S3 requests for [0-300] and [10000-10100] - Reads the stream into
+   * the buffer, stopping when it reaches the length + offset - Then Skips to the next linked
+   * buffers start - For coalesced [0-300]: read [0-100], skip 100 bytes, read [200-300]
+   *
+   * @param ranges the ranges to read and their futures
+   * @param allocate the function to allocate ByteBuffer
+   */
+  @Override
+  public void readVectored(List<FileRange> ranges, IntFunction<ByteBuffer> allocate) {
+    Map<FileRange, List<FileRange>> linkedRanges = Maps.newHashMap();
+    List<FileRange> coalesced = coalesce(ranges, linkedRanges);
+
+    Tasks.foreach(coalesced)
+        .retry(3)
+        .executeWith(executorService())
+        .onFailure((range, thrown) -> LOG.error("Failed to stream range: {}", range, thrown))
+        .throwFailureWhenFinished()
+        .run(
+            coalescedRange -> {
+              String range =
+                  String.format(
+                      "bytes=%s-%s",
+                      coalescedRange.offset(),
+                      coalescedRange.offset() + coalescedRange.length() - 1);
+              try (InputStream stream = readRange(range)) {
+                long currentPos = coalescedRange.offset();
+
+                for (FileRange linkedRange : linkedRanges.get(coalescedRange)) {
+                  // Skip to the start of this linked range
+                  long skipBytes = linkedRange.offset() - currentPos;
+                  if (skipBytes > 0) {
+                    ByteStreams.skipFully(stream, skipBytes);
+                  }
+
+                  // Read into the linked range buffer
+                  ByteBuffer buffer = allocate.apply(linkedRange.length());
+                  ByteStreams.readFully(stream, buffer.array(), 0, linkedRange.length());
+                  linkedRange.byteBuffer().complete(buffer);
+
+                  currentPos = linkedRange.offset() + linkedRange.length();
+                }
+              } catch (IOException e) {
+                LOG.error("Failed to stream range: {}", range, e);
+                throw new RuntimeException(e);
+              }
+            });
+  }
+
+  /**
+   * Merges nearby ranges to reduce S3 requests. Ranges are merged if the gap between them is
+   * smaller than skipSize.
+   *
+   * <p>With skipSize=1024, ranges [0-100], [200-300], [5000-5100] become: - [0-300] containing
+   * [0-100] and [200-300] (gap=100 < 1024) - [5000-5100] stays separate (gap=4700 > 1024)
+   *
+   * @param ranges the ranges to coalesce
+   * @param linkedRanges map to store linked ranges for each coalesced range
+   * @return a new list of coalesced ranges
+   */
+  private List<FileRange> coalesce(
+      List<FileRange> ranges, Map<FileRange, List<FileRange>> linkedRanges) {
+    if (ranges.size() < 2) {
+      for (FileRange range : ranges) {
+        linkedRanges.put(range, Lists.newArrayList(range));
+      }
+      return Lists.newArrayList(ranges);
+    }
+
+    List<FileRange> sorted = Lists.newArrayList(ranges);
+    Collections.sort(sorted);
+
+    List<FileRange> result = Lists.newArrayList();
+    List<FileRange> linked = Lists.newArrayList();
+    FileRange firstRange = sorted.get(0);
+
+    linked.add(firstRange);
+    long start = firstRange.offset();
+    long end = start + firstRange.length();
+
+    for (int i = 1; i < sorted.size(); i++) {
+      FileRange nextRange = sorted.get(i);
+
+      if (end + skipSize >= nextRange.offset()) {
+        linked.add(nextRange);
+        end = Math.max(end, nextRange.offset() + nextRange.length());
+      } else {
+        FileRange coalesced = new FileRange(start, (int) (end - start));
+        linkedRanges.put(coalesced, Lists.newArrayList(linked));
+        result.add(coalesced);
+
+        linked.clear();
+        linked.add(nextRange);
+        start = nextRange.offset();
+        end = start + nextRange.length();
+      }
+    }
+
+    FileRange coalesced = new FileRange(start, (int) (end - start));
+    linkedRanges.put(coalesced, Lists.newArrayList(linked));
+    result.add(coalesced);
+    return result;
   }
 
   @Override

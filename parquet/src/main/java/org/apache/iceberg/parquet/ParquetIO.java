@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg.parquet;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -177,6 +177,7 @@ class ParquetIO {
     @Override
     public void readVectored(List<ParquetFileRange> ranges, ByteBufferAllocator allocate)
         throws IOException {
+      IntFunction<ByteBuffer> delegateAllocate = allocate::allocate;
       List<FileRange> delegateRange = convertRanges(ranges);
       delegate.readVectored(delegateRange, allocate::allocate);
     }
@@ -187,18 +188,10 @@ class ParquetIO {
               parquetFileRange -> {
                 CompletableFuture<ByteBuffer> future = new CompletableFuture<>();
                 parquetFileRange.setDataReadFuture(future);
-                try {
-                  return new FileRange(
-                      parquetFileRange.getDataReadFuture(),
-                      parquetFileRange.getOffset(),
-                      parquetFileRange.getLength());
-                } catch (EOFException e) {
-                  throw new RuntimeIOException(
-                      e,
-                      "Failed to create range file for offset: %s and length: %s",
-                      parquetFileRange.getOffset(),
-                      parquetFileRange.getLength());
-                }
+                return new FileRange(
+                    parquetFileRange.getDataReadFuture(),
+                    parquetFileRange.getOffset(),
+                    parquetFileRange.getLength());
               })
           .collect(Collectors.toList());
     }

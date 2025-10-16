@@ -142,12 +142,13 @@ public class S3FileIO
 
   @Override
   public InputFile newInputFile(String path) {
-    return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
+    return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics, executorService());
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
+    return S3InputFile.fromLocation(
+        path, length, clientForStoragePath(path), metrics, executorService());
   }
 
   @Override
