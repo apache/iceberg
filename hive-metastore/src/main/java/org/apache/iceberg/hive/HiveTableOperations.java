@@ -194,14 +194,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
 
     if (tableKeyIdFromHMS != null) {
+      checkEncryptionProperties(tableKeyIdFromHMS, dekLengthFromHMS);
+
       tableKeyId = tableKeyIdFromHMS;
       encryptionDekLength =
           (dekLengthFromHMS != null)
               ? Integer.parseInt(dekLengthFromHMS)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
 
-      checkEncryptionProperties(tableKeyIdFromHMS, dekLengthFromHMS);
       encryptedKeysFromMetadata = current().encryptionKeys();
+      // Force re-creation of encryption manager with updated keys
+      encryptingFileIO = null;
+      encryptionManager = null;
     }
   }
 
@@ -212,11 +216,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     encryptionPropsFromMetadata(metadata.properties());
 
     String newMetadataLocation;
-    if (encryption() instanceof StandardEncryptionManager) {
+    EncryptionManager encryptionManager = encryption();
+    if (encryptionManager instanceof StandardEncryptionManager) {
       // Add new encryption keys to the metadata
       TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
       for (Map.Entry<String, EncryptedKey> entry :
-          EncryptionUtil.encryptionKeys(encryption()).entrySet()) {
+          EncryptionUtil.encryptionKeys(encryptionManager).entrySet()) {
         builder.addEncryptionKey(entry.getValue());
       }
 
