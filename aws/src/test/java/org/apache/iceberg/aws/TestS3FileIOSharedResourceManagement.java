@@ -163,41 +163,6 @@ public class TestS3FileIOSharedResourceManagement {
   }
 
   @Test
-  public void testMemoryPressureSimulation() throws InterruptedException {
-    // Simulate Spark memory pressure scenario
-    int iterations = 50;
-    S3FileIO[] fileIOs = new S3FileIO[iterations];
-
-    // Create many S3FileIO instances (simulating high memory usage)
-    for (int i = 0; i < iterations; i++) {
-      fileIOs[i] = new S3FileIO();
-      fileIOs[i].initialize(properties);
-      assertThat(fileIOs[i].client()).isNotNull();
-    }
-
-    // Simulate memory pressure cleanup - close instances randomly
-    for (int i = 0; i < iterations; i++) {
-      if (Math.random() > 0.3) { // Close ~70% of instances
-        fileIOs[i].close();
-        fileIOs[i] = null; // Make eligible for GC
-      }
-    }
-
-    // Force GC to trigger Cleaner cleanup
-    System.gc();
-    Thread.sleep(100); // Give Cleaner time to run
-
-    // Remaining instances should still work
-    for (int i = 0; i < iterations; i++) {
-      if (fileIOs[i] != null) {
-        final S3FileIO finalFileIO = fileIOs[i]; // Make effectively final for lambda
-        assertThatCode(() -> finalFileIO.client()).doesNotThrowAnyException();
-        fileIOs[i].close();
-      }
-    }
-  }
-
-  @Test
   public void testHttpClientCacheKeyGeneration() {
     // Test that identical configurations result in shared HTTP clients
     Map<String, String> props1 = Maps.newHashMap(properties);
@@ -218,22 +183,19 @@ public class TestS3FileIOSharedResourceManagement {
   }
 
   @Test
-  public void testHttpClientCacheEviction() throws InterruptedException {
+  public void testHttpClientRegistryManagement() throws InterruptedException {
     ManagedHttpClientRegistry registry = ManagedHttpClientRegistry.getInstance();
-    int initialCacheSize = (int) registry.getClientCache().estimatedSize();
+    int initialMapSize = registry.getClientMap().size();
 
     S3FileIO fileIO = new S3FileIO();
     fileIO.initialize(properties);
     assertThat(fileIO.client()).isNotNull();
 
-    // Cache should have at least one entry (may be same as initial due to sharing)
-    assertThat(registry.getClientCache().estimatedSize()).isGreaterThanOrEqualTo(initialCacheSize);
-    assertThat(registry.getClientCache().estimatedSize()).isGreaterThan(0);
+    // Map should have at least one entry (may be same as initial due to sharing)
+    assertThat(registry.getClientMap().size()).isGreaterThanOrEqualTo(initialMapSize);
+    assertThat(registry.getClientMap().size()).isGreaterThan(0);
 
     fileIO.close();
-
-    // Manual cache cleanup for testing
-    registry.getClientCache().cleanUp();
   }
 
   @Test

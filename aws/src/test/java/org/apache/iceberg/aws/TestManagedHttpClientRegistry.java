@@ -19,13 +19,14 @@
 package org.apache.iceberg.aws;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.github.benmanes.caffeine.cache.Cache;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +48,8 @@ public class TestManagedHttpClientRegistry {
   public void before() {
     MockitoAnnotations.openMocks(this);
     registry = ManagedHttpClientRegistry.getInstance();
+    // Clean up any existing clients from previous tests
+    registry.shutdown();
 
     when(mockFactory1.get()).thenReturn(mockHttpClient1);
     when(mockFactory2.get()).thenReturn(mockHttpClient2);
@@ -65,15 +68,20 @@ public class TestManagedHttpClientRegistry {
     Map<String, String> properties = Maps.newHashMap();
     String cacheKey = "test-key";
 
-    // First call should create client
+    // First call should create client and increment ref count
     SdkHttpClient client1 = registry.getOrCreateClient(cacheKey, mockFactory1, properties);
     verify(mockFactory1, times(1)).get();
 
-    // Second call with same key should return cached client
+    // Second call with same key should return cached client and increment ref count again
     SdkHttpClient client2 = registry.getOrCreateClient(cacheKey, mockFactory1, properties);
     verify(mockFactory1, times(1)).get(); // Factory should not be called again
 
     assertThat(client1).isSameAs(client2);
+
+    // Verify reference count is 2
+    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
+        registry.getClientMap().get(cacheKey);
+    assertThat(managedClient.getRefCount()).isEqualTo(2);
   }
 
   @Test
@@ -92,19 +100,76 @@ public class TestManagedHttpClientRegistry {
   }
 
   @Test
-  public void testManagedHttpClientCleanup() throws Exception {
+  public void testReferenceCountingAndCleanup() throws Exception {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
-    Map<String, String> properties = Maps.newHashMap();
+    String cacheKey = "test-key";
 
     ManagedHttpClientRegistry.ManagedHttpClient managedClient =
-        new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, "test-key", properties);
+        new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
 
-    // Verify the wrapped client is returned
-    assertThat(managedClient.getHttpClient()).isSameAs(mockClient);
+    // Acquire twice
+    SdkHttpClient client1 = managedClient.acquire();
+    SdkHttpClient client2 = managedClient.acquire();
 
-    // Verify cleanup calls close on the underlying client
-    managedClient.close();
+    assertThat(client1).isSameAs(mockClient);
+    assertThat(client2).isSameAs(mockClient);
+    assertThat(managedClient.getRefCount()).isEqualTo(2);
+
+    // First release should not close
+    managedClient.release();
+    assertThat(managedClient.getRefCount()).isEqualTo(1);
+    assertThat(managedClient.isClosed()).isFalse();
+    verify(mockClient, times(0)).close();
+
+    // Second release should close
+    managedClient.release();
+    assertThat(managedClient.getRefCount()).isEqualTo(0);
+    assertThat(managedClient.isClosed()).isTrue();
     verify(mockClient, times(1)).close();
+  }
+
+  @Test
+  public void testAcquireAfterCloseThrows() {
+    SdkHttpClient mockClient = mock(SdkHttpClient.class);
+    String cacheKey = "test-key";
+
+    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
+        new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
+
+    // Acquire and release to close
+    managedClient.acquire();
+    managedClient.release();
+
+    assertThat(managedClient.isClosed()).isTrue();
+
+    // Trying to acquire a closed client should throw
+    assertThatThrownBy(managedClient::acquire)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot acquire closed HTTP client");
+  }
+
+  @Test
+  public void testReleaseRemovesFromRegistry() {
+    Map<String, String> properties = Maps.newHashMap();
+    String cacheKey = "test-key";
+
+    // Create client (refCount = 1)
+    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey, mockFactory1, properties);
+    assertThat(client1).isNotNull();
+
+    ConcurrentHashMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
+        registry.getClientMap();
+    assertThat(clientMap).containsKey(cacheKey);
+
+    // Verify ref count is 1
+    assertThat(clientMap.get(cacheKey).getRefCount()).isEqualTo(1);
+
+    // Release (refCount = 0, should close and remove)
+    registry.releaseClient(cacheKey);
+
+    // Client should be removed from map after close
+    assertThat(clientMap).doesNotContainKey(cacheKey);
+    verify(mockHttpClient1, times(1)).close();
   }
 
   @Test
@@ -143,24 +208,34 @@ public class TestManagedHttpClientRegistry {
     for (int i = 1; i < threadCount; i++) {
       assertThat(results[i]).isSameAs(expectedClient);
     }
+
+    // Verify reference count equals number of threads
+    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
+        registry.getClientMap().get(cacheKey);
+    assertThat(managedClient.getRefCount()).isEqualTo(threadCount);
   }
 
   @Test
   public void testRegistryShutdown() {
-    Cache<String, ManagedHttpClientRegistry.ManagedHttpClient> cache = registry.getClientCache();
+    ConcurrentHashMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
+        registry.getClientMap();
     Map<String, String> properties = Maps.newHashMap();
 
     // Create some clients
     registry.getOrCreateClient("key1", mockFactory1, properties);
     registry.getOrCreateClient("key2", mockFactory2, properties);
 
-    // Verify clients were cached
-    assertThat(cache.estimatedSize()).isGreaterThan(0);
+    // Verify clients were stored
+    assertThat(clientMap.size()).isGreaterThan(0);
 
-    // Shutdown should clean up the cache
+    // Shutdown should clean up the map
     registry.shutdown();
 
-    // Cache should be empty after shutdown
-    assertThat(cache.estimatedSize()).isEqualTo(0);
+    // Map should be empty after shutdown
+    assertThat(clientMap.size()).isEqualTo(0);
+
+    // Both clients should be closed
+    verify(mockHttpClient1, times(1)).close();
+    verify(mockHttpClient2, times(1)).close();
   }
 }
