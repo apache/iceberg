@@ -174,4 +174,22 @@ subprojects {
       quiet = false
     }
   }
+
+  pluginManager.withPlugin('scala') {
+    String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+    tasks.withType(ScalaCompile).configureEach { scalaCompile ->
+      if (scalaVersion?.startsWith("2.12")) {
+        scalaCompile.scalaCompileOptions.additionalParameters = [
+                // Scala 2.12 does not support treating unused imports as errors individually,
+                // so we only enable warnings for unused imports when using Scala 2.12.
+                "-Ywarn-unused:imports",
+        ]
+      } else if (scalaVersion?.startsWith("2.13")) {
+        scalaCompile.scalaCompileOptions.additionalParameters = [
+                "-Wconf:cat=unused:error",
+                "-Wunused:imports"
+        ]
+      }
+    }
+  }
 }
