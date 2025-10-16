@@ -37,6 +37,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -82,7 +83,7 @@ public class TestPartitionedAppendWriter extends WriterTestBase {
     when(table.schema()).thenReturn(schema);
     when(table.spec()).thenReturn(spec);
 
-    List<Record> rows = new ArrayList<>();
+    List<Record> rows = Lists.newArrayList();
     for (int i = 0; i < 10; i++) {
       UUID uuid = UUID.randomUUID();
       Record record = GenericRecord.create(schema);
