@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.actions;
 
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,7 +53,7 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -60,7 +61,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.CatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -370,15 +371,19 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
 
     List<Record> expected = Lists.newArrayList();
     Schema schema = icebergTableUnPartitioned.schema();
-    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
     File file = File.createTempFile("junit", null, temp.toFile());
     int count = 0;
-    try (FileAppender<Record> fileAppender =
-        genericAppenderFactory.newAppender(Files.localOutput(file), format)) {
+    try (DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder()
+            .dataFileFormat(format)
+            .dataSchema(schema)
+            .build()
+            .newDataWriter(
+                encrypt(Files.localOutput(file)), icebergTableUnPartitioned.spec(), null)) {
       long filesize = 20000;
-      for (; fileAppender.length() < filesize; count++) {
+      for (; writer.length() < filesize; count++) {
         Record record = SimpleDataUtil.createRecord(count, UUID.randomUUID().toString());
-        fileAppender.add(record);
+        writer.write(record);
         expected.add(record);
       }
     }

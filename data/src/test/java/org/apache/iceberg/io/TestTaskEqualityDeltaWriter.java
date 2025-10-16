@@ -41,7 +41,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
@@ -510,13 +510,12 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
       List<Integer> equalityFieldIds,
       Schema eqDeleteRowSchema,
       DeleteGranularity deleteGranularity) {
-    FileAppenderFactory<Record> appenderFactory =
-        new GenericAppenderFactory(
-            table.schema(),
-            table.spec(),
-            ArrayUtil.toIntArray(equalityFieldIds),
-            eqDeleteRowSchema,
-            null);
+    FileWriterFactory<Record> fileWriterFactory =
+        new GenericFileWriterFactory.Builder(table)
+            .dataFileFormat(format)
+            .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+            .equalityDeleteRowSchema(eqDeleteRowSchema)
+            .build();
 
     List<String> columns = Lists.newArrayList();
     for (Integer fieldId : equalityFieldIds) {
@@ -529,7 +528,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         deleteSchema,
         table.spec(),
         format,
-        appenderFactory,
+        fileWriterFactory,
         fileFactory,
         table.io(),
         TARGET_FILE_SIZE,
@@ -544,12 +543,12 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         Schema deleteSchema,
         PartitionSpec spec,
         FileFormat format,
-        FileAppenderFactory<Record> appenderFactory,
+        FileWriterFactory<Record> fileWriterFactory,
         OutputFileFactory fileFactory,
         FileIO io,
         long targetFileSize,
         DeleteGranularity deleteGranularity) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+      super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
       this.deltaWriter =
           new GenericEqualityDeltaWriter(null, schema, deleteSchema, deleteGranularity);
     }

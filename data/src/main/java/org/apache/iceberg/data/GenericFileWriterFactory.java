@@ -177,6 +177,10 @@ public class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
     private Schema positionDeleteRowSchema;
     private Map<String, String> writerProperties = ImmutableMap.of();
 
+    public Builder() {
+      this.table = null;
+    }
+
     public Builder(Table table) {
       this.table = table;
       this.dataSchema = table.schema();
