@@ -77,6 +77,69 @@ class TestLRUCache {
     assertThat(callback.evictedEntries).containsExactly(Map.entry(2, 2));
   }
 
+  @Test
+  void testHaltEviction() {
+    int maxSize = 2;
+    LRUCache<Integer, Integer> cache = new LRUCache<>(maxSize, NO_OP_CALLBACK);
+
+    cache.put(1, 1);
+    cache.put(2, 2);
+
+    cache.haltEviction();
+
+    cache.put(3, 3);
+    cache.put(4, 4);
+
+    assertThat(cache)
+        .hasSize(4)
+        .containsEntry(1, 1)
+        .containsEntry(2, 2)
+        .containsEntry(3, 3)
+        .containsEntry(4, 4);
+  }
+
+  @Test
+  void testContinueEviction() {
+    int maxSize = 2;
+    LRUCache<Integer, Integer> cache = new LRUCache<>(maxSize, NO_OP_CALLBACK);
+
+    cache.put(1, 1);
+    cache.put(2, 2);
+
+    cache.haltEviction();
+
+    cache.put(3, 3);
+    cache.put(4, 4);
+
+    assertThat(cache).hasSize(4);
+
+    cache.continueEviction();
+
+    assertThat(cache).hasSize(2).containsEntry(3, 3).containsEntry(4, 4);
+  }
+
+  @Test
+  void testContinueEvictionWithCallback() {
+    int maxSize = 2;
+    TestEvictionCallback callback = new TestEvictionCallback();
+    LRUCache<Integer, Integer> cache = new LRUCache<>(maxSize, callback);
+
+    cache.put(1, 1);
+    cache.put(2, 2);
+
+    cache.haltEviction();
+
+    cache.put(3, 3);
+    cache.put(4, 4);
+
+    assertThat(callback.evictedEntries).isEmpty();
+
+    cache.continueEviction();
+
+    assertThat(cache).hasSize(2);
+    assertThat(callback.evictedEntries).containsExactly(Map.entry(1, 1), Map.entry(2, 2));
+  }
+
   private static class TestEvictionCallback implements Consumer<Map.Entry<Integer, Integer>> {
     private final List<Map.Entry<Integer, Integer>> evictedEntries = Lists.newArrayList();
 
