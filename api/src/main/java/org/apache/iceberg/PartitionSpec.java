@@ -184,8 +184,13 @@ public class PartitionSpec implements Serializable {
               classes[i] = Object.class;
             } else {
               Type sourceType = schema.findType(field.sourceId());
-              Type result = field.transform().getResultType(sourceType);
-              classes[i] = result.typeId().javaClass();
+              if (null == sourceType) {
+                // When the source field has been dropped we cannot determine the type
+                classes[i] = Types.UnknownType.get().typeId().javaClass();
+              } else {
+                Type result = field.transform().getResultType(sourceType);
+                classes[i] = result.typeId().javaClass();
+              }
             }
           }
 

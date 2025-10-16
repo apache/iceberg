@@ -580,7 +580,15 @@ public class ValueWriters {
     @Override
     public void write(S row, Encoder encoder) throws IOException {
       for (int i = 0; i < writers.length; i += 1) {
-        writers[i].write(get(row, i), encoder);
+        Object datum = get(row, i);
+        ValueWriter<Object> writer = writers[i];
+
+        if (NullWriter.INSTANCE.getClass().equals(writer.getClass()) && null != datum) {
+          // this is an UnknownType that has a value
+          writer.write(null, encoder);
+        } else {
+          writer.write(datum, encoder);
+        }
       }
     }
   }
