@@ -18,19 +18,25 @@
  */
 package org.apache.iceberg.io;
 
-import java.io.EOFException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class FileRange {
-  private final CompletableFuture<ByteBuffer> byteBuffer;
+public class FileRange implements Comparable<FileRange> {
+  private CompletableFuture<ByteBuffer> byteBuffer;
   private final long offset;
   private final int length;
 
-  public FileRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length)
-      throws EOFException {
-    Preconditions.checkNotNull(byteBuffer, "byteBuffer can't be null");
+  public FileRange(long offset, int length) {
+    Preconditions.checkArgument(
+        length() >= 0, "Invalid length: %s in range (must be >= 0)", length);
+    Preconditions.checkArgument(
+        offset() >= 0, "Invalid offset: %s in range (must be >= 0)", offset);
+    this.offset = offset;
+    this.length = length;
+  }
+
+  public FileRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length) {
     Preconditions.checkArgument(
         length() >= 0, "Invalid length: %s in range (must be >= 0)", length);
     Preconditions.checkArgument(
@@ -51,5 +57,10 @@ public class FileRange {
 
   public int length() {
     return length;
+  }
+
+  @Override
+  public int compareTo(FileRange other) {
+    return Long.compare(this.offset, other.offset);
   }
 }

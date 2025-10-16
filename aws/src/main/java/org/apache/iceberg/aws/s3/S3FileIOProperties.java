@@ -186,6 +186,12 @@ public class S3FileIOProperties implements Serializable {
   public static final String MULTIPART_UPLOAD_THREADS = "s3.multipart.num-threads";
 
   /**
+   * Number of threads to use for reading from S3 (shared pool across all input streams), default to
+   * {@link Runtime#availableProcessors()}
+   */
+  public static final String READ_THREADS = "s3.read.num-threads";
+
+  /**
    * The size of a single part for multipart upload requests in bytes (default: 32MB). based on S3
    * requirement, the part size must be at least 5MB. To ensure performance of the reader and
    * writer, the part size must be less than 2GB.
@@ -503,6 +509,7 @@ public class S3FileIOProperties implements Serializable {
   private boolean isS3AccessGrantsEnabled;
   private boolean isS3AccessGrantsFallbackToIamEnabled;
   private int multipartUploadThreads;
+  private int readThreads;
   private int multiPartSize;
   private int deleteBatchSize;
   private double multipartThresholdFactor;
@@ -546,6 +553,7 @@ public class S3FileIOProperties implements Serializable {
     this.acl = null;
     this.endpoint = null;
     this.multipartUploadThreads = Runtime.getRuntime().availableProcessors();
+    this.readThreads = Runtime.getRuntime().availableProcessors();
     this.multiPartSize = MULTIPART_SIZE_DEFAULT;
     this.multipartThresholdFactor = MULTIPART_THRESHOLD_FACTOR_DEFAULT;
     this.deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
@@ -601,6 +609,9 @@ public class S3FileIOProperties implements Serializable {
     this.multipartUploadThreads =
         PropertyUtil.propertyAsInt(
             properties, MULTIPART_UPLOAD_THREADS, Runtime.getRuntime().availableProcessors());
+    this.readThreads =
+        PropertyUtil.propertyAsInt(
+            properties, READ_THREADS, Runtime.getRuntime().availableProcessors());
     this.isPathStyleAccess =
         PropertyUtil.propertyAsBoolean(properties, PATH_STYLE_ACCESS, PATH_STYLE_ACCESS_DEFAULT);
     this.isUseArnRegionEnabled =
@@ -742,6 +753,14 @@ public class S3FileIOProperties implements Serializable {
 
   public void setMultipartUploadThreads(int threads) {
     this.multipartUploadThreads = threads;
+  }
+
+  public int readThreads() {
+    return readThreads;
+  }
+
+  public void setReadThreads(int threads) {
+    this.readThreads = threads;
   }
 
   public int multiPartSize() {
