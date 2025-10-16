@@ -18,12 +18,18 @@
  */
 package org.apache.iceberg.connect.data;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.TableSinkConfig;
 import org.apache.iceberg.data.GenericRecord;
@@ -31,6 +37,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -60,6 +67,36 @@ public class TestPartitionedAppendWriter extends WriterTestBase {
 
     // 1 data file for each partition (2 total)
     assertThat(result.dataFiles()).hasSize(2);
+    assertThat(result.dataFiles()).allMatch(file -> file.format() == FileFormat.fromString(format));
+    assertThat(result.deleteFiles()).hasSize(0);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"parquet", "orc"})
+  public void testWriteUuidWithFountWriter(String format) {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "uuid_field", Types.UUIDType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("uuid_field", 2).build();
+    when(table.schema()).thenReturn(schema);
+    when(table.spec()).thenReturn(spec);
+
+    List<Record> rows = new ArrayList<>();
+    for (int i = 0; i < 10; i++) {
+      UUID uuid = UUID.randomUUID();
+      Record record = GenericRecord.create(schema);
+      record.set(0, i);
+      record.set(1, uuid);
+      rows.add(record);
+    }
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
+    WriteResult result = writeTest(rows, config, PartitionedAppendWriter.class);
+
+    assertThat(result.dataFiles()).hasSizeGreaterThan(1);
     assertThat(result.dataFiles()).allMatch(file -> file.format() == FileFormat.fromString(format));
     assertThat(result.deleteFiles()).hasSize(0);
   }
