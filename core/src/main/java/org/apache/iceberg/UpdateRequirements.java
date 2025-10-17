@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -161,7 +160,8 @@ public class UpdateRequirements {
       if (!addedSpec) {
         if (baseTable != null) {
           require(
-              new UpdateRequirement.AssertLastAssignedPartitionId(baseTable.lastAssignedPartitionId()));
+              new UpdateRequirement.AssertLastAssignedPartitionId(
+                  baseTable.lastAssignedPartitionId()));
         }
         this.addedSpec = true;
       }
@@ -198,9 +198,11 @@ public class UpdateRequirements {
     private void update(MetadataUpdate.AddViewVersion unused) {
       Preconditions.checkArgument(baseView != null, "Base view metadata is required");
 
-      baseView.versionsById().keySet().stream().max(Integer::compareTo)
-          .ifPresent(viewVersion ->
-              require(new UpdateRequirement.AssertLastAssignedViewVersionID(viewVersion)));
+      baseView.versionsById().keySet().stream()
+          .max(Integer::compareTo)
+          .ifPresent(
+              viewVersion ->
+                  require(new UpdateRequirement.AssertLastAssignedViewVersionID(viewVersion)));
     }
 
     private void update(MetadataUpdate.SetCurrentViewVersion unused) {
@@ -229,7 +231,8 @@ public class UpdateRequirements {
 
     private void requireNoBranchesChanged() {
       if (baseTable != null && !isReplace) {
-        baseTable.refs()
+        baseTable
+            .refs()
             .forEach(
                 (name, ref) -> {
                   if (ref.isBranch() && !name.equals(SnapshotRef.MAIN_BRANCH)) {

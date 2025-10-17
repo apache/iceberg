@@ -254,8 +254,8 @@ public interface UpdateRequirement {
   }
 
   /**
-   * Assuming that view ID is incrementing integers, so the last assigned view version ID
-   * is always the max ID that has been assigned.
+   * Assuming that view ID is incrementing integers, so the last assigned view version ID is always
+   * the max ID that has been assigned.
    */
   class AssertLastAssignedViewVersionID implements UpdateRequirement {
     private final int lastAssignedViewVersionId;
@@ -272,9 +272,9 @@ public interface UpdateRequirement {
     public void validate(ViewMetadata base) {
       Optional<Integer> maxAssignedViewVersionID =
           base.versionsById().keySet().stream().max(Integer::compareTo);
-      if (base != null &&
-          maxAssignedViewVersionID.isPresent() &&
-          maxAssignedViewVersionID.get() != lastAssignedViewVersionId) {
+      if (base != null
+          && maxAssignedViewVersionID.isPresent()
+          && maxAssignedViewVersionID.get() != lastAssignedViewVersionId) {
         throw new CommitFailedException(
             "Requirement failed: last assigned view id changed: expected id %s != %s",
             lastAssignedViewVersionId, maxAssignedViewVersionID.get());
