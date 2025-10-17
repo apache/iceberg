@@ -66,7 +66,7 @@ class DynamicWriteResultAggregator
 
   private transient Map<WriteTarget, Collection<DynamicWriteResult>> results;
   private transient Map<String, Map<Integer, PartitionSpec>> specs;
-  private transient LRUCache<String, ManifestOutputFileFactory> outputFileFactories;
+  private transient Map<String, ManifestOutputFileFactory> outputFileFactories;
   private transient String flinkJobId;
   private transient String operatorId;
   private transient int subTaskId;
