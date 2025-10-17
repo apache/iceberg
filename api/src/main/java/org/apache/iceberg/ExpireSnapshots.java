@@ -116,18 +116,37 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    *
    * @param clean setting this to false will skip deleting expired manifests and files
    * @return this for method chaining
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link #cleanMode(CleanupMode)}
+   *     instead.
    */
+  @Deprecated
   ExpireSnapshots cleanExpiredFiles(boolean clean);
 
   /**
-   * Skip the cleanup of orphaned data files as part of snapshot expiration
+   * Configures the cleanup mode for expired files.
    *
-   * @param retain true to retain orphaned data files only reachable by expired snapshots
+   * <p>This method provides fine-grained control over which files are cleaned up during snapshot
+   * expiration. The cleanup modes are:
+   *
+   * <ul>
+   *   <li>{@link CleanupMode#ALL} - Clean up both metadata and data files (default)
+   *   <li>{@link CleanupMode#METADATA_ONLY} - Clean up only metadata files (manifests, manifest
+   *       lists), retain data files
+   *   <li>{@link CleanupMode#NONE} - Skip all file cleanup, only remove snapshot metadata
+   * </ul>
+   *
+   * <p>consider METADATA_ONLY mode when data files are shared across tables or when using
+   * procedures like add-files that may reference the same data files.
+   *
+   * <p>consider NONE mode when data and manifest files may be more efficiently removed using a
+   * distributed framework through the actions API
+   *
+   * @param mode the cleanup mode to use for expired snapshots
    * @return this for method chaining
    */
-  default ExpireSnapshots retainOrphanedDataFiles(boolean retain) {
+  default ExpireSnapshots cleanMode(CleanupMode mode) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " doesn't implement retainOrphanedDataFiles");
+        this.getClass().getName() + " doesn't implement cleanMode");
   }
 
   /**

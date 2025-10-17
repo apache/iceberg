@@ -45,7 +45,7 @@ abstract class FileCleanupStrategy {
 
   protected final FileIO fileIO;
   protected final ExecutorService planExecutorService;
-  protected final boolean retainDataFiles;
+  protected final CleanupMode cleanupMode;
   private final Consumer<String> deleteFunc;
   private final ExecutorService deleteExecutorService;
 
@@ -54,12 +54,12 @@ abstract class FileCleanupStrategy {
       ExecutorService deleteExecutorService,
       ExecutorService planExecutorService,
       Consumer<String> deleteFunc,
-      boolean retainDataFiles) {
+      CleanupMode cleanupMode) {
     this.fileIO = fileIO;
     this.deleteExecutorService = deleteExecutorService;
     this.planExecutorService = planExecutorService;
     this.deleteFunc = deleteFunc;
-    this.retainDataFiles = retainDataFiles;
+    this.cleanupMode = cleanupMode;
   }
 
   public abstract void cleanFiles(TableMetadata beforeExpiration, TableMetadata afterExpiration);

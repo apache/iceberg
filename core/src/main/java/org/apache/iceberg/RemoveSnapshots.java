@@ -69,7 +69,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private final Set<Long> idsToRemove = Sets.newHashSet();
   private final long now;
   private final long defaultMaxRefAgeMs;
-  private boolean cleanExpiredFiles = true;
+  private final CleanupMode defaultCleanupMode = CleanupMode.ALL;
   private TableMetadata base;
   private long defaultExpireOlderThan;
   private int defaultMinNumSnapshots;
@@ -79,7 +79,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private Boolean incrementalCleanup;
   private boolean specifiedSnapshotId = false;
   private boolean cleanExpiredMetadata = false;
-  private boolean retainDataFiles = false;
+  private CleanupMode cleanupMode = defaultCleanupMode;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -104,7 +104,12 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public ExpireSnapshots cleanExpiredFiles(boolean clean) {
-    this.cleanExpiredFiles = clean;
+    LOG.warn("cleanExpiredFiles(boolean) is deprecated. Use cleanMode(CleanupMode) instead.");
+    Preconditions.checkArgument(
+        cleanupMode == defaultCleanupMode,
+        "Cannot set cleanExpiredFiles when cleanMode has already been set to: %s",
+        cleanupMode);
+    this.cleanupMode = clean ? CleanupMode.ALL : CleanupMode.NONE;
     return this;
   }
 
@@ -169,8 +174,13 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots retainOrphanedDataFiles(boolean retain) {
-    this.retainDataFiles = retain;
+  public ExpireSnapshots cleanMode(CleanupMode mode) {
+    Preconditions.checkNotNull(mode, "CleanupMode cannot be null");
+    Preconditions.checkArgument(
+        cleanupMode == defaultCleanupMode,
+        "Cannot set cleanMode when it has already been set to: %s",
+        cleanupMode);
+    this.cleanupMode = mode;
     return this;
   }
 
@@ -190,6 +200,8 @@ class RemoveSnapshots implements ExpireSnapshots {
     if (base.snapshots().isEmpty() && !cleanExpiredMetadata) {
       return base;
     }
+
+    LOG.debug("Using cleanup mode: {}", cleanupMode);
 
     Set<Long> idsToRetain = Sets.newHashSet();
     // Identify refs that should be removed
@@ -359,8 +371,8 @@ class RemoveSnapshots implements ExpireSnapshots {
             });
     LOG.info("Committed snapshot changes");
 
-    if (cleanExpiredFiles && !base.snapshots().isEmpty()) {
-      cleanExpiredSnapshots();
+    if (cleanupMode.requireCleanup() && !base.snapshots().isEmpty()) {
+      cleanExpiredSnapshots(cleanupMode);
     }
   }
 
@@ -369,7 +381,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     return this;
   }
 
-  private void cleanExpiredSnapshots() {
+  private void cleanExpiredSnapshots(CleanupMode mode) {
     TableMetadata current = ops.refresh();
 
     if (Boolean.TRUE.equals(incrementalCleanup)) {
@@ -387,13 +399,9 @@ class RemoveSnapshots implements ExpireSnapshots {
     FileCleanupStrategy cleanupStrategy =
         incrementalCleanup
             ? new IncrementalFileCleanup(
-                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc, retainDataFiles)
+                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc, mode)
             : new ReachableFileCleanup(
-                ops.io(),
-                deleteExecutorService,
-                planExecutorService(),
-                deleteFunc,
-                retainDataFiles);
+                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc, mode);
 
     cleanupStrategy.cleanFiles(base, current);
   }

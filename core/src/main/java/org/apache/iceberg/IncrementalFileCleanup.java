@@ -43,8 +43,8 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
       ExecutorService deleteExecutorService,
       ExecutorService planExecutorService,
       Consumer<String> deleteFunc,
-      boolean retainDataFiles) {
-    super(fileIO, deleteExecutorService, planExecutorService, deleteFunc, retainDataFiles);
+      CleanupMode cleanupMode) {
+    super(fileIO, deleteExecutorService, planExecutorService, deleteFunc, cleanupMode);
   }
 
   @Override
@@ -252,7 +252,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
               }
             });
 
-    if (!retainDataFiles) {
+    if (CleanupMode.ALL == cleanupMode) {
       Set<String> filesToDelete =
           findFilesToDelete(
               manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());

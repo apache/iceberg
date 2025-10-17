@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
 import java.io.File;
@@ -64,20 +63,13 @@ public class TestRemoveSnapshots extends TestBase {
   @Parameter(index = 1)
   private boolean incrementalCleanup;
 
-  @Parameter(index = 2)
-  private boolean retainDataFile;
-
-  @Parameters(name = "formatVersion = {0}, incrementalCleanup = {1}, retainDataFile = {2}")
+  @Parameters(name = "formatVersion = {0}, incrementalCleanup = {1}")
   protected static List<Object> parameters() {
     return Arrays.asList(
-        new Object[] {1, true, false},
-        new Object[] {2, true, false},
-        new Object[] {1, true, true},
-        new Object[] {2, true, true},
-        new Object[] {1, false, false},
-        new Object[] {2, false, false},
-        new Object[] {1, false, true},
-        new Object[] {2, false, true});
+        new Object[] {1, true},
+        new Object[] {1, false},
+        new Object[] {2, true},
+        new Object[] {2, false});
   }
 
   private long waitUntilAfter(long timestampMillis) {
@@ -157,9 +149,6 @@ public class TestRemoveSnapshots extends TestBase {
                 .path(), // manifest contained only deletes, was dropped
             FILE_A.location() // deleted data file
             );
-    if (retainDataFile) {
-      expectedDeletedFiles.remove(FILE_A.location()); // retain data file
-    }
 
     assertThat(deletedFiles)
         .as("Should remove expired manifest lists and consider data file")
@@ -217,9 +206,6 @@ public class TestRemoveSnapshots extends TestBase {
             secondSnapshot.manifestListLocation(), // snapshot expired
             FILE_A.location() // deleted
             );
-    if (retainDataFile) {
-      expectedDeletedFiles.remove(FILE_A.location());
-    }
 
     assertThat(deletedFiles)
         .as("Should remove expired manifest lists and consider data file")
@@ -344,9 +330,6 @@ public class TestRemoveSnapshots extends TestBase {
                 .get()
                 .path(), // manifest is no longer referenced
             FILE_B.location());
-    if (retainDataFile) {
-      expectedDeletedFiles.remove(FILE_B.location());
-    }
 
     assertThat(deletedFiles)
         .as("Should remove expired manifest lists and reverted appended data file")
@@ -626,11 +609,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    if (retainDataFile) {
-      assertThat(deletedFiles).doesNotContain(FILE_A.location());
-    } else {
-      assertThat(deletedFiles).contains(FILE_A.location());
-    }
+    assertThat(deletedFiles).contains(FILE_A.location());
   }
 
   @TestTemplate
@@ -653,11 +632,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    if (retainDataFile) {
-      assertThat(deletedFiles).doesNotContain(FILE_A.location());
-    } else {
-      assertThat(deletedFiles).contains(FILE_A.location());
-    }
+    assertThat(deletedFiles).contains(FILE_A.location());
   }
 
   @TestTemplate
@@ -691,13 +666,8 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t4).deleteWith(deletedFiles::add).commit();
 
-    if (retainDataFile) {
-      assertThat(deletedFiles).doesNotContain(FILE_A.location());
-      assertThat(deletedFiles).doesNotContain(FILE_B.location());
-    } else {
-      assertThat(deletedFiles).contains(FILE_A.location());
-      assertThat(deletedFiles).contains(FILE_B.location());
-    }
+    assertThat(deletedFiles).contains(FILE_A.location());
+    assertThat(deletedFiles).contains(FILE_B.location());
   }
 
   @TestTemplate
@@ -767,13 +737,8 @@ public class TestRemoveSnapshots extends TestBase {
         .containsExactly(
             "remove-snapshot-3", "remove-snapshot-2", "remove-snapshot-1", "remove-snapshot-0");
 
-    if (retainDataFile) {
-      assertThat(deletedFiles).doesNotContain(FILE_A.location());
-      assertThat(deletedFiles).doesNotContain(FILE_B.location());
-    } else {
-      assertThat(deletedFiles).contains(FILE_A.location());
-      assertThat(deletedFiles).contains(FILE_B.location());
-    }
+    assertThat(deletedFiles).contains(FILE_A.location());
+    assertThat(deletedFiles).contains(FILE_B.location());
     assertThat(planThreadsIndex.get())
         .as("Thread should be created in provided pool")
         // incremental with retain will not use plan executor
@@ -835,14 +800,12 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    if (!retainDataFile) {
-      snapshotB
-          .addedDataFiles(table.io())
-          .forEach(
-              i -> {
-                expectedDeletes.add(i.location());
-              });
-    }
+    snapshotB
+        .addedDataFiles(table.io())
+        .forEach(
+            i -> {
+              expectedDeletes.add(i.location());
+            });
 
     // ManifestList should be deleted too
     expectedDeletes.add(snapshotB.manifestListLocation());
@@ -1118,11 +1081,6 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletedFiles.addAll(manifestPaths(secondSnapshot, table.io()));
     expectedDeletedFiles.addAll(
         manifestOfDeletedFiles.stream().map(ManifestFile::path).collect(Collectors.toList()));
-
-    if (retainDataFile) {
-      expectedDeletedFiles.remove(FILE_A.location());
-      expectedDeletedFiles.remove(FILE_A_DELETES.location());
-    }
 
     assertThat(deletedFiles)
         .as("Should consider old delete files and delete file manifests")
@@ -1705,13 +1663,8 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(tableWithBulkIO.currentSnapshot().snapshotId()).isEqualTo(lastSnapshotId);
     assertThat(tableWithBulkIO.snapshots()).containsOnly(tableWithBulkIO.currentSnapshot());
 
-    if (retainDataFile) {
-      Mockito.verify(spyFileIO, times(2)).deleteFiles(any());
-      Mockito.verify(spyFileIO, never()).deleteFiles(Set.of(FILE_A.location()));
-    } else {
-      Mockito.verify(spyFileIO, times(3)).deleteFiles(any());
-      Mockito.verify(spyFileIO).deleteFiles(Set.of(FILE_A.location()));
-    }
+    Mockito.verify(spyFileIO, times(3)).deleteFiles(any());
+    Mockito.verify(spyFileIO).deleteFiles(Set.of(FILE_A.location()));
     Mockito.verify(spyFileIO).deleteFiles(deletedManifestLists);
     Mockito.verify(spyFileIO).deleteFiles(deletedManifests);
   }
@@ -1766,9 +1719,6 @@ public class TestRemoveSnapshots extends TestBase {
             file.location(),
             append.manifestListLocation(),
             delete.manifestListLocation());
-    if (retainDataFile) {
-      expectedDeletedFiles.remove(file.location());
-    }
 
     assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
     assertThat(table.specs().keySet())
@@ -1992,18 +1942,12 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
 
     Set<String> expectedDeletedFiles =
-        retainDataFile
-            ? ImmutableSet.of(
-                snapshotA.manifestListLocation(),
-                snapshotDeleteA.manifestListLocation(),
-                Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
-                Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path())
-            : ImmutableSet.of(
-                snapshotA.manifestListLocation(),
-                snapshotDeleteA.manifestListLocation(),
-                Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
-                Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path(),
-                FILE_A.location());
+        ImmutableSet.of(
+            snapshotA.manifestListLocation(),
+            snapshotDeleteA.manifestListLocation(),
+            Iterables.getOnlyElement(snapshotA.allManifests(table.io())).path(),
+            Iterables.getOnlyElement(snapshotDeleteA.allManifests(table.io())).path(),
+            FILE_A.location());
     assertThat(deletedFiles).isEqualTo(expectedDeletedFiles);
   }
 
@@ -2013,10 +1957,156 @@ public class TestRemoveSnapshots extends TestBase {
 
   private RemoveSnapshots removeSnapshots(Table table) {
     RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
-    return (RemoveSnapshots)
-        removeSnapshots
-            .withIncrementalCleanup(incrementalCleanup)
-            .retainOrphanedDataFiles(retainDataFile);
+    return (RemoveSnapshots) removeSnapshots.withIncrementalCleanup(incrementalCleanup);
+  }
+
+  @TestTemplate
+  public void testCleanupModeAll() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table
+        .expireSnapshots()
+        .cleanMode(CleanupMode.ALL)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .as("CleanupMode.ALL should delete both metadata and data files")
+        .containsExactlyInAnyOrder(
+            firstSnapshot.manifestListLocation(),
+            firstSnapshot.allManifests(table.io()).get(0).path(),
+            secondSnapshot.manifestListLocation(),
+            secondSnapshot.allManifests(table.io()).get(0).path(),
+            FILE_A.location());
+  }
+
+  @TestTemplate
+  public void testCleanupModeMetadataOnly() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table
+        .expireSnapshots()
+        .cleanMode(CleanupMode.METADATA_ONLY)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .as("CleanupMode.METADATA_ONLY should delete only metadata files")
+        .containsExactlyInAnyOrder(
+            firstSnapshot.manifestListLocation(),
+            firstSnapshot.allManifests(table.io()).get(0).path(),
+            secondSnapshot.manifestListLocation(),
+            secondSnapshot.allManifests(table.io()).get(0).path());
+  }
+
+  @TestTemplate
+  public void testCleanupModeNone() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table
+        .expireSnapshots()
+        .cleanMode(CleanupMode.NONE)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(table.snapshot(firstSnapshot.snapshotId()))
+        .as("First snapshot metadata should be removed even with CleanupMode.NONE")
+        .isNull();
+    assertThat(table.snapshot(secondSnapshot.snapshotId()))
+        .as("Second snapshot metadata should be removed even with CleanupMode.NONE")
+        .isNull();
+
+    assertThat(deletedFiles).as("CleanupMode.NONE should not delete any files").isEmpty();
+  }
+
+  @TestTemplate
+  public void testDeprecatedMethodsStillWork() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    table.newAppend().appendFile(FILE_B).commit();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    // Use deprecated cleanExpiredFiles(false) - should map to CleanupMode.NONE
+    table
+        .expireSnapshots()
+        .cleanExpiredFiles(false)
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .as("Deprecated cleanExpiredFiles(false) should behave like CleanupMode.NONE")
+        .isEmpty();
+  }
+
+  @TestTemplate
+  public void testCannotSetCleanExpiredFilesAndCleanModeTogether() {
+    // Setting cleanExpiredFiles after cleanMode should fail
+    assertThatThrownBy(
+            () ->
+                table
+                    .expireSnapshots()
+                    .cleanMode(CleanupMode.METADATA_ONLY)
+                    .cleanExpiredFiles(false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot set cleanExpiredFiles when cleanMode has already been set");
+
+    // Setting cleanMode after cleanExpiredFiles should also fail
+    assertThatThrownBy(
+            () ->
+                table
+                    .expireSnapshots()
+                    .cleanExpiredFiles(false)
+                    .cleanMode(CleanupMode.METADATA_ONLY))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot set cleanMode when it has already been set");
+  }
+
+  @TestTemplate
+  public void testCannotSetCleanupModeTwice() {
+    assertThatThrownBy(
+            () ->
+                table
+                    .expireSnapshots()
+                    .cleanMode(CleanupMode.NONE)
+                    .cleanMode(CleanupMode.METADATA_ONLY))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot set cleanMode when it has already been set");
+  }
+
+  @TestTemplate
+  public void testCleanModeNullValidation() {
+    assertThatThrownBy(() -> table.expireSnapshots().cleanMode(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("CleanupMode cannot be null");
   }
 
   private StatisticsFile writeStatsFile(
