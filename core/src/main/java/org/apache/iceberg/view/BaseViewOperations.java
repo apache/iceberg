@@ -108,7 +108,7 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
     // if the metadata is already out of date, reject it
     if (base != current()) {
       if (base != null) {
-        throw new CommitFailedException("Cannot commit: stale view metadata");
+        throw new CommitFailedException("Commit failed: stale view metadata");
       } else {
         // when current is non-null, the view exists. but when base is null, the commit is trying
         // to create the view
