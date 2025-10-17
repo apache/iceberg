@@ -229,7 +229,8 @@ public final class FormatModelRegistry {
   @SuppressWarnings("unchecked")
   private static <D, S> FormatModel<D, S> factoryFor(FileFormat format, Class<D> type) {
     FormatModel<D, S> model = ((FormatModel<D, S>) MODELS.get(Pair.of(format, type)));
-    Preconditions.checkNotNull(model, "Format model is not registered for %s and %s", format, type);
+    Preconditions.checkArgument(
+        model != null, "Format model is not registered for %s and %s", format, type);
     return model;
   }
 
