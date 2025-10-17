@@ -204,8 +204,8 @@ class BaseIncrementalChangelogScan
       return DeleteFileIndex.builderFor(ImmutableList.of()).build();
     }
 
-    // Load delete files with caching to avoid redundant manifest parsing
-    List<DeleteFile> deleteFiles = loadDeleteFilesWithCache(prunedManifests);
+    // Load delete files from manifests
+    List<DeleteFile> deleteFiles = loadDeleteFiles(prunedManifests);
 
     return DeleteFileIndex.builderFor(deleteFiles)
         .specsById(table().specs())
@@ -239,8 +239,8 @@ class BaseIncrementalChangelogScan
         addedDeletesBySnapshot.put(
             snapshot.snapshotId(), DeleteFileIndex.builderFor(ImmutableList.of()).build());
       } else {
-        // Load delete files with caching to avoid redundant manifest parsing
-        List<DeleteFile> deleteFiles = loadDeleteFilesWithCache(addedDeleteManifests);
+        // Load delete files from manifests
+        List<DeleteFile> deleteFiles = loadDeleteFiles(addedDeleteManifests);
 
         DeleteFileIndex index =
             DeleteFileIndex.builderFor(deleteFiles)
@@ -464,30 +464,16 @@ class BaseIncrementalChangelogScan
   }
 
   /**
-   * Loads delete files from manifests using a cache to avoid redundant manifest parsing. This
-   * significantly improves planning performance when the same manifests are accessed across
-   * multiple scans or within a scan range.
+   * Loads delete files from manifests by parsing each manifest.
    *
    * @param manifests the delete manifests to load
    * @return list of delete files
    */
-  private List<DeleteFile> loadDeleteFilesWithCache(List<ManifestFile> manifests) {
-    DeleteManifestCache cache = DeleteManifestCache.instance();
+  private List<DeleteFile> loadDeleteFiles(List<ManifestFile> manifests) {
     List<DeleteFile> allDeleteFiles = Lists.newArrayList();
 
     for (ManifestFile manifest : manifests) {
-      // Try to get from cache first
-      List<DeleteFile> cachedFiles = cache.get(manifest);
-
-      if (cachedFiles != null) {
-        // Cache hit - reuse parsed delete files
-        allDeleteFiles.addAll(cachedFiles);
-      } else {
-        // Cache miss - parse manifest and populate cache
-        List<DeleteFile> manifestDeleteFiles = loadDeleteFilesFromManifest(manifest);
-        cache.put(manifest, manifestDeleteFiles);
-        allDeleteFiles.addAll(manifestDeleteFiles);
-      }
+      allDeleteFiles.addAll(loadDeleteFilesFromManifest(manifest));
     }
 
     return allDeleteFiles;
