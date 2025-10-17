@@ -76,7 +76,7 @@ public final class MetricsConfig implements Serializable {
     return DEFAULT;
   }
 
-  public static MetricsConfig getPositionDelete() {
+  public static MetricsConfig forPositionDelete() {
     return POSITION_DELETE_MODE;
   }
 
@@ -106,7 +106,7 @@ public final class MetricsConfig implements Serializable {
    * @param table an Iceberg table
    * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
    *     Position deletes that include row data are no longer supported. Use {@link
-   *     #getPositionDelete()} instead.
+   *     #forPositionDelete()} instead.
    */
   @Deprecated
   public static MetricsConfig forPositionDelete(Table table) {

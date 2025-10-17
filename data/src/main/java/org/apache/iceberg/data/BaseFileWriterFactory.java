@@ -295,7 +295,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
     MetricsConfig metricsConfig =
-        table == null ? MetricsConfig.getPositionDelete() : MetricsConfig.forPositionDelete(table);
+        table == null ? MetricsConfig.forPositionDelete() : MetricsConfig.forPositionDelete(table);
 
     try {
       switch (deleteFileFormat) {
