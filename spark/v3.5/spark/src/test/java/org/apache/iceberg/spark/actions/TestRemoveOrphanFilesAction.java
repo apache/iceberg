@@ -1150,8 +1150,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   public void testDefaultToHadoopListing() {
     assumeThat(usePrefixListing)
         .as(
-            "This test verifies default listing behavior and does not require prefix listing to be"
-                + " enabled.")
+            "This test verifies default listing behavior and does not require prefix listing to be enabled.")
         .isEqualTo(false);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 

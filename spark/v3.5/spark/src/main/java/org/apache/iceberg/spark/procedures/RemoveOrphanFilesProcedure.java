@@ -168,10 +168,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           if (maxConcurrentDeletes != null) {
             if (table.io() instanceof SupportsBulkOperations) {
               LOG.warn(
-                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes."
-                      + " Thistable is currently using {} which supports bulk deletes so the"
-                      + " parameter will be ignored. See that IO's documentation to learn how to"
-                      + " adjust parallelism for that particular IO's bulk delete.",
+                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes. This "
+                      + "table is currently using {} which supports bulk deletes so the parameter will be ignored. "
+                      + "See that IO's documentation to learn how to adjust parallelism for that particular "
+                      + "IO's bulk delete.",
                   table.io().getClass().getName());
             } else {
 
@@ -221,11 +221,11 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     long intervalMillis = System.currentTimeMillis() - olderThanMillis;
     if (intervalMillis < TimeUnit.DAYS.toMillis(1)) {
       throw new IllegalArgumentException(
-          "Cannot remove orphan files with an interval less than 24 hours. Executing this procedure"
-              + " with a short interval may corrupt the table if other operations are happening at"
-              + " the same time. If you are absolutely confident that no concurrent operations will"
-              + " be affected by removing orphan files with such a short interval, you can use the"
-              + " Action API to remove orphan files with an arbitrary interval.");
+          "Cannot remove orphan files with an interval less than 24 hours. Executing this "
+              + "procedure with a short interval may corrupt the table if other operations are happening "
+              + "at the same time. If you are absolutely confident that no concurrent operations will be "
+              + "affected by removing orphan files with such a short interval, you can use the Action API "
+              + "to remove orphan files with an arbitrary interval.");
     }
   }
 
