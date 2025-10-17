@@ -114,14 +114,6 @@ class DynamicWriteResultAggregator
 
     this.lastCheckpointId = checkpointId;
 
-    // Pause eviction on the cache for ManifestOutputFileFactory.
-    // This will materialize a list of all output file factories required to write delta manifests.
-    // Some of the output file factories may already be cached, and we will reuse those. We must
-    // absolutely avoid re-creating any output file factories _during_ writing manifests, otherwise
-    // cache eviction may reset the manifest file names for multiple WriteResults for a given table
-    // which will overwrite already written manifest files!
-    outputFileFactories.haltEviction();
-
     Collection<CommittableWithLineage<DynamicCommittable>> committables =
         Sets.newHashSetWithExpectedSize(results.size());
     int count = 0;
@@ -149,8 +141,6 @@ class DynamicWriteResultAggregator
                     new CommittableWithLineage<>(c.getCommittable(), checkpointId, subTaskId))));
     LOG.info("Emitted {} commit message to downstream committer operator", count);
     results.clear();
-    // Continue eviction and clean up
-    outputFileFactories.continueEviction();
   }
 
   /**

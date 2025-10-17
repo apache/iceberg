@@ -20,7 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.FileFormat;
@@ -42,7 +42,6 @@ public class ManifestOutputFileFactory {
   private final String operatorUniqueId;
   private final int subTaskId;
   private final long attemptNumber;
-  private final AtomicInteger fileCount = new AtomicInteger(0);
 
   ManifestOutputFileFactory(
       Supplier<Table> tableSupplier,
@@ -63,13 +62,15 @@ public class ManifestOutputFileFactory {
     return FileFormat.AVRO.addExtension(
         String.format(
             Locale.ROOT,
-            "%s-%s-%05d-%d-%d-%05d",
+            "%s-%s-%05d-%d-%d-%s",
             flinkJobId,
             operatorUniqueId,
             subTaskId,
             attemptNumber,
             checkpointId,
-            fileCount.incrementAndGet()));
+            // Make sure to append a random identifier in case this factory were to get re-created
+            // during a checkpoint, e.g. due to cache eviction.
+            UUID.randomUUID()));
   }
 
   public OutputFile create(long checkpointId) {

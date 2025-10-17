@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -43,8 +42,6 @@ class LRUCache<K, V> extends LinkedHashMap<K, V> {
   private final int maximumSize;
   private final Consumer<Map.Entry<K, V>> evictionCallback;
 
-  private boolean evictEldest = true;
-
   LRUCache(int maximumSize) {
     this(maximumSize, ignored -> {});
   }
@@ -57,25 +54,11 @@ class LRUCache<K, V> extends LinkedHashMap<K, V> {
 
   @Override
   protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-    boolean remove = size() > maximumSize && evictEldest;
+    boolean remove = size() > maximumSize;
     if (remove) {
       evictionCallback.accept(eldest);
     }
 
     return remove;
-  }
-
-  void haltEviction() {
-    evictEldest = false;
-  }
-
-  void continueEviction() {
-    evictEldest = true;
-    Iterator<Map.Entry<K, V>> iterator = this.entrySet().iterator();
-    while (size() > maximumSize) {
-      Map.Entry<K, V> entry = iterator.next();
-      evictionCallback.accept(entry);
-      iterator.remove();
-    }
   }
 }
