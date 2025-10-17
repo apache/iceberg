@@ -181,7 +181,9 @@ class BaseIncrementalChangelogScan
             break;
           }
         }
-        if (needsExistingDeleteIndex) break;
+        if (needsExistingDeleteIndex) {
+          break;
+        }
       }
     }
 
