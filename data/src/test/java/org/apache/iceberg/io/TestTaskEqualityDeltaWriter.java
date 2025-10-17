@@ -44,7 +44,6 @@ import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.BaseDeleteLoader;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
