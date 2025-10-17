@@ -87,10 +87,9 @@ public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericReco
       if (nanos == null) {
         result.setField(fieldIndex, null);
       } else {
-        // Preserve full nanosecond precision using correct conversion
-        long millis = Math.floorDiv(nanos, 1_000_000_000L);
-        int nanoOfMillis = (int) Math.floorMod(nanos, 1_000_000_000L);
-        result.setField(fieldIndex, TimestampData.fromEpochMillis(millis, nanoOfMillis));
+        long mills = Math.floorDiv(nanos, 1_000_000L);
+        int leftoverNanos = (int) Math.floorMod(nanos, 1_000_000L);
+        result.setField(fieldIndex, TimestampData.fromEpochMillis(mills, leftoverNanos));
       }
     }
 

@@ -75,10 +75,9 @@ public class RowDataToAvroGenericRecordConverter implements Function<RowData, Ge
         // Get precision from the rowType (assuming it's available in the context)
         int precision = 9; // Default to nanosecond precision for timestamp-nanos
         TimestampData timestampData = rowData.getTimestamp(fieldIndex, precision);
-        // Use correct nanosecond precision conversion
-        long nanos =
-            timestampData.getMillisecond() * 1_000_000_000L + timestampData.getNanoOfMillisecond();
-        baseRecord.put(fieldIndex, nanos);
+        long value =
+            timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond();
+        baseRecord.put(fieldIndex, value);
       }
     }
 
