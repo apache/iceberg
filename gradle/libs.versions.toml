@@ -78,6 +78,7 @@ mockserver = "5.15.0"
 nessie = "0.106.1"
 netty-buffer = "4.2.9.Final"
 object-client-bundle = "3.3.2"
+opentelemetry-httpclient = "2.20.1-alpha"
 orc = "1.9.8"
 parquet = "1.17.0"
 roaringbitmap = "1.3.0"
@@ -166,6 +167,7 @@ microprofile-openapi-api = { module = "org.eclipse.microprofile.openapi:micropro
 nessie-client = { module = "org.projectnessie.nessie:nessie-client", version.ref = "nessie" }
 netty-buffer = { module = "io.netty:netty-buffer", version.ref = "netty-buffer" }
 object-client-bundle = { module = "com.emc.ecs:object-client-bundle", version.ref = "object-client-bundle" }
+opentelemetry-httpclient = { module = "io.opentelemetry.instrumentation:opentelemetry-apache-httpclient-5.2", version.ref = "opentelemetry-httpclient" }
 orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
 parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parquet" }
 parquet-column = { module = "org.apache.parquet:parquet-column", version.ref = "parquet" }

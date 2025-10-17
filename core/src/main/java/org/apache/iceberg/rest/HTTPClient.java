@@ -21,6 +21,8 @@ package org.apache.iceberg.rest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.instrumentation.apachehttpclient.v5_2.ApacheHttpClientTelemetry;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -38,7 +40,6 @@ import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
@@ -113,13 +114,15 @@ public class HTTPClient extends BaseHTTPClient {
       ObjectMapper objectMapper,
       Map<String, String> properties,
       HttpClientConnectionManager connectionManager,
-      AuthSession session) {
+      AuthSession session,
+      OpenTelemetry openTelemetry) {
     this.baseUri = baseUri;
     this.baseHeaders = baseHeaders;
     this.mapper = objectMapper;
     this.authSession = session;
 
-    HttpClientBuilder clientBuilder = HttpClients.custom();
+    HttpClientBuilder clientBuilder =
+        ApacheHttpClientTelemetry.builder(openTelemetry).build().newHttpClientBuilder();
 
     clientBuilder.setConnectionManager(connectionManager);
 
@@ -482,6 +485,7 @@ public class HTTPClient extends BaseHTTPClient {
     private HttpHost proxy;
     private CredentialsProvider proxyCredentialsProvider;
     private AuthSession authSession;
+    private OpenTelemetry telemetry = OpenTelemetry.noop();
 
     private Builder(Map<String, String> properties) {
       this.properties = properties;
@@ -536,6 +540,11 @@ public class HTTPClient extends BaseHTTPClient {
       return this;
     }
 
+    public Builder withOpenTelemetry(OpenTelemetry openTelemetry) {
+      this.telemetry = openTelemetry;
+      return this;
+    }
+
     public HTTPClient build() {
       withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
       withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
@@ -579,7 +588,8 @@ public class HTTPClient extends BaseHTTPClient {
           mapper,
           properties,
           configureConnectionManager(properties),
-          authSession);
+          authSession,
+          telemetry);
     }
   }
 }

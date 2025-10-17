@@ -373,6 +373,7 @@ project(':iceberg-core') {
     implementation libs.jackson.core
     implementation libs.jackson.databind
     implementation libs.caffeine
+    implementation libs.opentelemetry.httpclient
     implementation libs.roaringbitmap
     implementation libs.failsafe
     compileOnly(libs.hadoop3.client) {
