@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -166,9 +167,8 @@ class BaseIncrementalChangelogScan
     }
 
     Snapshot fromSnapshot = table().snapshot(fromSnapshotIdExclusive);
-    if (fromSnapshot == null) {
-      return DeleteFileIndex.builderFor(ImmutableList.of()).build();
-    }
+    Preconditions.checkState(
+        fromSnapshot != null, "Cannot find starting snapshot: %s", fromSnapshotIdExclusive);
 
     List<ManifestFile> existingDeleteManifests = fromSnapshot.deleteManifests(table().io());
     if (existingDeleteManifests.isEmpty()) {
@@ -493,11 +493,8 @@ class BaseIncrementalChangelogScan
       if (spec == null || spec.isUnpartitioned()) {
         // Include unpartitioned manifests
         prunedManifests.add(manifest);
-        continue;
-      }
-
-      // Check if manifest partition range overlaps with filter
-      if (manifestOverlapsFilter(manifest, spec, currentFilter)) {
+      } else if (manifestOverlapsFilter(manifest, spec, currentFilter)) {
+        // Check if manifest partition range overlaps with filter
         prunedManifests.add(manifest);
       }
     }
