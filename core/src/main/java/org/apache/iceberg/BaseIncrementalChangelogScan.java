@@ -82,11 +82,13 @@ class BaseIncrementalChangelogScan
             .filter(manifest -> changelogSnapshotIds.contains(manifest.snapshotId()))
             .toSet();
 
-    // Build delete file index for existing deletes (before the start snapshot)
-    DeleteFileIndex existingDeleteIndex = buildExistingDeleteIndex(fromSnapshotIdExclusive);
-
     // Build per-snapshot delete file indexes for added deletes
     Map<Long, DeleteFileIndex> addedDeletesBySnapshot = buildAddedDeleteIndexes(changelogSnapshots);
+
+    // Build delete file index for existing deletes (before the start snapshot) if we have
+    // EQUALITY_DELETES files in the changelog range
+    DeleteFileIndex existingDeleteIndex =
+        buildExistingDeleteIndex(fromSnapshotIdExclusive, addedDeletesBySnapshot);
 
     ManifestGroup manifestGroup =
         new ManifestGroup(table().io(), newDataManifests, ImmutableList.of())
@@ -161,8 +163,29 @@ class BaseIncrementalChangelogScan
    * These deletes should be applied to data files but should not generate DELETE changelog rows.
    * Uses manifest pruning and caching to optimize performance.
    */
-  private DeleteFileIndex buildExistingDeleteIndex(Long fromSnapshotIdExclusive) {
+  private DeleteFileIndex buildExistingDeleteIndex(
+      Long fromSnapshotIdExclusive, Map<Long, DeleteFileIndex> addedDeletesBySnapshot) {
     if (fromSnapshotIdExclusive == null) {
+      return DeleteFileIndex.builderFor(ImmutableList.of()).build();
+    }
+
+    // Check if we need existingDeleteIndex for equality deletes
+    boolean needsExistingDeleteIndex = false;
+
+    for (DeleteFileIndex addedDeleteIndex : addedDeletesBySnapshot.values()) {
+      if (!addedDeleteIndex.isEmpty()) {
+        // Check if this snapshot has equality deletes
+        for (DeleteFile df : addedDeleteIndex.referencedDeleteFiles()) {
+          if (df.content() == FileContent.EQUALITY_DELETES) {
+            needsExistingDeleteIndex = true;
+            break;
+          }
+        }
+        if (needsExistingDeleteIndex) break;
+      }
+    }
+
+    if (!needsExistingDeleteIndex) {
       return DeleteFileIndex.builderFor(ImmutableList.of()).build();
     }
 
