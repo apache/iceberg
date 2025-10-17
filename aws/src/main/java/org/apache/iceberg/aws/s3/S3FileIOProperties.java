@@ -1021,15 +1021,31 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Override the endpoint for an S3 sync client.
+   * Override the endpoint for an S3 sync or async client.
    *
    * <p>Sample usage:
    *
    * <pre>
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
    * </pre>
    */
   public <T extends S3BaseClientBuilder<T, ?>> void applyEndpointConfigurations(T builder) {
+    if (endpoint != null) {
+      builder.endpointOverride(URI.create(endpoint));
+    }
+  }
+
+  /**
+   * Override the endpoint for an S3 CRT client
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyEndpointConfigurations(T builder) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }

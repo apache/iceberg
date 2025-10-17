@@ -61,6 +61,7 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -97,6 +98,7 @@ public class S3FileIO
 
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
+  private SerializableSupplier<S3AsyncClient> s3Async;
   private SerializableMap<String, String> properties = null;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
@@ -120,7 +122,20 @@ public class S3FileIO
    * @param s3 s3 supplier
    */
   public S3FileIO(SerializableSupplier<S3Client> s3) {
+    this(s3, null);
+  }
+
+  /**
+   * Constructor with custom s3 supplier and s3Async supplier.
+   *
+   * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
+   *
+   * @param s3 s3 supplier
+   * @param s3Async s3Async supplier
+   */
+  public S3FileIO(SerializableSupplier<S3Client> s3, SerializableSupplier<S3AsyncClient> s3Async) {
     this.s3 = s3;
+    this.s3Async = s3Async;
     this.createStack = Thread.currentThread().getStackTrace();
     this.properties = SerializableMap.copyOf(Maps.newHashMap());
   }
@@ -352,6 +367,15 @@ public class S3FileIO
     return clientForStoragePath(storagePath).s3();
   }
 
+  public S3AsyncClient asyncClient() {
+    return asyncClient(ROOT_PREFIX);
+  }
+
+  @SuppressWarnings("resource")
+  public S3AsyncClient asyncClient(String storagePath) {
+    return clientForStoragePath(storagePath).s3Async();
+  }
+
   @VisibleForTesting
   PrefixedS3Client clientForStoragePath(String storagePath) {
     PrefixedS3Client client;
@@ -377,7 +401,8 @@ public class S3FileIO
         if (null == clientByPrefix) {
           Map<String, PrefixedS3Client> localClientByPrefix = Maps.newHashMap();
 
-          localClientByPrefix.put(ROOT_PREFIX, new PrefixedS3Client(ROOT_PREFIX, properties, s3));
+          localClientByPrefix.put(
+              ROOT_PREFIX, new PrefixedS3Client(ROOT_PREFIX, properties, s3, s3Async));
           storageCredentials.stream()
               .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
               .collect(Collectors.toList())
@@ -392,7 +417,7 @@ public class S3FileIO
                     localClientByPrefix.put(
                         storageCredential.prefix(),
                         new PrefixedS3Client(
-                            storageCredential.prefix(), propertiesWithCredentials, s3));
+                            storageCredential.prefix(), propertiesWithCredentials, s3, s3Async));
                   });
           this.clientByPrefix = localClientByPrefix;
         }

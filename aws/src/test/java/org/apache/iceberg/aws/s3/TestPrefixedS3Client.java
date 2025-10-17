@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @SuppressWarnings("resource")
@@ -32,15 +33,15 @@ public class TestPrefixedS3Client {
 
   @Test
   public void invalidParameters() {
-    assertThatThrownBy(() -> new PrefixedS3Client(null, null, null))
+    assertThatThrownBy(() -> new PrefixedS3Client(null, null, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid storage prefix: null or empty");
 
-    assertThatThrownBy(() -> new PrefixedS3Client("", null, null))
+    assertThatThrownBy(() -> new PrefixedS3Client("", null, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid storage prefix: null or empty");
 
-    assertThatThrownBy(() -> new PrefixedS3Client("s3://bucket", null, null))
+    assertThatThrownBy(() -> new PrefixedS3Client("s3://bucket", null, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid properties: null");
   }
@@ -49,10 +50,11 @@ public class TestPrefixedS3Client {
   public void validParameters() {
     Map<String, String> properties =
         ImmutableMap.of(AwsClientProperties.CLIENT_REGION, "us-east-1");
-    PrefixedS3Client client = new PrefixedS3Client("s3", properties, null);
+    PrefixedS3Client client = new PrefixedS3Client("s3", properties, null, null);
     assertThat(client.storagePrefix()).isEqualTo("s3");
     assertThat(client.s3FileIOProperties().properties())
         .isEqualTo(new S3FileIOProperties(properties).properties());
     assertThat(client.s3()).isInstanceOf(S3Client.class);
+    assertThat(client.s3Async()).isInstanceOf(S3AsyncClient.class);
   }
 }

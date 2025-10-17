@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.s3;
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.HttpClientProperties;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
@@ -57,6 +58,24 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
         .applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
         .applyMutation(s3FileIOProperties::applyUserAgentConfigurations)
         .applyMutation(s3FileIOProperties::applyRetryConfigurations)
+        .build();
+  }
+
+  @Override
+  public S3AsyncClient s3Async() {
+    if (s3FileIOProperties.isS3CRTEnabled()) {
+      return S3AsyncClient.crtBuilder()
+          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+          .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+          .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
+          .build();
+    }
+    return S3AsyncClient.builder()
+        .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+        .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+        .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
+        .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
         .build();
   }
 }

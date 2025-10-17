@@ -24,6 +24,7 @@ import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.SerializableSupplier;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 class PrefixedS3Client implements AutoCloseable {
@@ -31,15 +32,21 @@ class PrefixedS3Client implements AutoCloseable {
   private final String storagePrefix;
   private final S3FileIOProperties s3FileIOProperties;
   private SerializableSupplier<S3Client> s3;
+  private SerializableSupplier<S3AsyncClient> s3Async;
   private transient volatile S3Client s3Client;
+  private transient volatile S3AsyncClient s3AsyncClient;
 
   PrefixedS3Client(
-      String storagePrefix, Map<String, String> properties, SerializableSupplier<S3Client> s3) {
+      String storagePrefix,
+      Map<String, String> properties,
+      SerializableSupplier<S3Client> s3,
+      SerializableSupplier<S3AsyncClient> s3Async) {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(storagePrefix), "Invalid storage prefix: null or empty");
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
     this.storagePrefix = storagePrefix;
     this.s3 = s3;
+    this.s3Async = s3Async;
     this.s3FileIOProperties = new S3FileIOProperties(properties);
     // Do not override s3 client if it was provided
     if (s3 == null) {
@@ -52,6 +59,17 @@ class PrefixedS3Client implements AutoCloseable {
       }
       if (s3FileIOProperties.isPreloadClientEnabled()) {
         s3();
+      }
+    }
+
+    // Do not override s3Async client if it was provided
+    if (s3Async == null) {
+      Object clientFactory = S3FileIOAwsClientFactories.initialize(properties);
+      if (clientFactory instanceof S3FileIOAwsClientFactory) {
+        this.s3Async = ((S3FileIOAwsClientFactory) clientFactory)::s3Async;
+      }
+      if (clientFactory instanceof AwsClientFactory) {
+        this.s3Async = ((AwsClientFactory) clientFactory)::s3Async;
       }
     }
   }
@@ -72,6 +90,18 @@ class PrefixedS3Client implements AutoCloseable {
     return s3Client;
   }
 
+  public S3AsyncClient s3Async() {
+    if (s3AsyncClient == null) {
+      synchronized (this) {
+        if (s3AsyncClient == null) {
+          s3AsyncClient = s3Async.get();
+        }
+      }
+    }
+
+    return s3AsyncClient;
+  }
+
   public S3FileIOProperties s3FileIOProperties() {
     return s3FileIOProperties;
   }
@@ -84,6 +114,10 @@ class PrefixedS3Client implements AutoCloseable {
         AnalyticsAcceleratorUtil.cleanupCache(s3Client, s3FileIOProperties);
       }
       s3Client.close();
+    }
+
+    if (null != s3AsyncClient) {
+      s3AsyncClient.close();
     }
   }
 }

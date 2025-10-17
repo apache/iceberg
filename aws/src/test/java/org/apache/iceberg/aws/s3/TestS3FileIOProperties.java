@@ -37,6 +37,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -518,12 +519,17 @@ public class TestS3FileIOProperties {
     properties.put(S3FileIOProperties.ENDPOINT, "endpoint");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    S3AsyncClientBuilder mockS3AsyncClientBuilder = Mockito.mock(S3AsyncClientBuilder.class);
     S3CrtAsyncClientBuilder mockS3CrtAsyncClientBuilder =
         Mockito.mock(S3CrtAsyncClientBuilder.class);
 
     s3FileIOProperties.applyEndpointConfigurations(mockS3ClientBuilder);
+    s3FileIOProperties.applyEndpointConfigurations(mockS3AsyncClientBuilder);
+    s3FileIOProperties.applyEndpointConfigurations(mockS3CrtAsyncClientBuilder);
 
     Mockito.verify(mockS3ClientBuilder).endpointOverride(Mockito.any(URI.class));
+    Mockito.verify(mockS3AsyncClientBuilder).endpointOverride(Mockito.any(URI.class));
+    Mockito.verify(mockS3CrtAsyncClientBuilder).endpointOverride(Mockito.any(URI.class));
   }
 
   @Test
