@@ -20,7 +20,7 @@ title: "Procedures"
 
 # Spark Procedures
 
-To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md). Stored procedures are only available when using [Iceberg SQL extensions](spark-configuration.md#sql-extensions) in Spark 3.
+To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md). Stored procedures are only available when using [Iceberg SQL extensions](spark-configuration.md#sql-extensions) in Spark.
 
 ## Usage
 

@@ -73,10 +73,9 @@ data.writeStream
     .outputMode("append")
     .trigger(Trigger.ProcessingTime(1, TimeUnit.MINUTES))
     .option("checkpointLocation", checkpointPath)
-    .toTable("database.table_name")
+    .option("path", "database.table_name")
+    .start()
 ```
-
-If you're using Spark 3.0 or earlier, you need to use `.option("path", "database.table_name").start()`, instead of `.toTable("database.table_name")`.
 
 In the case of the directory-based Hadoop catalog:
 
@@ -114,7 +113,8 @@ data.writeStream
     .trigger(Trigger.ProcessingTime(1, TimeUnit.MINUTES))
     .option("fanout-enabled", "true")
     .option("checkpointLocation", checkpointPath)
-    .toTable("database.table_name")
+    .option("path", "database.table_name")
+    .start()
 ```
 
 Fanout writer opens the files per partition value and doesn't close these files till the write task finishes. Avoid using the fanout writer for batch writing, as explicit sort against output rows is cheap for batch workloads.

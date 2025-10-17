@@ -22,26 +22,26 @@ title: "Writes"
 
 To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md).
 
-Some plans are only available when using [Iceberg SQL extensions](spark-configuration.md#sql-extensions) in Spark 3.
+Some plans are only available when using [Iceberg SQL extensions](spark-configuration.md#sql-extensions).
 
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
 
-| Feature support                                  | Spark 3 | Notes                                                                       |
-|--------------------------------------------------|-----------|-----------------------------------------------------------------------------|
-| [SQL insert into](#insert-into)                  | ✔️        | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
-| [SQL merge into](#merge-into)                    | ✔️        | ⚠ Requires Iceberg Spark extensions                                         |
-| [SQL insert overwrite](#insert-overwrite)        | ✔️        | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
-| [SQL delete from](#delete-from)                  | ✔️        | ⚠ Row-level delete requires Iceberg Spark extensions                        |
-| [SQL update](#update)                            | ✔️        | ⚠ Requires Iceberg Spark extensions                                         |
-| [DataFrame append](#appending-data)              | ✔️        |                                                                             |
-| [DataFrame overwrite](#overwriting-data)         | ✔️        |                                                                             |
-| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        | ⚠ Requires DSv2 API                                                         |
-| [DataFrame merge into](#merging-data)            | ✔️        | ⚠ Requires DSv2 API (Spark 4.0 and later)                                   |
+| Feature support                                  | Spark | Notes                                                                       |
+|--------------------------------------------------|---------|-----------------------------------------------------------------------------|
+| [SQL insert into](#insert-into)                  | ✔️      | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL merge into](#merge-into)                    | ✔️      | ⚠ Requires Iceberg Spark extensions                                         |
+| [SQL insert overwrite](#insert-overwrite)        | ✔️      | ⚠ Requires `spark.sql.storeAssignmentPolicy=ANSI` (default since Spark 3.0) |
+| [SQL delete from](#delete-from)                  | ✔️      | ⚠ Row-level delete requires Iceberg Spark extensions                        |
+| [SQL update](#update)                            | ✔️      | ⚠ Requires Iceberg Spark extensions                                         |
+| [DataFrame append](#appending-data)              | ✔️      |                                                                             |
+| [DataFrame overwrite](#overwriting-data)         | ✔️      |                                                                             |
+| [DataFrame CTAS and RTAS](#creating-tables)      | ✔️      | ⚠ Requires DSv2 API                                                         |
+| [DataFrame merge into](#merging-data)            | ✔️      | ⚠ Requires DSv2 API (Spark 4.0 and later)                                   |
 
 
 ## Writing with SQL
 
-Spark 3 supports SQL `INSERT INTO`, `MERGE INTO`, and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
+Spark supports SQL `INSERT INTO`, `MERGE INTO`, and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
 
 ### `INSERT INTO`
 
@@ -56,7 +56,7 @@ INSERT INTO prod.db.table SELECT ...
 
 ### `MERGE INTO`
 
-Spark 3 added support for `MERGE INTO` queries that can express row-level updates.
+Spark supports `MERGE INTO` queries that can express row-level updates.
 
 Iceberg supports `MERGE INTO` by rewriting data files that contain rows that need to be updated in an `overwrite` commit.
 
@@ -163,7 +163,7 @@ Note that this mode cannot replace hourly partitions like the dynamic example qu
 
 ### `DELETE FROM`
 
-Spark 3 added support for `DELETE FROM` queries to remove data from tables.
+Spark supports `DELETE FROM` queries to remove data from tables.
 
 Delete queries accept a filter to match rows to delete.
 
@@ -255,7 +255,7 @@ data.writeTo("prod.db.table.branch_audit").overwritePartitions()
 
 ## Writing with DataFrames
 
-Spark 3 introduced the new `DataFrameWriterV2` API for writing to tables using data frames. The v2 API is recommended for several reasons:
+Spark introduced the new `DataFrameWriterV2` API for writing to tables using data frames. The v2 API is recommended for several reasons:
 
 * CTAS, RTAS, and overwrite by filter are supported
 * All operations consistently write columns to a table by name
@@ -270,7 +270,7 @@ Spark 3 introduced the new `DataFrameWriterV2` API for writing to tables using d
 The v1 DataFrame `write` API is still supported, but is not recommended.
 
 !!! danger
-    When writing with the v1 DataFrame API in Spark 3, use `saveAsTable` or `insertInto` to load tables with a catalog.
+    When writing with the v1 DataFrame API in Spark, use `saveAsTable` or `insertInto` to load tables with a catalog.
     Using `format("iceberg")` loads an isolated table reference that will not automatically refresh tables used by queries.
 
 
