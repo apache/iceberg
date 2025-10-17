@@ -28,7 +28,6 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -948,7 +947,8 @@ public class TestUpdateRequirements {
 
     assertThat(requirements)
         .hasSize(4)
-        .hasOnlyElementsOfTypes(UpdateRequirement.AssertViewUUID.class,
+        .hasOnlyElementsOfTypes(
+            UpdateRequirement.AssertViewUUID.class,
             UpdateRequirement.AssertLastAssignedViewVersionID.class);
 
     assertViewUUID(requirements);
@@ -957,18 +957,17 @@ public class TestUpdateRequirements {
     // requirements will be added each for the three AddViewVersion updates; however,
     // they are all validated against the same lastAssignedViewVersionId of the current
     // base metadata
-    int lastAssignedVersionId = viewMetadata.versionsById().keySet().stream().max(Integer::compareTo).get();
-    assertThat(requirements
-        .stream()
-        .filter(r -> r instanceof UpdateRequirement.AssertLastAssignedViewVersionID)
-        .map(r -> ((UpdateRequirement.AssertLastAssignedViewVersionID) r).lastAssignedViewId())
-    )
+    int lastAssignedVersionId =
+        viewMetadata.versionsById().keySet().stream().max(Integer::compareTo).get();
+    assertThat(
+            requirements.stream()
+                .filter(r -> r instanceof UpdateRequirement.AssertLastAssignedViewVersionID)
+                .map(
+                    r ->
+                        ((UpdateRequirement.AssertLastAssignedViewVersionID) r)
+                            .lastAssignedViewId()))
         .hasSize(3)
-        .containsExactly(
-            lastAssignedVersionId,
-            lastAssignedVersionId,
-            lastAssignedVersionId
-        );
+        .containsExactly(lastAssignedVersionId, lastAssignedVersionId, lastAssignedVersionId);
     // reset custom mock setup for this test
     reset(viewMetadata);
   }
@@ -1019,28 +1018,25 @@ public class TestUpdateRequirements {
         .hasOnlyElementsOfTypes(
             UpdateRequirement.AssertViewUUID.class,
             UpdateRequirement.AssertLastAssignedViewVersionID.class,
-            UpdateRequirement.AssertCurrentViewVersionID.class
-        );
+            UpdateRequirement.AssertCurrentViewVersionID.class);
 
     assertViewUUID(requirements);
 
-    int lastAssignedVersionId = viewMetadata.versionsById().keySet().stream().max(Integer::compareTo).get();
-    assertThat(requirements
-        .stream()
-        .filter(r -> r instanceof UpdateRequirement.AssertLastAssignedViewVersionID)
-        .map(r -> ((UpdateRequirement.AssertLastAssignedViewVersionID) r).lastAssignedViewId())
-    )
+    int lastAssignedVersionId =
+        viewMetadata.versionsById().keySet().stream().max(Integer::compareTo).get();
+    assertThat(
+            requirements.stream()
+                .filter(r -> r instanceof UpdateRequirement.AssertLastAssignedViewVersionID)
+                .map(
+                    r ->
+                        ((UpdateRequirement.AssertLastAssignedViewVersionID) r)
+                            .lastAssignedViewId()))
         .hasSize(3)
-        .containsExactly(
-            lastAssignedVersionId,
-            lastAssignedVersionId,
-            lastAssignedVersionId
-        );
-    assertThat(requirements
-        .stream()
-        .filter(r -> r instanceof UpdateRequirement.AssertCurrentViewVersionID))
-        .map(r -> ((UpdateRequirement.AssertCurrentViewVersionID) r).viewVersionId()
-    )
+        .containsExactly(lastAssignedVersionId, lastAssignedVersionId, lastAssignedVersionId);
+    assertThat(
+            requirements.stream()
+                .filter(r -> r instanceof UpdateRequirement.AssertCurrentViewVersionID))
+        .map(r -> ((UpdateRequirement.AssertCurrentViewVersionID) r).viewVersionId())
         .hasSize(1)
         .containsExactly(viewMetadata.currentVersionId());
 
@@ -1090,4 +1086,3 @@ public class TestUpdateRequirements {
         .isEqualTo(snapshotId);
   }
 }
-

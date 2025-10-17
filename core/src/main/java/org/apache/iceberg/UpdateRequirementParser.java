@@ -88,7 +88,9 @@ public class UpdateRequirementParser {
           .put(UpdateRequirement.AssertDefaultSpecID.class, ASSERT_DEFAULT_SPEC_ID)
           .put(UpdateRequirement.AssertDefaultSortOrderID.class, ASSERT_DEFAULT_SORT_ORDER_ID)
           .put(UpdateRequirement.AssertCurrentViewVersionID.class, ASSERT_CURRENT_VIEW_VERSION_ID)
-          .put(UpdateRequirement.AssertLastAssignedViewVersionID.class, ASSERT_LAST_ASSIGNED_VIEW_VERSION_ID)
+          .put(
+              UpdateRequirement.AssertLastAssignedViewVersionID.class,
+              ASSERT_LAST_ASSIGNED_VIEW_VERSION_ID)
           .buildOrThrow();
 
   public static String toJson(UpdateRequirement updateRequirement) {
