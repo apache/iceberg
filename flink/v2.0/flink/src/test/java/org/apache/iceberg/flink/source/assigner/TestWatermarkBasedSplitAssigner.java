@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -50,7 +49,6 @@ import org.junit.jupiter.api.Test;
 public class TestWatermarkBasedSplitAssigner extends SplitAssignerTestBase {
   public static final Schema SCHEMA =
       new Schema(required(1, "timestamp_column", Types.TimestampType.withoutZone()));
-  private static final GenericAppenderFactory APPENDER_FACTORY = new GenericAppenderFactory(SCHEMA);
 
   @Override
   protected SplitAssigner splitAssigner() {
@@ -137,8 +135,7 @@ public class TestWatermarkBasedSplitAssigner extends SplitAssignerTestBase {
   private IcebergSourceSplit splitFromRecords(List<List<Record>> records) {
     try {
       return IcebergSourceSplit.fromCombinedScanTask(
-          ReaderUtil.createCombinedScanTask(
-              records, temporaryFolder, FileFormat.PARQUET, APPENDER_FACTORY));
+          ReaderUtil.createCombinedScanTask(records, temporaryFolder, FileFormat.PARQUET, SCHEMA));
     } catch (IOException e) {
       throw new RuntimeException("Split creation exception", e);
     }

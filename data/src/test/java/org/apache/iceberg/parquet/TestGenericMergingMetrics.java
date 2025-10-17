@@ -18,26 +18,36 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.data.FileHelpers.encrypt;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TestMergingMetrics;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 
 public class TestGenericMergingMetrics extends TestMergingMetrics<Record> {
 
   @Override
-  protected FileAppender<Record> writeAndGetAppender(List<Record> records) throws IOException {
-    FileAppender<Record> appender =
-        new GenericAppenderFactory(SCHEMA)
-            .newAppender(
-                Files.localOutput(new File(tempDir, "junit" + System.nanoTime())), fileFormat);
-    try (FileAppender<Record> fileAppender = appender) {
-      records.forEach(fileAppender::add);
+  protected DataFile writeAndGetDataFile(List<Record> records) throws IOException {
+    DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder()
+            .dataSchema(SCHEMA)
+            .dataFileFormat(fileFormat)
+            .build()
+            .newDataWriter(
+                encrypt(Files.localOutput(new File(tempDir, "junit" + System.nanoTime()))),
+                PartitionSpec.unpartitioned(),
+                null);
+    try (writer) {
+      writer.write(records);
     }
-    return appender;
+
+    return writer.toDataFile();
   }
 }

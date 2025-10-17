@@ -44,7 +44,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-/** Factory to create a new {@link FileAppender} to write {@link Record}s. */
+/**
+ * Factory to create a new {@link FileAppender} to write {@link Record}s.
+ *
+ * @deprecated will be removed in 1.12.0; use {@link GenericFileWriterFactory} instead.
+ */
+@Deprecated
 public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   private final Table table;
   private final Schema schema;
@@ -62,12 +67,6 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     this(schema, spec, null, null, null);
   }
 
-  /**
-   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
-   *     Position deletes that include row data are no longer supported. Use {@link
-   *     #GenericAppenderFactory(Schema, PartitionSpec, int[], Schema)} instead.
-   */
-  @Deprecated
   public GenericAppenderFactory(
       Schema schema,
       PartitionSpec spec,

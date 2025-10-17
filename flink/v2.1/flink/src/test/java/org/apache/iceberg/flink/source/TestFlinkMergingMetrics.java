@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.apache.iceberg.data.FileHelpers.encrypt;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
@@ -32,9 +35,8 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.flink.sink.FlinkFileWriterFactory;
+import org.apache.iceberg.io.DataWriter;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
@@ -44,23 +46,22 @@ public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
       new HadoopCatalogExtension("test_db", "test_table");
 
   @Override
-  protected FileAppender<RowData> writeAndGetAppender(List<Record> records) throws IOException {
+  protected DataFile writeAndGetDataFile(List<Record> records) throws IOException {
     Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
     RowType flinkSchema = FlinkSchemaUtil.convert(SCHEMA);
-    FileAppender<RowData> appender =
-        new FlinkAppenderFactory(
-                table,
-                SCHEMA,
-                flinkSchema,
-                ImmutableMap.of(),
+    DataWriter<RowData> writer =
+        new FlinkFileWriterFactory.Builder(table)
+            .dataSchema(SCHEMA)
+            .dataFlinkType(flinkSchema)
+            .build()
+            .newDataWriter(
+                encrypt(Files.localOutput(File.createTempFile("junit", null, tempDir))),
                 PartitionSpec.unpartitioned(),
-                null,
-                null)
-            .newAppender(
-                Files.localOutput(File.createTempFile("junit", null, tempDir)), fileFormat);
-    try (FileAppender<RowData> fileAppender = appender) {
-      records.stream().map(r -> RowDataConverter.convert(SCHEMA, r)).forEach(fileAppender::add);
+                null);
+    try (writer) {
+      records.stream().map(r -> RowDataConverter.convert(SCHEMA, r)).forEach(writer::write);
     }
-    return appender;
+
+    return writer.toDataFile();
   }
 }

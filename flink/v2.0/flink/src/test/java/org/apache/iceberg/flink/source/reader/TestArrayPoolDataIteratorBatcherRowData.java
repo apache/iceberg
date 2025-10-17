@@ -32,7 +32,6 @@ import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkConfigOptions;
@@ -52,8 +51,6 @@ public class TestArrayPoolDataIteratorBatcherRowData {
           .set(SourceReaderOptions.ELEMENT_QUEUE_CAPACITY, 1)
           .set(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 2);
 
-  private final GenericAppenderFactory appenderFactory =
-      new GenericAppenderFactory(TestFixtures.SCHEMA);
   private final DataIteratorBatcher<RowData> batcher =
       new ArrayPoolDataIteratorBatcher<>(config, new RowDataRecordFactory(TestFixtures.ROW_TYPE));
 
@@ -66,7 +63,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
             records,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
             FILE_FORMAT,
-            appenderFactory);
+            TestFixtures.SCHEMA);
     CombinedScanTask combinedTask = new BaseCombinedScanTask(fileTask);
     DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
     String splitId = "someSplitId";
@@ -110,7 +107,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
             records,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
             FILE_FORMAT,
-            appenderFactory);
+            TestFixtures.SCHEMA);
     CombinedScanTask combinedTask = new BaseCombinedScanTask(fileTask);
     DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
     String splitId = "someSplitId";
@@ -216,21 +213,21 @@ public class TestArrayPoolDataIteratorBatcherRowData {
             records0,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
             FILE_FORMAT,
-            appenderFactory);
+            TestFixtures.SCHEMA);
     List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 4, 2);
     FileScanTask fileTask1 =
         ReaderUtil.createFileTask(
             records1,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
             FILE_FORMAT,
-            appenderFactory);
+            TestFixtures.SCHEMA);
     List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 3);
     FileScanTask fileTask2 =
         ReaderUtil.createFileTask(
             records2,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
             FILE_FORMAT,
-            appenderFactory);
+            TestFixtures.SCHEMA);
     CombinedScanTask combinedTask =
         new BaseCombinedScanTask(Arrays.asList(fileTask0, fileTask1, fileTask2));
 

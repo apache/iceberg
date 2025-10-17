@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,16 +56,13 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.flink.sink.FlinkFileWriterFactory;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileWriterFactory;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -496,9 +494,5 @@ public class SimpleDataUtil {
               return wrapper.equals(expected);
             })
         .collect(Collectors.toList());
-  }
-
-  private static EncryptedOutputFile encrypt(OutputFile out) {
-    return EncryptedFiles.encryptedOutput(out, EncryptionKeyMetadata.EMPTY);
   }
 }
