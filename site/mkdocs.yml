@@ -88,6 +88,8 @@ extra:
   nessieVersion: '0.104.5'
   flinkVersion: '2.0.0'
   flinkVersionMajor: '2.0'
+  sparkVersion: '4.0'
+  scalaVersion: '2.13'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'
