@@ -47,6 +47,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.platform.commons.support.ReflectionSupport;
 
@@ -509,8 +510,10 @@ public class TestHiveCommits extends HiveTableTestBase {
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  public void testFirstHiveCommitWithLockSetting(boolean lockEnabled) {
-    String tableName = lockEnabled ? "new_table_with_lock" : "new_table_with_no_lock";
+  @NullSource
+  public void testFirstHiveCommitWithLockSetting(Boolean lockEnabled) {
+    String tableName =
+        Boolean.FALSE.equals(lockEnabled) ? "new_table_with_no_lock" : "new_table_with_lock";
     TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, tableName);
 
     try {
@@ -530,7 +533,9 @@ public class TestHiveCommits extends HiveTableTestBase {
               SCHEMA,
               PartitionSpec.unpartitioned(),
               catalog.defaultWarehouseLocation(newTableIdentifier),
-              lockEnabled ? ImmutableMap.of() : ImmutableMap.of(HIVE_LOCK_ENABLED, "false"));
+              lockEnabled == null
+                  ? ImmutableMap.of()
+                  : ImmutableMap.of(HIVE_LOCK_ENABLED, String.valueOf(lockEnabled)));
       doAnswer(
               i -> {
                 lockRef.set(ops.lockObject(i.getArgument(0)));
@@ -543,7 +548,7 @@ public class TestHiveCommits extends HiveTableTestBase {
       spyOps.commit(null, metadata);
 
       Class<? extends HiveLock> expectedLockClass =
-          lockEnabled ? MetastoreLock.class : NoLock.class;
+          Boolean.FALSE.equals(lockEnabled) ? NoLock.class : MetastoreLock.class;
       assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
       assertThat(lockRef.get())
           .as("Lock mechanism should use (%s)", expectedLockClass.getSimpleName())

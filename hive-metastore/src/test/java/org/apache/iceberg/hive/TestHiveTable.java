@@ -90,6 +90,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHiveTable extends HiveTableTestBase {
@@ -130,8 +131,10 @@ public class TestHiveTable extends HiveTableTestBase {
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  public void testCreateTableEndToEnd(boolean lockEnabled) {
-    String tableName = lockEnabled ? "new_table_lock_e2e" : "new_table_no_lock_e2e";
+  @NullSource
+  public void testCreateTableEndToEnd(Boolean lockEnabled) {
+    String tableName =
+        Boolean.FALSE.equals(lockEnabled) ? "new_table_no_lock_e2e" : "new_table_lock_e2e";
     TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, tableName);
 
     try {
@@ -162,10 +165,12 @@ public class TestHiveTable extends HiveTableTestBase {
           newTableIdentifier,
           SCHEMA,
           PartitionSpec.unpartitioned(),
-          ImmutableMap.of(HIVE_LOCK_ENABLED, String.valueOf(lockEnabled)));
+          lockEnabled == null
+              ? ImmutableMap.of()
+              : ImmutableMap.of(HIVE_LOCK_ENABLED, String.valueOf(lockEnabled)));
 
       Class<? extends HiveLock> expectedLockClass =
-          lockEnabled ? MetastoreLock.class : NoLock.class;
+          Boolean.FALSE.equals(lockEnabled) ? NoLock.class : MetastoreLock.class;
       assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
       assertThat(lockRef.get())
           .as(
