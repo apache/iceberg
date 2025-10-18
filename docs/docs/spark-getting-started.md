@@ -36,7 +36,7 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionM
 
 !!! info
     <!-- markdown-link-check-disable-next-line -->
-    If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-{{ sparkVersionMajor }}` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-{{ sparkVersion }}_{{ scalaVersion }}/{{ icebergVersion }}/iceberg-spark-runtime-{{ sparkVersion }}_{{ scalaVersion }}-{{ icebergVersion }}.jar) to Spark's `jars` folder.
+    If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-{{ sparkVersionMajor }}` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-{{ sparkVersionMajor }}/{{ icebergVersion }}/iceberg-spark-runtime-{{ sparkVersionMajor }}-{{ icebergVersion }}.jar) to Spark's `jars` folder.
 
 
 ### Adding catalogs

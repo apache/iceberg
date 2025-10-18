@@ -73,7 +73,7 @@ data.writeStream
     .outputMode("append")
     .trigger(Trigger.ProcessingTime(1, TimeUnit.MINUTES))
     .option("checkpointLocation", checkpointPath)
-    .to_table("database.table_name")
+    .toTable("database.table_name")
 ```
 
 In the case of the directory-based Hadoop catalog:
@@ -112,7 +112,7 @@ data.writeStream
     .trigger(Trigger.ProcessingTime(1, TimeUnit.MINUTES))
     .option("fanout-enabled", "true")
     .option("checkpointLocation", checkpointPath)
-    .to_table("database.table_name")
+    .toTable("database.table_name")
 ```
 
 Fanout writer opens the files per partition value and doesn't close these files till the write task finishes. Avoid using the fanout writer for batch writing, as explicit sort against output rows is cheap for batch workloads.
