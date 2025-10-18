@@ -288,12 +288,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       while (fileGroups.hasNext()) {
         List<String> fileGroup = fileGroups.next();
 
-        // Collect sample paths before deleting
-        for (String path : fileGroup) {
-          if (samplePaths.size() < MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING) {
-            samplePaths.add(path);
-          }
-        }
+        collectSamplePaths(fileGroup, samplePaths);
 
         deleteFiles(bulkIO, fileGroup);
         filesCount += fileGroup.size();
@@ -302,12 +297,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       List<String> filesList = Lists.newArrayList(orphanFiles);
       filesCount = filesList.size();
 
-      // Collect sample paths
-      for (int i = 0;
-          i < Math.min(filesList.size(), MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
-          i++) {
-        samplePaths.add(filesList.get(i));
-      }
+      collectSamplePaths(filesList, samplePaths);
 
       deleteFilesNonBulk(filesList);
     }
@@ -336,6 +326,15 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       deleteFiles((SupportsBulkOperations) table.io(), orphanFiles);
     } else {
       deleteFilesNonBulk(orphanFiles);
+    }
+  }
+
+  private void collectSamplePaths(Collection<String> paths, List<String> samplePaths) {
+    for (String path : paths) {
+      if (samplePaths.size() >= MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING) {
+        break;
+      }
+      samplePaths.add(path);
     }
   }
 
