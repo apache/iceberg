@@ -512,9 +512,7 @@ public class TestHiveCommits extends HiveTableTestBase {
   @ValueSource(booleans = {true, false})
   @NullSource
   public void testFirstHiveCommitWithLockSetting(Boolean lockEnabled) {
-    String tableName =
-        Boolean.FALSE.equals(lockEnabled) ? "new_table_with_no_lock" : "new_table_with_lock";
-    TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, tableName);
+    TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, "lock_test_table");
 
     try {
       HiveTableOperations ops =
@@ -550,9 +548,9 @@ public class TestHiveCommits extends HiveTableTestBase {
       Class<? extends HiveLock> expectedLockClass =
           Boolean.FALSE.equals(lockEnabled) ? NoLock.class : MetastoreLock.class;
       assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
-      assertThat(lockRef.get())
+      assertThat(lockRef)
           .as("Lock mechanism should use (%s)", expectedLockClass.getSimpleName())
-          .isInstanceOf(expectedLockClass);
+          .hasValueMatching(lock -> lock.getClass().equals(expectedLockClass));
     } finally {
       catalog.dropTable(newTableIdentifier, true);
     }

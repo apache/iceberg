@@ -133,9 +133,7 @@ public class TestHiveTable extends HiveTableTestBase {
   @ValueSource(booleans = {true, false})
   @NullSource
   public void testCreateTableEndToEnd(Boolean lockEnabled) {
-    String tableName =
-        Boolean.FALSE.equals(lockEnabled) ? "new_table_no_lock_e2e" : "new_table_lock_e2e";
-    TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, tableName);
+    TableIdentifier newTableIdentifier = TableIdentifier.of(DB_NAME, "lock_test_table");
 
     try {
       // Create table with lock setting via catalog
@@ -172,11 +170,11 @@ public class TestHiveTable extends HiveTableTestBase {
       Class<? extends HiveLock> expectedLockClass =
           Boolean.FALSE.equals(lockEnabled) ? NoLock.class : MetastoreLock.class;
       assertThat(lockRef).as("Lock not captured by the stub").doesNotHaveNullValue();
-      assertThat(lockRef.get())
+      assertThat(lockRef)
           .as(
               "Table %s created with HIVE_LOCK_ENABLED=%s should be created with lock class (%s)",
-              tableName, lockEnabled, expectedLockClass.getSimpleName())
-          .isInstanceOf(expectedLockClass);
+              newTableIdentifier, lockEnabled, expectedLockClass.getSimpleName())
+          .hasValueMatching(lock -> lock.getClass().equals(expectedLockClass));
     } finally {
       catalog.dropTable(newTableIdentifier, true);
     }
