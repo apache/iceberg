@@ -39,10 +39,9 @@ import org.apache.iceberg.util.Tasks;
 class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
 
   private final PartitionKey partitionKey;
-  private final OutputFileFactory fileFactory;
+
   private final Map<PartitionKey, RowDataDeltaWriter> writers = Maps.newHashMap();
   private PartitioningDVWriter dvFileWriter;
-  private final boolean useDv;
 
   PartitionedDeltaWriter(
       PartitionSpec spec,
@@ -68,8 +67,9 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
         equalityFieldIds,
         upsert);
     this.partitionKey = new PartitionKey(spec, schema);
-    this.fileFactory = fileFactory;
-    this.useDv = userDv;
+    if (userDv) {
+      this.dvFileWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
+    }
   }
 
   @Override
@@ -81,10 +81,6 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in
       // writers.
       PartitionKey copiedKey = partitionKey.copy();
-      if (dvFileWriter == null && useDv) {
-        this.dvFileWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
-      }
-
       writer = new RowDataDeltaWriter(copiedKey, dvFileWriter);
       writers.put(copiedKey, writer);
     }
