@@ -295,19 +295,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           }
         }
 
-        try {
-          bulkIO.deleteFiles(fileGroup);
-          filesCount += fileGroup.size();
-          LOG.info("Deleted {} files using bulk deletes", fileGroup.size());
-        } catch (BulkDeletionFailureException e) {
-          int deletedInBatch = fileGroup.size() - e.numberFailedObjects();
-          filesCount += deletedInBatch;
-          LOG.warn(
-              "Deleted only {} of {} files using bulk deletes",
-              deletedInBatch,
-              fileGroup.size(),
-              e);
-        }
+        deleteFiles(bulkIO, fileGroup);
+        filesCount += fileGroup.size();
       }
     } else {
       List<String> filesList = Lists.newArrayList(orphanFiles);
@@ -320,22 +309,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         samplePaths.add(filesList.get(i));
       }
 
-      Tasks.Builder<String> deleteTasks =
-          Tasks.foreach(filesList)
-              .noRetry()
-              .executeWith(deleteExecutorService)
-              .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
-
-      if (deleteFunc == null) {
-        LOG.info(
-            "Table IO {} does not support bulk operations. Using non-bulk deletes.",
-            table.io().getClass().getName());
-        deleteTasks.run(table.io()::deleteFile);
-      } else {
-        LOG.info("Custom delete function provided. Using non-bulk deletes");
-        deleteTasks.run(deleteFunc::accept);
-      }
+      deleteFilesNonBulk(filesList);
     }
 
     LOG.info("Deleted {} orphan files", filesCount);
@@ -359,35 +333,39 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
    */
   private void deleteFilesCollected(List<String> orphanFiles) {
     if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
-      SupportsBulkOperations bulkIO = (SupportsBulkOperations) table.io();
-      try {
-        bulkIO.deleteFiles(orphanFiles);
-        LOG.info("Deleted {} files using bulk deletes", orphanFiles.size());
-      } catch (BulkDeletionFailureException e) {
-        int deletedFilesCount = orphanFiles.size() - e.numberFailedObjects();
-        LOG.warn(
-            "Deleted only {} of {} files using bulk deletes",
-            deletedFilesCount,
-            orphanFiles.size(),
-            e);
-      }
+      deleteFiles((SupportsBulkOperations) table.io(), orphanFiles);
     } else {
-      Tasks.Builder<String> deleteTasks =
-          Tasks.foreach(orphanFiles)
-              .noRetry()
-              .executeWith(deleteExecutorService)
-              .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
+      deleteFilesNonBulk(orphanFiles);
+    }
+  }
 
-      if (deleteFunc == null) {
-        LOG.info(
-            "Table IO {} does not support bulk operations. Using non-bulk deletes.",
-            table.io().getClass().getName());
-        deleteTasks.run(table.io()::deleteFile);
-      } else {
-        LOG.info("Custom delete function provided. Using non-bulk deletes");
-        deleteTasks.run(deleteFunc::accept);
-      }
+  private void deleteFiles(SupportsBulkOperations io, List<String> paths) {
+    try {
+      io.deleteFiles(paths);
+      LOG.info("Deleted {} files using bulk deletes", paths.size());
+    } catch (BulkDeletionFailureException e) {
+      int deletedFilesCount = paths.size() - e.numberFailedObjects();
+      LOG.warn(
+          "Deleted only {} of {} files using bulk deletes", deletedFilesCount, paths.size(), e);
+    }
+  }
+
+  private void deleteFilesNonBulk(List<String> paths) {
+    Tasks.Builder<String> deleteTasks =
+        Tasks.foreach(paths)
+            .noRetry()
+            .executeWith(deleteExecutorService)
+            .suppressFailureWhenFinished()
+            .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
+
+    if (deleteFunc == null) {
+      LOG.info(
+          "Table IO {} does not support bulk operations. Using non-bulk deletes.",
+          table.io().getClass().getName());
+      deleteTasks.run(table.io()::deleteFile);
+    } else {
+      LOG.info("Custom delete function provided. Using non-bulk deletes");
+      deleteTasks.run(deleteFunc::accept);
     }
   }
 
