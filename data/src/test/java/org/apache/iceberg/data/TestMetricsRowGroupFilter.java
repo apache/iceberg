@@ -1030,18 +1030,11 @@ public class TestMetricsRowGroupFilter {
       records.add(record);
     }
 
-    File parquetFile = writeParquetFile("test-variant", VARIANT_SCHEMA, records);
-    InputFile inFile = Files.localInput(parquetFile);
-    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      BlockMetaData blockMetaData = reader.getRowGroups().get(0);
-      MessageType fileSchema = reader.getFileMetaData().getSchema();
-      ParquetMetricsRowGroupFilter rowGroupFilter =
-          new ParquetMetricsRowGroupFilter(VARIANT_SCHEMA, notNull("variant_field"), true);
+    boolean shouldRead = shouldReadVariant(notNull("variant_field"), records);
 
-      assertThat(rowGroupFilter.shouldRead(fileSchema, blockMetaData))
-          .as("Should read: variant notNull filters must be evaluated post scan")
-          .isTrue();
-    }
+    assertThat(shouldRead)
+        .as("Should read: variant notNull filters must be evaluated post scan")
+        .isTrue();
   }
 
   @TestTemplate
@@ -1056,19 +1049,40 @@ public class TestMetricsRowGroupFilter {
       records.add(record);
     }
 
-    File parquetFile = writeParquetFile("test-variant-nulls", VARIANT_SCHEMA, records);
-    InputFile inFile = Files.localInput(parquetFile);
+    boolean shouldRead = shouldReadVariant(notNull("variant_field"), records);
 
-    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      BlockMetaData blockMetaData = reader.getRowGroups().get(0);
-      MessageType fileSchema = reader.getFileMetaData().getSchema();
-      ParquetMetricsRowGroupFilter rowGroupFilter =
-          new ParquetMetricsRowGroupFilter(VARIANT_SCHEMA, notNull("variant_field"), true);
+    assertThat(shouldRead)
+        .as("Should read: variant notNull filters must be evaluated post scan even for all nulls")
+        .isTrue();
+  }
 
-      assertThat(rowGroupFilter.shouldRead(fileSchema, blockMetaData))
-          .as("Should read: variant notNull filters must be evaluated post scan even for all nulls")
-          .isTrue();
-    }
+  @TestTemplate
+  public void testVariantFieldEq() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    VariantMetadata md = Variants.metadata("k");
+    Variant v0 = createVariantWithKey(md, "v0");
+    List<GenericRecord> records = createVariantRecords(v0);
+
+    boolean shouldRead = shouldReadVariant(equal("variant_field", v0), records);
+    assertThat(shouldRead)
+        .as("Should read: variant eq filters must be evaluated post scan")
+        .isTrue();
+  }
+
+  @TestTemplate
+  public void testVariantFieldIn() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    VariantMetadata md = Variants.metadata("k");
+    Variant v0 = createVariantWithKey(md, "v0");
+    Variant v1 = createVariantWithKey(md, "v1");
+    List<GenericRecord> records = createVariantRecords(v0);
+
+    boolean shouldRead = shouldReadVariant(in("variant_field", v0, v1), records);
+    assertThat(shouldRead)
+        .as("Should read RowGroups: variant in filters must be evaluated post scan")
+        .isTrue();
   }
 
   @TestTemplate
@@ -1161,6 +1175,46 @@ public class TestMetricsRowGroupFilter {
       BlockMetaData blockMetaData) {
     return new ParquetMetricsRowGroupFilter(SCHEMA, expression, caseSensitive)
         .shouldRead(messageType, blockMetaData);
+  }
+
+  private boolean shouldReadVariant(Expression expression, List<GenericRecord> records)
+      throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    File parquetFile =
+        writeParquetFile("variant-test-" + System.nanoTime(), VARIANT_SCHEMA, records);
+    InputFile inFile = Files.localInput(parquetFile);
+    try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
+      BlockMetaData blockMetaData = reader.getRowGroups().get(0);
+      MessageType fileSchema = reader.getFileMetaData().getSchema();
+      ParquetMetricsRowGroupFilter rowGroupFilter =
+          new ParquetMetricsRowGroupFilter(VARIANT_SCHEMA, expression, true);
+      return rowGroupFilter.shouldRead(fileSchema, blockMetaData);
+    }
+  }
+
+  // Helper method to create a Variant with a single key-value pair
+  private Variant createVariantWithKey(VariantMetadata md, String value) {
+    ShreddedObject obj = Variants.object(md);
+    obj.put("k", Variants.of(value));
+    return Variant.of(md, obj);
+  }
+
+  // Helper method to create test records with variant field
+  private List<GenericRecord> createVariantRecords(Variant variantValue) {
+    List<GenericRecord> records = Lists.newArrayListWithExpectedSize(2);
+
+    GenericRecord r0 = GenericRecord.create(VARIANT_SCHEMA);
+    r0.setField("id", 0);
+    r0.setField("variant_field", variantValue);
+    records.add(r0);
+
+    GenericRecord r1 = GenericRecord.create(VARIANT_SCHEMA);
+    r1.setField("id", 1);
+    r1.setField("variant_field", null);
+    records.add(r1);
+
+    return records;
   }
 
   private org.apache.parquet.io.InputFile parquetInputFile(InputFile inFile) {
