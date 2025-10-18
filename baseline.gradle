@@ -52,15 +52,6 @@ subprojects {
   apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.diffplug.spotless'
 
-  pluginManager.withPlugin('com.palantir.baseline-checkstyle') {
-    checkstyle {
-      // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
-      // in an old version of the checkstyle(9.1), which has this OutOfMemory bug https://github.com/checkstyle/checkstyle/issues/10934.
-      // So, override its checkstyle version using CheckstyleExtension to 9.3 (the latest java 8 supported version) which contains a fix.
-      toolVersion '9.3'
-    }
-  }
-
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
       java {
