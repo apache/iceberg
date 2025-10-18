@@ -263,7 +263,6 @@ paths:
             If not provided or empty, all top-level namespaces should be listed.
             If parent is a multipart namespace, the parts must be separated by the unit separator (`0x1F`) byte.
           required: false
-          allowEmptyValue: true
           schema:
             type: string
           example: "accounting%1Ftax"
@@ -1880,7 +1879,6 @@ components:
       name: pageToken
       in: query
       required: false
-      allowEmptyValue: true
       schema:
         $ref: '#/components/schemas/PageToken'
 
