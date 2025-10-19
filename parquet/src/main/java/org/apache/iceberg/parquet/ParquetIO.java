@@ -25,7 +25,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -178,9 +177,8 @@ class ParquetIO {
     @Override
     public void readVectored(List<ParquetFileRange> ranges, ByteBufferAllocator allocate)
         throws IOException {
-      IntFunction<ByteBuffer> delegateAllocate = (allocate::allocate);
       List<FileRange> delegateRange = convertRanges(ranges);
-      delegate.readVectored(delegateRange, delegateAllocate);
+      delegate.readVectored(delegateRange, allocate::allocate);
     }
 
     private static List<FileRange> convertRanges(List<ParquetFileRange> ranges) {

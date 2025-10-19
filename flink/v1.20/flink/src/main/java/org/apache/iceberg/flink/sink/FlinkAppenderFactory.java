@@ -73,6 +73,23 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       Map<String, String> props,
       PartitionSpec spec,
       int[] equalityFieldIds,
+      Schema eqDeleteRowSchema) {
+    this(table, schema, flinkSchema, props, spec, equalityFieldIds, eqDeleteRowSchema, null);
+  }
+
+  /**
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #FlinkAppenderFactory(Table, Schema, RowType, Map, PartitionSpec, int[], Schema)} instead.
+   */
+  @Deprecated
+  public FlinkAppenderFactory(
+      Table table,
+      Schema schema,
+      RowType flinkSchema,
+      Map<String, String> props,
+      PartitionSpec spec,
+      int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
     Preconditions.checkNotNull(table, "Table shouldn't be null");
