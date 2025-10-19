@@ -43,7 +43,7 @@ public class TestTables extends ExtensionsTestBase {
   public void beforeEach() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) "
-            + "USING iceberg PARTITIONED BY (truncate(id, 3))",
+            + "USING iceberg TBLPROPERTIES (p1=1, p2='a') PARTITIONED BY (truncate(id, 3))",
         srcTableName);
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e')", srcTableName);
   }
@@ -94,7 +94,7 @@ public class TestTables extends ExtensionsTestBase {
     assertThat(table.schema().asStruct())
         .as("Should have expected nullable schema")
         .isEqualTo(expectedSchema.asStruct());
-    assertThat(table.spec().fields()).as("Should be an unpartitioned table").isEmpty();
+    assertThat(table.spec().fields()).as("Should not be an partitioned").isEmpty();
   }
 
   @TestTemplate
@@ -114,5 +114,45 @@ public class TestTables extends ExtensionsTestBase {
         .as("Should have expected nullable schema")
         .isEqualTo(expectedSchema.asStruct());
     assertThat(table.spec()).as("Should be partitioned by id").isEqualTo(expectedSpec);
+  }
+
+  @TestTemplate
+  public void testTableExists() {
+    sql("CREATE OR REPLACE TABLE %s (id bigint NOT NULL) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1)", tableName);
+    sql("CREATE TABLE IF NOT EXISTS %s LIKE %s", tableName, srcTableName);
+
+    Schema expectedSchema = new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(table.spec().fields()).as("Should not be an partitioned").isEmpty();
+  }
+
+  @TestTemplate
+  public void testPropertiesAreMerged() {
+    sql(
+        "CREATE TABLE IF NOT EXISTS %s LIKE %s TBLPROPERTIES (p2='b', p3=2)",
+        tableName, srcTableName);
+    Schema expectedSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema).truncate("id", 3).build();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.schema().asStruct())
+        .as("Should have expected nullable schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(table.spec()).as("Should be partitioned by id").isEqualTo(expectedSpec);
+    assertThat(table.properties())
+        .containsEntry("p1", "1")
+        .containsEntry("p2", "b")
+        .containsEntry("p3", "2");
   }
 }

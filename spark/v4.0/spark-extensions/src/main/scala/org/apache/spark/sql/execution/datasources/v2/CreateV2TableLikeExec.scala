@@ -66,8 +66,10 @@ case class CreateV2TableLikeExec(
 
     val partitionSpec: PartitionSpec = sourceTable.table().spec()
     val partitioning: Array[Transform] = Spark3Util.toTransforms(partitionSpec)
+    val sourceProps = sourceTable.table().properties().asScala.toMap
+    val mergedProps = sourceProps ++ tableProps
 
-    catalog.createTable(ident, columns, partitioning, tableProps.asJava)
+    catalog.createTable(ident, columns, partitioning, mergedProps.asJava)
 
     Nil
   }

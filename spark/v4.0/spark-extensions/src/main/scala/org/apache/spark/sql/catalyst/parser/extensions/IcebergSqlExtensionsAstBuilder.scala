@@ -71,19 +71,15 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   override def visitCreateTableLike(ctx: CreateTableLikeContext): CreateIcebergTableLike = withOrigin(ctx) {
     val tableName = typedVisit[Seq[String]](ctx.multipartIdentifier(0))
     val sourceTableName = typedVisit[Seq[String]](ctx.multipartIdentifier(1))
-    val properties = if (ctx.tableProperty() != null) {
-      toSeq(ctx.tableProperty()).map { prop =>
-        val key = prop.key.getText
-        val value = if (prop.value != null) {
-          typedVisit[String](prop.value)
-        } else {
-          ""
-        }
-        key -> value
-      }.toMap
-    } else {
-      Map.empty[String, String]
-    }
+    val properties = Option(ctx.tableProperty())
+      .map(tableProperty => {
+        toSeq(tableProperty).map { prop =>
+          val key = prop.key.getText
+          val value = Option(prop.value).map(visitConstant(_).toString()).getOrElse("")
+          key -> value
+        }.toMap
+      })
+      .getOrElse(Map.empty[String, String])
     val ifNotExists = ctx.EXISTS() != null
 
     CreateIcebergTableLike(tableName, sourceTableName, properties, ifNotExists)
