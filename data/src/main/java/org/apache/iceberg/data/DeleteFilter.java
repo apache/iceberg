@@ -310,6 +310,14 @@ public abstract class DeleteFilter<T> {
       columns.add(MetadataColumns.IS_DELETED);
     }
 
+    if (missingIds.contains(MetadataColumns.ROW_ID.fieldId())) {
+      columns.add(MetadataColumns.ROW_ID);
+    }
+
+    if (missingIds.contains(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId())) {
+      columns.add(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+    }
+
     return new Schema(columns);
   }
 
@@ -322,12 +330,17 @@ public abstract class DeleteFilter<T> {
    */
   private static Set<Integer> mergeFieldIds(Schema requestedSchema, Set<Integer> missingIds) {
     Set<Integer> allRequiredIds = Sets.newLinkedHashSet();
-    allRequiredIds.addAll(TypeUtil.getProjectedIds(requestedSchema));
+
+    // Add field IDs from requested schema, excluding metadata columns
+    for (int fieldId : TypeUtil.getProjectedIds(requestedSchema)) {
+      if (!MetadataColumns.isMetadataColumn(fieldId)) {
+        allRequiredIds.add(fieldId);
+      }
+    }
 
     // Add missing field IDs, excluding metadata columns (they'll be added at the end)
     for (int fieldId : missingIds) {
-      if (fieldId != MetadataColumns.ROW_POSITION.fieldId()
-          && fieldId != MetadataColumns.IS_DELETED.fieldId()) {
+      if (!MetadataColumns.isMetadataColumn(fieldId)) {
         allRequiredIds.add(fieldId);
       }
     }
