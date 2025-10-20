@@ -141,6 +141,19 @@ class RESTTableOperations implements TableOperations {
     this.endpoints = endpoints;
   }
 
+  RESTTableOperations(RESTTableOperations other) {
+    this(
+        other.client,
+        other.path,
+        other.readHeaders,
+        other.mutationHeaders,
+        other.io,
+        other.updateType,
+        other.createChanges,
+        other.current,
+        other.endpoints);
+  }
+
   @Override
   public TableMetadata current() {
     return current;
@@ -318,6 +331,10 @@ class RESTTableOperations implements TableOperations {
     } else {
       return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
     }
+  }
+
+  RESTClient client() {
+    return client;
   }
 
   @Override
