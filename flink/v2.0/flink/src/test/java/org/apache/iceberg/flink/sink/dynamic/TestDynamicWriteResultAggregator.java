@@ -27,6 +27,7 @@ import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
+import org.apache.flink.streaming.api.connector.sink2.SinkV2Assertions;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.hadoop.util.Sets;
@@ -58,7 +59,7 @@ class TestDynamicWriteResultAggregator {
           .build();
 
   @Test
-  void testAggregator() throws Exception {
+  void testAggregatesWriteResultsForTwoTables() throws Exception {
     CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), new Schema());
     CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table2"), new Schema());
 
@@ -69,13 +70,12 @@ class TestDynamicWriteResultAggregator {
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
       testHarness.open();
 
-      WriteTarget writeTarget1 = new WriteTarget("table", "branch", 42, 0, true, Sets.newHashSet());
+      TableKey tableKey1 = new TableKey("table", "branch");
       DynamicWriteResult dynamicWriteResult1 =
-          new DynamicWriteResult(writeTarget1, WriteResult.builder().build());
-      WriteTarget writeTarget2 =
-          new WriteTarget("table2", "branch", 42, 0, true, Sets.newHashSet(1, 2));
+          new DynamicWriteResult(tableKey1, WriteResult.builder().build());
+      TableKey tableKey2 = new TableKey("table2", "branch");
       DynamicWriteResult dynamicWriteResult2 =
-          new DynamicWriteResult(writeTarget2, WriteResult.builder().build());
+          new DynamicWriteResult(tableKey2, WriteResult.builder().build());
 
       CommittableWithLineage<DynamicWriteResult> committable1 =
           new CommittableWithLineage<>(dynamicWriteResult1, 0, 0);
@@ -113,18 +113,14 @@ class TestDynamicWriteResultAggregator {
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
       testHarness.open();
 
-      WriteTarget writeTarget1 =
-          new WriteTarget("table", "branch", 42, 0, false, Sets.newHashSet());
+      TableKey tableKey1 = new TableKey("table", "branch");
       DynamicWriteResult dynamicWriteResult1 =
-          new DynamicWriteResult(
-              writeTarget1, WriteResult.builder().addDataFiles(DATA_FILE).build());
+          new DynamicWriteResult(tableKey1, WriteResult.builder().addDataFiles(DATA_FILE).build());
 
       // Different WriteTarget
-      WriteTarget writeTarget2 =
-          new WriteTarget("table", "branch2", 23, 0, true, Sets.newHashSet());
+      TableKey tableKey2 = new TableKey("table", "branch2");
       DynamicWriteResult dynamicWriteResult2 =
-          new DynamicWriteResult(
-              writeTarget2, WriteResult.builder().addDataFiles(DATA_FILE).build());
+          new DynamicWriteResult(tableKey2, WriteResult.builder().addDataFiles(DATA_FILE).build());
 
       CommittableWithLineage<DynamicWriteResult> committable1 =
           new CommittableWithLineage<>(dynamicWriteResult1, 0, 0);
@@ -158,15 +154,101 @@ class TestDynamicWriteResultAggregator {
     for (StreamRecord<CommittableMessage<DynamicCommittable>> record : messages) {
       CommittableMessage<DynamicCommittable> message = record.getValue();
       if (message instanceof CommittableWithLineage) {
-        DeltaManifests deltaManifests =
-            SimpleVersionedSerialization.readVersionAndDeSerialize(
-                DeltaManifestsSerializer.INSTANCE,
-                (((CommittableWithLineage<DynamicCommittable>) message).getCommittable())
-                    .manifest());
-        deltaManifests.manifests().forEach(manifest -> manifestPaths.add(manifest.path()));
+        for (byte[] manifest :
+            (((CommittableWithLineage<DynamicCommittable>) message).getCommittable()).manifests()) {
+          DeltaManifests deltaManifests =
+              SimpleVersionedSerialization.readVersionAndDeSerialize(
+                  DeltaManifestsSerializer.INSTANCE, manifest);
+          deltaManifests
+              .manifests()
+              .forEach(manifestFile -> manifestPaths.add(manifestFile.path()));
+        }
       }
     }
 
     return manifestPaths;
+  }
+
+  @Test
+  void testAggregatesWriteResultsForOneTable() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), new Schema());
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table2"), new Schema());
+
+    long checkpointId = 1L;
+
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
+        testHarness =
+            new OneInputStreamOperatorTestHarness<>(
+                new DynamicWriteResultAggregator(
+                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize))) {
+      testHarness.open();
+
+      TableKey tableKey = new TableKey("table", "branch");
+      DataFile dataFile1 =
+          DataFiles.builder(PartitionSpec.unpartitioned())
+              .withPath("/data-1.parquet")
+              .withFileSizeInBytes(10)
+              .withRecordCount(1)
+              .build();
+      DataFile dataFile2 =
+          DataFiles.builder(PartitionSpec.unpartitioned())
+              .withPath("/data-2.parquet")
+              .withFileSizeInBytes(20)
+              .withRecordCount(2)
+              .build();
+
+      testHarness.processElement(createRecord(tableKey, checkpointId, dataFile1));
+      testHarness.processElement(createRecord(tableKey, checkpointId, dataFile2));
+
+      assertThat(testHarness.getOutput()).isEmpty();
+
+      testHarness.prepareSnapshotPreBarrier(checkpointId);
+
+      List<CommittableMessage<DynamicCommittable>> outputValues = testHarness.extractOutputValues();
+      // Contains a CommittableSummary + DynamicCommittable
+      assertThat(outputValues).hasSize(2);
+
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(outputValues.get(0)))
+          .hasOverallCommittables(1)
+          .hasFailedCommittables(0)
+          .hasCheckpointId(checkpointId);
+
+      CommittableWithLineage<DynamicCommittable> committable =
+          extractAndAssertCommittableWithLineage(outputValues.get(1));
+
+      SinkV2Assertions.assertThat(committable).hasCheckpointId(checkpointId);
+
+      DynamicCommittable dynamicCommittable = committable.getCommittable();
+
+      assertThat(dynamicCommittable.manifests()).hasNumberOfRows(1);
+      assertThat(dynamicCommittable.key()).isEqualTo(tableKey);
+      assertThat(dynamicCommittable.checkpointId()).isEqualTo(checkpointId);
+      assertThat(dynamicCommittable.jobId())
+          .isEqualTo(testHarness.getEnvironment().getJobID().toString());
+      assertThat(dynamicCommittable.operatorId())
+          .isEqualTo(testHarness.getOperator().getOperatorID().toString());
+    }
+  }
+
+  private static StreamRecord<CommittableMessage<DynamicWriteResult>> createRecord(
+      TableKey tableKey, long checkpointId, DataFile... dataFiles) {
+    return new StreamRecord<>(
+        new CommittableWithLineage<>(
+            new DynamicWriteResult(tableKey, WriteResult.builder().addDataFiles(dataFiles).build()),
+            checkpointId,
+            0));
+  }
+
+  static CommittableSummary<DynamicCommittable> extractAndAssertCommittableSummary(
+      CommittableMessage<DynamicCommittable> message) {
+    assertThat(message).isInstanceOf(CommittableSummary.class);
+    return (CommittableSummary<DynamicCommittable>) message;
+  }
+
+  static CommittableWithLineage<DynamicCommittable> extractAndAssertCommittableWithLineage(
+      CommittableMessage<DynamicCommittable> message) {
+    assertThat(message).isInstanceOf(CommittableWithLineage.class);
+    return (CommittableWithLineage<DynamicCommittable>) message;
   }
 }

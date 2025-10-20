@@ -24,38 +24,28 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.jobgraph.OperatorID;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 
 class TestDynamicCommittableSerializer {
+  private static final DynamicCommittable COMMITTABLE =
+      new DynamicCommittable(
+          new TableKey("table", "branch"),
+          new byte[][] {{3, 4}},
+          JobID.generate().toHexString(),
+          new OperatorID().toHexString(),
+          5);
 
   @Test
   void testRoundtrip() throws IOException {
-    DynamicCommittable committable =
-        new DynamicCommittable(
-            new WriteTarget("table", "branch", 42, 23, false, Sets.newHashSet(1, 2)),
-            new byte[] {3, 4},
-            JobID.generate().toHexString(),
-            new OperatorID().toHexString(),
-            5);
-
     DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
-    assertThat(serializer.deserialize(serializer.getVersion(), serializer.serialize(committable)))
-        .isEqualTo(committable);
+    assertThat(serializer.deserialize(serializer.getVersion(), serializer.serialize(COMMITTABLE)))
+        .isEqualTo(COMMITTABLE);
   }
 
   @Test
-  void testUnsupportedVersion() throws IOException {
-    DynamicCommittable committable =
-        new DynamicCommittable(
-            new WriteTarget("table", "branch", 42, 23, false, Sets.newHashSet(1, 2)),
-            new byte[] {3, 4},
-            JobID.generate().toHexString(),
-            new OperatorID().toHexString(),
-            5);
-
+  void testUnsupportedVersion() {
     DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
-    assertThatThrownBy(() -> serializer.deserialize(-1, serializer.serialize(committable)))
+    assertThatThrownBy(() -> serializer.deserialize(-1, serializer.serialize(COMMITTABLE)))
         .hasMessage("Unrecognized version or corrupt state: -1")
         .isInstanceOf(IOException.class);
   }

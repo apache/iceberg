@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Metrics;
@@ -48,13 +47,12 @@ class TestDynamicWriteResultSerializer {
                   ImmutableMap.of(1, ByteBuffer.allocate(1)),
                   ImmutableMap.of(1, ByteBuffer.allocate(1))))
           .build();
+  private static final TableKey TABLE_KEY = new TableKey("table", "branch");
 
   @Test
   void testRoundtrip() throws IOException {
     DynamicWriteResult dynamicWriteResult =
-        new DynamicWriteResult(
-            new WriteTarget("table", "branch", 42, 23, false, Sets.newHashSet(1, 2)),
-            WriteResult.builder().addDataFiles(DATA_FILE).build());
+        new DynamicWriteResult(TABLE_KEY, WriteResult.builder().addDataFiles(DATA_FILE).build());
 
     DynamicWriteResultSerializer serializer = new DynamicWriteResultSerializer();
     DynamicWriteResult copy =
@@ -68,11 +66,9 @@ class TestDynamicWriteResultSerializer {
   }
 
   @Test
-  void testUnsupportedVersion() throws IOException {
+  void testUnsupportedVersion() {
     DynamicWriteResult dynamicWriteResult =
-        new DynamicWriteResult(
-            new WriteTarget("table", "branch", 42, 23, false, Sets.newHashSet(1, 2)),
-            WriteResult.builder().addDataFiles(DATA_FILE).build());
+        new DynamicWriteResult(TABLE_KEY, WriteResult.builder().addDataFiles(DATA_FILE).build());
 
     DynamicWriteResultSerializer serializer = new DynamicWriteResultSerializer();
     assertThatThrownBy(() -> serializer.deserialize(-1, serializer.serialize(dynamicWriteResult)))

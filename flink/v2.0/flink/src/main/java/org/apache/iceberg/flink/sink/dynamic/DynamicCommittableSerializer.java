@@ -31,11 +31,12 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
  */
 class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicCommittable> {
 
-  private static final int VERSION = 1;
+  private static final int VERSION_1 = 1;
+  private static final int VERSION_2 = 2;
 
   @Override
   public int getVersion() {
-    return VERSION;
+    return VERSION_2;
   }
 
   @Override
@@ -46,26 +47,59 @@ class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicC
     view.writeUTF(committable.jobId());
     view.writeUTF(committable.operatorId());
     view.writeLong(committable.checkpointId());
-    view.writeInt(committable.manifest().length);
-    view.write(committable.manifest());
+
+    view.writeInt(committable.manifests().length);
+    for (int i = 0; i < committable.manifests().length; i++) {
+      view.writeInt(committable.manifests()[i].length);
+      view.write(committable.manifests()[i]);
+    }
+
     return out.toByteArray();
   }
 
   @Override
   public DynamicCommittable deserialize(int version, byte[] serialized) throws IOException {
-    if (version == 1) {
-      DataInputDeserializer view = new DataInputDeserializer(serialized);
-      WriteTarget key = WriteTarget.deserializeFrom(view);
-      String jobId = view.readUTF();
-      String operatorId = view.readUTF();
-      long checkpointId = view.readLong();
-      int manifestLen = view.readInt();
-      byte[] manifestBuf;
-      manifestBuf = new byte[manifestLen];
-      view.read(manifestBuf);
-      return new DynamicCommittable(key, manifestBuf, jobId, operatorId, checkpointId);
+    if (version == VERSION_1) {
+      return deserializeV1(serialized);
+    } else if (version == VERSION_2) {
+      return deserializeV2(serialized);
     }
 
     throw new IOException("Unrecognized version or corrupt state: " + version);
+  }
+
+  private DynamicCommittable deserializeV1(byte[] serialized) throws IOException {
+    DataInputDeserializer view = new DataInputDeserializer(serialized);
+    WriteTarget key = WriteTarget.deserializeFrom(view);
+    String jobId = view.readUTF();
+    String operatorId = view.readUTF();
+    long checkpointId = view.readLong();
+    int manifestLen = view.readInt();
+    byte[] manifestBuf;
+    manifestBuf = new byte[manifestLen];
+    view.read(manifestBuf);
+    return new DynamicCommittable(
+        new TableKey(key.tableName(), key.branch()),
+        new byte[][] {manifestBuf},
+        jobId,
+        operatorId,
+        checkpointId);
+  }
+
+  private DynamicCommittable deserializeV2(byte[] serialized) throws IOException {
+    DataInputDeserializer view = new DataInputDeserializer(serialized);
+    TableKey key = TableKey.deserializeFrom(view);
+    String jobId = view.readUTF();
+    String operatorId = view.readUTF();
+    long checkpointId = view.readLong();
+
+    byte[][] manifestsBuf = new byte[view.readInt()][];
+    for (int i = 0; i < manifestsBuf.length; i++) {
+      byte[] manifest = new byte[view.readInt()];
+      view.read(manifest);
+      manifestsBuf[i] = manifest;
+    }
+
+    return new DynamicCommittable(key, manifestsBuf, jobId, operatorId, checkpointId);
   }
 }

@@ -193,7 +193,8 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
           writeResult.dataFiles().length,
           writeResult.deleteFiles().length);
 
-      result.add(new DynamicWriteResult(writeTarget, writeResult));
+      TableKey tableKey = new TableKey(writeTarget.tableName(), writeTarget.branch());
+      result.add(new DynamicWriteResult(tableKey, writeResult));
     }
 
     writers.clear();

@@ -50,7 +50,7 @@ class DynamicWriteResultSerializer implements SimpleVersionedSerializer<DynamicW
   public DynamicWriteResult deserialize(int version, byte[] serialized) throws IOException {
     if (version == 1) {
       DataInputDeserializer view = new DataInputDeserializer(serialized);
-      WriteTarget key = WriteTarget.deserializeFrom(view);
+      TableKey key = TableKey.deserializeFrom(view);
       byte[] resultBuf = new byte[view.available()];
       view.read(resultBuf);
       WriteResult writeResult = WRITE_RESULT_SERIALIZER.deserialize(version, resultBuf);
