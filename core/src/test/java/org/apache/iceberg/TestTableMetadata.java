@@ -1937,6 +1937,58 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testSetLastUpdatedMillis() {
+    String uuid = "4db85dc8-33a7-4c28-ac0f-3450818b5438";
+    long originalTimestamp = System.currentTimeMillis();
+    TestHelpers.waitUntilAfter(originalTimestamp);
+
+    Schema newSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "float", Types.FloatType.get()),
+            Types.NestedField.required(3, "double", Types.DoubleType.get()));
+
+    TableMetadata metadata =
+        TableMetadata.buildFromEmpty()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .setCurrentSchema(TEST_SCHEMA, 3)
+            .addPartitionSpec(PartitionSpec.unpartitioned())
+            .addSortOrder(SortOrder.unsorted())
+            .discardChanges()
+            .build();
+
+    assertThat(metadata.lastUpdatedMillis())
+        .as("setCurrentSchema does not change timestamp and rely on system clock")
+        .isGreaterThan(originalTimestamp);
+
+    TableMetadata schemaUpdate =
+        TableMetadata.buildFrom(metadata)
+            .setCurrentSchema(newSchema, newSchema.highestFieldId())
+            .setLastUpdatedMillis(originalTimestamp)
+            .build();
+
+    assertThat(schemaUpdate.lastUpdatedMillis())
+        .as("setLastUpdatedMillis override with provided timestamp on schema update")
+        .isNotEqualTo(metadata.lastUpdatedMillis())
+        .isEqualTo(originalTimestamp);
+
+    long anotherTimestamp = System.currentTimeMillis();
+    TableMetadata propertyUpdate =
+        TableMetadata.buildFrom(schemaUpdate)
+            .setProperties(Map.of("foo", "bar"))
+            .setLastUpdatedMillis(anotherTimestamp)
+            .build();
+
+    assertThat(propertyUpdate.lastUpdatedMillis())
+        .as("setLastUpdatedMillis override with provided timestamp on properties update")
+        .isNotEqualTo(originalTimestamp)
+        .isEqualTo(anotherTimestamp);
+
+    assertThat(propertyUpdate.properties()).containsEntry("foo", "bar");
+  }
+
+  @Test
   public void testMetadataWithRemoveSpecs() {
     TableMetadata meta =
         TableMetadata.buildFrom(

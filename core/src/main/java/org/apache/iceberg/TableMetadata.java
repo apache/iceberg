@@ -1521,6 +1521,11 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder setLastUpdatedMillis(long lastUpdatedMillis) {
+      this.lastUpdatedMillis = lastUpdatedMillis;
+      return this;
+    }
+
     private boolean hasChanges() {
       return changes.size() != startingChangeCount
           || (discardChanges && !changes.isEmpty())
