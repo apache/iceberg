@@ -23,7 +23,6 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.net.URI;
 import java.sql.Timestamp;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -257,7 +256,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         findOrphanFilesAsDataset(actualFileIdentDS, validFileIdentDS, conflicts);
 
     if (streamResults()) {
-      return deleteFilesStreaming(orphanFileDS.toLocalIterator(), conflicts);
+      return deleteFilesStreaming(orphanFileDS, conflicts);
     } else {
       List<String> orphanFiles = orphanFileDS.collectAsList();
       validateNoConflicts(conflicts);
@@ -272,41 +271,39 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
    * file paths (up to MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING) plus a summary row as the
    * last row.
    *
-   * @param orphanFiles iterator of file paths to delete (streamed from executors)
+   * @param orphanFileDS dataset of file paths to delete
    * @param conflicts accumulator for tracking prefix mismatches
    * @return result with sample file paths and optional summary row
    */
   private DeleteOrphanFiles.Result deleteFilesStreaming(
-      Iterator<String> orphanFiles, SetAccumulator<Pair<String, String>> conflicts) {
+      Dataset<String> orphanFileDS, SetAccumulator<Pair<String, String>> conflicts) {
+    // Cache the dataset and force computation to populate the conflicts accumulator
+    // This allows us to validate conflicts before starting any deletions
+    orphanFileDS = orphanFileDS.cache();
+    long filesCount = orphanFileDS.count();
+    validateNoConflicts(conflicts);
+
     List<String> samplePaths =
         Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
-    long filesCount = 0;
 
-    if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
-      SupportsBulkOperations bulkIO = (SupportsBulkOperations) table.io();
-      Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
+    Iterator<String> orphanFiles = orphanFileDS.toLocalIterator();
+    Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
 
-      while (fileGroups.hasNext()) {
-        List<String> fileGroup = fileGroups.next();
+    while (fileGroups.hasNext()) {
+      List<String> fileGroup = fileGroups.next();
 
-        collectSamplePaths(fileGroup, samplePaths);
+      collectSamplePaths(fileGroup, samplePaths);
 
-        deleteFiles(bulkIO, fileGroup);
-        filesCount += fileGroup.size();
+      if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
+        deleteFiles((SupportsBulkOperations) table.io(), fileGroup);
+      } else {
+        deleteFilesNonBulk(fileGroup);
       }
-    } else {
-      List<String> filesList = Lists.newArrayList(orphanFiles);
-      filesCount = filesList.size();
-
-      collectSamplePaths(filesList, samplePaths);
-
-      deleteFilesNonBulk(filesList);
     }
 
-    LOG.info("Deleted {} orphan files", filesCount);
+    orphanFileDS.unpersist();
 
-    // Validate no conflicts after processing all partitions
-    validateNoConflicts(conflicts);
+    LOG.info("Deleted {} orphan files", filesCount);
 
     // Always add summary row for consistency (same format regardless of result size)
     String summary = String.format("[Total removed: %d files.]", filesCount);
@@ -330,13 +327,10 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private void collectSamplePaths(Collection<String> paths, List<String> samplePaths) {
-    for (String path : paths) {
-      if (samplePaths.size() >= MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING) {
-        break;
-      }
-      samplePaths.add(path);
-    }
+  private void collectSamplePaths(List<String> paths, List<String> samplePaths) {
+    int lengthToAdd =
+        Math.min(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING - samplePaths.size(), paths.size());
+    samplePaths.addAll(paths.subList(0, lengthToAdd));
   }
 
   private void deleteFiles(SupportsBulkOperations io, List<String> paths) {
