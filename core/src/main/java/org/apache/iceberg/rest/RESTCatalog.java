@@ -39,6 +39,7 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.view.View;
@@ -94,6 +95,11 @@ public class RESTCatalog
   public void initialize(String name, Map<String, String> props) {
     Preconditions.checkArgument(props != null, "Invalid configuration: null");
     sessionCatalog.initialize(name, props);
+  }
+
+  @VisibleForTesting
+  RESTSessionCatalog sessionCatalog() {
+    return sessionCatalog;
   }
 
   @Override
