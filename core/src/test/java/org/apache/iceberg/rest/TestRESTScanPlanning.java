@@ -859,6 +859,26 @@ public class TestRESTScanPlanning {
     }
   }
 
+  @Test
+  void remoteScanPlanningWithFreshnessAwareLoading() throws IOException {
+    RESTCatalog catalog = scanPlanningCatalog();
+
+    TableIdentifier tableIdentifier = TableIdentifier.of(NS, "freshness_aware_loading_test");
+    restTableFor(catalog, tableIdentifier.name());
+
+    assertThat(catalog.sessionCatalog().tableCache().tableCache().estimatedSize()).isZero();
+
+    // Table is cached with the first loadTable
+    catalog.loadTable(tableIdentifier);
+    assertThat(catalog.sessionCatalog().tableCache().tableCache().estimatedSize()).isOne();
+
+    // Second loadTable is answered from cache
+    Table table = catalog.loadTable(tableIdentifier);
+
+    // Verify table is RESTTable and newScan() returns RESTTableScan
+    restTableScanFor(table);
+  }
+
   // ==================== Endpoint Support Tests ====================
 
   /** Helper class to hold catalog and adapter for endpoint support tests. */
