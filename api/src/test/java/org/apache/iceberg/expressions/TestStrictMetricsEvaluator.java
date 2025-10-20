@@ -32,7 +32,9 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -171,6 +173,39 @@ public class TestStrictMetricsEvaluator {
           ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
           // upper bounds
           ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
+
+  private static final DataFile FILE_4 =
+      new TestDataFile(
+          "file_4.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(
+              3, 50L,
+              4, 50L,
+              5, 50L,
+              6, 50L),
+          // null value counts
+          ImmutableMap.of(
+              3, 0L,
+              4, 50L,
+              5, 10L,
+              6, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(
+              3, toByteBuffer(StringType.get(), "bbbb"),
+              5, toByteBuffer(StringType.get(), "bbbb"),
+              6, toByteBuffer(StringType.get(), "bbbb")
+          ),
+          // upper bounds
+          ImmutableMap.of(
+              3, toByteBuffer(StringType.get(), "bbcd"),
+              5, toByteBuffer(StringType.get(), "bbcd"),
+              6, toByteBuffer(StringType.get(), "bbcd")
+          ));
+
 
   @Test
   public void testAllNulls() {
@@ -683,5 +718,85 @@ public class TestStrictMetricsEvaluator {
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_with_stats")).eval(FILE);
     assertThat(shouldRead).as("notNull nested column should not match").isFalse();
+  }
+
+  @Test
+  public void testStringStartsWith() {
+    boolean shouldRead;
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, startsWith("all_nulls", "bb")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not match: all null not starts with any value")
+        .isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, startsWith("some_nulls", "bb")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not match: null not starts with any value")
+        .isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, startsWith("no_nulls", "bb")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should match: upper and lower value starts with \"bb\"")
+        .isTrue();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, startsWith("no_nulls", "cc")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not match: upper and lower value not starts with \"cc\"")
+        .isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, startsWith("required", "bb")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should match: upper and lower value not starts with \"bb\"")
+        .isTrue();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, startsWith("required", "cc")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not match: upper and lower value not starts with \"cc\"")
+        .isFalse();
+  }
+
+  @Test
+  public void testStringNotStartsWith() {
+    boolean shouldRead;
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notStartsWith("all_nulls", "aaaa")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should match: all null not starts with any value")
+        .isTrue();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "aa")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should match: null values and bbbb not starts with \"aa\"")
+        .isTrue();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notStartsWith("some_nulls", "bb")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not match: null values not starts with \"bb\" but others could")
+        .isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notStartsWith("no_nulls", "bbcc")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not match: upper value \"bbcd\" is more than \"bbcc\"")
+        .isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notStartsWith("no_nulls", "cc")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should match: upper value \"bbcd\" is less than \"bbcc\"")
+        .isTrue();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "bbca")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not match: upper value \"bbcd\" is more than \"bbca\"")
+        .isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "aa")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should match: lower value \"bbcd\" is more than \"aa\"")
+        .isTrue();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notStartsWith("required", "cc")).eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should match: upper value \"bbcd\" is less than \"cc\"")
+        .isTrue();
   }
 }
