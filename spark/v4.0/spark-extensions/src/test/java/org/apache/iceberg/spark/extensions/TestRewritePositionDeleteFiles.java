@@ -43,6 +43,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.RowDelta;
@@ -88,16 +89,20 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
   private static final int DELETE_FILES_PER_PARTITION = 2;
   private static final int DELETE_FILE_SIZE = 10;
 
-  @Parameters(name = "formatVersion = {0}, catalogName = {1}, implementation = {2}, config = {3}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
-        CATALOG_PROPS
+        CATALOG_PROPS,
+        2
       }
     };
   }
+
+  @Parameter(index = 3)
+  private int formatVersion;
 
   @AfterEach
   public void cleanup() {
@@ -250,8 +255,8 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
         "CREATE TABLE %s (id long, %s %s, c1 string, c2 string) "
             + "USING iceberg "
             + "PARTITIONED BY (%s) "
-            + "TBLPROPERTIES('format-version'='2')",
-        tableName, partitionCol, partitionType, partitionTransform);
+            + "TBLPROPERTIES('format-version'='%d')",
+        tableName, partitionCol, partitionType, partitionTransform, formatVersion);
   }
 
   private void insertData(Function<Integer, ?> partitionValueFunction) throws Exception {
