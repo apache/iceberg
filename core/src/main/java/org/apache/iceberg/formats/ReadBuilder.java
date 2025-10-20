@@ -54,7 +54,7 @@ public interface ReadBuilder {
 
   /**
    * Configures whether filtering should be case-sensitive. If the reader supports filtering, it
-   * must respect this setting.
+   * must respect this setting. The default value is <code>true</code>.
    *
    * @param caseSensitive indicates if filtering is case-sensitive
    */
@@ -64,21 +64,28 @@ public interface ReadBuilder {
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
    * records. Some readers might not be able to filter some part of the exception. In this case the
    * reader might return unfiltered or partially filtered rows. It is the caller's responsibility to
-   * apply the filter again. The default implementation sets the filter to be case-sensitive.
+   * apply the filter again.
    *
    * @param filter the filter to set
    */
   ReadBuilder filter(Expression filter);
 
   /**
-   * Sets configuration key/value pairs for the reader. Reader builders should ignore configuration
-   * keys not known for them.
+   * Set a reader configuration property which affects the reader behavior. Reader builders should
+   * ignore configuration keys not known for them.
+   *
+   * @param key a reader config property name
+   * @param value config value
+   * @return this for method chaining
    */
   ReadBuilder set(String key, String value);
 
   /**
-   * Sets multiple configuration key/value pairs for the reader. Reader builders should ignore
-   * configuration keys not known for them.
+   * Sets multiple reader configuration properties that affect the reader behavior. Reader builders
+   * should ignore configuration keys not known for them.
+   *
+   * @param properties reader config properties to set
+   * @return this for method chaining
    */
   default ReadBuilder setAll(Map<String, String> properties) {
     properties.forEach(this::set);

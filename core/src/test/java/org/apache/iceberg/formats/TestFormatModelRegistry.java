@@ -31,12 +31,13 @@ class TestFormatModelRegistry {
   /** Tests that registering the same class with the same configuration is successful. */
   @Test
   void testSuccessfulReRegister() {
-    // It is fine to register the same classes with the same configuration multiple times
-    DummyFormatModel model = new DummyFormatModel(Object.class, Object.class);
+    FormatModel<?, ?> model = new DummyParquetFormatModel(Object.class, Object.class);
     FormatModelRegistry.register(model);
     assertThat(FormatModelRegistry.models())
         .containsEntry(Pair.of(FileFormat.PARQUET, Object.class), model);
     FormatModelRegistry.register(model);
+
+    // It is fine to register the same classes with the same configuration multiple times
     assertThat(FormatModelRegistry.models())
         .containsEntry(Pair.of(FileFormat.PARQUET, Object.class), model);
   }
@@ -44,18 +45,18 @@ class TestFormatModelRegistry {
   /** Tests that registering the same class with the same configuration updates the registration. */
   @Test
   void testUpdatedRegistration() {
-    DummyFormatModel model1 = new DummyFormatModel(Object.class, Object.class);
-    DummyFormatModel model2 = new DummyFormatModel(Object.class, Object.class);
+    FormatModel<?, ?> model1 = new DummyParquetFormatModel(Object.class, Object.class);
+    FormatModel<?, ?> model2 = new DummyParquetFormatModel(Object.class, Object.class);
     FormatModelRegistry.register(model1);
     assertThat(FormatModelRegistry.models().get(Pair.of(model1.format(), model1.type())))
-        .isEqualTo(model1);
+        .isSameAs(model1);
 
     // Registering a new model with the same format and schema type should replace the old one
     FormatModelRegistry.register(model2);
     assertThat(FormatModelRegistry.models().get(Pair.of(model1.format(), model1.type())))
-        .isNotEqualTo(model1);
+        .isNotSameAs(model1);
     assertThat(FormatModelRegistry.models().get(Pair.of(model1.format(), model1.type())))
-        .isEqualTo(model2);
+        .isSameAs(model2);
   }
 
   /**
@@ -64,21 +65,24 @@ class TestFormatModelRegistry {
    */
   @Test
   void testFailingReRegistrations() {
-    FormatModel<?, ?> existing = new OtherDummyFormatModel();
-    FormatModel<?, ?> model = new DummyFormatModel(Object.class, Object.class);
+    FormatModel<?, ?> existing = new OtherDummyParquetFormatModel();
+    FormatModel<?, ?> model = new DummyParquetFormatModel(Object.class, Object.class);
     FormatModelRegistry.register(existing);
     FormatModelRegistry.register(model);
     assertThat(FormatModelRegistry.models().get(Pair.of(model.format(), model.type())))
-        .isEqualTo(model);
+        .isSameAs(model);
 
     // Registering a new model with different schema type should fail
     assertThatThrownBy(
-            () -> FormatModelRegistry.register(new DummyFormatModel(Object.class, String.class)))
+            () ->
+                FormatModelRegistry.register(
+                    new DummyParquetFormatModel(Object.class, String.class)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot register class");
 
     // Registering a new model with null schema type should fail
-    assertThatThrownBy(() -> FormatModelRegistry.register(new DummyFormatModel(Object.class, null)))
+    assertThatThrownBy(
+            () -> FormatModelRegistry.register(new DummyParquetFormatModel(Object.class, null)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot register class");
 
@@ -86,16 +90,16 @@ class TestFormatModelRegistry {
     assertThatThrownBy(
             () ->
                 FormatModelRegistry.register(
-                    new DummyFormatModel(existing.type(), existing.schemaType())))
+                    new DummyParquetFormatModel(existing.type(), existing.schemaType())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot register class");
   }
 
-  private static class DummyFormatModel implements FormatModel<Object, Object> {
+  private static class DummyParquetFormatModel implements FormatModel<Object, Object> {
     private final Class<?> type;
     private final Class<?> schemaType;
 
-    private DummyFormatModel(Class<?> type, Class<?> schemaType) {
+    private DummyParquetFormatModel(Class<?> type, Class<?> schemaType) {
       this.type = type;
       this.schemaType = schemaType;
     }
@@ -126,8 +130,8 @@ class TestFormatModelRegistry {
     }
   }
 
-  private static class OtherDummyFormatModel extends DummyFormatModel {
-    private OtherDummyFormatModel() {
+  private static class OtherDummyParquetFormatModel extends DummyParquetFormatModel {
+    private OtherDummyParquetFormatModel() {
       super(Long.class, null);
     }
   }

@@ -66,6 +66,7 @@ public final class FormatModelRegistry {
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
 
+  // Format models indexed by file format and object model class
   private static final Map<Pair<FileFormat, Class<?>>, FormatModel<?, ?>> MODELS =
       Maps.newConcurrentMap();
 
@@ -92,7 +93,7 @@ public final class FormatModelRegistry {
 
     FormatModel<?, ?> existing = MODELS.get(key);
     Preconditions.checkArgument(
-        existing == null || checkFormatModelEquals(existing, formatModel),
+        existing == null || equals(existing, formatModel),
         "Cannot register %s: %s is registered for format=%s type=%s schemaType=%s",
         formatModel.getClass(),
         existing == null ? null : existing.getClass(),
@@ -103,8 +104,7 @@ public final class FormatModelRegistry {
     MODELS.put(key, formatModel);
   }
 
-  private static boolean checkFormatModelEquals(
-      FormatModel<?, ?> model1, FormatModel<?, ?> model2) {
+  private static boolean equals(FormatModel<?, ?> model1, FormatModel<?, ?> model2) {
     return Objects.equals(model1.getClass().getName(), model2.getClass().getName())
         && Objects.equals(model1.type().getName(), model2.type().getName())
         && Objects.equals(
@@ -133,8 +133,7 @@ public final class FormatModelRegistry {
    * Returns a reader builder for the specified file format and object model.
    *
    * <p>The returned {@link ReadBuilder} provides a fluent interface for configuring how data is
-   * read from the input file and converted to the output objects. The builder supports
-   * configuration options like schema projection, predicate pushdown, batch size and encryption.
+   * read from the input file and converted to the output objects.
    *
    * @param format the file format (Parquet, Avro, ORC) that determines the parsing implementation
    * @param type the output type
@@ -210,9 +209,10 @@ public final class FormatModelRegistry {
    * @param outputFile destination for the written data
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
+  @SuppressWarnings("rawtypes")
   public static PositionDeleteWriteBuilder positionDeleteWriteBuilder(
       FileFormat format, EncryptedOutputFile outputFile) {
-    FormatModel<PositionDelete<?>, ?> factory = factoryForPositionDelete(format);
+    FormatModel<PositionDelete, ?> factory = factoryFor(format, PositionDelete.class);
     WriteBuilder writeBuilder =
         factory
             .writeBuilder(outputFile.encryptingOutputFile())
@@ -230,12 +230,7 @@ public final class FormatModelRegistry {
   private static <D, S> FormatModel<D, S> factoryFor(FileFormat format, Class<D> type) {
     FormatModel<D, S> model = ((FormatModel<D, S>) MODELS.get(Pair.of(format, type)));
     Preconditions.checkArgument(
-        model != null, "Format model is not registered for %s and %s", format, type);
+        model != null, "Format model is not registered for format %s and type %s", format, type);
     return model;
-  }
-
-  @SuppressWarnings("unchecked")
-  private static FormatModel<PositionDelete<?>, ?> factoryForPositionDelete(FileFormat format) {
-    return (FormatModel<PositionDelete<?>, ?>) MODELS.get(Pair.of(format, PositionDelete.class));
   }
 }

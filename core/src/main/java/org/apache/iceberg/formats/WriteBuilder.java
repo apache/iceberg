@@ -47,7 +47,8 @@ public interface WriteBuilder {
   WriteBuilder inputSchema(Object schema);
 
   /**
-   * Set a writer configuration property which affects the writer behavior.
+   * Set a writer configuration property which affects the writer behavior. Writer builders should
+   * ignore configuration keys not known for them.
    *
    * @param property a writer config property name
    * @param value config value
@@ -56,7 +57,8 @@ public interface WriteBuilder {
   WriteBuilder set(String property, String value);
 
   /**
-   * Sets multiple writer configuration properties that affect the writer behavior.
+   * Sets multiple writer configuration properties that affect the writer behavior. Writer builders
+   * should ignore configuration keys not known for them.
    *
    * @param properties writer config properties to set
    * @return this for method chaining
@@ -105,7 +107,7 @@ public interface WriteBuilder {
   WriteBuilder withFileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
-   * Sets the additional authentication data (AAD) prefix used for writing the file. If the reader
+   * Sets the additional authentication data (AAD) prefix used for writing the file. If the writer
    * does not support encryption, then an exception should be thrown.
    */
   WriteBuilder withAADPrefix(ByteBuffer aadPrefix);

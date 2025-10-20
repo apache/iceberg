@@ -56,10 +56,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * specialized writer for the requested content type.
  *
  * @param <B> the concrete builder type for method chaining
- * @param <S> the type of the schema for the input data
- * @param <D> the type of data records the writer will accept
  */
-abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>, D, S>
+abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>>
     implements ContentFileWriteBuilder<B> {
   private final WriteBuilder writeBuilder;
   private final String location;
@@ -152,7 +150,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
   }
 
   private static class DataFileWriteBuilder<D, S>
-      extends ContentFileWriteBuilderImpl<DataWriteBuilder<D, S>, D, S>
+      extends ContentFileWriteBuilderImpl<DataWriteBuilder<D, S>>
       implements DataWriteBuilder<D, S> {
     private DataFileWriteBuilder(WriteBuilder writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
@@ -194,7 +192,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
   }
 
   private static class EqualityDeleteFileWriteBuilder<D, S>
-      extends ContentFileWriteBuilderImpl<EqualityDeleteWriteBuilder<D, S>, D, S>
+      extends ContentFileWriteBuilderImpl<EqualityDeleteWriteBuilder<D, S>>
       implements EqualityDeleteWriteBuilder<D, S> {
     private Schema rowSchema = null;
     private int[] equalityFieldIds = null;
@@ -202,12 +200,6 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
     private EqualityDeleteFileWriteBuilder(
         WriteBuilder writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
-    }
-
-    @Override
-    public EqualityDeleteFileWriteBuilder<D, S> schema(Schema schema) {
-      super.writeBuilder.schema(schema);
-      return this;
     }
 
     @Override
@@ -266,7 +258,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
   }
 
   private static class PositionDeleteFileWriteBuilder
-      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder, PositionDelete<?>, Object>
+      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder>
       implements PositionDeleteWriteBuilder {
 
     private PositionDeleteFileWriteBuilder(
@@ -280,6 +272,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public PositionDeleteWriter<?> build() throws IOException {
       Preconditions.checkArgument(
           super.spec != null, "Spec must not be null when creating position delete writer");

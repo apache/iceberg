@@ -44,7 +44,7 @@ public interface FormatModel<D, S> {
   FileFormat format();
 
   /**
-   * Returns the unique identifier for the object model implementation processed by this factory.
+   * Return the row type class for the object model implementation processed by this factory.
    *
    * <p>The model types act as a contract specifying the expected data structures for both reading
    * (converting file formats into output objects) and writing (converting input objects into file
