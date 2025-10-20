@@ -216,10 +216,6 @@ public abstract class DeleteFileIndexTestBase<
         .isEqualTo(deleteFiles);
 
     assertThat(index.forDataFile(4, unpartitionedFile))
-        .as("All deletes should apply to seq 4")
-        .isEqualTo(Arrays.copyOfRange(deleteFiles, 1, 4));
-
-    assertThat(index.forDataFile(4, unpartitionedFile))
         .as("Last 3 deletes should apply to seq 4")
         .isEqualTo(Arrays.copyOfRange(deleteFiles, 1, 4));
 
