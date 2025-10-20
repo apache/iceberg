@@ -29,9 +29,11 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -43,12 +45,15 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.MetadataUpdate;
@@ -57,6 +62,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -72,6 +78,8 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOTrackerTestUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -2994,6 +3002,138 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThatThrownBy(() -> catalog.loadTable(TABLE).newFastAppend().appendFile(file).commit())
         .isInstanceOf(IllegalStateException.class)
         .hasMessageMatching("Table UUID does not match: current=.* != refreshed=" + newUUID);
+  }
+
+  @Test
+  public void testDefaultFileIOIsNotTracked() {
+    catalog().createNamespace(TABLE.namespace());
+
+    catalog().createTable(TABLE, SCHEMA);
+
+    catalog().loadTable(TABLE);
+
+    Cache<TableOperations, FileIO> tracker =
+        FileIOTrackerTestUtil.trackerFrom(catalog().sessionCatalog().fileIOTracker());
+
+    assertThat(tracker.estimatedSize()).isZero();
+  }
+
+  @Test
+  public void testCreateTableTracksFileIOFromIOBuilder() {
+    verifyFileIOFromIOBuilderIsTracked(catalog -> (BaseTable) catalog.createTable(TABLE, SCHEMA));
+  }
+
+  @Test
+  public void testLoadTableTracksFileIOFromIOBuilder() {
+    verifyFileIOFromIOBuilderIsTracked(
+        catalog -> {
+          // Use a different catalog to create the table to avoid populating the FileIOTracker in
+          // the catalog under test.
+          RESTCatalog otherCatalog = catalog(new RESTCatalogAdapter(backendCatalog));
+          otherCatalog.createTable(TABLE, SCHEMA);
+
+          return (BaseTable) catalog.loadTable(TABLE);
+        });
+  }
+
+  @Test
+  public void testRegisterTableTracksFileIOFromIOBuilder() {
+    verifyFileIOFromIOBuilderIsTracked(
+        catalog -> {
+          BaseTable table = (BaseTable) catalog.createTable(TABLE, SCHEMA);
+
+          TableIdentifier otherTable = TableIdentifier.of(TABLE.namespace(), "other_table");
+
+          return (BaseTable)
+              catalog.registerTable(
+                  otherTable, table.operations().current().metadataFileLocation());
+        });
+  }
+
+  private void verifyFileIOFromIOBuilderIsTracked(Function<RESTCatalog, BaseTable> func) {
+    FileIO fileIO =
+        Mockito.spy(
+            CatalogUtil.loadFileIO("org.apache.iceberg.io.ResolvingFileIO", Map.of(), null));
+
+    BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilderMock =
+        Mockito.mock(BiFunction.class);
+
+    // Make sure the catalog IO is different from the table IO
+    when(ioBuilderMock.apply(any(), any()))
+        .thenReturn(
+            CatalogUtil.loadFileIO("org.apache.iceberg.io.ResolvingFileIO", Map.of(), null),
+            fileIO);
+
+    RESTCatalog catalog =
+        new RESTCatalog(
+            SessionCatalog.SessionContext.createEmpty(),
+            config -> new RESTCatalogAdapter(backendCatalog),
+            ioBuilderMock);
+    catalog.initialize("test", Map.of());
+
+    catalog.createNamespace(TABLE.namespace());
+
+    Cache<TableOperations, FileIO> tracker =
+        FileIOTrackerTestUtil.trackerFrom(catalog.sessionCatalog().fileIOTracker());
+
+    assertThat(tracker.estimatedSize()).isZero();
+
+    BaseTable table = func.apply(catalog);
+
+    assertThat(tracker.asMap()).containsKeys(table.operations());
+
+    // Simulate cleanup of TableOps from the tracker
+    FileIOTrackerTestUtil.invalidate(catalog.sessionCatalog().fileIOTracker(), table.operations());
+
+    Awaitility.await()
+        .atMost(5, TimeUnit.SECONDS)
+        .untilAsserted(() -> Mockito.verify(fileIO).close());
+  }
+
+  @Test
+  public void testCreateTransactionTracksFileIOFromIOBuilder() {
+    RESTCatalog catalog =
+        new RESTCatalog(
+            SessionCatalog.SessionContext.createEmpty(),
+            config -> new RESTCatalogAdapter(backendCatalog),
+            (context, conf) ->
+                CatalogUtil.loadFileIO("org.apache.iceberg.io.ResolvingFileIO", Map.of(), null));
+    catalog.initialize("test", Map.of());
+
+    catalog.createNamespace(TABLE.namespace());
+
+    Cache<TableOperations, FileIO> tracker =
+        FileIOTrackerTestUtil.trackerFrom(catalog.sessionCatalog().fileIOTracker());
+
+    assertThat(tracker.estimatedSize()).isZero();
+
+    catalog.newCreateTableTransaction(TABLE, SCHEMA);
+
+    assertThat(tracker.estimatedSize()).isOne();
+  }
+
+  @Test
+  public void testReplaceTransactionTracksFileIOFromIOBuilder() {
+    RESTCatalog catalog =
+        new RESTCatalog(
+            SessionCatalog.SessionContext.createEmpty(),
+            config -> new RESTCatalogAdapter(backendCatalog),
+            (context, conf) ->
+                CatalogUtil.loadFileIO("org.apache.iceberg.io.ResolvingFileIO", Map.of(), null));
+    catalog.initialize("test", Map.of());
+
+    catalog.createNamespace(TABLE.namespace());
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    Cache<TableOperations, FileIO> tracker =
+        FileIOTrackerTestUtil.trackerFrom(catalog.sessionCatalog().fileIOTracker());
+
+    assertThat(tracker.estimatedSize()).isOne();
+
+    catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
+
+    assertThat(tracker.estimatedSize()).isEqualTo(2);
   }
 
   private RESTCatalog catalogWithResponseHeaders(Map<String, String> respHeaders) {
