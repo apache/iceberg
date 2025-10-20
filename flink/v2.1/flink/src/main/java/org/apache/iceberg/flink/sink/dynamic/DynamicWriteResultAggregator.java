@@ -190,7 +190,7 @@ class DynamicWriteResultAggregator
           specs.put(tableName, table.specs());
           // Make sure to append an identifier to avoid file clashes in case the factory was to get
           // re-created during a checkpoint, i.e. due to cache eviction.
-          String suffix = UUID.randomUUID().toString();
+          String fileSuffix = UUID.randomUUID().toString();
           return FlinkManifestUtil.createOutputFileFactory(
               () -> table,
               table.properties(),
@@ -198,7 +198,7 @@ class DynamicWriteResultAggregator
               operatorId,
               subTaskId,
               attemptId,
-              suffix);
+              fileSuffix);
         });
   }
 
