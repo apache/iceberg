@@ -1016,8 +1016,8 @@ class TestIcebergCommitter extends TestBase {
       Path manifestPath = manifestPaths.get(0);
       assertThat(manifestPath.getFileName())
           .asString()
-          .startsWith(String.format("%s-%s-%05d-%d-%d-", jobID, operatorId, 0, 0, checkpoint))
-          .endsWith(".avro");
+          .isEqualTo(
+              String.format("%s-%s-%05d-%d-%d-%05d.avro", jobID, operatorId, 0, 0, checkpoint, 1));
       //
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles =

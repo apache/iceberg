@@ -20,8 +20,9 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
@@ -42,6 +43,8 @@ public class ManifestOutputFileFactory {
   private final String operatorUniqueId;
   private final int subTaskId;
   private final long attemptNumber;
+  private final AtomicInteger fileCount = new AtomicInteger(0);
+  @Nullable private final String suffix;
 
   ManifestOutputFileFactory(
       Supplier<Table> tableSupplier,
@@ -49,28 +52,29 @@ public class ManifestOutputFileFactory {
       String flinkJobId,
       String operatorUniqueId,
       int subTaskId,
-      long attemptNumber) {
+      long attemptNumber,
+      @Nullable String suffix) {
     this.tableSupplier = tableSupplier;
     this.props = props;
     this.flinkJobId = flinkJobId;
     this.operatorUniqueId = operatorUniqueId;
     this.subTaskId = subTaskId;
     this.attemptNumber = attemptNumber;
+    this.suffix = suffix;
   }
 
   private String generatePath(long checkpointId) {
     return FileFormat.AVRO.addExtension(
         String.format(
             Locale.ROOT,
-            "%s-%s-%05d-%d-%d-%s",
+            "%s-%s-%05d-%d-%d-%05d%s",
             flinkJobId,
             operatorUniqueId,
             subTaskId,
             attemptNumber,
             checkpointId,
-            // Make sure to append a random identifier in case this factory were to get re-created
-            // during a checkpoint, e.g. due to cache eviction.
-            UUID.randomUUID()));
+            fileCount.incrementAndGet(),
+            suffix != null ? "-" + suffix : ""));
   }
 
   public OutputFile create(long checkpointId) {

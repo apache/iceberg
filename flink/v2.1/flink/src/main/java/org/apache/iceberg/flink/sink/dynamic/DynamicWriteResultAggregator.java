@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
@@ -187,8 +188,17 @@ class DynamicWriteResultAggregator
         unused -> {
           Table table = catalog.loadTable(TableIdentifier.parse(tableName));
           specs.put(tableName, table.specs());
+          // Make sure to append an identifier to avoid file clashes in case the factory was to get
+          // re-created during a checkpoint, i.e. due to cache eviction.
+          String suffix = UUID.randomUUID().toString();
           return FlinkManifestUtil.createOutputFileFactory(
-              () -> table, table.properties(), flinkJobId, operatorId, subTaskId, attemptId);
+              () -> table,
+              table.properties(),
+              flinkJobId,
+              operatorId,
+              subTaskId,
+              attemptId,
+              suffix);
         });
   }
 
