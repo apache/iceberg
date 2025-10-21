@@ -58,8 +58,9 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       Schema schema,
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
-      boolean upsert) {
-    super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
+      boolean upsert,
+      boolean useDv) {
+    super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize, useDv);
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
     this.wrapper = new RowDataWrapper(flinkSchema, schema.asStruct());

@@ -20,6 +20,7 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -62,6 +63,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final FileIO io;
   private final long targetFileSize;
   private Throwable failure;
+  private PartitioningDVWriter dvFileWriter;
 
   protected BaseTaskWriter(
       PartitionSpec spec,
@@ -95,6 +97,26 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     this.targetFileSize = targetFileSize;
   }
 
+  protected BaseTaskWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize,
+      boolean useDv) {
+    this.spec = spec;
+    this.format = format;
+    this.appenderFactory = null;
+    this.writerFactory = writerFactory;
+    this.fileFactory = fileFactory;
+    this.io = io;
+    this.targetFileSize = targetFileSize;
+    if (useDv) {
+      this.dvFileWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
+    }
+  }
+
   protected PartitionSpec spec() {
     return spec;
   }
@@ -103,6 +125,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     if (failure == null) {
       this.failure = throwable;
     }
+  }
+
+  protected PartitioningDVWriter dvFileWriter() {
+    return dvFileWriter;
   }
 
   @Override
@@ -130,12 +156,23 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         .build();
   }
 
-  protected void addReferencedDataFiles(CharSequenceSet files) {
-    referencedDataFiles.addAll(files);
-  }
-
-  protected void addCompletedDeleteFiles(List<DeleteFile> files) {
-    completedDeleteFiles.addAll(files);
+  @Override
+  public void close() throws IOException {
+    try {
+      if (dvFileWriter != null) {
+        try {
+          // complete will call close
+          dvFileWriter.close();
+          DeleteWriteResult result = dvFileWriter.result();
+          completedDeleteFiles.addAll(result.deleteFiles());
+          referencedDataFiles.addAll(result.referencedDataFiles());
+        } finally {
+          dvFileWriter = null;
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close dvFileWriter", e);
+    }
   }
 
   /** Base equality delta writer to write both insert records and equality-deletes. */
@@ -301,8 +338,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
             // complete will call close
             posDeleteWriter.close();
             DeleteWriteResult result = posDeleteWriter.result();
-            addCompletedDeleteFiles(result.deleteFiles());
-            addReferencedDataFiles(result.referencedDataFiles());
+            completedDeleteFiles.addAll(result.deleteFiles());
+            referencedDataFiles.addAll(result.referencedDataFiles());
           } finally {
             posDeleteWriter = null;
           }

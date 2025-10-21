@@ -28,11 +28,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 
@@ -41,7 +39,6 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
   private final PartitionKey partitionKey;
 
   private final Map<PartitionKey, RowDataDeltaWriter> writers = Maps.newHashMap();
-  private PartitioningDVWriter dvFileWriter;
 
   PartitionedDeltaWriter(
       PartitionSpec spec,
@@ -54,7 +51,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
       boolean upsert,
-      boolean userDv) {
+      boolean useDv) {
     super(
         spec,
         format,
@@ -65,11 +62,9 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
         schema,
         flinkSchema,
         equalityFieldIds,
-        upsert);
+        upsert,
+        useDv);
     this.partitionKey = new PartitionKey(spec, schema);
-    if (userDv) {
-      this.dvFileWriter = new PartitioningDVWriter<>(fileFactory, p -> null);
-    }
   }
 
   @Override
@@ -81,7 +76,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in
       // writers.
       PartitionKey copiedKey = partitionKey.copy();
-      writer = new RowDataDeltaWriter(copiedKey, dvFileWriter);
+      writer = new RowDataDeltaWriter(copiedKey, dvFileWriter());
       writers.put(copiedKey, writer);
     }
 
@@ -91,23 +86,13 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
   @Override
   public void close() {
     try {
+      super.close();
       Tasks.foreach(writers.values())
           .throwFailureWhenFinished()
           .noRetry()
           .run(RowDataDeltaWriter::close, IOException.class);
 
       writers.clear();
-      if (dvFileWriter != null) {
-        try {
-          // complete will call close
-          dvFileWriter.close();
-          DeleteWriteResult result = dvFileWriter.result();
-          addCompletedDeleteFiles(result.deleteFiles());
-          addReferencedDataFiles(result.referencedDataFiles());
-        } finally {
-          dvFileWriter = null;
-        }
-      }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close equality delta writer", e);
     }
