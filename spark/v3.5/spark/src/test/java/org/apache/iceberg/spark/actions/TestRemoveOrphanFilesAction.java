@@ -1279,21 +1279,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .option("stream-results", "true")
             .execute();
 
-    // When streaming, result should contain file paths plus summary row
-    assertThat(result.orphanFileLocations())
-        .as("Streaming should return file paths with summary")
-        .hasSizeGreaterThan(0);
-
-    // Last row should always be the summary row
+    // When streaming, result should contain sample file paths
     List<String> locations = Lists.newArrayList(result.orphanFileLocations());
-    assertThat(locations.size()).as("Should have 3 orphan files + 1 summary row").isEqualTo(4);
-
-    // Last row should be the consistent summary format
-    assertThat(locations.get(locations.size() - 1))
-        .as("Last row should be summary")
-        .startsWith("[Total removed:")
-        .endsWith("files.]")
-        .contains("3"); // Should contain the count
+    assertThat(locations)
+        .as("Streaming should return sample of orphan file paths")
+        .hasSize(3);
 
     // Verify orphan files were actually deleted
     FileSystem fs = new Path(tableLocation).getFileSystem(spark.sessionState().newHadoopConf());

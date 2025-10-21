@@ -91,6 +91,11 @@ import scala.Tuple2;
  * dataset provided which are not found in table metadata will be deleted, using the same {@link
  * Table#location()} and {@link #olderThan(long)} filtering as above.
  *
+ * <p>Streaming mode can be enabled via the {@value #STREAM_RESULTS} option to avoid loading all
+ * orphan file paths into driver memory. When enabled, the result will contain only a sample of file
+ * paths (up to {@value #MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING}). The total count of
+ * deleted files is logged but not included in the result.
+ *
  * <p><em>Note:</em> It is dangerous to call this action with a short retention interval as it might
  * corrupt the state of the table if another operation is writing at the same time.
  */
@@ -267,13 +272,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
   /**
    * Deletes orphan files in streaming mode using toLocalIterator(). Files are processed one
-   * partition at a time to avoid collecting all file paths to driver memory. Returns a sample of
-   * file paths (up to MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING) plus a summary row as the
-   * last row.
+   * partition at a time to avoid collecting all file paths to driver memory.
    *
    * @param orphanFileDS dataset of file paths to delete
    * @param conflicts accumulator for tracking prefix mismatches
-   * @return result with sample file paths and optional summary row
+   * @return result with a sample of orphan file paths
    */
   private DeleteOrphanFiles.Result deleteFilesStreaming(
       Dataset<String> orphanFileDS, SetAccumulator<Pair<String, String>> conflicts) {
@@ -304,10 +307,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     orphanFileDS.unpersist();
 
     LOG.info("Deleted {} orphan files", filesCount);
-
-    // Always add summary row for consistency (same format regardless of result size)
-    String summary = String.format("[Total removed: %d files.]", filesCount);
-    samplePaths.add(summary);
 
     return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(samplePaths).build();
   }
