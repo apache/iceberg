@@ -111,7 +111,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   }
 
   protected class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
-    RowDataDeltaWriter(PartitionKey partition, PartitioningDVWriter dvFileWriter) {
+    RowDataDeltaWriter(PartitionKey partition, PartitioningDVWriter<RowData> dvFileWriter) {
       super(partition, schema, deleteSchema, DeleteGranularity.FILE, dvFileWriter);
     }
 

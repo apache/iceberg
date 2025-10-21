@@ -630,7 +630,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
           Schema schema,
           Schema eqDeleteSchema,
           DeleteGranularity deleteGranularity,
-          PartitioningDVWriter dvWriter) {
+          PartitioningDVWriter<Record> dvWriter) {
         super(partition, schema, eqDeleteSchema, deleteGranularity, dvWriter);
       }
 
