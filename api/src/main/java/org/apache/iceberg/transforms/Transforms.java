@@ -280,4 +280,34 @@ public class Transforms {
   public static <T> Transform<T, Void> alwaysNull() {
     return VoidTransform.get();
   }
+
+  /**
+   * Return true if the given transform is a time-based transform.
+   *
+   * @param transform the transform to check
+   * @return true if the transform is a time-based transform
+   */
+  public static boolean isTimeTransform(Transform<?, ?> transform) {
+    return transform.granularity() != null;
+  }
+
+  /**
+   * Returns true if the given transform is a truncate transform.
+   *
+   * @param transform the transform to check
+   * @return true if the transform is a truncate transform
+   */
+  public static boolean isTruncate(Transform<?, ?> transform) {
+    return transform.truncateWidth() != null;
+  }
+
+  /**
+   * Returns true if the given transform is a bucket transform.
+   *
+   * @param transform the transform to check
+   * @return true if the transform is a bucket transform
+   */
+  public static boolean isBucket(Transform<?, ?> transform) {
+    return transform.numBuckets() != null;
+  }
 }

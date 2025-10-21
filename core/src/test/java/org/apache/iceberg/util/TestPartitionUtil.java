@@ -29,7 +29,7 @@ import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestPartitionUtil {
+class TestPartitionUtil {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -201,49 +201,49 @@ public class TestPartitionUtil {
   }
 
   @Test
-  void testIsCompatibleIdentity() {
+  void testNoRepartitionNeededIdentity() {
     PartitionSpec sourceSpec =
         PartitionSpec.builderFor(SCHEMA).identity("data").withSpecId(1).build();
     PartitionSpec outputSpec =
         PartitionSpec.builderFor(SCHEMA).identity("data").withSpecId(2).build();
 
-    assertThat(PartitionUtil.isCompatible(sourceSpec, outputSpec)).isTrue();
+    assertThat(PartitionUtil.needRepartition(sourceSpec, outputSpec)).isFalse();
   }
 
   @Test
-  void testIsCompatibleTimeTransforms() {
+  void testNoRepartitionNeededTimeTransforms() {
     PartitionSpec sourceSpec = PartitionSpec.builderFor(SCHEMA).hour("ts").withSpecId(1).build();
     PartitionSpec outputSpec = PartitionSpec.builderFor(SCHEMA).day("ts").withSpecId(2).build();
 
-    assertThat(PartitionUtil.isCompatible(sourceSpec, outputSpec)).isTrue();
+    assertThat(PartitionUtil.needRepartition(sourceSpec, outputSpec)).isFalse();
   }
 
   @Test
-  void testIsCompatibleTruncateString() {
+  void testNoRepartitionNeededTruncateString() {
     PartitionSpec sourceSpec =
         PartitionSpec.builderFor(SCHEMA).truncate("category", 10).withSpecId(1).build();
     PartitionSpec outputSpec =
         PartitionSpec.builderFor(SCHEMA).truncate("category", 5).withSpecId(2).build();
 
-    assertThat(PartitionUtil.isCompatible(sourceSpec, outputSpec)).isTrue();
+    assertThat(PartitionUtil.needRepartition(sourceSpec, outputSpec)).isFalse();
   }
 
   @Test
-  void testIsNotCompatibleMissingSourceField() {
+  void testNeedRepartitionMissingSourceField() {
     PartitionSpec sourceSpec =
         PartitionSpec.builderFor(SCHEMA).identity("data").withSpecId(1).build();
     PartitionSpec outputSpec =
         PartitionSpec.builderFor(SCHEMA).identity("category").withSpecId(2).build();
 
-    assertThat(PartitionUtil.isCompatible(sourceSpec, outputSpec)).isFalse();
+    assertThat(PartitionUtil.needRepartition(sourceSpec, outputSpec)).isTrue();
   }
 
   @Test
-  void testIsNotCompatibleIncompatibleTransforms() {
+  void testNeedRepartitionIncompatibleTransforms() {
     PartitionSpec sourceSpec = PartitionSpec.builderFor(SCHEMA).day("ts").withSpecId(1).build();
     PartitionSpec outputSpec = PartitionSpec.builderFor(SCHEMA).hour("ts").withSpecId(2).build();
 
     // Can't convert from coarser (day) to finer (hour) granularity
-    assertThat(PartitionUtil.isCompatible(sourceSpec, outputSpec)).isFalse();
+    assertThat(PartitionUtil.needRepartition(sourceSpec, outputSpec)).isTrue();
   }
 }

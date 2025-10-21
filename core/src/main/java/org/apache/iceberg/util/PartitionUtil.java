@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import java.time.temporal.ChronoUnit;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.List;
@@ -35,7 +36,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
-import org.apache.iceberg.transforms.Truncate;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -169,25 +170,29 @@ public class PartitionUtil {
     };
   }
 
-  // Whether partition of output spec can be fully derived from partition of sourceSpec
-  public static boolean isCompatible(PartitionSpec sourceSpec, PartitionSpec outputSpec) {
+  // repartition is needed if partition of output spec can not be fully derived from partition of
+  // sourceSpec
+  public static boolean needRepartition(PartitionSpec sourceSpec, PartitionSpec outputSpec) {
     Map<Integer, List<PartitionField>> sourcePartitionFields =
         sourceSpec.fields().stream().collect(Collectors.groupingBy(PartitionField::sourceId));
     Map<Integer, List<PartitionField>> outputPartitionFields =
         outputSpec.fields().stream().collect(Collectors.groupingBy(PartitionField::sourceId));
 
     if (!sourcePartitionFields.keySet().containsAll(outputPartitionFields.keySet())) {
-      return false;
+      return true;
     }
 
-    return outputSpec.fields().stream()
-        .allMatch(
-            outField ->
-                sourcePartitionFields.get(outField.sourceId()).stream()
-                    .anyMatch(
-                        inField ->
-                            isSupportedCoarsePartitionTransform(
-                                inField.transform(), outField.transform())));
+    boolean canDerivePartition =
+        outputSpec.fields().stream()
+            .allMatch(
+                outField ->
+                    sourcePartitionFields.get(outField.sourceId()).stream()
+                        .anyMatch(
+                            inField ->
+                                isSupportedCoarsePartitionTransform(
+                                    inField.transform(), outField.transform())));
+
+    return !canDerivePartition;
   }
 
   private static boolean isSupportedCoarsePartitionTransform(
@@ -220,7 +225,7 @@ public class PartitionUtil {
     if (inTransform.equals(outTransform)) {
       return inValue;
     }
-    if (isTimeTransform(inTransform) && isTimeTransform(outTransform)) {
+    if (isTimeTransform(inTransform, outTransform)) {
       return convertTimeTransformPartitionValue(inTransform, outTransform, (Integer) inValue);
     }
     if (isTruncateString(inTransform, outTransform)) {
@@ -230,48 +235,44 @@ public class PartitionUtil {
     return null;
   }
 
-  private static boolean isTimeTransform(Transform<?, ?> transform) {
-    return transform.toString().equals("hour")
-        || transform.toString().equals("day")
-        || transform.toString().equals("month")
-        || transform.toString().equals("year");
-  }
-
   private static boolean isTimeTransform(
       Transform<?, ?> inTransform, Transform<?, ?> outTransform) {
-    return isTimeTransform(inTransform)
-        && isTimeTransform(outTransform)
-        && inTransform.satisfiesOrderOf(outTransform);
-  }
-
-  private static boolean isTruncateString(
-      Transform<?, ?> inTransform, Transform<?, ?> outTransform) {
-    // XXX: only Truncate<String> redefined satisfiesOrderOf()
-    return inTransform.toString().startsWith("truncate[")
-        && outTransform.toString().startsWith("truncate[")
+    return Transforms.isTimeTransform(inTransform)
+        && Transforms.isTimeTransform(outTransform)
         && inTransform.satisfiesOrderOf(outTransform);
   }
 
   private static Object convertTimeTransformPartitionValue(
       Transform<?, ?> inTransform, Transform<?, ?> outTransform, Integer inValue) {
-    String inName = inTransform.toString();
-    String outName = outTransform.toString();
-    if (inName.equals("hour") && outName.equals("day")) {
+    if (inTransform.granularity() == ChronoUnit.HOURS
+        && outTransform.granularity() == ChronoUnit.DAYS) {
       return DateTimeUtil.hoursToDays(inValue);
     }
-    if (inName.equals("day") && outName.equals("month")) {
+
+    if (inTransform.granularity() == ChronoUnit.DAYS
+        && outTransform.granularity() == ChronoUnit.MONTHS) {
       return DateTimeUtil.daysToMonths(inValue);
     }
-    if (inName.equals("day") && outName.equals("year")) {
+    if (inTransform.granularity() == ChronoUnit.DAYS
+        && outTransform.granularity() == ChronoUnit.YEARS) {
       return DateTimeUtil.daysToYears(inValue);
     }
     return null;
   }
 
+  private static boolean isTruncateString(
+      Transform<?, ?> inTransform, Transform<?, ?> outTransform) {
+    // XXX: only TruncateString defined satisfiesOrderOf()
+    return Transforms.isTruncate(inTransform)
+        && Transforms.isTruncate(outTransform)
+        && inTransform.satisfiesOrderOf(outTransform);
+  }
+
   private static Object convertTruncateStringPartitionValue(
       Transform<?, ?> outTransform, String inValue) {
-    Truncate<String> outTruncate = (Truncate<String>) outTransform;
-
-    return UnicodeUtil.truncateString(inValue, outTruncate.width()).toString();
+    if (!Transforms.isTruncate(outTransform)) {
+      throw new IllegalArgumentException(outTransform.toString() + " is not a truncate transform");
+    }
+    return UnicodeUtil.truncateString(inValue, outTransform.truncateWidth()).toString();
   }
 }

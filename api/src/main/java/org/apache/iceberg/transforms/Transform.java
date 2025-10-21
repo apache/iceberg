@@ -20,6 +20,7 @@ package org.apache.iceberg.transforms;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.time.temporal.ChronoUnit;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -209,5 +210,52 @@ public interface Transform<S, T> extends Serializable {
    */
   default String dedupName() {
     return toString();
+  }
+
+  // methods for transformation self-identification
+
+  /**
+   * Returns the source type ID that this bound transform operates on.
+   *
+   * @return the source type ID, or null if this is an unbound transform
+   */
+  default Type.TypeID sourceTypeId() {
+    return null;
+  }
+
+  /**
+   * Returns the result type ID that this bound transform produces.
+   *
+   * @return the result type ID, or null if this is an unbound transform
+   */
+  default Type.TypeID resultTypeId() {
+    return null;
+  }
+
+  /**
+   * Returns the temporal granularity of this transform, if applicable.
+   *
+   * @return the ChronoUnit granularity, or null if not a time-based transform
+   */
+  default ChronoUnit granularity() {
+    return null;
+  }
+
+  /**
+   * Returns the width parameter for truncate transforms.
+   *
+   * @return the truncate width, or null if not a truncate transform
+   */
+  default Integer truncateWidth() {
+    return null;
+  }
+
+  /**
+   * Returns the number of buckets for bucket transforms.
+   *
+   * @return the number of buckets, or null if not a bucket transform
+   */
+  default Integer numBuckets() {
+    return null;
   }
 }

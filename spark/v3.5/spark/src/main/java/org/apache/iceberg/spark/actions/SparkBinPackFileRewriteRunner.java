@@ -66,7 +66,7 @@ class SparkBinPackFileRewriteRunner extends SparkDataFileRewriteRunner {
   // invoke a shuffle if the original spec does not match the output spec
   private DistributionMode distributionMode(RewriteFileGroup group) {
     boolean requiresRepartition =
-        !PartitionUtil.isCompatible(
+        !PartitionUtil.needRepartition(
             group.fileScanTasks().get(0).spec(), spec(group.outputSpecId()));
     return requiresRepartition ? DistributionMode.RANGE : DistributionMode.NONE;
   }

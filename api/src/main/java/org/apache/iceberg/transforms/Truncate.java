@@ -178,6 +178,16 @@ public class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
 
     @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.INTEGER;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.INTEGER;
+    }
+
+    @Override
     public Integer apply(Integer value) {
       if (value == null) {
         return null;
@@ -237,6 +247,16 @@ public class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
 
     @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.LONG;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.LONG;
+    }
+
+    @Override
     public Long apply(Long value) {
       if (value == null) {
         return null;
@@ -292,6 +312,16 @@ public class Truncate<T> implements Transform<T, T>, Function<T, T> {
           "Cannot bind truncate to a different type: %s",
           type);
       return this;
+    }
+
+    @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.STRING;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.STRING;
     }
 
     @Override
@@ -411,6 +441,16 @@ public class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
 
     @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.BINARY;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.BINARY;
+    }
+
+    @Override
     public ByteBuffer apply(ByteBuffer value) {
       if (value == null) {
         return null;
@@ -473,6 +513,16 @@ public class Truncate<T> implements Transform<T, T>, Function<T, T> {
     }
 
     @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.DECIMAL;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.DECIMAL;
+    }
+
+    @Override
     public BigDecimal apply(BigDecimal value) {
       if (value == null) {
         return null;
@@ -513,5 +563,10 @@ public class Truncate<T> implements Transform<T, T>, Function<T, T> {
       }
       return null;
     }
+  }
+
+  @Override
+  public Integer truncateWidth() {
+    return width;
   }
 }
