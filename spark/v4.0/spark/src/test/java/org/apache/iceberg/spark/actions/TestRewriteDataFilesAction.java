@@ -2115,18 +2115,16 @@ public class TestRewriteDataFilesAction extends TestBase {
   @TestTemplate
   public void testZOrderUDFWithDateType() {
     SparkZOrderUDF zorderUDF = new SparkZOrderUDF(1, 16, 1024);
-
-    Dataset<Row> testCol = spark.sql("SELECT DATE '2025-01-01' as test_col");
     Dataset<Row> result =
-        testCol.withColumn(
-            "zorder_result",
-            zorderUDF.sortedLexicographically(col("test_col"), DataTypes.DateType));
-
-    List<Row> rows = result.collectAsList();
-    Row row = rows.get(0);
+        spark
+            .sql("SELECT DATE '2025-01-01' as test_col")
+            .withColumn(
+                "zorder_result",
+                zorderUDF.sortedLexicographically(col("test_col"), DataTypes.DateType));
 
     assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
-
+    List<Row> rows = result.collectAsList();
+    Row row = rows.get(0);
     byte[] zorderBytes = row.getAs("zorder_result");
     assertThat(zorderBytes).isNotNull().isNotEmpty();
   }
