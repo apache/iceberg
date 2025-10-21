@@ -143,7 +143,7 @@ public class SparkTableUtil {
    * @param spark a Spark session
    * @param table a table name and (optional) database
    * @return a DataFrame of the table's partitions
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static Dataset<Row> partitionDF(SparkSession spark, String table) {
@@ -160,7 +160,7 @@ public class SparkTableUtil {
    * @param table name of the table.
    * @param expression The expression whose matching partitions are returned.
    * @return a DataFrame of the table partitions.
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static Dataset<Row> partitionDFByFilter(
@@ -177,7 +177,7 @@ public class SparkTableUtil {
    * @param spark a Spark session
    * @param table a table name and (optional) database
    * @return all table's partitions
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static List<SparkPartition> getPartitions(SparkSession spark, String table) {
@@ -234,7 +234,7 @@ public class SparkTableUtil {
    * @param table a table name and (optional) database
    * @param predicate a predicate on partition columns
    * @return matching table's partitions
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static List<SparkPartition> getPartitionsByFilter(
@@ -266,7 +266,7 @@ public class SparkTableUtil {
    * @param tableIdent a table identifier
    * @param predicateExpr a predicate expression on partition columns
    * @return matching table's partitions
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static List<SparkPartition> getPartitionsByFilter(
@@ -421,7 +421,7 @@ public class SparkTableUtil {
    * @param partitionFilter only import partitions whose values match those in the map, can be
    *     partially defined
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static void importSparkTable(
@@ -446,7 +446,7 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
    * @param parallelism number of threads to use for file reading
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static void importSparkTable(
@@ -641,7 +641,7 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static void importSparkTable(
@@ -748,7 +748,7 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static void importSparkPartitions(
@@ -948,7 +948,7 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static void importSparkPartitions(
@@ -961,7 +961,7 @@ public class SparkTableUtil {
   }
 
   /**
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static List<SparkPartition> filterPartitions(

@@ -199,7 +199,7 @@ public class SparkSchemaUtil {
    * @param sparkType a Spark StructType
    * @return the equivalent Schema
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static Schema convertWithFreshIds(Schema baseSchema, StructType sparkType) {
@@ -265,7 +265,7 @@ public class SparkSchemaUtil {
    * @param filters a list of filters
    * @return a Schema corresponding to the Spark projection
    * @throws IllegalArgumentException if the Spark type does not match the Schema
-   * @deprecated since 1.11.0, will be removed in 2.0.0
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
   @Deprecated
   public static Schema prune(Schema schema, StructType requestedType, List<Expression> filters) {
