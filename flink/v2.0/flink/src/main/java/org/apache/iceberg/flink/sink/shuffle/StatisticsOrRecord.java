@@ -23,6 +23,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -108,5 +109,24 @@ public class StatisticsOrRecord implements Serializable {
         .add("statistics", statistics)
         .add("record", record)
         .toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (!(o instanceof StatisticsOrRecord)) {
+      return false;
+    }
+
+    StatisticsOrRecord that = (StatisticsOrRecord) o;
+    return Objects.equal(statistics, that.statistics) && Objects.equal(record, that.record);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(statistics, record);
   }
 }
