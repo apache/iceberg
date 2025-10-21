@@ -520,6 +520,7 @@ public class TestHiveCommits extends HiveTableTestBase {
               catalog.getConf(),
               catalog.clientPool(),
               catalog.newTableOps(newTableIdentifier).io(),
+              null,
               catalog.name(),
               newTableIdentifier.namespace().level(0),
               newTableIdentifier.name());
