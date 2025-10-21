@@ -38,6 +38,25 @@ import java.util.function.Consumer;
  * <p>{@link #apply()} returns a list of the snapshots that will be removed.
  */
 public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
+  /** An enum representing possible clean up levels used in snapshot expiration. */
+  enum CleanupLevel {
+    /** Skip all file cleanup, only remove snapshot metadata. */
+    NONE(0),
+    /** Clean up only metadata files (manifests, manifest lists, statistics), retain data files. */
+    METADATA_ONLY(1),
+    /** Clean up both metadata and data files (default). */
+    ALL(2);
+
+    CleanupLevel(int id) {
+      this.id = id;
+    }
+
+    private final int id;
+
+    public int id() {
+      return id;
+    }
+  }
 
   /**
    * Expires a specific {@link Snapshot} identified by id.
@@ -151,25 +170,5 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   default ExpireSnapshots cleanExpiredMetadata(boolean clean) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement cleanExpiredMetadata");
-  }
-
-  /** An enum representing possible clean up levels used in snapshot expiration. */
-  enum CleanupLevel {
-    /** Skip all file cleanup, only remove snapshot metadata. */
-    NONE(0),
-    /** Clean up only metadata files (manifests, manifest lists, statistics), retain data files. */
-    METADATA_ONLY(1),
-    /** Clean up both metadata and data files (default). */
-    ALL(2);
-
-    CleanupLevel(int id) {
-      this.id = id;
-    }
-
-    private final int id;
-
-    public int id() {
-      return id;
-    }
   }
 }
