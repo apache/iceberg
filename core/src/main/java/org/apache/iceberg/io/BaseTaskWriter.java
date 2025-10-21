@@ -127,7 +127,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  protected PartitioningDVWriter dvFileWriter() {
+  protected PartitioningDVWriter<T> dvFileWriter() {
     return dvFileWriter;
   }
 
