@@ -56,6 +56,7 @@ import org.openjdk.jmh.infra.Blackhole;
  * <p>Using Java 17 would result in the following error:
  *
  * <pre>
+ *   {@code
  *     java.lang.RuntimeException: java.lang.reflect.InaccessibleObjectException: Unable to make field private final java.lang.Object[] java.util.Arrays$ArrayList.a accessible: module java.base does not "opens java.util" to unnamed module @192b07fd
  *         at com.twitter.chill.java.ArraysAsListSerializer.<init>(ArraysAsListSerializer.java:69)
  *         at org.apache.flink.api.java.typeutils.runtime.kryo.FlinkChillPackageRegistrar.registerSerializers(FlinkChillPackageRegistrar.java:67)
@@ -63,6 +64,7 @@ import org.openjdk.jmh.infra.Blackhole;
  *         at org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer.checkKryoInitialized(KryoSerializer.java:513)
  *         at org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer.serialize(KryoSerializer.java:339)
  *         at org.apache.iceberg.flink.sink.shuffle.StatisticsRecordSerializerBenchmark.testSerializer(StatisticsRecordSerializerBenchmark.java:128)
+ *   }
  * </pre>
  */
 @Fork(1)
