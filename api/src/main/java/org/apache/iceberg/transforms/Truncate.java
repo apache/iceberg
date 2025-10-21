@@ -37,7 +37,7 @@ import org.apache.iceberg.util.SerializableFunction;
 import org.apache.iceberg.util.TruncateUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 
-class Truncate<T> implements Transform<T, T>, Function<T, T> {
+public class Truncate<T> implements Transform<T, T>, Function<T, T> {
   static <T> Truncate<T> get(int width) {
     Preconditions.checkArgument(width > 0, "Invalid truncate width: %s (must be > 0)", width);
     return new Truncate<>(width);
