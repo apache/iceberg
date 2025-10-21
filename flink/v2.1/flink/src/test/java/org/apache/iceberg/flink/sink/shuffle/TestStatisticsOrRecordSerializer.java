@@ -51,7 +51,7 @@ public class TestStatisticsOrRecordSerializer extends SerializerTestBase<Statist
   @Override
   protected StatisticsOrRecord[] getTestData() {
     return new StatisticsOrRecord[] {
-      // use BinaryRowData as row data serializer only deserialize to BinaryRowData
+      // Use BinaryRowData for testing as RowDataSerializer deserializes to BinaryRowData
       StatisticsOrRecord.fromRecord(
           ROW_SERIALIZER.toBinaryRow(GenericRowData.of(StringData.fromString("key1"), 100))),
       // map global statistics
