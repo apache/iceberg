@@ -86,7 +86,6 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.FileSystemWalker;
 import org.apache.iceberg.util.Pair;
-import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -1209,32 +1208,15 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     Dataset<FileURI> actualFileURIDS = toFileUri.apply(actualFileDS);
     Dataset<FileURI> validFileURIDS = toFileUri.apply(validFileDS);
 
-    // Inline the orphan file detection logic (same as findOrphanFilesAsDataset)
     SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
     spark.sparkContext().register(conflicts);
 
-    Column joinCond = actualFileURIDS.col("path").equalTo(validFileURIDS.col("path"));
+    Dataset<String> orphanFileDS =
+        DeleteOrphanFilesSparkAction.findOrphanFilesAsDataset(
+            actualFileURIDS, validFileURIDS, mode, conflicts);
 
-    List<String> orphanFiles =
-        actualFileURIDS
-            .joinWith(validFileURIDS, joinCond, "leftouter")
-            .mapPartitions(
-                new DeleteOrphanFilesSparkAction.FindOrphanFiles(mode, conflicts),
-                Encoders.STRING())
-            .collectAsList();
-
-    if (mode == DeleteOrphanFiles.PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
-      throw new ValidationException(
-          "Unable to determine whether certain files are orphan. Metadata references files that"
-              + " match listed/provided files except for authority/scheme. Please, inspect the"
-              + " conflicting authorities/schemes and provide which of them are equal by further"
-              + " configuring the action via equalSchemes() and equalAuthorities() methods. Set the"
-              + " prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting"
-              + " authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that"
-              + " remaining conflicting authorities/schemes are different. It will be impossible to"
-              + " recover deleted files. Conflicting authorities/schemes: %s.",
-          conflicts.value());
-    }
+    List<String> orphanFiles = orphanFileDS.collectAsList();
+    orphanFileDS.unpersist();
 
     assertThat(orphanFiles).isEqualTo(expectedOrphanFiles);
   }
@@ -1281,9 +1263,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     // When streaming, result should contain sample file paths
     List<String> locations = Lists.newArrayList(result.orphanFileLocations());
-    assertThat(locations)
-        .as("Streaming should return sample of orphan file paths")
-        .hasSize(3);
+    assertThat(locations).as("Streaming should return sample of orphan file paths").hasSize(3);
 
     // Verify orphan files were actually deleted
     FileSystem fs = new Path(tableLocation).getFileSystem(spark.sessionState().newHadoopConf());

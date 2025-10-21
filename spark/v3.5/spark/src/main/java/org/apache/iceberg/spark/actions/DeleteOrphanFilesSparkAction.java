@@ -258,71 +258,56 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     spark().sparkContext().register(conflicts);
 
     Dataset<String> orphanFileDS =
-        findOrphanFilesAsDataset(actualFileIdentDS, validFileIdentDS, conflicts);
+        findOrphanFilesAsDataset(actualFileIdentDS, validFileIdentDS, prefixMismatchMode, conflicts);
 
     if (streamResults()) {
-      return deleteFilesStreaming(orphanFileDS, conflicts);
+      return deleteFiles(orphanFileDS.toLocalIterator(), orphanFileDS);
     } else {
-      List<String> orphanFiles = orphanFileDS.collectAsList();
-      validateNoConflicts(conflicts);
-      deleteFilesCollected(orphanFiles);
-      return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFiles).build();
+      return deleteFiles(orphanFileDS.collectAsList().iterator(), orphanFileDS);
     }
   }
 
   /**
-   * Deletes orphan files in streaming mode using toLocalIterator(). Files are processed one
-   * partition at a time to avoid collecting all file paths to driver memory.
+   * Deletes orphan files from an iterator.
    *
-   * @param orphanFileDS dataset of file paths to delete
-   * @param conflicts accumulator for tracking prefix mismatches
-   * @return result with a sample of orphan file paths
+   * @param orphanFiles iterator of file paths to delete
+   * @param orphanFileDS the cached dataset
+   * @return result with orphan file paths
    */
-  private DeleteOrphanFiles.Result deleteFilesStreaming(
-      Dataset<String> orphanFileDS, SetAccumulator<Pair<String, String>> conflicts) {
-    // Cache the dataset and force computation to populate the conflicts accumulator
-    // This allows us to validate conflicts before starting any deletions
-    orphanFileDS = orphanFileDS.cache();
-    long filesCount = orphanFileDS.count();
-    validateNoConflicts(conflicts);
+  private DeleteOrphanFiles.Result deleteFiles(
+      Iterator<String> orphanFiles, Dataset<String> orphanFileDS) {
+    try {
+      List<String> orphanFileList =
+          streamResults()
+              ? Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING)
+              : Lists.newArrayList();
+      long filesCount = 0;
 
-    List<String> samplePaths =
-        Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
+      Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
 
-    Iterator<String> orphanFiles = orphanFileDS.toLocalIterator();
-    Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
+      while (fileGroups.hasNext()) {
+        List<String> fileGroup = fileGroups.next();
 
-    while (fileGroups.hasNext()) {
-      List<String> fileGroup = fileGroups.next();
+        if (streamResults()) {
+          collectSamplePaths(fileGroup, orphanFileList);
+        } else {
+          orphanFileList.addAll(fileGroup);
+        }
 
-      collectSamplePaths(fileGroup, samplePaths);
+        if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
+          deleteBulk((SupportsBulkOperations) table.io(), fileGroup);
+        } else {
+          deleteNonBulk(fileGroup);
+        }
 
-      if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
-        deleteFiles((SupportsBulkOperations) table.io(), fileGroup);
-      } else {
-        deleteFilesNonBulk(fileGroup);
+        filesCount += fileGroup.size();
       }
-    }
 
-    orphanFileDS.unpersist();
+      LOG.info("Deleted {} orphan files", filesCount);
 
-    LOG.info("Deleted {} orphan files", filesCount);
-
-    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(samplePaths).build();
-  }
-
-  /**
-   * Deletes orphan files that have already been collected to driver memory. All file paths are in
-   * memory, so this method is suitable only for tables with a manageable number of orphan files.
-   * For larger tables, use streaming mode instead.
-   *
-   * @param orphanFiles list of file paths to delete (already in driver memory)
-   */
-  private void deleteFilesCollected(List<String> orphanFiles) {
-    if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
-      deleteFiles((SupportsBulkOperations) table.io(), orphanFiles);
-    } else {
-      deleteFilesNonBulk(orphanFiles);
+      return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFileList).build();
+    } finally {
+      orphanFileDS.unpersist();
     }
   }
 
@@ -332,7 +317,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     samplePaths.addAll(paths.subList(0, lengthToAdd));
   }
 
-  private void deleteFiles(SupportsBulkOperations io, List<String> paths) {
+  private void deleteBulk(SupportsBulkOperations io, List<String> paths) {
     try {
       io.deleteFiles(paths);
       LOG.info("Deleted {} files using bulk deletes", paths.size());
@@ -343,7 +328,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private void deleteFilesNonBulk(List<String> paths) {
+  private void deleteNonBulk(List<String> paths) {
     Tasks.Builder<String> deleteTasks =
         Tasks.foreach(paths)
             .noRetry()
@@ -362,20 +347,26 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private Dataset<String> findOrphanFilesAsDataset(
+  @VisibleForTesting
+  static Dataset<String> findOrphanFilesAsDataset(
       Dataset<FileURI> actualFileIdentDS,
       Dataset<FileURI> validFileIdentDS,
+      PrefixMismatchMode prefixMismatchMode,
       SetAccumulator<Pair<String, String>> conflicts) {
 
     Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
 
-    return actualFileIdentDS
-        .joinWith(validFileIdentDS, joinCond, "leftouter")
-        .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
-  }
+    Dataset<String> orphanFileDS =
+        actualFileIdentDS
+            .joinWith(validFileIdentDS, joinCond, "leftouter")
+            .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
 
-  private void validateNoConflicts(SetAccumulator<Pair<String, String>> conflicts) {
+    // Cache and force computation to populate conflicts accumulator
+    orphanFileDS = orphanFileDS.cache();
+    orphanFileDS.count();
+
     if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
+      orphanFileDS.unpersist();
       throw new ValidationException(
           "Unable to determine whether certain files are orphan. Metadata references files that"
               + " match listed/provided files except for authority/scheme. Please, inspect the"
@@ -387,6 +378,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
               + " recover deleted files. Conflicting authorities/schemes: %s.",
           conflicts.value());
     }
+
+    return orphanFileDS;
   }
 
   private Dataset<FileURI> validFileIdentDS() {
