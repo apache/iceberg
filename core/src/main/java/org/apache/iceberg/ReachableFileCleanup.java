@@ -44,13 +44,16 @@ class ReachableFileCleanup extends FileCleanupStrategy {
       FileIO fileIO,
       ExecutorService deleteExecutorService,
       ExecutorService planExecutorService,
-      Consumer<String> deleteFunc,
-      CleanupMode cleanupMode) {
-    super(fileIO, deleteExecutorService, planExecutorService, deleteFunc, cleanupMode);
+      Consumer<String> deleteFunc) {
+    super(fileIO, deleteExecutorService, planExecutorService, deleteFunc);
   }
 
+  /** {@inheritDoc} */
   @Override
-  public void cleanFiles(TableMetadata beforeExpiration, TableMetadata afterExpiration) {
+  public void cleanFiles(
+      TableMetadata beforeExpiration,
+      TableMetadata afterExpiration,
+      ExpireSnapshots.CleanupLevel cleanupLevel) {
     Set<String> manifestListsToDelete = Sets.newHashSet();
 
     Set<Snapshot> snapshotsBeforeExpiration = Sets.newHashSet(beforeExpiration.snapshots());
@@ -73,7 +76,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
               snapshotsAfterExpiration, deletionCandidates, currentManifests::add);
 
       if (!manifestsToDelete.isEmpty()) {
-        if (CleanupMode.ALL == cleanupMode) {
+        if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
           Set<String> dataFilesToDelete = findFilesToDelete(manifestsToDelete, currentManifests);
           LOG.debug("Deleting {} data files", dataFilesToDelete.size());
           deleteFiles(dataFilesToDelete, "data");
@@ -86,11 +89,14 @@ class ReachableFileCleanup extends FileCleanupStrategy {
       }
     }
 
+    LOG.debug("Deleting {} manifest-list files", manifestListsToDelete.size());
     deleteFiles(manifestListsToDelete, "manifest list");
 
     if (hasAnyStatisticsFiles(beforeExpiration)) {
-      deleteFiles(
-          expiredStatisticsFilesLocations(beforeExpiration, afterExpiration), "statistics files");
+      Set<String> expiredStatisticsFilesLocations =
+          expiredStatisticsFilesLocations(beforeExpiration, afterExpiration);
+      LOG.debug("Deleting {} statistics files", expiredStatisticsFilesLocations.size());
+      deleteFiles(expiredStatisticsFilesLocations, "statistics files");
     }
   }
 

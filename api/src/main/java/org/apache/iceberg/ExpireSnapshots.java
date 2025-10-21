@@ -116,37 +116,30 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    *
    * @param clean setting this to false will skip deleting expired manifests and files
    * @return this for method chaining
-   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link #cleanMode(CleanupMode)}
+   * @deprecated since 1.11.0, will be removed in 2.0.0; use {@link #cleanupLevel(CleanupLevel)}
    *     instead.
    */
   @Deprecated
   ExpireSnapshots cleanExpiredFiles(boolean clean);
 
   /**
-   * Configures the cleanup mode for expired files.
+   * Configures the cleanup level for expired files.
    *
    * <p>This method provides fine-grained control over which files are cleaned up during snapshot
-   * expiration. The cleanup modes are:
+   * expiration.
    *
-   * <ul>
-   *   <li>{@link CleanupMode#ALL} - Clean up both metadata and data files (default)
-   *   <li>{@link CleanupMode#METADATA_ONLY} - Clean up only metadata files (manifests, manifest
-   *       lists), retain data files
-   *   <li>{@link CleanupMode#NONE} - Skip all file cleanup, only remove snapshot metadata
-   * </ul>
+   * <p>Consider {@link CleanupLevel#METADATA_ONLY} when data files are shared across tables or when
+   * using procedures like add-files that may reference the same data files.
    *
-   * <p>consider METADATA_ONLY mode when data files are shared across tables or when using
-   * procedures like add-files that may reference the same data files.
+   * <p>Consider {@link CleanupLevel#NONE} when data and metadata files may be more efficiently
+   * removed using a distributed framework through the actions API.
    *
-   * <p>consider NONE mode when data and manifest files may be more efficiently removed using a
-   * distributed framework through the actions API
-   *
-   * @param mode the cleanup mode to use for expired snapshots
+   * @param level the cleanup level to use for expired snapshots
    * @return this for method chaining
    */
-  default ExpireSnapshots cleanMode(CleanupMode mode) {
+  default ExpireSnapshots cleanupLevel(CleanupLevel level) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " doesn't implement cleanMode");
+        this.getClass().getName() + " doesn't implement cleanupLevel");
   }
 
   /**
@@ -158,5 +151,25 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   default ExpireSnapshots cleanExpiredMetadata(boolean clean) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement cleanExpiredMetadata");
+  }
+
+  /** An enum representing possible clean up levels used in snapshot expiration. */
+  enum CleanupLevel {
+    /** Skip all file cleanup, only remove snapshot metadata. */
+    NONE(0),
+    /** Clean up only metadata files (manifests, manifest lists, statistics), retain data files. */
+    METADATA_ONLY(1),
+    /** Clean up both metadata and data files (default). */
+    ALL(2);
+
+    CleanupLevel(int id) {
+      this.id = id;
+    }
+
+    private final int id;
+
+    public int id() {
+      return id;
+    }
   }
 }
