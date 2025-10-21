@@ -63,7 +63,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final FileIO io;
   private final long targetFileSize;
   private Throwable failure;
-  private PartitioningDVWriter dvFileWriter;
+  private PartitioningDVWriter<T> dvFileWriter;
 
   protected BaseTaskWriter(
       PartitionSpec spec,
@@ -244,7 +244,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private PartitioningWriter<PositionDelete<T>, DeleteWriteResult> createPosDeleteWriter(
         StructLike partition, DeleteGranularity deleteGranularity) {
       this.closePosDeleteWriter = true;
-      return new PositionDeleteWriterWrap<>(
+      return new WrappedPositionDeleteWriter<>(
           () ->
               writerFactory != null
                   ? writerFactory.newPositionDeleteWriter(newOutputFile(partition), spec, partition)
@@ -528,10 +528,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  private static class PositionDeleteWriterWrap<T> extends SortingPositionOnlyDeleteWriter<T>
+  private static class WrappedPositionDeleteWriter<T> extends SortingPositionOnlyDeleteWriter<T>
       implements PartitioningWriter<PositionDelete<T>, DeleteWriteResult> {
 
-    PositionDeleteWriterWrap(
+    WrappedPositionDeleteWriter(
         Supplier<FileWriter<PositionDelete<T>, DeleteWriteResult>> writers,
         DeleteGranularity granularity) {
       super(writers, granularity);

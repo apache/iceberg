@@ -172,9 +172,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
 
     refreshTable();
-    if (TableUtil.formatVersion(table) > 2) {
-      this.useDv = true;
-    }
+    this.useDv = TableUtil.formatVersion(table) > 2;
 
     this.outputFileFactory =
         OutputFileFactory.builderFor(table, taskId, attemptId)

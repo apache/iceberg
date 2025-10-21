@@ -87,6 +87,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         parameters.add(new Object[] {version, format});
       }
     }
+
     return parameters;
   }
 
@@ -506,6 +507,10 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
       assertThat(result.deleteFiles())
           .as("Should have correct number of pos-delete files")
           .hasSize(granularity.equals(DeleteGranularity.FILE) ? 2 : 1);
+    } else {
+      assertThat(result.deleteFiles())
+          .as("Should have correct number of pos-delete files")
+          .hasSize(2);
     }
 
     assertThat(Arrays.stream(result.deleteFiles()).mapToLong(delete -> delete.recordCount()).sum())
@@ -566,7 +571,6 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     }
     Schema deleteSchema = table.schema().select(columns);
 
-    boolean useDv = formatVersion > 2;
     return new GenericTaskDeltaWriter(
         table.schema(),
         deleteSchema,
@@ -577,7 +581,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
         table.io(),
         TARGET_FILE_SIZE,
         deleteGranularity,
-        useDv);
+        formatVersion > 2);
   }
 
   private static class GenericTaskDeltaWriter extends BaseTaskWriter<Record> {
