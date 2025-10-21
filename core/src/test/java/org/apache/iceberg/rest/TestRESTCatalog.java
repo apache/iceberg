@@ -2893,7 +2893,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.createNamespace(TABLE.namespace());
     catalog.createTable(TABLE, SCHEMA);
 
-    // inject the wrong table UUID
+    // simulate drop and re-create the table with same name
     String newUUID = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
     Answer<LoadTableResponse> updateTable =
         invocation -> {
