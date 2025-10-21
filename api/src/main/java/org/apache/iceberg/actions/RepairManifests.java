@@ -60,9 +60,6 @@ public interface RepairManifests extends SnapshotUpdate<RepairManifests, RepairM
     /** Returns the number of missing files that were successfully recovered. */
     long missingFilesRecovered();
 
-    /** Returns the number of manifest entries for which stats were incorrect */
-    long entryStatsIncorrectCount();
-
     /** Returns the number of manifest entries for which stats were corrected */
     long entryStatsRepairedCount();
   }
