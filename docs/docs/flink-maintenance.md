@@ -378,6 +378,8 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 | `flink-maintenance.lock.zookeeper.connection-timeout-ms` | Connection timeout (ms) | `15000` |
 | `flink-maintenance.lock.zookeeper.max-retries` | Max retries | `3` |
 | `flink-maintenance.lock.zookeeper.base-sleep-ms` | Base sleep between retries (ms) | `3000` |
+| `flink-maintenance.lock.zookeeper.max-sleep-ms`          | Maximum sleep time (ms) between retries. Caps the exponential backoff delay.  | `10000` |
+| `flink-maintenance.lock.zookeeper.retry-policy`          | Retry policy name for ZooKeeper client. Supported values include: ONE_TIME, N_TIME, BOUNDED_EXPONENTIAL_BACKOFF, UNTIL_ELAPSED, EXPONENTIAL_BACKOFF.  | `EXPONENTIAL_BACKOFF` |
 
 ### Best Practices
 
