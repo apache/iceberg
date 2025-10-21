@@ -23,17 +23,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -44,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
 import org.slf4j.Logger;
@@ -294,9 +296,8 @@ public class BinPackRewriteFilePlanner
     CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();
 
     try {
-      Types.StructType partitionType = table().spec().partitionType();
       StructLikeMap<List<FileScanTask>> filesByPartition =
-          groupByPartition(table(), partitionType, fileScanTasks);
+          groupByPartition(table(), outputSpecId(), fileScanTasks);
       return filesByPartition.transformValues(tasks -> ImmutableList.copyOf(planFileGroups(tasks)));
     } finally {
       try {
@@ -308,17 +309,30 @@ public class BinPackRewriteFilePlanner
   }
 
   private StructLikeMap<List<FileScanTask>> groupByPartition(
-      Table table, Types.StructType partitionType, Iterable<FileScanTask> tasks) {
-    StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
-    StructLike emptyStruct = GenericRecord.create(partitionType);
+      Table table, int outputSpecId, Iterable<FileScanTask> tasks) {
+    // since the task partition key is not utilized in planFileGroups(),
+    // grouping files by the output partition spec provides better alignment
+    // with the target layout and minimizes unnecessary shuffle.
 
+    PartitionSpec outputSpec = table.specs().get(outputSpecId);
+    Types.StructType outputPartitionType = outputSpec.partitionType();
+
+    // value is a function for specId to transform partition from input spec to output spec
+    Map<Integer, UnaryOperator<StructLike>> extractorMap =
+        table.specs().entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey, // specId
+                    entry -> PartitionUtil.convertPartitionFunc(entry.getValue(), outputSpec)));
+
+    StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(outputPartitionType);
+
+    // extract taskPartition is the best effort, some field can be null, and it's ok.
+    // e.g. if the data is partitioned by event/day, repartition to event/day/hour
+    // it's still better to keep the files grouped by event/day then do the repartition.
     for (FileScanTask task : tasks) {
-      // If a task uses an incompatible partition spec the data inside could contain values
-      // which belong to multiple partitions in the current spec. Treating all such files as
-      // un-partitioned and grouping them together helps to minimize new files made.
-      StructLike taskPartition =
-          task.file().specId() == table.spec().specId() ? task.file().partition() : emptyStruct;
-
+      UnaryOperator<StructLike> extractor = extractorMap.get(task.file().specId());
+      StructLike taskPartition = extractor.apply(task.file().partition());
       filesByPartition.computeIfAbsent(taskPartition, unused -> Lists.newArrayList()).add(task);
     }
 

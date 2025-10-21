@@ -20,6 +20,7 @@ package org.apache.iceberg.actions;
 
 import static org.apache.iceberg.actions.BinPackRewriteFilePlanner.MAX_FILE_SIZE_DEFAULT_RATIO;
 import static org.apache.iceberg.actions.RewriteDataFiles.REWRITE_JOB_ORDER;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -33,7 +34,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteJobOrder;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestTables;
@@ -45,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -105,11 +109,12 @@ class TestBinPackRewriteFilePlanner {
   void testUnpartitionedTable() {
     table.updateSpec().removeField("data_bucket").commit();
     table.refresh();
+    PartitionSpec spec = table.spec();
     table
         .newAppend()
-        .appendFile(newDataFile("", 10))
-        .appendFile(newDataFile("", 20))
-        .appendFile(newDataFile("", 30))
+        .appendFile(newDataFile(spec, "", 10))
+        .appendFile(newDataFile(spec, "", 20))
+        .appendFile(newDataFile(spec, "", 30))
         .commit();
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
     planner.init(
@@ -246,6 +251,68 @@ class TestBinPackRewriteFilePlanner {
       } else {
         throw new IllegalStateException("Unexpected partition: " + group.info().partition());
       }
+    }
+  }
+
+  @Test
+  void testGroupByPartitionWithSpecEvolution() {
+    // Create a table with timestamp partitioning by hour
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(3, "ts", Types.TimestampType.withoutZone()));
+
+    TestTables.TestTable tsTable =
+        TestTables.create(tableDir, "ts_test", schema, PartitionSpec.unpartitioned(), 3);
+
+    // Spec 1: partition by day
+    tsTable.updateSpec().addField("d", Expressions.day("ts")).commit();
+    tsTable.refresh();
+    PartitionSpec daySpec = tsTable.spec();
+
+    tsTable
+        .newAppend()
+        .appendFile(newDataFile(daySpec, List.of("2025-10-18"), 10))
+        .appendFile(newDataFile(daySpec, List.of("2025-10-19"), 10))
+        .commit();
+
+    // Spec 1: partition by h
+    tsTable.updateSpec().removeField("d").commit();
+    tsTable.updateSpec().addField("h", Expressions.hour("ts")).commit();
+    tsTable.refresh();
+    PartitionSpec hourSpec = tsTable.spec();
+
+    // XXX: Type of date(ts) is Date but type of hour(ts) is Integer,
+    // thus needs to provide string values of different format.
+    tsTable
+        .newAppend()
+        .appendFile(newDataFile(hourSpec, List.of("489118"), 10)) // 2025-10-18-22
+        .appendFile(newDataFile(hourSpec, List.of("489119"), 10)) // 2025-10-18-23
+        .appendFile(newDataFile(hourSpec, List.of("489120"), 10)) // 2025-10-19-00
+        .appendFile(newDataFile(hourSpec, List.of("489121"), 10)) // 2025-10-19-01
+        .commit();
+
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(tsTable);
+    planner.init(
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.REWRITE_ALL,
+            "true",
+            RewriteDataFiles.OUTPUT_SPEC_ID,
+            String.valueOf(daySpec.specId())));
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
+    // Should have 2 groups: one for day=2025-10-18 and one for day=2025-10-19
+    assertThat(plan.totalGroupCount()).isEqualTo(2);
+
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    assertThat(groups).hasSize(2);
+
+    // Verify each group has 3 files (2 from hour spec + 1 from day spec)
+    for (RewriteFileGroup group : groups) {
+      assertThat(group.inputFileNum()).isEqualTo(3);
+      assertThat(group.outputSpecId()).isEqualTo(daySpec.specId());
     }
   }
 
@@ -558,11 +625,25 @@ class TestBinPackRewriteFilePlanner {
         .commit();
   }
 
-  private static DataFile newDataFile(String partitionPath, long fileSize) {
-    return DataFiles.builder(TestBase.SPEC)
+  private static DataFile newDataFile(PartitionSpec spec, String partitionPath, long fileSize) {
+    return DataFiles.builder(spec)
         .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
         .withFileSizeInBytes(fileSize)
         .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
+  }
+
+  private static DataFile newDataFile(String partitionPath, long fileSize) {
+    return newDataFile(TestBase.SPEC, partitionPath, fileSize);
+  }
+
+  private static DataFile newDataFile(
+      PartitionSpec spec, List<String> partitionValues, long fileSize) {
+    return DataFiles.builder(spec)
+        .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(fileSize)
+        .withPartitionValues(partitionValues)
         .withRecordCount(1)
         .build();
   }

@@ -63,6 +63,20 @@ public class Hours<T> extends TimeTransform<T> {
     return "hour";
   }
 
+  @Override
+  @SuppressWarnings("unchecked")
+  public T toSourceTypeValue(Type sourceType, Integer hours) {
+    if (hours == null) {
+      return null;
+    }
+    // Convert hours since epoch to micros/nanos since epoch (start of the hour)
+    long micros = hours * 3600L * 1_000_000L;
+    if (sourceType.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+      return (T) (Long) (micros * 1000L);
+    }
+    return (T) (Long) micros;
+  }
+
   Object writeReplace() throws ObjectStreamException {
     return SerializationProxies.HoursTransformProxy.get();
   }
