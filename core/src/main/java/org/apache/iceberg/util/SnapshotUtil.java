@@ -283,7 +283,7 @@ public class SnapshotUtil {
   }
 
   /**
-   * @deprecated will be removed in 2.0.0, use {@link #newFilesBetween(Long, long, Function,
+   * @deprecated will be removed in 1.12.0, use {@link #newFilesBetween(Long, long, Function,
    *     FileIO)} instead.
    */
   @Deprecated

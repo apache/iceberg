@@ -87,7 +87,7 @@ public class LocationProviders {
     if (value != null && DEPRECATED_PROPERTIES.contains(key)) {
       throw new IllegalArgumentException(
           String.format(
-              "Property '%s' has been deprecated and will be removed in 2.0, use '%s' instead.",
+              "Property '%s' has been deprecated and will be removed in 2.0.0, use '%s' instead.",
               key, TableProperties.WRITE_DATA_LOCATION));
     }
 
