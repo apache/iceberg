@@ -33,6 +33,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
@@ -105,11 +106,12 @@ class TestBinPackRewriteFilePlanner {
   void testUnpartitionedTable() {
     table.updateSpec().removeField("data_bucket").commit();
     table.refresh();
+    PartitionSpec spec = table.spec();
     table
         .newAppend()
-        .appendFile(newDataFile("", 10))
-        .appendFile(newDataFile("", 20))
-        .appendFile(newDataFile("", 30))
+        .appendFile(newDataFile(spec, "", 10))
+        .appendFile(newDataFile(spec, "", 20))
+        .appendFile(newDataFile(spec, "", 30))
         .commit();
     BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
     planner.init(
@@ -123,6 +125,36 @@ class TestBinPackRewriteFilePlanner {
 
     assertThat(plan.totalGroupCount()).isEqualTo(1);
     assertThat(plan.groups().iterator().next().inputFileNum()).isEqualTo(2);
+  }
+
+  @Test
+  void testBinPackRewriteToDifferentSpec() {
+    PartitionSpec spec1 = table.spec();
+    table.updateSpec().removeField("data_bucket").commit();
+    table.refresh();
+    PartitionSpec spec2 = table.spec();
+
+    assertThat(!spec2.equals(spec1));
+
+    table
+        .newAppend()
+        .appendFile(newDataFile(spec1, "", 10))
+        .appendFile(newDataFile(spec1, "", 20))
+        .appendFile(newDataFile(spec1, "", 30))
+        .commit();
+    BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+    planner.init(
+        ImmutableMap.of(
+            BinPackRewriteFilePlanner.MIN_INPUT_FILES,
+            "1",
+            BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES,
+            "30"));
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
+    assertThat(plan.totalGroupCount()).isEqualTo(1);
+    // because the 3rd files is in a different spec than the current spec.
+    assertThat(plan.groups().iterator().next().inputFileNum()).isEqualTo(3);
   }
 
   @Test
@@ -558,12 +590,16 @@ class TestBinPackRewriteFilePlanner {
         .commit();
   }
 
-  private static DataFile newDataFile(String partitionPath, long fileSize) {
-    return DataFiles.builder(TestBase.SPEC)
+  private static DataFile newDataFile(PartitionSpec spec, String partitionPath, long fileSize) {
+    return DataFiles.builder(spec)
         .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
         .withFileSizeInBytes(fileSize)
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
         .build();
+  }
+
+  private static DataFile newDataFile(String partitionPath, long fileSize) {
+    return newDataFile(TestBase.SPEC, partitionPath, fileSize);
   }
 }
