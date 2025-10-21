@@ -282,12 +282,12 @@ public class TableProperties {
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
 
   /**
-   * @deprecated will be removed in 2.0.0, writing manifest lists is always enabled
+   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
    */
   @Deprecated public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
 
   /**
-   * @deprecated will be removed in 2.0.0, writing manifest lists is always enabled
+   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
    */
   @Deprecated public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 
