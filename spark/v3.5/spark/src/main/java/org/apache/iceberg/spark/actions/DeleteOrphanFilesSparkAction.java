@@ -258,7 +258,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     spark().sparkContext().register(conflicts);
 
     Dataset<String> orphanFileDS =
-        findOrphanFilesAsDataset(actualFileIdentDS, validFileIdentDS, prefixMismatchMode, conflicts);
+        findOrphanFilesAsDataset(
+            actualFileIdentDS, validFileIdentDS, prefixMismatchMode, conflicts);
 
     if (streamResults()) {
       return deleteFiles(orphanFileDS.toLocalIterator(), orphanFileDS);
@@ -305,7 +306,9 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
       LOG.info("Deleted {} orphan files", filesCount);
 
-      return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFileList).build();
+      return ImmutableDeleteOrphanFiles.Result.builder()
+          .orphanFileLocations(orphanFileList)
+          .build();
     } finally {
       orphanFileDS.unpersist();
     }
