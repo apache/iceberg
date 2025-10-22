@@ -272,6 +272,40 @@ public class LockConfig {
         .parse();
   }
 
+  /** Gets the Zookeeper maximum sleep time configuration (in milliseconds). */
+  public int zkMaxSleepMs() {
+    return confParser
+        .intConf()
+        .option(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION)
+        .defaultValue(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Zookeeper retry policy configuration. */
+  public ZKRetryPolicies zkRetryPolicy() {
+    return confParser
+        .enumConfParser(ZKRetryPolicies.class)
+        .option(ZkLockConfig.ZK_RETRY_POLICY_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_RETRY_POLICY_OPTION)
+        .defaultValue(ZKRetryPolicies.EXPONENTIAL_BACKOFF)
+        .parse();
+  }
+
+  public Map<String, String> properties() {
+    Map<String, String> mergeConfig = Maps.newHashMap();
+    mergeConfig.putAll(setProperties);
+    mergeConfig.putAll(writeProperties);
+    return mergeConfig.entrySet().stream()
+        .filter(entry -> entry.getKey().startsWith(PREFIX))
+        .collect(
+            Collectors.toMap(
+                entry -> entry.getKey().substring(PREFIX.length()),
+                Map.Entry::getValue,
+                (existing, replacement) -> existing,
+                Maps::newHashMap));
+  }
+
   /** Gets the Etcd service URI configuration. */
   public String etcdEndpoints() {
     return confParser
@@ -319,37 +353,6 @@ public class LockConfig {
         .option(EtcdLockConfig.ETCD_MAX_RETRIES_OPTION.key())
         .flinkConfig(EtcdLockConfig.ETCD_MAX_RETRIES_OPTION)
         .defaultValue(EtcdLockConfig.ETCD_MAX_RETRIES_OPTION.defaultValue())
-  /** Gets the Zookeeper maximum sleep time configuration (in milliseconds). */
-  public int zkMaxSleepMs() {
-    return confParser
-        .intConf()
-        .option(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION.key())
-        .flinkConfig(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION)
-        .defaultValue(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION.defaultValue())
         .parse();
-  }
-
-  /** Gets the Zookeeper retry policy configuration. */
-  public ZKRetryPolicies zkRetryPolicy() {
-    return confParser
-        .enumConfParser(ZKRetryPolicies.class)
-        .option(ZkLockConfig.ZK_RETRY_POLICY_OPTION.key())
-        .flinkConfig(ZkLockConfig.ZK_RETRY_POLICY_OPTION)
-        .defaultValue(ZKRetryPolicies.EXPONENTIAL_BACKOFF)
-        .parse();
-  }
-
-  public Map<String, String> properties() {
-    Map<String, String> mergeConfig = Maps.newHashMap();
-    mergeConfig.putAll(setProperties);
-    mergeConfig.putAll(writeProperties);
-    return mergeConfig.entrySet().stream()
-        .filter(entry -> entry.getKey().startsWith(PREFIX))
-        .collect(
-            Collectors.toMap(
-                entry -> entry.getKey().substring(PREFIX.length()),
-                Map.Entry::getValue,
-                (existing, replacement) -> existing,
-                Maps::newHashMap));
   }
 }
