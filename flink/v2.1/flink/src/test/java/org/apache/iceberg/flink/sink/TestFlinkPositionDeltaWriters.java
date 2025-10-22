@@ -44,7 +44,6 @@ public class TestFlinkPositionDeltaWriters extends TestPositionDeltaWriters<RowD
         .deleteFileFormat(format())
         .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
         .equalityDeleteRowSchema(equalityDeleteRowSchema)
-        .positionDeleteRowSchema(positionDeleteRowSchema)
         .build();
   }
 

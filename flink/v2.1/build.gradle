@@ -70,7 +70,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     // for caching in DynamicSink
     implementation libs.caffeine
-
+    
     implementation libs.jetcd.core
 
     testImplementation libs.flink21.connector.test.utils

@@ -52,7 +52,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -294,7 +293,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     try {
       long recordCount = deleteFile.recordCount();
       int recordSize = estimateRecordSize(projection);
-      return LongMath.checkedMultiply(recordCount, recordSize);
+      return Math.multiplyExact(recordCount, recordSize);
     } catch (ArithmeticException e) {
       return Long.MAX_VALUE;
     }

@@ -73,6 +73,21 @@ public class TestInclusiveMetricsEvaluator {
           optional(13, "no_nan_stats", Types.DoubleType.get()),
           optional(14, "some_empty", Types.StringType.get()));
 
+  private static final Schema NESTED_SCHEMA =
+      new Schema(
+          required(
+              100,
+              "required_address",
+              Types.StructType.of(
+                  required(102, "required_street1", Types.StringType.get()),
+                  optional(103, "optional_street1", Types.StringType.get()))),
+          optional(
+              101,
+              "optional_address",
+              Types.StructType.of(
+                  required(104, "required_street2", Types.StringType.get()),
+                  optional(105, "optional_street2", Types.StringType.get()))));
+
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
 
@@ -173,7 +188,7 @@ public class TestInclusiveMetricsEvaluator {
 
   private static final DataFile FILE_5 =
       new TestDataFile(
-          "file_4.avro",
+          "file_5.avro",
           Row.of(),
           50,
           // any value counts, including nulls
@@ -186,6 +201,22 @@ public class TestInclusiveMetricsEvaluator {
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
           // upper bounds
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "abcdefghi")));
+
+  private static final DataFile FILE_6 =
+      new TestDataFile(
+          "file_6.avro",
+          Row.of(),
+          10,
+          // any value counts, including nulls
+          ImmutableMap.of(100, 5L, 101, 5L, 102, 5L, 103, 5L, 104, 5L, 105, 5L),
+          // null value counts
+          ImmutableMap.of(100, 0L, 101, 5L, 103, 5L, 104, 5L, 105, 5L),
+          // nan value counts
+          null,
+          // lower bounds
+          null,
+          // upper bounds
+          null);
 
   @Test
   public void testAllNulls() {
@@ -862,5 +893,81 @@ public class TestInclusiveMetricsEvaluator {
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("no_nulls", "abc", "def")).eval(FILE);
     assertThat(shouldRead).as("Should read: notIn on no nulls column").isTrue();
+  }
+
+  @Test
+  public void testIsNullInNestedStruct() {
+    // read required_address and its nested fields
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("required_address")).eval(FILE_6);
+    assertThat(shouldRead).as("Should not read: required_address is required").isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("required_address.required_street1"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should not read: required_address.required_street1 is required")
+        .isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("required_address.optional_street1"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should read: required_address.optional_street1 is optional")
+        .isTrue();
+
+    // read optional_address and its nested fields
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("optional_address")).eval(FILE_6);
+    assertThat(shouldRead).as("Should read: optional_address is optional").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("optional_address.required_street2"))
+            .eval(FILE_6);
+    assertThat(shouldRead).as("Should read: optional_address is optional").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("optional_address.optional_street2"))
+            .eval(FILE_6);
+    assertThat(shouldRead).as("Should read: optional_address is optional").isTrue();
+  }
+
+  @Test
+  public void testNotNullInNestedStruct() {
+    // read required_address and its nested fields
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("required_address")).eval(FILE_6);
+    assertThat(shouldRead).as("Should read: required_address is required").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("required_address.required_street1"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should read: required_address.required_street1 is required")
+        .isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("required_address.optional_street1"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should not read: required_address.optional_street1 is optional")
+        .isFalse();
+
+    // read optional_address and its nested fields
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("optional_address")).eval(FILE_6);
+    assertThat(shouldRead).as("Should not read: optional_address is optional").isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("optional_address.required_street2"))
+            .eval(FILE_6);
+    assertThat(shouldRead).as("Should not read: optional_address is optional").isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("optional_address.optional_street2"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should not read: optional_address.optional_street2 is optional")
+        .isFalse();
   }
 }

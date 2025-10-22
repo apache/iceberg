@@ -74,7 +74,19 @@ public class FlinkManifestUtil {
       int subTaskId,
       long attemptNumber) {
     return new ManifestOutputFileFactory(
-        tableSupplier, tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber);
+        tableSupplier, tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber, null);
+  }
+
+  public static ManifestOutputFileFactory createOutputFileFactory(
+      Supplier<Table> tableSupplier,
+      Map<String, String> tableProps,
+      String flinkJobId,
+      String operatorUniqueId,
+      int subTaskId,
+      long attemptNumber,
+      String suffix) {
+    return new ManifestOutputFileFactory(
+        tableSupplier, tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber, suffix);
   }
 
   /**
@@ -84,7 +96,10 @@ public class FlinkManifestUtil {
    *     partition spec
    */
   public static DeltaManifests writeCompletedFiles(
-      WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
+      WriteResult result,
+      Supplier<OutputFile> outputFileSupplier,
+      PartitionSpec spec,
+      int formatVersion)
       throws IOException {
 
     ManifestFile dataManifest = null;
@@ -101,7 +116,8 @@ public class FlinkManifestUtil {
       OutputFile deleteManifestFile = outputFileSupplier.get();
 
       ManifestWriter<DeleteFile> deleteManifestWriter =
-          ManifestFiles.writeDeleteManifest(FORMAT_V2, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID);
+          ManifestFiles.writeDeleteManifest(
+              formatVersion, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID);
       try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
         for (DeleteFile deleteFile : result.deleteFiles()) {
           writer.add(deleteFile);

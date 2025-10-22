@@ -55,6 +55,14 @@ public final class MetricsConfig implements Serializable {
   private static final MetricsMode DEFAULT_MODE =
       MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
   private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(), DEFAULT_MODE);
+  private static final MetricsConfig POSITION_DELETE_MODE =
+      new MetricsConfig(
+          ImmutableMap.of(
+              MetadataColumns.DELETE_FILE_PATH.name(),
+              MetricsModes.Full.get(),
+              MetadataColumns.DELETE_FILE_POS.name(),
+              MetricsModes.Full.get()),
+          DEFAULT_MODE);
 
   private final Map<String, MetricsMode> columnModes;
   private final MetricsMode defaultMode;
@@ -66,6 +74,10 @@ public final class MetricsConfig implements Serializable {
 
   public static MetricsConfig getDefault() {
     return DEFAULT;
+  }
+
+  public static MetricsConfig forPositionDelete() {
+    return POSITION_DELETE_MODE;
   }
 
   /**
@@ -92,7 +104,11 @@ public final class MetricsConfig implements Serializable {
    * Creates a metrics config for a position delete file.
    *
    * @param table an Iceberg table
+   * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #forPositionDelete()} instead.
    */
+  @Deprecated
   public static MetricsConfig forPositionDelete(Table table) {
     ImmutableMap.Builder<String, MetricsMode> columnModes = ImmutableMap.builder();
 

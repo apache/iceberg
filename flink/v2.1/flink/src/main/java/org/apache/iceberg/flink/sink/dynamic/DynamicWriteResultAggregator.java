@@ -18,12 +18,10 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
@@ -61,23 +59,24 @@ class DynamicWriteResultAggregator
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamicWriteResultAggregator.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
-  private static final Duration CACHE_EXPIRATION_DURATION = Duration.ofMinutes(1);
 
   private final CatalogLoader catalogLoader;
+  private final int cacheMaximumSize;
 
   private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
 
   private transient Map<WriteTarget, Collection<DynamicWriteResult>> results;
-  private transient Cache<String, Map<Integer, PartitionSpec>> specs;
-  private transient Cache<String, ManifestOutputFileFactory> outputFileFactories;
+  private transient Map<String, Map<Integer, PartitionSpec>> specs;
+  private transient Map<String, ManifestOutputFileFactory> outputFileFactories;
   private transient String flinkJobId;
   private transient String operatorId;
   private transient int subTaskId;
   private transient int attemptId;
   private transient Catalog catalog;
 
-  DynamicWriteResultAggregator(CatalogLoader catalogLoader) {
+  DynamicWriteResultAggregator(CatalogLoader catalogLoader, int cacheMaximumSize) {
     this.catalogLoader = catalogLoader;
+    this.cacheMaximumSize = cacheMaximumSize;
   }
 
   @Override
@@ -94,10 +93,8 @@ class DynamicWriteResultAggregator
     this.subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.results = Maps.newHashMap();
-    this.specs =
-        Caffeine.newBuilder().expireAfterWrite(CACHE_EXPIRATION_DURATION).softValues().build();
-    this.outputFileFactories =
-        Caffeine.newBuilder().expireAfterWrite(CACHE_EXPIRATION_DURATION).softValues().build();
+    this.specs = new LRUCache<>(cacheMaximumSize);
+    this.outputFileFactories = new LRUCache<>(cacheMaximumSize);
     this.catalog = catalogLoader.loadCatalog();
   }
 
@@ -167,7 +164,8 @@ class DynamicWriteResultAggregator
         FlinkManifestUtil.writeCompletedFiles(
             result,
             () -> outputFileFactory(key.tableName()).create(checkpointId),
-            spec(key.tableName(), key.specId()));
+            spec(key.tableName(), key.specId()),
+            2);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
@@ -186,18 +184,27 @@ class DynamicWriteResultAggregator
   }
 
   private ManifestOutputFileFactory outputFileFactory(String tableName) {
-    return outputFileFactories.get(
+    return outputFileFactories.computeIfAbsent(
         tableName,
         unused -> {
           Table table = catalog.loadTable(TableIdentifier.parse(tableName));
           specs.put(tableName, table.specs());
+          // Make sure to append an identifier to avoid file clashes in case the factory was to get
+          // re-created during a checkpoint, i.e. due to cache eviction.
+          String fileSuffix = UUID.randomUUID().toString();
           return FlinkManifestUtil.createOutputFileFactory(
-              () -> table, table.properties(), flinkJobId, operatorId, subTaskId, attemptId);
+              () -> table,
+              table.properties(),
+              flinkJobId,
+              operatorId,
+              subTaskId,
+              attemptId,
+              fileSuffix);
         });
   }
 
   private PartitionSpec spec(String tableName, int specId) {
-    Map<Integer, PartitionSpec> knownSpecs = specs.getIfPresent(tableName);
+    Map<Integer, PartitionSpec> knownSpecs = specs.get(tableName);
     if (knownSpecs != null) {
       PartitionSpec spec = knownSpecs.get(specId);
       if (spec != null) {
