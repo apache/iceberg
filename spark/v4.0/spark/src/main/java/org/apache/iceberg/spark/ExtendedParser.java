@@ -73,28 +73,28 @@ public interface ExtendedParser extends ParserInterface {
         return clazz.cast(current);
       }
 
-      Object next = getDelegate(current);
+      ParserInterface next = getNextDelegateParser(current);
       if (next == null || next == current) {
         break;
       }
 
-      current = (ParserInterface) next;
+      current = next;
     }
 
     return null;
   }
 
-  private static Object getDelegate(Object parser) {
+  private static ParserInterface getNextDelegateParser(ParserInterface parser) {
     try {
       for (java.lang.reflect.Field field : parser.getClass().getDeclaredFields()) {
         field.setAccessible(true);
         Object value = field.get(parser);
         if (value instanceof ParserInterface && value != parser) {
-          return value;
+          return (ParserInterface) value;
         }
       }
     } catch (Exception e) {
-      // pass
+      // ignore
     }
 
     return null;
