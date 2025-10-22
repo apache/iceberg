@@ -74,12 +74,13 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  private boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
+  private boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions, boolean closingCall) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
     }
-    if (groupDesc.state() == ConsumerGroupState.STABLE) {
+    // If we are determining coordinator presence during closing call, we don't want to ensure the consumer group is stable
+    if (groupDesc.state() == ConsumerGroupState.STABLE || closingCall) {
       Collection<MemberDescription> members = groupDesc.members();
       if (containsFirstPartition(members, currentAssignedPartitions)) {
         membersWhenWorkerIsCoordinator = members;
@@ -121,7 +122,7 @@ public class CommitterImpl implements Committer {
       SinkTaskContext sinkTaskContext,
       Collection<TopicPartition> addedPartitions) {
     initialize(icebergCatalog, icebergSinkConfig, sinkTaskContext);
-    if (hasLeaderPartition(addedPartitions)) {
+    if (hasLeaderPartition(addedPartitions, false)) {
       LOG.info("Committer received leader partition. Starting Coordinator.");
       startCoordinator();
     }
@@ -153,7 +154,7 @@ public class CommitterImpl implements Committer {
     }
 
     // Normal close: if leader partition is lost, stop coordinator.
-    if (hasLeaderPartition(closedPartitions)) {
+    if (hasLeaderPartition(closedPartitions, true)) {
       LOG.info(
           "Committer {}-{} lost leader partition. Stopping coordinator.",
           config.connectorName(),
