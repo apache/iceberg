@@ -36,15 +36,9 @@ public class TestStructInternalRowVariant {
 
   @Test
   public void testGetVariantReturnsVariantVal() {
-    Types.StructType structType =
-        Types.StructType.of(Types.NestedField.optional(1, "a", Types.VariantType.get()));
-
-    GenericRecord rec = GenericRecord.create(structType);
-    VariantMetadata md = Variants.metadata("k");
-
-    org.apache.iceberg.variants.ShreddedObject obj = Variants.object(md);
-    obj.put("k", Variants.of("v1"));
-    Variant variant = Variant.of(md, obj);
+    Types.StructType structType = variantStructType();
+    GenericRecord rec = newRecord(structType);
+    Variant variant = sampleVariant();
     rec.set(0, variant);
 
     InternalRow row = new StructInternalRow(structType).setStruct(rec);
@@ -66,12 +60,49 @@ public class TestStructInternalRowVariant {
 
   @Test
   public void testGetVariantNull() {
-    Types.StructType structType =
-        Types.StructType.of(Types.NestedField.optional(1, "a", Types.VariantType.get()));
-    GenericRecord rec = GenericRecord.create(structType);
+    Types.StructType structType = variantStructType();
+    GenericRecord rec = newRecord(structType);
     rec.set(0, null);
 
     InternalRow row = new StructInternalRow(structType).setStruct(rec);
     assertThat(row.getVariant(0)).isNull();
+  }
+
+  @Test
+  public void testGetVariantPassesThroughVariantVal() {
+    Types.StructType structType = variantStructType();
+    GenericRecord rec = newRecord(structType);
+
+    Variant variant = sampleVariant();
+    byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
+    ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
+    variant.metadata().writeTo(metadataBuffer, 0);
+
+    byte[] valueBytes = new byte[variant.value().sizeInBytes()];
+    ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
+    variant.value().writeTo(valueBuffer, 0);
+
+    VariantVal expected = new VariantVal(valueBytes, metadataBytes);
+    rec.set(0, expected);
+
+    InternalRow row = new StructInternalRow(structType).setStruct(rec);
+    VariantVal actual = row.getVariant(0);
+
+    assertThat(actual).isSameAs(expected);
+  }
+
+  private static Types.StructType variantStructType() {
+    return Types.StructType.of(Types.NestedField.optional(1, "a", Types.VariantType.get()));
+  }
+
+  private static GenericRecord newRecord(Types.StructType structType) {
+    return GenericRecord.create(structType);
+  }
+
+  private static Variant sampleVariant() {
+    VariantMetadata md = Variants.metadata("k");
+    org.apache.iceberg.variants.ShreddedObject obj = Variants.object(md);
+    obj.put("k", Variants.of("v1"));
+    return Variant.of(md, obj);
   }
 }
