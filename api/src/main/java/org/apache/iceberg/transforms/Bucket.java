@@ -85,6 +85,7 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     this.numBuckets = numBuckets;
   }
 
+  @Override
   public Integer numBuckets() {
     return numBuckets;
   }
@@ -217,6 +218,16 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     protected int hash(Integer value) {
       return BucketUtil.hash(value);
     }
+
+    @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.INTEGER;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.INTEGER;
+    }
   }
 
   private static class BucketLong extends Bucket<Long>
@@ -229,6 +240,16 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     @Override
     protected int hash(Long value) {
       return BucketUtil.hash(value);
+    }
+
+    @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.LONG;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.INTEGER;
     }
   }
 
@@ -244,6 +265,16 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     protected int hash(Long nanos) {
       return BucketUtil.hash(DateTimeUtil.nanosToMicros(nanos));
     }
+
+    @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.TIMESTAMP_NANO;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.INTEGER;
+    }
   }
 
   private static class BucketString extends Bucket<CharSequence>
@@ -256,6 +287,16 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     @Override
     protected int hash(CharSequence value) {
       return BucketUtil.hash(value);
+    }
+
+    @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.STRING;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.INTEGER;
     }
   }
 
@@ -270,6 +311,16 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     protected int hash(ByteBuffer value) {
       return BucketUtil.hash(value);
     }
+
+    @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.BINARY;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.INTEGER;
+    }
   }
 
   private static class BucketUUID extends Bucket<UUID>
@@ -283,6 +334,16 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     public int hash(UUID value) {
       return BucketUtil.hash(value);
     }
+
+    @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.UUID;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.INTEGER;
+    }
   }
 
   private static class BucketDecimal extends Bucket<BigDecimal>
@@ -295,6 +356,16 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     @Override
     protected int hash(BigDecimal value) {
       return BucketUtil.hash(value);
+    }
+
+    @Override
+    public Type.TypeID sourceTypeId() {
+      return Type.TypeID.DECIMAL;
+    }
+
+    @Override
+    public Type.TypeID resultTypeId() {
+      return Type.TypeID.INTEGER;
     }
   }
 }

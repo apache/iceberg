@@ -98,11 +98,13 @@ enum Timestamps implements Transform<Long, Integer> {
 
   private final ChronoUnit granularity;
   private final String name;
+  private final TimestampUnit timestampUnit;
   private final Apply apply;
 
   Timestamps(ChronoUnit granularity, String name, TimestampUnit timestampUnit) {
     this.name = name;
     this.granularity = granularity;
+    this.timestampUnit = timestampUnit;
     this.apply = new Apply(granularity, timestampUnit);
   }
 
@@ -138,7 +140,23 @@ enum Timestamps implements Transform<Long, Integer> {
     return Types.IntegerType.get();
   }
 
-  ChronoUnit granularity() {
+  @Override
+  public Type.TypeID sourceTypeId() {
+    return timestampUnit == TimestampUnit.MICROS
+        ? Type.TypeID.TIMESTAMP
+        : Type.TypeID.TIMESTAMP_NANO;
+  }
+
+  @Override
+  public Type.TypeID resultTypeId() {
+    if (granularity == ChronoUnit.DAYS) {
+      return Type.TypeID.DATE;
+    }
+    return Type.TypeID.INTEGER;
+  }
+
+  @Override
+  public ChronoUnit granularity() {
     return granularity;
   }
 
