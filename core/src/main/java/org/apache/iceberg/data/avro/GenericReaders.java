@@ -61,6 +61,14 @@ class GenericReaders {
     return TimestamptzNanoReader.INSTANCE;
   }
 
+  static ValueReader<LocalDateTime> timestampMillis() {
+    return TimestampMilliReader.INSTANCE;
+  }
+
+  static ValueReader<OffsetDateTime> timestamptzMillis() {
+    return TimestamptzMilliReader.INSTANCE;
+  }
+
   static ValueReader<Record> struct(
       List<Pair<Integer, ValueReader<?>>> readPlan, StructType struct) {
     return new PlannedRecordReader(readPlan, struct);
@@ -134,6 +142,28 @@ class GenericReaders {
     @Override
     public OffsetDateTime read(Decoder decoder, Object reuse) throws IOException {
       return DateTimeUtil.timestamptzFromNanos(decoder.readLong());
+    }
+  }
+
+  private static class TimestampMilliReader implements ValueReader<LocalDateTime> {
+    private static final TimestampMilliReader INSTANCE = new TimestampMilliReader();
+
+    private TimestampMilliReader() {}
+
+    @Override
+    public LocalDateTime read(Decoder decoder, Object reuse) throws IOException {
+      return DateTimeUtil.timestampFromMillis(decoder.readLong());
+    }
+  }
+
+  private static class TimestamptzMilliReader implements ValueReader<OffsetDateTime> {
+    private static final TimestamptzMilliReader INSTANCE = new TimestamptzMilliReader();
+
+    private TimestamptzMilliReader() {}
+
+    @Override
+    public OffsetDateTime read(Decoder decoder, Object reuse) throws IOException {
+      return DateTimeUtil.timestamptzFromMillis(decoder.readLong());
     }
   }
 
