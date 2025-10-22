@@ -96,7 +96,7 @@ settle disagreements or to force a decision.
 
 ## Building the Project Locally
 
-Iceberg is built using Gradle with Java 11, 17, or 21.
+Iceberg is built using Gradle with Java 17 or 21.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
