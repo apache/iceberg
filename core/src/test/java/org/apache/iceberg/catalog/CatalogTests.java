@@ -968,7 +968,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void testLoadTableWithMissingMetadatafile(@TempDir Path tempDir) throws IOException {
+  public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) throws IOException {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
@@ -988,12 +988,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         metadataFileLocation.startsWith("file:")
             ? Paths.get(URI.create(metadataFileLocation))
             : Paths.get(metadataFileLocation);
-    Files.move(metadataFilePath, renamedMetadataFile, StandardCopyOption.REPLACE_EXISTING);
-
-    assertThatThrownBy(() -> catalog.loadTable(TBL))
-        .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining("Failed to open input stream for file: " + metadataFileLocation);
-    Files.move(renamedMetadataFile, metadataFilePath, StandardCopyOption.REPLACE_EXISTING);
+    try {
+      Files.move(metadataFilePath, renamedMetadataFile, StandardCopyOption.REPLACE_EXISTING);
+      assertThatThrownBy(() -> catalog.loadTable(TBL))
+          .isInstanceOf(NotFoundException.class)
+          .hasMessageContaining("Failed to open input stream for file: " + metadataFileLocation);
+    } finally {
+      Files.move(renamedMetadataFile, metadataFilePath, StandardCopyOption.REPLACE_EXISTING);
+    }
   }
 
   @Test
