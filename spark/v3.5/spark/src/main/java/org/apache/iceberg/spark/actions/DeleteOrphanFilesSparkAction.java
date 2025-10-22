@@ -279,9 +279,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       Iterator<String> orphanFiles, Dataset<String> orphanFileDS) {
     try {
       List<String> orphanFileList =
-          streamResults()
-              ? Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING)
-              : Lists.newArrayList();
+          Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
       long filesCount = 0;
 
       Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
@@ -289,11 +287,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       while (fileGroups.hasNext()) {
         List<String> fileGroup = fileGroups.next();
 
-        if (streamResults()) {
-          collectSamplePaths(fileGroup, orphanFileList);
-        } else {
-          orphanFileList.addAll(fileGroup);
-        }
+        collectPathsForOutput(fileGroup, orphanFileList);
 
         if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
           deleteBulk((SupportsBulkOperations) table.io(), fileGroup);
@@ -314,10 +308,17 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private void collectSamplePaths(List<String> paths, List<String> samplePaths) {
-    int lengthToAdd =
-        Math.min(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING - samplePaths.size(), paths.size());
-    samplePaths.addAll(paths.subList(0, lengthToAdd));
+  private void collectPathsForOutput(List<String> paths, List<String> orphanFileList) {
+    if (streamResults()) {
+      // In streaming mode, only collect a sample up to the max limit
+      int lengthToAdd =
+          Math.min(
+              MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING - orphanFileList.size(), paths.size());
+      orphanFileList.addAll(paths.subList(0, lengthToAdd));
+    } else {
+      // In non-streaming mode, collect all paths
+      orphanFileList.addAll(paths);
+    }
   }
 
   private void deleteBulk(SupportsBulkOperations io, List<String> paths) {
