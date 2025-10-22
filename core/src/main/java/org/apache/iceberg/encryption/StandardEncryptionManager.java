@@ -36,7 +36,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class StandardEncryptionManager implements EncryptionManager {
-  private static final String KEY_ENCRYPTION_KEY_ID = "KEY_ENCRYPTION_KEY_ID";
+  // Maximal lifespan of key encryption keys is 2 years according to NIST SP 800-57 (PART 1 REV. 5,
+  // section 5.3.6.7.b)
+  private static final long KEY_ENCRYPTION_KEY_LIFESPAN_MS = TimeUnit.DAYS.toMillis(730);
+  static final String KEY_TIMESTAMP = "KEY_TIMESTAMP";
 
   private final String tableKeyId;
   private final int dataKeyLength;
@@ -171,17 +174,30 @@ public class StandardEncryptionManager implements EncryptionManager {
       throw new IllegalStateException("Cannot return the current key after serialization");
     }
 
-    if (!transientState.encryptionKeys.containsKey(KEY_ENCRYPTION_KEY_ID)) {
-      ByteBuffer unwrapped = newKey();
-      ByteBuffer wrapped = transientState.kmsClient.wrapKey(unwrapped, tableKeyId);
-      EncryptedKey key = new BaseEncryptedKey(KEY_ENCRYPTION_KEY_ID, wrapped, tableKeyId, null);
-
-      // update internal tracking
-      transientState.unwrappedKeyCache.put(key.keyId(), unwrapped);
-      transientState.encryptionKeys.put(key.keyId(), key);
+    // Find unexpired key encryption key
+    for (String keyID : transientState.encryptionKeys.keySet()) {
+      EncryptedKey key = transientState.encryptionKeys.get(keyID);
+      if (key.encryptedById().equals(tableKeyId)) { // this is a key encryption key
+        String timestampProperty = key.properties().get(KEY_TIMESTAMP);
+        long keyTimestamp = Long.parseLong(timestampProperty);
+        if (keyTimestamp - System.currentTimeMillis() < KEY_ENCRYPTION_KEY_LIFESPAN_MS) {
+          return keyID;
+        }
+      }
     }
 
-    return KEY_ENCRYPTION_KEY_ID;
+    // No unexpired key encryption keys; create one
+    ByteBuffer unwrapped = newKey();
+    ByteBuffer wrapped = transientState.kmsClient.wrapKey(unwrapped, tableKeyId);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(KEY_TIMESTAMP, "" + System.currentTimeMillis());
+    EncryptedKey key = new BaseEncryptedKey(generateKeyId(), wrapped, tableKeyId, properties);
+
+    // update internal tracking
+    transientState.unwrappedKeyCache.put(key.keyId(), unwrapped);
+    transientState.encryptionKeys.put(key.keyId(), key);
+
+    return key.keyId();
   }
 
   ByteBuffer encryptedByKey(String manifestListKeyID) {
@@ -198,30 +214,19 @@ public class StandardEncryptionManager implements EncryptionManager {
     return transientState.unwrappedKeyCache.get(encryptedKeyMetadata.encryptedById());
   }
 
-  ByteBuffer encryptedKeyMetadata(String manifestListKeyID) {
-    if (transientState == null) {
-      throw new IllegalStateException("Cannot find encrypted key metadata after serialization");
-    }
-
-    EncryptedKey encryptedKeyMetadata = transientState.encryptionKeys.get(manifestListKeyID);
-    if (encryptedKeyMetadata == null) {
-      throw new IllegalStateException(
-          "Cannot find manifest list key metadata with id " + manifestListKeyID);
-    }
-
-    return encryptedKeyMetadata.encryptedKeyMetadata();
-  }
-
   public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
     if (transientState == null) {
       throw new IllegalStateException("Cannot add key metadata after serialization");
     }
 
     String manifestListKeyID = generateKeyId();
+    String keyEncryptionKeyID = keyEncryptionKeyID();
+    String keyEncryptionKeyTimestamp =
+        transientState.encryptionKeys.get(keyEncryptionKeyID).properties().get(KEY_TIMESTAMP);
     ByteBuffer encryptedKeyMetadata =
         EncryptionUtil.encryptManifestListKeyMetadata(
-            transientState.unwrappedKeyCache.get(keyEncryptionKeyID()),
-            manifestListKeyID,
+            transientState.unwrappedKeyCache.get(keyEncryptionKeyID),
+            keyEncryptionKeyTimestamp,
             keyMetadata);
     BaseEncryptedKey key =
         new BaseEncryptedKey(manifestListKeyID, encryptedKeyMetadata, keyEncryptionKeyID(), null);
