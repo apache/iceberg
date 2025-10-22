@@ -56,12 +56,12 @@ public final class ManagedHttpClientRegistry {
 
   /**
    * Get or create a managed HTTP client for the given configuration. Each call increments the
-   * reference count for the client.
+   * reference count for the client and returns a ref-counted wrapper.
    *
    * @param clientKey unique key identifying the client configuration
    * @param clientFactory factory to create the HTTP client if not cached
    * @param properties configuration properties for this client
-   * @return a managed HTTP client with incremented reference count
+   * @return a ref-counted HTTP client wrapper
    */
   public SdkHttpClient getOrCreateClient(
       String clientKey, Supplier<SdkHttpClient> clientFactory, Map<String, String> properties) {
@@ -73,6 +73,7 @@ public final class ManagedHttpClientRegistry {
               SdkHttpClient httpClient = clientFactory.get();
               return new ManagedHttpClient(httpClient, k);
             });
+    // Return the cached ref-counted wrapper
     return managedClient.acquire();
   }
 
@@ -112,26 +113,28 @@ public final class ManagedHttpClientRegistry {
     private final String clientKey;
     private final AtomicInteger refCount = new AtomicInteger(0);
     private volatile boolean closed = false;
+    private volatile WrappedSdkHttpClient wrapper;
 
     ManagedHttpClient(SdkHttpClient httpClient, String clientKey) {
       this.httpClient = httpClient;
       this.clientKey = clientKey;
+      this.wrapper = new WrappedSdkHttpClient(httpClient, clientKey);
       LOG.debug("Created managed HTTP client: key={}", clientKey);
     }
 
     /**
      * Acquire a reference to the HTTP client, incrementing the reference count.
      *
-     * @return the underlying HTTP client
+     * @return the ref-counted wrapper client
      * @throws IllegalStateException if the client has already been closed
      */
-    SdkHttpClient acquire() {
+    WrappedSdkHttpClient acquire() {
       if (closed) {
         throw new IllegalStateException("Cannot acquire closed HTTP client: " + clientKey);
       }
       int count = refCount.incrementAndGet();
       LOG.debug("Acquired HTTP client: key={}, refCount={}", clientKey, count);
-      return httpClient;
+      return wrapper;
     }
 
     /**

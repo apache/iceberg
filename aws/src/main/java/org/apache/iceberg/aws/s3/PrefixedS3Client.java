@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.s3;
 
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientFactory;
-import org.apache.iceberg.aws.ManagedHttpClientRegistry;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -36,8 +35,6 @@ class PrefixedS3Client implements AutoCloseable {
   private SerializableSupplier<S3AsyncClient> s3Async;
   private transient volatile S3Client s3Client;
   private transient volatile S3AsyncClient s3AsyncClient;
-  private transient String httpClientKey;
-  private transient S3FileIOAwsClientFactory clientFactory;
 
   PrefixedS3Client(
       String storagePrefix,
@@ -53,13 +50,8 @@ class PrefixedS3Client implements AutoCloseable {
     this.s3FileIOProperties = new S3FileIOProperties(properties);
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      Object factory = S3FileIOAwsClientFactories.initialize(properties);
-      if (factory instanceof S3FileIOAwsClientFactory) {
-        this.clientFactory = (S3FileIOAwsClientFactory) factory;
-        this.s3 = clientFactory::s3;
-      } else if (factory instanceof AwsClientFactory) {
-        this.s3 = ((AwsClientFactory) factory)::s3;
-      }
+      AwsClientFactory factory = S3FileIOAwsClientFactories.initialize(properties);
+      this.s3 = factory::s3;
       if (s3FileIOProperties.isPreloadClientEnabled()) {
         s3();
       }
@@ -67,13 +59,8 @@ class PrefixedS3Client implements AutoCloseable {
 
     // Do not override s3Async client if it was provided
     if (s3Async == null) {
-      Object asyncFactory = S3FileIOAwsClientFactories.initialize(properties);
-      if (asyncFactory instanceof S3FileIOAwsClientFactory) {
-        this.s3Async = ((S3FileIOAwsClientFactory) asyncFactory)::s3Async;
-      }
-      if (asyncFactory instanceof AwsClientFactory) {
-        this.s3Async = ((AwsClientFactory) asyncFactory)::s3Async;
-      }
+      AwsClientFactory asyncFactory = S3FileIOAwsClientFactories.initialize(properties);
+      this.s3Async = asyncFactory::s3Async;
     }
   }
 
@@ -86,10 +73,6 @@ class PrefixedS3Client implements AutoCloseable {
       synchronized (this) {
         if (s3Client == null) {
           s3Client = s3.get();
-          // Capture the HTTP client key after the client is created
-          if (clientFactory != null && httpClientKey == null) {
-            httpClientKey = clientFactory.httpClientKey();
-          }
         }
       }
     }
@@ -113,10 +96,6 @@ class PrefixedS3Client implements AutoCloseable {
     return s3FileIOProperties;
   }
 
-  String httpClientKey() {
-    return httpClientKey;
-  }
-
   @Override
   public void close() {
     if (null != s3Client) {
@@ -129,11 +108,6 @@ class PrefixedS3Client implements AutoCloseable {
         AnalyticsAcceleratorUtil.cleanupCache(s3AsyncClient, s3FileIOProperties);
       }
       s3AsyncClient.close();
-    }
-
-    // Release the HTTP client from the registry
-    if (httpClientKey != null) {
-      ManagedHttpClientRegistry.getInstance().releaseClient(httpClientKey);
     }
   }
 }

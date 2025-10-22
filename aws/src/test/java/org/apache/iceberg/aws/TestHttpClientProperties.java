@@ -49,7 +49,13 @@ public class TestHttpClientProperties {
     SdkHttpClient capturedHttpClient = httpClientCaptor.getValue();
 
     assertThat(capturedHttpClient)
-        .as("Should use url connection http client")
+        .as("Should use wrapped SDK http client")
+        .isInstanceOf(WrappedSdkHttpClient.class);
+
+    // Verify the underlying delegate is UrlConnectionHttpClient
+    WrappedSdkHttpClient wrappedClient = (WrappedSdkHttpClient) capturedHttpClient;
+    assertThat(wrappedClient.getDelegate())
+        .as("Underlying client should be UrlConnectionHttpClient")
         .isInstanceOf(UrlConnectionHttpClient.class);
   }
 
@@ -64,8 +70,15 @@ public class TestHttpClientProperties {
     httpProperties.applyHttpClientConfigurations(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).httpClient(httpClientCaptor.capture());
     SdkHttpClient capturedHttpClient = httpClientCaptor.getValue();
+
     assertThat(capturedHttpClient)
-        .as("Should use apache http client")
+        .as("Should use wrapped SDK http client")
+        .isInstanceOf(WrappedSdkHttpClient.class);
+
+    // Verify the underlying delegate is ApacheHttpClient
+    WrappedSdkHttpClient wrappedClient = (WrappedSdkHttpClient) capturedHttpClient;
+    assertThat(wrappedClient.getDelegate())
+        .as("Underlying client should be ApacheHttpClient")
         .isInstanceOf(ApacheHttpClient.class);
   }
 
@@ -87,10 +100,10 @@ public class TestHttpClientProperties {
     ApacheHttpClientConfigurations apacheConfig = ApacheHttpClientConfigurations.create(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
 
-    apacheConfig.configureHttpClientBuilder(mockS3ClientBuilder);
+    apacheConfig.configureHttpClientBuilder(mockS3ClientBuilder, properties);
 
-    // Verify that httpClient() is called with a built client (as a shared resource)
-    verify(mockS3ClientBuilder).httpClient(any(ApacheHttpClient.class));
+    // Verify that httpClient() is called with a wrapped client (as a shared resource)
+    verify(mockS3ClientBuilder).httpClient(any(WrappedSdkHttpClient.class));
   }
 
   @Test
@@ -100,9 +113,9 @@ public class TestHttpClientProperties {
         UrlConnectionHttpClientConfigurations.create(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
 
-    urlConfig.configureHttpClientBuilder(mockS3ClientBuilder);
+    urlConfig.configureHttpClientBuilder(mockS3ClientBuilder, properties);
 
-    // Verify that httpClient() is called with a built client (as a shared resource)
-    verify(mockS3ClientBuilder).httpClient(any(UrlConnectionHttpClient.class));
+    // Verify that httpClient() is called with a wrapped client (as a shared resource)
+    verify(mockS3ClientBuilder).httpClient(any(WrappedSdkHttpClient.class));
   }
 }

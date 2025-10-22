@@ -108,11 +108,10 @@ public class TestManagedHttpClientRegistry {
         new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire twice
-    SdkHttpClient client1 = managedClient.acquire();
-    SdkHttpClient client2 = managedClient.acquire();
+    WrappedSdkHttpClient client1 = managedClient.acquire();
+    WrappedSdkHttpClient client2 = managedClient.acquire();
 
-    assertThat(client1).isSameAs(mockClient);
-    assertThat(client2).isSameAs(mockClient);
+    assertThat(client1).isSameAs(client2);
     assertThat(managedClient.getRefCount()).isEqualTo(2);
 
     // First release should not close
@@ -248,8 +247,7 @@ public class TestManagedHttpClientRegistry {
         new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire once
-    SdkHttpClient client = managedClient.acquire();
-    assertThat(client).isSameAs(mockClient);
+    WrappedSdkHttpClient client = managedClient.acquire();
     assertThat(managedClient.getRefCount()).isEqualTo(1);
 
     // First release should close the client (refCount goes to 0)

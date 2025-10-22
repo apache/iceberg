@@ -39,11 +39,11 @@ class UrlConnectionHttpClientConfigurations {
 
   private UrlConnectionHttpClientConfigurations() {}
 
-  public <T extends AwsSyncClientBuilder> String configureHttpClientBuilder(T awsClientBuilder) {
-    return configureHttpClientBuilder(awsClientBuilder, Maps.newHashMap());
+  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
+    configureHttpClientBuilder(awsClientBuilder, Maps.newHashMap());
   }
 
-  public <T extends AwsSyncClientBuilder> String configureHttpClientBuilder(
+  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(
       T awsClientBuilder, Map<String, String> properties) {
 
     String cacheKey = generateHttpClientCacheKey();
@@ -61,7 +61,6 @@ class UrlConnectionHttpClientConfigurations {
                 properties);
 
     awsClientBuilder.httpClient(managedHttpClient);
-    return cacheKey;
   }
 
   private void initialize(Map<String, String> httpClientProperties) {

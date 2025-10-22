@@ -20,7 +20,6 @@ package org.apache.iceberg.aws;
 
 import java.net.URI;
 import java.util.Map;
-import org.apache.iceberg.aws.s3.S3FileIOAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -44,7 +43,6 @@ import software.amazon.awssdk.services.kms.KmsClientBuilder;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 
 public class AwsClientFactories {
@@ -93,12 +91,11 @@ public class AwsClientFactories {
     return factory;
   }
 
-  static class DefaultAwsClientFactory implements AwsClientFactory, S3FileIOAwsClientFactory {
+  static class DefaultAwsClientFactory implements AwsClientFactory {
     private AwsProperties awsProperties;
     private AwsClientProperties awsClientProperties;
     private S3FileIOProperties s3FileIOProperties;
     private HttpClientProperties httpClientProperties;
-    private String httpClientKey;
 
     DefaultAwsClientFactory() {
       awsProperties = new AwsProperties();
@@ -109,15 +106,10 @@ public class AwsClientFactories {
 
     @Override
     public S3Client s3() {
-      S3ClientBuilder builder =
-          S3Client.builder()
-              .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-              .applyMutation(awsClientProperties::applyLegacyMd5Plugin);
-
-      // Capture the HTTP client key for resource management
-      this.httpClientKey = httpClientProperties.applyHttpClientConfigurations(builder);
-
-      return builder
+      return S3Client.builder()
+          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
+          .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
           .applyMutation(s3FileIOProperties::applyServiceConfigurations)
           .applyMutation(
@@ -186,11 +178,6 @@ public class AwsClientFactories {
       this.awsClientProperties = new AwsClientProperties(properties);
       this.s3FileIOProperties = new S3FileIOProperties(properties);
       this.httpClientProperties = new HttpClientProperties(properties);
-    }
-
-    @Override
-    public String httpClientKey() {
-      return httpClientKey;
     }
   }
 

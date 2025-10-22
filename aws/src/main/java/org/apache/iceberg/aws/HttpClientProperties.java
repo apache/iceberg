@@ -211,7 +211,7 @@ public class HttpClientProperties implements Serializable {
    *     S3Client.builder().applyMutation(awsProperties::applyHttpClientConfigurations)
    * </pre>
    */
-  public <T extends AwsSyncClientBuilder> String applyHttpClientConfigurations(T builder) {
+  public <T extends AwsSyncClientBuilder> void applyHttpClientConfigurations(T builder) {
     if (Strings.isNullOrEmpty(httpClientType)) {
       httpClientType = CLIENT_TYPE_DEFAULT;
     }
@@ -220,11 +220,13 @@ public class HttpClientProperties implements Serializable {
       case CLIENT_TYPE_URLCONNECTION:
         UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
             loadHttpClientConfigurations(UrlConnectionHttpClientConfigurations.class.getName());
-        return urlConnectionHttpClientConfigurations.configureHttpClientBuilder(builder);
+        urlConnectionHttpClientConfigurations.configureHttpClientBuilder(builder);
+        break;
       case CLIENT_TYPE_APACHE:
         ApacheHttpClientConfigurations apacheHttpClientConfigurations =
             loadHttpClientConfigurations(ApacheHttpClientConfigurations.class.getName());
-        return apacheHttpClientConfigurations.configureHttpClientBuilder(builder);
+        apacheHttpClientConfigurations.configureHttpClientBuilder(builder);
+        break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
     }

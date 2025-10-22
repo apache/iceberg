@@ -23,13 +23,11 @@ import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.HttpClientProperties;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
   private S3FileIOProperties s3FileIOProperties;
   private HttpClientProperties httpClientProperties;
   private AwsClientProperties awsClientProperties;
-  private String httpClientKey;
 
   DefaultS3FileIOAwsClientFactory() {
     this.s3FileIOProperties = new S3FileIOProperties();
@@ -46,15 +44,10 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
 
   @Override
   public S3Client s3() {
-    S3ClientBuilder builder =
-        S3Client.builder()
-            .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-            .applyMutation(awsClientProperties::applyLegacyMd5Plugin);
-
-    // Capture the HTTP client key for lifecycle management
-    httpClientKey = httpClientProperties.applyHttpClientConfigurations(builder);
-
-    return builder
+    return S3Client.builder()
+        .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+        .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
+        .applyMutation(httpClientProperties::applyHttpClientConfigurations)
         .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
         .applyMutation(s3FileIOProperties::applyServiceConfigurations)
         .applyMutation(
@@ -66,11 +59,6 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
         .applyMutation(s3FileIOProperties::applyUserAgentConfigurations)
         .applyMutation(s3FileIOProperties::applyRetryConfigurations)
         .build();
-  }
-
-  @Override
-  public String httpClientKey() {
-    return httpClientKey;
   }
 
   @Override
