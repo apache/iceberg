@@ -631,6 +631,45 @@ public class TestBaseIncrementalChangelogScan
   }
 
   @TestTemplate
+  public void testDeletedFileWithPreScanRangeDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    // Snapshot 2: Add deletes for FILE_A (before scan range)
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Delete FILE_A entirely (within scan range)
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    // Scan from snap2 (exclusive) to snap3
+    // This means the delete of FILE_A happens within the range,
+    // but the delete file (FILE_A_DELETES) was added before the range
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap2.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // Should have one DeletedDataFileScanTask for FILE_A
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    DeletedDataFileScanTask task = (DeletedDataFileScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap3.snapshotId());
+    assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+
+    // The key assertion: existingDeletes should include FILE_A_DELETES
+    // so consumers know to omit those previously deleted rows
+    assertThat(task.existingDeletes())
+        .as("Must include pre-existing deletes to omit previously deleted rows")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+  }
+
+  @TestTemplate
   public void testLargeDeleteSetWithPruning() {
     assumeThat(formatVersion).isEqualTo(2);
 
