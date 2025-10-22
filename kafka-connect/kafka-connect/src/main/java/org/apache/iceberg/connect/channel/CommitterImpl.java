@@ -74,12 +74,14 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  private boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions, boolean closingCall) {
+  private boolean hasLeaderPartition(
+      Collection<TopicPartition> currentAssignedPartitions, boolean closingCall) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
     }
-    // If we are determining coordinator presence during closing call, we don't want to ensure the consumer group is stable
+    // If we are determining coordinator presence during closing call, we don't want to ensure the
+    // consumer group is stable
     if (groupDesc.state() == ConsumerGroupState.STABLE || closingCall) {
       Collection<MemberDescription> members = groupDesc.members();
       if (containsFirstPartition(members, currentAssignedPartitions)) {
