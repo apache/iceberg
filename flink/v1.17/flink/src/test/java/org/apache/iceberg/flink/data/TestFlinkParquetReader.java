@@ -160,70 +160,207 @@ public class TestFlinkParquetReader extends DataTest {
         new Schema(
             optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
             optional(2, "topbytes", Types.BinaryType.get()));
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
-
-    ParquetWriter<GenericRecord> writer =
-        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
-            .withDataModel(GenericData.get())
-            .withSchema(avroSchema)
-            .config("parquet.avro.add-list-element-records", "true")
-            .config("parquet.avro.write-old-list-structure", "true")
-            .build();
-
-    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
-    List<ByteBuffer> expectedByteList = Lists.newArrayList();
     byte[] expectedByte = {0x00, 0x01};
-    ByteBuffer expectedBinary = ByteBuffer.wrap(expectedByte);
-    expectedByteList.add(expectedBinary);
-    recordBuilder.set("arraybytes", expectedByteList);
-    recordBuilder.set("topbytes", expectedBinary);
-    GenericData.Record expectedRecord = recordBuilder.build();
+    validateTwoLevelListConversion(schema, expectedByte);
+  }
 
-    writer.write(expectedRecord);
-    writer.close();
+  /**
+   * Validates two-level list conversion through Parquet serialization.
+   *
+   * @param schema the Iceberg schema
+   * @param expectedByte the expected byte array for validation
+   * @throws IOException if I/O error occurs during file operations
+   */
+  private void validateTwoLevelListConversion(Schema schema, byte[] expectedByte)
+      throws IOException {
+    File testFile = createTempFile();
 
-    try (CloseableIterable<RowData> reader =
-        Parquet.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
-            .build()) {
-      Iterator<RowData> rows = reader.iterator();
-      assertThat(rows).hasNext();
-      RowData rowData = rows.next();
-      assertThat(rowData.getArray(0).getBinary(0)).isEqualTo(expectedByte);
-      assertThat(rowData.getBinary(1)).isEqualTo(expectedByte);
-      assertThat(rows).isExhausted();
+    try {
+      // Write test data to Parquet file
+      writeTestDataToParquet(testFile, schema, expectedByte);
+
+      // Read and validate data from Parquet file
+      readAndValidateTwoLevelList(testFile, schema, expectedByte);
+    } catch (IOException e) {
+      throw new IOException("Failed to validate two-level list conversion", e);
     }
   }
 
-  private void writeAndValidate(Iterable<Record> iterable, Schema schema) throws IOException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+  /**
+   * Writes test data with two-level list structure to a Parquet file.
+   *
+   * @param file the target Parquet file
+   * @param schema the Iceberg schema
+   * @param expectedByte the byte array to write
+   * @throws IOException if write operation fails
+   */
+  private void writeTestDataToParquet(File file, Schema schema, byte[] expectedByte)
+      throws IOException {
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
-    try (FileAppender<Record> writer =
-        Parquet.write(Files.localOutput(testFile))
-            .schema(schema)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
-            .build()) {
-      writer.addAll(iterable);
+    ParquetWriter<GenericRecord> writer = null;
+    try {
+      writer =
+          AvroParquetWriter.<GenericRecord>builder(new Path(file.toURI()))
+              .withDataModel(GenericData.get())
+              .withSchema(avroSchema)
+              .config("parquet.avro.add-list-element-records", "true")
+              .config("parquet.avro.write-old-list-structure", "true")
+              .build();
+
+      GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
+      List<ByteBuffer> expectedByteList = Lists.newArrayList();
+      ByteBuffer expectedBinary = ByteBuffer.wrap(expectedByte);
+      expectedByteList.add(expectedBinary);
+      recordBuilder.set("arraybytes", expectedByteList);
+      recordBuilder.set("topbytes", expectedBinary);
+      GenericData.Record expectedRecord = recordBuilder.build();
+
+      writer.write(expectedRecord);
+    } catch (IOException e) {
+      throw new IOException("Failed to write test data to Parquet file: " + file.getAbsolutePath(), e);
+    } finally {
+      if (writer != null) {
+        try {
+          writer.close();
+        } catch (IOException e) {
+          throw new IOException("Failed to close Parquet writer", e);
+        }
+      }
     }
+  }
 
+  /**
+   * Reads and validates two-level list data from a Parquet file.
+   *
+   * @param file the Parquet file to read
+   * @param schema the Iceberg schema
+   * @param expectedByte the expected byte array for validation
+   * @throws IOException if read operation fails
+   */
+  private void readAndValidateTwoLevelList(File file, Schema schema, byte[] expectedByte)
+      throws IOException {
     try (CloseableIterable<RowData> reader =
-        Parquet.read(Files.localInput(testFile))
+        Parquet.read(Files.localInput(file))
             .project(schema)
             .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
             .build()) {
-      Iterator<Record> expected = iterable.iterator();
       Iterator<RowData> rows = reader.iterator();
+
+      assertThat(rows)
+          .as("Expected at least one row in the Parquet file")
+          .hasNext();
+
+      RowData rowData = rows.next();
+
+      // Validate array bytes
+      assertThat(rowData.getArray(0).getBinary(0))
+          .as("Array bytes should match expected value")
+          .isEqualTo(expectedByte);
+
+      // Validate top-level bytes
+      assertThat(rowData.getBinary(1))
+          .as("Top-level bytes should match expected value")
+          .isEqualTo(expectedByte);
+
+      // Ensure no more rows
+      assertThat(rows)
+          .as("Expected exactly one row in the Parquet file")
+          .isExhausted();
+    } catch (IOException e) {
+      throw new IOException("Failed to read and validate two-level list from Parquet file", e);
+    }
+  }
+
+  /**
+   * Creates a temporary file for testing.
+   *
+   * @return a new temporary file
+   * @throws IOException if file creation fails
+   */
+  private File createTempFile() throws IOException {
+    File tempFile = File.createTempFile("junit", null, temp.toFile());
+    if (!tempFile.delete()) {
+      throw new IOException("Failed to delete temporary file: " + tempFile.getAbsolutePath());
+    }
+    return tempFile;
+  }
+
+  /**
+   * Writes records to a Parquet file and validates the read data.
+   *
+   * @param iterable the records to write
+   * @param schema the Iceberg schema
+   * @throws IOException if I/O error occurs during file operations
+   */
+  private void writeAndValidate(Iterable<Record> iterable, Schema schema) throws IOException {
+    File testFile = createTempFile();
+
+    try {
+      // Write records to Parquet file
+      writeRecordsToParquet(testFile, schema, iterable);
+
+      // Read and validate records from Parquet file
+      readAndValidateRecords(testFile, schema, iterable);
+    } catch (IOException e) {
+      throw new IOException("Failed to write and validate records", e);
+    }
+  }
+
+  /**
+   * Writes records to a Parquet file.
+   *
+   * @param file the target Parquet file
+   * @param schema the Iceberg schema
+   * @param records the records to write
+   * @throws IOException if write operation fails
+   */
+  private void writeRecordsToParquet(File file, Schema schema, Iterable<Record> records)
+      throws IOException {
+    try (FileAppender<Record> writer =
+        Parquet.write(Files.localOutput(file))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .build()) {
+      writer.addAll(records);
+    } catch (IOException e) {
+      throw new IOException("Failed to write records to Parquet file: " + file.getAbsolutePath(), e);
+    }
+  }
+
+  /**
+   * Reads and validates records from a Parquet file.
+   *
+   * @param file the Parquet file to read
+   * @param schema the Iceberg schema
+   * @param expectedRecords the expected records for validation
+   * @throws IOException if read operation fails
+   */
+  private void readAndValidateRecords(File file, Schema schema, Iterable<Record> expectedRecords)
+      throws IOException {
+    try (CloseableIterable<RowData> reader =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
+            .build()) {
+      Iterator<Record> expectedIter = expectedRecords.iterator();
+      Iterator<RowData> actualIter = reader.iterator();
       LogicalType rowType = FlinkSchemaUtil.convert(schema);
-      for (int i = 0; i < NUM_RECORDS; i += 1) {
-        assertThat(rows).hasNext();
-        TestHelpers.assertRowData(schema.asStruct(), rowType, expected.next(), rows.next());
+
+      for (int i = 0; i < NUM_RECORDS; i++) {
+        assertThat(actualIter)
+            .as("Expected more rows at index %d", i)
+            .hasNext();
+        TestHelpers.assertRowData(
+            schema.asStruct(), rowType, expectedIter.next(), actualIter.next());
       }
-      assertThat(rows).isExhausted();
+
+      assertThat(actualIter)
+          .as("Expected exactly %d records", NUM_RECORDS)
+          .isExhausted();
+    } catch (IOException e) {
+      throw new IOException("Failed to read and validate records from Parquet file", e);
     }
   }
 
