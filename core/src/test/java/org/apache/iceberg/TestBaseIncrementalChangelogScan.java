@@ -355,17 +355,17 @@ public class TestBaseIncrementalChangelogScan
 
     List<ChangelogScanTask> tasks = plan(scan);
 
-    // Should have one DeletedDataFileScanTask for FILE_A
-    // Since FILE_A_DELETES are position deletes, existingDeleteIndex is not built
-    // and existingDeletes should be empty
+    // Should have one DeletedDataFileScanTask for FILE_A with existing deletes
     assertThat(tasks).as("Must have 1 task").hasSize(1);
 
     DeletedDataFileScanTask task = (DeletedDataFileScanTask) Iterables.getOnlyElement(tasks);
     assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
     assertThat(task.existingDeletes())
-        .as("Must have no existing deletes (position deletes don't require existingDeleteIndex)")
-        .isEmpty();
+        .as("Must have existing deletes")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
   }
 
   @TestTemplate
@@ -622,11 +622,12 @@ public class TestBaseIncrementalChangelogScan
     assertThat(deletedTask.file().location())
         .as("Deleted file must match")
         .isEqualTo(FILE_A.location());
-    // Since FILE_A_DELETES are position deletes, existingDeleteIndex is not built
-    // and existingDeletes should be empty
+    // FILE_A had existing deletes which should be included
     assertThat(deletedTask.existingDeletes())
-        .as("Must have no existing deletes (position deletes don't require existingDeleteIndex)")
-        .isEmpty();
+        .as("Must have existing deletes")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
   }
 
   @TestTemplate
