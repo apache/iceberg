@@ -53,7 +53,7 @@ Refresh metadata contains information about the "source tables" and/or "source v
 During read time, a materialized view (storage table) can be interpreted as "fresh", "stale" or "invalid", depending on the following situations:
 * **fresh** -- The `snapshot_id`s of the last refresh operation match the current `snapshot_id`s of all the source tables.
 * **stale** -- The `snapshot_id`s do not match for at-least one source table, indicating that a refresh operation needs to be performed to capture the latest source table changes.
-* **invalid** -- The current `version_id` of the materialized view does not match the `refresh-version-id` of the refresh state. 
+* **invalid** -- The current `version_id` of the materialized view does not match the `view-version-id` of the refresh state. 
 
 ## Specification
 
