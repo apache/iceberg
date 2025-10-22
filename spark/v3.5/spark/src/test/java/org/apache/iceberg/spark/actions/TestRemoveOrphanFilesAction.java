@@ -85,7 +85,6 @@ import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.FileSystemWalker;
-import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -1208,12 +1207,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     Dataset<FileURI> actualFileURIDS = toFileUri.apply(actualFileDS);
     Dataset<FileURI> validFileURIDS = toFileUri.apply(validFileDS);
 
-    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
-    spark.sparkContext().register(conflicts);
-
     Dataset<String> orphanFileDS =
-        DeleteOrphanFilesSparkAction.findOrphanFilesAsDataset(
-            actualFileURIDS, validFileURIDS, mode, conflicts);
+        DeleteOrphanFilesSparkAction.findOrphanFiles(actualFileURIDS, validFileURIDS, mode);
 
     List<String> orphanFiles = orphanFileDS.collectAsList();
     orphanFileDS.unpersist();

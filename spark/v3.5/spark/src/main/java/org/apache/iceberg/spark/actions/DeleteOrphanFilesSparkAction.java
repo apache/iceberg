@@ -254,12 +254,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     Dataset<FileURI> actualFileIdentDS = actualFileIdentDS();
     Dataset<FileURI> validFileIdentDS = validFileIdentDS();
 
-    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
-    spark().sparkContext().register(conflicts);
-
     Dataset<String> orphanFileDS =
-        findOrphanFilesAsDataset(
-            actualFileIdentDS, validFileIdentDS, prefixMismatchMode, conflicts);
+        findOrphanFiles(actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
 
     if (streamResults()) {
       return deleteFiles(orphanFileDS.toLocalIterator(), orphanFileDS);
@@ -352,11 +348,13 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   @VisibleForTesting
-  static Dataset<String> findOrphanFilesAsDataset(
+  static Dataset<String> findOrphanFiles(
       Dataset<FileURI> actualFileIdentDS,
       Dataset<FileURI> validFileIdentDS,
-      PrefixMismatchMode prefixMismatchMode,
-      SetAccumulator<Pair<String, String>> conflicts) {
+      PrefixMismatchMode prefixMismatchMode) {
+
+    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
+    actualFileIdentDS.sparkSession().sparkContext().register(conflicts);
 
     Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
 
@@ -521,8 +519,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  @VisibleForTesting
-  static class FindOrphanFiles implements MapPartitionsFunction<Tuple2<FileURI, FileURI>, String> {
+  private static class FindOrphanFiles
+      implements MapPartitionsFunction<Tuple2<FileURI, FileURI>, String> {
 
     private final PrefixMismatchMode mode;
     private final SetAccumulator<Pair<String, String>> conflicts;
