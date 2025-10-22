@@ -1937,7 +1937,7 @@ public class TestTableMetadata {
   }
 
   @Test
-  public void testSetLastUpdatedMillis() {
+  public void testSetLastUpdatedMillisForMetadataUpdate() throws Exception {
     String uuid = "4db85dc8-33a7-4c28-ac0f-3450818b5438";
     long originalTimestamp = System.currentTimeMillis();
     TestHelpers.waitUntilAfter(originalTimestamp);
@@ -1965,11 +1965,11 @@ public class TestTableMetadata {
     TableMetadata schemaUpdate =
         TableMetadata.buildFrom(metadata)
             .setCurrentSchema(newSchema, newSchema.highestFieldId())
-            .setLastUpdatedMillis(originalTimestamp)
+            .setLastUpdatedMillisIfNull(originalTimestamp)
             .build();
 
     assertThat(schemaUpdate.lastUpdatedMillis())
-        .as("setLastUpdatedMillis override with provided timestamp on schema update")
+        .as("setLastUpdatedMillisIfNull override with provided timestamp on schema update")
         .isNotEqualTo(metadata.lastUpdatedMillis())
         .isEqualTo(originalTimestamp);
 
@@ -1977,15 +1977,60 @@ public class TestTableMetadata {
     TableMetadata propertyUpdate =
         TableMetadata.buildFrom(schemaUpdate)
             .setProperties(Map.of("foo", "bar"))
-            .setLastUpdatedMillis(anotherTimestamp)
+            .setLastUpdatedMillisIfNull(anotherTimestamp)
             .build();
 
     assertThat(propertyUpdate.lastUpdatedMillis())
-        .as("setLastUpdatedMillis override with provided timestamp on properties update")
+        .as("setLastUpdatedMillisIfNull override with provided timestamp on properties update")
         .isNotEqualTo(originalTimestamp)
         .isEqualTo(anotherTimestamp);
 
     assertThat(propertyUpdate.properties()).containsEntry("foo", "bar");
+  }
+
+  @Test
+  public void testSetLastUpdatedMillisForSnapshotUpdate() throws Exception {
+    long originalTimestamp = System.currentTimeMillis();
+    TestHelpers.waitUntilAfter(originalTimestamp);
+
+    TableMetadata base =
+        TableMetadataParser.fromJson(readTableMetadataInputFile("TableMetadataV2Valid.json"));
+    assertThat(base.currentSnapshot()).isNotNull();
+    assertThat(base.snapshots()).hasSize(2);
+    assertThat(base.snapshotLog()).hasSize(2);
+
+    Snapshot currentSnapshot = base.currentSnapshot();
+
+    Snapshot snapshotToAdd =
+        new BaseSnapshot(
+            base.lastSequenceNumber() + 1,
+            currentSnapshot.snapshotId() + 1,
+            currentSnapshot.snapshotId(),
+            originalTimestamp,
+            DataOperations.APPEND,
+            null,
+            currentSnapshot.schemaId(),
+            "foo",
+            null,
+            null,
+            null);
+
+    long anotherTimestamp = System.currentTimeMillis();
+    TableMetadata updated =
+        TableMetadata.buildFrom(base)
+            .addSnapshot(snapshotToAdd)
+            .setBranchSnapshot(snapshotToAdd.snapshotId(), "main")
+            .setLastUpdatedMillisIfNull(anotherTimestamp)
+            .build();
+
+    assertThat(updated.lastUpdatedMillis())
+        .as("setLastUpdatedMillisIfNull will NOT override with provided timestamp on add snapshot")
+        .isEqualTo(originalTimestamp)
+        .isLessThan(anotherTimestamp);
+
+    assertThat(updated.currentSnapshot()).isNotNull();
+    assertThat(updated.snapshots()).hasSize(3);
+    assertThat(updated.snapshotLog()).hasSize(3);
   }
 
   @Test
