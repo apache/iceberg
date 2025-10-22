@@ -163,7 +163,7 @@ class BaseIncrementalChangelogScan
    */
   private DeleteFileIndex buildExistingDeleteIndex(Long fromSnapshotIdExclusive) {
     if (fromSnapshotIdExclusive == null) {
-      return DeleteFileIndex.builderFor(ImmutableList.of()).build();
+      return DeleteFileIndex.emptyIndex();
     }
     Snapshot fromSnapshot = table().snapshot(fromSnapshotIdExclusive);
     Preconditions.checkState(
@@ -171,13 +171,13 @@ class BaseIncrementalChangelogScan
 
     List<ManifestFile> existingDeleteManifests = fromSnapshot.deleteManifests(table().io());
     if (existingDeleteManifests.isEmpty()) {
-      return DeleteFileIndex.builderFor(ImmutableList.of()).build();
+      return DeleteFileIndex.emptyIndex();
     }
 
     // Prune manifests based on partition filter to avoid processing irrelevant manifests
     List<ManifestFile> prunedManifests = pruneManifestsByPartition(existingDeleteManifests);
     if (prunedManifests.isEmpty()) {
-      return DeleteFileIndex.builderFor(ImmutableList.of()).build();
+      return DeleteFileIndex.emptyIndex();
     }
 
     // Load delete files from manifests
@@ -200,8 +200,7 @@ class BaseIncrementalChangelogScan
     for (Snapshot snapshot : changelogSnapshots) {
       List<ManifestFile> snapshotDeleteManifests = snapshot.deleteManifests(table().io());
       if (snapshotDeleteManifests.isEmpty()) {
-        addedDeletesBySnapshot.put(
-            snapshot.snapshotId(), DeleteFileIndex.builderFor(ImmutableList.of()).build());
+        addedDeletesBySnapshot.put(snapshot.snapshotId(), DeleteFileIndex.emptyIndex());
         continue;
       }
 
@@ -212,8 +211,7 @@ class BaseIncrementalChangelogScan
               .toList();
 
       if (addedDeleteManifests.isEmpty()) {
-        addedDeletesBySnapshot.put(
-            snapshot.snapshotId(), DeleteFileIndex.builderFor(ImmutableList.of()).build());
+        addedDeletesBySnapshot.put(snapshot.snapshotId(), DeleteFileIndex.emptyIndex());
       } else {
         // Load delete files from manifests
         List<DeleteFile> deleteFiles = loadDeleteFiles(addedDeleteManifests);
@@ -340,7 +338,7 @@ class BaseIncrementalChangelogScan
   /** Builds a cumulative delete index from the accumulated list of delete files. */
   private DeleteFileIndex buildCumulativeDeleteIndex(List<DeleteFile> accumulatedDeletes) {
     if (accumulatedDeletes.isEmpty()) {
-      return DeleteFileIndex.builderFor(ImmutableList.of()).build();
+      return DeleteFileIndex.emptyIndex();
     }
 
     return DeleteFileIndex.builderFor(accumulatedDeletes)
