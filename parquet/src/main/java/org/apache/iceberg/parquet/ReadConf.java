@@ -91,25 +91,17 @@ class ReadConf<T> {
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
 
-    ParquetMetricsRowGroupFilter statsFilter = null;
-    ParquetDictionaryRowGroupFilter dictFilter = null;
-    ParquetBloomRowGroupFilter bloomFilter = null;
+    ParquetCombinedRowGroupFilter combinedFilter = null;
     if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
-      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
-      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
+      combinedFilter = new ParquetCombinedRowGroupFilter(expectedSchema, filter, caseSensitive);
     }
 
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
       boolean shouldRead =
-          filter == null
-              || (statsFilter.shouldRead(typeWithIds, rowGroup)
-                  && dictFilter.shouldRead(
-                      typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup))
-                  && bloomFilter.shouldRead(
-                      typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
+          filter == null || combinedFilter.shouldRead(typeWithIds, rowGroup, reader);
+
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
         computedTotalValues += rowGroup.getRowCount();
