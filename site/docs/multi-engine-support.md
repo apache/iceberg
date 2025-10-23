@@ -44,7 +44,7 @@ For example, to use Iceberg with Spark 3.5 and AWS integrations, `iceberg-spark-
 
 > ℹ️ It's important to make sure that only the runtime jars (plus storage specific bundles if needed, eg. `iceberg-aws-bundle` or `iceberg-gcp-bundle`) are included in the runtime classpath.
 > All other modules should be excluded as they may introduce dependency version conflicts with engine runtimes.
-> For example, when packaging uberjar for a Spark application, we should include `iceberg-spark-runtime` and exclude modules such as `iceberg-core` or `iceberg-parquet`.
+> For example, when packaging an uberjar for a Spark application, only include `iceberg-spark-runtime` and exclude modules such as `iceberg-core` or `iceberg-parquet`.
 
 Spark and Flink provide different runtime jars for each supported engine version.
 Hive 2 and Hive 3 currently share the same runtime jar.
