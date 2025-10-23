@@ -1967,4 +1967,59 @@ public class TestTableMetadata {
 
     assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
   }
+
+  @Test
+  public void testEqualsAndHashCode() {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, TEST_LOCATION, ImmutableMap.of());
+
+    // Test same object
+    assertThat(base.equals(base)).isTrue();
+    assertThat(base.hashCode()).isEqualTo(base.hashCode());
+
+    // Test equal metadata built from same base without changes
+    TableMetadata copy = TableMetadata.buildFrom(base).build();
+    assertThat(copy.equals(base)).isTrue();
+    assertThat(copy.hashCode()).isEqualTo(base.hashCode());
+
+    // Test metadata with changes is not equal
+    TableMetadata withChanges =
+        TableMetadata.buildFrom(base).setProperties(ImmutableMap.of("key", "value")).build();
+    assertThat(withChanges.equals(base)).isFalse();
+    assertThat(withChanges.hashCode()).isNotEqualTo(base.hashCode());
+
+    // Test metadata with different schema
+    Schema newSchema =
+        new Schema(
+            Types.NestedField.required(4, "y", Types.LongType.get()),
+            Types.NestedField.required(5, "z", Types.LongType.get()));
+    SortOrder newSortOrder = SortOrder.unsorted();
+    TableMetadata withDifferentSchema =
+        TableMetadata.buildFrom(base)
+            .setCurrentSchema(newSchema, LAST_ASSIGNED_COLUMN_ID + 1)
+            .setDefaultSortOrder(newSortOrder)
+            .build();
+    assertThat(newSchema.equals(TEST_SCHEMA)).isFalse();
+    assertThat(withDifferentSchema.equals(base)).isFalse();
+  }
+
+  @Test
+  public void testEqualsWithLoadedMetadata() throws IOException {
+    // Create a base metadata
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, TEST_LOCATION, ImmutableMap.of());
+
+    // Write to file
+    String metadataFileLocation = temp.resolve("v1.metadata.json").toString();
+    TableMetadataParser.overwrite(base, ops.io().newOutputFile(metadataFileLocation));
+
+    // Read from file
+    TableMetadata loaded = TableMetadataParser.read(ops.io(), metadataFileLocation);
+
+    // Loaded metadata should equal the original
+    assertThat(loaded.equals(base)).isTrue();
+    assertThat(loaded.hashCode()).isEqualTo(base.hashCode());
+  }
 }
