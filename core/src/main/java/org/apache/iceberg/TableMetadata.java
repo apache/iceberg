@@ -1074,7 +1074,16 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder setCurrentSchema(Schema newSchema) {
-      setCurrentSchema(addSchemaInternal(newSchema));
+      setCurrentSchema(addSchemaInternal(newSchema, newSchema.highestFieldId()));
+      return this;
+    }
+
+    /**
+     * @deprecated use {@link #setCurrentSchema(Schema)} instead
+     */
+    @Deprecated
+    public Builder setCurrentSchema(Schema newSchema, int newLastColumnId) {
+      setCurrentSchema(addSchemaInternal(newSchema, newLastColumnId));
       return this;
     }
 
@@ -1117,7 +1126,7 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder addSchema(Schema schema) {
-      addSchemaInternal(schema);
+      addSchemaInternal(schema, schema.highestFieldId());
       return this;
     }
 
@@ -1591,10 +1600,12 @@ public class TableMetadata implements Serializable {
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 
-    private int addSchemaInternal(Schema schema) {
-      int newLastColumnId = schema.highestFieldId();
+    // TODO: remove newLastColumnId in favor of schema.highestFieldId() once
+    //       setCurrentSchema(Schema, int) is removed
+    private int addSchemaInternal(Schema schema, int newLastColumnId) {
       Schema.checkCompatibility(schema, formatVersion);
 
+      newLastColumnId = Math.max(newLastColumnId, this.lastColumnId);
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       boolean schemaFound = schemasById.containsKey(newSchemaId);
 
@@ -1610,7 +1621,7 @@ public class TableMetadata implements Serializable {
         return newSchemaId;
       }
 
-      this.lastColumnId = Math.max(newLastColumnId, this.lastColumnId);
+      this.lastColumnId = newLastColumnId;
 
       Schema newSchema;
       if (newSchemaId != schema.schemaId()) {
