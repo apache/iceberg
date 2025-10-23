@@ -25,8 +25,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
 public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
-  private final transient int fieldId;
-  private final transient Type type;
+  private final int fieldId;
+  private final Type type;
   private final Long valueCount;
   private final Long nullValueCount;
   private final Long nanValueCount;
