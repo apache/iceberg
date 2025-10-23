@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -151,35 +152,41 @@ public class TestSparkSchemaUtil {
       Literal<?> initialDefault,
       String expectedCurrentDefaultValue,
       String expectedExistsDefaultValue) {
-    Schema schema =
-        new Schema(
-            Types.NestedField.optional("field")
-                .withId(1)
-                .ofType(type)
-                .withWriteDefault(writeDefault)
-                .withInitialDefault(initialDefault)
-                .build());
+    TimeZone systemTimeZone = TimeZone.getDefault();
+    try {
+      TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+      Schema schema =
+          new Schema(
+              Types.NestedField.optional("field")
+                  .withId(1)
+                  .ofType(type)
+                  .withWriteDefault(writeDefault)
+                  .withInitialDefault(initialDefault)
+                  .build());
 
-    StructType sparkSchema = SparkSchemaUtil.convert(schema);
-    StructField defaultField = sparkSchema.fields()[0];
-    Metadata metadata = defaultField.metadata();
+      StructType sparkSchema = SparkSchemaUtil.convert(schema);
+      StructField defaultField = sparkSchema.fields()[0];
+      Metadata metadata = defaultField.metadata();
 
-    assertThat(metadata.contains(CURRENT_DEFAULT_COLUMN_METADATA_KEY))
-        .as("Field of type %s should have CURRENT_DEFAULT metadata", type)
-        .isTrue();
-    assertThat(metadata.contains(EXISTS_DEFAULT_COLUMN_METADATA_KEY))
-        .as("Field of type %s should have EXISTS_DEFAULT metadata", type)
-        .isTrue();
-    assertThat(metadata.getString(CURRENT_DEFAULT_COLUMN_METADATA_KEY))
-        .as(
-            "Spark metadata CURRENT_DEFAULT for type %s should contain correctly formatted literal",
-            type)
-        .isEqualTo(expectedCurrentDefaultValue);
-    assertThat(metadata.getString(EXISTS_DEFAULT_COLUMN_METADATA_KEY))
-        .as(
-            "Spark metadata EXISTS_DEFAULT for type %s should contain correctly formatted literal",
-            type)
-        .isEqualTo(expectedExistsDefaultValue);
+      assertThat(metadata.contains(CURRENT_DEFAULT_COLUMN_METADATA_KEY))
+          .as("Field of type %s should have CURRENT_DEFAULT metadata", type)
+          .isTrue();
+      assertThat(metadata.contains(EXISTS_DEFAULT_COLUMN_METADATA_KEY))
+          .as("Field of type %s should have EXISTS_DEFAULT metadata", type)
+          .isTrue();
+      assertThat(metadata.getString(CURRENT_DEFAULT_COLUMN_METADATA_KEY))
+          .as(
+              "Spark metadata CURRENT_DEFAULT for type %s should contain correctly formatted literal",
+              type)
+          .isEqualTo(expectedCurrentDefaultValue);
+      assertThat(metadata.getString(EXISTS_DEFAULT_COLUMN_METADATA_KEY))
+          .as(
+              "Spark metadata EXISTS_DEFAULT for type %s should contain correctly formatted literal",
+              type)
+          .isEqualTo(expectedExistsDefaultValue);
+    } finally {
+      TimeZone.setDefault(systemTimeZone);
+    }
   }
 
   private static Stream<Arguments> schemaConversionWithDefaultsTestCases() {
@@ -224,8 +231,14 @@ public class TestSparkSchemaUtil {
             Types.TimestampType.withZone(),
             Literal.of("2017-11-30T10:30:07.123456+00:00").to(Types.TimestampType.withZone()),
             Literal.of("2017-11-29T10:30:07.123456+00:00").to(Types.TimestampType.withZone()),
-            "TIMESTAMP '2017-11-30 02:30:07.123456'",
-            "TIMESTAMP '2017-11-29 02:30:07.123456'"),
+            "TIMESTAMP '2017-11-30 10:30:07.123456'",
+            "TIMESTAMP '2017-11-29 10:30:07.123456'"),
+        Arguments.of(
+            Types.TimestampType.withoutZone(),
+            Literal.of("2017-11-30T10:30:07.123456").to(Types.TimestampType.withoutZone()),
+            Literal.of("2017-11-29T10:30:07.123456").to(Types.TimestampType.withoutZone()),
+            "TIMESTAMP_NTZ '2017-11-30 10:30:07.123456'",
+            "TIMESTAMP_NTZ '2017-11-29 10:30:07.123456'"),
         Arguments.of(
             Types.BinaryType.get(),
             Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b})),

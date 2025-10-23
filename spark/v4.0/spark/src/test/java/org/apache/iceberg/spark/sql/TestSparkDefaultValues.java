@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
@@ -28,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,10 +39,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
  *
  * <p>Note: These tests use {@code validationCatalog.createTable()} to create tables with default
  * values because the Iceberg Spark integration does not yet support default value clauses in Spark
- * DDL.
+ * DDL. See {@link #testCreateTableWithDefaultsNotYetSupported()} and {@link
+ * #testAlterTableAddColumnWithDefaultNotYetSupported()} for verification that DDL with defaults
+ * currently throws exceptions.
  *
  * <p>Partial column INSERT statements (e.g., {@code INSERT INTO table (col1) VALUES (val1)}) are
- * not supported for dsv2 in Spark 4.0 and will be added in Spark 4.1.0.
+ * not supported for DSV2 in Spark 4.0 See {@link #testPartialInsertNotYetSupportedInSpark()} for
+ * verification.
  */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkDefaultValues extends CatalogTestBase {
@@ -78,6 +83,10 @@ public class TestSparkDefaultValues extends CatalogTestBase {
 
   @TestTemplate
   public void testWriteDefaultForMultipleColumns() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -110,6 +119,10 @@ public class TestSparkDefaultValues extends CatalogTestBase {
 
   @TestTemplate
   public void testBulkInsertWithDefaults() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -128,5 +141,60 @@ public class TestSparkDefaultValues extends CatalogTestBase {
         "Should insert multiple rows with default values",
         ImmutableList.of(row(1, "default_data"), row(2, "default_data"), row(3, "default_data")),
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testCreateTableWithDefaultsNotYetSupported() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE TABLE %s (id INT, data STRING DEFAULT 'default-value') USING iceberg",
+                    tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("does not support column default value");
+  }
+
+  @TestTemplate
+  public void testAlterTableAddColumnWithDefaultNotYetSupported() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+
+    validationCatalog.createTable(
+        tableIdent, schema, PartitionSpec.unpartitioned(), ImmutableMap.of("format-version", "3"));
+
+    assertThatThrownBy(
+            () -> sql("ALTER TABLE %s ADD COLUMN data STRING DEFAULT 'default-value'", tableName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("default values in Spark is currently unsupported");
+  }
+
+  @TestTemplate
+  public void testPartialInsertNotYetSupportedInSpark() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withWriteDefault(Literal.of("default-data"))
+                .build());
+
+    validationCatalog.createTable(
+        tableIdent, schema, PartitionSpec.unpartitioned(), ImmutableMap.of("format-version", "3"));
+
+    assertThatThrownBy(() -> sql("INSERT INTO %s (id) VALUES (1)", commitTarget()))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot find data for the output column");
   }
 }
