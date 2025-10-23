@@ -222,8 +222,8 @@ public class TestSparkSchemaUtil {
             "DATE '2023-01-01'"),
         Arguments.of(
             Types.TimestampType.withZone(),
-            Literal.of("2017-11-30T11:30:07.123456+01:00").to(Types.TimestampType.withZone()),
-            Literal.of("2017-11-29T11:30:07.123456+01:00").to(Types.TimestampType.withZone()),
+            Literal.of("2017-11-30T10:30:07.123456+00:00").to(Types.TimestampType.withZone()),
+            Literal.of("2017-11-29T10:30:07.123456+00:00").to(Types.TimestampType.withZone()),
             "TIMESTAMP '2017-11-30 02:30:07.123456'",
             "TIMESTAMP '2017-11-29 02:30:07.123456'"),
         Arguments.of(
