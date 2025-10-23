@@ -164,7 +164,7 @@ public class TestExtendedParser {
   private static class WrapperParser implements ParserInterface {
     private final ParserInterface delegate;
 
-    public WrapperParser(ParserInterface delegate) {
+    WrapperParser(ParserInterface delegate) {
       this.delegate = delegate;
     }
 
