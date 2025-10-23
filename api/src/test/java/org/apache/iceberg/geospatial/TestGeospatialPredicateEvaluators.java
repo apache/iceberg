@@ -200,25 +200,26 @@ public class TestGeospatialPredicateEvaluators {
   }
 
   @Test
-  public void testGeometryBoxesWithEmptyXRange() {
+  public void testGeometryBoxesWithInvalidRanges() {
     Type geometryType = Types.GeometryType.crs84();
     GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
         GeospatialPredicateEvaluators.create(geometryType);
 
+    // Invalid X range
     GeospatialBound min1 = GeospatialBound.createXY(170.0, 0.0);
     GeospatialBound max1 = GeospatialBound.createXY(-170.0, 10.0);
     BoundingBox box1 = new BoundingBox(min1, max1);
-    GeospatialBound min2 = GeospatialBound.createXY(-175.0, 5.0);
-    GeospatialBound max2 = GeospatialBound.createXY(-160.0, 15.0);
-    BoundingBox box2 = new BoundingBox(min2, max2);
-    GeospatialBound min3 = GeospatialBound.createXY(160.0, 0.0);
-    GeospatialBound max3 = GeospatialBound.createXY(-160.0, 10.0);
-    BoundingBox box3 = new BoundingBox(min3, max3);
+    assertThatThrownBy(() -> evaluator.intersects(box1, box1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Invalid X range: .* xmin cannot be greater than xmax");
 
-    assertThat(evaluator.intersects(box1, box2)).isFalse();
-    assertThat(evaluator.intersects(box2, box1)).isFalse();
-    assertThat(evaluator.intersects(box1, box3)).isFalse();
-    assertThat(evaluator.intersects(box3, box1)).isFalse();
+    // Invalid Y range
+    GeospatialBound min2 = GeospatialBound.createXY(0.0, 10.0);
+    GeospatialBound max2 = GeospatialBound.createXY(10.0, 9.0);
+    BoundingBox box2 = new BoundingBox(min2, max2);
+    assertThatThrownBy(() -> evaluator.intersects(box2, box2))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Invalid Y range: .* ymin cannot be greater than ymax");
   }
 
   @Test
@@ -276,8 +277,15 @@ public class TestGeospatialPredicateEvaluators {
     GeospatialBound max2 = GeospatialBound.createXY(-160.0, 15.0);
     BoundingBox box2 = new BoundingBox(min2, max2);
 
+    // Box that does not overlap with box1
+    GeospatialBound min3 = GeospatialBound.createXY(-169.0, 5.0);
+    GeospatialBound max3 = GeospatialBound.createXY(-160.0, 15.0);
+    BoundingBox box3 = new BoundingBox(min3, max3);
+
     assertThat(evaluator.intersects(box1, box2)).isTrue();
     assertThat(evaluator.intersects(box2, box1)).isTrue();
+    assertThat(evaluator.intersects(box1, box3)).isFalse();
+    assertThat(evaluator.intersects(box3, box1)).isFalse();
   }
 
   @Test
@@ -296,25 +304,34 @@ public class TestGeospatialPredicateEvaluators {
     GeospatialBound max2 = GeospatialBound.createXY(10.0, 91.0);
     BoundingBox box2 = new BoundingBox(min2, max2);
 
+    // Box with min latitude > max longitude
+    GeospatialBound min3 = GeospatialBound.createXY(0.0, 10.0);
+    GeospatialBound max3 = GeospatialBound.createXY(10.0, 9.0);
+    BoundingBox box3 = new BoundingBox(min3, max3);
+
     GeospatialBound validMin = GeospatialBound.createXY(0.0, 0.0);
     GeospatialBound validMax = GeospatialBound.createXY(10.0, 10.0);
     BoundingBox validBox = new BoundingBox(validMin, validMax);
 
     assertThatThrownBy(() -> evaluator.intersects(box1, validBox))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Latitude out of range");
+        .hasMessageMatching("Invalid latitude: .* Out of range: \\[-90°, 90°\\]");
 
     assertThatThrownBy(() -> evaluator.intersects(validBox, box1))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Latitude out of range");
+        .hasMessageMatching("Invalid latitude: .* Out of range: \\[-90°, 90°\\]");
 
     assertThatThrownBy(() -> evaluator.intersects(box2, validBox))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Latitude out of range");
+        .hasMessageMatching("Invalid latitude: .* Out of range: \\[-90°, 90°\\]");
 
     assertThatThrownBy(() -> evaluator.intersects(validBox, box2))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Latitude out of range");
+        .hasMessageMatching("Invalid latitude: .* Out of range: \\[-90°, 90°\\]");
+
+    assertThatThrownBy(() -> evaluator.intersects(validBox, box3))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Invalid latitude range: .* ymin cannot be greater than ymax");
   }
 
   @Test
@@ -339,19 +356,19 @@ public class TestGeospatialPredicateEvaluators {
 
     assertThatThrownBy(() -> evaluator.intersects(box1, validBox))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Longitude out of range");
+        .hasMessageMatching("Invalid longitude: .* Out of range: \\[-180°, 180°\\]");
 
     assertThatThrownBy(() -> evaluator.intersects(validBox, box1))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Longitude out of range");
+        .hasMessageMatching("Invalid longitude: .* Out of range: \\[-180°, 180°\\]");
 
     assertThatThrownBy(() -> evaluator.intersects(box2, validBox))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Longitude out of range");
+        .hasMessageMatching("Invalid longitude: .* Out of range: \\[-180°, 180°\\]");
 
     assertThatThrownBy(() -> evaluator.intersects(validBox, box2))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Longitude out of range");
+        .hasMessageMatching("Invalid longitude: .* Out of range: \\[-180°, 180°\\]");
   }
 
   @Test
