@@ -161,7 +161,7 @@ public class TestExtendedParser {
     targetField.set(sessionState, parser);
   }
 
-  public static class WrapperParser implements ParserInterface {
+  private static class WrapperParser implements ParserInterface {
     private final ParserInterface delegate;
 
     public WrapperParser(ParserInterface delegate) {
