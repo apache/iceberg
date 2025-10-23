@@ -52,7 +52,7 @@ public class BoundingBox {
    */
   public static BoundingBox fromByteBuffer(ByteBuffer buffer) {
     Preconditions.checkArgument(
-        buffer.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
+        buffer.order() == ByteOrder.LITTLE_ENDIAN, "Invalid byte order: big endian");
 
     int minLen = buffer.getInt();
     ByteBuffer min = buffer.slice().order(ByteOrder.LITTLE_ENDIAN);

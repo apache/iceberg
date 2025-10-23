@@ -48,9 +48,13 @@ public class GeospatialBound {
   /**
    * Parses a geospatial bound from a byte buffer according to Iceberg spec.
    *
-   * <p>Based on the buffer size, this method determines which coordinates are present: - 16 bytes
-   * (2 doubles): x and y only - 24 bytes (3 doubles): x, y, and z - 32 bytes (4 doubles): x, y, z
-   * (might be NaN), and m
+   * <p>Based on the buffer size, this method determines which coordinates are present:
+   *
+   * <ul>
+   *   <li>16 bytes (2 doubles): x and y only
+   *   <li>24 bytes (3 doubles): x, y, and z
+   *   <li>32 bytes (4 doubles): x, y, z (might be NaN), and m
+   * </ul>
    *
    * <p>The ordinates are encoded as 8-byte little-endian IEEE 754 values.
    *
@@ -60,7 +64,7 @@ public class GeospatialBound {
    */
   public static GeospatialBound fromByteBuffer(ByteBuffer buffer) {
     Preconditions.checkArgument(
-        buffer.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
+        buffer.order() == ByteOrder.LITTLE_ENDIAN, "Invalid byte order: big endian");
     int size = buffer.remaining();
     Preconditions.checkArgument(
         size == 2 * Double.BYTES || size == 3 * Double.BYTES || size == 4 * Double.BYTES,
@@ -91,9 +95,14 @@ public class GeospatialBound {
   /**
    * Serializes this geospatial bound to a byte buffer according to Iceberg spec.
    *
-   * <p>Following the Iceberg spec, the bound is serialized based on which coordinates are set: -
-   * x:y (2 doubles) when both z and m are unset - x:y:z (3 doubles) when only m is unset -
-   * x:y:NaN:m (4 doubles) when only z is unset - x:y:z:m (4 doubles) when all coordinates are set
+   * <p>Following the Iceberg spec, the bound is serialized based on which coordinates are set:
+   *
+   * <ul>
+   *   <li>x:y (2 doubles) when both z and m are unset
+   *   <li>x:y:z (3 doubles) when only m is unset
+   *   <li>x:y:NaN:m (4 doubles) when only z is unset
+   *   <li>x:y:z:m (4 doubles) when all coordinates are set
+   * </ul>
    *
    * @return A ByteBuffer containing the serialized geospatial bound
    */

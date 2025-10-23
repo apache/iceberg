@@ -165,6 +165,7 @@ public class TestGeospatialBound {
     assertThat(xyz.hasZ()).isTrue();
     assertThat(xyz.hasM()).isFalse();
     assertThat(ByteBuffers.toByteArray(xyz.toByteBuffer())).isEqualTo(xyzBytes);
+
     // Test XYM format (32 bytes: x:y:NaN:m)
     // These bytes represent x=10.0, y=13.0, z=NaN, m=20.0
     byte[] xymBytes =

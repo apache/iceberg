@@ -82,6 +82,9 @@ public class GeospatialPredicateEvaluators {
      */
     @Override
     public boolean intersects(BoundingBox bbox1, BoundingBox bbox2) {
+      validateBoundingBox(bbox1);
+      validateBoundingBox(bbox2);
+
       if (!intersectsYZM(bbox1, bbox2)) {
         return false;
       }
@@ -90,41 +93,21 @@ public class GeospatialPredicateEvaluators {
       return rangeIntersects(bbox1.min().x(), bbox1.max().x(), bbox2.min().x(), bbox2.max().x());
     }
 
-    static boolean intersectsYZM(BoundingBox bbox1, BoundingBox bbox2) {
-      // Check Z dimension (elevation) if both boxes have Z coordinates - no wrap-around
-      if (bbox1.min().hasZ() && bbox1.max().hasZ() && bbox2.min().hasZ() && bbox2.max().hasZ()) {
-        if (!rangeIntersects(bbox1.min().z(), bbox1.max().z(), bbox2.min().z(), bbox2.max().z())) {
-          return false;
-        }
-      }
-
-      // Check M dimension (measure) if both boxes have M coordinates - no wrap-around
-      if (bbox1.min().hasM() && bbox1.max().hasM() && bbox2.min().hasM() && bbox2.max().hasM()) {
-        if (!rangeIntersects(bbox1.min().m(), bbox1.max().m(), bbox2.min().m(), bbox2.max().m())) {
-          return false;
-        }
-      }
-
-      // Check Y dimension (latitude/northing) - no wrap-around
-      if (!rangeIntersects(bbox1.min().y(), bbox1.max().y(), bbox2.min().y(), bbox2.max().y())) {
-        return false;
-      }
-
-      return true;
-    }
-
     /**
-     * Check if two intervals intersect using regular interval logic. Two intervals [min1, max1] and
-     * [min2, max2] intersect if min1 <= max2 AND max1 >= min2.
+     * For geometry types, xmin must not be greater than xmax, ymin must not be greater than ymax.
      *
-     * @param min1 minimum of first interval
-     * @param max1 maximum of first interval
-     * @param min2 minimum of second interval
-     * @param max2 maximum of second interval
-     * @return true if the intervals intersect
+     * @param bbox the bounding box to validate
+     * @throws IllegalArgumentException if the bounding box is invalid
      */
-    static boolean rangeIntersects(double min1, double max1, double min2, double max2) {
-      return min1 <= max2 && max1 >= min2;
+    private void validateBoundingBox(BoundingBox bbox) {
+      Preconditions.checkArgument(
+          bbox.min().x() <= bbox.max().x(),
+          "Invalid X range: %s. xmin cannot be greater than xmax",
+          bbox);
+      Preconditions.checkArgument(
+          bbox.min().y() <= bbox.max().y(),
+          "Invalid Y range: %s. ymin cannot be greater than ymax",
+          bbox);
     }
   }
 
@@ -153,7 +136,7 @@ public class GeospatialPredicateEvaluators {
       validateBoundingBox(bbox1);
       validateBoundingBox(bbox2);
 
-      if (!GeometryEvaluator.intersectsYZM(bbox1, bbox2)) {
+      if (!intersectsYZM(bbox1, bbox2)) {
         return false;
       }
 
@@ -171,13 +154,22 @@ public class GeospatialPredicateEvaluators {
      */
     private void validateBoundingBox(BoundingBox bbox) {
       Preconditions.checkArgument(
-          bbox.min().y() >= -90.0d && bbox.max().y() <= 90.0d, "Latitude out of range: %s", bbox);
+          bbox.min().y() >= -90.0d
+              && bbox.min().y() <= 90.0d
+              && bbox.max().y() >= -90.0d
+              && bbox.max().y() <= 90.0d,
+          "Invalid latitude: %s. Out of range: [-90°, 90°]",
+          bbox);
       Preconditions.checkArgument(
           bbox.min().x() >= -180.0d
               && bbox.min().x() <= 180.0d
               && bbox.max().x() >= -180.0d
               && bbox.max().x() <= 180.0d,
-          "Longitude out of range: %s",
+          "Invalid longitude: %s. Out of range: [-180°, 180°]",
+          bbox);
+      Preconditions.checkArgument(
+          bbox.min().y() <= bbox.max().y(),
+          "Invalid latitude range: %s. ymin cannot be greater than ymax",
           bbox);
     }
 
@@ -198,7 +190,7 @@ public class GeospatialPredicateEvaluators {
 
       if (!interval1WrapsAround && !interval2WrapsAround) {
         // No wrap-around in either interval - use regular intersection
-        return GeometryEvaluator.rangeIntersects(min1, max1, min2, max2);
+        return rangeIntersects(min1, max1, min2, max2);
       } else if (interval1WrapsAround && interval2WrapsAround) {
         // Both intervals wrap around - they must intersect somewhere
         return true;
@@ -210,5 +202,42 @@ public class GeospatialPredicateEvaluators {
         return min2 <= max1 || max2 >= min1;
       }
     }
+  }
+
+  private static boolean intersectsYZM(BoundingBox bbox1, BoundingBox bbox2) {
+    // Check Z dimension (elevation) if both boxes have Z coordinates - no wrap-around
+    if (bbox1.min().hasZ() && bbox1.max().hasZ() && bbox2.min().hasZ() && bbox2.max().hasZ()) {
+      if (!rangeIntersects(bbox1.min().z(), bbox1.max().z(), bbox2.min().z(), bbox2.max().z())) {
+        return false;
+      }
+    }
+
+    // Check M dimension (measure) if both boxes have M coordinates - no wrap-around
+    if (bbox1.min().hasM() && bbox1.max().hasM() && bbox2.min().hasM() && bbox2.max().hasM()) {
+      if (!rangeIntersects(bbox1.min().m(), bbox1.max().m(), bbox2.min().m(), bbox2.max().m())) {
+        return false;
+      }
+    }
+
+    // Check Y dimension (latitude/northing) - no wrap-around
+    if (!rangeIntersects(bbox1.min().y(), bbox1.max().y(), bbox2.min().y(), bbox2.max().y())) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if two intervals intersect using regular interval logic. Two intervals [min1, max1] and
+   * [min2, max2] intersect if min1 <= max2 AND max1 >= min2.
+   *
+   * @param min1 minimum of first interval
+   * @param max1 maximum of first interval
+   * @param min2 minimum of second interval
+   * @param max2 maximum of second interval
+   * @return true if the intervals intersect
+   */
+  private static boolean rangeIntersects(double min1, double max1, double min2, double max2) {
+    return min1 <= max2 && max1 >= min2;
   }
 }
