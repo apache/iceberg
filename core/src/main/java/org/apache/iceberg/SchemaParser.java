@@ -199,6 +199,8 @@ public class SchemaParser {
     if (json.has(defaultField)) {
       Object value = SingleValueParser.fromJson(type, json.get(defaultField));
       if (type instanceof Types.TimestampNanoType) {
+        // Call Expressions.nanos instead of Expressions.lit to prevent overflow
+        // https://github.com/apache/iceberg/issues/13160
         return Expressions.nanos((long) value);
       }
 
