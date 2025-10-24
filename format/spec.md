@@ -1889,10 +1889,10 @@ If the **T1** commits before **T2** then handling **T2** depends on isolation le
 * **SNAPSHOT**: **T2** may be commited even though it used the old `write-default` (this is a permitted serialization anomaly).
 * **SERIALIZABLE**: **T2** must abort.
 
-When a transaction is aborted, the transaction could be retried after updating to the new schema and rewriting the data using the new `write-default`. One way of ensuring SERIALIZABLE isolation is a two phased approach:
+When a transaction is aborted, the transaction could be retried after updating to the new schema and rewriting the data using the new `write-default`. One way of ensuring SERIALIZABLE isolation is a two phased approach when retrying a transaction that does a blind insert to the table:
 
-1. Check if there was a schema change (for the REST catalog this can be done with `assert-current-schema-id`) when committing.
-2. If the schema changed, determine if there was a change to a `write-default` value used in the transaction (if there is no such column the transaction may be retried without rewriting data).
+1. Verify the tables latest schema and the schema loaded for the transaction are identical. If they are not equal continue to step 2. Otherwise the transaction can be retried without further action.
+2. If the schema changed, determine if there was a change to a `write-default` value used in the transaction (if there is no such column the transaction may be retried without rewriting data, otherwise data must be rewritten before commiting).
 
 ## Appendix G: Geospatial Notes
 
