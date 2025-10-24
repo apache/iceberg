@@ -46,12 +46,6 @@ class ApacheHttpClientConfigurations {
   private ApacheHttpClientConfigurations() {}
 
   public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
-    configureHttpClientBuilder(awsClientBuilder, Maps.newHashMap());
-  }
-
-  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(
-      T awsClientBuilder, Map<String, String> properties) {
-
     String cacheKey = generateHttpClientCacheKey();
 
     SdkHttpClient managedHttpClient =
@@ -62,8 +56,7 @@ class ApacheHttpClientConfigurations {
                   ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
                   configureApacheHttpClientBuilder(apacheHttpClientBuilder);
                   return apacheHttpClientBuilder.build();
-                },
-                properties);
+                });
 
     awsClientBuilder.httpClient(managedHttpClient);
   }

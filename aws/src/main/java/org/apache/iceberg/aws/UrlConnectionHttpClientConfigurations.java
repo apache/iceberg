@@ -40,12 +40,6 @@ class UrlConnectionHttpClientConfigurations {
   private UrlConnectionHttpClientConfigurations() {}
 
   public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(T awsClientBuilder) {
-    configureHttpClientBuilder(awsClientBuilder, Maps.newHashMap());
-  }
-
-  public <T extends AwsSyncClientBuilder> void configureHttpClientBuilder(
-      T awsClientBuilder, Map<String, String> properties) {
-
     String cacheKey = generateHttpClientCacheKey();
 
     SdkHttpClient managedHttpClient =
@@ -57,8 +51,7 @@ class UrlConnectionHttpClientConfigurations {
                       UrlConnectionHttpClient.builder();
                   configureUrlConnectionHttpClientBuilder(urlConnectionHttpClientBuilder);
                   return urlConnectionHttpClientBuilder.build();
-                },
-                properties);
+                });
 
     awsClientBuilder.httpClient(managedHttpClient);
   }

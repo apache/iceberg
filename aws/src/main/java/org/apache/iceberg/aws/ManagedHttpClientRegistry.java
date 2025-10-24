@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.aws;
 
-import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -60,11 +59,9 @@ public final class ManagedHttpClientRegistry {
    *
    * @param clientKey unique key identifying the client configuration
    * @param clientFactory factory to create the HTTP client if not cached
-   * @param properties configuration properties for this client
    * @return a ref-counted HTTP client wrapper
    */
-  public SdkHttpClient getOrCreateClient(
-      String clientKey, Supplier<SdkHttpClient> clientFactory, Map<String, String> properties) {
+  public SdkHttpClient getOrCreateClient(String clientKey, Supplier<SdkHttpClient> clientFactory) {
     ManagedHttpClient managedClient =
         clientMap.computeIfAbsent(
             clientKey,

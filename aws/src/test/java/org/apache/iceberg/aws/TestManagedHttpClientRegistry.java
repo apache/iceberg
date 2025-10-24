@@ -25,10 +25,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -65,15 +63,14 @@ public class TestManagedHttpClientRegistry {
 
   @Test
   public void testClientCaching() {
-    Map<String, String> properties = Maps.newHashMap();
     String cacheKey = "test-key";
 
     // First call should create client and increment ref count
-    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey, mockFactory1, properties);
+    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey, mockFactory1);
     verify(mockFactory1, times(1)).get();
 
     // Second call with same key should return cached client and increment ref count again
-    SdkHttpClient client2 = registry.getOrCreateClient(cacheKey, mockFactory1, properties);
+    SdkHttpClient client2 = registry.getOrCreateClient(cacheKey, mockFactory1);
     verify(mockFactory1, times(1)).get(); // Factory should not be called again
 
     assertThat(client1).isSameAs(client2);
@@ -86,12 +83,11 @@ public class TestManagedHttpClientRegistry {
 
   @Test
   public void testDifferentKeysCreateDifferentClients() {
-    Map<String, String> properties = Maps.newHashMap();
     String cacheKey1 = "test-key-1";
     String cacheKey2 = "test-key-2";
 
-    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey1, mockFactory1, properties);
-    SdkHttpClient client2 = registry.getOrCreateClient(cacheKey2, mockFactory2, properties);
+    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey1, mockFactory1);
+    SdkHttpClient client2 = registry.getOrCreateClient(cacheKey2, mockFactory2);
 
     verify(mockFactory1, times(1)).get();
     verify(mockFactory2, times(1)).get();
@@ -149,11 +145,10 @@ public class TestManagedHttpClientRegistry {
 
   @Test
   public void testReleaseRemovesFromRegistry() {
-    Map<String, String> properties = Maps.newHashMap();
     String cacheKey = "test-key";
 
     // Create client (refCount = 1)
-    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey, mockFactory1, properties);
+    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey, mockFactory1);
     assertThat(client1).isNotNull();
 
     ConcurrentMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
@@ -173,7 +168,6 @@ public class TestManagedHttpClientRegistry {
 
   @Test
   public void testConcurrentAccess() throws InterruptedException {
-    Map<String, String> properties = Maps.newHashMap();
     String cacheKey = "concurrent-test-key";
     int threadCount = 10;
     Thread[] threads = new Thread[threadCount];
@@ -185,7 +179,7 @@ public class TestManagedHttpClientRegistry {
       threads[i] =
           new Thread(
               () -> {
-                results[index] = registry.getOrCreateClient(cacheKey, mockFactory1, properties);
+                results[index] = registry.getOrCreateClient(cacheKey, mockFactory1);
               });
     }
 
@@ -218,11 +212,10 @@ public class TestManagedHttpClientRegistry {
   public void testRegistryShutdown() {
     ConcurrentMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
         registry.getClientMap();
-    Map<String, String> properties = Maps.newHashMap();
 
     // Create some clients
-    registry.getOrCreateClient("key1", mockFactory1, properties);
-    registry.getOrCreateClient("key2", mockFactory2, properties);
+    registry.getOrCreateClient("key1", mockFactory1);
+    registry.getOrCreateClient("key2", mockFactory2);
 
     // Verify clients were stored
     assertThat(clientMap.size()).isGreaterThan(0);

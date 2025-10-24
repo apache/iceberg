@@ -100,7 +100,7 @@ public class TestHttpClientProperties {
     ApacheHttpClientConfigurations apacheConfig = ApacheHttpClientConfigurations.create(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
 
-    apacheConfig.configureHttpClientBuilder(mockS3ClientBuilder, properties);
+    apacheConfig.configureHttpClientBuilder(mockS3ClientBuilder);
 
     // Verify that httpClient() is called with a wrapped client (as a shared resource)
     verify(mockS3ClientBuilder).httpClient(any(WrappedSdkHttpClient.class));
@@ -113,7 +113,7 @@ public class TestHttpClientProperties {
         UrlConnectionHttpClientConfigurations.create(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
 
-    urlConfig.configureHttpClientBuilder(mockS3ClientBuilder, properties);
+    urlConfig.configureHttpClientBuilder(mockS3ClientBuilder);
 
     // Verify that httpClient() is called with a wrapped client (as a shared resource)
     verify(mockS3ClientBuilder).httpClient(any(WrappedSdkHttpClient.class));
