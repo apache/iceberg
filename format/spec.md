@@ -1877,7 +1877,7 @@ Although the spec allows for including the deleted row itself (in addition to th
 
 ### Schema Evolution/Type Promotion
 
-Column projection rules are designed so that the table will remain readable even if writers use an outdated schema. At the beginning of a transaction Writers should load the latest schema (the schema referened by `current-schema-id` from the latest table metadata) and use it for reading and writing data.  Note, that in the common cases of schema evolution (adding nullable columns, adding required columns with an `initial-default`, renaming a column, dropping a column, or doing type promotion), appending data with outdated schemas presents no issues under either SNAPSHOT or SERIALIZABLE isolation levels
+Column projection rules are designed so that the table will remain readable even if writers use an outdated schema. At the beginning of a transaction Writers should load the latest schema (the schema referenced by `current-schema-id` from the latest table metadata) and use it for reading and writing data.  Note, that in the common cases of schema evolution (adding nullable columns, adding required columns with an `initial-default`, renaming a column, dropping a column, or doing type promotion), appending data with outdated schemas presents no issues under either SNAPSHOT or SERIALIZABLE isolation levels
 
 However, the less common case of updating default values may need to be handled depending on isolation level. Consider two concurrent transactions:
 
@@ -1889,7 +1889,7 @@ If the **T1** commits before **T2** then handling **T2** depends on isolation le
 * **SNAPSHOT**: **T2** may be commited even though it used the old `write-default` (this is a permitted serialization anomaly).
 * **SERIALIZABLE**: **T2** must abort.
 
-When a transaction is aborted, the transaction could be retried after updating to the new schema and rewriting the data using the new `write-default`. One way of ensuring SERIALIZABLE isolation is a two phased approach when retrying a transaction that does a blind insert to the table:
+When a transaction is aborted, the transaction could be retried after updating to the new schema and rewriting the data using the new `write-default`. One way of ensuring SERIALIZABLE isolation is a two phased approach when retrying a transaction that does a append to the table:
 
 1. Verify the tables latest schema and the schema loaded for the transaction are identical. If they are not equal continue to step 2. Otherwise the transaction can be retried without further action.
 2. If the schema changed, determine if there was a change to a `write-default` value used in the transaction (if there is no such column the transaction may be retried without rewriting data, otherwise data must be rewritten before commiting).
