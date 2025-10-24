@@ -25,6 +25,7 @@ on:
     - '0.*'
     - '1.*'
     - '2.*'
+    - 'new_main'
     tags:
     - 'apache-iceberg-**'
   pull_request:
