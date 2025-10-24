@@ -34,6 +34,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
@@ -160,12 +161,13 @@ class DynamicWriteResultAggregator
     writeResults.forEach(w -> builder.add(w.writeResult()));
     WriteResult result = builder.build();
 
+    Table table = catalog.loadTable(TableIdentifier.parse(key.tableName()));
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result,
             () -> outputFileFactory(key.tableName()).create(checkpointId),
             spec(key.tableName(), key.specId()),
-            2);
+            TableUtil.formatVersion(table));
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
