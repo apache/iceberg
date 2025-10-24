@@ -1894,8 +1894,6 @@ When a transaction is aborted, the transaction could be retried after updating t
 1. Check if there was a schema change (for the REST catalog this can be done with `assert-current-schema-id`) when committing.
 2. If the schema changed, determine if there was a change to a `write-default` value used in the transaction (if there is no such column the transaction may be retried without rewriting data).
 
-Writers must write out all fields with the types specified from the schema loaded at the beginning of the transaction. Writing all fields prevents similar issues as those outlined above but with `initial-default` instead of `write-default` (all nulls can't be distinguished from missing columns that would have initial default substituted).
-
 ## Appendix G: Geospatial Notes
 
 The Geometry and Geography class hierarchy and its Well-known text (WKT) and Well-known binary (WKB) serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
