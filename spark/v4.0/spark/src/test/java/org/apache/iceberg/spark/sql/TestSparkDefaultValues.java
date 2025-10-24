@@ -56,7 +56,7 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testWriteDefaultWithExplicitDEFAULT() {
+  public void testWriteDefaultWithExplicitDefault() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();
