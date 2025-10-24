@@ -30,8 +30,7 @@ The metadata for an Iceberg table tracks the absolute path for data files which 
 
 ## Usage in Processing Engines
 
-The responsibility of reading and writing data files lies with the processing engines and happens during task execution. However, after data files are written, processing engines use FileIO to write new Iceberg metadata files that capture the new state of the table. A blog post that provides a deeper understanding of FileIO is
-[Iceberg FileIO: Cloud Native Tables](https://tabular.io/blog/iceberg-fileio/)
+The responsibility of reading and writing data files lies with the processing engines and happens during task execution. However, after data files are written, processing engines use FileIO to write new Iceberg metadata files that capture the new state of the table.
 
 Different FileIO implementations are used depending on the type of storage. Iceberg comes with a set of FileIO implementations for popular storage providers.
 - Amazon S3
@@ -39,6 +38,3 @@ Different FileIO implementations are used depending on the type of storage. Iceb
 - Object Service Storage (including https)
 - Dell Enterprise Cloud Storage
 - Hadoop (adapts any Hadoop FileSystem implementation)
-
-As an example, take a look at the blog post [Using Iceberg's S3FileIO Implementation to Store Your Data in MinIO](https://tabular.io/blog/minio/)
-which walks through how to use the Amazon S3 FileIO with MinIO.
