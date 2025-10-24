@@ -23,9 +23,10 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.comet.parquet.AbstractColumnReader;
-import org.apache.comet.parquet.BatchReader;
+import org.apache.comet.parquet.IcebergCometBatchReader;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.parquet.CometPageReadStore;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -55,7 +56,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   // calling BatchReader.nextBatch, the isDeleted value is not yet available, so
   // DeleteColumnReader.readBatch must be called explicitly later, after the isDeleted value is
   // available.
-  private final BatchReader delegate;
+  private final IcebergCometBatchReader delegate;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
 
@@ -65,9 +66,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     this.hasIsDeletedColumn =
         readers.stream().anyMatch(reader -> reader instanceof CometDeleteColumnReader);
 
-    AbstractColumnReader[] abstractColumnReaders = new AbstractColumnReader[readers.size()];
-    this.delegate = new BatchReader(abstractColumnReaders);
-    delegate.setSparkSchema(SparkSchemaUtil.convert(schema));
+    this.delegate = new IcebergCometBatchReader(readers.size(), SparkSchemaUtil.convert(schema));
   }
 
   @Override
@@ -79,16 +78,19 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
             && !(readers[i] instanceof CometPositionColumnReader)
             && !(readers[i] instanceof CometDeleteColumnReader)) {
           readers[i].reset();
-          readers[i].setPageReader(pageStore.getPageReader(readers[i].descriptor()));
+          readers[i].setPageReader(((CometPageReadStore) pageStore).getCometRowGroupReader());
         }
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to setRowGroupInfo for Comet vectorization", e);
       }
     }
 
+    AbstractColumnReader[] delegateReaders = new AbstractColumnReader[readers.length];
     for (int i = 0; i < readers.length; i++) {
-      delegate.getColumnReaders()[i] = this.readers[i].delegate();
+      delegateReaders[i] = readers[i].delegate();
     }
+
+    delegate.init(delegateReaders);
 
     this.rowStartPosInBatch =
         pageStore
