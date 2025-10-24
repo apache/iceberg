@@ -18,15 +18,15 @@ title: "SQL UDF Spec"
  - limitations under the License.
  -->
 
-# Iceberg SQL UDF Spec
+# Iceberg UDF Spec
 
 ## Background and Motivation
 
 A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters and executes a function body.
 Depending on the function type, the result can be:
 
-- **Scalar functions (UDFs)** – return a scalar value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
-- **Table functions (UDTFs)** – return a table, i.e., a table with zero or more rows and columns with a uniform schema.
+- **Scalar functions (UDFs)** – returns a scalar value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
+- **Table functions (UDTFs)** – returns a table with zero or more rows of columns with a uniform schema.
 
 Many compute engines (e.g., Spark, Trino) already support UDFs, but in different and incompatible ways. Without a common
 standard, UDFs cannot be reliably shared across engines or reused in multi-engine environments.
