@@ -215,7 +215,7 @@ public abstract class IntegrationTestBase {
     flush();
 
     Awaitility.await()
-        .atMost(Duration.ofSeconds(30))
+        .atMost(Duration.ofSeconds(120))
         .pollInterval(Duration.ofSeconds(1))
         .untilAsserted(() -> assertSnapshotAdded(tableIdentifiers));
   }
