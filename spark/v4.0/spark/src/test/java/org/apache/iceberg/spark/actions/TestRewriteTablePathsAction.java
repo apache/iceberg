@@ -82,6 +82,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import scala.Tuple2;
 
 public class TestRewriteTablePathsAction extends TestBase {
@@ -386,29 +388,46 @@ public class TestRewriteTablePathsAction extends TestBase {
         .hasSize(1);
   }
 
-  @Test
-  public void testPositionDeletes() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"avro", "parquet", "orc"})
+  public void testPositionDeletes(String format) throws Exception {
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithPosDeletes"),
+            2,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, format));
+
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
             Pair.of(
-                table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
+                tableWithPosDeletes
+                    .currentSnapshot()
+                    .addedDataFiles(tableWithPosDeletes.io())
+                    .iterator()
+                    .next()
+                    .location(),
                 0L));
 
-    File file = new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"));
+    File file =
+        new File(
+            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes." + format));
     DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(
-                table, table.io().newOutputFile(file.toURI().toString()), deletes)
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(file.toURI().toString()),
+                deletes)
             .first();
 
-    table.newRowDelta().addDeletes(positionDeletes).commit();
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
 
-    assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).hasSize(1);
+    assertThat(spark.read().format("iceberg").load(tableWithPosDeletes.location()).collectAsList())
+        .hasSize(1);
 
     RewriteTablePath.Result result =
         actions()
-            .rewriteTablePath(table)
+            .rewriteTablePath(tableWithPosDeletes)
             .stagingLocation(stagingLocation())
-            .rewriteLocationPrefix(table.location(), targetTableLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
             .execute();
 
     // We have one more snapshot, an additional manifest list, and a new (delete) manifest,
