@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -98,7 +99,8 @@ public abstract class S3V4RestSignerClient
 
   @Value.Lazy
   public String endpoint() {
-    return properties().getOrDefault(S3_SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
+    return RESTUtil.resolveEndpoint(
+        baseSignerUri(), properties().getOrDefault(S3_SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT));
   }
 
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
@@ -111,7 +113,11 @@ public abstract class S3V4RestSignerClient
   /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
   @Value.Lazy
   public String oauth2ServerUri() {
-    return properties().getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+    String oauth2ServerUri =
+        properties().getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+    return oauth2ServerUri.startsWith("http")
+        ? oauth2ServerUri
+        : RESTUtil.resolveEndpoint(baseSignerUri(), oauth2ServerUri);
   }
 
   @Value.Lazy
@@ -149,11 +155,10 @@ public abstract class S3V4RestSignerClient
     if (null == httpClient) {
       synchronized (S3V4RestSignerClient.class) {
         if (null == httpClient) {
+          // Don't include a base URI because this client may be used for contacting different
+          // catalogs.
           httpClient =
-              HTTPClient.builder(properties())
-                  .uri(baseSignerUri())
-                  .withObjectMapper(S3ObjectMapper.mapper())
-                  .build();
+              HTTPClient.builder(properties()).withObjectMapper(S3ObjectMapper.mapper()).build();
         }
       }
     }
