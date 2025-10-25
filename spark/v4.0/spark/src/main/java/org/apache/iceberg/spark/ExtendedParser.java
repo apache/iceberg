@@ -52,10 +52,10 @@ public interface ExtendedParser extends ParserInterface {
   }
 
   static List<RawOrderField> parseSortOrder(SparkSession spark, String orderString) {
-    if (spark.sessionState().sqlParser() instanceof ExtendedParser) {
-      ExtendedParser parser = (ExtendedParser) spark.sessionState().sqlParser();
+    ExtendedParser extParser = findParser(spark.sessionState().sqlParser(), ExtendedParser.class);
+    if (extParser != null) {
       try {
-        return parser.parseSortOrder(orderString);
+        return extParser.parseSortOrder(orderString);
       } catch (AnalysisException e) {
         throw new IllegalArgumentException(
             String.format("Unable to parse sortOrder: %s", orderString), e);
@@ -64,6 +64,40 @@ public interface ExtendedParser extends ParserInterface {
       throw new IllegalStateException(
           "Cannot parse order: parser is not an Iceberg ExtendedParser");
     }
+  }
+
+  private static <T> T findParser(ParserInterface parser, Class<T> clazz) {
+    ParserInterface current = parser;
+    while (current != null) {
+      if (clazz.isInstance(current)) {
+        return clazz.cast(current);
+      }
+
+      ParserInterface next = getNextDelegateParser(current);
+      if (next == null || next == current) {
+        break;
+      }
+
+      current = next;
+    }
+
+    return null;
+  }
+
+  private static ParserInterface getNextDelegateParser(ParserInterface parser) {
+    try {
+      for (java.lang.reflect.Field field : parser.getClass().getDeclaredFields()) {
+        field.setAccessible(true);
+        Object value = field.get(parser);
+        if (value instanceof ParserInterface && value != parser) {
+          return (ParserInterface) value;
+        }
+      }
+    } catch (Exception e) {
+      // ignore
+    }
+
+    return null;
   }
 
   List<RawOrderField> parseSortOrder(String orderString) throws AnalysisException;
