@@ -63,8 +63,7 @@ public class TestSparkOrcReader extends AvroDataTestBase {
 
   private void writeAndValidateRecords(Schema schema, Iterable<InternalRow> expected)
       throws IOException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = temp.resolve("file.orc").toFile();
 
     try (FileAppender<InternalRow> writer =
         ORC.write(Files.localOutput(testFile))
