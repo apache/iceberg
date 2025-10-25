@@ -256,14 +256,14 @@ public class TableProperties {
   public static final boolean WRITE_OBJECT_STORE_PARTITIONED_PATHS_DEFAULT = true;
 
   /**
-   * @deprecated will be removed in 2.0.0, use {@link #WRITE_DATA_LOCATION} instead.
+   * @deprecated will be removed in 1.12.0, use {@link #WRITE_DATA_LOCATION} instead.
    */
   @Deprecated public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 
   public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
 
   /**
-   * @deprecated will be removed in 2.0.0, use {@link #WRITE_DATA_LOCATION} instead.
+   * @deprecated will be removed in 1.12.0, use {@link #WRITE_DATA_LOCATION} instead.
    */
   @Deprecated
   public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";

@@ -75,7 +75,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   private transient volatile SecureRandom lazyRNG = null;
 
   /**
-   * @deprecated will be removed in 2.0.
+   * @deprecated will be removed in 1.12.0.
    */
   @Deprecated
   public StandardEncryptionManager(
@@ -134,7 +134,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   /**
-   * @deprecated will be removed in 2.0.
+   * @deprecated will be removed in 1.12.0.
    */
   @Deprecated
   public ByteBuffer wrapKey(ByteBuffer secretKey) {
@@ -147,7 +147,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   /**
-   * @deprecated will be removed in 2.0.
+   * @deprecated will be removed in 1.12.0.
    */
   @Deprecated
   public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
