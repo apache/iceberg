@@ -2137,6 +2137,15 @@ components:
           $ref: '#/components/schemas/Type'
         value-required:
           type: boolean
+    
+    VariantType:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          const: "variant"
 
     Type:
       oneOf:
@@ -2144,6 +2153,7 @@ components:
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'
         - $ref: '#/components/schemas/MapType'
+        - $ref: '#/components/schemas/VariantType'
 
     Schema:
       allOf:
