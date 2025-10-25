@@ -19,8 +19,12 @@
 package org.apache.iceberg.parquet;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,6 +76,7 @@ class ParquetMetrics {
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fields) {
     long rowCount = 0L;
+    Set<Integer> columnsWritten = new HashSet<>();
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Multimap<ColumnPath, ColumnChunkMetaData> columns =
         Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
@@ -87,6 +92,7 @@ class ParquetMetrics {
         }
 
         int fieldId = id.intValue();
+        columnsWritten.add(fieldId);
         MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
         if (mode != MetricsModes.None.get()) {
           columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.getTotalSize());
@@ -139,6 +145,7 @@ class ParquetMetrics {
 
     return new Metrics(
         rowCount,
+        columnsWritten,
         columnSizes,
         valueCounts,
         nullValueCounts,
