@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -36,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.variants.Variant;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -229,14 +231,38 @@ class StructInternalRow extends InternalRow {
     return isNullAt(ordinal) ? null : getMapInternal(ordinal);
   }
 
-  @Override
-  public VariantVal getVariant(int ordinal) {
-    throw new UnsupportedOperationException("Unsupported method: getVariant");
-  }
-
   private MapData getMapInternal(int ordinal) {
     return mapToMapData(
         type.fields().get(ordinal).type().asMapType(), struct.get(ordinal, Map.class));
+  }
+
+  @Override
+  public VariantVal getVariant(int ordinal) {
+    return isNullAt(ordinal) ? null : getVariantInternal(ordinal);
+  }
+
+  private VariantVal getVariantInternal(int ordinal) {
+    Object value = struct.get(ordinal, Object.class);
+
+    if (value instanceof VariantVal) {
+      return (VariantVal) value;
+    }
+
+    if (value instanceof Variant) {
+      Variant variant = (Variant) value;
+      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
+      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
+      variant.metadata().writeTo(metadataBuffer, 0);
+
+      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
+      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
+      variant.value().writeTo(valueBuffer, 0);
+
+      return new VariantVal(valueBytes, metadataBytes);
+    }
+
+    throw new UnsupportedOperationException(
+        "Unsupported value for VARIANT in StructInternalRow: " + value.getClass());
   }
 
   @Override
