@@ -25,17 +25,17 @@ title: "SQL UDF Spec"
 A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters and executes a function body.
 Depending on the function type, the result can be:
 
-- **Scalar functions (UDFs)** – returns a scalar value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
-- **Table functions (UDTFs)** – returns a table with zero or more rows of columns with a uniform schema.
+- **Scalar function (UDF)** – returns a scalar value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
+- **Table function (UDTF)** – returns a table with zero or more rows of columns with a uniform schema.
 
 Many compute engines (e.g., Spark, Trino) already support UDFs, but in different and incompatible ways. Without a common
 standard, UDFs cannot be reliably shared across engines or reused in multi-engine environments.
 
-This specification introduces a standardized metadata format for UDFs in Iceberg. 
+This specification introduces a standardized metadata format for UDFs in Iceberg.
 
 ## Goals
 
-* Define a portable metadata format for both scalar and table SQL UDFs. The metadata is self-contained and can be moved across catalogs. 
+* Define a portable metadata format for both scalar and table SQL UDFs. The metadata is self-contained and can be moved across catalogs.
 * Support function evolution through versioning and rollback.
 * Provide consistent semantics for representing UDFs across engines.
 
@@ -45,7 +45,7 @@ UDF metadata follows the same design principles as Iceberg table and view metada
 **self-contained metadata file**. Metadata captures definitions, parameters, return types, documentation, security,
 properties, and engine-specific representations.
 
-* Any modification (new overload, updated representation, changed properties, etc.) creates a new metadata file, and atomically swaps in the new file as the current metadata.
+* Any modification (new definition, updated representation, changed properties, etc.) creates a new metadata file, and atomically swaps in the new file as the current metadata.
 * Each metadata file includes recent definition versions, enabling rollbacks without external state.
 
 ## Specification
@@ -53,37 +53,35 @@ properties, and engine-specific representations.
 ### UDF Metadata
 The UDF metadata file has the following fields:
 
-| Requirement | Field name        | Type                   | Description                                                                                                     |
-|-------------|-------------------|------------------------|-----------------------------------------------------------------------------------------------------------------|
-| *required*  | `function-uuid`   | `string`               | A UUID that identifies the function, generated once at creation.                                                |
-| *required*  | `format-version`  | `int`                  | Metadata format version (must be `1`).                                                                          |
-| *required*  | `definitions`     | `list<overload>`       | List of function [overload](#overload) entities.                                                                |
-| *required*  | `definition-log`  | `list<definition-log>` | History of [definition snapshots](#definition-log).                                                             |
-| *required*  | `max-overload-id` | `long`                 | Highest `overload-id` currently assigned for this UDF. Used to allocate new overload identifiers monotonically. |
-| *optional*  | `location`        | `string`               | Storage location of metadata files.                                                                             |
-| *optional*  | `properties`      | `map`                  | A string to string map of properties.                                                                           |
-| *optional*  | `secure`          | `boolean`              | Whether it is a secure function. Default: `false`.                                                              |
-| *optional*  | `doc`             | `string`               | Documentation string.                                                                                           |
+| Requirement | Field name       | Type                   | Description                                                      |
+|-------------|------------------|------------------------|------------------------------------------------------------------|
+| *required*  | `function-uuid`  | `string`               | A UUID that identifies the function, generated once at creation. |
+| *required*  | `format-version` | `int`                  | Metadata format version (must be `1`).                           |
+| *required*  | `definitions`    | `list<definition>`     | List of function [definition](#definition) entities.             |
+| *required*  | `definition-log` | `list<definition-log>` | History of [definitions snapshots](#definitions-log).            |
+| *optional*  | `location`       | `string`               | Storage location of metadata files.                              |
+| *optional*  | `properties`     | `map`                  | A string to string map of properties.                            |
+| *optional*  | `secure`         | `boolean`              | Whether it is a secure function. Default: `false`.               |
+| *optional*  | `doc`            | `string`               | Documentation string.                                            |
 
 Notes:
-1. When `secure` is `true`,
-    - Engines **SHOULD NOT** expose the function definition through any inspection (e.g., `SHOW FUNCTIONS`).
-    - Engines **SHOULD** ensure that execution does not leak sensitive information through any channels, such as error messages, logs, or query plans.
-   
-### Overload
+1. When `secure` is `true`:
+   - Engines **SHOULD NOT** expose the function definition through inspection (e.g., `SHOW FUNCTIONS`).
+   - Engines **SHOULD** ensure that execution does not leak sensitive information through error messages, logs, or query plans.
 
-Function overloads allow multiple implementations of the same function name with different signatures. Each overload has
-the following fields:
+### Definition
 
-| Requirement | Field name                 | Type                                                   | Description                                                                                   |
-|-------------|----------------------------|--------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| *required*  | `overload-id`              | `long`                                                 | Monotonically increasing identifier of this function overload.                                |
-| *required*  | `parameters`               | `list<parameter>`                                      | Ordered list of [function parameters](#parameter). Invocation order **must** match this list. |
-| *required*  | `return-type`              | `string` (Iceberg data type)                           | Return type. Example: `"string"`, `"struct<...>"`.                                            |
-| *required*  | `versions`                 | `list<overload-version>`                               | [Versioned implementations](#overload-version) of this overload.                              |
-| *required*  | `current-overload-version` | `long`                                                 | Monotonically increasing identifier of the current overload version.                          |
-| *optional*  | `function-type`            | `string` (either `"udf"` or `"udtf"`, default `"udf"`) | If `"udtf"`, `return-type` must be a `struct` describing the output schema.                   |
-| *optional*  | `doc`                      | `string`                                               | Documentation string.                                                                         |
+Each `definition` represents one function signature (e.g., `add_one(int)` vs `add_one(float)`).
+
+| Requirement | Field name           | Type                                            | Description                                                                                   |
+|-------------|----------------------|-------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| *required*  | `definition-id`      | `string`                                        | Monotonically increasing identifier of this function definition.                              |
+| *required*  | `parameters`         | `list<parameter>`                               | Ordered list of [function parameters](#parameter). Invocation order **must** match this list. |
+| *required*  | `return-type`        | `string` (Iceberg data type)                    | Return type. Example: `"string"`, `"struct<...>"`.                                            |
+| *required*  | `versions`           | `list<definition-version>`                      | [Versioned implementations](#definition-version) of this definition.                          |
+| *required*  | `current-version-id` | `long`                                          | Identifier of the current version for this definition.                                        |
+| *optional*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`) | If `"udtf"`, `return-type` must be a `struct` describing the output schema.                   |
+| *optional*  | `doc`                | `string`                                        | Documentation string.                                                                         |
 
 ### Parameter
 | Requirement | Field  | Type                         | Description              |
@@ -93,20 +91,21 @@ the following fields:
 | *optional*  | `doc`  | `string`                     | Parameter documentation. |
 
 Notes:
-1. The `name` and `type` of a `parameter` are immutable. To change them, a new overload must be created. Only the optional documentation field (`doc`) can be updated in-place.
-2. The `return-type` is immutable. To change it, users must create a new overload and deprecate or remove the old one.
+1. The `name` and `type` of a `parameter` are immutable. To change them, a new definition must be created. Only the optional documentation field (`doc`) can be updated in-place.
+2. The `return-type` is immutable. To change it, users must create a new definition and remove the old one.
 
-### Overload-Version
-Each overload can evolve over time by introducing new versions. An overload version represents a specific implementation
-of the overload at a given point in time.
+### Definition-Version
 
-| Requirement | Field name            | Type                                                                                 | Description                                                                             |
-|-------------|-----------------------|--------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| *required*  | `overload-version-id` | `long`                                                                               | Monotonically increasing identifier of the overload version.                            |
-| *required*  | `representations`     | `list<representation>`                                                               | [Dialect-specific implementations](#representation).                                    |
-| *optional*  | `deterministic`       | `boolean` (default `false`)                                                          | Whether the function is deterministic.                                                  |
-| *optional*  | `null-handling`       | `string` (either `"returns_null"` or `"called_on_null"`, default `"called_on_null"`) | Hint describing how the function behaves with NULL input values. See below for details. |
-| *required*  | `timestamp-ms`        | `long` (epoch millis)                                                                | Creation timestamp of this version.                                                     |
+Each definition can evolve over time by introducing new versions.  
+A `definition version` represents a specific implementation of that definition at a given point in time.
+
+| Requirement | Field name        | Type                                                                          | Description                                                                             |
+|-------------|-------------------|-------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| *required*  | `version-id`      | `int`                                                                         | Monotonically increasing identifier of the definition version.                          |
+| *required*  | `representations` | `list<representation>`                                                        | [Dialect-specific implementations](#representation).                                    |
+| *optional*  | `deterministic`   | `boolean` (default `false`)                                                   | Whether the function is deterministic.                                                  |
+| *optional*  | `null-handling`   | `string` (`"returns_null"` or `"called_on_null"`, default `"called_on_null"`) | Hint describing how the function behaves with NULL input values.                        |
+| *required*  | `timestamp-ms`    | `long` (epoch millis)                                                         | Creation timestamp of this version.                                                     |
 
 Note:
 
@@ -116,31 +115,31 @@ the engine can safely rewrite `WHERE f(a,b) > 0` as `WHERE a IS NOT NULL AND b I
 2. If set to `called_on_null`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must execute the function even if some inputs are `NULL`.
 
 ### Representation
-A representation encodes how the overload version is expressed in a specific SQL dialect.
+A representation encodes how the definition version is expressed in a specific SQL dialect.
 
 | Requirement | Field name | Type     | Description                                          |
 |-------------|------------|----------|------------------------------------------------------|
+| *required*  | `type`     | `string` | Must be `"sql"`                                      |
 | *required*  | `dialect`  | `string` | SQL dialect identifier (e.g., `"spark"`, `"trino"`). |
 | *required*  | `body`     | `string` | SQL expression text.                                 |
 
 Note: The `body` must be valid SQL in the specified dialect; validation is the responsibility of the consuming engine.
 
 ### Definition log
-| Requirement | Field name          | Type                                                     | Description                                                     |
-|-------------|---------------------|----------------------------------------------------------|-----------------------------------------------------------------|
-| *required*  | `timestamp-ms`      | `long` (epoch millis)                                    | When the definition snapshot was created or updated.            |
-| *required*  | `overload-versions` | `list<{ overload-id: long, overload-version-id: long }>` | Mapping of each overload to its selected version at this point. |
+| Requirement | Field name            | Type                                               | Description                                                      |
+|-------------|-----------------------|----------------------------------------------------|------------------------------------------------------------------|
+| *required*  | `timestamp-ms`        | `long` (epoch millis)                              | When the definition snapshot was created or updated.             |
+| *required*  | `definition-versions` | `list<{ definition-id: string, version-id: int }>` | Mapping of each definition to its selected version at this time. |
 
 ## Function Resolution in Engines
 Resolution rule is decided by engines, but engines SHOULD:
 1. Prefer exact signature matches over casting or subtyping.
 2. Allow numeric widening (e.g., `INT` --> `BIGINT/FLOAT`) by default.
-3. Require explicit casts for risky conversions (e.g., `STRING` --> `DATE`).
+3. Require explicit casts for unsafe conversions (e.g., `STRING` --> `DATE`).
 
-## Appendix A: UDF Example
+## Appendix A: Example – Overloaded Scalar Function
 
 SQL statement:
-
 ```sql
 CREATE FUNCTION add_one(x INT COMMENT 'Input integer')
 COMMENT 'Add one to the input value'
@@ -159,7 +158,7 @@ RETURN x + 1.0;
    "format-version": 1,
    "definitions": [
       {
-         "overload-id": 1,
+         "definition-id": 1,
          "parameters": [
             { "name": "x", "type": "int", "doc": "Input integer" }
          ],
@@ -167,7 +166,7 @@ RETURN x + 1.0;
          "doc": "Add one to the input integer",
          "versions": [
             {
-               "overload-version-id": 1,
+               "version-id": 1,
                "deterministic": true,
                "representations": [
                   { "dialect": "trino", "body": "x + 2" }
@@ -175,7 +174,7 @@ RETURN x + 1.0;
                "timestamp-ms": 1734507000123
             },
             {
-               "overload-version-id": 2,
+               "version-id": 2,
                "deterministic": true,
                "representations": [
                   { "dialect": "trino", "body": "x + 1" }
@@ -183,10 +182,10 @@ RETURN x + 1.0;
                "timestamp-ms": 1735507000124
             }
          ],
-         "current-overload-version": 2
+         "current-version-id": 2
       },
       {
-         "overload-id": 2,
+         "definition-id": 2,
          "parameters": [
             { "name": "x", "type": "float", "doc": "Input float" }
          ],
@@ -194,7 +193,7 @@ RETURN x + 1.0;
          "doc": "Add one to the input float",
          "versions": [
             {
-               "overload-version-id": 1,
+               "version-id": 1,
                "deterministic": true,
                "representations": [
                   { "dialect": "trino", "body": "x + 1.0" }
@@ -202,26 +201,25 @@ RETURN x + 1.0;
                "timestamp-ms": 1734507001123
             }
          ],
-         "current-overload-version": 1
+         "current-version-id": 1
       }
    ],
    "definition-log": [
       {
          "timestamp-ms": 1734507001123,
-         "overload-versions": [
-            { "overload-id": 1, "overload-version-id": 1 },
-            { "overload-id": 2, "overload-version-id": 1 }
+         "definition-versions": [
+            { "definition-id": 1, "version-id": 1 },
+            { "definition-id": 2, "version-id": 1 }
          ]
       },
       {
          "timestamp-ms": 1735507000124,
-         "overload-versions": [
-            { "overload-id": 1, "overload-version-id": 2 },
-            { "overload-id": 2, "overload-version-id": 1 }
+         "definition-versions": [
+            { "definition-id": 1, "version-id": 2 },
+            { "definition-id": 2, "version-id": 1 }
          ]
       }
    ],
-   "max-overload-id": 2,
    "doc": "Overloaded scalar UDF for integer and float inputs",
    "secure": false
 }
@@ -243,7 +241,7 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
    "format-version": 1,
    "definitions": [
       {
-         "overload-id": 1,
+         "definition-id": 1,
          "parameters": [
             { "name": "c", "type": "string", "doc": "Color of fruits" }
          ],
@@ -258,7 +256,7 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
          "doc": "Return fruits of a specific color from the fruits table",
          "versions": [
             {
-               "overload-version-id": 1,
+               "version-id": 1,
                "deterministic": true,
                "representations": [
                   { "dialect": "trino", "body": "SELECT name, color FROM fruits WHERE color = c" },
@@ -267,18 +265,17 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
                "timestamp-ms": 1734508000123
             }
          ],
-         "current-overload-version": 1
+         "current-version-id": 1
       }
    ],
    "definition-log": [
       {
          "timestamp-ms": 1734508000123,
-         "overload-versions": [
-            { "overload-id": 1, "overload-version-id": 1 }
+         "definition-versions": [
+            { "definition-id": 1, "version-id": 1 }
          ]
       }
    ],
-   "max-overload-id": 1,
    "doc": "UDTF returning (name, color) rows filtered by the given color",
    "secure": false
 }
