@@ -2241,15 +2241,12 @@ components:
       required:
         - type
         - term
-        - value
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["is-null", "not-null", "is-nan", "not-nan"]
         term:
           $ref: '#/components/schemas/Term'
-        value:
-          type: object
 
     LiteralExpression:
       type: object
@@ -2264,7 +2261,7 @@ components:
         term:
           $ref: '#/components/schemas/Term'
         value:
-          type: object
+          $ref: '#/components/schemas/PrimitiveTypeValue'
 
     SetExpression:
       type: object
@@ -2281,7 +2278,7 @@ components:
         values:
           type: array
           items:
-            type: object
+            $ref: '#/components/schemas/PrimitiveTypeValue'
 
     Term:
       oneOf:
