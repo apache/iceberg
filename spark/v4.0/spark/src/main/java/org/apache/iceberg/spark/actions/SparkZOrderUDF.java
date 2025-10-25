@@ -310,7 +310,7 @@ class SparkZOrderUDF implements Serializable {
     } else if (type instanceof TimestampType) {
       return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
     } else if (type instanceof DateType) {
-      return longToOrderedBytesUDF().apply(column.cast(DataTypes.LongType));
+      return longToOrderedBytesUDF().apply(functions.unix_date(column).cast(DataTypes.LongType));
     } else {
       throw new IllegalArgumentException(
           String.format(
