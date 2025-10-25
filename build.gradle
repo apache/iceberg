@@ -51,10 +51,7 @@ try {
   project.logger.error(e.getMessage())
 }
 
-if (JavaVersion.current() == JavaVersion.VERSION_11) {
-  project.ext.jdkVersion = '11'
-  project.ext.extraJvmArgs = []
-} else if (JavaVersion.current() == JavaVersion.VERSION_17 || JavaVersion.current() == JavaVersion.VERSION_21) {
+if (JavaVersion.current() == JavaVersion.VERSION_17 || JavaVersion.current() == JavaVersion.VERSION_21) {
   project.ext.jdkVersion = JavaVersion.current().getMajorVersion().toString()
   project.ext.extraJvmArgs = ["--add-opens", "java.base/java.io=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
@@ -78,7 +75,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_11) {
                               "--add-opens", "java.base/sun.security.action=ALL-UNNAMED",
                               "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED"]
 } else {
-  throw new GradleException("This build must be run with JDK 11 or 17 or 21 but was executed with JDK " + JavaVersion.current())
+  throw new GradleException("This build must be run with JDK 17 or 21 but was executed with JDK " + JavaVersion.current())
 }
 
 tasks.withType(AbstractArchiveTask).configureEach {
@@ -190,7 +187,7 @@ subprojects {
 
   tasks.withType(JavaCompile.class).configureEach {
     options.encoding = "UTF-8"
-    options.release = 11
+    options.release = 17
   }
 
   javadoc {
@@ -249,9 +246,9 @@ subprojects {
     tasks.withType(ScalaCompile.class) {
       scalaCompileOptions.keepAliveMode.set(KeepAliveMode.DAEMON)
       // `options.release` doesn't seem to work for ScalaCompile :(
-      sourceCompatibility = "11"
-      targetCompatibility = "11"
-      scalaCompileOptions.additionalParameters.add("-release:11")
+      sourceCompatibility = "17"
+      targetCompatibility = "17"
+      scalaCompileOptions.additionalParameters.add("-release:17")
     }
   }
 }
@@ -940,8 +937,6 @@ project(':iceberg-arrow') {
 }
 
 project(':iceberg-nessie') {
-  // Starting from Nessie 0.104.2, JDK 17+ is required for test dependencies
-  test.onlyIf { JavaVersion.current() != JavaVersion.VERSION_11 }
   test {
     useJUnitPlatform()
   }
