@@ -76,8 +76,6 @@ data.writeStream
     .toTable("database.table_name")
 ```
 
-If you're using Spark 3.0 or earlier, you need to use `.option("path", "database.table_name").start()`, instead of `.toTable("database.table_name")`.
-
 In the case of the directory-based Hadoop catalog:
 
 ```scala
