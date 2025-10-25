@@ -60,6 +60,14 @@ class GenericWriters {
     return TimestamptzNanoWriter.INSTANCE;
   }
 
+  static ValueWriter<LocalDateTime> timestampMillis() {
+    return TimestampMillisWriter.INSTANCE;
+  }
+
+  static ValueWriter<OffsetDateTime> timestamptzMillis() {
+    return TimestamptzMillisWriter.INSTANCE;
+  }
+
   static ValueWriter<Record> struct(List<ValueWriter<?>> writers) {
     return new GenericRecordWriter(writers);
   }
@@ -130,6 +138,28 @@ class GenericWriters {
     @Override
     public void write(OffsetDateTime timestamptz, Encoder encoder) throws IOException {
       encoder.writeLong(DateTimeUtil.nanosFromTimestamptz(timestamptz));
+    }
+  }
+
+  private static class TimestampMillisWriter implements ValueWriter<LocalDateTime> {
+    private static final TimestampMillisWriter INSTANCE = new TimestampMillisWriter();
+
+    private TimestampMillisWriter() {}
+
+    @Override
+    public void write(LocalDateTime timestamp, Encoder encoder) throws IOException {
+      encoder.writeLong(DateTimeUtil.millisFromTimestamp(timestamp));
+    }
+  }
+
+  private static class TimestamptzMillisWriter implements ValueWriter<OffsetDateTime> {
+    private static final TimestamptzMillisWriter INSTANCE = new TimestamptzMillisWriter();
+
+    private TimestamptzMillisWriter() {}
+
+    @Override
+    public void write(OffsetDateTime timestamptz, Encoder encoder) throws IOException {
+      encoder.writeLong(DateTimeUtil.millisFromTimestamptz(timestamptz));
     }
   }
 
