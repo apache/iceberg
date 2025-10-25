@@ -291,21 +291,17 @@ public abstract class DeleteFilter<T> {
       return requestedSchema;
     }
 
-    // TODO: support adding nested columns. this will currently fail when finding nested columns to
-    // add
-    List<Types.NestedField> columns = Lists.newArrayList(requestedSchema.columns());
-    for (int fieldId : missingIds) {
-      if (fieldId == MetadataColumns.ROW_POSITION.fieldId()
-          || fieldId == MetadataColumns.IS_DELETED.fieldId()) {
-        continue; // add _pos and _deleted at the end
-      }
+    // Merge requested schema fields with missing IDs (excluding metadata columns)
+    Set<Integer> allRequiredIds = mergeFieldIds(requestedSchema, missingIds);
 
-      Types.NestedField field = tableSchema.asStruct().field(fieldId);
-      Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
+    // Convert field IDs to full column names to preserve nested field paths
+    Set<String> columnNames = getColumnNamesForFieldIds(tableSchema, allRequiredIds);
 
-      columns.add(field);
-    }
+    // Use Schema.select() to create a projection that preserves the full nested structure
+    Schema projection = tableSchema.select(columnNames);
 
+    // Add metadata columns if needed
+    List<Types.NestedField> columns = Lists.newArrayList(projection.columns());
     if (missingIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
       columns.add(MetadataColumns.ROW_POSITION);
     }
@@ -314,6 +310,59 @@ public abstract class DeleteFilter<T> {
       columns.add(MetadataColumns.IS_DELETED);
     }
 
+    if (missingIds.contains(MetadataColumns.ROW_ID.fieldId())) {
+      columns.add(MetadataColumns.ROW_ID);
+    }
+
+    if (missingIds.contains(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId())) {
+      columns.add(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+    }
+
     return new Schema(columns);
+  }
+
+  /**
+   * Merges field IDs from requested schema with missing IDs, excluding metadata columns.
+   *
+   * @param requestedSchema the schema requested by the user
+   * @param missingIds the set of field IDs missing from the requested schema
+   * @return combined set of field IDs (metadata columns excluded)
+   */
+  private static Set<Integer> mergeFieldIds(Schema requestedSchema, Set<Integer> missingIds) {
+    Set<Integer> allRequiredIds = Sets.newLinkedHashSet();
+
+    // Add field IDs from requested schema, excluding metadata columns
+    for (int fieldId : TypeUtil.getProjectedIds(requestedSchema)) {
+      if (!MetadataColumns.isMetadataColumn(fieldId)) {
+        allRequiredIds.add(fieldId);
+      }
+    }
+
+    // Add missing field IDs, excluding metadata columns (they'll be added at the end)
+    for (int fieldId : missingIds) {
+      if (!MetadataColumns.isMetadataColumn(fieldId)) {
+        allRequiredIds.add(fieldId);
+      }
+    }
+
+    return allRequiredIds;
+  }
+
+  /**
+   * Converts field IDs to full column names (e.g., "structData.nestedField").
+   *
+   * @param tableSchema the table schema to look up field names
+   * @param fieldIds the set of field IDs to convert
+   * @return a set of full column names preserving nested field paths
+   */
+  private static Set<String> getColumnNamesForFieldIds(Schema tableSchema, Set<Integer> fieldIds) {
+    Set<String> columnNames = Sets.newLinkedHashSet();
+    for (int fieldId : fieldIds) {
+      String columnName = tableSchema.findColumnName(fieldId);
+      Preconditions.checkArgument(
+          columnName != null, "Cannot find required field for ID %s", fieldId);
+      columnNames.add(columnName);
+    }
+    return columnNames;
   }
 }
