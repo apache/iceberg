@@ -64,6 +64,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
       optionalInParameter("snapshot_ids", DataTypes.createArrayType(DataTypes.LongType));
   private static final ProcedureParameter CLEAN_EXPIRED_METADATA_PARAM =
       optionalInParameter("clean_expired_metadata", DataTypes.BooleanType);
+  private static final ProcedureParameter LOG_EXPIRE_FILES =
+      optionalInParameter("log_expire_files", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -73,7 +75,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
         MAX_CONCURRENT_DELETES_PARAM,
         STREAM_RESULTS_PARAM,
         SNAPSHOT_IDS_PARAM,
-        CLEAN_EXPIRED_METADATA_PARAM
+        CLEAN_EXPIRED_METADATA_PARAM,
+        LOG_EXPIRE_FILES
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -126,7 +129,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Boolean streamResult = input.asBoolean(STREAM_RESULTS_PARAM, null);
     long[] snapshotIds = input.asLongArray(SNAPSHOT_IDS_PARAM, null);
     Boolean cleanExpiredMetadata = input.asBoolean(CLEAN_EXPIRED_METADATA_PARAM, null);
-
+    Boolean logExpireFiles = input.asBoolean(LOG_EXPIRE_FILES, null);
     Preconditions.checkArgument(
         maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
         "max_concurrent_deletes should have value > 0, value: %s",
@@ -172,6 +175,11 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
 
           if (cleanExpiredMetadata != null) {
             action.cleanExpiredMetadata(cleanExpiredMetadata);
+          }
+
+          if (logExpireFiles != null && logExpireFiles) {
+            action.option(
+                ExpireSnapshotsSparkAction.LOG_EXPIRE_FILES, Boolean.toString(logExpireFiles));
           }
 
           ExpireSnapshots.Result result = action.execute();
