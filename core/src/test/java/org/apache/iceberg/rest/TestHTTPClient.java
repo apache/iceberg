@@ -23,10 +23,13 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
@@ -52,6 +55,7 @@ import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.auth.TLSConfigurer;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
@@ -61,6 +65,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentMatcher;
+import org.mockito.Mockito;
 import org.mockserver.configuration.Configuration;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.matchers.Times;
@@ -85,6 +91,7 @@ public class TestHTTPClient {
   private static String icebergBuildFullVersion;
   private static ClientAndServer mockServer;
   private static RESTClient restClient;
+  private static AuthSession authSession;
 
   public static class DefaultTLSConfigurer implements TLSConfigurer {
     public static int count = 0;
@@ -101,10 +108,14 @@ public class TestHTTPClient {
   @BeforeAll
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
+    authSession =
+        Mockito.spy(
+            DefaultAuthSession.of(
+                HTTPHeaders.of(ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN))));
     restClient =
         HTTPClient.builder(ImmutableMap.of(HTTPClient.REST_USER_AGENT, TEST_USER_AGENT))
             .uri(URI)
-            .withAuthSession(AuthSession.EMPTY)
+            .withAuthSession(authSession)
             .build();
     icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
     icebergBuildFullVersion = IcebergBuild.fullVersion();
@@ -123,7 +134,7 @@ public class TestHTTPClient {
 
   @Test
   public void testPostFailure() throws Exception {
-    testHttpMethodOnFailure(HttpMethod.POST);
+    testHttpMethodOnFailure(HttpMethod.POST, HttpStatus.SC_NOT_FOUND);
   }
 
   @Test
@@ -133,7 +144,7 @@ public class TestHTTPClient {
 
   @Test
   public void testGetFailure() throws Exception {
-    testHttpMethodOnFailure(HttpMethod.GET);
+    testHttpMethodOnFailure(HttpMethod.GET, HttpStatus.SC_NOT_FOUND);
   }
 
   @Test
@@ -143,7 +154,7 @@ public class TestHTTPClient {
 
   @Test
   public void testDeleteFailure() throws Exception {
-    testHttpMethodOnFailure(HttpMethod.DELETE);
+    testHttpMethodOnFailure(HttpMethod.DELETE, HttpStatus.SC_NOT_FOUND);
   }
 
   @Test
@@ -153,7 +164,26 @@ public class TestHTTPClient {
 
   @Test
   public void testHeadFailure() throws JsonProcessingException {
-    testHttpMethodOnFailure(HttpMethod.HEAD);
+    testHttpMethodOnFailure(HttpMethod.HEAD, HttpStatus.SC_NOT_FOUND);
+  }
+
+  @Test
+  public void testUnauthorized() throws JsonProcessingException {
+    Map<String, String> expectedParams =
+        Map.of(
+            "realm", "Iceberg",
+            "error", "invalid_token",
+            "error_description", "The access token expired");
+    ArgumentMatcher<HTTPChallenge> challengeMatcher =
+        challenge ->
+            challenge.scheme().equals("Bearer")
+                && challenge.params().equals(expectedParams)
+                && challenge.value() == null;
+    when(authSession.processChallenge(any(), any(), argThat(challengeMatcher), eq(1)))
+        .thenAnswer(invocation -> invocation.getArgument(1));
+    testHttpMethodOnFailure(HttpMethod.POST, HttpStatus.SC_UNAUTHORIZED);
+    Mockito.verify(authSession).processChallenge(any(), any(), argThat(challengeMatcher), eq(1));
+    Mockito.verify(authSession).processChallenge(any(), any(), argThat(challengeMatcher), eq(2));
   }
 
   @Test
@@ -449,12 +479,12 @@ public class TestHTTPClient {
 
   @Test
   public void testCloseChild() throws IOException {
-    AuthSession authSession = mock(AuthSession.class);
-    try (RESTClient child = restClient.withAuthSession(authSession)) {
+    AuthSession session = mock(AuthSession.class);
+    try (RESTClient child = restClient.withAuthSession(session)) {
       assertThat(child).isNotNull().isNotSameAs(restClient);
     }
 
-    verify(authSession, never().description("RESTClient should not close the AuthSession")).close();
+    verify(session, never().description("RESTClient should not close the AuthSession")).close();
     assertThatCode(() -> testHttpMethodOnSuccess(HttpMethod.POST))
         .as("Parent RESTClient should still be operational after child is closed")
         .doesNotThrowAnyException();
@@ -502,9 +532,9 @@ public class TestHTTPClient {
     verify(onError, never()).accept(any());
   }
 
-  public static void testHttpMethodOnFailure(HttpMethod method) throws JsonProcessingException {
+  public static void testHttpMethodOnFailure(HttpMethod method, int statusCode)
+      throws JsonProcessingException {
     Item body = new Item(0L, "hank");
-    int statusCode = 404;
 
     ErrorHandler onError = mock(ErrorHandler.class);
     doThrow(
@@ -575,7 +605,15 @@ public class TestHTTPClient {
     // Build the expected response
     HttpResponse mockResponse = response().withStatusCode(statusCode);
 
-    if (method.usesResponseBody()) {
+    Times times = Times.exactly(1);
+
+    if (statusCode == HttpStatus.SC_UNAUTHORIZED) {
+      mockResponse =
+          mockResponse.withHeader(
+              "WWW-Authenticate",
+              "Bearer realm=\"Iceberg\", error=\"invalid_token\", error_description=\"The access token expired\"");
+      times = Times.unlimited();
+    } else if (method.usesResponseBody()) {
       if (isSuccess) {
         // Simply return the passed in item in the success case.
         mockResponse = mockResponse.withBody(asJson);
@@ -586,8 +624,7 @@ public class TestHTTPClient {
       }
     }
 
-    mockServer.when(mockRequest, Times.exactly(1)).respond(mockResponse);
-
+    mockServer.when(mockRequest, times).respond(mockResponse);
     return path;
   }
 
@@ -597,18 +634,17 @@ public class TestHTTPClient {
       Item body,
       ErrorHandler onError,
       Consumer<Map<String, String>> responseHeaders) {
-    Map<String, String> headers = ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
     switch (method) {
       case POST:
-        return restClient.post(path, body, Item.class, headers, onError, responseHeaders);
+        return restClient.post(path, body, Item.class, Map.of(), onError, responseHeaders);
       case GET:
         return restClient.get(
-            path, ImmutableMap.of(), Item.class, headers, onError, responseHeaders);
+            path, ImmutableMap.of(), Item.class, Map.of(), onError, responseHeaders);
       case HEAD:
-        restClient.head(path, headers, onError);
+        restClient.head(path, Map.of(), onError);
         return null;
       case DELETE:
-        return restClient.delete(path, Item.class, () -> headers, onError);
+        return restClient.delete(path, Item.class, Map.of(), onError);
       default:
         throw new IllegalArgumentException(String.format("Invalid method: %s", method));
     }

@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.rest.auth;
 
+import javax.annotation.Nullable;
+import org.apache.iceberg.rest.HTTPChallenge;
 import org.apache.iceberg.rest.HTTPRequest;
+import org.apache.iceberg.rest.RESTClient;
 
 /**
  * An authentication session that can be used to authenticate outgoing HTTP requests.
@@ -45,6 +48,30 @@ public interface AuthSession extends AutoCloseable {
    * Authenticates the given request and returns a new request with the necessary authentication.
    */
   HTTPRequest authenticate(HTTPRequest request);
+
+  /**
+   * Called when the request was challenged (the server returned a 401 response).
+   *
+   * <p>Implementations may choose to return a new request with updated authentication data, or null
+   * if the request should not be retried. The default implementation returns null.
+   *
+   * <p>If this method returns null, the 401 response will be surfaced to the caller as a {@link
+   * org.apache.iceberg.exceptions.NotAuthorizedException}.
+   *
+   * @param restClient the REST client that sent the request
+   * @param request the original request that caused the authentication failure
+   * @param challenge the authentication challenge
+   * @param retryAttempt the retry attempt number, starting with 1
+   * @return a new request with updated authentication headers, or null if the request should not be
+   *     retried
+   * @see <a href="https://datatracker.ietf.org/doc/html/rfc7235#section-2.1">RFC 7235 Section
+   *     2.1</a>
+   */
+  @Nullable
+  default HTTPRequest processChallenge(
+      RESTClient restClient, HTTPRequest request, HTTPChallenge challenge, int retryAttempt) {
+    return null;
+  }
 
   /**
    * Closes the session and releases any resources. This method is called when the session is no
