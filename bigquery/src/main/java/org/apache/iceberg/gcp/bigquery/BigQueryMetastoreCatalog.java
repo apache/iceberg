@@ -190,8 +190,13 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    // TODO: Enable once supported by BigQuery API.
-    throw new UnsupportedOperationException("Table rename operation is unsupported.");
+    validateNamespace(from.namespace());
+    validateNamespace(to.namespace());
+
+    TableReference fromTableRef = toTableReference(from);
+    TableReference toTableRef = toTableReference(to);
+
+    client.rename(fromTableRef, toTableRef);
   }
 
   @Override
