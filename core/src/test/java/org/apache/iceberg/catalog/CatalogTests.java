@@ -38,11 +38,14 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.HistoryEntry;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.ReplaceSortOrder;
@@ -89,6 +92,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   protected static final TableIdentifier TABLE = TableIdentifier.of(NS, "newtable");
   protected static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
   protected static final TableIdentifier TBL = TableIdentifier.of("ns", "tbl");
+
+  protected static final Namespace REST_DB = Namespace.of("restDB");
+  public static final TableIdentifier TABLE_COMPLETED_WITH_FILE_SCAN_TASK =
+      TableIdentifier.of(REST_DB, "table_completed_with_file_scan_task");
+  public static final TableIdentifier TABLE_SUBMITTED_WITH_FILE_SCAN_TASK =
+      TableIdentifier.of(REST_DB, "table_submitted_with_file_scan_task");
+  public static final TableIdentifier TABLE_COMPLETED_WITH_PLAN_TASK =
+      TableIdentifier.of(REST_DB, "table_completed_with_plan_task");
+  public static final TableIdentifier TABLE_COMPLETED_WITH_NESTED_PLAN_TASK =
+      TableIdentifier.of(REST_DB, "table_completed_with_nested_plan_task");
 
   // Schema passed to create tables
   protected static final Schema SCHEMA =
@@ -154,6 +167,52 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .withFileSizeInBytes(10)
           .withPartitionPath("id_bucket=2") // easy way to set partition data for now
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
+          .build();
+
+  // Delete files for testing
+  protected static final DeleteFile FILE_A_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=0") // same partition as FILE_A
+          .withRecordCount(1)
+          .build();
+
+  protected static final DeleteFile FILE_A_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-a-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=0") // same partition as FILE_A
+          .withRecordCount(1)
+          .build();
+
+  protected static final DeleteFile FILE_B_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-b-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=1") // same partition as FILE_B
+          .withRecordCount(1)
+          .build();
+
+  protected static final DeleteFile FILE_B_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-b-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=1") // same partition as FILE_B
+          .withRecordCount(1)
+          .build();
+
+  protected static final DeleteFile FILE_C_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-c-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=2") // same partition as FILE_C
+          .withRecordCount(1)
           .build();
 
   protected abstract C catalog();
@@ -3324,5 +3383,35 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     namespaces.addAll(starting);
     namespaces.addAll(Arrays.asList(additional));
     return namespaces;
+  }
+
+  public void assertBoundFileScanTasks(Table table, PartitionSpec partitionSpec) {
+    PartitionData partitionData = new PartitionData(partitionSpec.partitionType());
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      Streams.stream(tasks)
+          .forEach(
+              task -> {
+                // assert file scan task spec being bound
+                assertThat(task.spec().equals(partitionSpec));
+                // assert data file spec being bound
+                assertThat(task.file().partition().equals(partitionData));
+                // assert all delete files in task are bound
+                task.deletes()
+                    .forEach(
+                        deleteFile -> assertThat(deleteFile.partition().equals(partitionData)));
+              });
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public void assertBoundFiles(Table table, DataFile dataFile) {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      Streams.stream(tasks)
+          .map(FileScanTask::file)
+          .forEach(file -> assertThat(file.partition()).isEqualTo(dataFile.partition()));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 }

@@ -105,8 +105,8 @@ public class TableScanResponseParser {
 
     if (fileScanTasks != null) {
       gen.writeArrayFieldStart(FILE_SCAN_TASKS);
-      Set<Integer> deleteFileReferences = Sets.newHashSet();
       for (FileScanTask fileScanTask : fileScanTasks) {
+        Set<Integer> deleteFileReferences = Sets.newHashSet();
         if (deleteFiles != null) {
           for (DeleteFile taskDelete : fileScanTask.deletes()) {
             deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.path().toString()));

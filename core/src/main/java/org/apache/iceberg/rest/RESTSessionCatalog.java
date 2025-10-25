@@ -36,10 +36,12 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RESTTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
@@ -112,6 +114,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    */
   @Deprecated public static final String REST_PAGE_SIZE = "rest-page-size";
 
+  // rest scan planning endpoint
+  public static final String REST_SERVER_PLANNING_ENABLED = "rest-server-planning-enabled";
+
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
   private static final Set<Endpoint> DEFAULT_ENDPOINTS =
@@ -157,6 +162,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
+  private boolean restServerPlanningEnabled;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
 
@@ -256,6 +262,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+    this.restServerPlanningEnabled =
+        PropertyUtil.propertyAsBoolean(mergedProps, REST_SERVER_PLANNING_ENABLED, false);
     super.initialize(name, mergedProps);
   }
 
@@ -460,6 +468,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
+    RESTTable restTable = restTableForScanPlanning(ops, finalIdentifier, tableClient);
+    if (restTable != null) {
+      return restTable;
+    }
+
     BaseTable table =
         new BaseTable(
             ops,
@@ -470,6 +483,23 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     return table;
+  }
+
+  private RESTTable restTableForScanPlanning(
+      TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
+    // server supports remote planning and the client has it enabled
+    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restServerPlanningEnabled) {
+      return new RESTTable(
+          ops,
+          fullTableName(finalIdentifier),
+          metricsReporter(paths.metrics(finalIdentifier), restClient),
+          restClient,
+          paths.table(finalIdentifier),
+          Map::of,
+          finalIdentifier,
+          paths);
+    }
+    return null;
   }
 
   private void trackFileIO(RESTTableOperations ops) {
@@ -538,6 +568,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     trackFileIO(ops);
+
+    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+    if (restTable != null) {
+      return restTable;
+    }
 
     return new BaseTable(
         ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
@@ -797,6 +832,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               endpoints);
 
       trackFileIO(ops);
+
+      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+      if (restTable != null) {
+        return restTable;
+      }
 
       return new BaseTable(
           ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
