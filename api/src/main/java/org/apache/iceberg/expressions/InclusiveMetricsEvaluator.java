@@ -471,6 +471,22 @@ public class InclusiveMetricsEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean endsWith(Bound<T> term, Literal<T> lit) {
+      // the only transforms that produce strings are truncate and identity, which work with this
+      int id = term.ref().fieldId();
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEndsWith(Bound<T> term, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
     private boolean mayContainNull(Integer id) {
       return nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0;
     }
