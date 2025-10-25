@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -27,13 +28,20 @@ import org.apache.iceberg.metrics.MetricsContext;
 
 abstract class BaseGCSFile {
   private final Storage storage;
+  private final GcsFileSystem gcsFileSystem;
   private final GCPProperties gcpProperties;
   private final BlobId blobId;
   private Blob metadata;
   private final MetricsContext metrics;
 
-  BaseGCSFile(Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
+  BaseGCSFile(
+      Storage storage,
+      GcsFileSystem gcsFileSystem,
+      BlobId blobId,
+      GCPProperties gcpProperties,
+      MetricsContext metrics) {
     this.storage = storage;
+    this.gcsFileSystem = gcsFileSystem;
     this.blobId = blobId;
     this.gcpProperties = gcpProperties;
     this.metrics = metrics;
@@ -45,6 +53,10 @@ abstract class BaseGCSFile {
 
   Storage storage() {
     return storage;
+  }
+
+  GcsFileSystem gcsFileSystem() {
+    return gcsFileSystem;
   }
 
   URI uri() {
