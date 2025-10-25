@@ -23,7 +23,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import org.apache.iceberg.BaseMetastoreOperations.CommitStatus;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -146,9 +145,13 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   protected String writeNewMetadataIfRequired(boolean newTable, TableMetadata metadata) {
-    return newTable && metadata.metadataFileLocation() != null
+    return reuseMetadataLocation(newTable, metadata)
         ? metadata.metadataFileLocation()
         : writeNewMetadata(metadata, currentVersion() + 1);
+  }
+
+  protected boolean reuseMetadataLocation(boolean newTable, TableMetadata metadata) {
+    return newTable && metadata.metadataFileLocation() != null;
   }
 
   protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
