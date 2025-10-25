@@ -414,7 +414,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     private void openCurrent() {
-      if (partitionKey == null) {
+      if (spec.isUnpartitioned() || partitionKey == null) {
         // unpartitioned
         this.currentFile = fileFactory.newOutputFile();
       } else {
