@@ -109,14 +109,14 @@ class PrefixedS3Client implements AutoCloseable {
   @Override
   public void close() {
     if (null != s3Client) {
+      // cleanup usage in analytics accelerator if any
+      if (s3FileIOProperties().isS3AnalyticsAcceleratorEnabled()) {
+        AnalyticsAcceleratorUtil.cleanupCache(s3Client, s3FileIOProperties);
+      }
       s3Client.close();
     }
 
     if (null != s3AsyncClient) {
-      // cleanup usage in analytics accelerator if any
-      if (s3FileIOProperties().isS3AnalyticsAcceleratorEnabled()) {
-        AnalyticsAcceleratorUtil.cleanupCache(s3AsyncClient, s3FileIOProperties);
-      }
       s3AsyncClient.close();
     }
   }
