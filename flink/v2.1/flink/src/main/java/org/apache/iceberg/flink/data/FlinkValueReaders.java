@@ -191,10 +191,10 @@ public class FlinkValueReaders {
 
     @Override
     public TimestampData read(Decoder decoder, Object reuse) throws IOException {
-      long nanos = decoder.readLong();
-      long mills = Math.floorDiv(nanos, 1_000_000);
-      int leftover = Math.floorMod(nanos, 1_000_000);
-      return TimestampData.fromEpochMillis(mills, leftover);
+      long storedValue = decoder.readLong();
+      long mills = Math.floorDiv(storedValue, 1_000_000L);
+      int leftoverNanos = (int) Math.floorMod(storedValue, 1_000_000L);
+      return TimestampData.fromEpochMillis(mills, leftoverNanos);
     }
   }
 
