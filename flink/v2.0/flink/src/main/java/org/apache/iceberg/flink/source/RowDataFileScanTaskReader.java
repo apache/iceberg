@@ -46,7 +46,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
@@ -84,13 +83,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   @Override
   public CloseableIterator<RowData> open(
       FileScanTask task, InputFilesDecryptor inputFilesDecryptor) {
-    Schema partitionSchema = TypeUtil.select(projectedSchema, task.spec().identitySourceIds());
-
-    Map<Integer, ?> idToConstant =
-        partitionSchema.columns().isEmpty()
-            ? ImmutableMap.of()
-            : PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
-
+    Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
     FlinkDeleteFilter deletes =
         new FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor);
     CloseableIterable<RowData> iterable =
