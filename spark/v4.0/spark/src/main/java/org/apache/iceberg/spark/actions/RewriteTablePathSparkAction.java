@@ -69,6 +69,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
@@ -93,8 +94,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private static final String RESULT_LOCATION = "file-list";
   static final String NOT_APPLICABLE = "N/A";
 
-  private String sourcePrefix;
-  private String targetPrefix;
+  private Map<String, String> prefixMappings = Maps.newConcurrentMap();
+
   private String startVersionName;
   private String endVersionName;
   private String stagingDir;
@@ -117,8 +118,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   public RewriteTablePath rewriteLocationPrefix(String sPrefix, String tPrefix) {
     Preconditions.checkArgument(
         sPrefix != null && !sPrefix.isEmpty(), "Source prefix('%s') cannot be empty.", sPrefix);
-    this.sourcePrefix = sPrefix;
-    this.targetPrefix = tPrefix;
+    Preconditions.checkArgument(tPrefix != null, "Target prefix cannot be null.");
+    Preconditions.checkArgument(
+        !sPrefix.equals(tPrefix),
+        "Source prefix cannot be the same as target prefix (%s)",
+        sPrefix);
+    this.prefixMappings.put(sPrefix, tPrefix);
     return this;
   }
 
@@ -171,17 +176,21 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private void validateInputs() {
     Preconditions.checkArgument(
-        sourcePrefix != null && !sourcePrefix.isEmpty(),
-        "Source prefix('%s') cannot be empty.",
-        sourcePrefix);
-    Preconditions.checkArgument(
-        targetPrefix != null && !targetPrefix.isEmpty(),
-        "Target prefix('%s') cannot be empty.",
-        targetPrefix);
-    Preconditions.checkArgument(
-        !sourcePrefix.equals(targetPrefix),
-        "Source prefix cannot be the same as target prefix (%s)",
-        sourcePrefix);
+        !prefixMappings.isEmpty(), "At least one source-target prefix pair must be specified.");
+
+    for (Map.Entry<String, String> entry : prefixMappings.entrySet()) {
+      String sourcePrefix = entry.getKey();
+      String targetPrefix = entry.getValue();
+      Preconditions.checkArgument(
+          sourcePrefix != null && !sourcePrefix.isEmpty(),
+          "Source prefix('%s') cannot be empty.",
+          sourcePrefix);
+      Preconditions.checkArgument(targetPrefix != null, "Target prefix cannot be null.");
+      Preconditions.checkArgument(
+          !sourcePrefix.equals(targetPrefix),
+          "Source prefix cannot be the same as target prefix (%s)",
+          sourcePrefix);
+    }
 
     validateAndSetEndVersion();
     validateAndSetStartVersion();
@@ -244,17 +253,32 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private String jobDesc() {
-    if (startVersionName == null) {
-      return String.format(
-          "Replacing path prefixes '%s' with '%s' in the metadata files of table %s,"
-              + "up to version '%s'.",
-          sourcePrefix, targetPrefix, table.name(), endVersionName);
-    } else {
-      return String.format(
-          "Replacing path prefixes '%s' with '%s' in the metadata files of table %s,"
-              + "from version '%s' to '%s'.",
-          sourcePrefix, targetPrefix, table.name(), startVersionName, endVersionName);
+    StringBuilder desc = new StringBuilder();
+    desc.append("Replacing path prefixes ");
+    boolean first = true;
+    for (Map.Entry<String, String> entry : prefixMappings.entrySet()) {
+      if (!first) {
+        desc.append(", ");
+      }
+      desc.append("'")
+          .append(entry.getKey())
+          .append("' with '")
+          .append(entry.getValue())
+          .append("'");
+      first = false;
     }
+    desc.append(" in the metadata files of table ").append(table.name());
+
+    if (startVersionName == null) {
+      desc.append(", up to version '").append(endVersionName).append("'.");
+    } else {
+      desc.append(", from version '")
+          .append(startVersionName)
+          .append("' to '")
+          .append(endVersionName)
+          .append("'.");
+    }
+    return desc.toString();
   }
 
   /**
@@ -385,14 +409,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       TableMetadata metadata, String versionFilePath) {
     Set<Pair<String, String>> result = Sets.newHashSet();
     String stagingPath =
-        RewriteTablePathUtil.stagingPath(versionFilePath, sourcePrefix, stagingDir);
-    TableMetadata newTableMetadata =
-        RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix);
+        RewriteTablePathUtil.stagingPath(versionFilePath, prefixMappings, stagingDir);
+    TableMetadata newTableMetadata = RewriteTablePathUtil.replacePaths(metadata, prefixMappings);
     TableMetadataParser.overwrite(newTableMetadata, table.io().newOutputFile(stagingPath));
-    result.add(
-        Pair.of(
-            stagingPath,
-            RewriteTablePathUtil.newPath(versionFilePath, sourcePrefix, targetPrefix)));
+    result.add(Pair.of(stagingPath, RewriteTablePathUtil.newPath(versionFilePath, prefixMappings)));
 
     // include statistics files in copy plan
     result.addAll(
@@ -459,23 +479,20 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     RewriteResult<ManifestFile> result = new RewriteResult<>();
 
     String path = snapshot.manifestListLocation();
-    String outputPath = RewriteTablePathUtil.stagingPath(path, sourcePrefix, stagingDir);
+    String outputPath = RewriteTablePathUtil.stagingPath(path, prefixMappings, stagingDir);
     RewriteResult<ManifestFile> rewriteResult =
         RewriteTablePathUtil.rewriteManifestList(
             snapshot,
             table.io(),
             tableMetadata,
             manifestsToRewrite,
-            sourcePrefix,
-            targetPrefix,
+            prefixMappings,
             stagingDir,
             outputPath);
 
     result.append(rewriteResult);
     // add the manifest list copy plan itself to the result
-    result
-        .copyPlan()
-        .add(Pair.of(outputPath, RewriteTablePathUtil.newPath(path, sourcePrefix, targetPrefix)));
+    result.copyPlan().add(Pair.of(outputPath, RewriteTablePathUtil.newPath(path, prefixMappings)));
     return result;
   }
 
@@ -549,8 +566,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                 sparkContext().broadcast(deltaSnapshotIds),
                 stagingDir,
                 tableMetadata.formatVersion(),
-                sourcePrefix,
-                targetPrefix),
+                prefixMappings),
             Encoders.bean(RewriteContentFileResult.class))
         // duplicates are expected here as the same data file can have different statuses
         // (e.g. added and deleted)
@@ -562,8 +578,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Broadcast<Set<Long>> deltaSnapshotIds,
       String stagingLocation,
       int format,
-      String sourcePrefix,
-      String targetPrefix) {
+      Map<String, String> prefixMappings) {
 
     return manifestFile -> {
       RewriteContentFileResult result = new RewriteContentFileResult();
@@ -571,24 +586,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         case DATA:
           result.appendDataFile(
               writeDataManifest(
-                  manifestFile,
-                  table,
-                  deltaSnapshotIds,
-                  stagingLocation,
-                  format,
-                  sourcePrefix,
-                  targetPrefix));
+                  manifestFile, table, deltaSnapshotIds, stagingLocation, format, prefixMappings));
           break;
         case DELETES:
           result.appendDeleteFile(
               writeDeleteManifest(
-                  manifestFile,
-                  table,
-                  deltaSnapshotIds,
-                  stagingLocation,
-                  format,
-                  sourcePrefix,
-                  targetPrefix));
+                  manifestFile, table, deltaSnapshotIds, stagingLocation, format, prefixMappings));
           break;
         default:
           throw new UnsupportedOperationException(
@@ -604,11 +607,14 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Broadcast<Set<Long>> snapshotIds,
       String stagingLocation,
       int format,
-      String sourcePrefix,
-      String targetPrefix) {
+      Map<String, String> prefixMappings) {
     try {
+      Map.Entry<String, String> matchingPrefix =
+          RewriteTablePathUtil.lookupPrefixMappings(manifestFile.path(), prefixMappings);
+
       String stagingPath =
-          RewriteTablePathUtil.stagingPath(manifestFile.path(), sourcePrefix, stagingLocation);
+          RewriteTablePathUtil.stagingPath(
+              manifestFile.path(), matchingPrefix.getKey(), stagingLocation);
       FileIO io = table.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = table.getValue().specs();
@@ -620,8 +626,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           io,
           format,
           specsById,
-          sourcePrefix,
-          targetPrefix);
+          matchingPrefix.getKey(),
+          matchingPrefix.getValue());
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
@@ -633,11 +639,18 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Broadcast<Set<Long>> snapshotIds,
       String stagingLocation,
       int format,
-      String sourcePrefix,
-      String targetPrefix) {
+      Map<String, String> prefixMappings) {
     try {
+      Map.Entry<String, String> matchingPrefix =
+          RewriteTablePathUtil.lookupPrefixMappings(manifestFile.path(), prefixMappings);
+
+      if (matchingPrefix == null) {
+        throw new IllegalArgumentException(
+            "unable to find prefix mapping for path: " + manifestFile.path());
+      }
+
       String stagingPath =
-          RewriteTablePathUtil.stagingPath(manifestFile.path(), sourcePrefix, stagingLocation);
+          RewriteTablePathUtil.stagingPath(manifestFile.path(), prefixMappings, stagingLocation);
       FileIO io = table.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = table.getValue().specs();
@@ -649,8 +662,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           io,
           format,
           specsById,
-          sourcePrefix,
-          targetPrefix,
+          matchingPrefix.getKey(),
+          matchingPrefix.getValue(),
           stagingLocation);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -669,9 +682,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     PositionDeleteReaderWriter posDeleteReaderWriter = new SparkPositionDeleteReaderWriter();
     deleteFileDs
         .repartition(toRewrite.size())
-        .foreach(
-            rewritePositionDelete(
-                tableBroadcast(), sourcePrefix, targetPrefix, stagingDir, posDeleteReaderWriter));
+        .foreach(rewritePositionDelete(tableBroadcast(), stagingDir, posDeleteReaderWriter));
   }
 
   private static class SparkPositionDeleteReaderWriter implements PositionDeleteReaderWriter {
@@ -695,25 +706,17 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private ForeachFunction<DeleteFile> rewritePositionDelete(
       Broadcast<Table> tableArg,
-      String sourcePrefixArg,
-      String targetPrefixArg,
       String stagingLocationArg,
       PositionDeleteReaderWriter posDeleteReaderWriter) {
     return deleteFile -> {
       FileIO io = tableArg.getValue().io();
       String newPath =
           RewriteTablePathUtil.stagingPath(
-              deleteFile.location(), sourcePrefixArg, stagingLocationArg);
+              deleteFile.location(), prefixMappings, stagingLocationArg);
       OutputFile outputFile = io.newOutputFile(newPath);
       PartitionSpec spec = tableArg.getValue().specs().get(deleteFile.specId());
       RewriteTablePathUtil.rewritePositionDeleteFile(
-          deleteFile,
-          outputFile,
-          io,
-          spec,
-          sourcePrefixArg,
-          targetPrefixArg,
-          posDeleteReaderWriter);
+          deleteFile, outputFile, io, spec, prefixMappings, posDeleteReaderWriter);
     };
   }
 
