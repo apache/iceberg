@@ -120,7 +120,7 @@ public abstract class ScanTestBase extends AvroDataTestBase {
       TableMetadata builder =
           TableMetadata.buildFrom(ops.current())
               .upgradeFormatVersion(3)
-              .setCurrentSchema(expectedSchemaWithTableIds, highestFieldId)
+              .setCurrentSchema(expectedSchemaWithTableIds)
               .build();
       ops.commit(ops.current(), builder);
     }
