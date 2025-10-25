@@ -97,6 +97,18 @@ class RESTTableOperations implements TableOperations {
     this.endpoints = endpoints;
   }
 
+  RESTTableOperations(RESTTableOperations other) {
+    this(
+        other.client,
+        other.path,
+        other.headers,
+        other.io,
+        other.updateType,
+        other.createChanges,
+        other.current,
+        other.endpoints);
+  }
+
   @Override
   public TableMetadata current() {
     return current;
