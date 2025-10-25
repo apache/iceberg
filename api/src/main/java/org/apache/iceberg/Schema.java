@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
@@ -512,6 +513,25 @@ public class Schema implements Serializable {
   public boolean sameSchema(Schema anotherSchema) {
     return asStruct().equals(anotherSchema.asStruct())
         && identifierFieldIds().equals(anotherSchema.identifierFieldIds());
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (o instanceof Schema) {
+      Schema other = (Schema) o;
+      return sameSchema(other);
+    }
+
+    return false;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(asStruct(), identifierFieldIds());
   }
 
   private Schema internalSelect(Collection<String> names, boolean caseSensitive) {

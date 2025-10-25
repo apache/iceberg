@@ -219,7 +219,7 @@ public class TableMetadata implements Serializable {
         return false;
       }
       MetadataLogEntry that = (MetadataLogEntry) other;
-      return timestampMillis == that.timestampMillis && java.util.Objects.equals(file, that.file);
+      return timestampMillis == that.timestampMillis && Objects.equal(file, that.file);
     }
 
     @Override
@@ -886,6 +886,70 @@ public class TableMetadata implements Serializable {
 
   public static Builder buildFromEmpty(int formatVersion) {
     return new Builder(formatVersion);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o instanceof TableMetadata) {
+      TableMetadata other = (TableMetadata) o;
+      return primitiveFieldsEqual(other) && objectFieldsEqual(other);
+    }
+    return false;
+  }
+
+  private boolean primitiveFieldsEqual(TableMetadata other) {
+    return formatVersion == other.formatVersion
+        && lastSequenceNumber == other.lastSequenceNumber
+        && lastUpdatedMillis == other.lastUpdatedMillis
+        && lastColumnId == other.lastColumnId
+        && currentSchemaId == other.currentSchemaId
+        && defaultSpecId == other.defaultSpecId
+        && lastAssignedPartitionId == other.lastAssignedPartitionId
+        && defaultSortOrderId == other.defaultSortOrderId
+        && currentSnapshotId == other.currentSnapshotId
+        && nextRowId == other.nextRowId;
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private boolean objectFieldsEqual(TableMetadata other) {
+    return Objects.equal(uuid, other.uuid)
+        && Objects.equal(location, other.location)
+        && Objects.equal(schemas, other.schemas)
+        && Objects.equal(specs, other.specs)
+        && Objects.equal(sortOrders, other.sortOrders)
+        && Objects.equal(properties, other.properties)
+        && Objects.equal(snapshots(), other.snapshots())
+        && Objects.equal(snapshotLog, other.snapshotLog)
+        && Objects.equal(previousFiles, other.previousFiles)
+        && Objects.equal(refs(), other.refs())
+        && Objects.equal(statisticsFiles, other.statisticsFiles)
+        && Objects.equal(partitionStatisticsFiles, other.partitionStatisticsFiles)
+        && Objects.equal(encryptionKeys, other.encryptionKeys);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(
+        formatVersion,
+        uuid,
+        location,
+        lastSequenceNumber,
+        lastUpdatedMillis,
+        lastColumnId,
+        currentSchemaId,
+        schemas,
+        defaultSpecId,
+        specs,
+        lastAssignedPartitionId,
+        defaultSortOrderId,
+        sortOrders,
+        properties,
+        currentSnapshotId,
+        nextRowId,
+        encryptionKeys);
   }
 
   public static class Builder {

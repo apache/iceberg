@@ -481,7 +481,10 @@ public class TestHadoopCommits extends HadoopTableTestBase {
             new Path(table.location()), new HadoopFileIO(conf), conf, lockManager);
     tableOperations.refresh();
     BaseTable baseTable = (BaseTable) table;
-    TableMetadata meta2 = baseTable.operations().current();
+    TableMetadata meta2 =
+        TableMetadata.buildFrom(baseTable.operations().current())
+            .assignUUID(UUID.randomUUID().toString())
+            .build();
     assertThatThrownBy(() -> tableOperations.commit(tableOperations.current(), meta2))
         .isInstanceOf(CommitFailedException.class)
         .hasMessageStartingWith("Failed to acquire lock on file");
