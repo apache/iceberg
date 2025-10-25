@@ -109,7 +109,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     // if the metadata is already out of date, reject it
     if (base != current()) {
       if (base != null) {
-        throw new CommitFailedException("Cannot commit: stale table metadata");
+        throw new CommitFailedException("Commit failed: stale table metadata");
       } else {
         // when current is non-null, the table exists. but when base is null, the commit is trying
         // to create the table
