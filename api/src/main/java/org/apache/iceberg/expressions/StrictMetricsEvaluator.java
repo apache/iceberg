@@ -22,6 +22,7 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,8 +30,10 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.NaNUtil;
 
 /**
@@ -462,13 +465,83 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
-      return ROWS_MIGHT_NOT_MATCH;
+      int id = ref.fieldId();
+      if (isNestedColumn(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (canContainNulls(id) || canContainNaNs(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (lowerBounds == null
+          || !lowerBounds.containsKey(id)
+          || upperBounds == null
+          || !upperBounds.containsKey(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+      ByteBuffer lower = lowerBounds.get(id);
+      ByteBuffer upper = upperBounds.get(id);
+      int prefixSize = prefixAsBytes.remaining();
+
+      if (lower.remaining() < prefixSize || upper.remaining() < prefixSize) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+      int lowerCmp =
+          comparator.compare(BinaryUtil.truncateBinary(lower, prefixSize), prefixAsBytes);
+      if (lowerCmp != 0) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      int upperCmp =
+          comparator.compare(BinaryUtil.truncateBinary(upper, prefixSize), prefixAsBytes);
+      if (upperCmp != 0) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      return ROWS_MUST_MATCH;
     }
 
     @Override
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: Handle cases that definitely cannot match, such as notStartsWith("x") when the bounds
-      // are ["a", "b"].
+      int id = ref.fieldId();
+      if (isNestedColumn(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+        return ROWS_MUST_MATCH;
+      }
+
+      ByteBuffer prefixAsBytes = lit.toByteBuffer();
+      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+      if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        ByteBuffer lower = lowerBounds.get(id);
+        int lowerLength = Math.min(prefixAsBytes.remaining(), lower.remaining());
+
+        int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower, lowerLength), prefixAsBytes);
+        if (lowerCmp > 0) {
+          return ROWS_MUST_MATCH;
+        }
+      }
+
+      if (upperBounds != null && upperBounds.containsKey(id)) {
+        ByteBuffer upper = upperBounds.get(id);
+        int upperLength = Math.min(prefixAsBytes.remaining(), upper.remaining());
+
+        int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper, upperLength), prefixAsBytes);
+        if (upperCmp < 0) {
+          return ROWS_MUST_MATCH;
+        }
+      }
+
       return ROWS_MIGHT_NOT_MATCH;
     }
 
