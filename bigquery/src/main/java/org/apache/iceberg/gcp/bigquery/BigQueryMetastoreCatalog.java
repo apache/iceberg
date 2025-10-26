@@ -23,7 +23,6 @@ import com.google.api.services.bigquery.model.DatasetList.Datasets;
 import com.google.api.services.bigquery.model.DatasetReference;
 import com.google.api.services.bigquery.model.ExternalCatalogDatasetOptions;
 import com.google.api.services.bigquery.model.TableReference;
-import com.google.cloud.ServiceOptions;
 import com.google.cloud.bigquery.BigQueryOptions;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -62,6 +61,10 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   public static final String PROJECT_ID = "gcp.bigquery.project-id";
   public static final String GCP_LOCATION = "gcp.bigquery.location";
   public static final String LIST_ALL_TABLES = "gcp.bigquery.list-all-tables";
+  public static final String CLIENT_FACTORY = "gcp.bigquery.client.factory";
+
+  private static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcs.impersonate.service-account";
+  private static final String GCS_PROJECT_ID = "gcs.project-id";
 
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryMetastoreCatalog.class);
 
@@ -76,25 +79,37 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   private BigQueryMetastoreClient client;
   private boolean listAllTables;
   private String warehouseLocation;
+  private BigQueryClientFactory clientFactory;
 
   public BigQueryMetastoreCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+
+    // Use System.out instead of LOG
+    System.out.println("========================================");
+    System.out.println(
+        "BigQueryMetastoreCatalog.initialize() called with " + properties.size() + " properties");
+    System.out.println("All properties received:");
+    for (Map.Entry<String, String> entry : properties.entrySet()) {
+      System.out.println("  " + entry.getKey() + " = " + entry.getValue());
+    }
+    System.out.println("Looking for PROJECT_ID key: " + PROJECT_ID);
+    System.out.println("Contains PROJECT_ID? " + properties.containsKey(PROJECT_ID));
+    System.out.println("Looking for alternate key: gcp_project");
+    System.out.println("Contains gcp_project? " + properties.containsKey("gcp_project"));
+    System.out.println("========================================");
+
+    this.projectId = properties.get(PROJECT_ID);
+    this.projectLocation = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
+
     Preconditions.checkArgument(
         properties.containsKey(PROJECT_ID),
         "Invalid GCP project: %s must be specified",
         PROJECT_ID);
 
-    this.projectId = properties.get(PROJECT_ID);
-    this.projectLocation = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
-
-    BigQueryOptions options =
-        BigQueryOptions.newBuilder()
-            .setProjectId(projectId)
-            .setLocation(projectLocation)
-            .setRetrySettings(ServiceOptions.getDefaultRetrySettings())
-            .build();
+    this.clientFactory = createClientFactory(properties);
+    BigQueryOptions options = clientFactory.bigQueryOptions();
 
     try {
       client = new BigQueryMetastoreClientImpl(options);
@@ -105,6 +120,32 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     }
 
     initialize(name, properties, projectId, projectLocation, client);
+  }
+
+  private BigQueryClientFactory createClientFactory(Map<String, String> properties) {
+    String factoryClassName = properties.get(CLIENT_FACTORY);
+    BigQueryClientFactory factory;
+
+    // Use System.out instead of LOG
+    System.out.println("========================================");
+    System.out.println("createClientFactory() called");
+    System.out.println("CLIENT_FACTORY property: " + factoryClassName);
+    System.out.println("========================================");
+
+    if (factoryClassName != null) {
+      try {
+        LOG.info("Loading custom BigQuery client factory: {}", factoryClassName);
+        Class<?> factoryClass = Class.forName(factoryClassName);
+        factory = (BigQueryClientFactory) factoryClass.getDeclaredConstructor().newInstance();
+      } catch (Exception e) {
+        throw new RuntimeException(
+            "Failed to load custom BigQuery client factory: " + factoryClassName, e);
+      }
+    } else {
+      factory = new DefaultBigQueryClientFactory();
+    }
+    factory.initialize(properties);
+    return factory;
   }
 
   @VisibleForTesting
@@ -128,14 +169,31 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
           LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
+    Map<String, String> fileIOProperties = prepareFileIOProperties(properties, initialProjectId);
+
     this.fileIO =
         CatalogUtil.loadFileIO(
             properties.getOrDefault(
                 CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.io.ResolvingFileIO"),
-            properties,
+            fileIOProperties,
             conf);
 
     this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, "true"));
+  }
+
+  private Map<String, String> prepareFileIOProperties(
+      Map<String, String> properties, String gcpProjectId) {
+    Map<String, String> fileIOProperties = Maps.newHashMap(properties);
+    String impersonateServiceAccount =
+        properties.get(ImpersonatedBigQueryClientFactory.IMPERSONATE_SERVICE_ACCOUNT);
+
+    if (impersonateServiceAccount != null) {
+      fileIOProperties.put(GCS_IMPERSONATE_SERVICE_ACCOUNT, impersonateServiceAccount);
+      fileIOProperties.put(GCS_PROJECT_ID, gcpProjectId);
+      LOG.info("Auto-propagating impersonation to GCS FileIO: {}", impersonateServiceAccount);
+    }
+
+    return fileIOProperties;
   }
 
   @Override

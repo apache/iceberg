@@ -42,6 +42,7 @@ import com.google.api.services.bigquery.model.TableReference;
 import com.google.api.services.bigquery.model.TableSchema;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.cloud.BaseServiceException;
 import com.google.cloud.ExceptionHandler;
 import com.google.cloud.bigquery.BigQueryErrorMessages;
@@ -125,11 +126,26 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   /** Constructs a client of the Google BigQuery service. */
   public BigQueryMetastoreClientImpl(BigQueryOptions options)
       throws IOException, GeneralSecurityException {
+
+    this.bigqueryOptions = options;
+
     // Initialize client that will be used to send requests. This client only needs to be created
     // once, and can be reused for multiple requests
-    HttpCredentialsAdapter httpCredentialsAdapter =
-        new HttpCredentialsAdapter(
-            GoogleCredentials.getApplicationDefault().createScoped(BigqueryScopes.all()));
+
+    // Get credentials from options, or use application default
+    GoogleCredentials credentials =
+        (options.getCredentials() instanceof GoogleCredentials)
+            ? (GoogleCredentials) options.getCredentials()
+            : GoogleCredentials.getApplicationDefault();
+
+    // Scope credentials unless already scoped (e.g., ImpersonatedCredentials)
+    GoogleCredentials scopedCredentials =
+        (credentials instanceof ImpersonatedCredentials)
+            ? credentials
+            : credentials.createScoped(BigqueryScopes.all());
+
+    HttpCredentialsAdapter httpCredentialsAdapter = new HttpCredentialsAdapter(scopedCredentials);
+
     this.client =
         new Bigquery.Builder(
                 GoogleNetHttpTransport.newTrustedTransport(),
@@ -143,7 +159,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
                 })
             .setApplicationName("BigQuery Metastore Iceberg Catalog Plugin")
             .build();
-    this.bigqueryOptions = options;
   }
 
   @Override
