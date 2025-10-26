@@ -180,7 +180,7 @@ public class StandardEncryptionManager implements EncryptionManager {
       if (key.encryptedById().equals(tableKeyId)) { // this is a key encryption key
         String timestampProperty = key.properties().get(KEY_TIMESTAMP);
         long keyTimestamp = Long.parseLong(timestampProperty);
-        if (keyTimestamp - System.currentTimeMillis() < KEY_ENCRYPTION_KEY_LIFESPAN_MS) {
+        if (System.currentTimeMillis() - keyTimestamp < KEY_ENCRYPTION_KEY_LIFESPAN_MS) {
           return keyID;
         }
       }
