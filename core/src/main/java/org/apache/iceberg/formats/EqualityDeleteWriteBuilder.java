@@ -36,6 +36,7 @@ import org.apache.iceberg.util.ArrayUtil;
  * configuration for the delete records.
  *
  * @param <D> the type of data records the writer will accept
+ * @param <S> the type of the schema for the input data
  */
 public interface EqualityDeleteWriteBuilder<D, S>
     extends ContentFileWriteBuilder<EqualityDeleteWriteBuilder<D, S>> {

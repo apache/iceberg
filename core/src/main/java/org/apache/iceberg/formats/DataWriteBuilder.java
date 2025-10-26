@@ -32,6 +32,7 @@ import org.apache.iceberg.io.DataWriter;
  * schema and partition specification.
  *
  * @param <D> the type of data records the writer will accept
+ * @param <S> the type of the schema for the input data
  */
 public interface DataWriteBuilder<D, S> extends ContentFileWriteBuilder<DataWriteBuilder<D, S>> {
 
