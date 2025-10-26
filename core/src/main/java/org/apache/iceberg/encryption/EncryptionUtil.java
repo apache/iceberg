@@ -127,6 +127,8 @@ public class EncryptionUtil {
             .get(keyEncryptionKeyID)
             .properties()
             .get(StandardEncryptionManager.KEY_TIMESTAMP);
+    Preconditions.checkState(
+        keyEncryptionKeyTimestamp != null, "Key encryption key must be timestamped");
     Ciphers.AesGcmDecryptor decryptor =
         new Ciphers.AesGcmDecryptor(ByteBuffers.toByteArray(keyEncryptionKey));
     byte[] keyMetadataBytes = ByteBuffers.toByteArray(encryptedKeyMetadata);
