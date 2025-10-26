@@ -44,6 +44,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   private final String tableKeyId;
   private final int dataKeyLength;
 
+  // used in key encryption key rotation unitests
   private long testTimeShift;
 
   // unserializable elements of the EncryptionManager
@@ -203,6 +204,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     return key.keyId();
   }
 
+  // For key rotation tests
   void setTestTimeShift(long shift) {
     testTimeShift = shift;
   }
