@@ -218,6 +218,7 @@ public class TestStatsUtil {
             "Max value size of variable-length types (String, Binary)"),
         optional(fieldId++, "lower_bound", type, "Lower bound"),
         optional(fieldId++, "upper_bound", type, "Upper bound"),
-        optional(fieldId, "is_exact", type, "Whether the statistic is exact or not"));
+        optional(
+            fieldId, "is_exact", Types.BooleanType.get(), "Whether the statistic is exact or not"));
   }
 }
