@@ -18,6 +18,11 @@
  */
 package org.apache.iceberg.stats;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+
 public enum FieldStatistic {
   VALUE_COUNT(0, "value_count"),
   NULL_VALUE_COUNT(1, "null_value_count"),
@@ -65,5 +70,41 @@ public enum FieldStatistic {
       default:
         throw new IllegalArgumentException("Invalid statistic offset: " + offset);
     }
+  }
+
+  public static Types.StructType fieldStatsFor(Type type, int fieldId) {
+    return Types.StructType.of(
+        optional(
+            fieldId + VALUE_COUNT.offset(),
+            VALUE_COUNT.fieldName(),
+            Types.LongType.get(),
+            "Total value count, including null and NaN"),
+        optional(
+            fieldId + NULL_VALUE_COUNT.offset(),
+            NULL_VALUE_COUNT.fieldName(),
+            Types.LongType.get(),
+            "Total null value count"),
+        optional(
+            fieldId + NAN_VALUE_COUNT.offset(),
+            NAN_VALUE_COUNT.fieldName(),
+            Types.LongType.get(),
+            "Total NaN value count"),
+        optional(
+            fieldId + AVG_VALUE_SIZE.offset(),
+            AVG_VALUE_SIZE.fieldName(),
+            Types.IntegerType.get(),
+            "Avg value size of variable-length types (String, Binary)"),
+        optional(
+            fieldId + MAX_VALUE_SIZE.offset(),
+            MAX_VALUE_SIZE.fieldName(),
+            Types.IntegerType.get(),
+            "Max value size of variable-length types (String, Binary)"),
+        optional(fieldId + LOWER_BOUND.offset(), LOWER_BOUND.fieldName(), type, "Lower bound"),
+        optional(fieldId + UPPER_BOUND.offset(), UPPER_BOUND.fieldName(), type, "Upper bound"),
+        optional(
+            fieldId + IS_EXACT.offset(),
+            IS_EXACT.fieldName(),
+            Types.BooleanType.get(),
+            "Whether the statistic is exact or not"));
   }
 }

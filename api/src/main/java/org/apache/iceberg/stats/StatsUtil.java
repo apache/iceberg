@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
@@ -107,50 +106,6 @@ public class StatsUtil {
     return result;
   }
 
-  private static Types.StructType contentStatsFor(Type type, int id) {
-    return Types.StructType.of(
-        optional(
-            id + FieldStatistic.VALUE_COUNT.offset(),
-            FieldStatistic.VALUE_COUNT.fieldName(),
-            Types.LongType.get(),
-            "Total value count, including null and NaN"),
-        optional(
-            id + FieldStatistic.NULL_VALUE_COUNT.offset(),
-            FieldStatistic.NULL_VALUE_COUNT.fieldName(),
-            Types.LongType.get(),
-            "Total null value count"),
-        optional(
-            id + FieldStatistic.NAN_VALUE_COUNT.offset(),
-            FieldStatistic.NAN_VALUE_COUNT.fieldName(),
-            Types.LongType.get(),
-            "Total NaN value count"),
-        optional(
-            id + FieldStatistic.AVG_VALUE_SIZE.offset(),
-            FieldStatistic.AVG_VALUE_SIZE.fieldName(),
-            Types.IntegerType.get(),
-            "Avg value size of variable-length types (String, Binary)"),
-        optional(
-            id + FieldStatistic.MAX_VALUE_SIZE.offset(),
-            FieldStatistic.MAX_VALUE_SIZE.fieldName(),
-            Types.IntegerType.get(),
-            "Max value size of variable-length types (String, Binary)"),
-        optional(
-            id + FieldStatistic.LOWER_BOUND.offset(),
-            FieldStatistic.LOWER_BOUND.fieldName(),
-            type,
-            "Lower bound"),
-        optional(
-            id + FieldStatistic.UPPER_BOUND.offset(),
-            FieldStatistic.UPPER_BOUND.fieldName(),
-            type,
-            "Upper bound"),
-        optional(
-            id + FieldStatistic.IS_EXACT.offset(),
-            FieldStatistic.IS_EXACT.fieldName(),
-            Types.BooleanType.get(),
-            "Whether the statistic is exact or not"));
-  }
-
   private static class ContentStatsSchemaVisitor extends TypeUtil.SchemaVisitor<Types.NestedField> {
     private final List<Types.NestedField> statsFields = Lists.newArrayList();
     private final Set<Integer> skippedFieldIds = Sets.newLinkedHashSet();
@@ -208,7 +163,7 @@ public class StatsUtil {
 
       int fieldId = StatsUtil.statsFieldIdForField(field.fieldId());
       if (fieldId >= 0) {
-        Types.StructType structType = contentStatsFor(field.type(), fieldId + 1);
+        Types.StructType structType = FieldStatistic.fieldStatsFor(field.type(), fieldId + 1);
         return optional(fieldId, Integer.toString(field.fieldId()), structType);
       } else {
         skippedFieldIds.add(field.fieldId());

@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -151,12 +150,18 @@ public class TestStatsUtil {
                 146,
                 "content_stats",
                 Types.StructType.of(
-                    optional(10000, "0", fieldStatsFor(Types.IntegerType.get(), 10001)),
-                    optional(10400, "2", fieldStatsFor(Types.FloatType.get(), 10401)),
-                    optional(10800, "4", fieldStatsFor(Types.StringType.get(), 10801)),
-                    optional(11200, "6", fieldStatsFor(Types.BooleanType.get(), 11201)),
                     optional(
-                        200010000, "1000000", fieldStatsFor(Types.UUIDType.get(), 200010001)))));
+                        10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10001)),
+                    optional(
+                        10400, "2", FieldStatistic.fieldStatsFor(Types.FloatType.get(), 10401)),
+                    optional(
+                        10800, "4", FieldStatistic.fieldStatsFor(Types.StringType.get(), 10801)),
+                    optional(
+                        11200, "6", FieldStatistic.fieldStatsFor(Types.BooleanType.get(), 11201)),
+                    optional(
+                        200010000,
+                        "1000000",
+                        FieldStatistic.fieldStatsFor(Types.UUIDType.get(), 200010001)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }
@@ -185,51 +190,23 @@ public class TestStatsUtil {
                 146,
                 "content_stats",
                 Types.StructType.of(
-                    optional(10000, "0", fieldStatsFor(Types.IntegerType.get(), 10001)),
-                    optional(10600, "3", fieldStatsFor(Types.IntegerType.get(), 10601)),
-                    optional(11400, "7", fieldStatsFor(Types.IntegerType.get(), 11401)),
-                    optional(11600, "8", fieldStatsFor(Types.StringType.get(), 11601)),
-                    optional(14400, "22", fieldStatsFor(Types.IntegerType.get(), 14401)),
-                    optional(14800, "24", fieldStatsFor(Types.StringType.get(), 14801)),
-                    optional(20010000, "100000", fieldStatsFor(Types.UUIDType.get(), 20010001)))));
+                    optional(
+                        10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10001)),
+                    optional(
+                        10600, "3", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10601)),
+                    optional(
+                        11400, "7", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 11401)),
+                    optional(
+                        11600, "8", FieldStatistic.fieldStatsFor(Types.StringType.get(), 11601)),
+                    optional(
+                        14400, "22", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 14401)),
+                    optional(
+                        14800, "24", FieldStatistic.fieldStatsFor(Types.StringType.get(), 14801)),
+                    optional(
+                        20010000,
+                        "100000",
+                        FieldStatistic.fieldStatsFor(Types.UUIDType.get(), 20010001)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
-  }
-
-  private Type fieldStatsFor(Type type, int id) {
-    int fieldId = id;
-    return Types.StructType.of(
-        optional(
-            fieldId++,
-            FieldStatistic.VALUE_COUNT.fieldName(),
-            Types.LongType.get(),
-            "Total value count, including null and NaN"),
-        optional(
-            fieldId++,
-            FieldStatistic.NULL_VALUE_COUNT.fieldName(),
-            Types.LongType.get(),
-            "Total null value count"),
-        optional(
-            fieldId++,
-            FieldStatistic.NAN_VALUE_COUNT.fieldName(),
-            Types.LongType.get(),
-            "Total NaN value count"),
-        optional(
-            fieldId++,
-            FieldStatistic.AVG_VALUE_SIZE.fieldName(),
-            Types.IntegerType.get(),
-            "Avg value size of variable-length types (String, Binary)"),
-        optional(
-            fieldId++,
-            FieldStatistic.MAX_VALUE_SIZE.fieldName(),
-            Types.IntegerType.get(),
-            "Max value size of variable-length types (String, Binary)"),
-        optional(fieldId++, FieldStatistic.LOWER_BOUND.fieldName(), type, "Lower bound"),
-        optional(fieldId++, FieldStatistic.UPPER_BOUND.fieldName(), type, "Upper bound"),
-        optional(
-            fieldId,
-            FieldStatistic.IS_EXACT.fieldName(),
-            Types.BooleanType.get(),
-            "Whether the statistic is exact or not"));
   }
 }
