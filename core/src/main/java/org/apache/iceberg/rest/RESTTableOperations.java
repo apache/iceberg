@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -37,11 +36,11 @@ import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.encryption.StandardEncryptionManager;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -197,9 +196,9 @@ class RESTTableOperations implements TableOperations {
 
     if (base != null) {
       Set<String> removedProps =
-              base.properties().keySet().stream()
-                      .filter(key -> !metadata.properties().containsKey(key))
-                      .collect(Collectors.toSet());
+          base.properties().keySet().stream()
+              .filter(key -> !metadata.properties().containsKey(key))
+              .collect(Collectors.toSet());
 
       if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
         throw new RuntimeException("Cannot remove key in encrypted table");

@@ -73,10 +73,10 @@ public class TestTableEncryption extends CatalogTestBase {
         SparkCatalogConfig.REST.catalogName(),
         SparkCatalogConfig.REST.implementation(),
         appendCatalogEncryptionProperties(
-                ImmutableMap.<String, String>builder()
-                        .putAll(SparkCatalogConfig.REST.properties())
-                        .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
-                        .build())
+            ImmutableMap.<String, String>builder()
+                .putAll(SparkCatalogConfig.REST.properties())
+                .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+                .build())
       }
     };
   }
@@ -109,11 +109,11 @@ public class TestTableEncryption extends CatalogTestBase {
   public void testCtas() {
     String tableName = this.tableName + "_ctas";
     sql(
-            "CREATE TABLE %s USING iceberg "
-                    + "TBLPROPERTIES ( "
-                    + "'encryption.key-id'='%s') AS SELECT * FROM VALUES (1, 'a', 1.0), (2, 'b', 2.0)"
-                    + " AS t(id, data, float)",
-            tableName, UnitestKMS.MASTER_KEY_NAME1);
+        "CREATE TABLE %s USING iceberg "
+            + "TBLPROPERTIES ( "
+            + "'encryption.key-id'='%s') AS SELECT * FROM VALUES (1, 'a', 1.0), (2, 'b', 2.0)"
+            + " AS t(id, data, float)",
+        tableName, UnitestKMS.MASTER_KEY_NAME1);
 
     assertThat(sql("SELECT * FROM %s", tableName).size()).isEqualTo(2);
   }
