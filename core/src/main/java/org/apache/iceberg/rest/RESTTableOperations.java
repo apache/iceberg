@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.SnapshotRef;
@@ -192,6 +194,19 @@ class RESTTableOperations implements TableOperations {
       default:
         throw new UnsupportedOperationException(
             String.format("Update type %s is not supported", updateType));
+    }
+
+    // get Iceberg props that have been removed
+    Set<String> removedProps = Collections.emptySet();
+    if (base != null) {
+      removedProps =
+              base.properties().keySet().stream()
+                      .filter(key -> !metadata.properties().containsKey(key))
+                      .collect(Collectors.toSet());
+    }
+
+    if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
+      throw new RuntimeException("Cannot remove key in encrypted table");
     }
 
     UpdateTableRequest request = new UpdateTableRequest(requirements, updates);
@@ -408,8 +423,7 @@ class RESTTableOperations implements TableOperations {
 
       @Override
       public FileIO io() {
-        // TODO(smaheshwar-pltr): Is this needed?
-        RESTTableOperations.this.encryptionPropsFromMetadata(uncommittedMetadata);
+        // TODO(smaheshwar-pltr): Hive fetches encryption props here
         return RESTTableOperations.this.io();
       }
 
