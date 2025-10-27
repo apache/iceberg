@@ -29,11 +29,16 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import org.apache.hc.client5.http.auth.AuthChallenge;
 import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.ChallengeType;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.auth.AuthenticationHandler;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
@@ -48,11 +53,11 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.apache.iceberg.IcebergBuild;
@@ -104,6 +109,9 @@ public class HTTPClient extends BaseHTTPClient {
   private final AuthSession authSession;
   private final boolean isRootClient;
   private final ConcurrentMap<Class<?>, ObjectReader> objectReaderCache = Maps.newConcurrentMap();
+
+  // used only for parsing challenge headers
+  private final AuthenticationHandler authenticationHandler = new AuthenticationHandler();
 
   private HTTPClient(
       URI baseUri,
@@ -305,6 +313,18 @@ public class HTTPClient extends BaseHTTPClient {
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders,
       ParserContext parserContext) {
+    return doExecute(req, responseType, errorHandler, responseHeaders, parserContext, 1);
+  }
+
+  @SuppressWarnings("CyclomaticComplexity")
+  private <T extends RESTResponse> T doExecute(
+      HTTPRequest req,
+      Class<T> responseType,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders,
+      ParserContext parserContext,
+      int retryAttempt) {
+
     HttpUriRequestBase request = new HttpUriRequestBase(req.method().name(), req.requestUri());
 
     req.headers().entries().forEach(e -> request.addHeader(e.name(), e.value()));
@@ -314,8 +334,19 @@ public class HTTPClient extends BaseHTTPClient {
       request.setEntity(new StringEntity(encodedBody));
     }
 
-    HttpContext context = HttpClientContext.create();
+    HttpClientContext context = HttpClientContext.create();
     try (CloseableHttpResponse response = httpClient.execute(request, context)) {
+
+      if (response.getCode() == HttpStatus.SC_UNAUTHORIZED) {
+
+        HTTPRequest retry = processChallenge(req, response, context, retryAttempt);
+
+        if (retry != null) {
+          return doExecute(
+              retry, responseType, errorHandler, responseHeaders, parserContext, retryAttempt + 1);
+        }
+      }
+
       Map<String, String> respHeaders = Maps.newHashMap();
       for (Header header : response.getHeaders()) {
         respHeaders.put(header.getName(), header.getValue());
@@ -358,6 +389,37 @@ public class HTTPClient extends BaseHTTPClient {
     } catch (IOException e) {
       throw new RESTException(e, "Error occurred while processing %s request", req.method());
     }
+  }
+
+  @Nullable
+  private HTTPRequest processChallenge(
+      HTTPRequest request,
+      CloseableHttpResponse response,
+      HttpClientContext context,
+      int retryAttempt) {
+
+    Map<String, AuthChallenge> challengeMap =
+        authenticationHandler.extractChallengeMap(ChallengeType.TARGET, response, context);
+
+    for (AuthChallenge challenge : challengeMap.values()) {
+
+      Map<String, String> params =
+          challenge.getParams() == null
+              ? Map.of()
+              : challenge.getParams().stream()
+                  .collect(Collectors.toMap(NameValuePair::getName, NameValuePair::getValue));
+
+      HTTPChallenge httpChallenge =
+          HTTPChallenge.of(challenge.getSchemeName(), challenge.getValue(), params);
+
+      HTTPRequest retry = authSession.processChallenge(this, request, httpChallenge, retryAttempt);
+
+      if (retry != null) {
+        return retry;
+      }
+    }
+
+    return null;
   }
 
   @Override

@@ -22,10 +22,13 @@ import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.HTTPChallenge;
 import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.HTTPRequest;
 import org.apache.iceberg.rest.ImmutableHTTPRequest;
+import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,8 +61,22 @@ class GoogleAuthSession implements AuthSession {
    */
   @Override
   public HTTPRequest authenticate(HTTPRequest request) {
+    return authenticate(request, credentials::refreshIfExpired);
+  }
+
+  @Nullable
+  @Override
+  public HTTPRequest processChallenge(
+      RESTClient restClient, HTTPRequest request, HTTPChallenge challenge, int retryAttempt) {
+    if (retryAttempt > 1 || !"Bearer".equals(challenge.scheme())) {
+      return null;
+    }
+    return authenticate(request, credentials::refresh);
+  }
+
+  private HTTPRequest authenticate(HTTPRequest request, ThrowingRunnable refreshAction) {
     try {
-      credentials.refreshIfExpired();
+      refreshAction.run();
       AccessToken token = credentials.getAccessToken();
 
       if (token != null && token.getTokenValue() != null) {
@@ -90,5 +107,10 @@ class GoogleAuthSession implements AuthSession {
   @Override
   public void close() {
     // No-op
+  }
+
+  @FunctionalInterface
+  private interface ThrowingRunnable {
+    void run() throws IOException;
   }
 }
