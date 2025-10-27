@@ -74,7 +74,7 @@ class RESTTableOperations implements TableOperations {
 
   private EncryptionManager encryptionManager;
   private EncryptingFileIO encryptingFileIO;
-  private String encryptionKeyId;
+  private String tableKeyId;
   private int encryptionDekLength;
   private List<EncryptedKey> encryptedKeysFromMetadata;
 
@@ -254,7 +254,7 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    if (encryptionKeyId == null) {
+    if (tableKeyId == null) {
       return io;
     }
 
@@ -271,19 +271,19 @@ class RESTTableOperations implements TableOperations {
       return encryptionManager;
     }
 
-    if (encryptionKeyId != null) {
+    if (tableKeyId != null) {
       if (kmsClient == null) {
         throw new RuntimeException(
             "Cant create encryption manager, because key management client is not set");
       }
 
-      Map<String, String> tableProperties = Maps.newHashMap();
-      tableProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, encryptionKeyId);
-      tableProperties.put(
+      Map<String, String> encryptionProperties = Maps.newHashMap();
+      encryptionProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, tableKeyId);
+      encryptionProperties.put(
           TableProperties.ENCRYPTION_DEK_LENGTH, String.valueOf(encryptionDekLength));
       encryptionManager =
           EncryptionUtil.createEncryptionManager(
-              encryptedKeysFromMetadata, tableProperties, kmsClient);
+              encryptedKeysFromMetadata, encryptionProperties, kmsClient);
     } else {
       return PlaintextEncryptionManager.instance();
     }
@@ -336,11 +336,11 @@ class RESTTableOperations implements TableOperations {
     encryptedKeysFromMetadata = metadata.encryptionKeys();
 
     Map<String, String> tableProperties = metadata.properties();
-    if (encryptionKeyId == null) {
-      encryptionKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
+    if (tableKeyId == null) {
+      tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
     }
 
-    if (encryptionKeyId != null && encryptionDekLength <= 0) {
+    if (tableKeyId != null && encryptionDekLength <= 0) {
       String dekLength = tableProperties.get(TableProperties.ENCRYPTION_DEK_LENGTH);
       encryptionDekLength =
           (dekLength == null)
