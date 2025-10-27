@@ -99,6 +99,20 @@ public class TestBoundingBox {
   }
 
   @Test
+  public void testFromByteBuffer() {
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox box = new BoundingBox(min, max);
+    ByteBuffer buffer = box.toByteBuffer();
+    for (ByteOrder byteOrder : new ByteOrder[] {ByteOrder.BIG_ENDIAN, ByteOrder.LITTLE_ENDIAN}) {
+      buffer.order(byteOrder);
+      assertThat(BoundingBox.fromByteBuffer(buffer)).isEqualTo(box);
+      assertThat(buffer.position()).isEqualTo(0);
+      assertThat(buffer.order()).isEqualTo(byteOrder);
+    }
+  }
+
+  @Test
   public void testRoundTripSerDe() {
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);

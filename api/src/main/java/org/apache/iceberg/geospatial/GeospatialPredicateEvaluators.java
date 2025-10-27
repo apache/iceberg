@@ -20,7 +20,6 @@ package org.apache.iceberg.geospatial;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
 public class GeospatialPredicateEvaluators {
   private GeospatialPredicateEvaluators() {}
@@ -45,30 +44,12 @@ public class GeospatialPredicateEvaluators {
   public static GeospatialPredicateEvaluator create(Type type) {
     switch (type.typeId()) {
       case GEOMETRY:
-        return create((Types.GeometryType) type);
+        return new GeometryEvaluator();
       case GEOGRAPHY:
-        return create((Types.GeographyType) type);
+        return new GeographyEvaluator();
       default:
         throw new UnsupportedOperationException("Unsupported type for BoundingBox: " + type);
     }
-  }
-
-  /**
-   * Create an evaluator for evaluating bounding box relationship for planar geometries
-   *
-   * @return the evaluator
-   */
-  public static GeometryEvaluator create(Types.GeometryType type) {
-    return new GeometryEvaluator();
-  }
-
-  /**
-   * Create an evaluator for evaluating bounding box relationship for geographies
-   *
-   * @return the evaluator
-   */
-  public static GeographyEvaluator create(Types.GeographyType type) {
-    return new GeographyEvaluator();
   }
 
   public static class GeometryEvaluator implements GeospatialPredicateEvaluator {

@@ -51,16 +51,24 @@ public class BoundingBox {
    * @return a BoundingBox instance
    */
   public static BoundingBox fromByteBuffer(ByteBuffer buffer) {
+    ByteBuffer tmp = buffer.duplicate();
+    tmp.order(ByteOrder.LITTLE_ENDIAN);
+
+    int minLen = tmp.getInt();
     Preconditions.checkArgument(
-        buffer.order() == ByteOrder.LITTLE_ENDIAN, "Invalid byte order: big endian");
-
-    int minLen = buffer.getInt();
-    ByteBuffer min = buffer.slice().order(ByteOrder.LITTLE_ENDIAN);
+        minLen == 2 * Double.BYTES || minLen == 3 * Double.BYTES || minLen == 4 * Double.BYTES,
+        "Invalid geo spatial lower bound buffer size for: %s. Valid sizes are 16, 24, or 32 bytes.",
+        minLen);
+    ByteBuffer min = tmp.slice().order(ByteOrder.LITTLE_ENDIAN);
     min.limit(minLen);
-    buffer.position(buffer.position() + minLen);
+    tmp.position(tmp.position() + minLen);
 
-    int maxLen = buffer.getInt();
-    ByteBuffer max = buffer.slice().order(ByteOrder.LITTLE_ENDIAN);
+    int maxLen = tmp.getInt();
+    Preconditions.checkArgument(
+        maxLen == 2 * Double.BYTES || maxLen == 3 * Double.BYTES || maxLen == 4 * Double.BYTES,
+        "Invalid geo spatial upper bound buffer size: %s. Valid sizes are 16, 24, or 32 bytes.",
+        maxLen);
+    ByteBuffer max = tmp.slice().order(ByteOrder.LITTLE_ENDIAN);
     max.limit(maxLen);
 
     return fromByteBuffers(min, max);
