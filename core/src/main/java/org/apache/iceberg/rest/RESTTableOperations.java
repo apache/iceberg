@@ -156,7 +156,6 @@ class RESTTableOperations implements TableOperations {
         builder.addEncryptionKey(entry.getValue());
       }
       metadataToCommit = builder.build();
-      // TODO(smaheshwar-pltr): Think about requirements
     }
 
     switch (updateType) {
@@ -196,17 +195,15 @@ class RESTTableOperations implements TableOperations {
             String.format("Update type %s is not supported", updateType));
     }
 
-    // get Iceberg props that have been removed
-    Set<String> removedProps = Collections.emptySet();
     if (base != null) {
-      removedProps =
+      Set<String> removedProps =
               base.properties().keySet().stream()
                       .filter(key -> !metadata.properties().containsKey(key))
                       .collect(Collectors.toSet());
-    }
 
-    if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
-      throw new RuntimeException("Cannot remove key in encrypted table");
+      if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
+        throw new RuntimeException("Cannot remove key in encrypted table");
+      }
     }
 
     UpdateTableRequest request = new UpdateTableRequest(requirements, updates);
@@ -333,7 +330,6 @@ class RESTTableOperations implements TableOperations {
   }
 
   private void encryptionPropsFromMetadata(TableMetadata metadata) {
-    // TODO(smaheshwar-pltr): Check generally for changed encryption-related properties
     if (metadata == null || metadata.properties() == null) {
       return;
     }
@@ -423,7 +419,8 @@ class RESTTableOperations implements TableOperations {
 
       @Override
       public FileIO io() {
-        // TODO(smaheshwar-pltr): Hive fetches encryption props here
+        // TODO(smaheshwar-pltr): Hive fetches encryption props here from uncommitted metadata
+        // RESTTableOperations.this.encryptionPropsFromMetadata(uncommittedMetadata);
         return RESTTableOperations.this.io();
       }
 
