@@ -18,6 +18,13 @@
  */
 package org.apache.iceberg.stats;
 
+import static org.apache.iceberg.stats.FieldStatistic.AVG_VALUE_SIZE;
+import static org.apache.iceberg.stats.FieldStatistic.LOWER_BOUND;
+import static org.apache.iceberg.stats.FieldStatistic.MAX_VALUE_SIZE;
+import static org.apache.iceberg.stats.FieldStatistic.NAN_VALUE_COUNT;
+import static org.apache.iceberg.stats.FieldStatistic.NULL_VALUE_COUNT;
+import static org.apache.iceberg.stats.FieldStatistic.UPPER_BOUND;
+import static org.apache.iceberg.stats.FieldStatistic.VALUE_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.util.Comparator;
@@ -36,13 +43,6 @@ import org.slf4j.LoggerFactory;
 
 public class StatsUtil {
   private static final Logger LOG = LoggerFactory.getLogger(StatsUtil.class);
-  static final int VALUE_COUNT_OFFSET = 0;
-  static final int NULL_VALUE_COUNT_OFFSET = 1;
-  static final int NAN_VALUE_COUNT_OFFSET = 2;
-  static final int AVG_VALUE_SIZE_OFFSET = 3;
-  static final int MAX_VALUE_SIZE_OFFSET = 4;
-  static final int LOWER_BOUND_OFFSET = 5;
-  static final int UPPER_BOUND_OFFSET = 6;
   static final int NUM_STATS_PER_COLUMN = 200;
   static final int RESERVED_FIELD_IDS = 200;
   static final int DATA_SPACE_FIELD_ID_START = 10_000;
@@ -117,32 +117,32 @@ public class StatsUtil {
   private static Types.StructType contentStatsFor(Type type, int id) {
     return Types.StructType.of(
         optional(
-            id + VALUE_COUNT_OFFSET,
+            id + VALUE_COUNT.offset(),
             "value_count",
             Types.LongType.get(),
             "Total value count, including null and NaN"),
         optional(
-            id + NULL_VALUE_COUNT_OFFSET,
+            id + NULL_VALUE_COUNT.offset(),
             "null_value_count",
             Types.LongType.get(),
             "Total null value count"),
         optional(
-            id + NAN_VALUE_COUNT_OFFSET,
+            id + NAN_VALUE_COUNT.offset(),
             "nan_value_count",
             Types.LongType.get(),
             "Total NaN value count"),
         optional(
-            id + AVG_VALUE_SIZE_OFFSET,
+            id + AVG_VALUE_SIZE.offset(),
             "avg_value_size",
             Types.IntegerType.get(),
             "Avg value size of variable-length types (String, Binary)"),
         optional(
-            id + MAX_VALUE_SIZE_OFFSET,
+            id + MAX_VALUE_SIZE.offset(),
             "max_value_size",
             Types.IntegerType.get(),
             "Max value size of variable-length types (String, Binary)"),
-        optional(id + LOWER_BOUND_OFFSET, "lower_bound", type, "Lower bound"),
-        optional(id + UPPER_BOUND_OFFSET, "upper_bound", type, "Upper bound"));
+        optional(id + LOWER_BOUND.offset(), "lower_bound", type, "Lower bound"),
+        optional(id + UPPER_BOUND.offset(), "upper_bound", type, "Upper bound"));
   }
 
   private static class ContentStatsSchemaVisitor extends TypeUtil.SchemaVisitor<Types.NestedField> {

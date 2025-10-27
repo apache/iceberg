@@ -18,6 +18,13 @@
  */
 package org.apache.iceberg.stats;
 
+import static org.apache.iceberg.stats.FieldStatistic.AVG_VALUE_SIZE;
+import static org.apache.iceberg.stats.FieldStatistic.LOWER_BOUND;
+import static org.apache.iceberg.stats.FieldStatistic.MAX_VALUE_SIZE;
+import static org.apache.iceberg.stats.FieldStatistic.NAN_VALUE_COUNT;
+import static org.apache.iceberg.stats.FieldStatistic.NULL_VALUE_COUNT;
+import static org.apache.iceberg.stats.FieldStatistic.UPPER_BOUND;
+import static org.apache.iceberg.stats.FieldStatistic.VALUE_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -134,13 +141,13 @@ public class TestContentStats {
             .upperBound(20)
             .build();
 
-    record.set(StatsUtil.VALUE_COUNT_OFFSET, fieldStats.valueCount());
-    record.set(StatsUtil.NULL_VALUE_COUNT_OFFSET, fieldStats.nullValueCount());
-    record.set(StatsUtil.NAN_VALUE_COUNT_OFFSET, fieldStats.nanValueCount());
-    record.set(StatsUtil.AVG_VALUE_SIZE_OFFSET, fieldStats.avgValueSize());
-    record.set(StatsUtil.MAX_VALUE_SIZE_OFFSET, fieldStats.maxValueSize());
-    record.set(StatsUtil.LOWER_BOUND_OFFSET, fieldStats.lowerBound());
-    record.set(StatsUtil.UPPER_BOUND_OFFSET, fieldStats.upperBound());
+    record.set(VALUE_COUNT.offset(), fieldStats.valueCount());
+    record.set(NULL_VALUE_COUNT.offset(), fieldStats.nullValueCount());
+    record.set(NAN_VALUE_COUNT.offset(), fieldStats.nanValueCount());
+    record.set(AVG_VALUE_SIZE.offset(), fieldStats.avgValueSize());
+    record.set(MAX_VALUE_SIZE.offset(), fieldStats.maxValueSize());
+    record.set(LOWER_BOUND.offset(), fieldStats.lowerBound());
+    record.set(UPPER_BOUND.offset(), fieldStats.upperBound());
 
     // this is typically called by Avro reflection code
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
@@ -159,17 +166,17 @@ public class TestContentStats {
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
 
     // invalid lower bound
-    record.set(StatsUtil.LOWER_BOUND_OFFSET, 5.0);
+    record.set(LOWER_BOUND.offset(), 5.0);
     assertThatThrownBy(() -> stats.set(0, record))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid lower bound type, expected a subtype of class java.lang.Integer: java.lang.Double");
 
     // set valid lower bound so that upper bound is evaluated
-    record.set(StatsUtil.LOWER_BOUND_OFFSET, 5);
+    record.set(LOWER_BOUND.offset(), 5);
 
     // invalid upper bound
-    record.set(StatsUtil.UPPER_BOUND_OFFSET, "20");
+    record.set(UPPER_BOUND.offset(), "20");
     assertThatThrownBy(() -> stats.set(0, record))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
