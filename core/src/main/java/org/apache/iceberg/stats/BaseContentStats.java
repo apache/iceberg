@@ -20,23 +20,30 @@ package org.apache.iceberg.stats;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public class BaseContentStats implements ContentStats, Serializable {
 
   private final List<FieldStats<?>> fieldStats;
+  private final Map<Integer, FieldStats<?>> fieldStatsById;
+  private final Types.StructType statsStruct;
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   public BaseContentStats(Types.StructType projection) {
+    this.statsStruct = projection;
     this.fieldStats = Lists.newArrayListWithCapacity(projection.fields().size());
+    this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(projection.fields().size());
     for (int i = 0; i < projection.fields().size(); i++) {
       Types.NestedField field = projection.fields().get(i);
       Preconditions.checkArgument(
@@ -57,13 +64,32 @@ public class BaseContentStats implements ContentStats, Serializable {
     }
   }
 
-  private BaseContentStats(List<FieldStats<?>> fieldStats) {
+  private BaseContentStats(Types.StructType struct, List<FieldStats<?>> fieldStats) {
+    this.statsStruct = struct;
     this.fieldStats = Lists.newArrayList(fieldStats);
+    this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(fieldStats.size());
   }
 
   @Override
   public List<FieldStats<?>> fieldStats() {
     return fieldStats;
+  }
+
+  @Override
+  public Types.StructType statsStruct() {
+    return statsStruct;
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public <T> FieldStats<T> statsFor(int fieldId) {
+    if (fieldStatsById.isEmpty() && !fieldStats.isEmpty()) {
+      fieldStats.stream()
+          .filter(Objects::nonNull)
+          .forEach(stat -> fieldStatsById.put(stat.fieldId(), stat));
+    }
+
+    return (FieldStats<T>) fieldStatsById.get(fieldId);
   }
 
   @Override
@@ -73,13 +99,14 @@ public class BaseContentStats implements ContentStats, Serializable {
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    if (pos > fieldStats().size() - 1) {
+    if (pos > statsStruct.fields().size() - 1) {
       // return null in case there are more stats schemas than actual stats available as Avro calls
       // get() for all available stats schemas of a given table
       return null;
     }
 
-    FieldStats<?> value = fieldStats.get(pos);
+    int statsFieldId = statsStruct.fields().get(pos).fieldId();
+    FieldStats<?> value = statsFor(StatsUtil.fieldIdForStatsField(statsFieldId));
     if (value == null || javaClass.isInstance(value)) {
       return javaClass.cast(value);
     }
@@ -90,7 +117,7 @@ public class BaseContentStats implements ContentStats, Serializable {
             javaClass.getName(), value.getClass().getName(), value));
   }
 
-  @SuppressWarnings({"unchecked", "rawtypes"})
+  @SuppressWarnings({"unchecked", "rawtypes", "CyclomaticComplexity"})
   @Override
   public <T> void set(int pos, T value) {
     if (value instanceof GenericRecord) {
@@ -138,10 +165,13 @@ public class BaseContentStats implements ContentStats, Serializable {
         builder.upperBound(type.typeId().javaClass().cast(upperBound));
       }
 
+      if (null != record.getField("is_exact")) {
+        Boolean isExact = (Boolean) record.getField("is_exact");
+        builder.isExact(null != isExact && isExact);
+      }
+
       BaseFieldStats<?> newStat = builder.build();
       fieldStats.set(pos, newStat);
-    } else {
-      fieldStats.set(pos, (FieldStats<?>) value);
     }
   }
 
@@ -157,12 +187,13 @@ public class BaseContentStats implements ContentStats, Serializable {
     }
 
     BaseContentStats that = (BaseContentStats) o;
-    return Objects.equals(fieldStats, that.fieldStats);
+    return Objects.equals(fieldStats, that.fieldStats)
+        && Objects.equals(statsStruct, that.statsStruct);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(fieldStats);
+    return Objects.hash(fieldStats, statsStruct);
   }
 
   public static Builder builder() {
@@ -170,7 +201,7 @@ public class BaseContentStats implements ContentStats, Serializable {
   }
 
   public static Builder buildFrom(ContentStats stats) {
-    return builder().withFieldStats(stats.fieldStats());
+    return builder().withStatsStruct(stats.statsStruct()).withFieldStats(stats.fieldStats());
   }
 
   public static Builder buildFrom(ContentStats stats, Set<Integer> requestedColumnIds) {
@@ -179,6 +210,7 @@ public class BaseContentStats implements ContentStats, Serializable {
     }
 
     return builder()
+        .withStatsStruct(stats.statsStruct())
         .withFieldStats(
             stats.fieldStats().stream()
                 .filter(stat -> requestedColumnIds.contains(stat.fieldId()))
@@ -187,8 +219,20 @@ public class BaseContentStats implements ContentStats, Serializable {
 
   public static class Builder {
     private final List<FieldStats<?>> stats = Lists.newArrayList();
+    private Types.StructType statsStruct;
+    private Schema schema;
 
     private Builder() {}
+
+    public Builder withStatsStruct(Types.StructType struct) {
+      this.statsStruct = struct;
+      return this;
+    }
+
+    public Builder withTableSchema(Schema tableSchema) {
+      this.schema = tableSchema;
+      return this;
+    }
 
     public Builder withFieldStats(FieldStats<?> fieldStats) {
       stats.add(fieldStats);
@@ -201,7 +245,16 @@ public class BaseContentStats implements ContentStats, Serializable {
     }
 
     public BaseContentStats build() {
-      return new BaseContentStats(stats);
+      Preconditions.checkArgument(
+          null != statsStruct || null != schema, "Either stats struct or table schema must be set");
+      Preconditions.checkArgument(
+          (null != statsStruct && null == schema) || (null == statsStruct && null != schema),
+          "Cannot set stats struct and table schema");
+      if (null != schema) {
+        this.statsStruct = StatsUtil.contentStatsFor(schema).type().asStructType();
+      }
+
+      return new BaseContentStats(statsStruct, stats);
     }
   }
 }

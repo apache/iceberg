@@ -20,9 +20,22 @@ package org.apache.iceberg.stats;
 
 import java.util.List;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Types;
 
 public interface ContentStats extends StructLike {
 
   /** A list of all the {@link FieldStats} */
   List<FieldStats<?>> fieldStats();
+
+  /**
+   * Returns a {@link FieldStats} instance holding field stats for the given field ID.
+   *
+   * @param fieldId The field ID to retrieve {@link FieldStats} for
+   * @return A {@link FieldStats} instance holding field stats for the given field ID.
+   * @param <T> The type of the underlying {@link FieldStats} instance.
+   */
+  <T> FieldStats<T> statsFor(int fieldId);
+
+  /** The stats struct holding nested structs with their respective field stats */
+  Types.StructType statsStruct();
 }

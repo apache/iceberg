@@ -19,12 +19,14 @@
 package org.apache.iceberg.stats;
 
 import static org.apache.iceberg.stats.FieldStatistic.AVG_VALUE_SIZE;
+import static org.apache.iceberg.stats.FieldStatistic.IS_EXACT;
 import static org.apache.iceberg.stats.FieldStatistic.LOWER_BOUND;
 import static org.apache.iceberg.stats.FieldStatistic.MAX_VALUE_SIZE;
 import static org.apache.iceberg.stats.FieldStatistic.NAN_VALUE_COUNT;
 import static org.apache.iceberg.stats.FieldStatistic.NULL_VALUE_COUNT;
 import static org.apache.iceberg.stats.FieldStatistic.UPPER_BOUND;
 import static org.apache.iceberg.stats.FieldStatistic.VALUE_COUNT;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,7 +41,7 @@ public class TestContentStats {
 
   @Test
   public void emptyContentStats() {
-    BaseContentStats stats = BaseContentStats.builder().build();
+    BaseContentStats stats = BaseContentStats.builder().withTableSchema(new Schema()).build();
     assertThat(stats).isNotNull();
     assertThat(stats.fieldStats()).isEmpty();
   }
@@ -50,6 +52,10 @@ public class TestContentStats {
     BaseFieldStats<?> fieldStatsTwo = BaseFieldStats.builder().fieldId(2).build();
     BaseContentStats stats =
         BaseContentStats.builder()
+            .withTableSchema(
+                new Schema(
+                    optional(1, "id", Types.IntegerType.get()),
+                    optional(2, "id2", Types.IntegerType.get())))
             .withFieldStats(fieldStatsOne)
             .withFieldStats(fieldStatsTwo)
             .build();
@@ -67,6 +73,11 @@ public class TestContentStats {
     BaseContentStats stats =
         BaseContentStats.buildFrom(
                 BaseContentStats.builder()
+                    .withTableSchema(
+                        new Schema(
+                            optional(1, "id", Types.IntegerType.get()),
+                            optional(2, "id2", Types.IntegerType.get()),
+                            optional(3, "id3", Types.IntegerType.get())))
                     .withFieldStats(fieldStatsOne)
                     .withFieldStats(fieldStatsTwo)
                     .build())
@@ -83,6 +94,11 @@ public class TestContentStats {
 
     BaseContentStats stats =
         BaseContentStats.builder()
+            .withTableSchema(
+                new Schema(
+                    optional(1, "id", Types.IntegerType.get()),
+                    optional(2, "id2", Types.IntegerType.get()),
+                    optional(3, "id3", Types.IntegerType.get())))
             .withFieldStats(fieldStatsOne)
             .withFieldStats(fieldStatsTwo)
             .withFieldStats(fieldStatsThree)
@@ -106,6 +122,10 @@ public class TestContentStats {
     BaseFieldStats<?> fieldStatsTwo = BaseFieldStats.builder().fieldId(2).build();
     BaseContentStats stats =
         BaseContentStats.builder()
+            .withTableSchema(
+                new Schema(
+                    optional(1, "id", Types.IntegerType.get()),
+                    optional(2, "id2", Types.IntegerType.get())))
             .withFieldStats(fieldStatsOne)
             .withFieldStats(fieldStatsTwo)
             .build();
@@ -119,6 +139,89 @@ public class TestContentStats {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Wrong class, expected java.lang.Long but was org.apache.iceberg.stats.BaseFieldStats for object:");
+  }
+
+  @Test
+  public void retrievalByFieldId() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "id2", Types.StringType.get()),
+            required(3, "id3", Types.DoubleType.get()),
+            required(4, "id4", Types.LongType.get()),
+            required(5, "id5", Types.FloatType.get()));
+
+    BaseFieldStats<Object> fieldStatsTwo =
+        BaseFieldStats.builder()
+            .fieldId(2)
+            .type(Types.StringType.get())
+            .lowerBound("aaa")
+            .upperBound("zzz")
+            .build();
+    BaseFieldStats<Object> fieldStatsFive =
+        BaseFieldStats.builder()
+            .fieldId(5)
+            .type(Types.FloatType.get())
+            .lowerBound(1.0f)
+            .upperBound(5.0f)
+            .build();
+
+    // table schema has 5 columns, but we only have stats for field IDs 2 and 5 and hold the stats
+    // in an inverse order
+    BaseContentStats stats =
+        BaseContentStats.builder()
+            .withTableSchema(schema)
+            .withFieldStats(fieldStatsFive)
+            .withFieldStats(fieldStatsTwo)
+            .build();
+
+    assertThat(stats.statsFor(1)).isNull();
+    assertThat(stats.statsFor(2)).isEqualTo(fieldStatsTwo);
+    assertThat(stats.statsFor(3)).isNull();
+    assertThat(stats.statsFor(4)).isNull();
+    assertThat(stats.statsFor(5)).isEqualTo(fieldStatsFive);
+    assertThat(stats.statsFor(100)).isNull();
+  }
+
+  @Test
+  public void retrievalByPositionWithPartialStats() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "id2", Types.StringType.get()),
+            required(3, "id3", Types.DoubleType.get()),
+            required(4, "id4", Types.LongType.get()),
+            required(5, "id5", Types.FloatType.get()));
+
+    BaseFieldStats<Object> fieldStatsTwo =
+        BaseFieldStats.builder()
+            .fieldId(2)
+            .type(Types.StringType.get())
+            .lowerBound("aaa")
+            .upperBound("zzz")
+            .build();
+    BaseFieldStats<Object> fieldStatsFive =
+        BaseFieldStats.builder()
+            .fieldId(5)
+            .type(Types.FloatType.get())
+            .lowerBound(1.0f)
+            .upperBound(5.0f)
+            .build();
+
+    // table schema has 5 columns, but we only have stats for field IDs 2 and 5 and hold the stats
+    // in an inverse order
+    BaseContentStats stats =
+        BaseContentStats.builder()
+            .withTableSchema(schema)
+            .withFieldStats(fieldStatsFive)
+            .withFieldStats(fieldStatsTwo)
+            .build();
+
+    assertThat(stats.get(0, FieldStats.class)).isNull();
+    assertThat(stats.get(1, FieldStats.class)).isEqualTo(fieldStatsTwo);
+    assertThat(stats.get(2, FieldStats.class)).isNull();
+    assertThat(stats.get(3, FieldStats.class)).isNull();
+    assertThat(stats.get(4, FieldStats.class)).isEqualTo(fieldStatsFive);
   }
 
   @Test
@@ -139,6 +242,7 @@ public class TestContentStats {
             .maxValueSize(70)
             .lowerBound(5)
             .upperBound(20)
+            .isExact()
             .build();
 
     record.set(VALUE_COUNT.offset(), fieldStats.valueCount());
@@ -148,6 +252,7 @@ public class TestContentStats {
     record.set(MAX_VALUE_SIZE.offset(), fieldStats.maxValueSize());
     record.set(LOWER_BOUND.offset(), fieldStats.lowerBound());
     record.set(UPPER_BOUND.offset(), fieldStats.upperBound());
+    record.set(IS_EXACT.offset(), fieldStats.isExact());
 
     // this is typically called by Avro reflection code
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
