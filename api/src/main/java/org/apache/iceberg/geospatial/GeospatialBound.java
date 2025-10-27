@@ -63,9 +63,9 @@ public class GeospatialBound {
    * @throws IllegalArgumentException if the buffer has an invalid size
    */
   public static GeospatialBound fromByteBuffer(ByteBuffer buffer) {
-    Preconditions.checkArgument(
-        buffer.order() == ByteOrder.LITTLE_ENDIAN, "Invalid byte order: big endian");
-    int size = buffer.remaining();
+    ByteBuffer tmp = buffer.duplicate();
+    tmp.order(ByteOrder.LITTLE_ENDIAN);
+    int size = tmp.remaining();
     Preconditions.checkArgument(
         size == 2 * Double.BYTES || size == 3 * Double.BYTES || size == 4 * Double.BYTES,
         "Invalid geo spatial bound buffer size: %s. Valid sizes are 16, 24, or 32 bytes.",
@@ -73,21 +73,21 @@ public class GeospatialBound {
 
     if (size == 2 * Double.BYTES) {
       // x:y format (2 doubles)
-      double coordX = buffer.getDouble();
-      double coordY = buffer.getDouble();
+      double coordX = tmp.getDouble();
+      double coordY = tmp.getDouble();
       return createXY(coordX, coordY);
     } else if (size == 3 * Double.BYTES) {
       // x:y:z format (3 doubles)
-      double coordX = buffer.getDouble();
-      double coordY = buffer.getDouble();
-      double coordZ = buffer.getDouble();
+      double coordX = tmp.getDouble();
+      double coordY = tmp.getDouble();
+      double coordZ = tmp.getDouble();
       return createXYZ(coordX, coordY, coordZ);
     } else {
       // x:y:z:m format (4 doubles) - z might be NaN
-      double coordX = buffer.getDouble();
-      double coordY = buffer.getDouble();
-      double coordZ = buffer.getDouble();
-      double coordM = buffer.getDouble();
+      double coordX = tmp.getDouble();
+      double coordY = tmp.getDouble();
+      double coordZ = tmp.getDouble();
+      double coordM = tmp.getDouble();
       return new GeospatialBound(coordX, coordY, coordZ, coordM);
     }
   }

@@ -21,6 +21,7 @@ package org.apache.iceberg.geospatial;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import org.apache.iceberg.util.ByteBuffers;
 import org.junit.jupiter.api.Test;
 
@@ -201,6 +202,28 @@ public class TestGeospatialBound {
     assertThat(xyzm.hasZ()).isTrue();
     assertThat(xyzm.hasM()).isTrue();
     assertThat(ByteBuffers.toByteArray(xyzm.toByteBuffer())).isEqualTo(xyzmBytes);
+  }
+
+  @Test
+  public void testFromByteBuffer() {
+    // Test XY format (16 bytes: x:y)
+    // These bytes represent x=10.0, y=13.0
+    byte[] xyBytes =
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, // 10.0 in little-endian IEEE 754
+          0, 0, 0, 0, 0, 0, 42, 64 // 13.0 in little-endian IEEE 754
+        };
+    ByteBuffer xyBuffer = ByteBuffer.wrap(xyBytes);
+    for (ByteOrder endianness : new ByteOrder[] {ByteOrder.BIG_ENDIAN, ByteOrder.LITTLE_ENDIAN}) {
+      xyBuffer.order(endianness);
+      GeospatialBound xy = GeospatialBound.fromByteBuffer(xyBuffer);
+      assertThat(xy.x()).isEqualTo(10.0);
+      assertThat(xy.y()).isEqualTo(13.0);
+      assertThat(xy.hasZ()).isFalse();
+      assertThat(xy.hasM()).isFalse();
+      assertThat(xyBuffer.position()).isEqualTo(0);
+      assertThat(xyBuffer.order()).isEqualTo(endianness);
+    }
   }
 
   private GeospatialBound roundTripSerDe(GeospatialBound original) {
