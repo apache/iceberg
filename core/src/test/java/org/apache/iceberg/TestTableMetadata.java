@@ -1965,7 +1965,7 @@ public class TestTableMetadata {
     TableMetadata schemaUpdate =
         TableMetadata.buildFrom(metadata)
             .setCurrentSchema(newSchema, newSchema.highestFieldId())
-            .setLastUpdatedMillisIfNull(originalTimestamp)
+            .setLastUpdatedMillis(originalTimestamp)
             .build();
 
     assertThat(schemaUpdate.lastUpdatedMillis())
@@ -1977,7 +1977,7 @@ public class TestTableMetadata {
     TableMetadata propertyUpdate =
         TableMetadata.buildFrom(schemaUpdate)
             .setProperties(Map.of("foo", "bar"))
-            .setLastUpdatedMillisIfNull(anotherTimestamp)
+            .setLastUpdatedMillis(anotherTimestamp)
             .build();
 
     assertThat(propertyUpdate.lastUpdatedMillis())
@@ -2022,10 +2022,11 @@ public class TestTableMetadata {
                 TableMetadata.buildFrom(base)
                     .addSnapshot(snapshotToAdd)
                     .setBranchSnapshot(snapshotToAdd.snapshotId(), "main")
-                    .setLastUpdatedMillisIfNull(anotherTimestamp)
+                    .setLastUpdatedMillis(anotherTimestamp)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot set lastUpdatedMillis: field has already been initialized with value");
+        .hasMessageStartingWith(
+            "Cannot set lastUpdatedMillis: field has already been initialized with value");
   }
 
   @Test

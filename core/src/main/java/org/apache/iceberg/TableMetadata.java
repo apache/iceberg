@@ -1521,7 +1521,7 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder setLastUpdatedMillisIfNull(long lastUpdatedAt) {
+    public Builder setLastUpdatedMillis(long lastUpdatedAt) {
       Preconditions.checkArgument(
           this.lastUpdatedMillis == null,
           "Cannot set lastUpdatedMillis: field has already been initialized with value %s",
