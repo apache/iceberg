@@ -26,7 +26,9 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPAuthUtils;
@@ -85,11 +87,18 @@ class PrefixedStorage implements AutoCloseable {
               // Use impersonated credentials
               try {
                 GoogleCredentials sourceCredentials = GoogleCredentials.getApplicationDefault();
+
+                // Parse delegation chain if provided
+                List<String> delegates = null;
+                if (gcpProperties.impersonateDelegates().isPresent()) {
+                  delegates = Arrays.asList(gcpProperties.impersonateDelegates().get().split(","));
+                }
+
                 ImpersonatedCredentials impersonatedCredentials =
                     ImpersonatedCredentials.create(
                         sourceCredentials,
                         gcpProperties.impersonateServiceAccount().get(),
-                        null, // No delegation chain
+                        delegates,
                         Collections.singletonList(CLOUD_PLATFORM_SCOPE),
                         gcpProperties.impersonateLifetimeSeconds());
 
@@ -97,7 +106,8 @@ class PrefixedStorage implements AutoCloseable {
                 impersonatedCredentials.refresh();
                 builder.setCredentials(impersonatedCredentials);
               } catch (IOException e) {
-                throw new RuntimeException("Failed to create impersonated credentials for GCS", e);
+                throw new UncheckedIOException(
+                    "Failed to create impersonated credentials for GCS", e);
               }
             }
 

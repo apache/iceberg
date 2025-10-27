@@ -61,10 +61,11 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   public static final String PROJECT_ID = "gcp.bigquery.project-id";
   public static final String GCP_LOCATION = "gcp.bigquery.location";
   public static final String LIST_ALL_TABLES = "gcp.bigquery.list-all-tables";
-  public static final String CLIENT_FACTORY = "gcp.bigquery.client.factory";
 
+  public static final String CLIENT_FACTORY = "gcp.bigquery.client.factory";
   private static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcs.impersonate.service-account";
   private static final String GCS_PROJECT_ID = "gcs.project-id";
+  private static final String GCS_IMPERSONATE_DELEGATES = "gcs.impersonate.delegates";
 
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryMetastoreCatalog.class);
 
@@ -79,26 +80,11 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   private BigQueryMetastoreClient client;
   private boolean listAllTables;
   private String warehouseLocation;
-  private BigQueryClientFactory clientFactory;
 
   public BigQueryMetastoreCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-
-    // Use System.out instead of LOG
-    System.out.println("========================================");
-    System.out.println(
-        "BigQueryMetastoreCatalog.initialize() called with " + properties.size() + " properties");
-    System.out.println("All properties received:");
-    for (Map.Entry<String, String> entry : properties.entrySet()) {
-      System.out.println("  " + entry.getKey() + " = " + entry.getValue());
-    }
-    System.out.println("Looking for PROJECT_ID key: " + PROJECT_ID);
-    System.out.println("Contains PROJECT_ID? " + properties.containsKey(PROJECT_ID));
-    System.out.println("Looking for alternate key: gcp_project");
-    System.out.println("Contains gcp_project? " + properties.containsKey("gcp_project"));
-    System.out.println("========================================");
 
     this.projectId = properties.get(PROJECT_ID);
     this.projectLocation = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
@@ -108,7 +94,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
         "Invalid GCP project: %s must be specified",
         PROJECT_ID);
 
-    this.clientFactory = createClientFactory(properties);
+    BigQueryClientFactory clientFactory = createClientFactory(properties);
     BigQueryOptions options = clientFactory.bigQueryOptions();
 
     try {
@@ -126,12 +112,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     String factoryClassName = properties.get(CLIENT_FACTORY);
     BigQueryClientFactory factory;
 
-    // Use System.out instead of LOG
-    System.out.println("========================================");
-    System.out.println("createClientFactory() called");
-    System.out.println("CLIENT_FACTORY property: " + factoryClassName);
-    System.out.println("========================================");
-
     if (factoryClassName != null) {
       try {
         LOG.info("Loading custom BigQuery client factory: {}", factoryClassName);
@@ -144,6 +124,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     } else {
       factory = new DefaultBigQueryClientFactory();
     }
+
     factory.initialize(properties);
     return factory;
   }
@@ -190,6 +171,13 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     if (impersonateServiceAccount != null) {
       fileIOProperties.put(GCS_IMPERSONATE_SERVICE_ACCOUNT, impersonateServiceAccount);
       fileIOProperties.put(GCS_PROJECT_ID, gcpProjectId);
+
+      // Also propagate delegation chain if specified
+      String delegates = properties.get(ImpersonatedBigQueryClientFactory.IMPERSONATE_DELEGATES);
+      if (delegates != null) {
+        fileIOProperties.put(GCS_IMPERSONATE_DELEGATES, delegates);
+      }
+
       LOG.info("Auto-propagating impersonation to GCS FileIO: {}", impersonateServiceAccount);
     }
 

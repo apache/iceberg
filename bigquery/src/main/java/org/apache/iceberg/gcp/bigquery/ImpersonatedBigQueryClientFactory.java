@@ -18,15 +18,16 @@
  */
 package org.apache.iceberg.gcp.bigquery;
 
-import com.google.api.client.util.Preconditions;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.cloud.ServiceOptions;
 import com.google.cloud.bigquery.BigQueryOptions;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,40 +60,13 @@ public class ImpersonatedBigQueryClientFactory implements BigQueryClientFactory 
   /** Configuration property for the target service account to impersonate. */
   public static final String IMPERSONATE_SERVICE_ACCOUNT = "gcp.impersonate.service-account";
 
-  /**
-   * Configuration property for the impersonated token lifetime in seconds.
-   *
-   * <p>Per Google Cloud documentation: "If a value is not specified, the token's lifetime will be
-   * set to a default value of 1 hour."
-   *
-   * @see <a
-   *     href="https://cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/generateAccessToken">generateAccessToken
-   *     API - lifetime field</a>
-   */
+  /** Token lifetime in seconds (default: 3600). */
   public static final String IMPERSONATE_LIFETIME_SECONDS = "gcp.impersonate.lifetime-seconds";
 
-  /**
-   * Configuration property for OAuth2 scopes as a comma-separated list.
-   *
-   * <p>Scopes define the level of access granted to the impersonated credentials. If not specified,
-   * defaults to BigQuery and Cloud Platform scopes.
-   *
-   * @see <a href="https://developers.google.com/identity/protocols/oauth2/scopes">Google OAuth2
-   *     Scopes</a>
-   */
+  /** Comma-separated OAuth2 scopes (defaults to BigQuery and Cloud Platform). */
   public static final String IMPERSONATE_SCOPES = "gcp.impersonate.scopes";
 
-  /**
-   * Configuration property for delegation chain as a comma-separated list of service account
-   * emails.
-   *
-   * <p>Delegates are used for chained impersonation where SA1 impersonates SA2 which impersonates
-   * SA3. Each service account in the chain must have the appropriate IAM permissions.
-   *
-   * @see <a
-   *     href="https://cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/generateAccessToken#body.request_body.FIELDS.delegates">generateAccessToken
-   *     API - delegates field</a>
-   */
+  /** Comma-separated delegation chain for chained impersonation. */
   public static final String IMPERSONATE_DELEGATES = "gcp.impersonate.delegates";
 
   private static final int DEFAULT_LIFETIME_SECONDS = 3600;
@@ -138,7 +112,7 @@ public class ImpersonatedBigQueryClientFactory implements BigQueryClientFactory 
     this.delegates = parseCommaSeparatedList(properties.get(IMPERSONATE_DELEGATES), null);
 
     LOG.info(
-        "Initialized ImpersonationGCPClientFactory to impersonate {} with lifetime {} seconds",
+        "Initialized ImpersonatedBigQueryClientFactory to impersonate {} with lifetime {} seconds",
         targetServiceAccount,
         lifetimeSeconds);
   }
@@ -173,7 +147,7 @@ public class ImpersonatedBigQueryClientFactory implements BigQueryClientFactory 
           .build();
 
     } catch (IOException e) {
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           "Failed to create impersonated credentials for " + targetServiceAccount, e);
     }
   }
