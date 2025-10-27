@@ -142,7 +142,7 @@ Note: The `body` must be valid SQL in the specified dialect; validation is the r
 ## Function Resolution in Engines
 Resolution rule is decided by engines, but engines SHOULD:
 1. Prefer exact signature matches over casting or subtyping.
-2. Allow numeric widening (e.g., `INT` --> `BIGINT/FLOAT`) by default.
+2. Allow numeric widening (e.g., `INT` --> `BIGINT/FLOAT`) when needed and where it does not conflict with the rule above.
 3. Require explicit casts for unsafe conversions (e.g., `STRING` --> `DATE`).
 
 ## Appendix A: Example – Overloaded Scalar Function
