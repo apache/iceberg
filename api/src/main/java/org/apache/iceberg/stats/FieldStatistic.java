@@ -19,23 +19,29 @@
 package org.apache.iceberg.stats;
 
 public enum FieldStatistic {
-  VALUE_COUNT(0),
-  NULL_VALUE_COUNT(1),
-  NAN_VALUE_COUNT(2),
-  AVG_VALUE_SIZE(3),
-  MAX_VALUE_SIZE(4),
-  LOWER_BOUND(5),
-  UPPER_BOUND(6),
-  IS_EXACT(7);
+  VALUE_COUNT(0, "value_count"),
+  NULL_VALUE_COUNT(1, "null_value_count"),
+  NAN_VALUE_COUNT(2, "nan_value_count"),
+  AVG_VALUE_SIZE(3, "avg_value_size"),
+  MAX_VALUE_SIZE(4, "max_value_size"),
+  LOWER_BOUND(5, "lower_bound"),
+  UPPER_BOUND(6, "upper_bound"),
+  IS_EXACT(7, "is_exact");
 
   private final int offset;
+  private final String fieldName;
 
-  FieldStatistic(int offset) {
+  FieldStatistic(int offset, String fieldName) {
     this.offset = offset;
+    this.fieldName = fieldName;
   }
 
   public int offset() {
     return offset;
+  }
+
+  public String fieldName() {
+    return fieldName;
   }
 
   public static FieldStatistic fromOffset(int offset) {

@@ -40,6 +40,22 @@ import org.junit.jupiter.api.Test;
 public class TestContentStats {
 
   @Test
+  public void contentStatsWithoutStatsStruct() {
+    assertThatThrownBy(() -> BaseContentStats.builder().build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Either stats struct or table schema must be set");
+
+    assertThatThrownBy(
+            () ->
+                BaseContentStats.builder()
+                    .withTableSchema(new Schema())
+                    .withStatsStruct(new Schema().asStruct())
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set stats struct and table schema");
+  }
+
+  @Test
   public void emptyContentStats() {
     BaseContentStats stats = BaseContentStats.builder().withTableSchema(new Schema()).build();
     assertThat(stats).isNotNull();

@@ -125,27 +125,27 @@ public class BaseContentStats implements ContentStats, Serializable {
       FieldStats<?> stat = fieldStats.get(pos);
       BaseFieldStats.Builder builder = BaseFieldStats.buildFrom(stat);
       Type type = stat.type();
-      if (null != record.getField("value_count")) {
-        builder.valueCount((Long) record.getField("value_count"));
+      if (null != record.getField(FieldStatistic.VALUE_COUNT.fieldName())) {
+        builder.valueCount((Long) record.getField(FieldStatistic.VALUE_COUNT.fieldName()));
       }
 
-      if (null != record.getField("nan_value_count")) {
-        builder.nanValueCount((Long) record.getField("nan_value_count"));
+      if (null != record.getField(FieldStatistic.NAN_VALUE_COUNT.fieldName())) {
+        builder.nanValueCount((Long) record.getField(FieldStatistic.NAN_VALUE_COUNT.fieldName()));
       }
 
-      if (null != record.getField("null_value_count")) {
-        builder.nullValueCount((Long) record.getField("null_value_count"));
+      if (null != record.getField(FieldStatistic.NULL_VALUE_COUNT.fieldName())) {
+        builder.nullValueCount((Long) record.getField(FieldStatistic.NULL_VALUE_COUNT.fieldName()));
       }
 
-      if (null != record.getField("avg_value_size")) {
-        builder.avgValueSize((Integer) record.getField("avg_value_size"));
+      if (null != record.getField(FieldStatistic.AVG_VALUE_SIZE.fieldName())) {
+        builder.avgValueSize((Integer) record.getField(FieldStatistic.AVG_VALUE_SIZE.fieldName()));
       }
 
-      if (null != record.getField("max_value_size")) {
-        builder.maxValueSize((Integer) record.getField("max_value_size"));
+      if (null != record.getField(FieldStatistic.MAX_VALUE_SIZE.fieldName())) {
+        builder.maxValueSize((Integer) record.getField(FieldStatistic.MAX_VALUE_SIZE.fieldName()));
       }
 
-      Object lowerBound = record.getField("lower_bound");
+      Object lowerBound = record.getField(FieldStatistic.LOWER_BOUND.fieldName());
       if (null != type && null != lowerBound) {
         Preconditions.checkArgument(
             type.typeId().javaClass().isInstance(lowerBound),
@@ -155,7 +155,7 @@ public class BaseContentStats implements ContentStats, Serializable {
         builder.lowerBound(type.typeId().javaClass().cast(lowerBound));
       }
 
-      Object upperBound = record.getField("upper_bound");
+      Object upperBound = record.getField(FieldStatistic.UPPER_BOUND.fieldName());
       if (null != type && null != upperBound) {
         Preconditions.checkArgument(
             type.typeId().javaClass().isInstance(upperBound),
@@ -165,8 +165,8 @@ public class BaseContentStats implements ContentStats, Serializable {
         builder.upperBound(type.typeId().javaClass().cast(upperBound));
       }
 
-      if (null != record.getField("is_exact")) {
-        Boolean isExact = (Boolean) record.getField("is_exact");
+      if (null != record.getField(FieldStatistic.IS_EXACT.fieldName())) {
+        Boolean isExact = (Boolean) record.getField(FieldStatistic.IS_EXACT.fieldName());
         builder.isExact(null != isExact && isExact);
       }
 
@@ -248,8 +248,7 @@ public class BaseContentStats implements ContentStats, Serializable {
       Preconditions.checkArgument(
           null != statsStruct || null != schema, "Either stats struct or table schema must be set");
       Preconditions.checkArgument(
-          (null != statsStruct && null == schema) || (null == statsStruct && null != schema),
-          "Cannot set stats struct and table schema");
+          null == statsStruct || null == schema, "Cannot set stats struct and table schema");
       if (null != schema) {
         this.statsStruct = StatsUtil.contentStatsFor(schema).type().asStructType();
       }

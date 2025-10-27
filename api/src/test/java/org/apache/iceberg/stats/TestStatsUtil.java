@@ -201,24 +201,35 @@ public class TestStatsUtil {
     return Types.StructType.of(
         optional(
             fieldId++,
-            "value_count",
+            FieldStatistic.VALUE_COUNT.fieldName(),
             Types.LongType.get(),
             "Total value count, including null and NaN"),
-        optional(fieldId++, "null_value_count", Types.LongType.get(), "Total null value count"),
-        optional(fieldId++, "nan_value_count", Types.LongType.get(), "Total NaN value count"),
         optional(
             fieldId++,
-            "avg_value_size",
+            FieldStatistic.NULL_VALUE_COUNT.fieldName(),
+            Types.LongType.get(),
+            "Total null value count"),
+        optional(
+            fieldId++,
+            FieldStatistic.NAN_VALUE_COUNT.fieldName(),
+            Types.LongType.get(),
+            "Total NaN value count"),
+        optional(
+            fieldId++,
+            FieldStatistic.AVG_VALUE_SIZE.fieldName(),
             Types.IntegerType.get(),
             "Avg value size of variable-length types (String, Binary)"),
         optional(
             fieldId++,
-            "max_value_size",
+            FieldStatistic.MAX_VALUE_SIZE.fieldName(),
             Types.IntegerType.get(),
             "Max value size of variable-length types (String, Binary)"),
-        optional(fieldId++, "lower_bound", type, "Lower bound"),
-        optional(fieldId++, "upper_bound", type, "Upper bound"),
+        optional(fieldId++, FieldStatistic.LOWER_BOUND.fieldName(), type, "Lower bound"),
+        optional(fieldId++, FieldStatistic.UPPER_BOUND.fieldName(), type, "Upper bound"),
         optional(
-            fieldId, "is_exact", Types.BooleanType.get(), "Whether the statistic is exact or not"));
+            fieldId,
+            FieldStatistic.IS_EXACT.fieldName(),
+            Types.BooleanType.get(),
+            "Whether the statistic is exact or not"));
   }
 }

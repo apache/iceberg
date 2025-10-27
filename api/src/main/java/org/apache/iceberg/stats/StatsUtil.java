@@ -111,34 +111,42 @@ public class StatsUtil {
     return Types.StructType.of(
         optional(
             id + FieldStatistic.VALUE_COUNT.offset(),
-            "value_count",
+            FieldStatistic.VALUE_COUNT.fieldName(),
             Types.LongType.get(),
             "Total value count, including null and NaN"),
         optional(
             id + FieldStatistic.NULL_VALUE_COUNT.offset(),
-            "null_value_count",
+            FieldStatistic.NULL_VALUE_COUNT.fieldName(),
             Types.LongType.get(),
             "Total null value count"),
         optional(
             id + FieldStatistic.NAN_VALUE_COUNT.offset(),
-            "nan_value_count",
+            FieldStatistic.NAN_VALUE_COUNT.fieldName(),
             Types.LongType.get(),
             "Total NaN value count"),
         optional(
             id + FieldStatistic.AVG_VALUE_SIZE.offset(),
-            "avg_value_size",
+            FieldStatistic.AVG_VALUE_SIZE.fieldName(),
             Types.IntegerType.get(),
             "Avg value size of variable-length types (String, Binary)"),
         optional(
             id + FieldStatistic.MAX_VALUE_SIZE.offset(),
-            "max_value_size",
+            FieldStatistic.MAX_VALUE_SIZE.fieldName(),
             Types.IntegerType.get(),
             "Max value size of variable-length types (String, Binary)"),
-        optional(id + FieldStatistic.LOWER_BOUND.offset(), "lower_bound", type, "Lower bound"),
-        optional(id + FieldStatistic.UPPER_BOUND.offset(), "upper_bound", type, "Upper bound"),
+        optional(
+            id + FieldStatistic.LOWER_BOUND.offset(),
+            FieldStatistic.LOWER_BOUND.fieldName(),
+            type,
+            "Lower bound"),
+        optional(
+            id + FieldStatistic.UPPER_BOUND.offset(),
+            FieldStatistic.UPPER_BOUND.fieldName(),
+            type,
+            "Upper bound"),
         optional(
             id + FieldStatistic.IS_EXACT.offset(),
-            "is_exact",
+            FieldStatistic.IS_EXACT.fieldName(),
             Types.BooleanType.get(),
             "Whether the statistic is exact or not"));
   }
