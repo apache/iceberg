@@ -1937,7 +1937,7 @@ public class TestTableMetadata {
   }
 
   @Test
-  public void testSetLastUpdatedMillisForMetadataUpdate() throws Exception {
+  public void testSetLastUpdatedMillisForMetadataUpdate() {
     String uuid = "4db85dc8-33a7-4c28-ac0f-3450818b5438";
     long originalTimestamp = System.currentTimeMillis();
     TestHelpers.waitUntilAfter(originalTimestamp);
@@ -2016,21 +2016,16 @@ public class TestTableMetadata {
             null);
 
     long anotherTimestamp = System.currentTimeMillis();
-    TableMetadata updated =
-        TableMetadata.buildFrom(base)
-            .addSnapshot(snapshotToAdd)
-            .setBranchSnapshot(snapshotToAdd.snapshotId(), "main")
-            .setLastUpdatedMillisIfNull(anotherTimestamp)
-            .build();
 
-    assertThat(updated.lastUpdatedMillis())
-        .as("setLastUpdatedMillisIfNull will NOT override with provided timestamp on add snapshot")
-        .isEqualTo(originalTimestamp)
-        .isLessThan(anotherTimestamp);
-
-    assertThat(updated.currentSnapshot()).isNotNull();
-    assertThat(updated.snapshots()).hasSize(3);
-    assertThat(updated.snapshotLog()).hasSize(3);
+    assertThatThrownBy(
+            () ->
+                TableMetadata.buildFrom(base)
+                    .addSnapshot(snapshotToAdd)
+                    .setBranchSnapshot(snapshotToAdd.snapshotId(), "main")
+                    .setLastUpdatedMillisIfNull(anotherTimestamp)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot set lastUpdatedMillis: field has already been initialized with value");
   }
 
   @Test
