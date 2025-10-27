@@ -123,9 +123,6 @@ public class StatisticsRecordSerializerBenchmark {
   public void tearDownBenchmark() {}
 
   @Benchmark
-  public void measureName(Blackhole bh) {}
-
-  @Benchmark
   @Threads(1)
   public void testCustomSerializer(Blackhole blackhole) throws Exception {
     testSerializer(CUSTOM_SERIALIZER, blackhole);
