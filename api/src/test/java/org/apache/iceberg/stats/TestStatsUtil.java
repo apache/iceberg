@@ -217,6 +217,7 @@ public class TestStatsUtil {
             Types.IntegerType.get(),
             "Max value size of variable-length types (String, Binary)"),
         optional(fieldId++, "lower_bound", type, "Lower bound"),
-        optional(fieldId, "upper_bound", type, "Upper bound"));
+        optional(fieldId++, "upper_bound", type, "Upper bound"),
+        optional(fieldId, "is_exact", type, "Whether the statistic is exact or not"));
   }
 }

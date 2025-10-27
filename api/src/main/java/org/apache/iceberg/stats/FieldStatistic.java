@@ -25,9 +25,10 @@ public enum FieldStatistic {
   AVG_VALUE_SIZE(3),
   MAX_VALUE_SIZE(4),
   LOWER_BOUND(5),
-  UPPER_BOUND(6);
+  UPPER_BOUND(6),
+  IS_EXACT(7);
 
-  private int offset;
+  private final int offset;
 
   FieldStatistic(int offset) {
     this.offset = offset;
@@ -53,8 +54,10 @@ public enum FieldStatistic {
         return LOWER_BOUND;
       case 6:
         return UPPER_BOUND;
+      case 7:
+        return IS_EXACT;
       default:
-        throw new IllegalArgumentException("Invalid offset: " + offset);
+        throw new IllegalArgumentException("Invalid statistic offset: " + offset);
     }
   }
 }

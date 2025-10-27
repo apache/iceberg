@@ -48,4 +48,7 @@ public interface FieldStats<T> extends StructLike {
 
   /** The upper bound */
   T upperBound();
+
+  /** Whether this statistic is exact or not. */
+  boolean isExact();
 }

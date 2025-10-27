@@ -18,13 +18,6 @@
  */
 package org.apache.iceberg.stats;
 
-import static org.apache.iceberg.stats.FieldStatistic.AVG_VALUE_SIZE;
-import static org.apache.iceberg.stats.FieldStatistic.LOWER_BOUND;
-import static org.apache.iceberg.stats.FieldStatistic.MAX_VALUE_SIZE;
-import static org.apache.iceberg.stats.FieldStatistic.NAN_VALUE_COUNT;
-import static org.apache.iceberg.stats.FieldStatistic.NULL_VALUE_COUNT;
-import static org.apache.iceberg.stats.FieldStatistic.UPPER_BOUND;
-import static org.apache.iceberg.stats.FieldStatistic.VALUE_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.util.Comparator;
@@ -117,32 +110,37 @@ public class StatsUtil {
   private static Types.StructType contentStatsFor(Type type, int id) {
     return Types.StructType.of(
         optional(
-            id + VALUE_COUNT.offset(),
+            id + FieldStatistic.VALUE_COUNT.offset(),
             "value_count",
             Types.LongType.get(),
             "Total value count, including null and NaN"),
         optional(
-            id + NULL_VALUE_COUNT.offset(),
+            id + FieldStatistic.NULL_VALUE_COUNT.offset(),
             "null_value_count",
             Types.LongType.get(),
             "Total null value count"),
         optional(
-            id + NAN_VALUE_COUNT.offset(),
+            id + FieldStatistic.NAN_VALUE_COUNT.offset(),
             "nan_value_count",
             Types.LongType.get(),
             "Total NaN value count"),
         optional(
-            id + AVG_VALUE_SIZE.offset(),
+            id + FieldStatistic.AVG_VALUE_SIZE.offset(),
             "avg_value_size",
             Types.IntegerType.get(),
             "Avg value size of variable-length types (String, Binary)"),
         optional(
-            id + MAX_VALUE_SIZE.offset(),
+            id + FieldStatistic.MAX_VALUE_SIZE.offset(),
             "max_value_size",
             Types.IntegerType.get(),
             "Max value size of variable-length types (String, Binary)"),
-        optional(id + LOWER_BOUND.offset(), "lower_bound", type, "Lower bound"),
-        optional(id + UPPER_BOUND.offset(), "upper_bound", type, "Upper bound"));
+        optional(id + FieldStatistic.LOWER_BOUND.offset(), "lower_bound", type, "Lower bound"),
+        optional(id + FieldStatistic.UPPER_BOUND.offset(), "upper_bound", type, "Upper bound"),
+        optional(
+            id + FieldStatistic.IS_EXACT.offset(),
+            "is_exact",
+            Types.BooleanType.get(),
+            "Whether the statistic is exact or not"));
   }
 
   private static class ContentStatsSchemaVisitor extends TypeUtil.SchemaVisitor<Types.NestedField> {

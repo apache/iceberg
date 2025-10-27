@@ -19,6 +19,7 @@
 package org.apache.iceberg.stats;
 
 import static org.apache.iceberg.stats.FieldStatistic.AVG_VALUE_SIZE;
+import static org.apache.iceberg.stats.FieldStatistic.IS_EXACT;
 import static org.apache.iceberg.stats.FieldStatistic.LOWER_BOUND;
 import static org.apache.iceberg.stats.FieldStatistic.MAX_VALUE_SIZE;
 import static org.apache.iceberg.stats.FieldStatistic.NAN_VALUE_COUNT;
@@ -60,6 +61,7 @@ public class TestFieldStats {
             .maxValueSize(70)
             .lowerBound(5)
             .upperBound(20)
+            .isExact()
             .build();
 
     assertThat(fieldStats.type()).isEqualTo(Types.IntegerType.get());
@@ -71,6 +73,7 @@ public class TestFieldStats {
     assertThat(fieldStats.maxValueSize()).isEqualTo(70);
     assertThat(fieldStats.lowerBound()).isEqualTo(5);
     assertThat(fieldStats.upperBound()).isEqualTo(20);
+    assertThat(fieldStats.isExact()).isTrue();
   }
 
   @Test
@@ -91,6 +94,7 @@ public class TestFieldStats {
             .lowerBound(2)
             .upperBound(50)
             .maxValueSize(90)
+            .isExact()
             .build();
     assertThat(fieldStats.type()).isEqualTo(Types.IntegerType.get());
     assertThat(fieldStats.fieldId()).isEqualTo(23);
@@ -101,6 +105,7 @@ public class TestFieldStats {
     assertThat(fieldStats.maxValueSize()).isEqualTo(90);
     assertThat(fieldStats.lowerBound()).isEqualTo(2);
     assertThat(fieldStats.upperBound()).isEqualTo(50);
+    assertThat(fieldStats.isExact()).isTrue();
   }
 
   @Test
@@ -184,6 +189,7 @@ public class TestFieldStats {
             .maxValueSize(70)
             .lowerBound(5)
             .upperBound(20)
+            .isExact()
             .build();
 
     assertThat(fieldStats.get(VALUE_COUNT.offset(), Long.class)).isEqualTo(10L);
@@ -193,10 +199,11 @@ public class TestFieldStats {
     assertThat(fieldStats.get(MAX_VALUE_SIZE.offset(), Integer.class)).isEqualTo(70);
     assertThat(fieldStats.get(LOWER_BOUND.offset(), Integer.class)).isEqualTo(5);
     assertThat(fieldStats.get(UPPER_BOUND.offset(), Integer.class)).isEqualTo(20);
+    assertThat(fieldStats.get(IS_EXACT.offset(), Boolean.class)).isEqualTo(true);
 
     assertThatThrownBy(() -> assertThat(fieldStats.get(10, Long.class)))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unknown field ordinal: 10");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid statistic offset: 10");
     assertThatThrownBy(() -> assertThat(fieldStats.get(VALUE_COUNT.offset(), Double.class)))
         .isInstanceOf(ClassCastException.class)
         .hasMessage("Cannot cast java.lang.Long to java.lang.Double");

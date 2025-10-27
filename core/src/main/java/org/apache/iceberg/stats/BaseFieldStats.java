@@ -34,6 +34,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   private final Integer maxValueSize;
   private final T lowerBound;
   private final T upperBound;
+  private final boolean isExact;
 
   private BaseFieldStats(
       int fieldId,
@@ -44,7 +45,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
       Integer avgValueSize,
       Integer maxValueSize,
       T lowerBound,
-      T upperBound) {
+      T upperBound,
+      boolean isExact) {
     this.fieldId = fieldId;
     this.type = type;
     this.valueCount = valueCount;
@@ -54,6 +56,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     this.maxValueSize = maxValueSize;
     this.lowerBound = lowerBound;
     this.upperBound = upperBound;
+    this.isExact = isExact;
   }
 
   @Override
@@ -102,8 +105,13 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   }
 
   @Override
+  public boolean isExact() {
+    return isExact;
+  }
+
+  @Override
   public int size() {
-    return 6;
+    return 7;
   }
 
   @Override
@@ -123,6 +131,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         return javaClass.cast(lowerBound);
       case UPPER_BOUND:
         return javaClass.cast(upperBound);
+      case IS_EXACT:
+        return javaClass.cast(isExact);
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -145,6 +155,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         .add("maxValueSize", maxValueSize)
         .add("lowerBound", lowerBound)
         .add("upperBound", upperBound)
+        .add("isExact", isExact)
         .toString();
   }
 
@@ -163,7 +174,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         && Objects.equals(avgValueSize, that.avgValueSize)
         && Objects.equals(maxValueSize, that.maxValueSize)
         && Objects.equals(lowerBound, that.lowerBound)
-        && Objects.equals(upperBound, that.upperBound);
+        && Objects.equals(upperBound, that.upperBound)
+        && isExact == that.isExact;
   }
 
   @Override
@@ -177,7 +189,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         avgValueSize,
         maxValueSize,
         lowerBound,
-        upperBound);
+        upperBound,
+        isExact);
   }
 
   public static <X> Builder<X> builder() {
@@ -195,7 +208,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         .avgValueSize(value.avgValueSize())
         .maxValueSize(value.maxValueSize())
         .lowerBound(value.lowerBound())
-        .upperBound(value.upperBound());
+        .upperBound(value.upperBound())
+        .isExact(value.isExact());
   }
 
   public static class Builder<T> {
@@ -208,6 +222,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     private Integer maxValueSize;
     private T lowerBound;
     private T upperBound;
+    private boolean isExact;
 
     private Builder() {}
 
@@ -256,6 +271,16 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
       return this;
     }
 
+    public Builder<T> isExact(boolean newIsExact) {
+      this.isExact = newIsExact;
+      return this;
+    }
+
+    public Builder<T> isExact() {
+      this.isExact = true;
+      return this;
+    }
+
     public BaseFieldStats<T> build() {
       if (null != lowerBound) {
         Preconditions.checkArgument(
@@ -286,7 +311,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
           avgValueSize,
           maxValueSize,
           lowerBound,
-          upperBound);
+          upperBound,
+          isExact);
     }
   }
 }
