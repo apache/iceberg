@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Pair;
@@ -116,7 +117,8 @@ class TestFormatModelRegistry {
     }
 
     @Override
-    public WriteBuilder writeBuilder(OutputFile outputFile) {
+    public WriteBuilder writeBuilder(
+        OutputFile outputFile, Schema icebergSchema, Object engineSchema) {
       return null;
     }
 

@@ -128,13 +128,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       WriteBuilder builder =
           FormatModelRegistry.writeBuilder(
               format, RowData.class, EncryptedFiles.plainAsEncryptedOutput(outputFile));
-      return builder
-          .setAll(props)
-          .schema(schema)
-          .inputSchema(flinkSchema)
-          .metricsConfig(metricsConfig)
-          .overwrite()
-          .build();
+      return builder.setAll(props).schema(schema).metricsConfig(metricsConfig).overwrite().build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

@@ -171,7 +171,9 @@ public final class FormatModelRegistry {
   public static <D> WriteBuilder writeBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
     FormatModel<D, ?> factory = factoryFor(format, type);
-    return factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
+    return factory
+        .writeBuilder(outputFile.encryptingOutputFile(), null, null)
+        .content(FileContent.DATA);
   }
 
   /**
@@ -191,11 +193,7 @@ public final class FormatModelRegistry {
    */
   public static <D, S> DataWriteBuilder<D, S> dataWriteBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
-    FormatModel<D, S> factory = factoryFor(format, type);
-    WriteBuilder writeBuilder =
-        factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
-    return ContentFileWriteBuilderImpl.forDataFile(
-        writeBuilder, outputFile.encryptingOutputFile().location(), format);
+    return ContentFileWriteBuilderImpl.forDataFile(factoryFor(format, type), outputFile, format);
   }
 
   /**
@@ -215,13 +213,8 @@ public final class FormatModelRegistry {
    */
   public static <D, S> EqualityDeleteWriteBuilder<D, S> equalityDeleteWriteBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
-    FormatModel<D, S> factory = factoryFor(format, type);
-    WriteBuilder writeBuilder =
-        factory
-            .writeBuilder(outputFile.encryptingOutputFile())
-            .content(FileContent.EQUALITY_DELETES);
     return ContentFileWriteBuilderImpl.forEqualityDelete(
-        writeBuilder, outputFile.encryptingOutputFile().location(), format);
+        factoryFor(format, type), outputFile, format);
   }
 
   /**
@@ -238,13 +231,8 @@ public final class FormatModelRegistry {
    */
   public static PositionDeleteWriteBuilder positionDeleteWriteBuilder(
       FileFormat format, EncryptedOutputFile outputFile) {
-    FormatModel<PositionDelete<?>, ?> factory = factoryForPositionDelete(format);
-    WriteBuilder writeBuilder =
-        factory
-            .writeBuilder(outputFile.encryptingOutputFile())
-            .content(FileContent.POSITION_DELETES);
     return ContentFileWriteBuilderImpl.forPositionDelete(
-        writeBuilder, outputFile.encryptingOutputFile().location(), format);
+        factoryForPositionDelete(format), outputFile, format);
   }
 
   @VisibleForTesting
@@ -260,7 +248,9 @@ public final class FormatModelRegistry {
   }
 
   @SuppressWarnings("unchecked")
-  private static FormatModel<PositionDelete<?>, ?> factoryForPositionDelete(FileFormat format) {
-    return (FormatModel<PositionDelete<?>, ?>) MODELS.get(Pair.of(format, PositionDelete.class));
+  private static FormatModel<PositionDelete<?>, Object> factoryForPositionDelete(
+      FileFormat format) {
+    return (FormatModel<PositionDelete<?>, Object>)
+        MODELS.get(Pair.of(format, PositionDelete.class));
   }
 }

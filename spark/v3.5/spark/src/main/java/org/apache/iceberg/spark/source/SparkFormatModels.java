@@ -23,7 +23,6 @@ import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
@@ -51,8 +50,7 @@ public class SparkFormatModels {
             StructType.class,
             SparkParquetReaders::buildReader,
             (icebergSchema, messageType, inputType) ->
-                SparkParquetWriters.buildWriter(
-                    SparkSchemaUtil.convert(icebergSchema), messageType)));
+                SparkParquetWriters.buildWriter(inputType, messageType)));
 
     FormatModelRegistry.register(
         new ParquetFormatModel<ColumnarBatch, StructType, DeleteFilter<InternalRow>>(

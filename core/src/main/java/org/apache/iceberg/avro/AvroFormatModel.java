@@ -67,11 +67,9 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public WriteBuilder writeBuilder(OutputFile outputFile) {
+  public WriteBuilder writeBuilder(OutputFile outputFile, Schema icebergSchema, S engineSchema) {
     return Avro.write(outputFile)
-        .inputSchemaClass(schemaType)
-        .writerFunction(
-            (schema, writerSchemaType) -> writerFunction.apply(schema, (S) writerSchemaType));
+        .createWriterFunc(schema -> writerFunction.apply(schema, engineSchema));
   }
 
   @Override

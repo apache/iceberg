@@ -81,10 +81,11 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public WriteBuilder writeBuilder(OutputFile outputFile) {
+  public WriteBuilder writeBuilder(OutputFile outputFile, Schema icebergSchema, S engineSchema) {
     return ORC.write(outputFile)
-        .inputSchemaClass(schemaType)
-        .writerFunction((WriterFunction<Object>) writerFunction);
+        .createWriterFunc(
+            (schema, typeDescription) ->
+                writerFunction.write(icebergSchema, typeDescription, engineSchema));
   }
 
   @Override
@@ -99,17 +100,17 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   @FunctionalInterface
   public interface ReaderFunction<D> {
     OrcRowReader<D> read(
-        Schema schema, TypeDescription messageType, Map<Integer, ?> constantValues);
+        Schema schema, TypeDescription typeDescription, Map<Integer, ?> constantValues);
   }
 
   @FunctionalInterface
   public interface BatchReaderFunction<D> {
     OrcBatchReader<D> read(
-        Schema schema, TypeDescription messageType, Map<Integer, ?> constantValues);
+        Schema schema, TypeDescription typeDescription, Map<Integer, ?> constantValues);
   }
 
   @FunctionalInterface
   public interface WriterFunction<E> {
-    OrcRowWriter<?> write(Schema schema, TypeDescription messageType, E nativeSchema);
+    OrcRowWriter<?> write(Schema schema, TypeDescription typeDescription, E nativeSchema);
   }
 }

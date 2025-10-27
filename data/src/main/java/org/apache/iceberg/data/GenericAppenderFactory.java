@@ -230,7 +230,6 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       EqualityDeleteWriteBuilder<Record, Types.StructType> builder =
           FormatModelRegistry.equalityDeleteWriteBuilder(format, Record.class, file);
       return builder
-          .schema(schema)
           .partition(partition)
           .overwrite()
           .setAll(config)

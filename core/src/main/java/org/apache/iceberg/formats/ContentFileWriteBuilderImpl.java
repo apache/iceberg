@@ -21,9 +21,11 @@ package org.apache.iceberg.formats;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -34,10 +36,12 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * An internal implementation that handles all {@link ContentFileWriteBuilder} interface variants.
@@ -61,69 +65,77 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>, D, S>
     implements ContentFileWriteBuilder<B> {
-  private final WriteBuilder writeBuilder;
-  private final String location;
+  private final FormatModel<D, S> formatModel;
+  private final EncryptedOutputFile outputFile;
   private final FileFormat format;
   private PartitionSpec spec = null;
   private StructLike partition = null;
   private EncryptionKeyMetadata keyMetadata = null;
   private SortOrder sortOrder = null;
+  private Map<String, String> properties = Maps.newHashMap();
+  private Map<String, String> metadata = Maps.newHashMap();
+  private MetricsConfig metricsConfig = null;
+  private boolean overwrite = false;
+  private ByteBuffer encryptionKey = null;
+  private ByteBuffer aadPrefix = null;
 
   static <D, S> DataWriteBuilder<D, S> forDataFile(
-      WriteBuilder writeBuilder, String location, FileFormat format) {
-    return new DataFileWriteBuilder<>(writeBuilder, location, format);
+      FormatModel<D, S> formatModel, EncryptedOutputFile outputFile, FileFormat format) {
+    return new DataFileWriteBuilder<>(formatModel, outputFile, format);
   }
 
   static <D, S> EqualityDeleteWriteBuilder<D, S> forEqualityDelete(
-      WriteBuilder writeBuilder, String location, FileFormat format) {
-    return new EqualityDeleteFileWriteBuilder<>(writeBuilder, location, format);
+      FormatModel<D, S> formatModel, EncryptedOutputFile outputFile, FileFormat format) {
+    return new EqualityDeleteFileWriteBuilder<>(formatModel, outputFile, format);
   }
 
   static PositionDeleteWriteBuilder forPositionDelete(
-      WriteBuilder writeBuilder, String location, FileFormat format) {
-    return new PositionDeleteFileWriteBuilder(writeBuilder, location, format);
+      FormatModel<PositionDelete<?>, Object> formatModel,
+      EncryptedOutputFile outputFile,
+      FileFormat format) {
+    return new PositionDeleteFileWriteBuilder(formatModel, outputFile, format);
   }
 
   private ContentFileWriteBuilderImpl(
-      WriteBuilder writeBuilder, String location, FileFormat format) {
-    this.writeBuilder = writeBuilder;
-    this.location = location;
+      FormatModel<D, S> formatModel, EncryptedOutputFile outputFile, FileFormat format) {
+    this.formatModel = formatModel;
+    this.outputFile = outputFile;
     this.format = format;
   }
 
   @Override
   public B set(String property, String value) {
-    writeBuilder.set(property, value);
+    properties.put(property, value);
     return self();
   }
 
   @Override
   public B meta(String property, String value) {
-    writeBuilder.meta(property, value);
+    metadata.put(property, value);
     return self();
   }
 
   @Override
-  public B metricsConfig(MetricsConfig metricsConfig) {
-    writeBuilder.metricsConfig(metricsConfig);
+  public B metricsConfig(MetricsConfig newMetricsConfig) {
+    this.metricsConfig = newMetricsConfig;
     return self();
   }
 
   @Override
   public B overwrite() {
-    writeBuilder.overwrite();
+    this.overwrite = true;
     return self();
   }
 
   @Override
-  public B withFileEncryptionKey(ByteBuffer encryptionKey) {
-    writeBuilder.withFileEncryptionKey(encryptionKey);
+  public B withFileEncryptionKey(ByteBuffer newEncryptionKey) {
+    this.encryptionKey = newEncryptionKey;
     return self();
   }
 
   @Override
-  public B withAADPrefix(ByteBuffer aadPrefix) {
-    writeBuilder.withAADPrefix(aadPrefix);
+  public B withAADPrefix(ByteBuffer newAadPrefix) {
+    this.aadPrefix = newAadPrefix;
     return self();
   }
 
@@ -151,22 +163,43 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
     return self();
   }
 
+  private void init(WriteBuilder writeBuilder) {
+    if (metricsConfig != null) {
+      writeBuilder.metricsConfig(metricsConfig);
+    }
+    if (overwrite) {
+      writeBuilder.overwrite();
+    }
+    if (encryptionKey != null) {
+      writeBuilder.withFileEncryptionKey(encryptionKey);
+    }
+    if (aadPrefix != null) {
+      writeBuilder.withAADPrefix(aadPrefix);
+    }
+
+    writeBuilder.setAll(properties).meta(metadata);
+  }
+
   private static class DataFileWriteBuilder<D, S>
       extends ContentFileWriteBuilderImpl<DataWriteBuilder<D, S>, D, S>
       implements DataWriteBuilder<D, S> {
-    private DataFileWriteBuilder(WriteBuilder writeBuilder, String location, FileFormat format) {
-      super(writeBuilder, location, format);
+    private Schema schema = null;
+    private S inputSchema = null;
+
+    private DataFileWriteBuilder(
+        FormatModel<D, S> formatModel, EncryptedOutputFile outputFile, FileFormat format) {
+      super(formatModel, outputFile, format);
     }
 
     @Override
-    public DataFileWriteBuilder<D, S> schema(Schema schema) {
-      super.writeBuilder.schema(schema);
+    public DataFileWriteBuilder<D, S> schema(Schema newSchema) {
+      this.schema = newSchema;
       return this;
     }
 
     @Override
-    public DataFileWriteBuilder<D, S> inputSchema(S schema) {
-      super.writeBuilder.inputSchema(schema);
+    public DataFileWriteBuilder<D, S> inputSchema(S newInputSchema) {
+      this.inputSchema = newInputSchema;
       return this;
     }
 
@@ -182,10 +215,16 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
           super.spec.isUnpartitioned() || super.partition != null,
           "Partition must not be null when creating data writer for partitioned spec");
 
+      WriteBuilder writeBuilder =
+          super.formatModel
+              .writeBuilder(super.outputFile.encryptingOutputFile(), schema, inputSchema)
+              .schema(schema)
+              .content(FileContent.DATA);
+      super.init(writeBuilder);
       return new DataWriter<>(
-          super.writeBuilder.build(),
+          writeBuilder.build(),
           super.format,
-          super.location,
+          super.outputFile.encryptingOutputFile().location(),
           super.spec,
           super.partition,
           super.keyMetadata,
@@ -196,23 +235,18 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
   private static class EqualityDeleteFileWriteBuilder<D, S>
       extends ContentFileWriteBuilderImpl<EqualityDeleteWriteBuilder<D, S>, D, S>
       implements EqualityDeleteWriteBuilder<D, S> {
+    private S inputSchema = null;
     private Schema rowSchema = null;
     private int[] equalityFieldIds = null;
 
     private EqualityDeleteFileWriteBuilder(
-        WriteBuilder writeBuilder, String location, FileFormat format) {
-      super(writeBuilder, location, format);
-    }
-
-    @Override
-    public EqualityDeleteFileWriteBuilder<D, S> schema(Schema schema) {
-      super.writeBuilder.schema(schema);
-      return this;
+        FormatModel<D, S> formatModel, EncryptedOutputFile outputFile, FileFormat format) {
+      super(formatModel, outputFile, format);
     }
 
     @Override
     public EqualityDeleteFileWriteBuilder<D, S> inputSchema(S schema) {
-      super.writeBuilder.inputSchema(schema);
+      this.inputSchema = schema;
       return this;
     }
 
@@ -245,8 +279,15 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
           super.spec.isUnpartitioned() || super.partition != null,
           "Partition must not be null for partitioned writes");
 
+      WriteBuilder writeBuilder =
+          super.formatModel
+              .writeBuilder(super.outputFile.encryptingOutputFile(), rowSchema, inputSchema)
+              .schema(rowSchema)
+              .content(FileContent.EQUALITY_DELETES);
+      super.init(writeBuilder);
+
       return new EqualityDeleteWriter<>(
-          super.writeBuilder
+          writeBuilder
               .schema(rowSchema)
               .meta("delete-type", "equality")
               .meta(
@@ -256,7 +297,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
                       .collect(Collectors.joining(", ")))
               .build(),
           super.format,
-          super.location,
+          super.outputFile.encryptingOutputFile().location(),
           super.spec,
           super.partition,
           super.keyMetadata,
@@ -270,8 +311,10 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
       implements PositionDeleteWriteBuilder {
 
     private PositionDeleteFileWriteBuilder(
-        WriteBuilder writeBuilder, String location, FileFormat format) {
-      super(writeBuilder, location, format);
+        FormatModel<PositionDelete<?>, Object> formatModel,
+        EncryptedOutputFile outputFile,
+        FileFormat format) {
+      super(formatModel, outputFile, format);
     }
 
     @Override
@@ -287,11 +330,16 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
           super.spec.isUnpartitioned() || super.partition != null,
           "Partition must not be null for partitioned writes");
 
+      WriteBuilder writeBuilder =
+          super.formatModel
+              .writeBuilder(super.outputFile.encryptingOutputFile(), null, null)
+              .content(FileContent.POSITION_DELETES);
+      super.init(writeBuilder);
+
       return new PositionDeleteWriter<>(
-          new PositionDeleteFileAppender(
-              super.writeBuilder.meta("delete-type", "position").build()),
+          new PositionDeleteFileAppender(writeBuilder.meta("delete-type", "position").build()),
           super.format,
-          super.location,
+          super.outputFile.encryptingOutputFile().location(),
           super.spec,
           super.partition,
           super.keyMetadata);

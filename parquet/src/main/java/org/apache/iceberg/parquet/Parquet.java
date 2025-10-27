@@ -169,15 +169,12 @@ public class Parquet {
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
-    private ParquetFormatModel.WriterFunction<Object> writerFunction = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
     private FileContent content = null;
-    private Class<?> inputSchemaClass = null;
-    private Object inputSchema = null;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -198,24 +195,6 @@ public class Parquet {
     @Override
     public WriteBuilder schema(Schema newSchema) {
       this.schema = newSchema;
-      return this;
-    }
-
-    WriteBuilder inputSchemaClass(Class<?> newInputSchemaClass) {
-      this.inputSchemaClass = newInputSchemaClass;
-      return this;
-    }
-
-    @Override
-    public WriteBuilder inputSchema(Object newInputSchema) {
-      Preconditions.checkNotNull(
-          inputSchemaClass, "Input schema class must be set before setting the input schema");
-      Preconditions.checkArgument(
-          inputSchemaClass.isInstance(newInputSchema),
-          "Input schema must be of class: %s, found: %s",
-          inputSchemaClass.getName(),
-          newInputSchema.getClass().getName());
-      this.inputSchema = newInputSchema;
       return this;
     }
 
@@ -283,16 +262,7 @@ public class Parquet {
 
     public WriteBuilder createWriterFunc(
         BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
-      Preconditions.checkState(
-          writerFunction == null, "Cannot set multiple writer builder functions");
       this.createWriterFunc = newCreateWriterFunc;
-      return this;
-    }
-
-    WriteBuilder writerFunction(ParquetFormatModel.WriterFunction<Object> newWriterFunction) {
-      Preconditions.checkState(
-          createWriterFunc == null, "Cannot set multiple writer builder functions");
-      this.writerFunction = newWriterFunction;
       return this;
     }
 
@@ -407,19 +377,11 @@ public class Parquet {
           case DATA:
             Preconditions.checkNotNull(schema, "Schema is required");
             Preconditions.checkNotNull(name, "Table name is required and cannot be null");
-            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-            this.createWriterFunc =
-                (icebergSchema, messageType) ->
-                    writerFunction.write(icebergSchema, messageType, inputSchema);
             this.createContextFunc = Context::dataContext;
             break;
           case EQUALITY_DELETES:
             Preconditions.checkNotNull(schema, "Schema is required");
             Preconditions.checkNotNull(name, "Table name is required and cannot be null");
-            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-            this.createWriterFunc =
-                (icebergSchema, messageType) ->
-                    writerFunction.write(icebergSchema, messageType, inputSchema);
             this.createContextFunc = Context::deleteContext;
             break;
           case POSITION_DELETES:

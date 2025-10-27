@@ -19,6 +19,7 @@
 package org.apache.iceberg.formats;
 
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 
@@ -71,7 +72,7 @@ public interface FormatModel<D, S> {
    * @param outputFile destination for the written data
    * @return configured writer builder
    */
-  WriteBuilder writeBuilder(OutputFile outputFile);
+  WriteBuilder writeBuilder(OutputFile outputFile, Schema icebergSchema, S engineSchema);
 
   /**
    * Creates a file reader builder for the specified input file.

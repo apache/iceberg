@@ -116,13 +116,10 @@ public class Avro {
     private org.apache.iceberg.Schema schema = null;
     private String name = "table";
     private Function<Schema, DatumWriter<?>> createWriterFunc = null;
-    private BiFunction<Schema, Object, DatumWriter<?>> writerFunction = null;
     private boolean overwrite;
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private FileContent content;
-    private Class<?> inputSchemaClass = null;
-    private Object inputSchema = null;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -141,24 +138,6 @@ public class Avro {
       return this;
     }
 
-    WriteBuilder inputSchemaClass(Class<?> newInputSchemaClass) {
-      this.inputSchemaClass = newInputSchemaClass;
-      return this;
-    }
-
-    @Override
-    public WriteBuilder inputSchema(Object newInputSchema) {
-      Preconditions.checkNotNull(
-          inputSchemaClass, "Input schema class must be set before setting the input schema");
-      Preconditions.checkArgument(
-          inputSchemaClass.isInstance(newInputSchema),
-          "Input schema must be of class: %s, found: %s",
-          inputSchemaClass.getName(),
-          newInputSchema.getClass().getName());
-      this.inputSchema = newInputSchema;
-      return this;
-    }
-
     @Override
     public WriteBuilder named(String newName) {
       this.name = newName;
@@ -166,16 +145,7 @@ public class Avro {
     }
 
     public WriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> newWriterFunction) {
-      Preconditions.checkState(
-          writerFunction == null, "Cannot set multiple writer builder functions");
       this.createWriterFunc = newWriterFunction;
-      return this;
-    }
-
-    WriteBuilder writerFunction(BiFunction<Schema, Object, DatumWriter<?>> newWriterFunction) {
-      Preconditions.checkState(
-          createWriterFunc == null, "Cannot set multiple writer builder functions");
-      this.writerFunction = newWriterFunction;
       return this;
     }
 
@@ -249,15 +219,11 @@ public class Avro {
           case DATA:
             Preconditions.checkNotNull(schema, "Schema is required");
             Preconditions.checkNotNull(name, "Table name is required and cannot be null");
-            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-            this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, inputSchema);
             this.createContextFunc = Context::dataContext;
             break;
           case EQUALITY_DELETES:
             Preconditions.checkNotNull(schema, "Schema is required");
             Preconditions.checkNotNull(name, "Table name is required and cannot be null");
-            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-            this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, inputSchema);
             this.createContextFunc = Context::deleteContext;
             break;
           case POSITION_DELETES:

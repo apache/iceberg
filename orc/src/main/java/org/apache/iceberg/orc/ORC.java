@@ -128,9 +128,6 @@ public class ORC {
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private boolean overwrite = false;
     private FileContent content;
-    private ORCFormatModel.WriterFunction<Object> writerFunction;
-    private Class<?> inputSchemaClass = null;
-    private Object inputSchema = null;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -167,16 +164,7 @@ public class ORC {
 
     public WriteBuilder createWriterFunc(
         BiFunction<Schema, TypeDescription, OrcRowWriter<?>> newWriterFunction) {
-      Preconditions.checkState(
-          writerFunction == null, "Cannot set multiple writer builder functions");
       this.createWriterFunc = newWriterFunction;
-      return this;
-    }
-
-    WriteBuilder writerFunction(ORCFormatModel.WriterFunction<Object> newWriterFunction) {
-      Preconditions.checkState(
-          createWriterFunc == null, "Cannot set multiple writer builder functions");
-      this.writerFunction = newWriterFunction;
       return this;
     }
 
@@ -195,24 +183,6 @@ public class ORC {
     @Override
     public WriteBuilder schema(Schema newSchema) {
       this.schema = newSchema;
-      return this;
-    }
-
-    WriteBuilder inputSchemaClass(Class<?> newInputSchemaClass) {
-      this.inputSchemaClass = newInputSchemaClass;
-      return this;
-    }
-
-    @Override
-    public WriteBuilder inputSchema(Object newInputSchema) {
-      Preconditions.checkNotNull(
-          inputSchemaClass, "Input schema class must be set before setting the input schema");
-      Preconditions.checkArgument(
-          inputSchemaClass.isInstance(newInputSchema),
-          "Input schema must be of class: %s, found: %s",
-          inputSchemaClass.getName(),
-          newInputSchema.getClass().getName());
-      this.inputSchema = newInputSchema;
       return this;
     }
 
@@ -255,18 +225,10 @@ public class ORC {
         switch (content) {
           case DATA:
             Preconditions.checkNotNull(schema, "Schema is required");
-            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-            this.createWriterFunc =
-                (icebergSchema, typeDescription) ->
-                    writerFunction.write(icebergSchema, typeDescription, inputSchema);
             this.createContextFunc = Context::dataContext;
             break;
           case EQUALITY_DELETES:
             Preconditions.checkNotNull(schema, "Schema is required");
-            Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-            this.createWriterFunc =
-                (icebergSchema, typeDescription) ->
-                    writerFunction.write(icebergSchema, typeDescription, inputSchema);
             this.createContextFunc = Context::deleteContext;
             break;
           case POSITION_DELETES:

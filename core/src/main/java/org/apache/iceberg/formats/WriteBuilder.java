@@ -41,12 +41,6 @@ public interface WriteBuilder {
   WriteBuilder schema(Schema schema);
 
   /**
-   * Sets the input schema accepted by the writer. If not provided derived from the {@link
-   * #schema(Schema)}.
-   */
-  WriteBuilder inputSchema(Object schema);
-
-  /**
    * Set a writer configuration property which affects the writer behavior.
    *
    * @param property a writer config property name

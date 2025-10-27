@@ -82,10 +82,10 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
   }
 
   @Override
-  public WriteBuilder writeBuilder(OutputFile outputFile) {
+  public WriteBuilder writeBuilder(OutputFile outputFile, Schema icebergSchema, S engineSchema) {
     return Parquet.write(outputFile)
-        .inputSchemaClass(schemaType)
-        .writerFunction((WriterFunction<Object>) writerFunction);
+        .createWriterFunc(
+            messageType -> writerFunction.write(icebergSchema, messageType, engineSchema));
   }
 
   @Override
