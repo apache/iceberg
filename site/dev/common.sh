@@ -247,7 +247,7 @@ check_markdown_files () {
   echo " --> check markdown file styles"
   if ! "${VENV_DIR}/bin/python3" -m pymarkdown --config markdownlint.yml scan docs/docs/nightly/docs/*.md docs/*.md README.md
   then
-    echo "Markdown style issues found. Please run './dev/lint.sh --fix' to fix them."
+    echo "Markdown style issues found. Please run 'make lint-fix' to fix them."
     exit 1
   fi
 }
