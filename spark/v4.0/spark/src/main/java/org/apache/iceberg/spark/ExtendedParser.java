@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.lang.reflect.Field;
 import java.util.List;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.SortDirection;
@@ -86,12 +87,16 @@ public interface ExtendedParser extends ParserInterface {
 
   private static ParserInterface getNextDelegateParser(ParserInterface parser) {
     try {
-      for (java.lang.reflect.Field field : parser.getClass().getDeclaredFields()) {
-        field.setAccessible(true);
-        Object value = field.get(parser);
-        if (value instanceof ParserInterface && value != parser) {
-          return (ParserInterface) value;
+      Class<?> clazz = parser.getClass();
+      while (clazz != null) {
+        for (Field field : clazz.getDeclaredFields()) {
+          field.setAccessible(true);
+          Object value = field.get(parser);
+          if (value instanceof ParserInterface && value != parser) {
+            return (ParserInterface) value;
+          }
         }
+        clazz = clazz.getSuperclass();
       }
     } catch (Exception e) {
       // ignore
