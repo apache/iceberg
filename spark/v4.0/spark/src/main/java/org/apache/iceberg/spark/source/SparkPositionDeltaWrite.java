@@ -608,7 +608,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
       String file = id.getString(fileOrdinal);
       long position = id.getLong(positionOrdinal);
-      positionDelete.set(file, position, null);
+      positionDelete.set(file, position);
       delegate.write(positionDelete, spec, partitionProjection);
     }
 
@@ -883,6 +883,9 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       return targetDataFileSize;
     }
 
+    /* @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+     *     Position deletes that include row data are no longer supported.
+     */
     StructType deleteSparkType() {
       return deleteSparkType;
     }

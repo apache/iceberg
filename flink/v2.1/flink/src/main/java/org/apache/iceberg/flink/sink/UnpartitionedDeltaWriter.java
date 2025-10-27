@@ -25,8 +25,8 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 
 class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
@@ -35,26 +35,28 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   UnpartitionedDeltaWriter(
       PartitionSpec spec,
       FileFormat format,
-      FileAppenderFactory<RowData> appenderFactory,
+      FileWriterFactory<RowData> fileWriterFactory,
       OutputFileFactory fileFactory,
       FileIO io,
       long targetFileSize,
       Schema schema,
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
-      boolean upsert) {
+      boolean upsert,
+      boolean useDv) {
     super(
         spec,
         format,
-        appenderFactory,
+        fileWriterFactory,
         fileFactory,
         io,
         targetFileSize,
         schema,
         flinkSchema,
         equalityFieldIds,
-        upsert);
-    this.writer = new RowDataDeltaWriter(null);
+        upsert,
+        useDv);
+    this.writer = new RowDataDeltaWriter(null, dvFileWriter());
   }
 
   @Override
@@ -65,5 +67,6 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   @Override
   public void close() throws IOException {
     writer.close();
+    super.close();
   }
 }

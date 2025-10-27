@@ -16,11 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.azure;
 
-public class TestParquetPartitionStatsHandler extends PartitionStatsHandlerTestBase {
+import com.azure.core.credential.TokenCredential;
+import java.util.Map;
 
-  public FileFormat format() {
-    return FileFormat.PARQUET;
-  }
+public interface AdlsTokenCredentialProvider {
+
+  TokenCredential credential();
+
+  /**
+   * Initialize Azure credential provider from provider properties.
+   *
+   * @param properties credential provider properties
+   */
+  void initialize(Map<String, String> properties);
 }

@@ -32,6 +32,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -116,6 +117,11 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                           Preconditions.checkState(
                               !equalityFieldIds.isEmpty(),
                               "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
+
+                          Preconditions.checkArgument(
+                              !(TableUtil.formatVersion(table) > 2),
+                              "Dynamic Sink writer does not support upsert mode in tables (V3+)");
+
                           if (!table.spec().isUnpartitioned()) {
                             for (PartitionField partitionField : table.spec().fields()) {
                               Preconditions.checkState(
@@ -209,5 +215,10 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
   @VisibleForTesting
   DynamicWriterMetrics getMetrics() {
     return metrics;
+  }
+
+  @VisibleForTesting
+  Map<WriteTarget, RowDataTaskWriterFactory> getTaskWriterFactories() {
+    return taskWriterFactories;
   }
 }

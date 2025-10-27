@@ -22,7 +22,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -34,10 +36,11 @@ import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class OAuth2Manager extends RefreshingAuthManager {
+public class OAuth2Manager implements AuthManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(OAuth2Manager.class);
 
@@ -62,9 +65,9 @@ public class OAuth2Manager extends RefreshingAuthManager {
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
   private AuthSessionCache sessionCache;
+  private boolean keepRefreshed = true;
 
   public OAuth2Manager(String managerName) {
-    super(managerName + "-token-refresh");
     this.name = managerName;
   }
 
@@ -109,7 +112,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(headers, config);
-    keepRefreshed(config.keepRefreshed());
+    keepRefreshed = config.keepRefreshed();
     // authResponse comes from the init phase: this means we already fetched a token
     // so reuse it now and turn token refresh on.
     if (authResponse != null) {
@@ -160,7 +163,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession parent = new OAuth2Util.AuthSession(headers, config);
 
-    keepRefreshed(config.keepRefreshed());
+    keepRefreshed = config.keepRefreshed();
 
     // Important: this method is invoked from standalone components; we must not assume that
     // the refresh client and session cache have been initialized, because catalogSession()
@@ -188,14 +191,10 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   @Override
   public void close() {
-    try {
-      super.close();
-    } finally {
-      AuthSessionCache cache = sessionCache;
-      this.sessionCache = null;
-      if (cache != null) {
-        cache.close();
-      }
+    AuthSessionCache cache = sessionCache;
+    this.sessionCache = null;
+    if (cache != null) {
+      cache.close();
     }
   }
 
@@ -270,6 +269,11 @@ public class OAuth2Manager extends RefreshingAuthManager {
             config.optionalOAuthParams());
     return OAuth2Util.AuthSession.fromTokenResponse(
         refreshClient, refreshExecutor(), response, System.currentTimeMillis(), parent);
+  }
+
+  @Nullable
+  protected ScheduledExecutorService refreshExecutor() {
+    return keepRefreshed ? ThreadPools.authRefreshPool() : null;
   }
 
   private static void warnIfOAuthServerUriNotSet(Map<String, String> properties) {

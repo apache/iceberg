@@ -36,6 +36,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
@@ -1207,5 +1208,40 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     Database database = hiveCatalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
+  }
+
+  @Test
+  public void testTableLocationWithTrailingSlashInDatabaseLocation() throws TException {
+    Schema schema = getTestSchema();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "test_table");
+
+    // Create database with trailing slash in location
+    String dbName = "db_with_trailing_slash";
+    String dbLocationWithSlash = temp.resolve(dbName) + "/";
+    Database db = new Database(dbName, "Description", dbLocationWithSlash, Maps.newHashMap());
+    HIVE_METASTORE_EXTENSION.metastoreClient().createDatabase(db);
+
+    try {
+      TableIdentifier tableInDbWithSlash = TableIdentifier.of(dbName, tableIdent.name());
+      Table table = catalog.createTable(tableInDbWithSlash, schema);
+
+      // Verify table location doesn't have double slashes
+      assertThat(table.location())
+          .as("Table location should not contain multiple slashes")
+          .doesNotContain("//test_table")
+          .endsWith("/test_table");
+
+      // Verify the path is normalized correctly
+      String expectedLocation = temp.resolve(dbName) + "/test_table";
+      assertThat(URI.create(table.location()).getPath())
+          .as("Table location should be properly normalized")
+          .isEqualTo(expectedLocation);
+
+      // Dropping the test table
+      catalog.dropTable(tableInDbWithSlash);
+    } finally {
+      // Dropping the test database
+      HIVE_METASTORE_EXTENSION.metastoreClient().dropDatabase(dbName);
+    }
   }
 }

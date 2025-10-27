@@ -128,6 +128,14 @@ public class EncryptionUtil {
     return ByteBuffer.wrap(decryptedKeyMetadata);
   }
 
+  public static Map<String, EncryptedKey> encryptionKeys(EncryptionManager em) {
+    Preconditions.checkState(
+        em instanceof StandardEncryptionManager,
+        "Retrieving encryption keys requires a StandardEncryptionManager");
+    StandardEncryptionManager sem = (StandardEncryptionManager) em;
+    return sem.encryptionKeys();
+  }
+
   /**
    * Encrypts the key metadata for a manifest list.
    *
@@ -143,12 +151,5 @@ public class EncryptionUtil {
     byte[] encryptedKeyMetadata =
         encryptor.encrypt(keyMetadataBytes, keyId.getBytes(StandardCharsets.UTF_8));
     return ByteBuffer.wrap(encryptedKeyMetadata);
-  }
-
-  public static Map<String, EncryptedKey> encryptionKeys(EncryptionManager em) {
-    Preconditions.checkState(
-        em instanceof StandardEncryptionManager,
-        "Encryption keys are only available for StandardEncryptionManager");
-    return ((StandardEncryptionManager) em).encryptionKeys();
   }
 }

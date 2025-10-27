@@ -849,4 +849,100 @@ public class TestTypeUtil {
     Schema reassignedSchema = TypeUtil.reassignDoc(schema, docSourceSchema);
     assertThat(reassignedSchema.asStruct()).isEqualTo(docSourceSchema.asStruct());
   }
+
+  @Test
+  public void ancestorFieldsInEmptySchema() {
+    assertThat(TypeUtil.ancestorFields(new Schema(), -1)).isEmpty();
+    assertThat(TypeUtil.ancestorFields(new Schema(), 1)).isEmpty();
+  }
+
+  @Test
+  public void ancestorFieldsInNonNestedSchema() {
+    Schema schema =
+        new Schema(
+            required(0, "a", Types.IntegerType.get()), required(1, "A", Types.IntegerType.get()));
+
+    assertThat(TypeUtil.ancestorFields(schema, 0)).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, 1)).isEmpty();
+  }
+
+  @Test
+  public void ancestorFieldsInNestedSchema() {
+    Types.NestedField innerPreferences =
+        optional(
+            8,
+            "inner_preferences",
+            Types.StructType.of(
+                required(12, "feature3", Types.BooleanType.get()),
+                optional(13, "feature4", Types.BooleanType.get())));
+    Types.NestedField preferences =
+        optional(
+            3,
+            "preferences",
+            Types.StructType.of(
+                required(6, "feature1", Types.BooleanType.get()),
+                optional(7, "feature2", Types.BooleanType.get()),
+                innerPreferences));
+
+    // define locations map with all nested fields
+    Types.StructType locationsKeyStruct =
+        Types.StructType.of(
+            required(20, "address", Types.StringType.get()),
+            required(21, "city", Types.StringType.get()),
+            required(22, "state", Types.StringType.get()),
+            required(23, "zip", IntegerType.get()));
+    Types.StructType locationsValueStruct =
+        Types.StructType.of(
+            required(14, "lat", Types.FloatType.get()),
+            required(15, "long", Types.FloatType.get()));
+    Types.NestedField locationsKey = required(9, "key", locationsKeyStruct);
+    Types.NestedField locationsValue = required(10, "value", locationsValueStruct);
+    Types.NestedField locations =
+        required(
+            4,
+            "locations",
+            Types.MapType.ofRequired(9, 10, locationsKeyStruct, locationsValueStruct));
+
+    // define points list with all nested fields
+    Types.StructType pointsStruct =
+        Types.StructType.of(
+            required(16, "x", Types.LongType.get()), required(17, "y", Types.LongType.get()));
+    Types.NestedField pointsElement = optional(11, "element", pointsStruct);
+    Types.NestedField points = optional(5, "points", Types.ListType.ofOptional(11, pointsStruct));
+
+    Types.NestedField id = required(1, "id", IntegerType.get());
+    Types.NestedField data = optional(2, "data", Types.StringType.get());
+    Schema schema = new Schema(id, data, preferences, locations, points);
+
+    // non-nested fields don't have parents
+    assertThat(TypeUtil.ancestorFields(schema, id.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, data.fieldId())).isEmpty();
+
+    // verify preferences struct and all of its nested fields (6-8, 12+13)
+    assertThat(TypeUtil.ancestorFields(schema, preferences.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, 6)).containsExactly(preferences);
+    assertThat(TypeUtil.ancestorFields(schema, 7)).containsExactly(preferences);
+    assertThat(TypeUtil.ancestorFields(schema, innerPreferences.fieldId()))
+        .containsExactly(preferences);
+    assertThat(TypeUtil.ancestorFields(schema, 12)).containsExactly(innerPreferences, preferences);
+    assertThat(TypeUtil.ancestorFields(schema, 13)).containsExactly(innerPreferences, preferences);
+
+    // verify locations map and all of its nested fields (IDs 9+10, 20-23 and 14+15)
+    assertThat(TypeUtil.ancestorFields(schema, locations.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, locationsKey.fieldId())).containsExactly(locations);
+    assertThat(TypeUtil.ancestorFields(schema, 20)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 21)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 22)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 23)).containsExactly(locationsKey, locations);
+    assertThat(TypeUtil.ancestorFields(schema, locationsValue.fieldId()))
+        .containsExactly(locations);
+    assertThat(TypeUtil.ancestorFields(schema, 14)).containsExactly(locationsValue, locations);
+    assertThat(TypeUtil.ancestorFields(schema, 15)).containsExactly(locationsValue, locations);
+
+    // verify points list and all of its nested fields (IDs 11 and 16+17)
+    assertThat(TypeUtil.ancestorFields(schema, points.fieldId())).isEmpty();
+    assertThat(TypeUtil.ancestorFields(schema, pointsElement.fieldId())).containsExactly(points);
+    assertThat(TypeUtil.ancestorFields(schema, 16)).containsExactly(pointsElement, points);
+    assertThat(TypeUtil.ancestorFields(schema, 17)).containsExactly(pointsElement, points);
+  }
 }

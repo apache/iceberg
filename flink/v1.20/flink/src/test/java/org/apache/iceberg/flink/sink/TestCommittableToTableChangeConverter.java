@@ -39,6 +39,7 @@ import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
 import org.apache.iceberg.io.FileIO;
@@ -116,7 +117,8 @@ class TestCommittableToTableChangeConverter {
               .addDeleteFiles(posDeleteFile, eqDeleteFile)
               .build();
       DeltaManifests deltaManifests =
-          FlinkManifestUtil.writeCompletedFiles(writeResult, () -> factory.create(1), table.spec());
+          FlinkManifestUtil.writeCompletedFiles(
+              writeResult, () -> factory.create(1), table.spec(), TableUtil.formatVersion(table));
       IcebergCommittable committable =
           new IcebergCommittable(
               SimpleVersionedSerialization.writeVersionAndSerialize(
@@ -297,7 +299,10 @@ class TestCommittableToTableChangeConverter {
             .build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
-            writeResult, () -> factory.create(checkpointId), table.spec());
+            writeResult,
+            () -> factory.create(checkpointId),
+            table.spec(),
+            TableUtil.formatVersion(table));
 
     IcebergCommittable committable =
         new IcebergCommittable(

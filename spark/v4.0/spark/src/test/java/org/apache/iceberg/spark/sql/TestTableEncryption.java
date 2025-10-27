@@ -30,9 +30,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
@@ -48,14 +51,9 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 
-// TODO(smaheshwar-pltr): This test is taken from https://github.com/apache/iceberg/pull/13066, with
-// the exception of testCtas, but adapted for the REST catalog. When that merges, we can directly
-// use those tests for the REST catalog as well by adding to the parameters method there, to have
-// a single test class for table encryption.
-public class TestRestTableEncryption extends CatalogTestBase {
+public class TestTableEncryption extends CatalogTestBase {
   private static Map<String, String> appendCatalogEncryptionProperties(Map<String, String> props) {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.putAll(props);
@@ -67,13 +65,18 @@ public class TestRestTableEncryption extends CatalogTestBase {
   protected static Object[][] parameters() {
     return new Object[][] {
       {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        appendCatalogEncryptionProperties(SparkCatalogConfig.HIVE.properties())
+      },
+      {
         SparkCatalogConfig.REST.catalogName(),
         SparkCatalogConfig.REST.implementation(),
         appendCatalogEncryptionProperties(
-            ImmutableMap.<String, String>builder()
-                .putAll(SparkCatalogConfig.REST.properties())
-                .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
-                .build())
+                ImmutableMap.<String, String>builder()
+                        .putAll(SparkCatalogConfig.REST.properties())
+                        .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+                        .build())
       }
     };
   }
@@ -100,6 +103,38 @@ public class TestRestTableEncryption extends CatalogTestBase {
         ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+  }
+
+  @TestTemplate
+  public void testCtas() {
+    String tableName = this.tableName + "_ctas";
+    sql(
+            "CREATE TABLE %s USING iceberg "
+                    + "TBLPROPERTIES ( "
+                    + "'encryption.key-id'='%s') AS SELECT * FROM VALUES (1, 'a', 1.0), (2, 'b', 2.0)"
+                    + " AS t(id, data, float)",
+            tableName, UnitestKMS.MASTER_KEY_NAME1);
+
+    assertThat(sql("SELECT * FROM %s", tableName).size()).isEqualTo(2);
+  }
+
+  private static List<DataFile> currentDataFiles(Table table) {
+    return Streams.stream(table.newScan().planFiles())
+        .map(FileScanTask::file)
+        .collect(Collectors.toList());
+  }
+
+  @TestTemplate
+  public void testRefresh() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(currentDataFiles(table)).isNotEmpty();
+
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0), (6, 'f', float('NaN'))", tableName);
+
+    table.refresh();
+    assertThat(currentDataFiles(table)).isNotEmpty();
   }
 
   @TestTemplate
@@ -130,7 +165,6 @@ public class TestRestTableEncryption extends CatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Disabled("We don't yet check changes to encryption properties")
   @TestTemplate
   public void testKeyDelete() {
     assertThatThrownBy(
@@ -209,19 +243,6 @@ public class TestRestTableEncryption extends CatalogTestBase {
     if (!foundManifestListFile) {
       throw new RuntimeException("No manifest list files found for table " + tableName);
     }
-  }
-
-  @TestTemplate
-  public void testCtas() {
-    String tableName = this.tableName + "_ctas";
-    sql(
-        "CREATE TABLE %s USING iceberg "
-            + "TBLPROPERTIES ( "
-            + "'encryption.key-id'='%s') AS SELECT * FROM VALUES (1, 'a', 1.0), (2, 'b', 2.0)"
-            + " AS t(id, data, float)",
-        tableName, UnitestKMS.MASTER_KEY_NAME1);
-
-    assertThat(sql("SELECT * FROM %s", tableName).size()).isEqualTo(2);
   }
 
   private void checkMetadataFileEncryption(InputFile file) throws IOException {

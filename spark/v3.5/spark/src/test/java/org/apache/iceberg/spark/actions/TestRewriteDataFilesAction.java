@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.current_date;
@@ -81,7 +82,7 @@ import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
@@ -89,9 +90,7 @@ import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expression;
@@ -2443,15 +2442,13 @@ public class TestRewriteDataFilesAction extends TestBase {
                       .locationProvider()
                       .newDataLocation(
                           FileFormat.PARQUET.addExtension(UUID.randomUUID().toString())));
-      EncryptedOutputFile encryptedOutputFile =
-          EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY);
 
-      GenericAppenderFactory appenderFactory =
-          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
       PositionDeleteWriter<Record> posDeleteWriter =
-          appenderFactory
-              .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
-              .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
+          new GenericFileWriterFactory.Builder(table)
+              .deleteFileFormat(FileFormat.PARQUET)
+              .writerProperties(ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full"))
+              .build()
+              .newPositionDeleteWriter(encrypt(outputFile), table.spec(), partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
       posDeleteWriter.write(posDelete.set(path, rowPosition, null));
@@ -2484,15 +2481,13 @@ public class TestRewriteDataFilesAction extends TestBase {
                       .locationProvider()
                       .newDataLocation(
                           FileFormat.PARQUET.addExtension(UUID.randomUUID().toString())));
-      EncryptedOutputFile encryptedOutputFile =
-          EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY);
 
-      GenericAppenderFactory appenderFactory =
-          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
       PositionDeleteWriter<Record> posDeleteWriter =
-          appenderFactory
-              .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
-              .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
+          new GenericFileWriterFactory.Builder(table)
+              .deleteFileFormat(FileFormat.PARQUET)
+              .writerProperties(ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full"))
+              .build()
+              .newPositionDeleteWriter(encrypt(outputFile), table.spec(), partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
       int positionsPerDeleteFile = totalPositionsToDelete / outputDeleteFiles;
@@ -2548,20 +2543,18 @@ public class TestRewriteDataFilesAction extends TestBase {
       Record deleteRecord) {
     OutputFileFactory fileFactory =
         OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PARQUET).build();
-    GenericAppenderFactory appenderFactory =
-        new GenericAppenderFactory(
-            table.schema(),
-            table.spec(),
-            ArrayUtil.toIntArray(equalityFieldIds),
-            eqDeleteRowSchema,
-            null);
 
     EncryptedOutputFile file =
         createEncryptedOutputFile(createPartitionKey(table, partitionRecord), fileFactory);
 
     EqualityDeleteWriter<Record> eqDeleteWriter =
-        appenderFactory.newEqDeleteWriter(
-            file, FileFormat.PARQUET, createPartitionKey(table, partitionRecord));
+        new GenericFileWriterFactory.Builder(table)
+            .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+            .equalityDeleteRowSchema(eqDeleteRowSchema)
+            .deleteFileFormat(FileFormat.PARQUET)
+            .build()
+            .newEqualityDeleteWriter(
+                file, table.spec(), createPartitionKey(table, partitionRecord));
 
     try (EqualityDeleteWriter<Record> clsEqDeleteWriter = eqDeleteWriter) {
       clsEqDeleteWriter.write(deleteRecord);

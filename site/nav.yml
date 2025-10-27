@@ -75,12 +75,14 @@ nav:
         - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
         - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
         - Memiiso Debezium: https://memiiso.github.io/debezium-server-iceberg/
+        - Microsoft OneLake: https://aka.ms/onelakeircdocs
         - Nimtable: https://github.com/nimtable/nimtable
         - OLake: https://olake.io/docs
         - Presto: https://prestodb.io/docs/current/connector/iceberg.html
         - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
         - RisingWave: integrations/risingwave.md
         - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
+        - Starburst: https://docs.starburst.io/latest/connector/iceberg.html
         - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
         - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
         - Trino: https://trino.io/docs/current/connector/iceberg.html
@@ -98,7 +100,6 @@ nav:
       - Sponsors: https://www.apache.org/foundation/sponsors.html
   - Community:
     - Community: community.md
-    - Blogs: blogs.md
     - Talks: talks.md
     - Vendors: vendors.md
   - Specification:

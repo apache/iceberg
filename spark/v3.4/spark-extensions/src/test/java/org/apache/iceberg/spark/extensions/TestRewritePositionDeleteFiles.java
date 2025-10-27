@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.spark.sql.functions.expr;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,15 +53,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -328,10 +325,12 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
       Table table, OutputFile out, StructLike partition, List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     FileFormat format = defaultFormat(table.properties());
-    FileAppenderFactory<Record> factory = new GenericAppenderFactory(table.schema(), table.spec());
 
     PositionDeleteWriter<Record> writer =
-        factory.newPosDeleteWriter(encrypt(out), format, partition);
+        new GenericFileWriterFactory.Builder(table)
+            .deleteFileFormat(format)
+            .build()
+            .newPositionDeleteWriter(encrypt(out), table.spec(), partition);
     PositionDelete<Record> posDelete = PositionDelete.create();
     try (Closeable toClose = writer) {
       for (Pair<CharSequence, Long> delete : deletes) {
@@ -340,10 +339,6 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
     }
 
     return writer.toDeleteFile();
-  }
-
-  private static EncryptedOutputFile encrypt(OutputFile out) {
-    return EncryptedFiles.encryptedOutput(out, EncryptionKeyMetadata.EMPTY);
   }
 
   private static FileFormat defaultFormat(Map<String, String> properties) {

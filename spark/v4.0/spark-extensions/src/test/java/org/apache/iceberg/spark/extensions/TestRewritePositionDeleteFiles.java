@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.spark.sql.functions.expr;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,6 +44,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.RowDelta;
@@ -52,15 +54,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -88,16 +86,20 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
   private static final int DELETE_FILES_PER_PARTITION = 2;
   private static final int DELETE_FILE_SIZE = 10;
 
-  @Parameters(name = "formatVersion = {0}, catalogName = {1}, implementation = {2}, config = {3}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
-        CATALOG_PROPS
+        CATALOG_PROPS,
+        2
       }
     };
   }
+
+  @Parameter(index = 3)
+  private int formatVersion;
 
   @AfterEach
   public void cleanup() {
@@ -250,8 +252,8 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
         "CREATE TABLE %s (id long, %s %s, c1 string, c2 string) "
             + "USING iceberg "
             + "PARTITIONED BY (%s) "
-            + "TBLPROPERTIES('format-version'='2')",
-        tableName, partitionCol, partitionType, partitionTransform);
+            + "TBLPROPERTIES('format-version'='%d')",
+        tableName, partitionCol, partitionType, partitionTransform, formatVersion);
   }
 
   private void insertData(Function<Integer, ?> partitionValueFunction) throws Exception {
@@ -328,10 +330,12 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
       Table table, OutputFile out, StructLike partition, List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     FileFormat format = defaultFormat(table.properties());
-    FileAppenderFactory<Record> factory = new GenericAppenderFactory(table.schema(), table.spec());
 
     PositionDeleteWriter<Record> writer =
-        factory.newPosDeleteWriter(encrypt(out), format, partition);
+        new GenericFileWriterFactory.Builder(table)
+            .deleteFileFormat(format)
+            .build()
+            .newPositionDeleteWriter(encrypt(out), table.spec(), partition);
     PositionDelete<Record> posDelete = PositionDelete.create();
     try (Closeable toClose = writer) {
       for (Pair<CharSequence, Long> delete : deletes) {
@@ -340,10 +344,6 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
     }
 
     return writer.toDeleteFile();
-  }
-
-  private static EncryptedOutputFile encrypt(OutputFile out) {
-    return EncryptedFiles.encryptedOutput(out, EncryptionKeyMetadata.EMPTY);
   }
 
   private static FileFormat defaultFormat(Map<String, String> properties) {

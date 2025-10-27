@@ -47,14 +47,17 @@ public class StandardEncryptionManager implements EncryptionManager {
     private final Map<String, EncryptedKey> encryptionKeys;
     private final LoadingCache<String, ByteBuffer> unwrappedKeyCache;
 
-    private TransientEncryptionState(List<EncryptedKey> keys, KeyManagementClient kmsClient) {
+    private TransientEncryptionState(KeyManagementClient kmsClient, List<EncryptedKey> keys) {
       this.kmsClient = kmsClient;
       this.encryptionKeys = Maps.newLinkedHashMap();
 
-      for (EncryptedKey key : keys) {
-        Preconditions.checkArgument(
-            key.keyId() != null, "Key id cannot be null"); // Required by spec.
-        encryptionKeys.put(key.keyId(), key);
+      if (keys != null) {
+        for (EncryptedKey key : keys) {
+          encryptionKeys.put(
+              key.keyId(),
+              new BaseEncryptedKey(
+                  key.keyId(), key.encryptedKeyMetadata(), key.encryptedById(), key.properties()));
+        }
       }
 
       this.unwrappedKeyCache =
@@ -72,17 +75,16 @@ public class StandardEncryptionManager implements EncryptionManager {
   private transient volatile SecureRandom lazyRNG = null;
 
   /**
-   * @param tableKeyId table encryption key id
-   * @param dataKeyLength length of data encryption key (16/24/32 bytes)
-   * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
+   * @deprecated will be removed in 2.0.
    */
+  @Deprecated
   public StandardEncryptionManager(
       String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
     this(List.of(), tableKeyId, dataKeyLength, kmsClient);
   }
 
   /**
-   * @param keys a list of existing {@link EncryptedKey}s for this {@link EncryptionManager} to use
+   * @param keys encryption keys from table metadata
    * @param tableKeyId table encryption key id
    * @param dataKeyLength length of data encryption key (16/24/32 bytes)
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
@@ -99,7 +101,7 @@ public class StandardEncryptionManager implements EncryptionManager {
         dataKeyLength);
     Preconditions.checkNotNull(kmsClient, "Invalid KMS client: null");
     this.tableKeyId = tableKeyId;
-    this.transientState = new TransientEncryptionState(keys, kmsClient);
+    this.transientState = new TransientEncryptionState(kmsClient, keys);
     this.dataKeyLength = dataKeyLength;
   }
 
@@ -154,6 +156,14 @@ public class StandardEncryptionManager implements EncryptionManager {
     }
 
     return transientState.kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
+  }
+
+  Map<String, EncryptedKey> encryptionKeys() {
+    if (transientState == null) {
+      throw new IllegalStateException("Cannot return the encryption keys after serialization");
+    }
+
+    return transientState.encryptionKeys;
   }
 
   private String keyEncryptionKeyID() {
@@ -219,14 +229,6 @@ public class StandardEncryptionManager implements EncryptionManager {
     transientState.encryptionKeys.put(key.keyId(), key);
 
     return manifestListKeyID;
-  }
-
-  public Map<String, EncryptedKey> encryptionKeys() {
-    if (transientState == null) {
-      throw new IllegalStateException("Cannot return encryption keys after serialization");
-    }
-
-    return transientState.encryptionKeys;
   }
 
   private String generateKeyId() {

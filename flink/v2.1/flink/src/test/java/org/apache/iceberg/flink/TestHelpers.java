@@ -57,6 +57,7 @@ import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.GenericDataUtil;
@@ -176,6 +177,16 @@ public class TestHelpers {
       LogicalType rowType,
       StructLike expectedRecord,
       RowData actualRowData) {
+    assertRowData(structType, rowType, expectedRecord, actualRowData, null, -1);
+  }
+
+  public static void assertRowData(
+      Types.StructType structType,
+      LogicalType rowType,
+      StructLike expectedRecord,
+      RowData actualRowData,
+      Map<Integer, Object> idToConstant,
+      int rowPosition) {
     if (expectedRecord == null && actualRowData == null) {
       return;
     }
@@ -197,21 +208,14 @@ public class TestHelpers {
         LogicalType logicalType = ((RowType) rowType).getTypeAt(pos);
         Object actualValue =
             FlinkRowData.createFieldGetter(logicalType, pos).getFieldOrNull(actualRowData);
-        if (expectedField != null) {
-          assertEquals(
-              field.type(), logicalType, expected.getField(expectedField.name()), actualValue);
-        } else {
-          // convert the initial value to generic because that is the data model used to generate
-          // the expected records
-          assertEquals(
-              field.type(),
-              logicalType,
-              GenericDataUtil.internalToGeneric(field.type(), field.initialDefault()),
-              actualValue);
-        }
-        pos += 1;
-      }
+        Object expectedValue =
+            expectedField != null
+                ? getExpectedValue(idToConstant, rowPosition, expectedField, expected)
+                : GenericDataUtil.internalToGeneric(field.type(), field.initialDefault());
 
+        assertEquals(field.type(), logicalType, expectedValue, actualValue);
+        pos++;
+      }
     } else {
       for (int i = 0; i < types.size(); i += 1) {
         LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
@@ -221,6 +225,30 @@ public class TestHelpers {
         assertEquals(types.get(i), logicalType, expected, actual);
       }
     }
+  }
+
+  private static Object getExpectedValue(
+      Map<Integer, Object> idToConstant,
+      int pos,
+      Types.NestedField expectedField,
+      Record expected) {
+    Object expectedValue;
+    int id = expectedField.fieldId();
+    if (id == MetadataColumns.ROW_ID.fieldId()) {
+      expectedValue = expected.getField(expectedField.name());
+      if (expectedValue == null && idToConstant != null) {
+        expectedValue = (Long) idToConstant.get(id) + pos;
+      }
+    } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+      expectedValue = expected.getField(expectedField.name());
+      if (expectedValue == null && idToConstant != null) {
+        expectedValue = idToConstant.get(id);
+      }
+    } else {
+      expectedValue = expected.getField(expectedField.name());
+    }
+
+    return expectedValue;
   }
 
   private static void assertEquals(

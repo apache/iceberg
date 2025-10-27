@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink.shuffle;
 import java.util.Comparator;
 import java.util.Map;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.RowType;
@@ -44,7 +43,7 @@ class Fixtures {
           Types.NestedField.optional(1, "id", Types.StringType.get()),
           Types.NestedField.optional(2, "number", Types.IntegerType.get()));
   public static final RowType ROW_TYPE = RowType.of(new VarCharType(), new IntType());
-  public static final TypeSerializer<RowData> ROW_SERIALIZER = new RowDataSerializer(ROW_TYPE);
+  public static final RowDataSerializer ROW_SERIALIZER = new RowDataSerializer(ROW_TYPE);
   public static final RowDataWrapper ROW_WRAPPER = new RowDataWrapper(ROW_TYPE, SCHEMA.asStruct());
   public static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
   public static final Comparator<StructLike> SORT_ORDER_COMPARTOR =
@@ -57,6 +56,8 @@ class Fixtures {
       new GlobalStatisticsSerializer(SORT_KEY_SERIALIZER);
   public static final CompletedStatisticsSerializer COMPLETED_STATISTICS_SERIALIZER =
       new CompletedStatisticsSerializer(SORT_KEY_SERIALIZER);
+  public static final StatisticsOrRecordSerializer STATISTICS_OR_RECORD_SERIALIZER =
+      new StatisticsOrRecordSerializer(GLOBAL_STATISTICS_SERIALIZER, ROW_SERIALIZER);
 
   public static final SortKey SORT_KEY = new SortKey(SCHEMA, SORT_ORDER);
   public static final Map<String, SortKey> CHAR_KEYS = createCharKeys();

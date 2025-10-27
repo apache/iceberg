@@ -190,7 +190,7 @@ This type conversion table describes how Iceberg types are converted to the Spar
 | map                        | map                     |               |
 | nanosecond timestamp       |                         | Not supported |
 | nanosecond timestamp with timezone |                 | Not supported |
-| unknown                    |                         | Not supported |
+| unknown                    | null                    | Spark 4.0+    |
 | variant                    | variant                 | Spark 4.0+    | 
 | geometry                   |                         | Not supported |
 | geography                  |                         | Not supported |

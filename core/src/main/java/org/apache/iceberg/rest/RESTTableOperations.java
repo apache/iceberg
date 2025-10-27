@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
@@ -34,6 +35,7 @@ import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
@@ -197,13 +199,46 @@ class RESTTableOperations implements TableOperations {
     // the error handler will throw necessary exceptions like CommitFailedException and
     // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
-    LoadTableResponse response =
-        client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+    LoadTableResponse response;
+    try {
+      response = client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+    } catch (CommitStateUnknownException e) {
+      // Lightweight reconciliation for snapshot-add-only updates on transient unknown commit state
+      if (updateType == UpdateType.SIMPLE && reconcileOnSimpleUpdate(updates, e)) {
+        return;
+      }
+
+      throw e;
+    }
 
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
 
     updateCurrentMetadata(response);
+  }
+
+  /**
+   * Attempt best-effort reconciliation for SIMPLE updates that only add a snapshot.
+   *
+   * <p>Returns true if the expected snapshot is observed in the refreshed table state. Returns
+   * false if the expected snapshot cannot be determined, is not present after refresh, or if the
+   * refresh fails. In case of refresh failure, the failure is recorded as suppressed on the
+   * provided {@code original} exception to aid diagnostics.
+   */
+  private boolean reconcileOnSimpleUpdate(
+      List<MetadataUpdate> updates, CommitStateUnknownException original) {
+    Long expectedSnapshotId = expectedSnapshotIdIfSnapshotAddOnly(updates);
+    if (expectedSnapshotId == null) {
+      return false;
+    }
+
+    try {
+      TableMetadata refreshed = refresh();
+      return refreshed != null && refreshed.snapshot(expectedSnapshotId) != null;
+    } catch (RuntimeException reconEx) {
+      original.addSuppressed(reconEx);
+      return false;
+    }
   }
 
   @Override
@@ -243,6 +278,43 @@ class RESTTableOperations implements TableOperations {
     }
 
     return encryptionManager;
+  }
+
+  private static Long expectedSnapshotIdIfSnapshotAddOnly(List<MetadataUpdate> updates) {
+      Long addedSnapshotId = null;
+      Long mainRefSnapshotId = null;
+
+      for (MetadataUpdate update : updates) {
+          if (update instanceof MetadataUpdate.AddSnapshot) {
+              if (addedSnapshotId != null) {
+                  return null; // multiple snapshot adds -> not safe
+              }
+              addedSnapshotId = ((MetadataUpdate.AddSnapshot) update).snapshot().snapshotId();
+          } else if (update instanceof MetadataUpdate.SetSnapshotRef) {
+              MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
+              if (!SnapshotRef.MAIN_BRANCH.equals(setRef.name())) {
+                  return null; // only allow main ref update
+              }
+              mainRefSnapshotId = setRef.snapshotId();
+          } else {
+              // any other update type makes this not a pure snapshot-add
+              return null;
+          }
+      }
+
+      if (addedSnapshotId == null) {
+          return null;
+      }
+
+      if (mainRefSnapshotId != null && !addedSnapshotId.equals(mainRefSnapshotId)) {
+          // Only handle "append to main" here. In this request, main is being set to a snapshot ID
+          // that is different from the snapshot we just added (e.g., rollback or move main elsewhere).
+          // In that case, finding the added snapshot in history doesn't tell us whether main moved to
+          // it, so skip reconciliation.
+          return null;
+      }
+
+      return addedSnapshotId;
   }
 
   private void encryptionPropsFromMetadata(TableMetadata metadata) {
@@ -336,6 +408,8 @@ class RESTTableOperations implements TableOperations {
 
       @Override
       public FileIO io() {
+        // TODO(smaheshwar-pltr): Is this needed?
+        RESTTableOperations.this.encryptionPropsFromMetadata(uncommittedMetadata);
         return RESTTableOperations.this.io();
       }
 
