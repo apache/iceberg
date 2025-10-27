@@ -60,6 +60,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
+import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
@@ -243,26 +244,7 @@ class StructInternalRow extends InternalRow {
 
   private VariantVal getVariantInternal(int ordinal) {
     Object value = struct.get(ordinal, Object.class);
-
-    if (value instanceof VariantVal) {
-      return (VariantVal) value;
-    }
-
-    if (value instanceof Variant) {
-      Variant variant = (Variant) value;
-      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
-      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
-      variant.metadata().writeTo(metadataBuffer, 0);
-
-      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
-      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
-      variant.value().writeTo(valueBuffer, 0);
-
-      return new VariantVal(valueBytes, metadataBytes);
-    }
-
-    throw new UnsupportedOperationException(
-        "Unsupported value for VARIANT in StructInternalRow: " + value.getClass());
+    return toVariantVal(value);
   }
 
   @Override
@@ -302,6 +284,8 @@ class StructInternalRow extends InternalRow {
       return getInt(ordinal);
     } else if (dataType instanceof TimestampType) {
       return getLong(ordinal);
+    } else if (dataType instanceof VariantType) {
+      return getVariantInternal(ordinal);
     }
     return null;
   }
@@ -364,9 +348,35 @@ class StructInternalRow extends InternalRow {
             array ->
                 (BiConsumer<Integer, Map<?, ?>>)
                     (pos, map) -> array[pos] = mapToMapData(elementType.asMapType(), map));
+      case VARIANT:
+        return fillArray(
+            values,
+            array -> (BiConsumer<Integer, Object>) (pos, v) -> array[pos] = toVariantVal(v));
       default:
         throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
     }
+  }
+
+  private static VariantVal toVariantVal(Object value) {
+    if (value instanceof VariantVal) {
+      return (VariantVal) value;
+    }
+
+    if (value instanceof Variant) {
+      Variant variant = (Variant) value;
+      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
+      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
+      variant.metadata().writeTo(metadataBuffer, 0);
+
+      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
+      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
+      variant.value().writeTo(valueBuffer, 0);
+
+      return new VariantVal(valueBytes, metadataBytes);
+    }
+
+    throw new UnsupportedOperationException(
+        "Unsupported value for VARIANT in StructInternalRow: " + value.getClass());
   }
 
   @SuppressWarnings("unchecked")
