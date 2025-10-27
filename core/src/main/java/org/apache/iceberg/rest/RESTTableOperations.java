@@ -281,40 +281,40 @@ class RESTTableOperations implements TableOperations {
   }
 
   private static Long expectedSnapshotIdIfSnapshotAddOnly(List<MetadataUpdate> updates) {
-      Long addedSnapshotId = null;
-      Long mainRefSnapshotId = null;
+    Long addedSnapshotId = null;
+    Long mainRefSnapshotId = null;
 
-      for (MetadataUpdate update : updates) {
-          if (update instanceof MetadataUpdate.AddSnapshot) {
-              if (addedSnapshotId != null) {
-                  return null; // multiple snapshot adds -> not safe
-              }
-              addedSnapshotId = ((MetadataUpdate.AddSnapshot) update).snapshot().snapshotId();
-          } else if (update instanceof MetadataUpdate.SetSnapshotRef) {
-              MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
-              if (!SnapshotRef.MAIN_BRANCH.equals(setRef.name())) {
-                  return null; // only allow main ref update
-              }
-              mainRefSnapshotId = setRef.snapshotId();
-          } else {
-              // any other update type makes this not a pure snapshot-add
-              return null;
-          }
-      }
+    for (MetadataUpdate update : updates) {
+        if (update instanceof MetadataUpdate.AddSnapshot) {
+            if (addedSnapshotId != null) {
+                return null; // multiple snapshot adds -> not safe
+            }
+            addedSnapshotId = ((MetadataUpdate.AddSnapshot) update).snapshot().snapshotId();
+        } else if (update instanceof MetadataUpdate.SetSnapshotRef) {
+            MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
+            if (!SnapshotRef.MAIN_BRANCH.equals(setRef.name())) {
+                return null; // only allow main ref update
+            }
+            mainRefSnapshotId = setRef.snapshotId();
+        } else {
+            // any other update type makes this not a pure snapshot-add
+            return null;
+        }
+    }
 
-      if (addedSnapshotId == null) {
-          return null;
-      }
+    if (addedSnapshotId == null) {
+        return null;
+    }
 
-      if (mainRefSnapshotId != null && !addedSnapshotId.equals(mainRefSnapshotId)) {
-          // Only handle "append to main" here. In this request, main is being set to a snapshot ID
-          // that is different from the snapshot we just added (e.g., rollback or move main elsewhere).
-          // In that case, finding the added snapshot in history doesn't tell us whether main moved to
-          // it, so skip reconciliation.
-          return null;
-      }
+    if (mainRefSnapshotId != null && !addedSnapshotId.equals(mainRefSnapshotId)) {
+        // Only handle "append to main" here. In this request, main is being set to a snapshot ID
+        // that is different from the snapshot we just added (e.g., rollback or move main elsewhere).
+        // In that case, finding the added snapshot in history doesn't tell us whether main moved to
+        // it, so skip reconciliation.
+        return null;
+    }
 
-      return addedSnapshotId;
+    return addedSnapshotId;
   }
 
   private void encryptionPropsFromMetadata(TableMetadata metadata) {
