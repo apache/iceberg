@@ -19,6 +19,7 @@
 set -e
 
 export REMOTE="iceberg_docs"
+export VENV_DIR=".venv"
 
 # Ensures the presence of a specified remote repository for documentation.
 # If the remote doesn't exist, it adds it using the provided URL.
@@ -64,12 +65,20 @@ push_remote () {
   git push "${REMOTE}" "${BRANCH}"  
 }
 
+# Creates the virtual environment if it doesn't exist.
+create_venv () {
+  if [ ! -d "${VENV_DIR}" ]; then
+    echo " --> creating virtual environment at ${VENV_DIR}"
+    python3 -m venv "${VENV_DIR}"
+  fi
+}
+
 # Installs or upgrades dependencies specified in the 'requirements.txt' file using pip.
 install_deps () {
   echo " --> install deps"
 
-  # Use pip to install or upgrade dependencies from the 'requirements.txt' file quietly
-  pip3 -q install -r requirements.txt --upgrade
+  # Use pip from venv to install or upgrade dependencies from the 'requirements.txt' file quietly
+  "${VENV_DIR}/bin/pip3" -q install -r requirements.txt --upgrade
 }
 
 # Checks if a provided argument is not empty. If empty, displays an error message and exits with a status code 1.
@@ -200,8 +209,8 @@ search_exclude_versioned_docs () {
 
   cd "${ICEBERG_VERSION}/docs/"
 
-  # Modify .md files to exclude versioned documentation from search indexing
-  python3 -c "import os
+  # Modify .md files to exclude versioned documentation from search indexing using venv python
+  "../../${VENV_DIR}/bin/python3" -c "import os
 for f in filter(lambda x: x.endswith('.md'), os.listdir()): lines = open(f).readlines(); open(f, 'w').writelines(lines[:2] + ['search:\n', '  exclude: true\n'] + lines[2:]);"
 
   cd -
@@ -236,7 +245,7 @@ pull_versioned_docs () {
 
 check_markdown_files () {
   echo " --> check markdown file styles"
-  if ! python3 -m pymarkdown --config markdownlint.yml scan docs/docs/nightly/docs/*.md docs/*.md README.md
+  if ! "${VENV_DIR}/bin/python3" -m pymarkdown --config markdownlint.yml scan docs/docs/nightly/docs/*.md docs/*.md README.md
   then
     echo "Markdown style issues found. Please run './dev/lint.sh --fix' to fix them."
     exit 1
@@ -245,7 +254,7 @@ check_markdown_files () {
 
 fix_markdown_files () {
   echo " --> fix markdown file styles"
-  python3 -m pymarkdown --config markdownlint.yml fix docs/docs/nightly/docs/*.md docs/*.md README.md
+  "${VENV_DIR}/bin/python3" -m pymarkdown --config markdownlint.yml fix docs/docs/nightly/docs/*.md docs/*.md README.md
 }
 
 # Cleans up artifacts and temporary files generated during documentation management.
