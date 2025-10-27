@@ -86,6 +86,24 @@ public class TestSchema {
                     Types.StructType.of(Types.NestedField.optional(9, "deep", type))))));
   }
 
+  private Schema generateTypeSchemaDuplicateID() {
+    return new Schema(
+        Types.NestedField.required(1, "id", Types.LongType.get()),
+        Types.NestedField.optional(2, "top", Types.LongType.get()),
+        Types.NestedField.optional(3, "arr", Types.ListType.ofRequired(4, Types.LongType.get())),
+        Types.NestedField.required(
+            5,
+            "struct",
+            Types.StructType.of(
+                Types.NestedField.optional(6, "inner_op", Types.LongType.get()),
+                Types.NestedField.required(6, "inner_req", Types.LongType.get()),
+                Types.NestedField.optional(
+                    8,
+                    "struct_arr",
+                    Types.StructType.of(
+                        Types.NestedField.optional(9, "deep", Types.LongType.get()))))));
+  }
+
   private static Stream<Arguments> unsupportedTypes() {
     return TEST_TYPES.stream()
         .flatMap(
@@ -118,6 +136,13 @@ public class TestSchema {
             MIN_FORMAT_VERSIONS.get(type.typeId()),
             type,
             MIN_FORMAT_VERSIONS.get(type.typeId()));
+  }
+
+  @Test
+  public void testDuplicateIDs() {
+    assertThatThrownBy(() -> Schema.checkCompatibility(generateTypeSchemaDuplicateID(), 2))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Multiple entries with same key: 6=struct.inner_req and 6=struct.inner_op");
   }
 
   private static Stream<Arguments> supportedTypes() {
