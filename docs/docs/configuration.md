@@ -194,7 +194,6 @@ Here are the catalog properties related to locking. They are used by some catalo
 | lock.heartbeat-interval-ms        | 3000 (3 s)         | the interval to wait between each heartbeat after acquiring a lock  |
 | lock.heartbeat-timeout-ms         | 15000 (15 s)       | the maximum time without a heartbeat to consider a lock expired  |
 
-
 ## Hadoop configuration
 
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
@@ -217,22 +216,21 @@ The HMS table locking is a 2-step process:
 | iceberg.hive.table-level-lock-evict-ms    | 600000 (10 min) | The timeout for the JVM table lock is                                        |
 | iceberg.engine.hive.lock-enabled          | true            | Use HMS locks to ensure atomicity of commits                                 |
 
-Note: `iceberg.hive.lock-check-max-wait-ms` and `iceberg.hive.lock-heartbeat-interval-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout) 
-of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the 
+Note: `iceberg.hive.lock-check-max-wait-ms` and `iceberg.hive.lock-heartbeat-interval-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout)
+of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the
 Hive Metastore before the lock is retried from Iceberg.
 
 Warn: Setting `iceberg.engine.hive.lock-enabled`=`false` will cause HiveCatalog to commit to tables without using Hive locks.
 This should only be set to `false` if all following conditions are met:
 
- - [HIVE-26882](https://issues.apache.org/jira/browse/HIVE-26882)
+- [HIVE-26882](https://issues.apache.org/jira/browse/HIVE-26882)
 is available on the Hive Metastore server
- - [HIVE-28121](https://issues.apache.org/jira/browse/HIVE-28121)
+- [HIVE-28121](https://issues.apache.org/jira/browse/HIVE-28121)
 is available on the Hive Metastore server, if it is backed by MySQL or MariaDB
- - All other HiveCatalogs committing to tables that this HiveCatalog commits to are also on Iceberg 1.3 or later
- - All other HiveCatalogs committing to tables that this HiveCatalog commits to have also disabled Hive locks on commit.
+- All other HiveCatalogs committing to tables that this HiveCatalog commits to are also on Iceberg 1.3 or later
+- All other HiveCatalogs committing to tables that this HiveCatalog commits to have also disabled Hive locks on commit.
 
 **Failing to ensure these conditions risks corrupting the table.**
 
 Even with `iceberg.engine.hive.lock-enabled` set to `false`, a HiveCatalog can still use locks for individual tables by setting the table property `engine.hive.lock-enabled`=`true`.
 This is useful in the case where other HiveCatalogs cannot be upgraded and set to commit without using Hive locks.
-
