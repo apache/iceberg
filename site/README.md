@@ -110,7 +110,7 @@ It will also scan all markdown files and fail the build on any style issues. To 
 make lint-fix
 ```
 
-### Linting
+#### Linting
 
 To check for markdown style issues without building the entire site, use the `lint` make command:
 
