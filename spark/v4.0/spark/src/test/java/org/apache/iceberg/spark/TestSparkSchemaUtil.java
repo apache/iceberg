@@ -34,6 +34,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
 import org.apache.spark.sql.catalyst.types.DataTypeUtils;
+import org.apache.spark.sql.catalyst.util.ResolveDefaultColumnsUtils$;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -43,9 +44,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSparkSchemaUtil {
-
-  private static final String CURRENT_DEFAULT_COLUMN_METADATA_KEY = "CURRENT_DEFAULT";
-  private static final String EXISTS_DEFAULT_COLUMN_METADATA_KEY = "EXISTS_DEFAULT";
 
   private static final Schema TEST_SCHEMA =
       new Schema(
@@ -109,13 +107,19 @@ public class TestSparkSchemaUtil {
     StructType sparkSchema = SparkSchemaUtil.convert(schema);
     Metadata metadata = sparkSchema.fields()[0].metadata();
 
-    assertThat(metadata.contains(CURRENT_DEFAULT_COLUMN_METADATA_KEY))
+    assertThat(
+            metadata.contains(
+                ResolveDefaultColumnsUtils$.MODULE$.CURRENT_DEFAULT_COLUMN_METADATA_KEY()))
         .as("Field with only write default should have CURRENT_DEFAULT metadata")
         .isTrue();
-    assertThat(metadata.contains(EXISTS_DEFAULT_COLUMN_METADATA_KEY))
+    assertThat(
+            metadata.contains(
+                ResolveDefaultColumnsUtils$.MODULE$.EXISTS_DEFAULT_COLUMN_METADATA_KEY()))
         .as("Field with only write default should not have EXISTS_DEFAULT metadata")
         .isFalse();
-    assertThat(metadata.getString(CURRENT_DEFAULT_COLUMN_METADATA_KEY))
+    assertThat(
+            metadata.getString(
+                ResolveDefaultColumnsUtils$.MODULE$.CURRENT_DEFAULT_COLUMN_METADATA_KEY()))
         .as("Spark metadata CURRENT_DEFAULT should contain correctly formatted literal")
         .isEqualTo("'write_only'");
   }
@@ -133,13 +137,19 @@ public class TestSparkSchemaUtil {
     StructType sparkSchema = SparkSchemaUtil.convert(schema);
     Metadata metadata = sparkSchema.fields()[0].metadata();
 
-    assertThat(metadata.contains(CURRENT_DEFAULT_COLUMN_METADATA_KEY))
+    assertThat(
+            metadata.contains(
+                ResolveDefaultColumnsUtils$.MODULE$.CURRENT_DEFAULT_COLUMN_METADATA_KEY()))
         .as("Field with only initial default should not have CURRENT_DEFAULT metadata")
         .isFalse();
-    assertThat(metadata.contains(EXISTS_DEFAULT_COLUMN_METADATA_KEY))
+    assertThat(
+            metadata.contains(
+                ResolveDefaultColumnsUtils$.MODULE$.EXISTS_DEFAULT_COLUMN_METADATA_KEY()))
         .as("Field with only initial default should have EXISTS_DEFAULT metadata")
         .isTrue();
-    assertThat(metadata.getString(EXISTS_DEFAULT_COLUMN_METADATA_KEY))
+    assertThat(
+            metadata.getString(
+                ResolveDefaultColumnsUtils$.MODULE$.EXISTS_DEFAULT_COLUMN_METADATA_KEY()))
         .as("Spark metadata EXISTS_DEFAULT should contain correctly formatted literal")
         .isEqualTo("42");
   }
@@ -168,18 +178,26 @@ public class TestSparkSchemaUtil {
       StructField defaultField = sparkSchema.fields()[0];
       Metadata metadata = defaultField.metadata();
 
-      assertThat(metadata.contains(CURRENT_DEFAULT_COLUMN_METADATA_KEY))
+      assertThat(
+              metadata.contains(
+                  ResolveDefaultColumnsUtils$.MODULE$.CURRENT_DEFAULT_COLUMN_METADATA_KEY()))
           .as("Field of type %s should have CURRENT_DEFAULT metadata", type)
           .isTrue();
-      assertThat(metadata.contains(EXISTS_DEFAULT_COLUMN_METADATA_KEY))
+      assertThat(
+              metadata.contains(
+                  ResolveDefaultColumnsUtils$.MODULE$.EXISTS_DEFAULT_COLUMN_METADATA_KEY()))
           .as("Field of type %s should have EXISTS_DEFAULT metadata", type)
           .isTrue();
-      assertThat(metadata.getString(CURRENT_DEFAULT_COLUMN_METADATA_KEY))
+      assertThat(
+              metadata.getString(
+                  ResolveDefaultColumnsUtils$.MODULE$.CURRENT_DEFAULT_COLUMN_METADATA_KEY()))
           .as(
               "Spark metadata CURRENT_DEFAULT for type %s should contain correctly formatted literal",
               type)
           .isEqualTo(expectedCurrentDefaultValue);
-      assertThat(metadata.getString(EXISTS_DEFAULT_COLUMN_METADATA_KEY))
+      assertThat(
+              metadata.getString(
+                  ResolveDefaultColumnsUtils$.MODULE$.EXISTS_DEFAULT_COLUMN_METADATA_KEY()))
           .as(
               "Spark metadata EXISTS_DEFAULT for type %s should contain correctly formatted literal",
               type)

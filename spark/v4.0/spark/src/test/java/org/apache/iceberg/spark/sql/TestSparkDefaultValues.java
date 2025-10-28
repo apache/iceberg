@@ -39,13 +39,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
  *
  * <p>Note: These tests use {@code validationCatalog.createTable()} to create tables with default
  * values because the Iceberg Spark integration does not yet support default value clauses in Spark
- * DDL. See {@link #testCreateTableWithDefaultsNotYetSupported()} and {@link
- * #testAlterTableAddColumnWithDefaultNotYetSupported()} for verification that DDL with defaults
- * currently throws exceptions.
+ * DDL.
  *
  * <p>Partial column INSERT statements (e.g., {@code INSERT INTO table (col1) VALUES (val1)}) are
- * not supported for DSV2 in Spark 4.0 See {@link #testPartialInsertNotYetSupportedInSpark()} for
- * verification.
+ * not supported for DSV2 in Spark 4.0
  */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkDefaultValues extends CatalogTestBase {
@@ -56,33 +53,7 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testWriteDefaultWithExplicitDefault() {
-    assertThat(validationCatalog.tableExists(tableIdent))
-        .as("Table should not already exist")
-        .isFalse();
-
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withWriteDefault(Literal.of("default-data"))
-                .build());
-
-    validationCatalog.createTable(
-        tableIdent, schema, PartitionSpec.unpartitioned(), ImmutableMap.of("format-version", "3"));
-
-    sql("INSERT INTO %s VALUES (1, DEFAULT)", commitTarget());
-
-    assertEquals(
-        "Should insert row with default values",
-        ImmutableList.of(row(1, "default-data")),
-        sql("SELECT * FROM %s", selectTarget()));
-  }
-
-  @TestTemplate
-  public void testWriteDefaultForMultipleColumns() {
+  public void testWriteDefaultWithSparkDefaultKeyword() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();
@@ -118,6 +89,38 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testWriteDefaultWithDefaultKeywordAndReorderedSchema() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional("int_col")
+                .withId(2)
+                .ofType(Types.IntegerType.get())
+                .withWriteDefault(Literal.of(123))
+                .build(),
+            Types.NestedField.optional("string_col")
+                .withId(3)
+                .ofType(Types.StringType.get())
+                .withWriteDefault(Literal.of("doom"))
+                .build());
+
+    validationCatalog.createTable(
+        tableIdent, schema, PartitionSpec.unpartitioned(), ImmutableMap.of("format-version", "3"));
+
+    // Insert with columns in different order than table schema
+    sql("INSERT INTO %s (int_col, id, string_col) VALUES (DEFAULT, 1, DEFAULT)", commitTarget());
+
+    assertEquals(
+        "Should apply correct defaults regardless of column order",
+        ImmutableList.of(row(1, 123, "doom")),
+        sql("SELECT * FROM %s", selectTarget()));
+  }
+
+  @TestTemplate
   public void testBulkInsertWithDefaults() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
@@ -144,7 +147,7 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableWithDefaultsNotYetSupported() {
+  public void testCreateTableWithDefaultsUnsupported() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();
@@ -159,7 +162,7 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAlterTableAddColumnWithDefaultNotYetSupported() {
+  public void testAlterTableAddColumnWithDefaultUnsupported() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();
@@ -176,7 +179,7 @@ public class TestSparkDefaultValues extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testPartialInsertNotYetSupportedInSpark() {
+  public void testPartialInsertUnsupported() {
     assertThat(validationCatalog.tableExists(tableIdent))
         .as("Table should not already exist")
         .isFalse();
@@ -196,5 +199,39 @@ public class TestSparkDefaultValues extends CatalogTestBase {
     assertThatThrownBy(() -> sql("INSERT INTO %s (id) VALUES (1)", commitTarget()))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Cannot find data for the output column");
+  }
+
+  @TestTemplate
+  public void testSchemaEvolutionWithDefaultValueChanges() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    Schema initialSchema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+
+    validationCatalog.createTable(
+        tableIdent,
+        initialSchema,
+        PartitionSpec.unpartitioned(),
+        ImmutableMap.of("format-version", "3"));
+
+    sql("INSERT INTO %s VALUES (1), (2)", commitTarget());
+
+    // Add a column with a default value
+    validationCatalog
+        .loadTable(tableIdent)
+        .updateSchema()
+        .addColumn("data", Types.StringType.get(), Literal.of("default_data"))
+        .commit();
+
+    // Refresh this when using SparkCatalog since otherwise the new column would not be caught.
+    sql("REFRESH TABLE %s", commitTarget());
+
+    sql("INSERT INTO %s VALUES (3, DEFAULT)", commitTarget());
+
+    assertEquals(
+        "Should have correct default values for existing and new rows",
+        ImmutableList.of(row(1, "default_data"), row(2, "default_data"), row(3, "default_data")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 }

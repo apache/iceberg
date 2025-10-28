@@ -70,17 +70,14 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       if (field.doc() != null) {
         sparkField = sparkField.withComment(field.doc());
       }
+      // Convert both write and initial default values to Spark SQL string literal representations
+      // on the StructField metadata
       if (field.writeDefault() != null) {
-        // Convert Iceberg default value to Spark SQL string representation. Spark stores default
-        // values as SQL strings in column metadata. The .sql() method formats literals correctly
-        // for each type
         Object writeDefault = SparkUtil.internalToSpark(field.type(), field.writeDefault());
         sparkField =
             sparkField.withCurrentDefaultValue(Literal$.MODULE$.create(writeDefault, type).sql());
       }
       if (field.initialDefault() != null) {
-        // Same conversion for existence default values, used for existing rows when column is added
-        // to schema
         Object initialDefault = SparkUtil.internalToSpark(field.type(), field.initialDefault());
         sparkField =
             sparkField.withExistenceDefaultValue(
@@ -88,6 +85,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       }
       sparkFields.add(sparkField);
     }
+
     return StructType$.MODULE$.apply(sparkFields);
   }
 
