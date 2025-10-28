@@ -172,15 +172,15 @@ public class TestExtendedParser {
   public void testParseSortOrderFindsExtendedParserInParentClassField() throws Exception {
     ExtendedParser icebergParser = mock(ExtendedParser.class);
     ExtendedParser.RawOrderField field =
-            new ExtendedParser.RawOrderField(
-                    mock(Term.class), SortDirection.ASC, NullOrder.NULLS_FIRST);
+        new ExtendedParser.RawOrderField(
+            mock(Term.class), SortDirection.ASC, NullOrder.NULLS_FIRST);
     List<ExtendedParser.RawOrderField> expected = Collections.singletonList(field);
     when(icebergParser.parseSortOrder("id ASC NULLS FIRST")).thenReturn(expected);
     ParserInterface parser = new ChildParser(icebergParser);
     setSessionStateParser(spark.sessionState(), parser);
 
     List<ExtendedParser.RawOrderField> result =
-            ExtendedParser.parseSortOrder(spark, "id ASC NULLS FIRST");
+        ExtendedParser.parseSortOrder(spark, "id ASC NULLS FIRST");
     assertThat(result).isSameAs(expected);
     verify(icebergParser).parseSortOrder("id ASC NULLS FIRST");
   }
