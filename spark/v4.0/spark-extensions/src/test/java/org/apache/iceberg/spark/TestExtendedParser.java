@@ -41,7 +41,9 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import scala.collection.immutable.Seq;
 
@@ -49,6 +51,7 @@ public class TestExtendedParser {
 
   private static SparkSession spark;
   private static final String SQL_PARSER_FIELD = "sqlParser";
+  private ParserInterface originalParser;
 
   @BeforeAll
   public static void before() {
@@ -60,6 +63,26 @@ public class TestExtendedParser {
     if (spark != null) {
       spark.stop();
     }
+  }
+
+  @BeforeEach
+  public void saveOriginalParser() throws Exception {
+    Class<?> clazz = spark.sessionState().getClass();
+    Field parserField = null;
+    while (clazz != null && parserField == null) {
+      try {
+        parserField = clazz.getDeclaredField(SQL_PARSER_FIELD);
+      } catch (NoSuchFieldException e) {
+        clazz = clazz.getSuperclass();
+      }
+    }
+    parserField.setAccessible(true);
+    originalParser = (ParserInterface) parserField.get(spark.sessionState());
+  }
+
+  @AfterEach
+  public void restoreOriginalParser() throws Exception {
+    setSessionStateParser(spark.sessionState(), originalParser);
   }
 
   /**
@@ -94,8 +117,6 @@ public class TestExtendedParser {
     ExtendedParser.RawOrderField first = fields.get(0);
     assertThat(first.direction()).isEqualTo(SortDirection.ASC);
     assertThat(first.nullOrder()).isEqualTo(NullOrder.NULLS_FIRST);
-
-    setSessionStateParser(spark.sessionState(), origParser);
   }
 
   /**
@@ -140,6 +161,28 @@ public class TestExtendedParser {
     assertThatThrownBy(() -> ExtendedParser.parseSortOrder(spark, "id ASC"))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Iceberg ExtendedParser");
+  }
+
+  /**
+   * Tests that parseSortOrder can find an ExtendedParser in a parent class field of the parser.
+   *
+   * @throws Exception if reflection access fails
+   */
+  @Test
+  public void testParseSortOrderFindsExtendedParserInParentClassField() throws Exception {
+    ExtendedParser icebergParser = mock(ExtendedParser.class);
+    ExtendedParser.RawOrderField field =
+            new ExtendedParser.RawOrderField(
+                    mock(Term.class), SortDirection.ASC, NullOrder.NULLS_FIRST);
+    List<ExtendedParser.RawOrderField> expected = Collections.singletonList(field);
+    when(icebergParser.parseSortOrder("id ASC NULLS FIRST")).thenReturn(expected);
+    ParserInterface parser = new ChildParser(icebergParser);
+    setSessionStateParser(spark.sessionState(), parser);
+
+    List<ExtendedParser.RawOrderField> result =
+            ExtendedParser.parseSortOrder(spark, "id ASC NULLS FIRST");
+    assertThat(result).isSameAs(expected);
+    verify(icebergParser).parseSortOrder("id ASC NULLS FIRST");
   }
 
   private static void setSessionStateParser(Object sessionState, ParserInterface parser)
@@ -215,6 +258,12 @@ public class TestExtendedParser {
     @Override
     public DataType parseDataType(String sqlText) throws ParseException {
       return null;
+    }
+  }
+
+  private static class ChildParser extends WrapperParser {
+    ChildParser(ParserInterface parent) {
+      super(parent);
     }
   }
 }
