@@ -76,6 +76,7 @@ The docs are built, run, and released using [make](https://www.gnu.org/software/
 > help: Show help for each of the Makefile recipes.
 > [serve](dev/serve.sh): Clean, build, and run the site locally.
 > [lint](dev/lint.sh): Scan markdown files for style issues.
+> [lint-fix](dev/lint.sh): Run linting with auto-fix on the markdown files.
 
 To scaffold the versioned docs and build the project, run the `build` recipe.
 
@@ -103,9 +104,24 @@ This step will generate the staged source code which blends into the original so
     └─.asf.yaml
 ```
 
-It will also scan all markdown files and fail the build on any style issues. To fix style issues, run the `lint` script with fix mode.
+It will also scan all markdown files and fail the build on any style issues. To fix style issues, run the `lint-fix` recipe.
+
 ```sh
-./dev/lint.sh --fix
+make lint-fix
+```
+
+### Linting
+
+To check for markdown style issues without building the entire site, use the `lint` recipe:
+
+```sh
+make lint
+```
+
+To automatically fix markdown style issues, use the `lint-fix` recipe:
+
+```sh
+make lint-fix
 ```
 
 <!-- markdown-link-check-disable-next-line -->
