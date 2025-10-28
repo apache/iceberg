@@ -104,7 +104,7 @@ This step will generate the staged source code which blends into the original so
     └─.asf.yaml
 ```
 
-It will also scan all markdown files and fail the build on any style issues. To fix style issues, run the `lint-fix` recipe.
+It will also scan all markdown files and fail the build on any style issues. To fix style issues, run the `lint-fix` make command.
 
 ```sh
 make lint-fix
@@ -112,13 +112,13 @@ make lint-fix
 
 ### Linting
 
-To check for markdown style issues without building the entire site, use the `lint` recipe:
+To check for markdown style issues without building the entire site, use the `lint` make command:
 
 ```sh
 make lint
 ```
 
-To automatically fix markdown style issues, use the `lint-fix` recipe:
+To automatically fix markdown style issues, use the `lint-fix` make command:
 
 ```sh
 make lint-fix
