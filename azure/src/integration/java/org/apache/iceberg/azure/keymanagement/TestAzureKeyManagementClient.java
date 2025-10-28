@@ -61,6 +61,12 @@ public class TestAzureKeyManagementClient {
     azureKeyManagementClient.initialize(ImmutableMap.of(KEYVAULT_URI, keyVaultUri));
   }
 
+  @AfterAll
+  public static void afterClass() {
+    keyClient.beginDeleteKey(ICEBERG_TEST_KEY_NAME).waitForCompletion(Duration.ofMinutes(5));
+    keyClient.purgeDeletedKey(ICEBERG_TEST_KEY_NAME);
+  }
+
   @Test
   public void testKeyWrapping() {
     ByteBuffer key = ByteBuffer.wrap("table-master-key".getBytes());
@@ -75,17 +81,5 @@ public class TestAzureKeyManagementClient {
   @Test
   public void testKeyGenerationNotSupported() {
     assertThat(azureKeyManagementClient.supportsKeyGeneration()).isFalse();
-  }
-
-  @AfterAll
-  public static void afterClass() {
-    String keyVaultUri = System.getenv(KEYVAULT_URI);
-    keyClient =
-        new KeyClientBuilder()
-            .vaultUrl(keyVaultUri)
-            .credential(new DefaultAzureCredentialBuilder().build())
-            .buildClient();
-    keyClient.beginDeleteKey(ICEBERG_TEST_KEY_NAME).waitForCompletion(Duration.ofMinutes(5));
-    keyClient.purgeDeletedKey(ICEBERG_TEST_KEY_NAME);
   }
 }

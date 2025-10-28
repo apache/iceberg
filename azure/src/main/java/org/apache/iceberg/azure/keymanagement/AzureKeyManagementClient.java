@@ -36,6 +36,19 @@ public class AzureKeyManagementClient implements KeyManagementClient {
   private KeyWrapAlgorithm keyWrapAlgorithm;
 
   @Override
+  public void initialize(Map<String, String> properties) {
+    AzureProperties azureProperties = new AzureProperties(properties);
+
+    String vaultUrl = azureProperties.keyVaultUri();
+    this.keyWrapAlgorithm = azureProperties.keyWrapAlgorithm();
+    this.keyClient =
+        new KeyClientBuilder()
+            .vaultUrl(vaultUrl)
+            .credential(new DefaultAzureCredentialBuilder().build())
+            .buildClient();
+  }
+
+  @Override
   public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
     WrapResult wrapResult =
         keyClient
@@ -51,18 +64,5 @@ public class AzureKeyManagementClient implements KeyManagementClient {
             .getCryptographyClient(wrappingKeyId)
             .unwrapKey(keyWrapAlgorithm, ByteBuffers.toByteArray(wrappedKey));
     return ByteBuffer.wrap(unwrapResult.getKey());
-  }
-
-  @Override
-  public void initialize(Map<String, String> properties) {
-    AzureProperties azureProperties = new AzureProperties(properties);
-
-    String vaultUrl = azureProperties.keyVaultUri();
-    this.keyWrapAlgorithm = azureProperties.keyWrapAlgorithm();
-    this.keyClient =
-        new KeyClientBuilder()
-            .vaultUrl(vaultUrl)
-            .credential(new DefaultAzureCredentialBuilder().build())
-            .buildClient();
   }
 }
