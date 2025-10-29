@@ -199,7 +199,8 @@ The property "refresh-state" is set on the [snapshot summary](https://iceberg.ap
 
 #### Refresh state
 
-The refresh state record captures the state of all source tables, views, and materialized views in the materialized view's fully expanded query tree at refresh time. Source table states are stored in `source-table-states` and source view states in `source-view-states`. For source views, `source-view-states` includes indirect references — tables or views nested within other views but not directly referenced in the query. For source materialized views, both the source view and its storage table are included in the refresh state. Indirect references are excluded for materialized view sources; query engines may recursively expand the query tree to determine freshness. The refresh state has the following fields:
+The refresh state record captures the state of all source tables, views, and materialized views in the materialized view's fully expanded query tree at refresh time. Source table states are stored in `source-table-states` and source view states in `source-view-states`. For source views, `source-view-states` includes indirect references — tables or views nested within other views (exluding MVs) but not directly referenced in the query.
+For source materialized views, both the source view and its storage table are included in the refresh state. Indirect references are excluded for materialized view sources; during read time, query engines may recursively expand the query tree to determine freshness. The refresh state has the following fields:
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
