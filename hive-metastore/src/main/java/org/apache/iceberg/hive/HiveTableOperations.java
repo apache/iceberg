@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -54,6 +55,7 @@ import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -86,7 +88,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private EncryptingFileIO encryptingFileIO;
   private String tableKeyId;
   private int encryptionDekLength;
-  private List<EncryptedKey> encryptedKeysFromMetadata;
+
+  // keys loaded from the latest metadata
+  private Optional<List<EncryptedKey>> encryptedKeysFromMetadata = Optional.empty();
+
+  // keys added to EM (e.g. as a result of a FileAppend) but not committed into the latest metadata
+  // yet
+  private Optional<List<EncryptedKey>> encryptedKeysPending = Optional.empty();
 
   protected HiveTableOperations(
       Configuration conf,
@@ -146,9 +154,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       encryptionProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, tableKeyId);
       encryptionProperties.put(
           TableProperties.ENCRYPTION_DEK_LENGTH, String.valueOf(encryptionDekLength));
+
+      List<EncryptedKey> keys = Lists.newLinkedList();
+      encryptedKeysFromMetadata.ifPresent(keys::addAll);
+      encryptedKeysPending.ifPresent(keys::addAll);
+
       encryptionManager =
-          EncryptionUtil.createEncryptionManager(
-              encryptedKeysFromMetadata, encryptionProperties, keyManagementClient);
+          EncryptionUtil.createEncryptionManager(keys, encryptionProperties, keyManagementClient);
     } else {
       return PlaintextEncryptionManager.instance();
     }
@@ -202,7 +214,26 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               ? Integer.parseInt(dekLengthFromHMS)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
 
-      encryptedKeysFromMetadata = current().encryptionKeys();
+      encryptedKeysFromMetadata = Optional.ofNullable(current().encryptionKeys());
+
+      if (encryptionManager != null) {
+        encryptedKeysPending = Optional.of(Lists.newLinkedList());
+
+        Set<String> keyIdsFromMetadata =
+            encryptedKeysFromMetadata.orElseGet(Lists::newLinkedList).stream()
+                .map(EncryptedKey::keyId)
+                .collect(Collectors.toSet());
+
+        for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
+          if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
+            encryptedKeysPending.get().add(keyFromEM);
+          }
+        }
+
+      } else {
+        encryptedKeysPending = Optional.empty();
+      }
+
       // Force re-creation of encryption manager with updated keys
       encryptingFileIO = null;
       encryptionManager = null;

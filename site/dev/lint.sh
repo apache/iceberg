@@ -16,10 +16,12 @@
 # limitations under the License.
 #
 
+source dev/common.sh
+
 set -e
 
-./dev/setup_env.sh
-
-./dev/lint.sh
-
-mkdocs build
+if [[ "$1" == "--fix" ]]; then
+  fix_markdown_files
+else
+  check_markdown_files
+fi

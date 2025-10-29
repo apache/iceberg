@@ -20,4 +20,6 @@ set -e
 
 ./dev/setup_env.sh
 
+./dev/lint.sh
+
 mkdocs serve --dirty --watch .
