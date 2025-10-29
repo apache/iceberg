@@ -108,7 +108,8 @@ public class FlinkCatalog extends AbstractCatalog {
       CatalogLoader catalogLoader,
       Map<String, String> catalogProps,
       boolean cacheEnabled,
-      long cacheExpirationIntervalMs) {
+      long cacheExpirationIntervalMs,
+      long cacheExpireAfterWriteIntervalMs) {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
     this.catalogProps = catalogProps;
@@ -118,7 +119,8 @@ public class FlinkCatalog extends AbstractCatalog {
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog =
         cacheEnabled
-            ? CachingCatalog.wrap(originalCatalog, cacheExpirationIntervalMs)
+            ? CachingCatalog.wrap(
+                originalCatalog, cacheExpirationIntervalMs, cacheExpireAfterWriteIntervalMs)
             : originalCatalog;
     asNamespaceCatalog =
         originalCatalog instanceof SupportsNamespaces ? (SupportsNamespaces) originalCatalog : null;

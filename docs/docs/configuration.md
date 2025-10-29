@@ -146,6 +146,7 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | clients                           | 2                  | client pool size                                       |
 | cache-enabled                     | true               | Whether to cache catalog entries |
 | cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
+| cache.expire-after-write-ms       | 0                  | Duration in milliseconds to expire a table from the cache after being created.tables will not refresh on write. 0 disables this policy. its disabled by default |
 | metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting.md) section for additional details |
 | encryption.kms-impl               | null               | a custom `KeyManagementClient` implementation to use in a catalog for interactions with KMS (key management service). See the [Encryption](encryption.md) document for additional details |
 
@@ -235,9 +236,9 @@ Warn: Setting `iceberg.engine.hive.lock-enabled`=`false` will cause HiveCatalog 
 This should only be set to `false` if all following conditions are met:
 
 - [HIVE-26882](https://issues.apache.org/jira/browse/HIVE-26882)
-is available on the Hive Metastore server
+  is available on the Hive Metastore server
 - [HIVE-28121](https://issues.apache.org/jira/browse/HIVE-28121)
-is available on the Hive Metastore server, if it is backed by MySQL or MariaDB
+  is available on the Hive Metastore server, if it is backed by MySQL or MariaDB
 - All other HiveCatalogs committing to tables that this HiveCatalog commits to are also on Iceberg 1.3 or later
 - All other HiveCatalogs committing to tables that this HiveCatalog commits to have also disabled Hive locks on commit.
 

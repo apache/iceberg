@@ -163,6 +163,12 @@ public class FlinkCatalogFactory implements CatalogFactory {
         "%s is not allowed to be 0.",
         CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
 
+    long cacheExpireAfterWriteIntervalMs =
+        PropertyUtil.propertyAsLong(
+            properties,
+            CatalogProperties.CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS,
+            CatalogProperties.CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS_DEFAULT);
+
     return new FlinkCatalog(
         name,
         defaultDatabase,
@@ -170,7 +176,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
         catalogLoader,
         properties,
         cacheEnabled,
-        cacheExpirationIntervalMs);
+        cacheExpirationIntervalMs,
+        cacheExpireAfterWriteIntervalMs);
   }
 
   private static Configuration mergeHiveConf(

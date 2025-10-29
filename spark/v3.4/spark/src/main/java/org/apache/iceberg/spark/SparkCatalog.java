@@ -763,9 +763,15 @@ public class SparkCatalog extends BaseCatalog {
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
 
+    long cacheExpireAfterWriteIntervalMs =
+        PropertyUtil.propertyAsLong(
+            options,
+            CatalogProperties.CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS,
+            CatalogProperties.CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS_DEFAULT);
+
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
-    if (cacheExpirationIntervalMs == 0) {
+    if (cacheExpirationIntervalMs == 0 && cacheExpireAfterWriteIntervalMs == 0) {
       this.cacheEnabled = false;
     }
 
@@ -777,7 +783,11 @@ public class SparkCatalog extends BaseCatalog {
         new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
     this.icebergCatalog =
         cacheEnabled
-            ? CachingCatalog.wrap(catalog, cacheCaseSensitive, cacheExpirationIntervalMs)
+            ? CachingCatalog.wrap(
+                catalog,
+                cacheCaseSensitive,
+                cacheExpirationIntervalMs,
+                cacheExpireAfterWriteIntervalMs)
             : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
