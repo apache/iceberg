@@ -105,8 +105,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   public static final String STREAM_RESULTS = "stream-results";
   public static final boolean STREAM_RESULTS_DEFAULT = false;
 
-  // Maximum number of file paths to return in streaming mode to avoid OOM
-  private static final int MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING = 20000;
+  // Test-only option to configure the max sample size for streaming mode
+  @VisibleForTesting
+  static final String MAX_ORPHAN_FILE_SAMPLE_SIZE = "max-orphan-file-sample-size";
+
+  @VisibleForTesting static final int MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT = 20000;
 
   private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
   private static final Map<String, String> EQUAL_SCHEMES_DEFAULT = ImmutableMap.of("s3n,s3a", "s3");
@@ -257,33 +260,34 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     Dataset<String> orphanFileDS =
         findOrphanFiles(actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
 
-    if (streamResults()) {
-      return deleteFiles(orphanFileDS.toLocalIterator(), orphanFileDS);
-    } else {
-      return deleteFiles(orphanFileDS.collectAsList().iterator(), orphanFileDS);
-    }
+    return deleteFiles(orphanFileDS);
   }
 
   /**
-   * Deletes orphan files from an iterator.
+   * Deletes orphan files from the cached dataset.
    *
-   * @param orphanFiles iterator of file paths to delete
-   * @param orphanFileDS the cached dataset
+   * @param orphanFileDS the cached dataset of orphan files
    * @return result with orphan file paths
    */
-  private DeleteOrphanFiles.Result deleteFiles(
-      Iterator<String> orphanFiles, Dataset<String> orphanFileDS) {
+  private DeleteOrphanFiles.Result deleteFiles(Dataset<String> orphanFileDS) {
     try {
-      List<String> orphanFileList =
-          Lists.newArrayListWithCapacity(MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING);
+      int maxSampleSize =
+          PropertyUtil.propertyAsInt(
+              options(), MAX_ORPHAN_FILE_SAMPLE_SIZE, MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT);
+      List<String> orphanFileList = Lists.newArrayListWithCapacity(maxSampleSize);
       long filesCount = 0;
+
+      Iterator<String> orphanFiles =
+          streamResults()
+              ? orphanFileDS.toLocalIterator()
+              : orphanFileDS.collectAsList().iterator();
 
       Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
 
       while (fileGroups.hasNext()) {
         List<String> fileGroup = fileGroups.next();
 
-        collectPathsForOutput(fileGroup, orphanFileList);
+        collectPathsForOutput(fileGroup, orphanFileList, maxSampleSize);
 
         if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
           deleteBulk((SupportsBulkOperations) table.io(), fileGroup);
@@ -304,15 +308,12 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private void collectPathsForOutput(List<String> paths, List<String> orphanFileList) {
+  private void collectPathsForOutput(
+      List<String> paths, List<String> orphanFileList, int maxSampleSize) {
     if (streamResults()) {
-      // In streaming mode, only collect a sample up to the max limit
-      int lengthToAdd =
-          Math.min(
-              MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING - orphanFileList.size(), paths.size());
+      int lengthToAdd = Math.min(maxSampleSize - orphanFileList.size(), paths.size());
       orphanFileList.addAll(paths.subList(0, lengthToAdd));
     } else {
-      // In non-streaming mode, collect all paths
       orphanFileList.addAll(paths);
     }
   }

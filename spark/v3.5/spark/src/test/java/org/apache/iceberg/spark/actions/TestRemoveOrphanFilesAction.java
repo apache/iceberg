@@ -1249,9 +1249,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .collectAsList();
     assertThat(validFiles).as("Should be 1 valid file").hasSize(1);
 
-    df.write().mode("append").parquet(tableLocation + "/data");
-    df.write().mode("append").parquet(tableLocation + "/data");
-    df.write().mode("append").parquet(tableLocation + "/data");
+    for (int i = 0; i < 10; i++) {
+      df.write().mode("append").parquet(tableLocation + "/data");
+    }
 
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
@@ -1260,25 +1260,39 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .filter(FileStatus::isFile)
             .map(file -> file.getPath().toString())
             .collect(Collectors.toList());
-    assertThat(allFiles).as("Should be 4 files").hasSize(4);
+    assertThat(allFiles).as("Should be 11 files").hasSize(11);
 
     List<String> invalidFiles = Lists.newArrayList(allFiles);
     invalidFiles.removeAll(validFiles);
-    assertThat(invalidFiles).as("Should be 3 invalid files").hasSize(3);
+    assertThat(invalidFiles).as("Should be 10 invalid files").hasSize(10);
 
     waitUntilAfter(System.currentTimeMillis());
 
-    DeleteOrphanFiles.Result result =
+    DeleteOrphanFiles.Result nonStreamingResult =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> {})
+            .execute();
+
+    assertThat(nonStreamingResult.orphanFileLocations())
+        .as("Non-streaming dry-run should return all 10 orphan files")
+        .hasSize(10)
+        .containsExactlyInAnyOrderElementsOf(invalidFiles);
+
+    DeleteOrphanFiles.Result streamingResult =
         SparkActions.get()
             .deleteOrphanFiles(table)
             .usePrefixListing(usePrefixListing)
             .olderThan(System.currentTimeMillis())
             .option("stream-results", "true")
+            .option("max-orphan-file-sample-size", "5")
             .execute();
 
-    assertThat(result.orphanFileLocations())
-        .as("Streaming should return orphan file paths")
-        .containsExactlyInAnyOrderElementsOf(invalidFiles);
+    assertThat(streamingResult.orphanFileLocations())
+        .as("Streaming with sample size 5 should return only 5 orphan files")
+        .hasSize(5);
 
     for (String invalidFile : invalidFiles) {
       assertThat(fs.exists(new Path(invalidFile))).as("Orphan file should be deleted").isFalse();
