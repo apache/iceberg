@@ -27,6 +27,8 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -124,8 +126,16 @@ public class ImpersonatedBigQueryClientFactory implements BigQueryClientFactory 
    * @param defaultValue the default value to return if input is null
    * @return a list of parsed values or the default value
    */
-  private List<String> parseCommaSeparatedList(String input, List<String> defaultValue) {
-    return input != null ? Arrays.asList(input.split(",")) : defaultValue;
+  @VisibleForTesting
+  List<String> parseCommaSeparatedList(String input, List<String> defaultValue) {
+    if (input == null || input.trim().isEmpty()) {
+      return defaultValue;
+    }
+    return Arrays.stream(input.split(","))
+        .map(String::trim)
+        .filter(str -> !str.isEmpty())
+        .distinct()
+        .collect(Collectors.toList());
   }
 
   @Override

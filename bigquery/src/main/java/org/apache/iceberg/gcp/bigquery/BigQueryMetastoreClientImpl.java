@@ -126,9 +126,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
   /** Constructs a client of the Google BigQuery service. */
   public BigQueryMetastoreClientImpl(BigQueryOptions options)
       throws IOException, GeneralSecurityException {
-
-    this.bigqueryOptions = options;
-
     // Initialize client that will be used to send requests. This client only needs to be created
     // once, and can be reused for multiple requests
 
@@ -159,6 +156,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
                 })
             .setApplicationName("BigQuery Metastore Iceberg Catalog Plugin")
             .build();
+    this.bigqueryOptions = options;
   }
 
   @Override

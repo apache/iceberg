@@ -86,13 +86,13 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   @Override
   public void initialize(String name, Map<String, String> properties) {
 
-    this.projectId = properties.get(PROJECT_ID);
-    this.projectLocation = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
-
     Preconditions.checkArgument(
         properties.containsKey(PROJECT_ID),
         "Invalid GCP project: %s must be specified",
         PROJECT_ID);
+
+    this.projectId = properties.get(PROJECT_ID);
+    this.projectLocation = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
 
     BigQueryClientFactory clientFactory = createClientFactory(properties);
     BigQueryOptions options = clientFactory.bigQueryOptions();
@@ -108,7 +108,8 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     initialize(name, properties, projectId, projectLocation, client);
   }
 
-  private BigQueryClientFactory createClientFactory(Map<String, String> properties) {
+  @VisibleForTesting
+  BigQueryClientFactory createClientFactory(Map<String, String> properties) {
     String factoryClassName = properties.get(CLIENT_FACTORY);
     BigQueryClientFactory factory;
 
@@ -162,8 +163,8 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, "true"));
   }
 
-  private Map<String, String> prepareFileIOProperties(
-      Map<String, String> properties, String gcpProjectId) {
+  @VisibleForTesting
+  Map<String, String> prepareFileIOProperties(Map<String, String> properties, String gcpProjectId) {
     Map<String, String> fileIOProperties = Maps.newHashMap(properties);
     String impersonateServiceAccount =
         properties.get(ImpersonatedBigQueryClientFactory.IMPERSONATE_SERVICE_ACCOUNT);
