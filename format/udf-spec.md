@@ -100,6 +100,7 @@ Notes:
 1. Function definitions are identified by the tuple of `type`s and there can be only one definition for a given tuple.
 2. Parameter `name`s must not change, as some engines support named argument invocation (e.g., `foo(a => 1, b => 2)`). Only `doc` can be updated in place. 
 3. The `return-type` is immutable. To change it, users must create a new definition and remove the old one.
+4. Parameters cannot have default values; all arguments must be explicitly provided.
 
 ### Definition-Version
 
