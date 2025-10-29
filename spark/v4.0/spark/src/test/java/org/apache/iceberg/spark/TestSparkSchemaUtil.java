@@ -44,7 +44,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSparkSchemaUtil {
-
   private static final Schema TEST_SCHEMA =
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
