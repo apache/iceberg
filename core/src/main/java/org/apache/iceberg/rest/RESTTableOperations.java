@@ -418,8 +418,6 @@ class RESTTableOperations implements TableOperations {
 
       @Override
       public FileIO io() {
-        // TODO(smaheshwar-pltr): Hive fetches encryption props here from uncommitted metadata
-        // RESTTableOperations.this.encryptionPropsFromMetadata(uncommittedMetadata);
         return RESTTableOperations.this.io();
       }
 

@@ -128,9 +128,8 @@ public class TestTableEncryption extends CatalogTestBase {
 
   @TestTemplate
   public void testTransaction() {
-    catalog.initialize(catalogName, catalogConfig);
-
-    Table table = catalog.loadTable(tableIdent);
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
 
     List<DataFile> dataFiles = currentDataFiles(table);
     Transaction transaction = table.newTransaction();
@@ -138,10 +137,14 @@ public class TestTableEncryption extends CatalogTestBase {
 
     // add an arbitrary datafile
     append.appendFile(dataFiles.get(0));
+
+    // append to the table in the meantime. use a separate load to avoid shared operations
+    validationCatalog.loadTable(tableIdent).newFastAppend().appendFile(dataFiles.get(0)).commit();
+
     append.commit();
     transaction.commitTransaction();
 
-    assertThat(currentDataFiles(table).size()).isEqualTo(dataFiles.size() + 1);
+    assertThat(currentDataFiles(table).size()).isEqualTo(dataFiles.size() + 2);
   }
 
   @TestTemplate
