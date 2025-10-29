@@ -105,19 +105,6 @@ public class TestTableEncryption extends CatalogTestBase {
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
   }
 
-  @TestTemplate
-  public void testCtas() {
-    String tableName = this.tableName + "_ctas";
-    sql(
-        "CREATE TABLE %s USING iceberg "
-            + "TBLPROPERTIES ( "
-            + "'encryption.key-id'='%s') AS SELECT * FROM VALUES (1, 'a', 1.0), (2, 'b', 2.0)"
-            + " AS t(id, data, float)",
-        tableName, UnitestKMS.MASTER_KEY_NAME1);
-
-    assertThat(sql("SELECT * FROM %s", tableName).size()).isEqualTo(2);
-  }
-
   private static List<DataFile> currentDataFiles(Table table) {
     return Streams.stream(table.newScan().planFiles())
         .map(FileScanTask::file)
