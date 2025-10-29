@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.sql;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
@@ -32,7 +31,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Tests for Spark SQL Default values integration with Iceberg default values.
@@ -44,7 +42,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
  * <p>Partial column INSERT statements (e.g., {@code INSERT INTO table (col1) VALUES (val1)}) are
  * not supported for DSV2 in Spark 4.0
  */
-@ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkDefaultValues extends CatalogTestBase {
 
   @AfterEach

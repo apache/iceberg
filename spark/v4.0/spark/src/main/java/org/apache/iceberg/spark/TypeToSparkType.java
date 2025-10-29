@@ -70,6 +70,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       if (field.doc() != null) {
         sparkField = sparkField.withComment(field.doc());
       }
+
       // Convert both write and initial default values to Spark SQL string literal representations
       // on the StructField metadata
       if (field.writeDefault() != null) {
@@ -77,12 +78,14 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
         sparkField =
             sparkField.withCurrentDefaultValue(Literal$.MODULE$.create(writeDefault, type).sql());
       }
+
       if (field.initialDefault() != null) {
         Object initialDefault = SparkUtil.internalToSpark(field.type(), field.initialDefault());
         sparkField =
             sparkField.withExistenceDefaultValue(
                 Literal$.MODULE$.create(initialDefault, type).sql());
       }
+
       sparkFields.add(sparkField);
     }
 
