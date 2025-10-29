@@ -407,6 +407,37 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     assertThat(wrappedCatalog.cache().asMap()).doesNotContainKey(tableIdent);
   }
 
+  @Test
+  public void testCachePolicyExpireAfterWrite() throws Exception {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(
+            hadoopCatalog(),
+            EXPIRATION_TTL,
+            ticker,
+            CatalogProperties.CacheExpirationPolicy.EXPIRE_AFTER_WRITE);
+
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Ensure table is cached with full ttl remaining upon creation
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(catalog.remainingAgeFor(tableIdent)).isPresent().get().isEqualTo(EXPIRATION_TTL);
+
+    ticker.advance(HALF_OF_EXPIRATION);
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(catalog.ageOf(tableIdent)).isPresent().get().isEqualTo(HALF_OF_EXPIRATION);
+
+    // Access the cache to check policy behaviour
+    catalog.loadTable(tableIdent);
+
+    ticker.advance(HALF_OF_EXPIRATION.plus(Duration.ofSeconds(10)));
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+    assertThat(catalog.loadTable(tableIdent))
+        .as("CachingCatalog should return a new instance after expiration")
+        .isNotSameAs(table);
+  }
+
   public static TableIdentifier[] metadataTables(TableIdentifier tableIdent) {
     return Arrays.stream(MetadataTableType.values())
         .map(type -> TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)))
