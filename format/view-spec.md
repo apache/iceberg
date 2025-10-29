@@ -181,7 +181,6 @@ FROM events
 GROUP BY 2
 ```
 
-
 The metadata JSON file created looks as follows.
 
 The path is intentionally similar to the path for Iceberg tables and uses a `metadata` directory.

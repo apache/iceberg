@@ -23,6 +23,8 @@ import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -35,7 +37,12 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
+import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.Variants;
 import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -578,6 +585,68 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         ImmutableList.of(row(4, Double.NEGATIVE_INFINITY)));
   }
 
+  @TestTemplate
+  public void testVariantExtractFiltering() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, data VARIANT) USING iceberg TBLPROPERTIES"
+            + "('format-version'='3')",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, parse_json('{\"field\": \"foo\", \"num\": 25}')), "
+            + "(2, parse_json('{\"field\": \"bar\", \"num\": 30}')), "
+            + "(3, parse_json('{\"field\": \"baz\", \"num\": 35}')), "
+            + "(4, null)",
+        tableName);
+
+    withDefaultTimeZone(
+        "UTC",
+        () -> {
+          checkFilters(
+              "try_variant_get(data, '$.num', 'int') IS NOT NULL",
+              "isnotnull(data) AND isnotnull(try_variant_get(data, $.num, IntegerType, false, Some(UTC)))",
+              "data IS NOT NULL",
+              ImmutableList.of(
+                  row(1L, toSparkVariantRow("foo", 25)),
+                  row(2L, toSparkVariantRow("bar", 30)),
+                  row(3L, toSparkVariantRow("baz", 35))));
+
+          checkFilters(
+              "try_variant_get(data, '$.num', 'int') IS NULL",
+              "isnull(try_variant_get(data, $.num, IntegerType, false, Some(UTC)))",
+              "",
+              ImmutableList.of(row(4L, null)));
+
+          checkFilters(
+              "try_variant_get(data, '$.num', 'int') > 30",
+              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) > 30)",
+              "data IS NOT NULL",
+              ImmutableList.of(row(3L, toSparkVariantRow("baz", 35))));
+
+          checkFilters(
+              "try_variant_get(data, '$.num', 'int') = 30",
+              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) = 30)",
+              "data IS NOT NULL",
+              ImmutableList.of(row(2L, toSparkVariantRow("bar", 30))));
+
+          checkFilters(
+              "try_variant_get(data, '$.num', 'int') IN (25, 35)",
+              "try_variant_get(data, $.num, IntegerType, false, Some(UTC)) IN (25,35)",
+              "",
+              ImmutableList.of(
+                  row(1L, toSparkVariantRow("foo", 25)), row(3L, toSparkVariantRow("baz", 35))));
+
+          checkFilters(
+              "try_variant_get(data, '$.num', 'int') != 25",
+              "isnotnull(data) AND NOT (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) = 25)",
+              "data IS NOT NULL",
+              ImmutableList.of(
+                  row(2L, toSparkVariantRow("bar", 30)), row(3L, toSparkVariantRow("baz", 35))));
+        });
+  }
+
   private void checkOnlyIcebergFilters(
       String predicate, String icebergFilters, List<Object[]> expectedRows) {
 
@@ -600,7 +669,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     if (sparkFilter != null) {
       assertThat(planAsString)
           .as("Post scan filter should match")
-          .contains("Filter (" + sparkFilter + ")");
+          .containsAnyOf("Filter (" + sparkFilter + ")", "Filter " + sparkFilter);
     } else {
       assertThat(planAsString).as("Should be no post scan filter").doesNotContain("Filter (");
     }
@@ -612,5 +681,23 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
   private Timestamp timestamp(String timestampAsString) {
     return Timestamp.from(Instant.parse(timestampAsString));
+  }
+
+  private VariantVal toSparkVariantRow(String field, int num) {
+    VariantMetadata metadata = Variants.metadata("field", "num");
+
+    ShreddedObject obj = Variants.object(metadata);
+    obj.put("field", Variants.of(field));
+    obj.put("num", Variants.of(num));
+
+    ByteBuffer metadataBuffer =
+        ByteBuffer.allocate(metadata.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+    metadata.writeTo(metadataBuffer, 0);
+
+    ByteBuffer valueBuffer = ByteBuffer.allocate(obj.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+    obj.writeTo(valueBuffer, 0);
+
+    return new VariantVal(
+        ByteBuffers.toByteArray(valueBuffer), ByteBuffers.toByteArray(metadataBuffer));
   }
 }

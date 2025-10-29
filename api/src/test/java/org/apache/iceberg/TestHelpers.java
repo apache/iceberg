@@ -48,6 +48,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.params.provider.Arguments;
@@ -388,6 +389,14 @@ public class TestHelpers {
   public static class CustomRow implements StructLike {
     public static CustomRow of(Object... values) {
       return new CustomRow(values);
+    }
+
+    public CustomRow() {
+      this(new Object[0]);
+    }
+
+    public CustomRow(Types.StructType structType) {
+      this.values = new Object[structType.fields().size()];
     }
 
     private final Object[] values;

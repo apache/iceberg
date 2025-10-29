@@ -70,11 +70,11 @@ jobs:
 
   # Test all flink versions with scala 2.12 for general validation.
   flink-scala-2-12-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         jvm: [11, 17, 21]
-        flink: ['1.19', '1.20', '2.0']
+        flink: ['1.20', '2.0', '2.1']
     env:
       SPARK_LOCAL_IP: localhost
     steps:

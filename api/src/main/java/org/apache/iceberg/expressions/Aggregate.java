@@ -19,8 +19,8 @@
 package org.apache.iceberg.expressions;
 
 /**
- * The aggregate functions that can be pushed and evaluated in Iceberg. Currently only three
- * aggregate functions Max, Min and Count are supported.
+ * The aggregate functions that can be evaluated in Iceberg. Supported aggregates include
+ * Min(field), Max(field), Count(*), Count(field) and CountNull(field)
  */
 public abstract class Aggregate<C extends Term> implements Expression {
   private final Operation op;
@@ -45,6 +45,8 @@ public abstract class Aggregate<C extends Term> implements Expression {
     switch (op()) {
       case COUNT:
         return "count(" + term() + ")";
+      case COUNT_NULL:
+        return "count_if(" + term() + " is null)";
       case COUNT_STAR:
         return "count(*)";
       case MAX:
