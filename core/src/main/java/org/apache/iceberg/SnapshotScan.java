@@ -95,7 +95,7 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
     ImmutableMap.Builder<Integer, PartitionSpec> newSpecs =
         ImmutableMap.builderWithExpectedSize(specs.size());
     for (Map.Entry<Integer, PartitionSpec> entry : specs.entrySet()) {
-      newSpecs.put(entry.getKey(), entry.getValue().toUnbound().bind(snapshotSchema));
+      newSpecs.put(entry.getKey(), entry.getValue().toUnbound().bind(snapshotSchema, true));
     }
 
     return newSpecs.build();
