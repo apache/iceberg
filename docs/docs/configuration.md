@@ -135,6 +135,7 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | uri                               | null               | a URI string, such as Hive metastore URI               |
 | clients                           | 2                  | client pool size                                       |
 | cache-enabled                     | true               | Whether to cache catalog entries |
+| cache.policy                      | EXPIRE_AFTER_ACCESS| Determines the expiration strategy for catalog cache entries. Supported values include `EXPIRE_AFTER_ACCESS` and `EXPIRE_AFTER_WRITE`, which control whether entries expire based on last access time or creation time, respectively. |
 | cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
 | metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting.md) section for additional details |
 
