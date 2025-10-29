@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.time.Duration;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class SparkSQLProperties {
 
@@ -78,6 +79,27 @@ public class SparkSQLProperties {
 
   public static final String EXECUTOR_CACHE_ENABLED = "spark.sql.iceberg.executor-cache.enabled";
   public static final boolean EXECUTOR_CACHE_ENABLED_DEFAULT = true;
+
+  public static final String EXECUTOR_CACHE_EXPIRATION_POLICY =
+      "spark.sql.iceberg.executor-cache.expiration-policy";
+
+  public enum ExecutorCacheExpirationPolicy {
+    EXPIRE_AFTER_ACCESS,
+    EXPIRE_AFTER_WRITE;
+
+    public static ExecutorCacheExpirationPolicy fromName(String name) {
+      Preconditions.checkArgument(
+          name != null, "ExecutorCacheExpirationPolicy reader type is null");
+      try {
+        return ExecutorCacheExpirationPolicy.valueOf(name.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException("Unknown parquet reader type: " + name);
+      }
+    }
+  }
+
+  public static final ExecutorCacheExpirationPolicy EXECUTOR_CACHE_EXPIRATION_POLICY_DEFAULT =
+      ExecutorCacheExpirationPolicy.EXPIRE_AFTER_ACCESS;
 
   public static final String EXECUTOR_CACHE_TIMEOUT = "spark.sql.iceberg.executor-cache.timeout";
   public static final Duration EXECUTOR_CACHE_TIMEOUT_DEFAULT = Duration.ofMinutes(10);

@@ -216,6 +216,29 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
         });
   }
 
+  public void testExecutorCacheExpirationPolicy() throws Exception {
+    // default cache expiration policy
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true"),
+        () -> {
+          Conf conf = new Conf();
+          assertThat(conf.executorCacheExpirationPolicy())
+              .isEqualTo(SparkSQLProperties.ExecutorCacheExpirationPolicy.EXPIRE_AFTER_ACCESS);
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED,
+            "true",
+            SparkSQLProperties.EXECUTOR_CACHE_EXPIRATION_POLICY,
+            SparkSQLProperties.ExecutorCacheExpirationPolicy.EXPIRE_AFTER_WRITE.name()),
+        () -> {
+          Conf conf = new Conf();
+          assertThat(conf.executorCacheExpirationPolicy())
+              .isEqualTo(SparkSQLProperties.ExecutorCacheExpirationPolicy.EXPIRE_AFTER_WRITE);
+        });
+  }
+
   @TestTemplate
   public void testConcurrentAccess() throws InterruptedException {
     SparkExecutorCache cache = SparkExecutorCache.getOrCreate();

@@ -49,6 +49,27 @@ public class CatalogProperties {
   public static final boolean CACHE_CASE_SENSITIVE_DEFAULT = true;
 
   /**
+   * Controls policy of caffeine cache
+   *
+   * <p>Behavior of specific values of cache.strategy:
+   *
+   * <ul>
+   *   <li>EXPIRE_AFTER_ACCESS - cache entries are never evicted as long as they are being accessed
+   *       frequently
+   *   <li>EXPIRE_AFTER_WRITE - cache entries are evicted frequently after cache write
+   * </ul>
+   */
+  public static final String CACHE_EXPIRATION_POLICY = "cache.expiration-policy";
+
+  public enum CacheExpirationPolicy {
+    EXPIRE_AFTER_ACCESS,
+    EXPIRE_AFTER_WRITE
+  }
+
+  public static final CacheExpirationPolicy CACHE_EXPIRATION_POLICY_DEFAULT =
+      CacheExpirationPolicy.EXPIRE_AFTER_ACCESS;
+
+  /**
    * Controls the duration for which entries in the catalog are cached.
    *
    * <p>Behavior of specific values of cache.expiration-interval-ms:
