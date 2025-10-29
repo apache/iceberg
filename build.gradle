@@ -443,6 +443,8 @@ project(':iceberg-aliyun') {
     implementation project(':iceberg-common')
 
     compileOnly libs.aliyun.sdk.oss
+    implementation libs.aliyun.credentials.java
+    implementation libs.aliyun.tea
     compileOnly libs.jaxb.api
     compileOnly libs.activation
     compileOnly libs.jaxb.runtime
@@ -456,6 +458,7 @@ project(':iceberg-aliyun') {
     testImplementation platform(libs.jackson.bom)
     testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation libs.junit.pioneer
   }
 }
 
