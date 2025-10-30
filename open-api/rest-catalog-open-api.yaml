@@ -3350,7 +3350,7 @@ components:
     ReadRestrictions:
       type: object
       description: >
-          Read restrictions for a table, including projection and row filter expressions, according to the current schema.
+          Read restrictions for a table, including projections and row filter expressions, according to the current schema.
 
           A client MUST enforce the restrictions defined in this object when reading data
           from the table.
@@ -3360,45 +3360,40 @@ components:
           MUST NOT be applied beyond the entity identified by the Authentication header
           (or other applicable authentication mechanism).
       properties:
-        required-projection:
+        required-projections:
           description: >
             A list of projections that MUST be applied prior to any query-specified
             projections.
-            If the required-projection property is absent or empty, no mandatory projection applies,
+            If the required-projection property is absent, no mandatory projection applies,
             and a reader MAY project any subset of columns of the table, including all columns.
 
             1. A reader MUST project only columns listed in the required-projection.
               - If a listed column has a transform, the reader MUST apply it and replace
                 all references to the underlying column with the transformed value
-                (for example, truncate(4, cc) MUST be projected as truncate(4, cc) AS cc,
-                and all references to cc during query evaluation MUST resolve to this alias).
-              - If a listed column has no transform, the reader MUST read it as-is.
+                (for example, truncate[4](cc) MUST be projected as truncate[4](cc) AS cc,
+                and all references to cc during query evaluation post applying required-row-filter MUST resolve to this alias).
               - Columns not listed in the required-projection MUST NOT be read.
 
             2. A column MUST appear at most once in the required-projection.
       
-            3. A projection entry MUST reference either the column itself or exactly one
-              transformed version of the column, but not both.
+            3. Multiple transformed versions of the same column (e.g., truncate[5](col)
+              and truncate[3](col) MUST NOT appear in the required-projection.
       
-            4. Multiple transformed versions of the same column (e.g., truncate(5, col)
-              and truncate(3, col)) MUST NOT appear in the required-projection.
-      
-            5. If a projection entry includes a transform that the reader cannot evaluate,
+            4. If a projection entry includes an action that the reader cannot evaluate,
               the reader MUST fail rather than ignore the transform.
       
-            6. An identity transform is equivalent to projecting the column directly.
-              A reader MAY represent it in either form.
+            5. An identity transform is equivalent to projecting the column directly.
             
-            7. The data type of the projected column MUST match the data type defined for the transform result.
+            8. The data type of the projected column MUST match the data type defined for the transform result.
 
           type: array
           items:
-            $ref: '#/components/schemas/Term'
+            $ref: '#/components/schemas/Projection'
         required-row-filter:
           description: >
             An expression that filters rows in the table.
       
-            1. A reader MUST discard any row for which the filter evaluates to false, and
+            1. A reader MUST discard any row for which the filter evaluates to false or null, and
               no information derived from discarded rows MAY be included in the query result.
             
             2. Row filters MUST be evaluated against the original, untransformed column values.
@@ -3411,6 +3406,76 @@ components:
       
             5. If the required-row-filter property is absent or empty, no mandatory filtering is imposed.
           $ref: '#/components/schemas/Expression'
+
+    Projection:
+      type: object
+      description: Defines a projection for a column.
+      properties:
+        source-id:
+          type: int
+          description: field id of the column being projected.
+        action:
+          $ref: '#/components/schemas/Action'
+      required:
+        - source-id
+        - action
+
+    Action:
+      description: Defines the specific action to be executed for computing the projection.
+      oneOf:
+        - $ref: '#/components/schemas/MaskHashSha256'
+        - $ref: '#/components/schemas/MaskReplaceWithNull'
+        - $ref: '#/components/schemas/MaskAlphanumeric'
+        - $ref: '#/components/schemas/ApplyTransform'
+
+    MaskHashSha256:
+      type: object
+      description: Mask the data of the column by apply SHA256 hash algorithm. Engines are free to use their own implementation of SHA256.
+      properties:
+        type:
+          type: string
+          enum: [ mask_hash_sha256 ]
+      required:
+        - type
+
+    MaskReplaceWithNull:
+      type: object
+      description: Masks data by replacing it with a NULL value.
+      properties:
+        type:
+          type: string
+          enum: [ mask_replace_with_null ]
+      required:
+        - type
+
+    MaskAlphanumeric:
+      type: object
+      description: mask all alphabetic characters with 'x' and numeric characters with 'n'
+      properties:
+        type:
+          type: string
+          enum: [ mask_alphanumeric ]
+      required:
+        - type
+
+    ApplyTransform:
+      type: object
+      description: Applies the transform
+      properties:
+        type:
+          type: string
+          enum: [ apply_transform ]
+        transform:
+          $ref: '#/components/schemas/Transform'
+        source-ids:
+          description: args of transform
+          type: array
+          items:
+            type: integer
+      required:
+        - type
+        - transform
+        - source-ids
 
     LoadCredentialsResponse:
       type: object
