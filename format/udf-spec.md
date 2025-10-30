@@ -73,15 +73,15 @@ Notes:
 
 Each `definition` represents one function signature (e.g., `add_one(int)` vs `add_one(float)`).
 
-| Requirement | Field name           | Type                                            | Description                                                                                                                                                                                                                                  |
-|-------------|----------------------|-------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| *required*  | `definition-id`      | `string`                                        | An identifier derived from canonical parameter-type tuple (lowercase, no spaces; e.g., `"(int,int,string)"`). Varargs use ... (e.g., `"(string...)"`). If longer than 128 chars, use hashed form `"sig1-<base32(SHA-256(signature))[:26]>"`. |
-| *required*  | `parameters`         | `list<parameter>`                               | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.                                                                                                                                                |
-| *required*  | `return-type`        | `string` (Iceberg data type)                    | Return type. Example: `"string"`, `"struct<...>"`.                                                                                                                                                                                           |
-| *required*  | `versions`           | `list<definition-version>`                      | [Versioned implementations](#definition-version) of this definition.                                                                                                                                                                         |
-| *required*  | `current-version-id` | `long`                                          | Identifier of the current version for this definition.                                                                                                                                                                                       |
-| *optional*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`) | If `"udtf"`, `return-type` must be a `struct` describing the output schema.                                                                                                                                                                  |
-| *optional*  | `doc`                | `string`                                        | Documentation string.                                                                                                                                                                                                                        |
+| Requirement | Field name           | Type                                                                                                                                                           | Description                                                                                                                                                                                                                                  |
+|-------------|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| *required*  | `definition-id`      | `string`                                                                                                                                                       | An identifier derived from canonical parameter-type tuple (lowercase, no spaces; e.g., `"(int,int,string)"`). Varargs use ... (e.g., `"(string...)"`). If longer than 128 chars, use hashed form `"sig1-<base32(SHA-256(signature))[:26]>"`. |
+| *required*  | `parameters`         | `list<parameter>`                                                                                                                                              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.                                                                                                                                                |
+| *required*  | `return-type`        | [JSON representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization) of an Iceberg type (`string` for primitives, `object` for complex types) | Type of value returned                                                                                                                                                                                                                       |
+| *required*  | `versions`           | `list<definition-version>`                                                                                                                                     | [Versioned implementations](#definition-version) of this definition.                                                                                                                                                                         |
+| *required*  | `current-version-id` | `long`                                                                                                                                                         | Identifier of the current version for this definition.                                                                                                                                                                                       |
+| *optional*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`)                                                                                                                | If `"udtf"`, `return-type` must be a `struct` describing the output schema.                                                                                                                                                                  |
+| *optional*  | `doc`                | `string`                                                                                                                                                       | Documentation string.                                                                                                                                                                                                                        |
 
 Notes:
 1. `sig1-<base32(SHA-256(signature))[:26]>` is a fixed-length hash used when the canonical signature is too long.
@@ -90,17 +90,20 @@ and prefixing with `sig1-`. This yields a 31-character deterministic ID, easy to
 version prefix.
 
 ### Parameter
-| Requirement | Field  | Type                         | Description              |
-|-------------|--------|------------------------------|--------------------------|
-| *required*  | `name` | `string`                     | Parameter name.          |
-| *required*  | `type` | `string` (Iceberg data type) | Parameter data type.     |
-| *optional*  | `doc`  | `string`                     | Parameter documentation. |
+| Requirement | Field  | Type                                                                                                                                                           | Description              |
+|-------------|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|
+| *required*  | `name` | `string`                                                                                                                                                       | Parameter name.          |
+| *required*  | `type` | [JSON representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization) of an Iceberg type (`string` for primitives, `object` for complex types) | Parameter data type.     |
+| *optional*  | `doc`  | `string`                                                                                                                                                       | Parameter documentation. |
 
 Notes:
 1. Function definitions are identified by the tuple of `type`s and there can be only one definition for a given tuple.
 2. Parameter `name`s must not change, as some engines support named argument invocation (e.g., `foo(a => 1, b => 2)`). Only `doc` can be updated in place. 
 3. The `return-type` is immutable. To change it, users must create a new definition and remove the old one.
 4. Parameters cannot have default values; all arguments must be explicitly provided.
+5. The function MUST return a value assignable to the declared `return-type`, meaning the returned value’s type and
+   structure must match the declared Iceberg type (including field names, element types, and nesting for complex types),
+   and any field or element marked as required MUST NOT be null. Engines MUST reject results that violate these rules.
 
 ### Definition-Version
 
