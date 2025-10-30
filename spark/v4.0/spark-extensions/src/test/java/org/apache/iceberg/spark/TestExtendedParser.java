@@ -34,6 +34,8 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.FunctionIdentifier;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.parser.AbstractSqlParser;
+import org.apache.spark.sql.catalyst.parser.AstBuilder;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser;
@@ -204,7 +206,7 @@ public class TestExtendedParser {
     targetField.set(sessionState, parser);
   }
 
-  private static class WrapperParser implements ParserInterface {
+  private static class WrapperParser extends AbstractSqlParser {
     private final ParserInterface delegate;
 
     WrapperParser(ParserInterface delegate) {
@@ -216,47 +218,7 @@ public class TestExtendedParser {
     }
 
     @Override
-    public LogicalPlan parsePlan(String sqlText) throws ParseException {
-      return null;
-    }
-
-    @Override
-    public Expression parseExpression(String sqlText) throws ParseException {
-      return null;
-    }
-
-    @Override
-    public TableIdentifier parseTableIdentifier(String sqlText) throws ParseException {
-      return null;
-    }
-
-    @Override
-    public FunctionIdentifier parseFunctionIdentifier(String sqlText) throws ParseException {
-      return null;
-    }
-
-    @Override
-    public Seq<String> parseMultipartIdentifier(String sqlText) throws ParseException {
-      return null;
-    }
-
-    @Override
-    public LogicalPlan parseQuery(String sqlText) throws ParseException {
-      return null;
-    }
-
-    @Override
-    public StructType parseRoutineParam(String sqlText) throws ParseException {
-      return null;
-    }
-
-    @Override
-    public StructType parseTableSchema(String sqlText) throws ParseException {
-      return null;
-    }
-
-    @Override
-    public DataType parseDataType(String sqlText) throws ParseException {
+    public AstBuilder astBuilder() {
       return null;
     }
   }

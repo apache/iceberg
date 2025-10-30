@@ -75,7 +75,7 @@ public interface ExtendedParser extends ParserInterface {
       }
 
       ParserInterface next = getNextDelegateParser(current);
-      if (next == null || next == current) {
+      if (next == null) {
         break;
       }
 
