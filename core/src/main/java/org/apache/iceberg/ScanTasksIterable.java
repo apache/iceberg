@@ -19,40 +19,58 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
-import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.ThreadPools;
 
 class ScanTasksIterable implements CloseableIterable<FileScanTask> {
+
+  private static final int DEFAULT_TASK_QUEUE_CAPACITY = 1000;
+
+  private static final long QUEUE_POLL_TIMEOUT_MS = 100;
+
+  private static final int WORKER_POOL_SIZE = Math.max(1, ThreadPools.WORKER_THREAD_POOL_SIZE / 4);
+
+  private final BlockingQueue<FileScanTask> taskQueue;
+
+  private final ConcurrentLinkedQueue<String> planTasks;
+
+  private final AtomicInteger activeWorkers = new AtomicInteger(0);
+
+  private final AtomicBoolean shutdown = new AtomicBoolean(false);
+
+  private final ExecutorService executorService;
+
   private final RESTClient client;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
   private final Supplier<Map<String, String>> headers;
-  // parallelizing on this where a planTask produces a list of file scan tasks, as
-  //  well more planTasks.
-  private final String planTask;
-  private final ArrayDeque<FileScanTask> fileScanTasks;
-  private final ExecutorService executorService;
   private final Map<Integer, PartitionSpec> specsById;
   private final boolean caseSensitive;
   private final Supplier<Boolean> cancellationCallback;
-  private final ParallelIterable<FileScanTask> sharedParallelIterable;
-  private final RESTTableScan.ScanTasksReferenceCounter referenceCounter;
 
   ScanTasksIterable(
-      String planTask,
+      List<String> initialPlanTasks,
+      List<FileScanTask> initialFileScanTasks,
       RESTClient client,
       ResourcePaths resourcePaths,
       TableIdentifier tableIdentifier,
@@ -60,11 +78,11 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       ExecutorService executorService,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive,
-      Supplier<Boolean> cancellationCallback,
-      ParallelIterable<FileScanTask> sharedParallelIterable,
-      RESTTableScan.ScanTasksReferenceCounter referenceCounter) {
-    this.planTask = planTask;
-    this.fileScanTasks = null;
+      Supplier<Boolean> cancellationCallback) {
+
+    this.taskQueue = new LinkedBlockingQueue<>(DEFAULT_TASK_QUEUE_CAPACITY);
+    this.planTasks = new ConcurrentLinkedQueue<>();
+
     this.client = client;
     this.resourcePaths = resourcePaths;
     this.tableIdentifier = tableIdentifier;
@@ -73,188 +91,186 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     this.specsById = specsById;
     this.caseSensitive = caseSensitive;
     this.cancellationCallback = cancellationCallback;
-    this.sharedParallelIterable = sharedParallelIterable;
-    this.referenceCounter = referenceCounter;
+
+    if (initialFileScanTasks != null && !initialFileScanTasks.isEmpty()) {
+      for (FileScanTask task : initialFileScanTasks) {
+        try {
+          taskQueue.put(task);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          throw new RuntimeException("Interrupted while adding initial tasks", e);
+        }
+      }
+    }
+
+    if (initialPlanTasks != null && !initialPlanTasks.isEmpty()) {
+      planTasks.addAll(initialPlanTasks);
+    }
+
+    submitFixedWorkers();
   }
 
-  ScanTasksIterable(
-      List<FileScanTask> fileScanTasks,
-      RESTClient client,
-      ResourcePaths resourcePaths,
-      TableIdentifier tableIdentifier,
-      Supplier<Map<String, String>> headers,
-      ExecutorService executorService,
-      Map<Integer, PartitionSpec> specsById,
-      boolean caseSensitive,
-      Supplier<Boolean> cancellationCallback,
-      ParallelIterable<FileScanTask> sharedParallelIterable,
-      RESTTableScan.ScanTasksReferenceCounter referenceCounter) {
-    this.planTask = null;
-    this.fileScanTasks = new ArrayDeque<>(fileScanTasks);
-    this.client = client;
-    this.resourcePaths = resourcePaths;
-    this.tableIdentifier = tableIdentifier;
-    this.headers = headers;
-    this.executorService = executorService;
-    this.specsById = specsById;
-    this.caseSensitive = caseSensitive;
-    this.cancellationCallback = cancellationCallback;
-    this.sharedParallelIterable = sharedParallelIterable;
-    this.referenceCounter = referenceCounter;
+  private void submitFixedWorkers() {
+    if (planTasks.isEmpty()) {
+      return;
+    }
+
+    int numWorkers = Math.min(WORKER_POOL_SIZE, planTasks.size());
+
+    for (int i = 0; i < numWorkers; i++) {
+      executorService.execute(new PlanTaskWorker());
+    }
   }
 
   @Override
   public CloseableIterator<FileScanTask> iterator() {
-    return new ScanTasksIterator(
-        planTask,
-        fileScanTasks,
-        client,
-        resourcePaths,
-        tableIdentifier,
-        headers,
-        executorService,
-        specsById,
-        caseSensitive,
-        cancellationCallback,
-        sharedParallelIterable,
-        referenceCounter);
+    return new ScanTasksIterator();
   }
 
   @Override
   public void close() throws IOException {}
 
-  private static class ScanTasksIterator implements CloseableIterator<FileScanTask> {
-    private final RESTClient client;
-    private final ResourcePaths resourcePaths;
-    private final TableIdentifier tableIdentifier;
-    private final Supplier<Map<String, String>> headers;
-    private String planTask;
-    private final ArrayDeque<FileScanTask> fileScanTasks;
-    private final ExecutorService executorService;
-    private final Map<Integer, PartitionSpec> specsById;
-    private final boolean caseSensitive;
-    private final Supplier<Boolean> cancellationCallback;
-    private final ParallelIterable<FileScanTask> sharedParallelIterable;
-    private final RESTTableScan.ScanTasksReferenceCounter referenceCounter;
-
-    ScanTasksIterator(
-        String planTask,
-        ArrayDeque<FileScanTask> fileScanTasks,
-        RESTClient client,
-        ResourcePaths resourcePaths,
-        TableIdentifier tableIdentifier,
-        Supplier<Map<String, String>> headers,
-        ExecutorService executorService,
-        Map<Integer, PartitionSpec> specsById,
-        boolean caseSensitive,
-        Supplier<Boolean> cancellationCallback,
-        ParallelIterable<FileScanTask> sharedParallelIterable,
-        RESTTableScan.ScanTasksReferenceCounter referenceCounter) {
-      this.client = client;
-      this.resourcePaths = resourcePaths;
-      this.tableIdentifier = tableIdentifier;
-      this.headers = headers;
-      this.planTask = planTask;
-      this.fileScanTasks = fileScanTasks != null ? fileScanTasks : new ArrayDeque<>();
-      this.executorService = executorService;
-      this.specsById = specsById;
-      this.caseSensitive = caseSensitive;
-      this.cancellationCallback = cancellationCallback;
-      this.sharedParallelIterable = sharedParallelIterable;
-      this.referenceCounter = referenceCounter;
-    }
+  private class PlanTaskWorker implements Runnable {
 
     @Override
-    public boolean hasNext() {
-      if (!fileScanTasks.isEmpty()) {
-        // Have file scan tasks so continue to consume
-        return true;
+    public void run() {
+      activeWorkers.incrementAndGet();
+
+      try {
+        while (true) {
+          if (shutdown.get()) {
+            return;
+          }
+
+          String planTask = planTasks.poll();
+          if (planTask == null) {
+            return;
+          }
+
+          processPlanTask(planTask);
+        }
+
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      } catch (Exception e) {
+        throw new RuntimeException("Worker failed processing planTask", e);
+      } finally {
+        int remaining = activeWorkers.decrementAndGet();
+
+        if (remaining == 0 && !planTasks.isEmpty() && !shutdown.get()) {
+          executorService.execute(new PlanTaskWorker());
+        }
       }
-      // Out of file scan tasks, so need to now fetch more from each planTask
-      // Service can send back more planTasks which acts as pagination
-      if (planTask != null) {
-        fetchScanTasks(planTask);
-        planTask = null;
-        // Make another hasNext() call, as more fileScanTasks have been fetched
-        return hasNext();
-      }
-      // we have no file scan tasks left to consume
-      // so means we are finished - decrement reference counter
-      decrementReferenceCounter();
-      return false;
     }
 
-    private void decrementReferenceCounter() {
-      if (referenceCounter != null) {
-        referenceCounter.decrement();
+    private void processPlanTask(String planTask) throws InterruptedException {
+      FetchScanTasksResponse response = fetchScanTasks(planTask);
+
+      if (response.fileScanTasks() != null) {
+        for (FileScanTask task : response.fileScanTasks()) {
+          if (shutdown.get()) {
+            return;
+          }
+          taskQueue.put(task);
+        }
+      }
+
+      if (response.planTasks() != null && !response.planTasks().isEmpty()) {
+        planTasks.addAll(response.planTasks());
       }
     }
 
-    @Override
-    public FileScanTask next() {
-      return fileScanTasks.removeFirst();
-    }
-
-    private void fetchScanTasks(String withPlanTask) {
-      FetchScanTasksRequest fetchScanTasksRequest = new FetchScanTasksRequest(withPlanTask);
+    private FetchScanTasksResponse fetchScanTasks(String planTask) {
+      FetchScanTasksRequest request = new FetchScanTasksRequest(planTask);
       ParserContext parserContext =
           ParserContext.builder()
               .add("specsById", specsById)
               .add("caseSensitive", caseSensitive)
               .build();
-      FetchScanTasksResponse response =
-          client.post(
-              resourcePaths.fetchScanTasks(tableIdentifier),
-              fetchScanTasksRequest,
-              FetchScanTasksResponse.class,
-              headers.get(),
-              ErrorHandlers.defaultErrorHandler(),
-              stringStringMap -> {},
-              parserContext);
-      if (response.fileScanTasks() != null) {
-        fileScanTasks.addAll(response.fileScanTasks());
+
+      return client.post(
+          resourcePaths.fetchScanTasks(tableIdentifier),
+          request,
+          FetchScanTasksResponse.class,
+          headers.get(),
+          ErrorHandlers.defaultErrorHandler(),
+          stringStringMap -> {},
+          parserContext);
+    }
+  }
+
+  private class ScanTasksIterator implements CloseableIterator<FileScanTask> {
+    private FileScanTask nextTask = null;
+
+    @Override
+    public boolean hasNext() {
+      if (nextTask != null) {
+        return true;
       }
 
-      if (response.planTasks() != null) {
-        // This is the case where a plan task returned additional plan tasks, so add them
-        // to the shared ParallelIterable for processing
-        for (String planTaskId : response.planTasks()) {
-          ScanTasksIterable iterable =
-              new ScanTasksIterable(
-                  planTaskId,
-                  client,
-                  resourcePaths,
-                  tableIdentifier,
-                  headers,
-                  executorService,
-                  specsById,
-                  caseSensitive,
-                  cancellationCallback,
-                  sharedParallelIterable,
-                  referenceCounter);
-          sharedParallelIterable.addIterable(iterable);
-          // Increment reference counter for the new iterable
-          if (referenceCounter != null) {
-            referenceCounter.increment();
+      while (true) {
+        if (isDone()) {
+          return false;
+        }
+
+        try {
+          nextTask = taskQueue.poll(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+
+          if (nextTask != null) {
+            return true;
           }
+
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          return false;
         }
       }
     }
 
     @Override
-    public void close() throws IOException {
-      // Decrement reference counter when closing
-      decrementReferenceCounter();
+    public FileScanTask next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException("No more scan tasks available");
+      }
+      FileScanTask result = nextTask;
+      nextTask = null;
+      return result;
+    }
 
-      // Cancel the plan if we have a cancellation callback
+    @Override
+    public void close() throws IOException {
+      shutdown.set(true);
+
       if (cancellationCallback != null) {
         try {
           @SuppressWarnings("unused")
           Boolean ignored = cancellationCallback.get();
         } catch (Exception e) {
-          // Log but don't fail the close - cancellation failures are not critical
+          // Ignore cancellation failures
         }
       }
+
+      taskQueue.clear();
+      planTasks.clear();
     }
+
+    private boolean isDone() {
+      return taskQueue.isEmpty() && planTasks.isEmpty() && activeWorkers.get() == 0;
+    }
+  }
+
+  @VisibleForTesting
+  int getActiveWorkers() {
+    return activeWorkers.get();
+  }
+
+  @VisibleForTesting
+  int getQueueSize() {
+    return taskQueue.size();
+  }
+
+  @VisibleForTesting
+  int getPlanTasksSize() {
+    return planTasks.size();
   }
 }
