@@ -590,6 +590,42 @@ class StorageCredential(BaseModel):
     config: dict[str, str]
 
 
+class MaskHashSha256(BaseModel):
+    """
+    Mask the data of the column by apply SHA256 hash algorithm. Engines are free to use their own implementation of SHA256.
+    """
+
+    type: Literal['mask_hash_sha256']
+
+
+class MaskReplaceWithNull(BaseModel):
+    """
+    Masks data by replacing it with a NULL value.
+    """
+
+    type: Literal['mask_replace_with_null']
+
+
+class MaskAlphanumeric(BaseModel):
+    """
+    mask all alphabetic characters with 'x' and numeric characters with 'n'
+    """
+
+    type: Literal['mask_alphanumeric']
+
+
+class ApplyTransform(BaseModel):
+    """
+    Applies the transform
+    """
+
+    type: Literal['apply_transform']
+    transform: Transform
+    source_ids: List[int] = Field(
+        ..., alias='source-ids', description='args of transform'
+    )
+
+
 class LoadCredentialsResponse(BaseModel):
     storage_credentials: list[StorageCredential] = Field(
         ..., alias='storage-credentials'
@@ -1070,6 +1106,15 @@ class ViewRequirement(BaseModel):
     __root__: AssertViewUUID = Field(..., discriminator='type')
 
 
+class Action(BaseModel):
+    __root__: Union[
+        MaskHashSha256, MaskReplaceWithNull, MaskAlphanumeric, ApplyTransform
+    ] = Field(
+        ...,
+        description='Defines the specific action to be executed for computing the projection.',
+    )
+
+
 class FailedPlanningResult(IcebergErrorResponse):
     """
     Failed server-side planning result
@@ -1161,6 +1206,17 @@ class SetStatisticsUpdate(BaseUpdate):
         description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
     )
     statistics: StatisticsFile
+
+
+class Projection(BaseModel):
+    """
+    Defines a projection for a column.
+    """
+
+    source_id: Any = Field(
+        ..., alias='source-id', description='field id of the column being projected.'
+    )
+    action: Action
 
 
 class UnaryExpression(BaseModel):
@@ -1453,21 +1509,21 @@ class ViewUpdate(BaseModel):
 
 class ReadRestrictions(BaseModel):
     """
-    Read restrictions for a table, including projection and row filter expressions, according to the current schema.
+    Read restrictions for a table, including projections and row filter expressions, according to the current schema.
     A client MUST enforce the restrictions defined in this object when reading data from the table.
     These restrictions apply only to the authenticated principal, user, or account associated with the client. They MUST NOT be interpreted as global policy and MUST NOT be applied beyond the entity identified by the Authentication header (or other applicable authentication mechanism).
 
     """
 
-    required_projection: Optional[List[Term]] = Field(
+    required_projections: Optional[List[Projection]] = Field(
         None,
-        alias='required-projection',
-        description='A list of projections that MUST be applied prior to any query-specified projections. If the required-projection property is absent or empty, no mandatory projection applies, and a reader MAY project any subset of columns of the table, including all columns.\n1. A reader MUST project only columns listed in the required-projection.\n  - If a listed column has a transform, the reader MUST apply it and replace\n    all references to the underlying column with the transformed value\n    (for example, truncate(4, cc) MUST be projected as truncate(4, cc) AS cc,\n    and all references to cc during query evaluation MUST resolve to this alias).\n  - If a listed column has no transform, the reader MUST read it as-is.\n  - Columns not listed in the required-projection MUST NOT be read.\n\n2. A column MUST appear at most once in the required-projection.\n3. A projection entry MUST reference either the column itself or exactly one\n  transformed version of the column, but not both.\n\n4. Multiple transformed versions of the same column (e.g., truncate(5, col)\n  and truncate(3, col)) MUST NOT appear in the required-projection.\n\n5. If a projection entry includes a transform that the reader cannot evaluate,\n  the reader MUST fail rather than ignore the transform.\n\n6. An identity transform is equivalent to projecting the column directly.\n  A reader MAY represent it in either form.\n\n7. The data type of the projected column MUST match the data type defined for the transform result.\n',
+        alias='required-projections',
+        description='A list of projections that MUST be applied prior to any query-specified projections. If the required-projection property is absent, no mandatory projection applies, and a reader MAY project any subset of columns of the table, including all columns.\n1. A reader MUST project only columns listed in the required-projection.\n  - If a listed column has a transform, the reader MUST apply it and replace\n    all references to the underlying column with the transformed value\n    (for example, truncate[4](cc) MUST be projected as truncate[4](cc) AS cc,\n    and all references to cc during query evaluation post applying required-row-filter MUST resolve to this alias).\n  - Columns not listed in the required-projection MUST NOT be read.\n\n2. A column MUST appear at most once in the required-projection.\n3. Multiple transformed versions of the same column (e.g., truncate[5](col)\n  and truncate[3](col) MUST NOT appear in the required-projection.\n\n4. If a projection entry includes an action that the reader cannot evaluate,\n  the reader MUST fail rather than ignore the transform.\n\n5. An identity transform is equivalent to projecting the column directly.\n8. The data type of the projected column MUST match the data type defined for the transform result.\n',
     )
     required_row_filter: Optional[Expression] = Field(
         None,
         alias='required-row-filter',
-        description="An expression that filters rows in the table.\n1. A reader MUST discard any row for which the filter evaluates to false, and\n  no information derived from discarded rows MAY be included in the query result.\n\n2. Row filters MUST be evaluated against the original, untransformed column values.\n  Required projections MUST be applied only after row filters are applied.\n\n3. If the catalog supports multiple row access filters for the table, it is\n  the catalog's responsibility to combine them using the appropriate logic (e.g., AND, OR).\n\n4. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.\n5. If the required-row-filter property is absent or empty, no mandatory filtering is imposed.\n",
+        description="An expression that filters rows in the table.\n1. A reader MUST discard any row for which the filter evaluates to false or null, and\n  no information derived from discarded rows MAY be included in the query result.\n\n2. Row filters MUST be evaluated against the original, untransformed column values.\n  Required projections MUST be applied only after row filters are applied.\n\n3. If the catalog supports multiple row access filters for the table, it is\n  the catalog's responsibility to combine them using the appropriate logic (e.g., AND, OR).\n\n4. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.\n5. If the required-row-filter property is absent or empty, no mandatory filtering is imposed.\n",
     )
 
 
