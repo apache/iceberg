@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
 import org.apache.iceberg.rest.PlanStatus;
@@ -36,7 +35,6 @@ import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ParallelIterable;
 
 public class RESTTableScan extends DataTableScan {
   private final RESTClient client;
@@ -243,94 +241,17 @@ public class RESTTableScan extends DataTableScan {
 
   private CloseableIterable<FileScanTask> getScanTasksIterable(
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
-    // Create a single global ParallelIterable for all scan tasks
-    ParallelIterable<FileScanTask> parallelIterable =
-        new ParallelIterable<>(Lists.newArrayList(), planExecutor());
-
-    // Create shared reference counter to track when all scan tasks are complete
-    ScanTasksReferenceCounter referenceCounter =
-        new ScanTasksReferenceCounterImpl(parallelIterable);
-
-    if (fileScanTasks != null) {
-      ScanTasksIterable scanTasksIterable =
-          new ScanTasksIterable(
-              fileScanTasks,
-              client,
-              resourcePaths,
-              tableIdentifier,
-              headers,
-              planExecutor(),
-              table.specs(),
-              isCaseSensitive(),
-              this::cancelPlan,
-              parallelIterable,
-              referenceCounter);
-      parallelIterable.addIterable(scanTasksIterable);
-      referenceCounter.increment();
-    }
-
-    if (planTasks != null) {
-      for (String planTask : planTasks) {
-        ScanTasksIterable iterable =
-            new ScanTasksIterable(
-                planTask,
-                client,
-                resourcePaths,
-                tableIdentifier,
-                headers,
-                planExecutor(),
-                table.specs(),
-                isCaseSensitive(),
-                this::cancelPlan,
-                parallelIterable,
-                referenceCounter);
-        parallelIterable.addIterable(iterable);
-        referenceCounter.increment();
-      }
-    }
-
-    // If no iterables were added, finish immediately
-    if ((fileScanTasks == null || fileScanTasks.isEmpty())
-        && (planTasks == null || planTasks.isEmpty())) {
-      parallelIterable.finishAdding();
-    }
-
-    return parallelIterable;
-  }
-
-  // Interface for reference counting
-  interface ScanTasksReferenceCounter {
-    void increment();
-
-    void decrement();
-  }
-
-  // Reference counter to track active ScanTasksIterables
-  private static class ScanTasksReferenceCounterImpl implements ScanTasksReferenceCounter {
-    private final ParallelIterable<FileScanTask> parallelIterable;
-    private volatile int count = 0;
-    private final Object lock = new Object();
-
-    ScanTasksReferenceCounterImpl(ParallelIterable<FileScanTask> parallelIterable) {
-      this.parallelIterable = parallelIterable;
-    }
-
-    @Override
-    public void increment() {
-      synchronized (lock) {
-        count++;
-      }
-    }
-
-    @Override
-    public void decrement() {
-      synchronized (lock) {
-        count--;
-        if (count == 0) {
-          parallelIterable.finishAdding();
-        }
-      }
-    }
+    return new ScanTasksIterable(
+        planTasks,
+        fileScanTasks,
+        client,
+        resourcePaths,
+        tableIdentifier,
+        headers,
+        planExecutor(),
+        table.specs(),
+        isCaseSensitive(),
+        this::cancelPlan);
   }
 
   @VisibleForTesting
