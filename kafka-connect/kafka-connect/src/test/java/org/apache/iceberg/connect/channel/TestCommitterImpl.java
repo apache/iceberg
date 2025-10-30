@@ -92,15 +92,16 @@ public class TestCommitterImpl {
     when(clientFactory.createAdmin()).thenReturn(admin);
     clientFactoryField.set(committer, clientFactory);
 
-    MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class);
-    ConsumerGroupDescription consumerGroupDescription = mock(ConsumerGroupDescription.class);
-    mockKafkaUtils
-        .when(() -> KafkaUtils.consumerGroupDescription(any(), any()))
-        .thenReturn(consumerGroupDescription);
+    try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
+      ConsumerGroupDescription consumerGroupDescription = mock(ConsumerGroupDescription.class);
+      mockKafkaUtils
+          .when(() -> KafkaUtils.consumerGroupDescription(any(), any()))
+          .thenReturn(consumerGroupDescription);
 
-    when(consumerGroupDescription.members()).thenReturn(members);
+      when(consumerGroupDescription.members()).thenReturn(members);
 
-    assertThat(committer.hasLeaderPartition(leaderAssignments)).isTrue();
-    assertThat(committer.hasLeaderPartition(nonLeaderAssignments)).isFalse();
+      assertThat(committer.hasLeaderPartition(leaderAssignments)).isTrue();
+      assertThat(committer.hasLeaderPartition(nonLeaderAssignments)).isFalse();
+    }
   }
 }
