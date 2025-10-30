@@ -99,7 +99,7 @@ Iceberg doesn't support experimental [continuous processing](https://spark.apach
 
 ### Partitioned table
 
-Iceberg requires sorting data by partition per task prior to writing the data. In Spark tasks are split by Spark partition.
+Iceberg requires sorting data by partition per task prior to writing the data. In Spark tasks are split by Spark partition
 against partitioned table. For batch queries you're encouraged to do explicit sort to fulfill the requirement
 (see [here](spark-writes.md#writing-distribution-modes)), but the approach would bring additional latency as
 repartition and sort are considered as heavy operations for streaming workload. To avoid additional latency, you can
