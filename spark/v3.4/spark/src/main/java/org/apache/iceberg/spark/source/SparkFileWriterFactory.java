@@ -50,6 +50,13 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
   private StructType positionDeleteSparkType;
   private final Map<String, String> writeProperties;
 
+  /**
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #SparkFileWriterFactory(Table, FileFormat, Schema, StructType, SortOrder, FileFormat,
+   *     int[], Schema, StructType, SortOrder, Map)} instead.
+   */
+  @Deprecated
   SparkFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
@@ -79,6 +86,36 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     this.dataSparkType = dataSparkType;
     this.equalityDeleteSparkType = equalityDeleteSparkType;
     this.positionDeleteSparkType = positionDeleteSparkType;
+    this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
+  }
+
+  SparkFileWriterFactory(
+      Table table,
+      FileFormat dataFileFormat,
+      Schema dataSchema,
+      StructType dataSparkType,
+      SortOrder dataSortOrder,
+      FileFormat deleteFileFormat,
+      int[] equalityFieldIds,
+      Schema equalityDeleteRowSchema,
+      StructType equalityDeleteSparkType,
+      SortOrder equalityDeleteSortOrder,
+      Map<String, String> writeProperties) {
+
+    super(
+        table,
+        dataFileFormat,
+        dataSchema,
+        dataSortOrder,
+        deleteFileFormat,
+        equalityFieldIds,
+        equalityDeleteRowSchema,
+        equalityDeleteSortOrder,
+        ImmutableMap.of());
+
+    this.dataSparkType = dataSparkType;
+    this.equalityDeleteSparkType = equalityDeleteSparkType;
+    this.positionDeleteSparkType = null;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
   }
 
@@ -255,11 +292,21 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
       return this;
     }
 
+    /**
+     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+     *     Position deletes that include row data are no longer supported.
+     */
+    @Deprecated
     Builder positionDeleteRowSchema(Schema newPositionDeleteRowSchema) {
       this.positionDeleteRowSchema = newPositionDeleteRowSchema;
       return this;
     }
 
+    /**
+     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+     *     Position deletes that include row data are no longer supported.
+     */
+    @Deprecated
     Builder positionDeleteSparkType(StructType newPositionDeleteSparkType) {
       this.positionDeleteSparkType = newPositionDeleteSparkType;
       return this;

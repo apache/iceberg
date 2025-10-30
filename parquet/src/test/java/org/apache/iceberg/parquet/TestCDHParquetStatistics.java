@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Test;
 public class TestCDHParquetStatistics {
 
   @Test
-  public void testCDHParquetStatistcs() {
+  public void testCDHParquetStatistics() {
     Statistics cdhBinaryColumnStats = mock(Statistics.class);
     when(cdhBinaryColumnStats.isEmpty()).thenReturn(false);
     when(cdhBinaryColumnStats.hasNonNullValue()).thenReturn(true);

@@ -94,6 +94,28 @@ public class LockConfig {
             .intType()
             .defaultValue(3)
             .withDescription("The maximum number of retries for the Zookeeper client.");
+
+    /**
+     * The maximum sleep time (in milliseconds) between retries for the Zookeeper client. Default:
+     * 10000 ms
+     */
+    public static final ConfigOption<Integer> ZK_MAX_SLEEP_MS_OPTION =
+        ConfigOptions.key(PREFIX + ZK + ".max-sleep-ms")
+            .intType()
+            .defaultValue(10000)
+            .withDescription(
+                "The maximum sleep time (in milliseconds) between retries for the Zookeeper client. (Default: 10000)");
+
+    /**
+     * The retry policy name for the Zookeeper client. Supported values might include:
+     * "exponential-backoff", "fixed", etc. Default: "exponential-backoff"
+     */
+    public static final ConfigOption<ZKRetryPolicies> ZK_RETRY_POLICY_OPTION =
+        ConfigOptions.key(PREFIX + ZK + ".retry-policy")
+            .enumType(ZKRetryPolicies.class)
+            .defaultValue(ZKRetryPolicies.EXPONENTIAL_BACKOFF)
+            .withDescription(
+                "The retry policy for the Zookeeper client. (Default: EXPONENTIAL_BACKOFF)");
   }
 
   private final FlinkConfParser confParser;
@@ -199,6 +221,26 @@ public class LockConfig {
         .option(ZkLockConfig.ZK_MAX_RETRIES_OPTION.key())
         .flinkConfig(ZkLockConfig.ZK_MAX_RETRIES_OPTION)
         .defaultValue(ZkLockConfig.ZK_MAX_RETRIES_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Zookeeper maximum sleep time configuration (in milliseconds). */
+  public int zkMaxSleepMs() {
+    return confParser
+        .intConf()
+        .option(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION)
+        .defaultValue(ZkLockConfig.ZK_MAX_SLEEP_MS_OPTION.defaultValue())
+        .parse();
+  }
+
+  /** Gets the Zookeeper retry policy configuration. */
+  public ZKRetryPolicies zkRetryPolicy() {
+    return confParser
+        .enumConfParser(ZKRetryPolicies.class)
+        .option(ZkLockConfig.ZK_RETRY_POLICY_OPTION.key())
+        .flinkConfig(ZkLockConfig.ZK_RETRY_POLICY_OPTION)
+        .defaultValue(ZKRetryPolicies.EXPONENTIAL_BACKOFF)
         .parse();
   }
 

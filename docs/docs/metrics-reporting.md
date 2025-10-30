@@ -33,7 +33,6 @@ A [`ScanReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/
 * number of data/delete files scanned/skipped
 * number of equality/positional delete files scanned
 
-
 ### CommitReport
 A [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/metrics/CommitReport.java) carries metrics being collected after committing changes to a table (aka producing a snapshot). Amongst some general information about the involved table, such as the snapshot id or the table name, it includes metrics like:
 
@@ -42,7 +41,6 @@ A [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/jav
 * number of added/removed data/delete files
 * number of added/removed equality/positional delete files
 * number of added/removed equality/positional deletes
-
 
 ## Available Metrics Reporters
 
@@ -116,13 +114,11 @@ CommitReport{
         iceberg-version=Apache Iceberg 1.4.0-SNAPSHOT (commit 4868d2823004c8c256a50ea7c25cff94314cc135)}}
 ```
 
-
 ### [`RESTMetricsReporter`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/rest/RESTMetricsReporter.java)
 
 This is the default when using the [`RESTCatalog`](https://github.com/apache/iceberg/blob/main/core/src/main/java/org/apache/iceberg/rest/RESTCatalog.java) and its purpose is to send metrics to a REST server at the `/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics` endpoint as defined in the [REST OpenAPI spec](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml).
 
 Sending metrics via REST can be controlled with the `rest-metrics-reporting-enabled` (defaults to `true`) property.
-
 
 ## Implementing a custom Metrics Reporter
 

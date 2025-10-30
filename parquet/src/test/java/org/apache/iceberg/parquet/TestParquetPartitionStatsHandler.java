@@ -16,7 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.parquet;
+
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionStatsHandlerTestBase;
 
 public class TestParquetPartitionStatsHandler extends PartitionStatsHandlerTestBase {
 

@@ -223,6 +223,30 @@ public class TypeUtil {
   }
 
   /**
+   * Searches in the given schema for all ancestor fields of the given field ID. If the field ID is
+   * defined in a nested type, then all of its ancestor fields are returned. If the field ID is not
+   * nested, an empty list is returned.
+   *
+   * @param schema The schema to search for the field ID
+   * @param fieldId The field ID to find the parents of
+   * @return A list of all ancestor fields of the given field ID if the field ID points to a nested
+   *     field. If the field ID is not a nested field, then an empty list is returned.
+   */
+  public static List<Types.NestedField> ancestorFields(Schema schema, int fieldId) {
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+    List<Types.NestedField> parents = Lists.newArrayList();
+    if (idToParent.containsKey(fieldId)) {
+      Integer parentId = idToParent.get(fieldId);
+      while (parentId != null) {
+        parents.add(schema.findField(parentId));
+        parentId = idToParent.get(parentId);
+      }
+    }
+
+    return parents;
+  }
+
+  /**
    * Assigns fresh ids from the {@link NextID nextId function} for all fields in a type.
    *
    * @param type a type

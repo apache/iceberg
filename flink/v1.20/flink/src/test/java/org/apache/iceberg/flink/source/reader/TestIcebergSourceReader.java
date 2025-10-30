@@ -32,7 +32,6 @@ import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.flink.TestFixtures;
@@ -45,9 +44,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestIcebergSourceReader {
   @TempDir protected Path temporaryFolder;
-
-  private final GenericAppenderFactory appenderFactory =
-      new GenericAppenderFactory(TestFixtures.SCHEMA);
 
   @Test
   public void testReaderMetrics() throws Exception {
@@ -68,13 +64,13 @@ public class TestIcebergSourceReader {
         ReaderUtil.createRecordBatchList(0L, TestFixtures.SCHEMA, 1, 1);
     CombinedScanTask task1 =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList1, temporaryFolder, FileFormat.PARQUET, appenderFactory);
+            recordBatchList1, temporaryFolder, FileFormat.PARQUET, TestFixtures.SCHEMA);
 
     List<List<Record>> recordBatchList2 =
         ReaderUtil.createRecordBatchList(1L, TestFixtures.SCHEMA, 1, 1);
     CombinedScanTask task2 =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList2, temporaryFolder, FileFormat.PARQUET, appenderFactory);
+            recordBatchList2, temporaryFolder, FileFormat.PARQUET, TestFixtures.SCHEMA);
 
     // Sort the splits in one way
     List<RowData> rowDataList1 =
@@ -127,7 +123,7 @@ public class TestIcebergSourceReader {
         ReaderUtil.createRecordBatchList(seed, TestFixtures.SCHEMA, 1, 1);
     CombinedScanTask task =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, temporaryFolder, FileFormat.PARQUET, appenderFactory);
+            recordBatchList, temporaryFolder, FileFormat.PARQUET, TestFixtures.SCHEMA);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(task);
     reader.addSplits(Collections.singletonList(split));
 

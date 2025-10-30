@@ -24,6 +24,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Random;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -83,5 +85,17 @@ public class TestPrimitiveWrapper {
     assertThat(actual.type()).isEqualTo(primitive.type());
     assertThat(actual).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.asPrimitive().get()).isEqualTo(primitive.get());
+  }
+
+  @ParameterizedTest
+  @FieldSource("PRIMITIVES")
+  public void testByteBufferConversion(VariantPrimitive<?> primitive) {
+    VariantMetadata primitiveMetadata = Variants.metadata("$['primitive']");
+    Variant expectedVariant = Variant.of(primitiveMetadata, primitive);
+    ByteBuffer convertedValue = Conversions.toByteBuffer(Types.VariantType.get(), expectedVariant);
+    Variant readValue = Conversions.fromByteBuffer(Types.VariantType.get(), convertedValue);
+
+    VariantTestUtil.assertEqual(expectedVariant.metadata(), readValue.metadata());
+    VariantTestUtil.assertEqual(expectedVariant.value(), readValue.value());
   }
 }

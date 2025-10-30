@@ -21,7 +21,7 @@ package org.apache.iceberg.rest;
 import com.fasterxml.jackson.databind.InjectableValues;
 import java.util.Collections;
 import java.util.Map;
-import org.apache.hadoop.util.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class ParserContext {

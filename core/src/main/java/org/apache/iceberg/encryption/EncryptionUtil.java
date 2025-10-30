@@ -75,7 +75,7 @@ public class EncryptionUtil {
     return kmsClient;
   }
 
-  static EncryptionManager createEncryptionManager(
+  public static EncryptionManager createEncryptionManager(
       List<EncryptedKey> keys, Map<String, String> tableProperties, KeyManagementClient kmsClient) {
     Preconditions.checkArgument(kmsClient != null, "Invalid KMS client: null");
     String tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
@@ -96,7 +96,7 @@ public class EncryptionUtil {
         "Invalid data key length: %s (must be 16, 24, or 32)",
         dataKeyLength);
 
-    return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
+    return new StandardEncryptionManager(keys, tableKeyId, dataKeyLength, kmsClient);
   }
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
@@ -117,31 +117,57 @@ public class EncryptionUtil {
         "Snapshot key metadata encryption requires a StandardEncryptionManager");
     StandardEncryptionManager sem = (StandardEncryptionManager) em;
     String manifestListKeyId = manifestList.encryptionKeyID();
+    Map<String, EncryptedKey> encryptionKeys = sem.encryptionKeys();
+    EncryptedKey manifestListKey = encryptionKeys.get(manifestListKeyId);
+    ByteBuffer encryptedKeyMetadata = manifestListKey.encryptedKeyMetadata();
+    String keyEncryptionKeyID = manifestListKey.encryptedById();
     ByteBuffer keyEncryptionKey = sem.encryptedByKey(manifestListKeyId);
-    ByteBuffer encryptedKeyMetadata = sem.encryptedKeyMetadata(manifestListKeyId);
-
+    String keyEncryptionKeyTimestamp =
+        encryptionKeys
+            .get(keyEncryptionKeyID)
+            .properties()
+            .get(StandardEncryptionManager.KEY_TIMESTAMP);
+    Preconditions.checkState(
+        keyEncryptionKeyTimestamp != null, "Key encryption key must be timestamped");
     Ciphers.AesGcmDecryptor decryptor =
         new Ciphers.AesGcmDecryptor(ByteBuffers.toByteArray(keyEncryptionKey));
     byte[] keyMetadataBytes = ByteBuffers.toByteArray(encryptedKeyMetadata);
+
+    // Use key encryption key timestamp as AES GCM signature (AAD) of encryption - in order to
+    // prevent timestamp tampering attacks
     byte[] decryptedKeyMetadata =
-        decryptor.decrypt(keyMetadataBytes, manifestListKeyId.getBytes(StandardCharsets.UTF_8));
+        decryptor.decrypt(
+            keyMetadataBytes, keyEncryptionKeyTimestamp.getBytes(StandardCharsets.UTF_8));
+
     return ByteBuffer.wrap(decryptedKeyMetadata);
+  }
+
+  public static Map<String, EncryptedKey> encryptionKeys(EncryptionManager em) {
+    Preconditions.checkState(
+        em instanceof StandardEncryptionManager,
+        "Retrieving encryption keys requires a StandardEncryptionManager");
+    StandardEncryptionManager sem = (StandardEncryptionManager) em;
+    return sem.encryptionKeys();
   }
 
   /**
    * Encrypts the key metadata for a manifest list.
    *
    * @param key key encryption key bytes
-   * @param keyId ID of the manifest list key
-   * @param keyMetadata manifest list key metadata
+   * @param keyTimestamp timestamp of the key encryption key
+   * @param mlkMetadata manifest list key metadata
    * @return encrypted key metadata
    */
   static ByteBuffer encryptManifestListKeyMetadata(
-      ByteBuffer key, String keyId, EncryptionKeyMetadata keyMetadata) {
+      ByteBuffer key, String keyTimestamp, EncryptionKeyMetadata mlkMetadata) {
     Ciphers.AesGcmEncryptor encryptor = new Ciphers.AesGcmEncryptor(ByteBuffers.toByteArray(key));
-    byte[] keyMetadataBytes = ByteBuffers.toByteArray(keyMetadata.buffer());
+    byte[] mlkMetadataBytes = ByteBuffers.toByteArray(mlkMetadata.buffer());
+
+    // Use key encryption key timestamp as AES GCM signature (AAD) of encryption - in order to
+    // prevent timestamp tampering attacks
     byte[] encryptedKeyMetadata =
-        encryptor.encrypt(keyMetadataBytes, keyId.getBytes(StandardCharsets.UTF_8));
+        encryptor.encrypt(mlkMetadataBytes, keyTimestamp.getBytes(StandardCharsets.UTF_8));
+
     return ByteBuffer.wrap(encryptedKeyMetadata);
   }
 }

@@ -2114,6 +2114,22 @@ public class TestViews extends ExtensionsTestBase {
                 ""));
   }
 
+  @TestTemplate
+  public void createViewWithCustomMetadataLocationWithLocation() {
+    String viewName = viewName("v");
+    String customMetadataLocation =
+        Paths.get(temp.toUri().toString(), "custom-metadata-location").toString();
+    sql(
+        "CREATE VIEW %s TBLPROPERTIES ('location'='%s') AS SELECT * FROM %s",
+        viewName, customMetadataLocation, tableName);
+
+    assertThat(sql("SHOW TBLPROPERTIES %s", viewName))
+        .contains(row("location", customMetadataLocation));
+
+    String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
+    assertThat(location).isEqualTo(customMetadataLocation);
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {

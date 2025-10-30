@@ -41,6 +41,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
+import software.amazon.awssdk.services.kms.KmsClientBuilder;
 import software.amazon.awssdk.services.kms.model.DataKeySpec;
 import software.amazon.awssdk.services.kms.model.EncryptionAlgorithmSpec;
 
@@ -208,6 +209,14 @@ public class AwsProperties implements Serializable {
    */
   public static final String REST_SESSION_TOKEN = "rest.session-token";
 
+  /**
+   * Configure an alternative endpoint of the KMS service for AwsKeyManagementClient to access.
+   *
+   * <p>This could be used to use KMS key management with any KMS-compatible service that has a
+   * different endpoint
+   */
+  public static final String KMS_ENDPOINT = "kms.endpoint";
+
   /** Encryption algorithm used to encrypt/decrypt master table keys */
   public static final String KMS_ENCRYPTION_ALGORITHM_SPEC = "kms.encryption-algorithm-spec";
 
@@ -243,6 +252,7 @@ public class AwsProperties implements Serializable {
   private String restAccessKeyId;
   private String restSecretAccessKey;
   private String restSessionToken;
+  private final String kmsEndpoint;
   private EncryptionAlgorithmSpec kmsEncryptionAlgorithmSpec;
   private DataKeySpec kmsDataKeySpec;
 
@@ -268,6 +278,7 @@ public class AwsProperties implements Serializable {
 
     this.restSigningName = REST_SIGNING_NAME_DEFAULT;
 
+    this.kmsEndpoint = null;
     this.kmsEncryptionAlgorithmSpec = KMS_ENCRYPTION_ALGORITHM_SPEC_DEFAULT;
     this.kmsDataKeySpec = KMS_DATA_KEY_SPEC_DEFAULT;
   }
@@ -312,6 +323,7 @@ public class AwsProperties implements Serializable {
     this.restSecretAccessKey = properties.get(REST_SECRET_ACCESS_KEY);
     this.restSessionToken = properties.get(REST_SESSION_TOKEN);
 
+    this.kmsEndpoint = properties.get(KMS_ENDPOINT);
     this.kmsEncryptionAlgorithmSpec =
         EncryptionAlgorithmSpec.fromValue(
             properties.getOrDefault(
@@ -411,6 +423,19 @@ public class AwsProperties implements Serializable {
     configureEndpoint(builder, dynamoDbEndpoint);
   }
 
+  /**
+   * Override the endpoint for a KMS client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     KmsClient.builder().applyMutation(awsProperties::applyKmsEndpointConfigurations)
+   * </pre>
+   */
+  public <T extends KmsClientBuilder> void applyKmsEndpointConfigurations(T builder) {
+    configureEndpoint(builder, kmsEndpoint);
+  }
+
   public Region restSigningRegion() {
     if (restSigningRegion == null) {
       this.restSigningRegion = DefaultAwsRegionProviderChain.builder().build().getRegion().id();
@@ -426,6 +451,10 @@ public class AwsProperties implements Serializable {
   public AwsCredentialsProvider restCredentialsProvider() {
     return credentialsProvider(
         this.restAccessKeyId, this.restSecretAccessKey, this.restSessionToken);
+  }
+
+  public String kmsEndpoint() {
+    return this.kmsEndpoint;
   }
 
   public EncryptionAlgorithmSpec kmsEncryptionAlgorithmSpec() {

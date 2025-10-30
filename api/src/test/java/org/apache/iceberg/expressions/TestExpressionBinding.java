@@ -38,13 +38,20 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.FieldSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestExpressionBinding {
   private static final StructType STRUCT =
@@ -420,5 +427,86 @@ public class TestExpressionBinding {
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
     assertThat(pred.term()).as("Should use a BoundExtract").isInstanceOf(BoundExtract.class);
     assertThat(pred.term().type()).isEqualTo(Types.fromPrimitiveString(typeName));
+  }
+
+  private static Stream<Arguments> nullCasesWithNestedStructs() {
+    // the test cases specify two arguments:
+    // - the first is a list of booleans that indicate whether fields in the nested sequence of
+    //   structs are optional or required. For example, [true, false, true] will construct a
+    //   struct like s1.s2.s3 with s1 being required, s2 being optional, and s3 being required.
+    // - the second is an expression that indicates what is expected.
+    return Stream.of(
+        // basic fields, no struct levels
+        Arguments.of(Arrays.asList(true), Expressions.alwaysFalse()),
+        Arguments.of(Arrays.asList(false), Expressions.isNull("leaf")),
+        // one level
+        Arguments.of(Arrays.asList(true, true), Expressions.alwaysFalse()),
+        Arguments.of(Arrays.asList(true, false), Expressions.isNull("leaf")),
+        Arguments.of(Arrays.asList(false, true), Expressions.isNull("leaf")),
+        // two levels
+        Arguments.of(Arrays.asList(true, true, true), Expressions.alwaysFalse()),
+        Arguments.of(Arrays.asList(true, true, false), Expressions.isNull("leaf")),
+        Arguments.of(Arrays.asList(false, true, true), Expressions.isNull("leaf")),
+        Arguments.of(Arrays.asList(true, false, true), Expressions.isNull("leaf")),
+        // three levels
+        Arguments.of(Arrays.asList(true, true, true, true), Expressions.alwaysFalse()),
+        Arguments.of(Arrays.asList(true, true, true, false), Expressions.isNull("leaf")),
+        Arguments.of(Arrays.asList(false, true, true, true), Expressions.isNull("leaf")),
+        Arguments.of(Arrays.asList(true, false, true, true), Expressions.isNull("leaf")),
+        // four levels
+        Arguments.of(Arrays.asList(true, true, true, true, true), Expressions.alwaysFalse()),
+        Arguments.of(Arrays.asList(true, true, true, true, false), Expressions.isNull("leaf")),
+        Arguments.of(Arrays.asList(false, true, true, true, true), Expressions.isNull("leaf")),
+        Arguments.of(Arrays.asList(true, false, false, false, true), Expressions.isNull("leaf")));
+  }
+
+  private Schema buildNestedSchema(List<Boolean> requiredFields, String leafName) {
+    // Build a schema with a single nested struct with requiredFields.size() levels with the
+    // following structure:
+    // s1: struct(s2: struct(s3: struct(..., sn: struct(leaf: int))))
+    // where each s{i} is a required struct if requiredFields.get(i) is true and an optional struct
+    // if false
+    Preconditions.checkArgument(
+        requiredFields != null && !requiredFields.isEmpty(),
+        "Invalid required fields: null or empty");
+    Types.NestedField leaf =
+        requiredFields.get(requiredFields.size() - 1)
+            ? required(requiredFields.size(), leafName, Types.IntegerType.get())
+            : optional(requiredFields.size(), leafName, Types.IntegerType.get());
+
+    Types.StructType current = Types.StructType.of(leaf);
+
+    for (int i = requiredFields.size() - 2; i >= 0; i--) {
+      int id = i + 1;
+      String name = "s" + (i + 1);
+      current =
+          Types.StructType.of(
+              requiredFields.get(i) ? required(id, name, current) : optional(id, name, current));
+    }
+
+    return new Schema(current.fields());
+  }
+
+  @ParameterizedTest
+  @MethodSource("nullCasesWithNestedStructs")
+  public void testIsNullWithNestedStructs(List<Boolean> requiredFields, Expression expression) {
+    String leafName = "leaf";
+    Schema schema = buildNestedSchema(requiredFields, leafName);
+    int leafId = requiredFields.size();
+    int level = 1;
+    StringBuilder pathBuilder = new StringBuilder();
+    while (level < leafId) {
+      pathBuilder.append("s").append(level).append(".");
+      level++;
+    }
+
+    String path = pathBuilder.append(leafName).toString();
+    Expression bound = Binder.bind(schema.asStruct(), isNull(path));
+    TestHelpers.assertAllReferencesBound("IsNull", bound);
+    assertThat(bound.op()).isEqualTo(expression.op());
+
+    bound = Binder.bind(schema.asStruct(), Expressions.notNull(path));
+    TestHelpers.assertAllReferencesBound("NotNull", bound);
+    assertThat(bound.op()).isEqualTo(expression.negate().op());
   }
 }

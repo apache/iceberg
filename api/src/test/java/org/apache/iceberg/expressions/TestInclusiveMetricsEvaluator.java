@@ -73,124 +73,150 @@ public class TestInclusiveMetricsEvaluator {
           optional(13, "no_nan_stats", Types.DoubleType.get()),
           optional(14, "some_empty", Types.StringType.get()));
 
-  protected static final int INT_MIN_VALUE = 30;
-  protected static final int INT_MAX_VALUE = 79;
+  private static final Schema NESTED_SCHEMA =
+      new Schema(
+          required(
+              100,
+              "required_address",
+              Types.StructType.of(
+                  required(102, "required_street1", Types.StringType.get()),
+                  optional(103, "optional_street1", Types.StringType.get()))),
+          optional(
+              101,
+              "optional_address",
+              Types.StructType.of(
+                  required(104, "required_street2", Types.StringType.get()),
+                  optional(105, "optional_street2", Types.StringType.get()))));
 
-  protected DataFile file() {
-    return new TestDataFile(
-        "file.avro",
-        Row.of(),
-        50,
-        // any value counts, including nulls
-        ImmutableMap.<Integer, Long>builder()
-            .put(4, 50L)
-            .put(5, 50L)
-            .put(6, 50L)
-            .put(7, 50L)
-            .put(8, 50L)
-            .put(9, 50L)
-            .put(10, 50L)
-            .put(11, 50L)
-            .put(12, 50L)
-            .put(13, 50L)
-            .put(14, 50L)
-            .buildOrThrow(),
-        // null value counts
-        ImmutableMap.<Integer, Long>builder()
-            .put(4, 50L)
-            .put(5, 10L)
-            .put(6, 0L)
-            .put(10, 50L)
-            .put(11, 0L)
-            .put(12, 1L)
-            .put(14, 0L)
-            .buildOrThrow(),
-        // nan value counts
-        ImmutableMap.of(
-            7, 50L,
-            8, 10L,
-            9, 0L),
-        // lower bounds
-        ImmutableMap.of(
-            1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
-            11, toByteBuffer(Types.FloatType.get(), Float.NaN),
-            12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
-            14, toByteBuffer(Types.StringType.get(), "")),
-        // upper bounds
-        ImmutableMap.of(
-            1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
-            11, toByteBuffer(Types.FloatType.get(), Float.NaN),
-            12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
-            14, toByteBuffer(Types.StringType.get(), "房东整租霍营小区二层两居室")));
-  }
+  private static final int INT_MIN_VALUE = 30;
+  private static final int INT_MAX_VALUE = 79;
 
-  protected DataFile file2() {
-    return new TestDataFile(
-        "file_2.avro",
-        Row.of(),
-        50,
-        // any value counts, including nulls
-        ImmutableMap.of(3, 50L),
-        // null value counts
-        ImmutableMap.of(3, 0L),
-        // nan value counts
-        null,
-        // lower bounds
-        ImmutableMap.of(3, toByteBuffer(StringType.get(), "aa")),
-        // upper bounds
-        ImmutableMap.of(3, toByteBuffer(StringType.get(), "dC")));
-  }
+  private static final DataFile FILE =
+      new TestDataFile(
+          "file.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.<Integer, Long>builder()
+              .put(4, 50L)
+              .put(5, 50L)
+              .put(6, 50L)
+              .put(7, 50L)
+              .put(8, 50L)
+              .put(9, 50L)
+              .put(10, 50L)
+              .put(11, 50L)
+              .put(12, 50L)
+              .put(13, 50L)
+              .put(14, 50L)
+              .buildOrThrow(),
+          // null value counts
+          ImmutableMap.<Integer, Long>builder()
+              .put(4, 50L)
+              .put(5, 10L)
+              .put(6, 0L)
+              .put(10, 50L)
+              .put(11, 0L)
+              .put(12, 1L)
+              .put(14, 0L)
+              .buildOrThrow(),
+          // nan value counts
+          ImmutableMap.of(
+              7, 50L,
+              8, 10L,
+              9, 0L),
+          // lower bounds
+          ImmutableMap.of(
+              1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              11, toByteBuffer(Types.FloatType.get(), Float.NaN),
+              12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
+              14, toByteBuffer(Types.StringType.get(), "")),
+          // upper bounds
+          ImmutableMap.of(
+              1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
+              11, toByteBuffer(Types.FloatType.get(), Float.NaN),
+              12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
+              14, toByteBuffer(Types.StringType.get(), "房东整租霍营小区二层两居室")));
 
-  protected DataFile file3() {
-    return new TestDataFile(
-        "file_3.avro",
-        Row.of(),
-        50,
-        // any value counts, including nulls
-        ImmutableMap.of(3, 50L),
-        // null value counts
-        ImmutableMap.of(3, 0L),
-        // nan value counts
-        null,
-        // lower bounds
-        ImmutableMap.of(3, toByteBuffer(StringType.get(), "1str1")),
-        // upper bounds
-        ImmutableMap.of(3, toByteBuffer(StringType.get(), "3str3")));
-  }
+  private static final DataFile FILE_2 =
+      new TestDataFile(
+          "file_2.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(3, 50L),
+          // null value counts
+          ImmutableMap.of(3, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "aa")),
+          // upper bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "dC")));
 
-  protected DataFile file4() {
-    return new TestDataFile(
-        "file_4.avro",
-        Row.of(),
-        50,
-        // any value counts, including nulls
-        ImmutableMap.of(3, 50L),
-        // null value counts
-        ImmutableMap.of(3, 0L),
-        // nan value counts
-        null,
-        // lower bounds
-        ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
-        // upper bounds
-        ImmutableMap.of(3, toByteBuffer(StringType.get(), "イロハニホヘト")));
-  }
+  private static final DataFile FILE_3 =
+      new TestDataFile(
+          "file_3.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(3, 50L),
+          // null value counts
+          ImmutableMap.of(3, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "1str1")),
+          // upper bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "3str3")));
 
-  protected DataFile file5() {
-    return new TestDataFile(
-        "file_5.avro",
-        Row.of(),
-        50,
-        // any value counts, including nulls
-        ImmutableMap.of(3, 50L),
-        // null value counts
-        ImmutableMap.of(3, 0L),
-        // nan value counts
-        null,
-        // lower bounds
-        ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
-        // upper bounds
-        ImmutableMap.of(3, toByteBuffer(StringType.get(), "abcdefghi")));
-  }
+  private static final DataFile FILE_4 =
+      new TestDataFile(
+          "file_4.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(3, 50L),
+          // null value counts
+          ImmutableMap.of(3, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
+          // upper bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "イロハニホヘト")));
+
+  private static final DataFile FILE_5 =
+      new TestDataFile(
+          "file_5.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(3, 50L),
+          // null value counts
+          ImmutableMap.of(3, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
+          // upper bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "abcdefghi")));
+
+  private static final DataFile FILE_6 =
+      new TestDataFile(
+          "file_6.avro",
+          Row.of(),
+          10,
+          // any value counts, including nulls
+          ImmutableMap.of(100, 5L, 101, 5L, 102, 5L, 103, 5L, 104, 5L, 105, 5L),
+          // null value counts
+          ImmutableMap.of(100, 0L, 101, 5L, 103, 5L, 104, 5L, 105, 5L),
+          // nan value counts
+          null,
+          // lower bounds
+          null,
+          // upper bounds
+          null);
 
   @Test
   public void testAllNulls() {
@@ -876,5 +902,81 @@ public class TestInclusiveMetricsEvaluator {
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, notIn("no_nulls", "abc", "def")).eval(file());
     assertThat(shouldRead).as("Should read: notIn on no nulls column").isTrue();
+  }
+
+  @Test
+  public void testIsNullInNestedStruct() {
+    // read required_address and its nested fields
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("required_address")).eval(FILE_6);
+    assertThat(shouldRead).as("Should not read: required_address is required").isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("required_address.required_street1"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should not read: required_address.required_street1 is required")
+        .isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("required_address.optional_street1"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should read: required_address.optional_street1 is optional")
+        .isTrue();
+
+    // read optional_address and its nested fields
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("optional_address")).eval(FILE_6);
+    assertThat(shouldRead).as("Should read: optional_address is optional").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("optional_address.required_street2"))
+            .eval(FILE_6);
+    assertThat(shouldRead).as("Should read: optional_address is optional").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, isNull("optional_address.optional_street2"))
+            .eval(FILE_6);
+    assertThat(shouldRead).as("Should read: optional_address is optional").isTrue();
+  }
+
+  @Test
+  public void testNotNullInNestedStruct() {
+    // read required_address and its nested fields
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("required_address")).eval(FILE_6);
+    assertThat(shouldRead).as("Should read: required_address is required").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("required_address.required_street1"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should read: required_address.required_street1 is required")
+        .isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("required_address.optional_street1"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should not read: required_address.optional_street1 is optional")
+        .isFalse();
+
+    // read optional_address and its nested fields
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("optional_address")).eval(FILE_6);
+    assertThat(shouldRead).as("Should not read: optional_address is optional").isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("optional_address.required_street2"))
+            .eval(FILE_6);
+    assertThat(shouldRead).as("Should not read: optional_address is optional").isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(NESTED_SCHEMA, notNull("optional_address.optional_street2"))
+            .eval(FILE_6);
+    assertThat(shouldRead)
+        .as("Should not read: optional_address.optional_street2 is optional")
+        .isFalse();
   }
 }

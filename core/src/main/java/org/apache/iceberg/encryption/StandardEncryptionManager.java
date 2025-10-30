@@ -23,6 +23,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.TableProperties;
@@ -35,10 +36,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class StandardEncryptionManager implements EncryptionManager {
-  private static final String KEY_ENCRYPTION_KEY_ID = "KEY_ENCRYPTION_KEY_ID";
+  // Maximal lifespan of key encryption keys is 2 years according to NIST SP 800-57 (PART 1 REV. 5,
+  // section 5.3.6.7.b)
+  private static final long KEY_ENCRYPTION_KEY_LIFESPAN_MS = TimeUnit.DAYS.toMillis(730);
+  static final String KEY_TIMESTAMP = "KEY_TIMESTAMP";
 
   private final String tableKeyId;
   private final int dataKeyLength;
+
+  // used in key encryption key rotation unitests
+  private long testTimeShift;
 
   // unserializable elements of the EncryptionManager
   private class TransientEncryptionState {
@@ -46,9 +53,19 @@ public class StandardEncryptionManager implements EncryptionManager {
     private final Map<String, EncryptedKey> encryptionKeys;
     private final LoadingCache<String, ByteBuffer> unwrappedKeyCache;
 
-    private TransientEncryptionState(KeyManagementClient kmsClient) {
+    private TransientEncryptionState(KeyManagementClient kmsClient, List<EncryptedKey> keys) {
       this.kmsClient = kmsClient;
       this.encryptionKeys = Maps.newLinkedHashMap();
+
+      if (keys != null) {
+        for (EncryptedKey key : keys) {
+          encryptionKeys.put(
+              key.keyId(),
+              new BaseEncryptedKey(
+                  key.keyId(), key.encryptedKeyMetadata(), key.encryptedById(), key.properties()));
+        }
+      }
+
       this.unwrappedKeyCache =
           Caffeine.newBuilder()
               .expireAfterWrite(1, TimeUnit.HOURS)
@@ -64,12 +81,25 @@ public class StandardEncryptionManager implements EncryptionManager {
   private transient volatile SecureRandom lazyRNG = null;
 
   /**
+   * @deprecated will be removed in 2.0.
+   */
+  @Deprecated
+  public StandardEncryptionManager(
+      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+    this(List.of(), tableKeyId, dataKeyLength, kmsClient);
+  }
+
+  /**
+   * @param keys encryption keys from table metadata
    * @param tableKeyId table encryption key id
    * @param dataKeyLength length of data encryption key (16/24/32 bytes)
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
    */
   public StandardEncryptionManager(
-      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+      List<EncryptedKey> keys,
+      String tableKeyId,
+      int dataKeyLength,
+      KeyManagementClient kmsClient) {
     Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
     Preconditions.checkArgument(
         dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
@@ -77,8 +107,9 @@ public class StandardEncryptionManager implements EncryptionManager {
         dataKeyLength);
     Preconditions.checkNotNull(kmsClient, "Invalid KMS client: null");
     this.tableKeyId = tableKeyId;
-    this.transientState = new TransientEncryptionState(kmsClient);
+    this.transientState = new TransientEncryptionState(kmsClient, keys);
     this.dataKeyLength = dataKeyLength;
+    this.testTimeShift = 0;
   }
 
   @Override
@@ -134,22 +165,52 @@ public class StandardEncryptionManager implements EncryptionManager {
     return transientState.kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
   }
 
-  private String keyEncryptionKeyID() {
+  Map<String, EncryptedKey> encryptionKeys() {
+    if (transientState == null) {
+      throw new IllegalStateException("Cannot return the encryption keys after serialization");
+    }
+
+    return transientState.encryptionKeys;
+  }
+
+  String keyEncryptionKeyID() {
     if (transientState == null) {
       throw new IllegalStateException("Cannot return the current key after serialization");
     }
 
-    if (!transientState.encryptionKeys.containsKey(KEY_ENCRYPTION_KEY_ID)) {
-      ByteBuffer unwrapped = newKey();
-      ByteBuffer wrapped = transientState.kmsClient.wrapKey(unwrapped, tableKeyId);
-      EncryptedKey key = new BaseEncryptedKey(KEY_ENCRYPTION_KEY_ID, wrapped, tableKeyId, null);
-
-      // update internal tracking
-      transientState.unwrappedKeyCache.put(key.keyId(), unwrapped);
-      transientState.encryptionKeys.put(key.keyId(), key);
+    // Find unexpired key encryption key
+    for (String keyID : transientState.encryptionKeys.keySet()) {
+      EncryptedKey key = transientState.encryptionKeys.get(keyID);
+      if (key.encryptedById().equals(tableKeyId)) { // this is a key encryption key
+        String timestampProperty = key.properties().get(KEY_TIMESTAMP);
+        long keyTimestamp = Long.parseLong(timestampProperty);
+        if (currentTimeMillis() - keyTimestamp < KEY_ENCRYPTION_KEY_LIFESPAN_MS) {
+          return keyID;
+        }
+      }
     }
 
-    return KEY_ENCRYPTION_KEY_ID;
+    // No unexpired key encryption keys; create one
+    ByteBuffer unwrapped = newKey();
+    ByteBuffer wrapped = transientState.kmsClient.wrapKey(unwrapped, tableKeyId);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(KEY_TIMESTAMP, "" + currentTimeMillis());
+    EncryptedKey key = new BaseEncryptedKey(generateKeyId(), wrapped, tableKeyId, properties);
+
+    // update internal tracking
+    transientState.unwrappedKeyCache.put(key.keyId(), unwrapped);
+    transientState.encryptionKeys.put(key.keyId(), key);
+
+    return key.keyId();
+  }
+
+  // For key rotation tests
+  void setTestTimeShift(long shift) {
+    testTimeShift = shift;
+  }
+
+  private long currentTimeMillis() {
+    return System.currentTimeMillis() + testTimeShift;
   }
 
   ByteBuffer encryptedByKey(String manifestListKeyID) {
@@ -166,33 +227,22 @@ public class StandardEncryptionManager implements EncryptionManager {
     return transientState.unwrappedKeyCache.get(encryptedKeyMetadata.encryptedById());
   }
 
-  ByteBuffer encryptedKeyMetadata(String manifestListKeyID) {
-    if (transientState == null) {
-      throw new IllegalStateException("Cannot find encrypted key metadata after serialization");
-    }
-
-    EncryptedKey encryptedKeyMetadata = transientState.encryptionKeys.get(manifestListKeyID);
-    if (encryptedKeyMetadata == null) {
-      throw new IllegalStateException(
-          "Cannot find manifest list key metadata with id " + manifestListKeyID);
-    }
-
-    return encryptedKeyMetadata.encryptedKeyMetadata();
-  }
-
   public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
     if (transientState == null) {
       throw new IllegalStateException("Cannot add key metadata after serialization");
     }
 
     String manifestListKeyID = generateKeyId();
+    String keyEncryptionKeyID = keyEncryptionKeyID();
+    String keyEncryptionKeyTimestamp =
+        transientState.encryptionKeys.get(keyEncryptionKeyID).properties().get(KEY_TIMESTAMP);
     ByteBuffer encryptedKeyMetadata =
         EncryptionUtil.encryptManifestListKeyMetadata(
-            transientState.unwrappedKeyCache.get(keyEncryptionKeyID()),
-            manifestListKeyID,
+            transientState.unwrappedKeyCache.get(keyEncryptionKeyID),
+            keyEncryptionKeyTimestamp,
             keyMetadata);
     BaseEncryptedKey key =
-        new BaseEncryptedKey(manifestListKeyID, encryptedKeyMetadata, keyEncryptionKeyID(), null);
+        new BaseEncryptedKey(manifestListKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
 
     transientState.encryptionKeys.put(key.keyId(), key);
 

@@ -57,8 +57,8 @@ object SparkExpressionConverter {
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
     optimizedLogicalPlan.collectFirst {
       case filter: Filter => filter.condition
-      case dummyRelation: DummyRelation => Literal.TrueLiteral
-      case localRelation: LocalRelation => Literal.FalseLiteral
+      case _: DummyRelation => Literal.TrueLiteral
+      case _: LocalRelation => Literal.FalseLiteral
     }.getOrElse(throw new AnalysisException("Failed to find filter expression"))
   }
 

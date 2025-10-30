@@ -30,11 +30,11 @@ import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
-import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 @Internal
 class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordInternal> {

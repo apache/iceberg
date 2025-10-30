@@ -250,6 +250,12 @@ public class TestDataStatisticsOperator {
       testHarness2.setup();
       testHarness2.initializeState(snapshot);
 
+      // When we restore from the savepoint, we should ensure that `globalStatisticsState` has been
+      // completely cleaned up
+      Iterable<GlobalStatistics> globalStatisticsIterable =
+          restoredOperator.globalStatisticsState().get();
+      assertThat(globalStatisticsIterable).isEmpty();
+
       GlobalStatistics globalStatistics = restoredOperator.globalStatistics();
       // global statistics is always restored and used initially even if
       // downstream parallelism changed.

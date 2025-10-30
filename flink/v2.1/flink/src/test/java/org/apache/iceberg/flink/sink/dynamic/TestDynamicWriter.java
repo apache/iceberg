@@ -33,10 +33,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynFields;
+import org.apache.iceberg.data.BaseFileWriterFactory;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.io.BaseTaskWriter;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -201,6 +202,38 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
             "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
   }
 
+  @Test
+  void testUniqueFileSuffixOnFactoryRecreation() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table1 = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+
+    DynamicWriter dynamicWriter = createDynamicWriter(catalog);
+    DynamicRecordInternal record1 = getDynamicRecordInternal(table1);
+
+    dynamicWriter.write(record1, null);
+    dynamicWriter.prepareCommit();
+
+    File dataDir1 = new File(URI.create(table1.location()).getPath(), "data");
+    File[] files = dataDir1.listFiles((dir, name) -> !name.startsWith("."));
+    assertThat(files).isNotNull().hasSize(1);
+    File firstFile = files[0];
+
+    // Clear cache which must create new unique files names for the output files
+    dynamicWriter.getTaskWriterFactories().clear();
+
+    dynamicWriter.write(record1, null);
+    dynamicWriter.prepareCommit();
+
+    files =
+        dataDir1.listFiles(
+            (dir, name) -> !name.startsWith(".") && !name.equals(firstFile.getName()));
+    assertThat(files).isNotNull().hasSize(1);
+    File secondFile = files[0];
+
+    // File names must be different
+    assertThat(firstFile.getName()).isNotEqualTo(secondFile.getName());
+  }
+
   private static @Nonnull DynamicWriter createDynamicWriter(
       Catalog catalog, Map<String, String> properties) {
     DynamicWriter dynamicWriter =
@@ -241,14 +274,14 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     DynFields.BoundField<Map<WriteTarget, TaskWriter<RowData>>> writerField =
         DynFields.builder().hiddenImpl(dynamicWriter.getClass(), "writers").build(dynamicWriter);
 
-    DynFields.BoundField<FlinkAppenderFactory> appenderField =
+    DynFields.BoundField<FileWriterFactory> writerFactoryField =
         DynFields.builder()
-            .hiddenImpl(BaseTaskWriter.class, "appenderFactory")
+            .hiddenImpl(BaseTaskWriter.class, "writerFactory")
             .build(writerField.get().values().iterator().next());
     DynFields.BoundField<Map<String, String>> propsField =
         DynFields.builder()
-            .hiddenImpl(FlinkAppenderFactory.class, "props")
-            .build(appenderField.get());
+            .hiddenImpl(BaseFileWriterFactory.class, "writerProperties")
+            .build(writerFactoryField.get());
     return propsField.get();
   }
 }

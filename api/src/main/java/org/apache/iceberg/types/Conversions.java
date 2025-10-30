@@ -32,6 +32,9 @@ import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 
 public class Conversions {
 
@@ -117,6 +120,17 @@ public class Conversions {
         return (ByteBuffer) value;
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
+      case VARIANT:
+        // Produce a concatenated buffer of metadata and value
+        Variant variant = (Variant) value;
+        VariantMetadata variantMetadata = variant.metadata();
+        VariantValue variantValue = variant.value();
+        ByteBuffer variantBuffer =
+            ByteBuffer.allocate(variantMetadata.sizeInBytes() + variantValue.sizeInBytes())
+                .order(ByteOrder.LITTLE_ENDIAN);
+        variantMetadata.writeTo(variantBuffer, 0);
+        variantValue.writeTo(variantBuffer, variantMetadata.sizeInBytes());
+        return variantBuffer;
       default:
         throw new UnsupportedOperationException("Cannot serialize type: " + typeId);
     }
@@ -177,6 +191,8 @@ public class Conversions {
         byte[] unscaledBytes = new byte[buffer.remaining()];
         tmp.get(unscaledBytes);
         return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
+      case VARIANT:
+        return Variant.from(tmp);
       default:
         throw new UnsupportedOperationException("Cannot deserialize type: " + type);
     }

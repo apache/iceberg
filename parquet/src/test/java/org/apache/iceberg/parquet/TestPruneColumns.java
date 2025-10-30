@@ -21,12 +21,16 @@ package org.apache.iceberg.parquet;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types.DoubleType;
+import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.VariantType;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
@@ -269,5 +273,46 @@ public class TestPruneColumns {
 
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
     assertThat(actual).as("Pruned schema should be matched").isEqualTo(expected);
+  }
+
+  @Test
+  public void testVariant() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .addField(
+                Types.primitive(PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
+                    .id(1)
+                    .named("id"))
+            .addField(buildVariantType(2, "variant_1"))
+            .addField(buildVariantType(3, "variant_2"))
+            .named("table");
+
+    Schema projection =
+        new Schema(
+            ImmutableList.of(
+                NestedField.required(1, "id", IntegerType.get()),
+                NestedField.required(2, "variant_1", VariantType.get())));
+    MessageType expected =
+        Types.buildMessage()
+            .addField(
+                Types.primitive(PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
+                    .id(1)
+                    .named("id"))
+            .addField(buildVariantType(2, "variant_1"))
+            .named("table");
+
+    MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
+    assertThat(actual).as("Pruned schema should be matched").isEqualTo(expected);
+  }
+
+  private static Type buildVariantType(int id, String name) {
+    return Types.buildGroup(Type.Repetition.OPTIONAL)
+        .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
+        .addField(
+            Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED).named("metadata"))
+        .addField(
+            Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED).named("value"))
+        .id(id)
+        .named(name);
   }
 }
