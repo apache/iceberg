@@ -20,8 +20,8 @@ package org.apache.iceberg.expressions;
 
 import java.util.Comparator;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
 
@@ -40,9 +40,9 @@ public class MinAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
-    boolean hasBound = safeContainsKey(file.lowerBounds(), fieldId);
-    Long valueCount = safeGet(file.valueCounts(), fieldId);
-    Long nullCount = safeGet(file.nullValueCounts(), fieldId);
+    boolean hasBound = null != StatsUtil.lowerBound(file, fieldId);
+    Long valueCount = StatsUtil.valueCount(file, fieldId);
+    Long nullCount = StatsUtil.nullValueCount(file, fieldId);
     boolean boundAllNull =
         valueCount != null
             && valueCount > 0
@@ -53,7 +53,7 @@ public class MinAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected Object evaluateRef(DataFile file) {
-    return Conversions.fromByteBuffer(type, safeGet(file.lowerBounds(), fieldId));
+    return StatsUtil.lowerBound(file, type, fieldId);
   }
 
   @Override

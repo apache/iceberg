@@ -25,9 +25,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.BaseFieldStats;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
@@ -88,6 +91,59 @@ public class TestContentFileParser {
         ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), TestBase.SPEC));
     assertThat(deserializedContentFile).isInstanceOf(DeleteFile.class);
     assertContentFileEquals(deleteFile, deserializedContentFile, spec);
+  }
+
+  @ParameterizedTest
+  @MethodSource("provideContentStatsAndDataFile")
+  public void testDataFileContentStats(PartitionSpec spec, DataFile dataFile, String expectedJson)
+      throws Exception {
+    String jsonStr = ContentFileParser.toJson(dataFile, spec);
+    assertThat(jsonStr).isEqualTo(expectedJson);
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(TestBase.SPEC.specId(), spec));
+    assertThat(deserializedContentFile).isInstanceOf(DataFile.class);
+    assertContentFileEquals(dataFile, deserializedContentFile, spec);
+  }
+
+  private static Stream<Arguments> provideContentStatsAndDataFile() {
+    return Stream.of(
+        Arguments.of(
+            TestBase.SPEC,
+            dataFileWithContentStats(TestBase.SPEC, true, true, true, true, true),
+            dataFileJsonWithContentStats(true, true, true, true, true)),
+        Arguments.of(
+            TestBase.SPEC,
+            dataFileWithContentStats(TestBase.SPEC, false, true, true, true, true),
+            dataFileJsonWithContentStats(false, true, true, true, true)),
+        Arguments.of(
+            TestBase.SPEC,
+            dataFileWithContentStats(TestBase.SPEC, false, false, true, true, true),
+            dataFileJsonWithContentStats(false, false, true, true, true)),
+        Arguments.of(
+            TestBase.SPEC,
+            dataFileWithContentStats(TestBase.SPEC, false, false, false, true, true),
+            dataFileJsonWithContentStats(false, false, false, true, true)),
+        Arguments.of(
+            TestBase.SPEC,
+            dataFileWithContentStats(TestBase.SPEC, false, false, false, false, true),
+            dataFileJsonWithContentStats(false, false, false, false, true)),
+        Arguments.of(
+            TestBase.SPEC,
+            dataFileWithContentStats(TestBase.SPEC, false, false, false, false, false),
+            dataFileJsonWithContentStats(false, false, false, false, false)),
+        Arguments.of(
+            TestBase.SPEC,
+            dataFileWithContentStats(TestBase.SPEC, true, false, false, true, true),
+            dataFileJsonWithContentStats(true, false, false, true, true)),
+        Arguments.of(
+            TestBase.SPEC,
+            dataFileWithContentStats(TestBase.SPEC, true, false, true, false, true),
+            dataFileJsonWithContentStats(true, false, true, false, true)),
+        Arguments.of(
+            TestBase.SPEC,
+            dataFileWithContentStats(TestBase.SPEC, true, true, true, false, false),
+            dataFileJsonWithContentStats(true, true, true, false, false)));
   }
 
   private static Stream<Arguments> provideSpecAndDataFile() {
@@ -159,6 +215,140 @@ public class TestContentFileParser {
           + "\"key-metadata\":\"00000000000000000000000000000000\","
           + "\"split-offsets\":[128,256],\"sort-order-id\":1}";
     }
+  }
+
+  private static String dataFileJsonWithContentStats(
+      boolean hasValueCount,
+      boolean hasNullValueCount,
+      boolean hasNanValueCount,
+      boolean hasLowBound,
+      boolean hasUpperBound) {
+    StringBuilder sb = new StringBuilder();
+    sb.append(
+            "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\",")
+        .append("\"file-format\":\"PARQUET\",")
+        .append("\"partition\":{\"1000\":1},")
+        .append("\"file-size-in-bytes\":350,")
+        .append("\"record-count\":10,")
+        .append("\"key-metadata\":\"00000000000000000000000000000000\",")
+        .append("\"split-offsets\":[128,256],")
+        .append("\"sort-order-id\":1,")
+        .append("\"content-stats\":{");
+
+    // Use a loop to reduce repetition in serializing field stats
+    int[] fieldIds = {10200, 10400};
+    Object[][] fieldValues = {
+      // int field: field id, valueCount, nullValueCount, nanValueCount, lowerBound, upperBound
+      {90, 10, 0, 1000000, 5000000},
+      // string field: field id, valueCount, nullValueCount, nanValueCount, lowerBound, upperBound
+      {180, 20, 0, "02000000", "0A000000"}
+    };
+
+    for (int i = 0; i < fieldIds.length; i++) {
+      sb.append("\"").append(fieldIds[i]).append("\":{");
+      boolean first = true;
+
+      // value count
+      if (hasValueCount) {
+        sb.append("\"").append(fieldIds[i] + 2).append("\":").append(fieldValues[i][0]);
+        first = false;
+      }
+      // null value count
+      if (hasNullValueCount) {
+        if (!first) sb.append(",");
+        sb.append("\"").append(fieldIds[i] + 3).append("\":").append(fieldValues[i][1]);
+        first = false;
+      }
+      // nan value count
+      if (hasNanValueCount) {
+        if (!first) sb.append(",");
+        sb.append("\"").append(fieldIds[i] + 4).append("\":").append(fieldValues[i][2]);
+        first = false;
+      }
+      // lower bound
+      if (hasLowBound) {
+        if (!first) sb.append(",");
+        boolean isStringField = (i == 1);
+        sb.append("\"").append(fieldIds[i] + 5).append("\":");
+        if (isStringField) {
+          sb.append("\"").append(fieldValues[i][3]).append("\"");
+        } else {
+          sb.append(fieldValues[i][3]);
+        }
+        first = false;
+      }
+      // upper bound
+      if (hasUpperBound) {
+        if (!first) sb.append(",");
+        boolean isStringField = (i == 1);
+        sb.append("\"").append(fieldIds[i] + 6).append("\":");
+        if (isStringField) {
+          sb.append("\"").append(fieldValues[i][4]).append("\"");
+        } else {
+          sb.append(fieldValues[i][4]);
+        }
+      }
+      sb.append("}");
+      if (i < fieldIds.length - 1) {
+        sb.append(",");
+      }
+    }
+    sb.append("}}");
+    return sb.toString();
+  }
+
+  private static DataFile dataFileWithContentStats(
+      PartitionSpec spec,
+      boolean hasValueCount,
+      boolean hasNullValueCount,
+      boolean hasNanValueCount,
+      boolean hasLowBound,
+      boolean hasUpperBound) {
+
+    BaseFieldStats<Integer> intFieldStats =
+        BaseFieldStats.<Integer>builder()
+            .fieldId(1)
+            .type(Types.IntegerType.get())
+            .valueCount(hasValueCount ? 90L : null)
+            .nullValueCount(hasNullValueCount ? 10L : null)
+            .nanValueCount(hasNanValueCount ? 0L : null)
+            .lowerBound(hasLowBound ? 1000000 : null)
+            .upperBound(hasUpperBound ? 5000000 : null)
+            .build();
+
+    BaseFieldStats<String> stringFieldStats =
+        BaseFieldStats.<String>builder()
+            .fieldId(2)
+            .type(Types.StringType.get())
+            .valueCount(hasValueCount ? 180L : null)
+            .nullValueCount(hasNullValueCount ? 20L : null)
+            .nanValueCount(hasNanValueCount ? 0L : null)
+            .lowerBound(hasLowBound ? "02000000" : null)
+            .upperBound(hasUpperBound ? "0A000000" : null)
+            .build();
+
+    BaseContentStats contentStats =
+        BaseContentStats.builder().withFieldStats(List.of(intFieldStats, stringFieldStats)).build();
+
+    DataFiles.Builder builder =
+        DataFiles.builder(spec)
+            .withPath("/path/to/data-with-stats.parquet")
+            .withContentStats(contentStats)
+            .withRecordCount(10L)
+            .withFileSizeInBytes(350)
+            .withSplitOffsets(Arrays.asList(128L, 256L))
+            .withEncryptionKeyMetadata(ByteBuffer.wrap(new byte[16]))
+            .withSortOrder(
+                SortOrder.builderFor(TestBase.SCHEMA)
+                    .withOrderId(1)
+                    .sortBy("id", SortDirection.ASC, NullOrder.NULLS_FIRST)
+                    .build());
+
+    if (spec.isPartitioned()) {
+      // easy way to set partition data for now
+      builder.withPartitionPath("data_bucket=1");
+    }
+    return builder.build();
   }
 
   private static DataFile dataFileWithAllOptional(PartitionSpec spec) {
@@ -238,6 +428,7 @@ public class TestContentFileParser {
         null,
         null,
         null,
+        null,
         "/path/to/data/file.parquet",
         null,
         null);
@@ -260,6 +451,7 @@ public class TestContentFileParser {
         partitionData,
         1234,
         new Metrics(10L, null, null, null, null),
+        null,
         null,
         null,
         null,
@@ -290,6 +482,7 @@ public class TestContentFileParser {
         partitionData,
         1234,
         new Metrics(9L, null, null, null, null),
+        null,
         null,
         null,
         null,
@@ -332,6 +525,7 @@ public class TestContentFileParser {
         partitionData,
         1234,
         metrics,
+        null,
         new int[] {3},
         1,
         Collections.singletonList(128L),
@@ -399,5 +593,8 @@ public class TestContentFileParser {
     assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
     assertThat(actual.equalityFieldIds()).isEqualTo(expected.equalityFieldIds());
     assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
+    assertThat(actual.contentStats()).isEqualTo(expected.contentStats());
+    System.out.println("actual content stats: " + actual.contentStats());
+    System.out.println("expected content stats: " + expected.contentStats());
   }
 }

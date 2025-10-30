@@ -251,12 +251,13 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
         PartitionSpec spec, OutputFile file) {
-      Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
+      Schema manifestSchema = V4Metadata.entrySchema(spec);
       try {
+        Schema schema = spec.schema();
         return InternalData.write(FileFormat.AVRO, file)
             .schema(manifestSchema)
             .named("manifest_entry")
-            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("schema", SchemaParser.toJson(schema))
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "4")
@@ -286,12 +287,13 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     @Override
     protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
         PartitionSpec spec, OutputFile file) {
-      Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
+      Schema manifestSchema = V4Metadata.entrySchema(spec);
       try {
+        Schema schema = spec.schema();
         return InternalData.write(FileFormat.AVRO, file)
             .schema(manifestSchema)
             .named("manifest_entry")
-            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("schema", SchemaParser.toJson(schema))
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "4")
