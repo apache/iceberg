@@ -32,13 +32,9 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.PartitionStatisticsFile;
-import org.apache.iceberg.PartitionStats;
+import org.apache.iceberg.PartitionStatistics;
 import org.apache.iceberg.PartitionStatsHandler;
-import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -154,33 +150,36 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     insertData(10);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    PartitionStatisticsFile statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table);
-    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(table))
+        .commit();
 
-    Schema dataSchema = PartitionStatsHandler.schema(Partitioning.partitionType(table), 2);
-    List<PartitionStats> statsBeforeCompaction;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, Files.localInput(statisticsFile.path()))) {
+    List<PartitionStatistics> statsBeforeCompaction;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().scan()) {
       statsBeforeCompaction = Lists.newArrayList(recordIterator);
     }
 
     sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
 
     table.refresh();
-    statisticsFile =
-        PartitionStatsHandler.computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
-    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
-    List<PartitionStats> statsAfterCompaction;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, Files.localInput(statisticsFile.path()))) {
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(
+            PartitionStatsHandler.computeAndWriteStatsFile(
+                table, table.currentSnapshot().snapshotId()))
+        .commit();
+
+    List<PartitionStatistics> statsAfterCompaction;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().scan()) {
       statsAfterCompaction = Lists.newArrayList(recordIterator);
     }
 
     for (int index = 0; index < statsBeforeCompaction.size(); index++) {
-      PartitionStats statsAfter = statsAfterCompaction.get(index);
-      PartitionStats statsBefore = statsBeforeCompaction.get(index);
+      PartitionStatistics statsAfter = statsAfterCompaction.get(index);
+      PartitionStatistics statsBefore = statsBeforeCompaction.get(index);
 
       assertThat(statsAfter.partition()).isEqualTo(statsBefore.partition());
       // data count should match after compaction

@@ -99,13 +99,14 @@ public class PartitionStatsHandlerBenchmark {
   @Benchmark
   @Threads(1)
   public void benchmarkPartitionStats() throws IOException {
-    PartitionStatisticsFile statisticsFile = PartitionStatsHandler.computeAndWriteStatsFile(table);
+    table
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(table))
+        .commit();
 
-    List<PartitionStats> stats;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            PartitionStatsHandler.schema(Partitioning.partitionType(table), 2),
-            Files.localInput(statisticsFile.path()))) {
+    List<PartitionStatistics> stats;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().scan()) {
       stats = Lists.newArrayList(recordIterator);
     }
 
