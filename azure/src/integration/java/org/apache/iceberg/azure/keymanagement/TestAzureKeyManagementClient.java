@@ -63,12 +63,14 @@ public class TestAzureKeyManagementClient {
 
   @AfterAll
   public static void afterClass() {
-    keyClient.beginDeleteKey(ICEBERG_TEST_KEY_NAME).waitForCompletion(Duration.ofMinutes(5));
-    keyClient.purgeDeletedKey(ICEBERG_TEST_KEY_NAME);
+    if (keyClient != null) {
+      keyClient.beginDeleteKey(ICEBERG_TEST_KEY_NAME).waitForCompletion(Duration.ofMinutes(5));
+      keyClient.purgeDeletedKey(ICEBERG_TEST_KEY_NAME);
+    }
   }
 
   @Test
-  public void testKeyWrapping() {
+  public void keyWrapping() {
     ByteBuffer key = ByteBuffer.wrap("table-master-key".getBytes());
 
     ByteBuffer encryptedKey = azureKeyManagementClient.wrapKey(key, ICEBERG_TEST_KEY_NAME);
@@ -79,7 +81,7 @@ public class TestAzureKeyManagementClient {
   }
 
   @Test
-  public void testKeyGenerationNotSupported() {
+  public void keyGenerationNotSupported() {
     assertThat(azureKeyManagementClient.supportsKeyGeneration()).isFalse();
   }
 }
