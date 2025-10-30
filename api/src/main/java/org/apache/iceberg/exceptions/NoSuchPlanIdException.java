@@ -21,7 +21,7 @@ package org.apache.iceberg.exceptions;
 import com.google.errorprone.annotations.FormatMethod;
 
 /**
- * Exception thrown when attempting to fetch scan planning results for a plan ID that does not
+ * Exception raised when attempting to fetch scan planning results for a plan ID that does not
  * exist.
  */
 public class NoSuchPlanIdException extends RESTException {
