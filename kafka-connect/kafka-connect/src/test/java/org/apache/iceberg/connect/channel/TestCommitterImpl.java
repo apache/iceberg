@@ -47,7 +47,7 @@ public class TestCommitterImpl {
   private List<TopicPartition> nonLeaderAssignments;
 
   @BeforeEach
-  public void setUp() {
+  public void before() {
     committer = new CommitterImpl();
 
     MemberAssignment assignment1 =
