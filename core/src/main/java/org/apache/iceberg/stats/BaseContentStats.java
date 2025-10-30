@@ -165,9 +165,9 @@ public class BaseContentStats implements ContentStats, Serializable {
         builder.upperBound(type.typeId().javaClass().cast(upperBound));
       }
 
-      if (null != record.getField(FieldStatistic.IS_EXACT.fieldName())) {
-        Boolean isExact = (Boolean) record.getField(FieldStatistic.IS_EXACT.fieldName());
-        builder.isExact(null != isExact && isExact);
+      if (null != record.getField(FieldStatistic.EXACT_BOUNDS.fieldName())) {
+        Boolean exactBounds = (Boolean) record.getField(FieldStatistic.EXACT_BOUNDS.fieldName());
+        builder.hasExactBounds(null != exactBounds && exactBounds);
       }
 
       BaseFieldStats<?> newStat = builder.build();

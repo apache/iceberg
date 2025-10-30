@@ -19,7 +19,7 @@
 package org.apache.iceberg.stats;
 
 import static org.apache.iceberg.stats.FieldStatistic.AVG_VALUE_SIZE;
-import static org.apache.iceberg.stats.FieldStatistic.IS_EXACT;
+import static org.apache.iceberg.stats.FieldStatistic.EXACT_BOUNDS;
 import static org.apache.iceberg.stats.FieldStatistic.LOWER_BOUND;
 import static org.apache.iceberg.stats.FieldStatistic.MAX_VALUE_SIZE;
 import static org.apache.iceberg.stats.FieldStatistic.NAN_VALUE_COUNT;
@@ -258,7 +258,7 @@ public class TestContentStats {
             .maxValueSize(70)
             .lowerBound(5)
             .upperBound(20)
-            .isExact()
+            .hasExactBounds()
             .build();
 
     record.set(VALUE_COUNT.offset(), fieldStats.valueCount());
@@ -268,7 +268,7 @@ public class TestContentStats {
     record.set(MAX_VALUE_SIZE.offset(), fieldStats.maxValueSize());
     record.set(LOWER_BOUND.offset(), fieldStats.lowerBound());
     record.set(UPPER_BOUND.offset(), fieldStats.upperBound());
-    record.set(IS_EXACT.offset(), fieldStats.isExact());
+    record.set(EXACT_BOUNDS.offset(), fieldStats.hasExactBounds());
 
     // this is typically called by Avro reflection code
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);

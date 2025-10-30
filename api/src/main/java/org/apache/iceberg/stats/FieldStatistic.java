@@ -31,7 +31,7 @@ public enum FieldStatistic {
   MAX_VALUE_SIZE(4, "max_value_size"),
   LOWER_BOUND(5, "lower_bound"),
   UPPER_BOUND(6, "upper_bound"),
-  IS_EXACT(7, "is_exact");
+  EXACT_BOUNDS(7, "exact_bounds");
 
   private final int offset;
   private final String fieldName;
@@ -66,7 +66,7 @@ public enum FieldStatistic {
       case 6:
         return UPPER_BOUND;
       case 7:
-        return IS_EXACT;
+        return EXACT_BOUNDS;
       default:
         throw new IllegalArgumentException("Invalid statistic offset: " + offset);
     }
@@ -102,9 +102,9 @@ public enum FieldStatistic {
         optional(fieldId + LOWER_BOUND.offset(), LOWER_BOUND.fieldName(), type, "Lower bound"),
         optional(fieldId + UPPER_BOUND.offset(), UPPER_BOUND.fieldName(), type, "Upper bound"),
         optional(
-            fieldId + IS_EXACT.offset(),
-            IS_EXACT.fieldName(),
+            fieldId + EXACT_BOUNDS.offset(),
+            EXACT_BOUNDS.fieldName(),
             Types.BooleanType.get(),
-            "Whether the statistic is exact or not"));
+            "Whether the upper/lower bound is exact or not"));
   }
 }
