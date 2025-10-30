@@ -49,7 +49,7 @@ public class TestCommitterImpl {
   @BeforeEach
   public void setUp() {
     committer = new CommitterImpl();
-    
+
     MemberAssignment assignment1 =
         new MemberAssignment(
             ImmutableSet.of(new TopicPartition("topic1", 0), new TopicPartition("topic2", 1)));
@@ -63,7 +63,7 @@ public class TestCommitterImpl {
         new MemberDescription(null, Optional.empty(), null, null, assignment2);
 
     members = ImmutableList.of(member1, member2);
-    
+
     leaderAssignments =
         ImmutableList.of(new TopicPartition("topic2", 1), new TopicPartition("topic1", 0));
     nonLeaderAssignments =
@@ -78,29 +78,29 @@ public class TestCommitterImpl {
 
   @Test
   public void testHasLeaderPartition() throws NoSuchFieldException, IllegalAccessException {
-      Field configField = CommitterImpl.class.getDeclaredField("config");
-      Field clientFactoryField = CommitterImpl.class.getDeclaredField("clientFactory");
-      configField.setAccessible(true);
-      clientFactoryField.setAccessible(true);
+    Field configField = CommitterImpl.class.getDeclaredField("config");
+    Field clientFactoryField = CommitterImpl.class.getDeclaredField("clientFactory");
+    configField.setAccessible(true);
+    clientFactoryField.setAccessible(true);
 
-      IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-      when(config.connectGroupId()).thenReturn("test-group");
-      configField.set(committer, config);
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.connectGroupId()).thenReturn("test-group");
+    configField.set(committer, config);
 
-      KafkaClientFactory clientFactory = mock(KafkaClientFactory.class);
-      Admin admin = mock(Admin.class);
-      when(clientFactory.createAdmin()).thenReturn(admin);
-      clientFactoryField.set(committer, clientFactory);
+    KafkaClientFactory clientFactory = mock(KafkaClientFactory.class);
+    Admin admin = mock(Admin.class);
+    when(clientFactory.createAdmin()).thenReturn(admin);
+    clientFactoryField.set(committer, clientFactory);
 
-      MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class);
-      ConsumerGroupDescription consumerGroupDescription = mock(ConsumerGroupDescription.class);
-      mockKafkaUtils
-              .when(() -> KafkaUtils.consumerGroupDescription(any(), any()))
-              .thenReturn(consumerGroupDescription);
+    MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class);
+    ConsumerGroupDescription consumerGroupDescription = mock(ConsumerGroupDescription.class);
+    mockKafkaUtils
+        .when(() -> KafkaUtils.consumerGroupDescription(any(), any()))
+        .thenReturn(consumerGroupDescription);
 
-      when(consumerGroupDescription.members()).thenReturn(members);
+    when(consumerGroupDescription.members()).thenReturn(members);
 
-      assertThat(committer.hasLeaderPartition(leaderAssignments)).isTrue();
-      assertThat(committer.hasLeaderPartition(nonLeaderAssignments)).isFalse();
+    assertThat(committer.hasLeaderPartition(leaderAssignments)).isTrue();
+    assertThat(committer.hasLeaderPartition(nonLeaderAssignments)).isFalse();
   }
 }
