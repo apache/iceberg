@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -415,7 +416,8 @@ public class TestManifestWriterVersions {
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
             formatVersion > 1 ? SEQUENCE_NUMBER : 0,
-            FIRST_ROW_ID)) {
+            FIRST_ROW_ID,
+            Map.of())) {
       writer.add(manifest);
     }
 

@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -241,7 +242,8 @@ public class TestSnapshotJson {
             snapshotId,
             parentSnapshotId,
             0,
-            0L)) {
+            0L,
+            Map.of())) {
       writer.addAll(manifests);
     }
 

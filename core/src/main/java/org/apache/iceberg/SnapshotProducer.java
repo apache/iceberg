@@ -270,7 +270,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             snapshotId(),
             parentSnapshotId,
             sequenceNumber,
-            base.nextRowId());
+            base.nextRowId(),
+            ops.current().properties());
 
     try (writer) {
       // keep track of the manifest lists created
