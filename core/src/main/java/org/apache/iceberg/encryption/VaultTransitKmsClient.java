@@ -35,17 +35,26 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
  * KMS client implementation using HashiCorp Vault Transit secrets engine with AppRole
  * authentication.
  *
- * <p>Required properties: - vault.addr: Vault server address (e.g., https://vault.example.com:8200)
- * - vault.transit.mount: Transit secrets engine mount path (default:transit) - vault.approle.path:
- * AppRole authentication path (default: approle)
+ * <p>Required properties:
+ * <ul>
+ *   <li>vault.addr: Vault server address (e.g., https://vault.example.com:8200)</li>
+ *   <li>vault.transit.mount: Transit secrets engine mount path (default: transit)</li>
+ *   <li>vault.approle.path: AppRole authentication path (default: approle)</li>
+ * </ul>
  *
- * <p>Required environment variables: - VAULT_ROLE_ID: AppRole role ID - VAULT_SECRET_ID: AppRole
- * secret ID
+ * <p>Required environment variables:
+ * <ul>
+ *   <li>VAULT_ROLE_ID: AppRole role ID</li>
+ *   <li>VAULT_SECRET_ID: AppRole secret ID</li>
+ * </ul>
  *
- * <p>Optional environment variables: - VAULT_ENABLE_TOKEN_ROTATION: Enable automatic token rotation
- * (true/false, default: false) - VAULT_SSL_CERT: Used to verify connection to vault instance. When
- * enabled, tokens are proactively refreshed 5 minutes before expiry. When disabled, the Vault
- * library handles token expiry automatically on-demand.
+ * <p>Optional environment variables:
+ * <ul>
+ *   <li>VAULT_ENABLE_TOKEN_ROTATION: Enable automatic token rotation (true/false, default: false)</li>
+ *   <li>VAULT_SSL_CERT: Used to verify connection to vault instance. When enabled, tokens are
+ *       proactively refreshed 5 minutes before expiry. When disabled, the Vault library handles
+ *       token expiry automatically on-demand.</li>
+ * </ul>
  */
 public class VaultTransitKmsClient implements KeyManagementClient {
 
