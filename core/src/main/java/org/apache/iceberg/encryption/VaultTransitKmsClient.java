@@ -36,24 +36,27 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
  * authentication.
  *
  * <p>Required properties:
+ *
  * <ul>
- *   <li>vault.addr: Vault server address (e.g., https://vault.example.com:8200)</li>
- *   <li>vault.transit.mount: Transit secrets engine mount path (default: transit)</li>
- *   <li>vault.approle.path: AppRole authentication path (default: approle)</li>
+ *   <li>vault.addr: Vault server address (e.g., https://vault.example.com:8200)
+ *   <li>vault.transit.mount: Transit secrets engine mount path (default: transit)
+ *   <li>vault.approle.path: AppRole authentication path (default: approle)
  * </ul>
  *
  * <p>Required environment variables:
+ *
  * <ul>
- *   <li>VAULT_ROLE_ID: AppRole role ID</li>
- *   <li>VAULT_SECRET_ID: AppRole secret ID</li>
+ *   <li>VAULT_ROLE_ID: AppRole role ID
+ *   <li>VAULT_SECRET_ID: AppRole secret ID
  * </ul>
  *
  * <p>Optional environment variables:
+ *
  * <ul>
- *   <li>VAULT_ENABLE_TOKEN_ROTATION: Enable automatic token rotation (true/false, default: false)</li>
+ *   <li>VAULT_ENABLE_TOKEN_ROTATION: Enable automatic token rotation (true/false, default: false)
  *   <li>VAULT_SSL_CERT: Used to verify connection to vault instance. When enabled, tokens are
  *       proactively refreshed 5 minutes before expiry. When disabled, the Vault library handles
- *       token expiry automatically on-demand.</li>
+ *       token expiry automatically on-demand.
  * </ul>
  */
 public class VaultTransitKmsClient implements KeyManagementClient {
