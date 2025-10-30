@@ -24,9 +24,13 @@ import static org.apache.iceberg.gcp.bigquery.ImpersonatedBigQueryClientFactory.
 import static org.apache.iceberg.gcp.bigquery.ImpersonatedBigQueryClientFactory.IMPERSONATE_LIFETIME_SECONDS;
 import static org.apache.iceberg.gcp.bigquery.ImpersonatedBigQueryClientFactory.IMPERSONATE_SCOPES;
 import static org.apache.iceberg.gcp.bigquery.ImpersonatedBigQueryClientFactory.IMPERSONATE_SERVICE_ACCOUNT;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -103,5 +107,29 @@ public class TestImpersonatedBigQueryClientFactory {
             IMPERSONATE_DELEGATES,
             "test-delegate-sa1@test-project.iam.gserviceaccount.com, test-delegate-sa2@test-project.iam.gserviceaccount.com");
     assertThatCode(() -> factory.initialize(properties)).doesNotThrowAnyException();
+  }
+
+  @Test
+  public void testExpandScopesMixedFormats() {
+    ImpersonatedBigQueryClientFactory factory = new ImpersonatedBigQueryClientFactory();
+    List<String> expanded =
+        factory.expandScopes(
+            Arrays.asList(
+                "bigquery",
+                "http://www.googleapis.com/auth/devstorage.read_write",
+                "https://www.googleapis.com/auth/cloud-platform"));
+    assertThat(expanded)
+        .containsExactly(
+            "https://www.googleapis.com/auth/bigquery",
+            "https://www.googleapis.com/auth/devstorage.read_write",
+            "https://www.googleapis.com/auth/cloud-platform");
+  }
+
+  @Test
+  public void testExpandScopesEdgeCases() {
+    ImpersonatedBigQueryClientFactory factory = new ImpersonatedBigQueryClientFactory();
+
+    assertThat(factory.expandScopes(null)).isNull();
+    assertThat(factory.expandScopes(Collections.emptyList())).isEmpty();
   }
 }

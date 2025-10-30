@@ -110,7 +110,9 @@ public class ImpersonatedBigQueryClientFactory implements BigQueryClientFactory 
             properties.getOrDefault(
                 IMPERSONATE_LIFETIME_SECONDS, String.valueOf(DEFAULT_LIFETIME_SECONDS)));
 
-    this.scopes = parseCommaSeparatedList(properties.get(IMPERSONATE_SCOPES), DEFAULT_SCOPES);
+    List<String> rawScopes =
+        parseCommaSeparatedList(properties.get(IMPERSONATE_SCOPES), DEFAULT_SCOPES);
+    this.scopes = expandScopes(rawScopes);
     this.delegates = parseCommaSeparatedList(properties.get(IMPERSONATE_DELEGATES), null);
 
     LOG.info(
@@ -135,6 +137,33 @@ public class ImpersonatedBigQueryClientFactory implements BigQueryClientFactory 
         .map(String::trim)
         .filter(str -> !str.isEmpty())
         .distinct()
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Expands scope strings to full Google OAuth2 URLs. Handles short names (bigquery), http URLs
+   * (converts to https), and full https URLs (pass-through).
+   *
+   * @param inputScopes List of scope strings to expand
+   * @return List of full OAuth2 scope URLs
+   */
+  @VisibleForTesting
+  List<String> expandScopes(List<String> inputScopes) {
+    if (inputScopes == null || inputScopes.isEmpty()) {
+      return inputScopes;
+    }
+    return inputScopes.stream()
+        .map(
+            inputScope -> {
+              if (inputScope.startsWith("https://")) {
+                return inputScope;
+              }
+              if (inputScope.startsWith("http://")) {
+                return inputScope.replace("http://", "https://");
+              }
+
+              return "https://www.googleapis.com/auth/" + inputScope;
+            })
         .collect(Collectors.toList());
   }
 
