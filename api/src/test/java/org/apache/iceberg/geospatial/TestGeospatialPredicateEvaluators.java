@@ -220,6 +220,22 @@ public class TestGeospatialPredicateEvaluators {
     assertThatThrownBy(() -> evaluator.intersects(box2, box2))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageMatching("Invalid Y range: .* ymin cannot be greater than ymax");
+
+    // Invalid Z range
+    GeospatialBound min3 = GeospatialBound.createXYZ(0.0, 0.0, 10.0);
+    GeospatialBound max3 = GeospatialBound.createXYZ(10.0, 10.0, 9.0);
+    BoundingBox box3 = new BoundingBox(min3, max3);
+    assertThatThrownBy(() -> evaluator.intersects(box3, box3))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Invalid Z range: .* zmin cannot be greater than zmax");
+
+    // Invalid M range
+    GeospatialBound min4 = GeospatialBound.createXYZM(0.0, 0.0, 0, 10.0);
+    GeospatialBound max4 = GeospatialBound.createXYZM(10.0, 10.0, 0, 9.0);
+    BoundingBox box4 = new BoundingBox(min4, max4);
+    assertThatThrownBy(() -> evaluator.intersects(box4, box4))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Invalid M range: .* mmin cannot be greater than mmax");
   }
 
   @Test
@@ -369,6 +385,29 @@ public class TestGeospatialPredicateEvaluators {
     assertThatThrownBy(() -> evaluator.intersects(validBox, box2))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageMatching("Invalid longitude: .* Out of range: \\[-180°, 180°\\]");
+  }
+
+  @Test
+  public void testInvalidGeographyZMRanges() {
+    Type geographyType = Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL);
+    GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
+        GeospatialPredicateEvaluators.create(geographyType);
+
+    // Invalid Z range
+    GeospatialBound min1 = GeospatialBound.createXYZ(0.0, 0.0, 10.0);
+    GeospatialBound max1 = GeospatialBound.createXYZ(10.0, 10.0, 9.0);
+    BoundingBox box1 = new BoundingBox(min1, max1);
+    assertThatThrownBy(() -> evaluator.intersects(box1, box1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Invalid Z range: .* zmin cannot be greater than zmax");
+
+    // Invalid M range
+    GeospatialBound min2 = GeospatialBound.createXYZM(0.0, 0.0, 0, 10.0);
+    GeospatialBound max2 = GeospatialBound.createXYZM(10.0, 10.0, 0, 9.0);
+    BoundingBox box2 = new BoundingBox(min2, max2);
+    assertThatThrownBy(() -> evaluator.intersects(box2, box2))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Invalid M range: .* mmin cannot be greater than mmax");
   }
 
   @Test

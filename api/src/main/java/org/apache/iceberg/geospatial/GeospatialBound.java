@@ -146,7 +146,7 @@ public class GeospatialBound {
    * @throws IllegalArgumentException if the byte array has an invalid length
    */
   public static GeospatialBound fromByteArray(byte[] bytes) {
-    return fromByteBuffer(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN));
+    return fromByteBuffer(ByteBuffer.wrap(bytes));
   }
 
   /**
