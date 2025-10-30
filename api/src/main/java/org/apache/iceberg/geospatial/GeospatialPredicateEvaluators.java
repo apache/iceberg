@@ -89,6 +89,7 @@ public class GeospatialPredicateEvaluators {
           bbox.min().y() <= bbox.max().y(),
           "Invalid Y range: %s. ymin cannot be greater than ymax",
           bbox);
+      validateZMRange(bbox);
     }
   }
 
@@ -152,6 +153,7 @@ public class GeospatialPredicateEvaluators {
           bbox.min().y() <= bbox.max().y(),
           "Invalid latitude range: %s. ymin cannot be greater than ymax",
           bbox);
+      validateZMRange(bbox);
     }
 
     /**
@@ -206,6 +208,21 @@ public class GeospatialPredicateEvaluators {
     }
 
     return true;
+  }
+
+  private static void validateZMRange(BoundingBox bbox) {
+    if (bbox.min().hasZ() && bbox.max().hasZ()) {
+      Preconditions.checkArgument(
+          bbox.min().z() <= bbox.max().z(),
+          "Invalid Z range: %s. zmin cannot be greater than zmax",
+          bbox);
+    }
+    if (bbox.min().hasM() && bbox.max().hasM()) {
+      Preconditions.checkArgument(
+          bbox.min().m() <= bbox.max().m(),
+          "Invalid M range: %s. mmin cannot be greater than mmax",
+          bbox);
+    }
   }
 
   /**
