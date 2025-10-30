@@ -77,9 +77,7 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testVariantColumnProjection_singleVariant(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
-        TABLE, String.valueOf(vectorized));
+    setVectorization(vectorized);
     Dataset<Row> df = spark.table(TABLE).select("id", "v1").orderBy("id");
     assertThat(df.schema().fieldNames()).containsExactly("id", "v1");
     assertThat(df.count()).isEqualTo(2);
@@ -109,9 +107,7 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testVariantColumnProjectionNoVariant(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
-        TABLE, String.valueOf(vectorized));
+    setVectorization(vectorized);
     Dataset<Row> df = spark.table(TABLE).select("id");
     assertThat(df.schema().fieldNames()).containsExactly("id");
     assertThat(df.count()).isEqualTo(2);
@@ -122,9 +118,7 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testFilterOnVariantColumnOnWholeValue(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
-        TABLE, String.valueOf(vectorized));
+    setVectorization(vectorized);
     sql("INSERT INTO %s SELECT 3, NULL, NULL", TABLE);
 
     Dataset<Row> nullDf = spark.table(TABLE).where("v1 IS NULL").select("id");
@@ -154,9 +148,7 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testVariantNullValueProjection(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    sql(
-        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
-        TABLE, String.valueOf(vectorized));
+    setVectorization(vectorized);
 
     // insert a row with NULL variant values
     sql("INSERT INTO %s SELECT 10, NULL, NULL", TABLE);
@@ -174,7 +166,7 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testNestedStructVariant(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    spark.conf().set("spark.sql.parquet.enableVectorizedReader", String.valueOf(vectorized));
+    setVectorization(vectorized);
 
     String structTable = CATALOG + ".default.var_struct";
     sql("DROP TABLE IF EXISTS %s", structTable);
@@ -203,7 +195,7 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testNestedArrayVariant(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    spark.conf().set("spark.sql.parquet.enableVectorizedReader", String.valueOf(vectorized));
+    setVectorization(vectorized);
 
     String arrayTable = CATALOG + ".default.var_array";
     sql("DROP TABLE IF EXISTS %s", arrayTable);
@@ -239,7 +231,7 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testNestedMapVariant(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    spark.conf().set("spark.sql.parquet.enableVectorizedReader", String.valueOf(vectorized));
+    setVectorization(vectorized);
 
     String mapTable = CATALOG + ".default.var_map";
     sql("DROP TABLE IF EXISTS %s", mapTable);
@@ -276,5 +268,11 @@ public class TestSparkVariantRead extends TestBase {
     assertThat(rows.get(1).getString(2)).isEqualTo("{\"y\":20}");
 
     sql("DROP TABLE IF EXISTS %s", mapTable);
+  }
+
+  private void setVectorization(boolean on) {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
+        TABLE, Boolean.toString(on));
   }
 }
