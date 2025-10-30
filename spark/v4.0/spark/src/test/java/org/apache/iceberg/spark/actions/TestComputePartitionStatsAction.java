@@ -23,9 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionStatistics;
 import org.apache.iceberg.PartitionStatisticsFile;
-import org.apache.iceberg.PartitionStats;
 import org.apache.iceberg.PartitionStatsHandler;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
@@ -122,7 +121,8 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
     Types.StructType partitionType = Partitioning.partitionType(table);
     Schema dataSchema = PartitionStatsHandler.schema(partitionType, 2);
     validatePartitionStats(
-        statisticsFile,
+        table,
+        table.currentSnapshot().snapshotId(),
         dataSchema,
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "A"),
@@ -212,7 +212,8 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
     Schema dataSchema = PartitionStatsHandler.schema(partitionType, 2);
     // should contain stats for only partitions of snapshot1 (no entry for partition bar, A)
     validatePartitionStats(
-        statisticsFile,
+        table,
+        snapshot1.snapshotId(),
         dataSchema,
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "A"),
@@ -273,30 +274,29 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
   }
 
   private void validatePartitionStats(
-      PartitionStatisticsFile result, Schema recordSchema, Tuple... expectedValues)
+      Table table, long snapshotId, Schema recordSchema, Tuple... expectedValues)
       throws IOException {
     // read the partition entries from the stats file
-    List<PartitionStats> partitionStats;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            recordSchema, Files.localInput(result.path()))) {
+    List<PartitionStatistics> partitionStats;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        table.newPartitionStatisticsScan().useSnapshot(snapshotId).scan()) {
       partitionStats = Lists.newArrayList(recordIterator);
     }
 
     assertThat(partitionStats)
         .extracting(
-            PartitionStats::partition,
-            PartitionStats::specId,
-            PartitionStats::dataRecordCount,
-            PartitionStats::dataFileCount,
-            PartitionStats::totalDataFileSizeInBytes,
-            PartitionStats::positionDeleteRecordCount,
-            PartitionStats::positionDeleteFileCount,
-            PartitionStats::equalityDeleteRecordCount,
-            PartitionStats::equalityDeleteFileCount,
-            PartitionStats::totalRecords,
-            PartitionStats::lastUpdatedAt,
-            PartitionStats::lastUpdatedSnapshotId)
+            PartitionStatistics::partition,
+            PartitionStatistics::specId,
+            PartitionStatistics::dataRecordCount,
+            PartitionStatistics::dataFileCount,
+            PartitionStatistics::totalDataFileSizeInBytes,
+            PartitionStatistics::positionDeleteRecordCount,
+            PartitionStatistics::positionDeleteFileCount,
+            PartitionStatistics::equalityDeleteRecordCount,
+            PartitionStatistics::equalityDeleteFileCount,
+            PartitionStatistics::totalRecords,
+            PartitionStatistics::lastUpdatedAt,
+            PartitionStatistics::lastUpdatedSnapshotId)
         .containsExactlyInAnyOrder(expectedValues);
   }
 
