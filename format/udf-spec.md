@@ -107,20 +107,20 @@ Notes:
 Each definition can evolve over time by introducing new versions.  
 A `definition version` represents a specific implementation of that definition at a given point in time.
 
-| Requirement | Field name        | Type                                                                          | Description                                                                             |
-|-------------|-------------------|-------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| *required*  | `version-id`      | `int`                                                                         | Monotonically increasing identifier of the definition version.                          |
-| *required*  | `representations` | `list<representation>`                                                        | [Dialect-specific implementations](#representation).                                    |
-| *optional*  | `deterministic`   | `boolean` (default `false`)                                                   | Whether the function is deterministic.                                                  |
-| *optional*  | `null-handling`   | `string` (`"returns_null"` or `"called_on_null"`, default `"called_on_null"`) | Hint describing how the function behaves with NULL input values.                        |
-| *required*  | `timestamp-ms`    | `long` (epoch millis)                                                         | Creation timestamp of this version.                                                     |
+| Requirement | Field name        | Type                                                                                                    | Description                                                    |
+|-------------|-------------------|---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
+| *required*  | `version-id`      | `int`                                                                                                   | Monotonically increasing identifier of the definition version. |
+| *required*  | `representations` | `list<representation>`                                                                                  | [Dialect-specific implementations](#representation).           |
+| *optional*  | `deterministic`   | `boolean` (default `false`)                                                                             | Whether the function is deterministic.                         |
+| *optional*  | `on-null-input`   | `string` (`"returns_null_on_null_input"` or `"called_on_null_input"`, default `"called_on_null_input"`) | Defines how the UDF behaves when any input parameter is NULL.  |
+| *required*  | `timestamp-ms`    | `long` (epoch millis)                                                                                   | Creation timestamp of this version.                            |
 
 Note:
 
-`null-handling` provides an optimization hint for query engines, its value can be either `"returns_null"` or `"called_on_null"`:
-1. If set to `returns_null`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
+`on-null-input` provides an optimization hint for query engines, its value can be either `"returns_null_on_null_input"` or `"called_on_null_input"`:
+1. If set to `returns_null_on_null_input`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
 the engine can safely rewrite `WHERE f(a,b) > 0` as `WHERE a IS NOT NULL AND b IS NOT NULL AND f(a,b) > 0`.
-2. If set to `called_on_null`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must execute the function even if some inputs are `NULL`.
+2. If set to `called_on_null_input`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must execute the function even if some inputs are `NULL`.
 
 ### Representation
 A representation encodes how the definition version is expressed in a specific SQL dialect.
