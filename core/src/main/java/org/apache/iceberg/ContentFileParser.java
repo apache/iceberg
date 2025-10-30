@@ -121,8 +121,9 @@ public class ContentFileParser {
     if (contentFile.contentStats() != null) {
       generator.writeFieldName(CONTENT_STATS);
       SingleValueParser.toJson(
-        DataFile.getType(spec).field(DataFile.CONTENT_STATS.fieldId()).type(), contentFile.contentStats(), generator
-      );
+          DataFile.getType(spec).field(DataFile.CONTENT_STATS.fieldId()).type(),
+          contentFile.contentStats(),
+          generator);
     }
 
     if (contentFile instanceof DeleteFile) {
@@ -323,9 +324,9 @@ public class ContentFileParser {
     JsonNode contentStatsNode = jsonNode.get(CONTENT_STATS);
     // Get the content-stats type.
     Types.StructType contentStatsType =
-      (Types.StructType) DataFile.getType(spec).field(DataFile.CONTENT_STATS.fieldId()).type();
+        (Types.StructType) DataFile.getType(spec).field(DataFile.CONTENT_STATS.fieldId()).type();
     StructLike structLike =
-      (StructLike) SingleValueParser.fromJson(contentStatsType, contentStatsNode);
+        (StructLike) SingleValueParser.fromJson(contentStatsType, contentStatsNode);
     // Create BaseContentStats with the projection type
     BaseContentStats contentStats = new BaseContentStats(contentStatsType);
     // Populate the stats by copying from structLike
