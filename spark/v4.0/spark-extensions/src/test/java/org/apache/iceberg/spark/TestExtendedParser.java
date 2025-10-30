@@ -31,23 +31,15 @@ import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.expressions.Term;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.FunctionIdentifier;
-import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.parser.AbstractSqlParser;
 import org.apache.spark.sql.catalyst.parser.AstBuilder;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser;
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import scala.collection.immutable.Seq;
 
 public class TestExtendedParser {
 
