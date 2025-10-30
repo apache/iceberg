@@ -64,7 +64,7 @@ Issues are tracked in GitHub:
 
 Looking to contribute to Apache Iceberg? See [Contributing](contribute.md) for more details on how to get started.
 
-## Connect with Community Events 
+## Connect with Community Events
 
 The Apache Iceberg community regularly meets for technical discussion both in-person and virtually.
 
@@ -80,9 +80,9 @@ The community maintains two calendar feeds:
 Meetups related to the Apache Iceberg project are held around the globe thanks to community volunteers. Interested individuals are encouraged to host community meetups using the name **Apache Iceberg Meetup <geographical location\>** in
 compliance with [Apache Software Foundation's branding and trademarks guidelines](https://www.apache.org/foundation/marks/events.html#approval). No explicit PMC approval is required.
 
-Hosts are required to ensure that: 
+Hosts are required to ensure that:
 
-1. The Apache Iceberg ecosystem should be championed in every meetup and technical session 
+1. The Apache Iceberg ecosystem should be championed in every meetup and technical session
 2. All talks should be vendor-neutral and not sales pitches
 3. Each meetup should have at least two talks with speakers representing different companies/organizations
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
@@ -92,32 +92,32 @@ Hosts are required to ensure that:
 
 ### Apache Iceberg Community Guidelines
 
-The Apache Iceberg community is built on the principles described in the [Apache Way](https://www.apache.org/theapacheway/index.html) 
-and all who engage with the community are expected to be respectful, open, come with the best interests of the community in mind, 
+The Apache Iceberg community is built on the principles described in the [Apache Way](https://www.apache.org/theapacheway/index.html)
+and all who engage with the community are expected to be respectful, open, come with the best interests of the community in mind,
 and abide by the Apache Software Foundation [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
 
 More information specific to the Apache Iceberg community is in the next section, [the Path from Contributor to Committer](#the-path-from-contributor-to-committer).
 
 ### Participants with Corporate Interests
 
-A wide range of corporate entities have interests that overlap in both features and frameworks related to Iceberg and while we 
+A wide range of corporate entities have interests that overlap in both features and frameworks related to Iceberg and while we
 encourage engagement and contributions, the community is not a venue for marketing, solicitation, or recruitment.
 
-Any vendor who wants to participate in the Apache Iceberg community Slack workspace should create a dedicated vendor channel 
+Any vendor who wants to participate in the Apache Iceberg community Slack workspace should create a dedicated vendor channel
 for their organization prefixed by `vendor-`.  
 
-This space can be used to discuss features and integration with Iceberg related to the vendor offering.  This space should not 
-be used to promote competing vendor products/services or disparage other vendor offerings.  Discussion should be focused on 
+This space can be used to discuss features and integration with Iceberg related to the vendor offering.  This space should not
+be used to promote competing vendor products/services or disparage other vendor offerings.  Discussion should be focused on
 questions asked by the community and not to expand/introduce/redirect users to alternate offerings.
 
 ### Marketing / Solicitation / Recruiting
 
-The Apache Iceberg community is a space for everyone to operate free of influence.  The development lists, slack workspace, 
-and github should not be used to market products or services.  Solicitation or overt promotion should not be performed in common 
+The Apache Iceberg community is a space for everyone to operate free of influence.  The development lists, slack workspace,
+and github should not be used to market products or services.  Solicitation or overt promotion should not be performed in common
 channels or through direct messages.
 
-Recruitment of community members should not be conducted through direct messages or community channels, but opportunities 
-related to contributing to or using Iceberg can be posted to the `#jobs` channel. 
+Recruitment of community members should not be conducted through direct messages or community channels, but opportunities
+related to contributing to or using Iceberg can be posted to the `#jobs` channel.
 
 For questions regarding any of the guidelines above, please contact a PMC member.
 

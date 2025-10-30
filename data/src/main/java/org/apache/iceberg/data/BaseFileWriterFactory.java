@@ -150,8 +150,9 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
   public DataWriter<T> newDataWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
-    Map<String, String> properties = table.properties();
-    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
+    Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
+    MetricsConfig metricsConfig =
+        table == null ? MetricsConfig.getDefault() : MetricsConfig.forTable(table);
 
     try {
       switch (dataFileFormat) {
@@ -219,8 +220,9 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
   public EqualityDeleteWriter<T> newEqualityDeleteWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
-    Map<String, String> properties = table.properties();
-    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
+    Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
+    MetricsConfig metricsConfig =
+        table == null ? MetricsConfig.getDefault() : MetricsConfig.forTable(table);
 
     try {
       switch (deleteFileFormat) {
@@ -291,8 +293,9 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T>, 
   public PositionDeleteWriter<T> newPositionDeleteWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
-    Map<String, String> properties = table.properties();
-    MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
+    Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
+    MetricsConfig metricsConfig =
+        table == null ? MetricsConfig.forPositionDelete() : MetricsConfig.forPositionDelete(table);
 
     try {
       switch (deleteFileFormat) {

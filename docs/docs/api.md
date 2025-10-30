@@ -43,7 +43,6 @@ Tables also provide `refresh` to update the table to the latest version, and exp
 * `io` returns the `FileIO` used to read and write table files
 * `locationProvider` returns a `LocationProvider` used to create paths for data and metadata files
 
-
 ### Scanning
 
 #### File level
@@ -189,7 +188,6 @@ MapType map = MapType.ofOptional(
 ListType list = ListType.ofRequired(1, IntegerType.get());
 ```
 
-
 ## Expressions
 
 Iceberg's expressions are used to configure table scans. To create expressions, use the factory methods in [`Expressions`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/expressions/Expressions.html).
@@ -236,7 +234,6 @@ table.newScan()
     .filter(Expressions.lessThan("x", 10))
 ```
 
-
 ## Modules
 
 Iceberg table support is organized in library modules:
@@ -258,4 +255,3 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 * `iceberg-nessie` is a module used to integrate Iceberg table metadata history and operations with [Project Nessie](https://projectnessie.org/)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
 * `iceberg-runtime` generates a shaded runtime jar for Spark to integrate with iceberg tables
-

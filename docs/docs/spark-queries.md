@@ -50,10 +50,9 @@ The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or 
 
 !!! info
     Note: If the name of a branch or tag is the same as a snapshot ID, then the snapshot which is selected for time travel is the snapshot
-    with the given snapshot ID. For example, consider the case where there is a tag named '1' and it references snapshot with ID 2. 
-    If the version travel clause is `VERSION AS OF '1'`, time travel will be done to the snapshot with ID 1. 
+    with the given snapshot ID. For example, consider the case where there is a tag named '1' and it references snapshot with ID 2.
+    If the version travel clause is `VERSION AS OF '1'`, time travel will be done to the snapshot with ID 1.
     If this is not desired, rename the tag or branch with a well-defined prefix such as 'snapshot-1'.
-
 
 ```sql
 -- time travel to October 26, 1986 at 01:21:00
@@ -97,7 +96,6 @@ SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 
 Note that the identifier with branch or tag may not be used in combination with `VERSION AS OF`.
 
-
 #### Schema selection in time travel queries
 
 The different time travel queries mentioned in the previous section can use either the snapshot's schema or the table's schema:
@@ -118,7 +116,6 @@ SELECT * FROM prod.db.table VERSION AS OF 'historical-snapshot';
 SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 ```
 
-
 ## Querying with DataFrames
 
 To load a table as a DataFrame, use `table`:
@@ -133,15 +130,14 @@ Paths and table names can be loaded with Spark's `DataFrameReader` interface. Ho
 the identifier is specified. When using `spark.read.format("iceberg").load(table)` or `spark.table(table)` the `table`
 variable can take a number of forms as listed below:
 
-*  `file:///path/to/table`: loads a HadoopTable at given path
-*  `tablename`: loads `currentCatalog.currentNamespace.tablename`
-*  `catalog.tablename`: loads `tablename` from the specified catalog.
-*  `namespace.tablename`: loads `namespace.tablename` from current catalog
-*  `catalog.namespace.tablename`: loads `namespace.tablename` from the specified catalog.
-*  `namespace1.namespace2.tablename`: loads `namespace1.namespace2.tablename` from current catalog
+* `file:///path/to/table`: loads a HadoopTable at given path
+* `tablename`: loads `currentCatalog.currentNamespace.tablename`
+* `catalog.tablename`: loads `tablename` from the specified catalog.
+* `namespace.tablename`: loads `namespace.tablename` from current catalog
+* `catalog.namespace.tablename`: loads `namespace.tablename` from the specified catalog.
+* `namespace1.namespace2.tablename`: loads `namespace1.namespace2.tablename` from current catalog
 
 The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
-
 
 ### Time travel Queries with DataFrame
 
@@ -184,7 +180,6 @@ spark.read
     .load("path/to/table")
 ```
 
-
 ### Incremental read
 
 To read appended data incrementally, use:
@@ -205,7 +200,6 @@ spark.read
     Currently gets only the data from `append` operation. Cannot support `replace`, `overwrite`, `delete` operations.
     Incremental read works with both V1 and V2 format-version.
     Incremental read is not supported by Spark's SQL syntax.
-
 
 ## Inspecting tables
 
@@ -232,7 +226,6 @@ SELECT * FROM prod.db.table.history;
 
 !!! info
     **This shows a commit that was rolled back.** The example has two snapshots with the same parent, and one is *not* an ancestor of the current table state.
-
 
 ### Metadata Log Entries
 
@@ -315,7 +308,7 @@ SELECT * FROM prod.db.table.files;
 | content | file_path | file_format | spec_id | record_count | file_size_in_bytes | column_sizes | value_counts | null_value_counts | nan_value_counts | lower_bounds | upper_bounds | key_metadata | split_offsets | equality_ids | sort_order_id | readable_metrics |
 | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
 | 0 | s3:/.../table/data/00042-3-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001.parquet | PARQUET | 0 | 1 | 652 | {1:52,2:48} | {1:1,2:1} | {1:0,2:0} | {} | {1:,2:d} | {1:,2:d} | NULL | [4] | NULL | 0 | {"data":{"column_size":48,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":"d","upper_bound":"d"},"id":{"column_size":52,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":1}} |
-| 0 | s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet | PARQUET | 0 | 1 | 643 | {1:46,2:48} | {1:1,2:1} | {1:0,2:0} | {} | {1:,2:a} | {1:,2:a} | NULL | [4] | NULL | 0 | {"data":{"column_size":48,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":"a","upper_bound":"a"},"id":{"column_size":46,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":1}} | 
+| 0 | s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet | PARQUET | 0 | 1 | 643 | {1:46,2:48} | {1:1,2:1} | {1:0,2:0} | {} | {1:,2:a} | {1:,2:a} | NULL | [4] | NULL | 0 | {"data":{"column_size":48,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":"a","upper_bound":"a"},"id":{"column_size":46,"value_count":1,"null_value_count":0,"nan_value_count":null,"lower_bound":1,"upper_bound":1}} |
 | 0 | s3:/.../table/data/00001-1-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet | PARQUET | 0 | 2 | 644 | {1:49,2:51} | {1:2,2:2} | {1:0,2:0} | {} | {1:,2:b} | {1:,2:c} | NULL | [4] | NULL | 0 | {"data":{"column_size":51,"value_count":2,"null_value_count":0,"nan_value_count":null,"lower_bound":"b","upper_bound":"c"},"id":{"column_size":49,"value_count":2,"null_value_count":0,"nan_value_count":null,"lower_bound":2,"upper_bound":3}} |
 | 1 | s3:/.../table/data/00081-4-a9aa8b24-20bc-4d56-93b0-6b7675782bb5-00001-deletes.parquet | PARQUET | 0 | 1 | 1560 | {2147483545:46,2147483546:152} | {2147483545:1,2147483546:1} | {2147483545:0,2147483546:0} | {} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | {2147483545:,2147483546:s3:/.../table/data/00000-0-f9709213-22ca-4196-8733-5cb15d2afeb9-00001.parquet} | NULL | [4] | NULL | NULL | {"data":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null},"id":{"column_size":null,"value_count":null,"null_value_count":null,"nan_value_count":null,"lower_bound":null,"upper_bound":null}} |
 | 2 | s3:/.../table/data/00047-25-833044d0-127b-415c-b874-038a4f978c29-00612.parquet | PARQUET | 0 | 126506 | 28613985 | {100:135377,101:11314} | {100:126506,101:126506} | {100:105434,101:11} | {} | {100:0,101:17} | {100:404455227527,101:23} | NULL | NULL | [1] | 0 | {"id":{"column_size":135377,"value_count":126506,"null_value_count":105434,"nan_value_count":null,"lower_bound":0,"upper_bound":404455227527},"data":{"column_size":11314,"value_count":126506,"null_value_count": 11,"nan_value_count":null,"lower_bound":17,"upper_bound":23}} |
@@ -391,7 +384,6 @@ These tables are unions of the metadata tables specific to the current snapshot,
 !!! danger
     The "all" metadata tables may produce more than one row per data file or manifest file because metadata files may be part of more than one table snapshot.
 
-
 #### All Data Files
 
 To show all of the table's data files and each file's metadata:
@@ -461,7 +453,7 @@ To show a table's known snapshot references:
 SELECT * FROM prod.db.table.refs;
 ```
 
-| name | type | snapshot_id | max_reference_age_in_ms | min_snapshots_to_keep | max_snapshot_age_in_ms | 
+| name | type | snapshot_id | max_reference_age_in_ms | min_snapshots_to_keep | max_snapshot_age_in_ms |
 | -- | -- | -- | -- | -- | -- |
 | main | BRANCH | 4686954189838128572 | 10 | 20 | 30 |
 | testTag | TAG | 4686954189838128572 | 10 | null | null |

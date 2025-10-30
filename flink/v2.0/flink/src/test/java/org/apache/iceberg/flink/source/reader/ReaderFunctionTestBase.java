@@ -30,7 +30,6 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -61,9 +60,6 @@ public abstract class ReaderFunctionTestBase<T> {
   @Parameter(index = 0)
   private FileFormat fileFormat;
 
-  private final GenericAppenderFactory appenderFactory =
-      new GenericAppenderFactory(TestFixtures.SCHEMA);
-
   private void assertRecordsAndPosition(
       List<Record> expectedRecords,
       int expectedFileOffset,
@@ -90,7 +86,7 @@ public abstract class ReaderFunctionTestBase<T> {
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, TestFixtures.SCHEMA);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -114,7 +110,7 @@ public abstract class ReaderFunctionTestBase<T> {
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, TestFixtures.SCHEMA);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 0, 0L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -138,7 +134,7 @@ public abstract class ReaderFunctionTestBase<T> {
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, TestFixtures.SCHEMA);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 0, 1L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -162,7 +158,7 @@ public abstract class ReaderFunctionTestBase<T> {
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, TestFixtures.SCHEMA);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 0, 2L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -182,7 +178,7 @@ public abstract class ReaderFunctionTestBase<T> {
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, TestFixtures.SCHEMA);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 1, 0L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -202,7 +198,7 @@ public abstract class ReaderFunctionTestBase<T> {
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, TestFixtures.SCHEMA);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 1, 1L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);

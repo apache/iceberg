@@ -42,7 +42,8 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
       Schema schema,
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
-      boolean upsert) {
+      boolean upsert,
+      boolean useDv) {
     super(
         spec,
         format,
@@ -53,8 +54,9 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
         schema,
         flinkSchema,
         equalityFieldIds,
-        upsert);
-    this.writer = new RowDataDeltaWriter(null);
+        upsert,
+        useDv);
+    this.writer = new RowDataDeltaWriter(null, dvFileWriter());
   }
 
   @Override
@@ -65,5 +67,6 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   @Override
   public void close() throws IOException {
     writer.close();
+    super.close();
   }
 }

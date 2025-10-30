@@ -97,19 +97,17 @@ All manifests, data files, and delete files created for a snapshot inherit the s
 
 Inheriting the sequence number from manifest metadata allows writing a new manifest once and reusing it in commit retries. To change a sequence number for a retry, only the manifest list must be rewritten -- which would be rewritten anyway with the latest set of manifests.
 
-
 ### Row-level Deletes
 
 Row-level deletes are stored in delete files.
 
-There are two types of row-level deletes: 
+There are two types of row-level deletes:
 
 * **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
 
 * **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
-
 
 ### File System Operations
 
@@ -124,7 +122,6 @@ These requirements are compatible with object stores, like S3.
 Tables do not require random-access writes. Once written, data and metadata files are immutable until they are deleted.
 
 Tables do not require rename, except for tables that use atomic rename to implement the commit operation for new metadata files.
-
 
 ## Specification
 
@@ -288,7 +285,6 @@ For example, a struct column `point` with fields `x` (default 0) and `y` (defaul
 
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
-
 #### Schema Evolution
 
 Schemas may be evolved by type promotion or adding, deleting, renaming, or reordering fields in structs (both nested structs and the top-level schema’s struct).
@@ -337,7 +333,6 @@ Struct evolution requires the following rules for default values:
 * If a field value is missing from a struct's `initial-default`, the field's `initial-default` must be used for the field
 * If a field value is missing from a struct's `write-default`, the field's `write-default` must be used for the field
 
-
 ##### Column Projection
 
 Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids.
@@ -346,26 +341,26 @@ Values for field ids which are not present in a data file must be resolved accor
 
 * Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field and the partition value is present in the `partition` struct on `data_file` object in the manifest. This allows for metadata only migrations of Hive tables.
 * Use `schema.name-mapping.default` metadata to map field id to columns without field id as described below and use the column if it is present.
-* Return the default value if it has a defined `initial-default` (See [Default values](#default-values) section for more details). 
+* Return the default value if it has a defined `initial-default` (See [Default values](#default-values) section for more details).
 * Return `null` in all other cases.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
 Tables may also define a property `schema.name-mapping.default` with a JSON name mapping containing a list of field mapping objects. These mappings provide fallback field ids to be used when a data file does not contain field id information. Each object should contain
 
-* `names`: A required list of 0 or more names for a field. 
+* `names`: A required list of 0 or more names for a field.
 * `field-id`: An optional Iceberg field ID used when a field's name is present in `names`
 * `fields`: An optional list of field mappings for child field of structs, maps, and lists.
 
 Field mapping fields are constrained by the following rules:
 
-* A name may contain `.` but this refers to a literal name, not a nested field. For example, `a.b` refers to a field named `a.b`, not child field `b` of field `a`. 
-* Each child field should be defined with their own field mapping under `fields`. 
+* A name may contain `.` but this refers to a literal name, not a nested field. For example, `a.b` refers to a field named `a.b`, not child field `b` of field `a`.
+* Each child field should be defined with their own field mapping under `fields`.
 * Multiple values for `names` may be mapped to a single field ID to support cases where a field may have different names in different data files. For example, all Avro field aliases should be listed in `names`.
 * Fields which exist only in the Iceberg schema and not in imported data files may use an empty `names` list.
 * Fields that exist in imported files but not in the Iceberg schema may omit `field-id`.
-* List types should contain a mapping in `fields` for `element`. 
-* Map types should contain mappings in `fields` for `key` and `value`. 
+* List types should contain a mapping in `fields` for `element`.
+* Map types should contain mappings in `fields` for `key` and `value`.
 * Struct types should contain mappings in `fields` for their child fields.
 
 For details on serialization, see [Appendix C](#name-mapping-serialization).
@@ -377,7 +372,6 @@ A schema can optionally track the set of primitive fields that identify rows in 
 Two rows are the "same"---that is, the rows represent the same entity---if the identifier fields are equal. However, uniqueness of rows by this identifier is not guaranteed or required by Iceberg and it is the responsibility of processing engines or data providers to enforce.
 
 Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
-
 
 #### Reserved Field IDs
 
@@ -476,8 +470,7 @@ The snapshot then populates the total number of `added-rows` based on the sum of
 
 When the new snapshot is committed, the table's `next-row-id` must also be updated (even if the new snapshot is not in the main branch). Because 375 rows were in data files in manifests that were assigned a `first_row_id` (`added1` 100+25, `added2` 0+100, `added3` 125+25) the new value is 1,000 + 375 = 1,375.
 
-
-##### Row Lineage for Upgraded Tables 
+##### Row Lineage for Upgraded Tables
 
 When a table is upgraded to v3, its `next-row-id` is initialized to 0 and existing snapshots are not modified (that is, `first-row-id` remains unset or null). For such snapshots without `first-row-id`, `first_row_id` values for data files and data manifests are null, and values for `_row_id` are read as null for all rows. When `first_row_id` is null, inherited row ID values are also null.
 
@@ -489,17 +482,16 @@ Note that:
 * After upgrading, new snapshots in different branches will assign disjoint ID ranges to existing data files, based on the table's `next-row-id` when the snapshot is committed. For a data file in multiple branches, a writer may write the `first_row_id` from another branch or may assign a new `first_row_id` to the data file (to avoid large metadata rewrites).
 * Existing rows will inherit `_last_updated_sequence_number` from their containing data file.
 
-
 ### Partitioning
 
 Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. (Manifests store data files from any partition, as long as the partition spec is the same for the data files.)
 
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
-*   A **source column id** or a list of **source column ids** from the table’s schema
-*   A **partition field id** that is used to identify a partition field and is unique within a partition spec. In v2 table metadata, it is unique across all partition specs.
-*   A **transform** that is applied to the source column(s) to produce a partition value
-*   A **partition name**
+* A **source column id** or a list of **source column ids** from the table’s schema
+* A **partition field id** that is used to identify a partition field and is unique within a partition spec. In v2 table metadata, it is unique across all partition specs.
+* A **transform** that is applied to the source column(s) to produce a partition value
+* A **partition name**
 
 The source columns, selected by ids, must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. For details on how to serialize a partition spec to JSON, see Appendix C.
 
@@ -528,7 +520,6 @@ All transforms must return `null` for a `null` input value.
 
 The `void` transform may be used to replace the transform in an existing partition field so that the field is effectively dropped in v1 tables. See partition evolution below.
 
-
 #### Bucket Transform Details
 
 Bucket partition transforms use a 32-bit hash of the source value. The 32-bit hash implementation is the 32-bit Murmur3 hash, x86 variant, seeded with 0.
@@ -545,14 +536,13 @@ Notes:
 
 For hash function details by type, see Appendix B.
 
-
 #### Truncate Transform Details
 
 | **Type**      | **Config**            | **Truncate specification**                                       | **Examples**                     |
 |---------------|-----------------------|------------------------------------------------------------------|----------------------------------|
-| **`int`**     | `W`, width            | `v - (v % W)`	remainders must be positive	[1]                    | `W=10`: `1` ￫ `0`, `-1` ￫ `-10`  |
-| **`long`**    | `W`, width            | `v - (v % W)`	remainders must be positive	[1]                    | `W=10`: `1` ￫ `0`, `-1` ￫ `-10`  |
-| **`decimal`** | `W`, width (no scale) | `scaled_W = decimal(W, scale(v))` `v - (v % scaled_W)`		[1, 2] | `W=50`, `s=2`: `10.65` ￫ `10.50` |
+| **`int`**     | `W`, width            | `v - (v % W)` remainders must be positive [1]                    | `W=10`: `1` ￫ `0`, `-1` ￫ `-10`  |
+| **`long`**    | `W`, width            | `v - (v % W)` remainders must be positive [1]                    | `W=10`: `1` ￫ `0`, `-1` ￫ `-10`  |
+| **`decimal`** | `W`, width (no scale) | `scaled_W = decimal(W, scale(v))` `v - (v % scaled_W)`        [1, 2] | `W=50`, `s=2`: `10.65` ￫ `10.50` |
 | **`string`**  | `L`, length           | Substring of length `L`: `v.substring(0, L)` [3]                    | `L=3`: `iceberg` ￫ `ice`         |
 | **`binary`**  | `L`, length           | Sub array of length `L`: `v.subarray(0, L)`  [4]                    | `L=3`: `\x01\x02\x03\x04\x05` ￫ `\x01\x02\x03` |
 
@@ -562,7 +552,6 @@ Notes:
 2. The width, `W`, used to truncate decimal values is applied using the scale of the decimal column to avoid additional (and potentially conflicting) parameters.
 3. Strings are truncated to a valid UTF-8 string with no more than `L` code points.
 4. In contrast to strings, binary values do not have an assumed encoding and are truncated to `L` bytes.
-
 
 #### Partition Evolution
 
@@ -580,26 +569,24 @@ In v1, partition field IDs were not tracked, but were assigned sequentially star
 2. Do not drop partition fields; instead replace the field's transform with the `void` transform
 3. Only add partition fields at the end of the previous partition spec
 
-
 ### Sorting
 
 Users can sort their data within partitions by columns to gain performance. The information on how the data is sorted can be declared per data or delete file, by a **sort order**.
 
 A sort order is defined by a sort order id and a list of sort fields. The order of the sort fields within the list defines the order in which the sort is applied to the data. Each sort field consists of:
 
-*   A **source column id** or a list of **source column ids** from the table's schema
-*   A **transform** that is used to produce values to be sorted on from the source column(s). This is the same transform as described in [partition transforms](#partition-transforms).
-*   A **sort direction**, that can only be either `asc` or `desc`
-*   A **null order** that describes the order of null values when sorted. Can only be either `nulls-first` or `nulls-last`
+* A **source column id** or a list of **source column ids** from the table's schema
+* A **transform** that is used to produce values to be sorted on from the source column(s). This is the same transform as described in [partition transforms](#partition-transforms).
+* A **sort direction**, that can only be either `asc` or `desc`
+* A **null order** that describes the order of null values when sorted. Can only be either `nulls-first` or `nulls-last`
 
 For details on how to serialize a sort order to JSON, see Appendix C.
 
-Order id `0` is reserved for the unsorted order. 
+Order id `0` is reserved for the unsorted order.
 
-Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons. 
+Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
-
 
 ### Manifests
 
@@ -624,7 +611,6 @@ A manifest file must store the partition spec and other metadata as properties i
 
 The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
 
-
 #### Manifest Entry Fields
 
 The `manifest_entry` struct consists of the following fields:
@@ -645,7 +631,7 @@ When a file is replaced or deleted from the dataset, its manifest entry fields s
 
 Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list.
 The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
-The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number. 
+The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
 The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
 
 Notes:
@@ -712,7 +698,7 @@ Examples of valid field paths using normalized JSON path format are:
 * `$['event_type']` -- the `event_type` field in a Variant object
 * `$['user.name']` -- the `"user.name"` field in a Variant object
 * `$['location']['latitude']` -- the `latitude` field nested within a `location` object
-* `$['tags']` -- the `tags` array 
+* `$['tags']` -- the `tags` array
 * `$['addresses']['zip']` -- the `zip` field in an `addresses` array that contains objects
 
 For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both points of the following coordinates X, Y, Z, and M (see Appendix G) which are the lower / upper bound of all objects in the file.
@@ -720,7 +706,6 @@ For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both
 For `geography` only, xmin (X value of `lower_bounds`) may be greater than xmax (X value of `upper_bounds`), in which case an object in this bounding box may match if it contains an X such that x >= xmin OR x <= xmax. In geographic terminology, the concepts of xmin, xmax, ymin, and ymax are also known as westernmost, easternmost, southernmost and northernmost, respectively. These points are further restricted to the canonical ranges of [-180..180] for X and [-90..90] for Y.
 
 When calculating upper and lower bounds for `geometry` and `geography`, null or NaN values in a coordinate dimension are skipped; for example, POINT (1 NaN) contributes a value to X but no values to Y, Z, or M dimension bounds. If a dimension has only null or NaN values, that dimension is omitted from the bounding box. If either the X or Y dimension is missing then the bounding box itself is not produced.
-
 
 #### Sequence Number Inheritance
 
@@ -765,18 +750,18 @@ A snapshot consists of the following fields:
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
-*   `append` -- Only data files were added and no files were removed.
-*   `replace` -- Data and delete files were added and removed without changing table data; i.e., compaction, changing the data file format, or relocating data files.
-*   `overwrite` -- Data and delete files were added and removed in a logical overwrite operation.
-*   `delete` -- Data files were removed and their contents logically deleted and/or delete files were added to delete rows.
+* `append` -- Only data files were added and no files were removed.
+* `replace` -- Data and delete files were added and removed without changing table data; i.e., compaction, changing the data file format, or relocating data files.
+* `overwrite` -- Data and delete files were added and removed in a logical overwrite operation.
+* `delete` -- Data files were removed and their contents logically deleted and/or delete files were added to delete rows.
 
 For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-summary-fields).
 
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
-*   Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a “fast append”.)
-*   Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Each manifest uses a single partition spec, and queries do not need to change because partition filters are derived from data predicates.
-*   Large tables can be split across multiple manifests so that implementations can parallelize job planning or reduce the cost of rewriting a manifest.
+* Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a “fast append”.)
+* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Each manifest uses a single partition spec, and queries do not need to change because partition filters are derived from data predicates.
+* Large tables can be split across multiple manifests so that implementations can parallelize job planning or reduce the cost of rewriting a manifest.
 
 Manifests for a snapshot are tracked by a manifest list.
 
@@ -862,10 +847,9 @@ The inclusive projection for an unknown partition transform is _true_ because th
 
 Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
-Data files that match the query filter must be read by the scan. 
+Data files that match the query filter must be read by the scan.
 
 Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
-
 
 Delete files and deletion vector metadata that match the filters must be applied to data files at read time, limited by the following scope rules.
 
@@ -887,7 +871,6 @@ In general, deletes are applied only to data files that are older and in the sam
 * Equality delete files stored with an unpartitioned spec are applied as global deletes. Otherwise, delete files do not apply to files in other partitions.
 * Position deletes (vectors and files) must be applied to data files from the same commit, when the data and delete file data sequence numbers are equal. This allows deleting rows that were added in the same commit.
 
-
 Notes:
 
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
@@ -897,7 +880,7 @@ Notes:
 
 ### Snapshot References
 
-Iceberg tables keep track of branches and tags using snapshot references. 
+Iceberg tables keep track of branches and tags using snapshot references.
 Tags are labels for individual snapshots. Branches are mutable named references that can be updated by committing a new snapshot as the branch's referenced snapshot using the [Commit Conflict Resolution and Retry](#commit-conflict-resolution-and-retry) procedures.
 
 The snapshot reference object records all the information of a reference including snapshot ID, reference type and [Snapshot Retention Policy](#snapshot-retention-policy).
@@ -999,10 +982,9 @@ Blob metadata is a struct with the following fields:
 | _required_ | _required_ | **`fields`** | `list<integer>` | Ordered list of fields, given by field ID, on which the statistic was calculated. |
 | _optional_ | _optional_ | **`properties`** | `map<string, string>` | Additional properties associated with the statistic. Subset of Blob properties in the Puffin file. |
 
-
 #### Partition Statistics
 
-Partition statistics files are based on [partition statistics file spec](#partition-statistics-file). 
+Partition statistics files are based on [partition statistics file spec](#partition-statistics-file).
 Partition statistics are not required for reading or planning and readers may ignore them.
 Each table snapshot may be associated with at most one partition statistics file.
 A writer can optionally write the partition statistics file during each write operation, or it can also be computed on demand.
@@ -1040,8 +1022,8 @@ The schema of the partition statistics file is as follows:
 | _optional_ | _optional_ | _optional_ | **`12 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
 
 Note that partition data tuple's schema is based on the partition spec output using partition field ids for the struct field ids.
-The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
-and sorted by the field ids in ascending order.  
+The unified partition type is a struct containing all fields that have ever been a part of any spec in the table
+and sorted by the field ids in ascending order.
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
 
 For example,
@@ -1074,16 +1056,14 @@ Notes:
 
 1. The format of encrypted key metadata is determined by the table's encryption scheme and can be a wrapped format specific to the table's KMS provider.
 
-
 ### Commit Conflict Resolution and Retry
 
 When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
 
-*   Append operations have no requirements and can always be applied.
-*   Replace operations must verify that the files that will be deleted are still in the table. Examples of replace operations include format changes (replace an Avro file with a Parquet file) and compactions (several files are replaced with a single file that contains the same rows).
-*   Delete operations must verify that specific files to delete are still in the table. Delete operations based on expressions can always be applied (e.g., where timestamp < X).
-*   Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
-
+* Append operations have no requirements and can always be applied.
+* Replace operations must verify that the files that will be deleted are still in the table. Examples of replace operations include format changes (replace an Avro file with a Parquet file) and compactions (several files are replaced with a single file that contains the same rows).
+* Delete operations must verify that specific files to delete are still in the table. Delete operations based on expressions can always be applied (e.g., where timestamp < X).
+* Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
 
 #### File System Tables
 
@@ -1120,7 +1100,6 @@ Notes:
 
 1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](../javadoc/{{ icebergVersion }}/org/apache/iceberg/BaseMetastoreTableOperations.html).
 
-
 ### Delete Formats
 
 This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid.
@@ -1140,7 +1119,6 @@ Row-level delete files and deletion vectors are tracked by manifests. A separate
 
 Both position and equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
 
-
 #### Deletion Vectors
 
 Deletion vectors identify deleted rows of a file by encoding deleted positions in a bitmap. A set bit at position P indicates that the row at position P is deleted.
@@ -1154,7 +1132,6 @@ To test whether a certain position is set, its most significant 4 bytes (the key
 Delete manifests track deletion vectors individually by the containing file location (`file_path`), starting offset of the DV blob (`content_offset`), and total length of the blob (`content_size_in_bytes`). Multiple deletion vectors can be stored in the same file. There are no restrictions on the data files that can be referenced by deletion vectors in the same Puffin file.
 
 At most one deletion vector is allowed per data file in a snapshot. If a DV is written for a data file, it must replace all previously written position delete files so that when a DV is present, readers can safely ignore matching position delete files.
-
 
 [puffin-spec]: https://iceberg.apache.org/puffin-spec/
 
@@ -1180,10 +1157,10 @@ When the deleted row column is present, its schema may be any subset of the tabl
 
 To ensure the accuracy of statistics, all delete entries must include row values, or the column must be omitted (this is why the column type is `required`).
 
-The rows in the delete file must be sorted by `file_path` then `pos` to optimize filtering rows while scanning. 
+The rows in the delete file must be sorted by `file_path` then `pos` to optimize filtering rows while scanning.
 
-*  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
-*  Sorting by `pos` allows filtering rows while scanning, to avoid keeping deletes in memory.
+* Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
+* Sorting by `pos` allows filtering rows while scanning, to avoid keeping deletes in memory.
 
 #### Equality Delete Files
 
@@ -1236,14 +1213,11 @@ equality_ids=[1, 2]
 
 If a delete column in an equality delete file is later dropped from the table, it must still be used when applying the equality deletes. If a column was added to a table and later used as a delete column in an equality delete file, the column value is read for older data files using normal projection rules (defaults to `null`).
 
-
 #### Delete File Stats
 
 Manifests hold the same statistics for delete files and data files. For delete files, the metrics describe the values that were deleted.
 
-
 ## Appendix A: Format-specific Requirements
-
 
 ### Avro
 
@@ -1288,7 +1262,6 @@ Notes:
 1. Avro type annotation `adjust-to-utc` is an Iceberg convention; default value is `false` if not present.
 2. Avro logical type `timestamp-nanos` is an Iceberg convention; the Avro specification does not define this type.
 
-
 **Field IDs**
 
 Iceberg struct, list, and map types identify nested types by ID. When writing data to Avro files, these IDs must be stored in the Avro schema to support ID-based column pruning.
@@ -1304,7 +1277,6 @@ IDs are stored as JSON integers in the following locations:
 |**Map key, value**|Key, value fields in the element record.|`field-id`|`{ "type": "array",`<br />&nbsp;&nbsp;`"logicalType": "map",`<br />&nbsp;&nbsp;`"items": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "record",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "k12_v13",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"fields": [`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`{ "name": "key",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "int",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"field-id": 12 },`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`{ "name": "value",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "string",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"field-id": 13 }`<br />&nbsp;&nbsp;&nbsp;&nbsp;`] } }`|
 
 Note that the string map case is for maps where the key type is a string. Using Avro’s map type in this case is optional. Maps with string keys may be stored as arrays.
-
 
 ### Parquet
 
@@ -1340,9 +1312,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`geometry`**     | `binary`                                                           | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
 | **`geography`**    | `binary`                                                           | `GEOGRAPHY`                                 | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
 
-
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
-
 
 ### ORC
 
@@ -1374,7 +1344,6 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`geometry`**     | `binary`            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
 | **`geography`**    | `binary`            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
 
-
 Notes:
 
 1. ORC's [TimestampColumnVector](https://orc.apache.org/api/hive-storage-api/org/apache/hadoop/hive/ql/exec/vector/TimestampColumnVector.html) consists of a time field (milliseconds since epoch) and a nanos field (nanoseconds within the second). Hence the milliseconds within the second are reported twice; once in the time field and again in the nanos field. The read adapter should only use milliseconds within the second from one of these fields. The write adapter should also report milliseconds within the second twice; once in the time field and again in the nanos field. ORC writer is expected to correctly consider millis information from one of the fields. More details at https://issues.apache.org/jira/browse/ORC-546
@@ -1397,7 +1366,7 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 
 | Primitive type     | Hash specification                        | Test value                                 |
 |--------------------|-------------------------------------------|--------------------------------------------|
-| **`int`**          | `hashLong(long(v))`			[1]          | `34` ￫ `2017239379`                        |
+| **`int`**          | `hashLong(long(v))`          [1]          | `34` ￫ `2017239379`                        |
 | **`long`**         | `hashBytes(littleEndianBytes(v))`         | `34L` ￫ `2017239379`                       |
 | **`decimal(P,S)`** | `hashBytes(minBigEndian(unscaled(v)))`[2] | `14.20` ￫ `-500754589`                     |
 | **`date`**         | `hashInt(daysFromUnixEpoch(v))`           | `2017-11-16` ￫ `-653330422`                |
@@ -1407,7 +1376,7 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 | **`timestamp_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3] | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001001` ￫ `-1207196810` |
 | **`timestamptz_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3]| `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001001-08:00` ￫ `-1207196810` |
 | **`string`**       | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
-| **`uuid`**         | `hashBytes(uuidBytes(v))`		[4]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
+| **`uuid`**         | `hashBytes(uuidBytes(v))`        [4]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
 | **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 | **`binary`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 
@@ -1433,7 +1402,6 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 5. `doubleToLongBits` must give the IEEE 754 compliant bit representation of the double value. All `NaN` bit patterns must be canonicalized to `0x7ff8000000000000L`. Negative zero (`-0.0`) must be canonicalized to positive zero (`0.0`). Float hash values are the result of hashing the float cast to double to ensure that schema evolution does not change hash values if float types are promoted.
 
 ## Appendix C: JSON serialization
-
 
 ### Schemas
 
@@ -1473,7 +1441,6 @@ Types are serialized according to this table:
 | **`geography(C, A)`** |`JSON string: "geography(<C>,<E>)"`|`"geography(srid:4326,spherical)"`|
 
 Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
-
 
 ### Partition Specs
 
@@ -1523,7 +1490,7 @@ Sort orders are serialized as a list of JSON object, each of which contains the 
 |Field|JSON representation|Example|
 |--- |--- |--- |
 |**`order-id`**|`JSON int`|`1`|
-|**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<sort field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`  "transform": "identity",`<br />&nbsp;&nbsp;`  "source-id": 2,`<br />&nbsp;&nbsp;`  "direction": "asc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-first"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`} ]`|
+|**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<sort field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"transform": "identity",`<br />&nbsp;&nbsp;`"source-id": 2,`<br />&nbsp;&nbsp;`"direction": "asc",`<br />&nbsp;&nbsp;`"null-order": "nulls-first"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;`"transform": "bucket[4]",`<br />&nbsp;&nbsp;`"source-id": 3,`<br />&nbsp;&nbsp;`"direction": "desc",`<br />&nbsp;&nbsp;`"null-order": "nulls-last"`<br />`} ]`|
 
 Each sort field in the fields list is stored as an object with the following properties:
 
@@ -1541,13 +1508,12 @@ Notes:
 
 Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them.
 
-The following table describes the possible values for the some of the field within sort field: 
+The following table describes the possible values for the some of the field within sort field:
 
 |Field|JSON representation|Possible values|
 |--- |--- |--- |
 |**`direction`**|`JSON string`|`"asc", "desc"`|
 |**`null-order`**|`JSON string`|`"nulls-first", "nulls-last"`|
-
 
 ### Table Metadata and Snapshots
 
@@ -1572,8 +1538,8 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`properties`**|`JSON object: {`<br />&nbsp;&nbsp;`"<key>": "<val>",`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"write.format.default": "avro",`<br />&nbsp;&nbsp;`"commit.retry.num-retries": "4"`<br />`}`|
 |**`current-snapshot-id`**|`JSON long`|`3051729675574597004`|
 |**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />&nbsp;&nbsp;`"schema-id": 0`<br />`} ]`|
-|**`snapshot-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"snapshot-id": ,`<br />&nbsp;&nbsp;`"timestamp-ms": `<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 30517296...,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]`|
-|**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms": `<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
+|**`snapshot-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"snapshot-id": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 30517296...,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]`|
+|**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
 |**`sort-orders`**|`JSON sort orders (list of sort field object)`|`See above`|
 |**`default-sort-order-id`**|`JSON int`|`0`|
 |**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
@@ -1587,7 +1553,7 @@ Name mapping is serialized as a list of field mapping JSON Objects which are ser
 |--- |--- |--- |
 |**`names`**|`JSON list of strings`|`["latitude", "lat"]`|
 |**`field-id`**|`JSON int`|`1`|
-|**`fields`**|`JSON field mappings (list of objects)`|`[{ `<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
+|**`fields`**|`JSON field mappings (list of objects)`|`[{`<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
 
 Example
 ```json
@@ -1668,8 +1634,6 @@ The binary single-value serialization can be used to store the lower and upper b
 | **`map`**          | **`JSON object of key and value arrays`** | `{ "keys": ["a", "b"], "values": [1, 2] }` | Stores arrays of keys and values; individual keys and values are serialized using this JSON single-value format |
 | **`geometry`**     | **`JSON string`**                         | `POINT (30 10)`                            | Stored using WKT representation, see [Appendix G](#appendix-g-geospatial-notes) |
 | **`geography`**    | **`JSON string`**                         | `POINT (30 10)`                            | Stored using WKT representation, see [Appendix G](#appendix-g-geospatial-notes) |
-
-
 
 ## Appendix E: Format version changes
 
@@ -1805,7 +1769,7 @@ This section covers topics not required by the specification but recommendations
 
 ### Point in Time Reads (Time Travel)
 
-Iceberg supports two types of histories for tables. A history of previous "current snapshots" stored in ["snapshot-log" table metadata](#table-metadata-fields) and [parent-child lineage stored in "snapshots"](#table-metadata-fields). These two histories 
+Iceberg supports two types of histories for tables. A history of previous "current snapshots" stored in ["snapshot-log" table metadata](#table-metadata-fields) and [parent-child lineage stored in "snapshots"](#table-metadata-fields). These two histories
 might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
@@ -1847,7 +1811,7 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 | **`manifests-created`**             | Number of manifest files created in the snapshot                                                 |
 | **`manifests-kept`**                | Number of manifest files kept in the snapshot                                                    |
 | **`manifests-replaced`**            | Number of manifest files replaced in the snapshot                                                |
-| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                             | 
+| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                             |
 
 #### Other Fields
 
@@ -1869,7 +1833,7 @@ Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers t
 
 ### Naming for GZIP compressed Metadata JSON files
 
-Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.  
+Some implementations require that GZIP compressed files have the suffix `.gz.metadata.json` to be read correctly. The Java reference implementation can additionally read GZIP compressed files with the suffix `metadata.json.gz`.
 
 ### Position Delete Files with Row Data
 

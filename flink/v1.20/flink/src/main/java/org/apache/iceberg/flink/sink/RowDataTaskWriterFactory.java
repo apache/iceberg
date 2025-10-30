@@ -29,6 +29,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
@@ -52,6 +53,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Set<Integer> equalityFieldIds;
   private final boolean upsert;
   private final FileWriterFactory<RowData> fileWriterFactory;
+  private boolean useDv;
 
   private transient OutputFileFactory outputFileFactory;
 
@@ -170,6 +172,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
 
     refreshTable();
+    this.useDv = TableUtil.formatVersion(table) > 2;
 
     this.outputFileFactory =
         OutputFileFactory.builderFor(table, taskId, attemptId)
@@ -221,7 +224,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             schema,
             flinkSchema,
             equalityFieldIds,
-            upsert);
+            upsert,
+            useDv);
       } else {
         return new PartitionedDeltaWriter(
             spec,
@@ -233,7 +237,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             schema,
             flinkSchema,
             equalityFieldIds,
-            upsert);
+            upsert,
+            useDv);
       }
     }
   }
