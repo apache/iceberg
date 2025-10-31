@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
+import javax.annotation.Nullable;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -672,6 +674,27 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       throw new UncheckedIOException(
           String.format("Failed to validate no appends matching %s", partitionSet), e);
     }
+  }
+
+  /**
+   * Validates parent snapshots with a user-provided function.
+   *
+   * @param validator the validation function
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param parent ending snapshot on the branch being validated
+   */
+  protected void validateSnapshots(
+      Consumer<Snapshot> validator,
+      TableMetadata base,
+      @Nullable Long startingSnapshotId,
+      @Nullable Snapshot parent) {
+    if (parent == null) {
+      return;
+    }
+
+    SnapshotUtil.ancestorsBetween(parent.snapshotId(), startingSnapshotId, base::snapshot)
+        .forEach(validator);
   }
 
   /**
