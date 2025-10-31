@@ -180,13 +180,19 @@ public class TestSparkVariantRead extends TestBase {
     sql("INSERT INTO %s SELECT 1, named_struct('v', parse_json('%s'))", structTable, j1);
     sql("INSERT INTO %s SELECT 2, named_struct('v', parse_json('%s'))", structTable, j2);
 
-    Dataset<Row> df =
-        spark.table(structTable).selectExpr("id", "to_json(s.v) as v_json").orderBy("id");
+    Dataset<Row> df = spark.table(structTable).selectExpr("id", "s.v AS v").orderBy("id");
     java.util.List<Row> rows = df.collectAsList();
     assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
-    assertThat(rows.get(0).getString(1)).isEqualTo("{\"a\":1}");
+    Object sv1 = rows.get(0).get(1);
+    assertThat(sv1).isInstanceOf(VariantVal.class);
+    Variant sv1Var = new Variant(((VariantVal) sv1).getValue(), ((VariantVal) sv1).getMetadata());
+    assertThat(sv1Var.getFieldByKey("a").getLong()).isEqualTo(1L);
+
     assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
-    assertThat(rows.get(1).getString(1)).isEqualTo("{\"b\":2}");
+    Object sv2 = rows.get(1).get(1);
+    assertThat(sv2).isInstanceOf(VariantVal.class);
+    Variant sv2Var = new Variant(((VariantVal) sv2).getValue(), ((VariantVal) sv2).getMetadata());
+    assertThat(sv2Var.getFieldByKey("b").getLong()).isEqualTo(2L);
 
     sql("DROP TABLE IF EXISTS %s", structTable);
   }
@@ -212,17 +218,30 @@ public class TestSparkVariantRead extends TestBase {
     sql("INSERT INTO %s SELECT 2, array(parse_json('%s'), parse_json('%s'))", arrayTable, b1, b2);
 
     Dataset<Row> df =
-        spark
-            .table(arrayTable)
-            .selectExpr("id", "to_json(arr[0]) as e0_json", "to_json(arr[1]) as e1_json")
-            .orderBy("id");
+        spark.table(arrayTable).selectExpr("id", "arr[0] as e0", "arr[1] as e1").orderBy("id");
     java.util.List<Row> rows = df.collectAsList();
     assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
-    assertThat(rows.get(0).getString(1)).isEqualTo("{\"a\":1}");
-    assertThat(rows.get(0).getString(2)).isEqualTo("{\"x\":10}");
+    Variant e0r1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    Variant e1r1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(2)).getValue(),
+            ((VariantVal) rows.get(0).get(2)).getMetadata());
+    assertThat(e0r1.getFieldByKey("a").getLong()).isEqualTo(1L);
+    assertThat(e1r1.getFieldByKey("x").getLong()).isEqualTo(10L);
     assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
-    assertThat(rows.get(1).getString(1)).isEqualTo("{\"b\":2}");
-    assertThat(rows.get(1).getString(2)).isEqualTo("{\"y\":20}");
+    Variant e0r2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(1)).getValue(),
+            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    Variant e1r2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(2)).getValue(),
+            ((VariantVal) rows.get(1).get(2)).getMetadata());
+    assertThat(e0r2.getFieldByKey("b").getLong()).isEqualTo(2L);
+    assertThat(e1r2.getFieldByKey("y").getLong()).isEqualTo(20L);
 
     sql("DROP TABLE IF EXISTS %s", arrayTable);
   }
@@ -254,18 +273,31 @@ public class TestSparkVariantRead extends TestBase {
     Dataset<Row> df =
         spark
             .table(mapTable)
-            .selectExpr(
-                "id",
-                "to_json(element_at(m, 'k1')) as k1_json",
-                "to_json(element_at(m, 'k2')) as k2_json")
+            .selectExpr("id", "element_at(m, 'k1') as k1", "element_at(m, 'k2') as k2")
             .orderBy("id");
     java.util.List<Row> rows = df.collectAsList();
     assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
-    assertThat(rows.get(0).getString(1)).isEqualTo("{\"a\":1}");
-    assertThat(rows.get(0).getString(2)).isEqualTo("{\"x\":10}");
+    Variant k1r1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    Variant k2r1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(2)).getValue(),
+            ((VariantVal) rows.get(0).get(2)).getMetadata());
+    assertThat(k1r1.getFieldByKey("a").getLong()).isEqualTo(1L);
+    assertThat(k2r1.getFieldByKey("x").getLong()).isEqualTo(10L);
     assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
-    assertThat(rows.get(1).getString(1)).isEqualTo("{\"b\":2}");
-    assertThat(rows.get(1).getString(2)).isEqualTo("{\"y\":20}");
+    Variant k1r2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(1)).getValue(),
+            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    Variant k2r2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(2)).getValue(),
+            ((VariantVal) rows.get(1).get(2)).getMetadata());
+    assertThat(k1r2.getFieldByKey("b").getLong()).isEqualTo(2L);
+    assertThat(k2r2.getFieldByKey("y").getLong()).isEqualTo(20L);
 
     sql("DROP TABLE IF EXISTS %s", mapTable);
   }
