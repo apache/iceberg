@@ -76,9 +76,8 @@ public class TestManagedHttpClientRegistry {
     assertThat(client1).isSameAs(client2);
 
     // Verify reference count is 2
-    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
-        registry.getClientMap().get(cacheKey);
-    assertThat(managedClient.getRefCount()).isEqualTo(2);
+    ManagedHttpClientRegistry.ManagedHttpClient managedClient = registry.clientMap().get(cacheKey);
+    assertThat(managedClient.refCount()).isEqualTo(2);
   }
 
   @Test
@@ -108,17 +107,17 @@ public class TestManagedHttpClientRegistry {
     WrappedSdkHttpClient client2 = managedClient.acquire();
 
     assertThat(client1).isSameAs(client2);
-    assertThat(managedClient.getRefCount()).isEqualTo(2);
+    assertThat(managedClient.refCount()).isEqualTo(2);
 
     // First release should not close
     managedClient.release();
-    assertThat(managedClient.getRefCount()).isEqualTo(1);
+    assertThat(managedClient.refCount()).isEqualTo(1);
     assertThat(managedClient.isClosed()).isFalse();
     verify(mockClient, times(0)).close();
 
     // Second release should close
     managedClient.release();
-    assertThat(managedClient.getRefCount()).isEqualTo(0);
+    assertThat(managedClient.refCount()).isEqualTo(0);
     assertThat(managedClient.isClosed()).isTrue();
     verify(mockClient, times(1)).close();
   }
@@ -152,11 +151,11 @@ public class TestManagedHttpClientRegistry {
     assertThat(client1).isNotNull();
 
     ConcurrentMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
-        registry.getClientMap();
+        registry.clientMap();
     assertThat(clientMap).containsKey(cacheKey);
 
     // Verify ref count is 1
-    assertThat(clientMap.get(cacheKey).getRefCount()).isEqualTo(1);
+    assertThat(clientMap.get(cacheKey).refCount()).isEqualTo(1);
 
     // Release (refCount = 0, should close and remove)
     registry.releaseClient(cacheKey);
@@ -203,15 +202,14 @@ public class TestManagedHttpClientRegistry {
     }
 
     // Verify reference count equals number of threads
-    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
-        registry.getClientMap().get(cacheKey);
-    assertThat(managedClient.getRefCount()).isEqualTo(threadCount);
+    ManagedHttpClientRegistry.ManagedHttpClient managedClient = registry.clientMap().get(cacheKey);
+    assertThat(managedClient.refCount()).isEqualTo(threadCount);
   }
 
   @Test
   public void testRegistryShutdown() {
     ConcurrentMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
-        registry.getClientMap();
+        registry.clientMap();
 
     // Create some clients
     registry.getOrCreateClient("key1", mockFactory1);
@@ -241,12 +239,12 @@ public class TestManagedHttpClientRegistry {
 
     // Acquire once
     WrappedSdkHttpClient client = managedClient.acquire();
-    assertThat(managedClient.getRefCount()).isEqualTo(1);
+    assertThat(managedClient.refCount()).isEqualTo(1);
 
     // First release should close the client (refCount goes to 0)
     boolean closed = managedClient.release();
     assertThat(closed).isTrue();
-    assertThat(managedClient.getRefCount()).isEqualTo(0);
+    assertThat(managedClient.refCount()).isEqualTo(0);
     assertThat(managedClient.isClosed()).isTrue();
     verify(mockClient, times(1)).close();
 
@@ -254,7 +252,7 @@ public class TestManagedHttpClientRegistry {
     // The closed flag prevents decrement, so refCount stays at 0
     boolean closedAgain = managedClient.release();
     assertThat(closedAgain).isFalse();
-    assertThat(managedClient.getRefCount()).isEqualTo(0); // Should still be 0, not negative
+    assertThat(managedClient.refCount()).isEqualTo(0); // Should still be 0, not negative
     assertThat(managedClient.isClosed()).isTrue();
     verify(mockClient, times(1)).close(); // Close should not be called again
   }
@@ -269,18 +267,18 @@ public class TestManagedHttpClientRegistry {
 
     // Acquire once
     managedClient.acquire();
-    assertThat(managedClient.getRefCount()).isEqualTo(1);
+    assertThat(managedClient.refCount()).isEqualTo(1);
 
     // Release to close
     managedClient.release();
     assertThat(managedClient.isClosed()).isTrue();
-    assertThat(managedClient.getRefCount()).isEqualTo(0);
+    assertThat(managedClient.refCount()).isEqualTo(0);
 
     // Try releasing multiple more times (simulating a bug in caller code)
     for (int i = 0; i < 5; i++) {
       boolean result = managedClient.release();
       assertThat(result).isFalse(); // Should return false, not try to close again
-      assertThat(managedClient.getRefCount()).isEqualTo(0); // RefCount should never go negative
+      assertThat(managedClient.refCount()).isEqualTo(0); // RefCount should never go negative
     }
 
     // Close should only have been called once

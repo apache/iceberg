@@ -91,7 +91,7 @@ public final class ManagedHttpClientRegistry {
   }
 
   @VisibleForTesting
-  ConcurrentMap<String, ManagedHttpClient> getClientMap() {
+  ConcurrentMap<String, ManagedHttpClient> clientMap() {
     return clientMap;
   }
 
@@ -189,7 +189,7 @@ public final class ManagedHttpClientRegistry {
     }
 
     @VisibleForTesting
-    int getRefCount() {
+    int refCount() {
       return refCount.get();
     }
 
