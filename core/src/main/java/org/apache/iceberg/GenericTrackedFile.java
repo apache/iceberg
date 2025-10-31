@@ -179,6 +179,7 @@ public class GenericTrackedFile extends SupportsIndexProjection
     this.sequenceNumber = toCopy.sequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
     this.firstRowId = toCopy.firstRowId;
+    this.position = toCopy.position;
 
     // Common file metadata
     this.contentType = toCopy.contentType;
@@ -297,8 +298,8 @@ public class GenericTrackedFile extends SupportsIndexProjection
   }
 
   @Override
-  public void setPos(Long position) {
-    this.position = position;
+  public void setPos(Long pos) {
+    this.position = pos;
   }
 
   @Override
