@@ -166,14 +166,14 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testNestedStructVariant(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    setVectorization(vectorized);
 
     String structTable = CATALOG + ".default.var_struct";
     sql("DROP TABLE IF EXISTS %s", structTable);
     sql(
         "CREATE TABLE %s (id BIGINT, s STRUCT<v: VARIANT>) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3', 'read.parquet.vectorization.enabled'='false')",
+            + "TBLPROPERTIES ('format-version'='3')",
         structTable);
+    setVectorization(structTable, vectorized);
 
     String j1 = "{\"a\":1}";
     String j2 = "{\"b\":2}";
@@ -201,14 +201,14 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testNestedArrayVariant(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    setVectorization(vectorized);
 
     String arrayTable = CATALOG + ".default.var_array";
     sql("DROP TABLE IF EXISTS %s", arrayTable);
     sql(
         "CREATE TABLE %s (id BIGINT, arr ARRAY<VARIANT>) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3', 'read.parquet.vectorization.enabled'='false')",
+            + "TBLPROPERTIES ('format-version'='3')",
         arrayTable);
+    setVectorization(arrayTable, vectorized);
 
     String a1 = "{\"a\":1}";
     String a2 = "{\"x\":10}";
@@ -250,14 +250,14 @@ public class TestSparkVariantRead extends TestBase {
   @ValueSource(booleans = {false, true})
   public void testNestedMapVariant(boolean vectorized) {
     assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
-    setVectorization(vectorized);
 
     String mapTable = CATALOG + ".default.var_map";
     sql("DROP TABLE IF EXISTS %s", mapTable);
     sql(
         "CREATE TABLE %s (id BIGINT, m MAP<STRING, VARIANT>) USING iceberg "
-            + "TBLPROPERTIES ('format-version'='3', 'read.parquet.vectorization.enabled'='false')",
+            + "TBLPROPERTIES ('format-version'='3')",
         mapTable);
+    setVectorization(mapTable, vectorized);
 
     String k1a = "{\"a\":1}";
     String k2x = "{\"x\":10}";
@@ -306,5 +306,11 @@ public class TestSparkVariantRead extends TestBase {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
         TABLE, Boolean.toString(on));
+  }
+
+  private void setVectorization(String table, boolean on) {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
+        table, Boolean.toString(on));
   }
 }
