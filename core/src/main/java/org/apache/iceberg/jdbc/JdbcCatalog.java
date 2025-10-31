@@ -538,6 +538,14 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
           "Namespace %s is not empty. %s tables exist.", namespace, tableIdentifiers.size());
     }
 
+    if (schemaVersion == JdbcUtil.SchemaVersion.V1) {
+      List<TableIdentifier> viewIdentifiers = listViews(namespace);
+      if (viewIdentifiers != null && !viewIdentifiers.isEmpty()) {
+        throw new NamespaceNotEmptyException(
+            "Namespace %s is not empty. %s views exist.", namespace, viewIdentifiers.size());
+      }
+    }
+
     int deletedRows =
         execute(
             JdbcUtil.DELETE_ALL_NAMESPACE_PROPERTIES_SQL,
