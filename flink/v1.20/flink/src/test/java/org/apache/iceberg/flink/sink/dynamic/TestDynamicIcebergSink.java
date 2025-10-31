@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.fail;
 import java.io.IOException;
 import java.io.Serializable;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,7 @@ import org.apache.flink.api.connector.sink2.CommitterInitContext;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.RestartStrategyOptions;
+import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -49,6 +51,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.flink.util.function.SerializableSupplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DistributionMode;
@@ -79,6 +82,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
@@ -527,8 +532,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     // Configure a Restart strategy to allow recovery
     Configuration configuration = new Configuration();
     configuration.set(RestartStrategyOptions.RESTART_STRATEGY, "fixed-delay");
-    // Allow max 3 retries to make up for the three failures we are simulating here
-    configuration.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_ATTEMPTS, 3);
+    // Allow max 4 retries to make up for the four failures we are simulating here
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_ATTEMPTS, 4);
     configuration.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_DELAY, Duration.ZERO);
     env.configure(configuration);
 
@@ -541,13 +546,15 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     final CommitHook commitHook = new FailBeforeAndAfterCommit();
     assertThat(FailBeforeAndAfterCommit.failedBeforeCommit).isFalse();
-    assertThat(FailBeforeAndAfterCommit.failedDuringCommit).isFalse();
+    assertThat(FailBeforeAndAfterCommit.failedBeforeCommitOperation).isFalse();
+    assertThat(FailBeforeAndAfterCommit.failedAfterCommitOperation).isFalse();
     assertThat(FailBeforeAndAfterCommit.failedAfterCommit).isFalse();
 
     executeDynamicSink(rows, env, true, 1, commitHook);
 
     assertThat(FailBeforeAndAfterCommit.failedBeforeCommit).isTrue();
-    assertThat(FailBeforeAndAfterCommit.failedDuringCommit).isTrue();
+    assertThat(FailBeforeAndAfterCommit.failedBeforeCommitOperation).isTrue();
+    assertThat(FailBeforeAndAfterCommit.failedAfterCommitOperation).isTrue();
     assertThat(FailBeforeAndAfterCommit.failedAfterCommit).isTrue();
   }
 
@@ -570,6 +577,89 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     executeDynamicSink(rows, env, true, 1, commitHook);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testCommitsOnceWhenConcurrentDuplicateCommit(boolean overwriteMode) throws Exception {
+    TableIdentifier tableId = TableIdentifier.of(DATABASE, "t1");
+    List<DynamicIcebergDataImpl> records =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, tableId.name(), "main", PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, tableId.name(), "main", PartitionSpec.unpartitioned()));
+
+    CommitHook duplicateCommit =
+        new DuplicateCommitHook(
+            () ->
+                new DynamicCommitter(
+                    CATALOG_EXTENSION.catalogLoader().loadCatalog(),
+                    Collections.emptyMap(),
+                    overwriteMode,
+                    10,
+                    "sinkId",
+                    new DynamicCommitterMetrics(new UnregisteredMetricsGroup())));
+
+    executeDynamicSink(records, env, true, 2, duplicateCommit, overwriteMode);
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(tableId);
+
+    if (!overwriteMode) {
+      verifyResults(records);
+      assertThat(table.currentSnapshot().summary())
+          .containsAllEntriesOf(Map.of("total-records", String.valueOf(records.size())));
+    }
+
+    long totalAddedRecords =
+        Lists.newArrayList(table.snapshots()).stream()
+            .map(snapshot -> snapshot.summary().getOrDefault("added-records", "0"))
+            .mapToLong(Long::valueOf)
+            .sum();
+    assertThat(totalAddedRecords).isEqualTo(records.size());
+  }
+
+  /**
+   * Represents a concurrent duplicate commit during an ongoing commit operation, which can happen
+   * in production scenarios when using REST catalog.
+   */
+  static class DuplicateCommitHook implements CommitHook {
+    // Static to maintain state after Flink restarts
+    private static boolean hasTriggered = false;
+
+    private final SerializableSupplier<DynamicCommitter> duplicateCommitterSupplier;
+    private final List<Committer.CommitRequest<DynamicCommittable>> commitRequests;
+
+    DuplicateCommitHook(SerializableSupplier<DynamicCommitter> duplicateCommitterSupplier) {
+      this.duplicateCommitterSupplier = duplicateCommitterSupplier;
+      this.commitRequests = Lists.newArrayList();
+
+      resetState();
+    }
+
+    private static void resetState() {
+      hasTriggered = false;
+    }
+
+    @Override
+    public void beforeCommit(Collection<Committer.CommitRequest<DynamicCommittable>> requests) {
+      if (!hasTriggered) {
+        this.commitRequests.addAll(requests);
+      }
+    }
+
+    @Override
+    public void beforeCommitOperation() {
+      if (!hasTriggered) {
+        try {
+          duplicateCommitterSupplier.get().commit(commitRequests);
+        } catch (final IOException | InterruptedException e) {
+          throw new RuntimeException("Duplicate committer failed", e);
+        }
+        commitRequests.clear();
+        hasTriggered = true;
+      }
+    }
+  }
+
   private static class AppendRightBeforeCommit implements CommitHook {
 
     final String tableIdentifier;
@@ -579,10 +669,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
 
     @Override
-    public void beforeCommit() {}
-
-    @Override
-    public void duringCommit() {
+    public void beforeCommitOperation() {
       // Create a conflict
       Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.parse(tableIdentifier));
       DataFile dataFile =
@@ -593,9 +680,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               .build();
       table.newAppend().appendFile(dataFile).commit();
     }
-
-    @Override
-    public void afterCommit() {}
   }
 
   private void runTest(List<DynamicIcebergDataImpl> dynamicData) throws Exception {
@@ -626,8 +710,19 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       int parallelism,
       @Nullable CommitHook commitHook)
       throws Exception {
+    executeDynamicSink(dynamicData, env, immediateUpdate, parallelism, commitHook, false);
+  }
+
+  private void executeDynamicSink(
+      List<DynamicIcebergDataImpl> dynamicData,
+      StreamExecutionEnvironment env,
+      boolean immediateUpdate,
+      int parallelism,
+      @Nullable CommitHook commitHook,
+      boolean overwrite)
+      throws Exception {
     DataStream<DynamicIcebergDataImpl> dataStream =
-        env.addSource(createBoundedSource(dynamicData), TypeInformation.of(new TypeHint<>() {}));
+        env.fromData(dynamicData, TypeInformation.of(new TypeHint<>() {}));
     env.setParallelism(parallelism);
 
     if (commitHook != null) {
@@ -638,6 +733,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
           .setSnapshotProperty("commit.retry.num-retries", "0")
+          .overwrite(overwrite)
           .append();
     } else {
       DynamicIcebergSink.forInput(dataStream)
@@ -645,6 +741,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
+          .overwrite(overwrite)
           .append();
     }
 
@@ -676,6 +773,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   static class CommitHookDynamicIcebergSink extends DynamicIcebergSink {
 
     private final CommitHook commitHook;
+    private final boolean overwriteMode;
 
     CommitHookDynamicIcebergSink(
         CommitHook commitHook,
@@ -693,6 +791,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           flinkWriteConf,
           cacheMaximumSize);
       this.commitHook = commitHook;
+      this.overwriteMode = flinkWriteConf.overwriteMode();
     }
 
     @Override
@@ -701,7 +800,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           commitHook,
           CATALOG_EXTENSION.catalogLoader().loadCatalog(),
           Collections.emptyMap(),
-          false,
+          overwriteMode,
           10,
           "sinkId",
           new DynamicCommitterMetrics(context.metricGroup()));

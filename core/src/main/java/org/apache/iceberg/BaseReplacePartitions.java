@@ -19,6 +19,8 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.function.Consumer;
+import javax.annotation.Nullable;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.util.PartitionSet;
@@ -28,6 +30,7 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
 
   private final PartitionSet replacedPartitions;
   private Long startingSnapshotId;
+  @Nullable private Consumer<Snapshot> snapshotValidator = null;
   private boolean validateConflictingData = false;
   private boolean validateConflictingDeletes = false;
 
@@ -68,6 +71,12 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
   }
 
   @Override
+  public ReplacePartitions validateSnapshot(Consumer<Snapshot> validator) {
+    this.snapshotValidator = validator;
+    return this;
+  }
+
+  @Override
   public ReplacePartitions validateNoConflictingDeletes() {
     this.validateConflictingDeletes = true;
     return this;
@@ -87,6 +96,10 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
 
   @Override
   public void validate(TableMetadata currentMetadata, Snapshot parent) {
+    if (snapshotValidator != null) {
+      validateSnapshots(snapshotValidator, currentMetadata, startingSnapshotId, parent);
+    }
+
     if (validateConflictingData) {
       if (dataSpec().isUnpartitioned()) {
         validateAddedDataFiles(

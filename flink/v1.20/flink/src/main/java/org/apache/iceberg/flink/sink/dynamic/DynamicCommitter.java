@@ -28,6 +28,8 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
@@ -40,6 +42,7 @@ import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
@@ -158,26 +161,36 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
   private static long getMaxCommittedCheckpointId(
       Table table, String flinkJobId, String operatorId, String branch) {
     Snapshot snapshot = table.snapshot(branch);
-    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     while (snapshot != null) {
-      Map<String, String> summary = snapshot.summary();
-      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      String snapshotOperatorId = summary.get(OPERATOR_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)
-          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
-        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
-        if (value != null) {
-          lastCommittedCheckpointId = Long.parseLong(value);
-          break;
-        }
+      @Nullable
+      Long committedCheckpointId = extractCommittedCheckpointId(snapshot, flinkJobId, operatorId);
+      if (committedCheckpointId != null) {
+        return committedCheckpointId;
       }
 
       Long parentSnapshotId = snapshot.parentId();
       snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
     }
 
-    return lastCommittedCheckpointId;
+    return INITIAL_CHECKPOINT_ID;
+  }
+
+  @Nullable
+  private static Long extractCommittedCheckpointId(
+      Snapshot snapshot, String flinkJobId, String operatorId) {
+    Map<String, String> summary = snapshot.summary();
+    String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
+    String snapshotOperatorId = summary.get(OPERATOR_ID);
+    if (flinkJobId.equals(snapshotFlinkJobId)
+        && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
+      String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
+      if (value != null) {
+        return Long.parseLong(value);
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -276,7 +289,17 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String operatorId) {
     // Iceberg tables are unsorted. So the order of the append data does not matter.
     // Hence, we commit everything in one snapshot.
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
+    long checkpointId = pendingResults.lastKey();
+    ReplacePartitions dynamicOverwrite =
+        table
+            .newReplacePartitions()
+            .scanManifestsWith(workerPool)
+            .validateSnapshot(
+                new MaxCommittedCheckpointIdValidator(checkpointId, newFlinkJobId, operatorId));
+    @Nullable Snapshot latestSnapshot = table.snapshot(branch);
+    if (latestSnapshot != null) {
+      dynamicOverwrite = dynamicOverwrite.validateFromSnapshot(latestSnapshot.snapshotId());
+    }
 
     for (List<WriteResult> writeResults : pendingResults.values()) {
       for (WriteResult result : writeResults) {
@@ -292,7 +315,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
         "dynamic partition overwrite",
         newFlinkJobId,
         operatorId,
-        pendingResults.lastKey());
+        checkpointId);
   }
 
   private void commitDeltaTxn(
@@ -306,7 +329,17 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       long checkpointId = e.getKey();
       List<WriteResult> writeResults = e.getValue();
 
-      RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+      RowDelta rowDelta =
+          table
+              .newRowDelta()
+              .scanManifestsWith(workerPool)
+              .validateSnapshot(
+                  new MaxCommittedCheckpointIdValidator(checkpointId, newFlinkJobId, operatorId));
+      @Nullable Snapshot latestSnapshot = table.snapshot(branch);
+      if (latestSnapshot != null) {
+        rowDelta = rowDelta.validateFromSnapshot(latestSnapshot.snapshotId());
+      }
+
       for (WriteResult result : writeResults) {
         // Row delta validations are not needed for streaming changes that write equality deletes.
         // Equality deletes are applied to data in all previous sequence numbers, so retries may
@@ -326,6 +359,39 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       // intervals or when concurrent checkpointing is enabled.
       commitOperation(
           table, branch, rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, checkpointId);
+    }
+  }
+
+  static class MaxCommittedCheckpointIdValidator implements Consumer<Snapshot> {
+    private final long stagedCheckpointId;
+    private final String flinkJobId;
+    private final String flinkOperatorId;
+
+    MaxCommittedCheckpointIdValidator(
+        long stagedCheckpointId, String flinkJobId, String flinkOperatorId) {
+      this.stagedCheckpointId = stagedCheckpointId;
+      this.flinkJobId = flinkJobId;
+      this.flinkOperatorId = flinkOperatorId;
+    }
+
+    @Override
+    public void accept(Snapshot snapshot) {
+      @Nullable
+      Long checkpointId = extractCommittedCheckpointId(snapshot, flinkJobId, flinkOperatorId);
+      if (checkpointId == null) {
+        return;
+      }
+
+      ValidationException.check(
+          checkpointId < stagedCheckpointId,
+          "The new parent snapshot '%s' has '%s': '%s' >= '%s' of the currently staged committable."
+              + "\nThis can happen, for example, when using the REST catalog: if the previous commit request failed"
+              + " in the Flink client but succeeded on the server after the Flink job decided to retry it with the new request."
+              + "\nFlink should retry this exception, and the committer should skip the duplicate request during the next retry.",
+          snapshot.snapshotId(),
+          MAX_COMMITTED_CHECKPOINT_ID,
+          checkpointId,
+          stagedCheckpointId);
     }
   }
 

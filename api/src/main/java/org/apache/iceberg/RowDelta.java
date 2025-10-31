@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.function.Consumer;
 import org.apache.iceberg.expressions.Expression;
 
 /**
@@ -78,6 +79,20 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * @return this for method chaining
    */
   RowDelta validateFromSnapshot(long snapshotId);
+
+  /**
+   * Enables snapshot validation with a user-provided function, which must throw an exception on
+   * validation failures.
+   *
+   * <p>Clients can use this method to validate summary and other metadata of parent snapshots.
+   *
+   * @param snapshotValidator a user function to validate parent snapshots
+   * @return this for method chaining
+   */
+  default RowDelta validateSnapshot(Consumer<Snapshot> snapshotValidator) {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " does not implement validateSnapshot");
+  }
 
   /**
    * Enables or disables case sensitive expression binding for validations that accept expressions.
