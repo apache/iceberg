@@ -170,7 +170,7 @@ public class TestExtendedParser {
             mock(Term.class), SortDirection.ASC, NullOrder.NULLS_FIRST);
     List<ExtendedParser.RawOrderField> expected = Collections.singletonList(field);
     when(icebergParser.parseSortOrder("id ASC NULLS FIRST")).thenReturn(expected);
-    ParserInterface parser = new ChildParser(icebergParser);
+    ParserInterface parser = new GrandChildParser(icebergParser);
     setSessionStateParser(spark.sessionState(), parser);
 
     List<ExtendedParser.RawOrderField> result =
@@ -200,9 +200,11 @@ public class TestExtendedParser {
 
   private static class WrapperParser extends AbstractSqlParser {
     private final ParserInterface delegate;
+    private String name;
 
     WrapperParser(ParserInterface delegate) {
       this.delegate = delegate;
+      this.name = "delegate";
     }
 
     public ParserInterface getDelegate() {
@@ -217,6 +219,12 @@ public class TestExtendedParser {
 
   private static class ChildParser extends WrapperParser {
     ChildParser(ParserInterface parent) {
+      super(parent);
+    }
+  }
+
+  private static class GrandChildParser extends ChildParser {
+    GrandChildParser(ParserInterface parent) {
       super(parent);
     }
   }
