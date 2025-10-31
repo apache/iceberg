@@ -177,6 +177,11 @@ public class SparkSessionCatalog<
   }
 
   @Override
+  public boolean tableExists(Identifier ident) {
+    return icebergCatalog.tableExists(ident) || getSessionCatalog().tableExists(ident);
+  }
+
+  @Override
   public Table createTable(
       Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
