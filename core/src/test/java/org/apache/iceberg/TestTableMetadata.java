@@ -1841,7 +1841,8 @@ public class TestTableMetadata {
             snapshotId,
             parentSnapshotId,
             0,
-            0L)) {
+            0L,
+            Map.of())) {
       writer.addAll(
           ImmutableList.of(
               new GenericManifestFile(localInput(manifestFile), SPEC_5.specId(), snapshotId)));

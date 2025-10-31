@@ -289,7 +289,8 @@ public class RewriteTablePathUtil {
             snapshot.snapshotId(),
             snapshot.parentId(),
             snapshot.sequenceNumber(),
-            snapshot.firstRowId())) {
+            snapshot.firstRowId(),
+            tableMetadata.properties())) {
 
       for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();

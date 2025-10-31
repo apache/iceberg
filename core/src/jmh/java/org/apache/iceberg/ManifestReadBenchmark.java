@@ -79,7 +79,8 @@ public class ManifestReadBenchmark {
             0,
             1L,
             0,
-            0L)) {
+            0L,
+            Map.of())) {
       for (int i = 0; i < NUM_FILES; i++) {
         OutputFile manifestFile =
             org.apache.iceberg.Files.localOutput(
