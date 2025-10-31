@@ -333,6 +333,7 @@ public class RewriteTablePathUtil {
    * @param specsById map of partition specs by id
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
+   * @param tableProperties map of table properties
    * @return a copy plan of content files in the manifest that was rewritten
    */
   public static RewriteResult<DataFile> rewriteDataManifest(
@@ -343,11 +344,13 @@ public class RewriteTablePathUtil {
       int format,
       Map<Integer, PartitionSpec> specsById,
       String sourcePrefix,
-      String targetPrefix)
+      String targetPrefix,
+      Map<String, String> tableProperties)
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
     try (ManifestWriter<DataFile> writer =
-            ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
+            ManifestFiles.write(
+                format, spec, outputFile, manifestFile.snapshotId(), tableProperties);
         ManifestReader<DataFile> reader =
             ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
       return StreamSupport.stream(reader.entries().spliterator(), false)
@@ -371,6 +374,7 @@ public class RewriteTablePathUtil {
    * @param targetPrefix target prefix that will replace it
    * @param stagingLocation staging location for rewritten files (referred delete file will be
    *     rewritten here)
+   * @param tableProperties map of table properties
    * @return a copy plan of content files in the manifest that was rewritten
    */
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
@@ -382,11 +386,13 @@ public class RewriteTablePathUtil {
       Map<Integer, PartitionSpec> specsById,
       String sourcePrefix,
       String targetPrefix,
-      String stagingLocation)
+      String stagingLocation,
+      Map<String, String> tableProperties)
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
     try (ManifestWriter<DeleteFile> writer =
-            ManifestFiles.writeDeleteManifest(format, spec, outputFile, manifestFile.snapshotId());
+            ManifestFiles.writeDeleteManifest(
+                format, spec, outputFile, manifestFile.snapshotId(), tableProperties);
         ManifestReader<DeleteFile> reader =
             ManifestFiles.readDeleteManifest(manifestFile, io, specsById)
                 .select(Arrays.asList("*"))) {

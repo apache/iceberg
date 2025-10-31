@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -310,6 +311,38 @@ public class TestManifestWriterVersions {
     checkRewrittenEntry(readManifest(manifest3), 0L, FileContent.DATA, FIRST_ROW_ID);
   }
 
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testDataFileManifestsCanUseAvroCompressionFromTableProperties(int formatVersion)
+      throws IOException {
+    ManifestFile manifest =
+        writeManifest(
+            formatVersion, Map.of("write.avro.compression-codec", "uncompressed"), DATA_FILE);
+    Map<String, String> metadata = getInputFileMetadata(manifest);
+    assertThat(metadata.get("avro.codec")).isEqualTo("null");
+
+    ManifestFile snappyManifest =
+        writeManifest(formatVersion, Map.of("write.avro.compression-codec", "snappy"), DATA_FILE);
+    Map<String, String> snappyMetadata = getInputFileMetadata(snappyManifest);
+    assertThat(snappyMetadata.get("avro.codec")).isEqualTo("snappy");
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testDeleteManifestsCanUseAvroCompressionFromTableProperties(int formatVersion)
+      throws IOException {
+    assumeThat(formatVersion).isNotEqualTo(1);
+    ManifestFile manifest =
+        writeDeleteManifest(formatVersion, Map.of("write.avro.compression-codec", "uncompressed"));
+    Map<String, String> metadata = getInputFileMetadata(manifest);
+    assertThat(metadata.get("avro.codec")).isEqualTo("null");
+
+    ManifestFile snappyManifest =
+        writeDeleteManifest(formatVersion, Map.of("write.avro.compression-codec", "snappy"));
+    Map<String, String> snappyMetadata = getInputFileMetadata(snappyManifest);
+    assertThat(snappyMetadata.get("avro.codec")).isEqualTo("snappy");
+  }
+
   void checkEntry(
       ManifestEntry<?> entry,
       Long expectedDataSequenceNumber,
@@ -453,13 +486,28 @@ public class TestManifestWriterVersions {
     String filename = FileFormat.AVRO.addExtension("manifest");
     EncryptedOutputFile manifestFile = encryptionManager().encrypt(io.newOutputFile(filename));
     ManifestWriter<DataFile> writer =
-        ManifestFiles.newWriter(formatVersion, SPEC, manifestFile, SNAPSHOT_ID, FIRST_ROW_ID);
-    try {
+        ManifestFiles.newWriter(
+            formatVersion, SPEC, manifestFile, SNAPSHOT_ID, FIRST_ROW_ID, Map.of());
+    try (writer) {
       for (DataFile file : files) {
         writer.add(file);
       }
-    } finally {
-      writer.close();
+    }
+    return writer.toManifestFile();
+  }
+
+  private ManifestFile writeManifest(
+      int formatVersion, Map<String, String> tableProperties, DataFile... files)
+      throws IOException {
+    String filename = FileFormat.AVRO.addExtension("manifest");
+    EncryptedOutputFile manifestFile = encryptionManager().encrypt(io.newOutputFile(filename));
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.newWriter(
+            formatVersion, SPEC, manifestFile, SNAPSHOT_ID, FIRST_ROW_ID, tableProperties);
+    try (writer) {
+      for (DataFile file : files) {
+        writer.add(file);
+      }
     }
     return writer.toManifestFile();
   }
@@ -479,10 +527,16 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestFile writeDeleteManifest(int formatVersion) throws IOException {
+    return writeDeleteManifest(formatVersion, Map.of());
+  }
+
+  private ManifestFile writeDeleteManifest(int formatVersion, Map<String, String> tableProperties)
+      throws IOException {
     String filename = FileFormat.AVRO.addExtension("manifest");
     EncryptedOutputFile manifestFile = encryptionManager().encrypt(io.newOutputFile(filename));
     ManifestWriter<DeleteFile> writer =
-        ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+        ManifestFiles.writeDeleteManifest(
+            formatVersion, SPEC, manifestFile, SNAPSHOT_ID, tableProperties);
     try {
       writer.add(DELETE_FILE);
     } finally {
@@ -498,5 +552,17 @@ public class TestManifestWriterVersions {
       assertThat(entries).hasSize(1);
       return entries.get(0);
     }
+  }
+
+  private Map<String, String> getInputFileMetadata(ManifestFile manifest) {
+    InputFile inputFile = io.newInputFile(manifest);
+    CloseableIterable<ManifestEntry<DataFile>> headerReader =
+        InternalData.read(FileFormat.AVRO, inputFile)
+            .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
+            .build();
+    assertThat(headerReader).isInstanceOf(AvroIterable.class);
+    Map<String, String> metadata =
+        ((AvroIterable<ManifestEntry<DataFile>>) headerReader).getMetadata();
+    return metadata;
   }
 }

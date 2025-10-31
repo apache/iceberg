@@ -154,6 +154,22 @@ public class ManifestFiles {
   }
 
   /**
+   * Create a new {@link ManifestWriter}.
+   *
+   * <p>Manifests created by this writer have all entry snapshot IDs set to null. All entries will
+   * inherit the snapshot ID that will be assigned to the manifest on commit.
+   *
+   * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
+   * @param outputFile the destination file location
+   * @param tableProperties a map of table properties
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      PartitionSpec spec, OutputFile outputFile, Map<String, String> tableProperties) {
+    return write(1, spec, outputFile, null, tableProperties);
+  }
+
+  /**
    * Create a new {@link ManifestWriter} for the given format version.
    *
    * @param formatVersion a target format version
@@ -165,7 +181,35 @@ public class ManifestFiles {
   public static ManifestWriter<DataFile> write(
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
     return write(
-        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        Map.of());
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited
+   * @param tableProperties a map of table properties
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      OutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> tableProperties) {
+    return write(
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        tableProperties);
   }
 
   /**
@@ -182,7 +226,26 @@ public class ManifestFiles {
       PartitionSpec spec,
       EncryptedOutputFile encryptedOutputFile,
       Long snapshotId) {
-    return newWriter(formatVersion, spec, encryptedOutputFile, snapshotId, null);
+    return newWriter(formatVersion, spec, encryptedOutputFile, snapshotId, null, Map.of());
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param encryptedOutputFile an {@link EncryptedOutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param tableProperties a map of table properties
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Map<String, String> tableProperties) {
+    return newWriter(formatVersion, spec, encryptedOutputFile, snapshotId, null, tableProperties);
   }
 
   /**
@@ -200,16 +263,19 @@ public class ManifestFiles {
       PartitionSpec spec,
       EncryptedOutputFile encryptedOutputFile,
       Long snapshotId,
-      Long firstRowId) {
+      Long firstRowId,
+      Map<String, String> tableProperties) {
     switch (formatVersion) {
       case 1:
-        return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId);
+        return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId, tableProperties);
       case 2:
-        return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId);
+        return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId, tableProperties);
       case 3:
-        return new ManifestWriter.V3Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
+        return new ManifestWriter.V3Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, tableProperties);
       case 4:
-        return new ManifestWriter.V4Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
+        return new ManifestWriter.V4Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, tableProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -247,7 +313,35 @@ public class ManifestFiles {
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
     return writeDeleteManifest(
-        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        Map.of());
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param tableProperties a map of table properties
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion,
+      PartitionSpec spec,
+      OutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> tableProperties) {
+    return writeDeleteManifest(
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        tableProperties);
   }
 
   /**
@@ -261,15 +355,34 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
       int formatVersion, PartitionSpec spec, EncryptedOutputFile outputFile, Long snapshotId) {
+    return writeDeleteManifest(formatVersion, spec, outputFile, snapshotId, Map.of());
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link EncryptedOutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param tableProperties a map of table properties
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> tableProperties) {
     switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
       case 2:
-        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId, tableProperties);
       case 3:
-        return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId, tableProperties);
       case 4:
-        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId, tableProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -323,7 +436,8 @@ public class ManifestFiles {
       Map<Integer, PartitionSpec> specsById,
       EncryptedOutputFile outputFile,
       long snapshotId,
-      SnapshotSummary.Builder summaryBuilder) {
+      SnapshotSummary.Builder summaryBuilder,
+      Map<String, String> tableProperties) {
     // use metadata that will add the current snapshot's ID for the rewrite
     // read first_row_id as null because this copies the incoming manifest before commit
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
@@ -337,7 +451,8 @@ public class ManifestFiles {
           outputFile,
           snapshotId,
           summaryBuilder,
-          ManifestEntry.Status.ADDED);
+          ManifestEntry.Status.ADDED,
+          tableProperties);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
     }
@@ -351,7 +466,8 @@ public class ManifestFiles {
       Map<Integer, PartitionSpec> specsById,
       EncryptedOutputFile outputFile,
       long snapshotId,
-      SnapshotSummary.Builder summaryBuilder) {
+      SnapshotSummary.Builder summaryBuilder,
+      Map<String, String> tableProperties) {
     // for a rewritten manifest all snapshot ids should be set. use empty metadata to throw an
     // exception if it is not
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
@@ -365,7 +481,8 @@ public class ManifestFiles {
           outputFile,
           snapshotId,
           summaryBuilder,
-          ManifestEntry.Status.EXISTING);
+          ManifestEntry.Status.EXISTING,
+          tableProperties);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
     }
@@ -379,9 +496,11 @@ public class ManifestFiles {
       EncryptedOutputFile outputFile,
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder,
-      ManifestEntry.Status allowedEntryStatus) {
+      ManifestEntry.Status allowedEntryStatus,
+      Map<String, String> tableProperties) {
     ManifestWriter<DataFile> writer =
-        newWriter(formatVersion, reader.spec(), outputFile, snapshotId, firstRowId);
+        newWriter(
+            formatVersion, reader.spec(), outputFile, snapshotId, firstRowId, tableProperties);
     boolean threw = true;
     try {
       for (ManifestEntry<DataFile> entry : reader.entries()) {

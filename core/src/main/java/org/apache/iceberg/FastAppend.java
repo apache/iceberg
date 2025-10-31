@@ -140,7 +140,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
         current.specsById(),
         newManifestFile,
         snapshotId(),
-        summaryBuilder);
+        summaryBuilder,
+        current.properties());
   }
 
   @Override
