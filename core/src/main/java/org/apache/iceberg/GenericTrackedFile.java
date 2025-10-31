@@ -467,8 +467,8 @@ public class GenericTrackedFile extends SupportsIndexProjection
     this.deletedRowsCount = count;
   }
 
-  public void setMinSequenceNumber(Long sequenceNumber) {
-    this.minSequenceNumber = sequenceNumber;
+  public void setMinSequenceNumber(Long minSeqNum) {
+    this.minSequenceNumber = minSeqNum;
   }
 
   @Override
