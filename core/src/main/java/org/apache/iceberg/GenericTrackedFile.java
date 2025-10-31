@@ -50,6 +50,7 @@ public class GenericTrackedFile extends SupportsIndexProjection
   private Long sequenceNumber = null;
   private Long fileSequenceNumber = null;
   private Long firstRowId = null;
+  private Long position = null;
 
   // Common file metadata
   private FileContent contentType = FileContent.DATA;
@@ -265,24 +266,39 @@ public class GenericTrackedFile extends SupportsIndexProjection
     };
   }
 
+  @Override
+  public Long pos() {
+    return position;
+  }
+
+  @Override
   public void setStatus(TrackingInfo.Status status) {
     this.status = status;
   }
 
+  @Override
   public void setSnapshotId(Long snapshotId) {
     this.snapshotId = snapshotId;
   }
 
+  @Override
   public void setSequenceNumber(Long sequenceNumber) {
     this.sequenceNumber = sequenceNumber;
   }
 
+  @Override
   public void setFileSequenceNumber(Long fileSequenceNumber) {
     this.fileSequenceNumber = fileSequenceNumber;
   }
 
+  @Override
   public void setFirstRowId(Long firstRowId) {
     this.firstRowId = firstRowId;
+  }
+
+  @Override
+  public void setPos(Long position) {
+    this.position = position;
   }
 
   @Override

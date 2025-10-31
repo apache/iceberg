@@ -208,4 +208,29 @@ public interface TrackedFile<F> {
    * <p>Use this method to copy data without stats when collecting files.
    */
   F copyWithoutStats();
+
+  /**
+   * Returns the ordinal position in the manifest.
+   *
+   * <p>Used for applying manifest deletion vectors.
+   */
+  Long pos();
+
+  /** Set the status for this tracked file entry. */
+  void setStatus(TrackingInfo.Status status);
+
+  /** Set the snapshot ID for this tracked file entry. */
+  void setSnapshotId(Long snapshotId);
+
+  /** Set the data sequence number for this tracked file entry. */
+  void setSequenceNumber(Long sequenceNumber);
+
+  /** Set the file sequence number for this tracked file entry. */
+  void setFileSequenceNumber(Long fileSequenceNumber);
+
+  /** Set the first row ID for this tracked file entry. */
+  void setFirstRowId(Long firstRowId);
+
+  /** Set the ordinal position in the manifest. */
+  void setPos(Long position);
 }
