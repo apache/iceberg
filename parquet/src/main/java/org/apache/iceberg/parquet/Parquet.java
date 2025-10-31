@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -1161,7 +1162,6 @@ public class Parquet {
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
-    private boolean isComet;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1290,8 +1290,17 @@ public class Parquet {
       throw new UnsupportedOperationException("Custom types are not yet supported");
     }
 
+    /**
+     * @deprecated Use {@link #set(String, String)} with "read.parquet.vectorized-reader.factory" =
+     *     "comet" instead
+     */
+    @Deprecated
     public ReadBuilder enableComet(boolean enableComet) {
-      this.isComet = enableComet;
+      if (enableComet) {
+        this.properties.put("read.parquet.vectorized-reader.factory", "comet");
+      } else {
+        this.properties.remove("read.parquet.vectorized-reader.factory");
+      }
       return this;
     }
 
@@ -1358,35 +1367,42 @@ public class Parquet {
         }
 
         if (batchedReaderFunc != null) {
-          if (isComet) {
-            LOG.info("Comet vectorized reader enabled");
-            return new CometVectorizedParquetReader<>(
-                file,
-                schema,
-                options,
-                batchedReaderFunc,
-                mapping,
-                filter,
-                reuseContainers,
-                caseSensitive,
-                maxRecordsPerBatch,
-                properties,
-                start,
-                length,
-                fileEncryptionKey,
-                fileAADPrefix);
-          } else {
-            return new VectorizedParquetReader<>(
-                file,
-                schema,
-                options,
-                batchedReaderFunc,
-                mapping,
-                filter,
-                reuseContainers,
-                caseSensitive,
-                maxRecordsPerBatch);
+          // Try to load custom vectorized reader factory from properties
+          String readerName = properties.get("read.parquet.vectorized-reader.factory");
+
+          if (readerName != null) {
+            LOG.info("Loading custom vectorized reader factory: {}", readerName);
+            VectorizedParquetReaderFactory factory = loadReaderFactory(readerName);
+            if (factory != null) {
+              return factory.createReader(
+                  file,
+                  schema,
+                  options,
+                  batchedReaderFunc,
+                  mapping,
+                  filter,
+                  reuseContainers,
+                  caseSensitive,
+                  maxRecordsPerBatch,
+                  properties,
+                  start,
+                  length,
+                  fileEncryptionKey,
+                  fileAADPrefix);
+            }
           }
+
+          // Fall back to default VectorizedParquetReader
+          return new VectorizedParquetReader<>(
+              file,
+              schema,
+              options,
+              batchedReaderFunc,
+              mapping,
+              filter,
+              reuseContainers,
+              caseSensitive,
+              maxRecordsPerBatch);
         } else {
           Function<MessageType, ParquetValueReader<?>> readBuilder =
               readerFuncWithSchema != null
@@ -1467,6 +1483,20 @@ public class Parquet {
 
       return new ParquetIterable<>(builder);
     }
+  }
+
+  private static VectorizedParquetReaderFactory loadReaderFactory(String name) {
+    ServiceLoader<VectorizedParquetReaderFactory> loader =
+        ServiceLoader.load(VectorizedParquetReaderFactory.class);
+
+    for (VectorizedParquetReaderFactory factory : loader) {
+      if (factory.name().equalsIgnoreCase(name)) {
+        return factory;
+      }
+    }
+
+    LOG.warn("Could not find vectorized reader factory: {}", name);
+    return null;
   }
 
   private static class ParquetReadBuilder<T> extends ParquetReader.Builder<T> {

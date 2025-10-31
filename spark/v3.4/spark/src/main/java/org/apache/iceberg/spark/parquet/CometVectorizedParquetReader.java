@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.parquet;
+package org.apache.iceberg.spark.parquet;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -40,6 +40,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.parquet.ReadConf;
+import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.parquet.ParquetReadOptions;

@@ -43,7 +43,7 @@ import org.apache.parquet.schema.MessageType;
  *
  * @param <T> type of value to read
  */
-class ReadConf<T> {
+public class ReadConf<T> {
   private final ParquetFileReader reader;
   private final InputFile file;
   private final ParquetReadOptions options;
@@ -60,7 +60,7 @@ class ReadConf<T> {
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
 
   @SuppressWarnings("unchecked")
-  ReadConf(
+  public ReadConf(
       InputFile file,
       ParquetReadOptions options,
       Schema expectedSchema,
@@ -146,7 +146,7 @@ class ReadConf<T> {
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
   }
 
-  ParquetFileReader reader() {
+  public ParquetFileReader reader() {
     if (reader != null) {
       reader.setRequestedSchema(projection);
       return reader;
@@ -157,43 +157,43 @@ class ReadConf<T> {
     return newReader;
   }
 
-  InputFile file() {
+  public InputFile file() {
     return file;
   }
 
-  MessageType projection() {
+  public MessageType projection() {
     return projection;
   }
 
-  ParquetValueReader<T> model() {
+  public ParquetValueReader<T> model() {
     return model;
   }
 
-  VectorizedReader<T> vectorizedModel() {
+  public VectorizedReader<T> vectorizedModel() {
     return vectorizedModel;
   }
 
-  boolean[] shouldSkip() {
+  public boolean[] shouldSkip() {
     return shouldSkip;
   }
 
-  long totalValues() {
+  public long totalValues() {
     return totalValues;
   }
 
-  boolean reuseContainers() {
+  public boolean reuseContainers() {
     return reuseContainers;
   }
 
-  Integer batchSize() {
+  public Integer batchSize() {
     return batchSize;
   }
 
-  List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadataForRowGroups() {
+  public List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadataForRowGroups() {
     return columnChunkMetaDataForRowGroups;
   }
 
-  ReadConf<T> copy() {
+  public ReadConf<T> copy() {
     return new ReadConf<>(this);
   }
 
