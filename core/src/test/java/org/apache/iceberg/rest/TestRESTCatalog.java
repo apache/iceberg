@@ -907,9 +907,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
             SnapshotMode.REFS.name()));
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     // Create a table with multiple snapshots
     Table table = catalog.createTable(TABLE, SCHEMA);
@@ -981,9 +979,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
             SnapshotMode.REFS.name()));
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     Table table =
         catalog.createTable(
@@ -1091,9 +1087,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
             SnapshotMode.REFS.name()));
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     Table table =
         catalog.createTable(TABLE, SCHEMA, PartitionSpec.unpartitioned(), ImmutableMap.of());
@@ -1186,9 +1180,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             required(1, "id", Types.IntegerType.get(), "unique ID"),
             required(2, "data", Types.StringType.get()));
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TBL.namespace());
-    }
+    catalog.createNamespace(TBL.namespace());
 
     Table table = catalog.createTable(TBL, expectedSchema);
     assertThat(table.schema().asStruct())
@@ -2098,9 +2090,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Namespace namespace = Namespace.of("namespace");
     TableIdentifier identifier = TableIdentifier.of(namespace, "multipleDiffsAgainstSingleTable");
 
-    if (requiresNamespaceCreate()) {
-      catalog().createNamespace(namespace);
-    }
+    catalog().createNamespace(namespace);
 
     Table table = catalog().buildTable(identifier, SCHEMA).create();
     Transaction transaction = table.newTransaction();
@@ -2134,9 +2124,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     TableIdentifier identifier1 = TableIdentifier.of(namespace, "multiDiffTable1");
     TableIdentifier identifier2 = TableIdentifier.of(namespace, "multiDiffTable2");
 
-    if (requiresNamespaceCreate()) {
-      catalog().createNamespace(namespace);
-    }
+    catalog().createNamespace(namespace);
 
     Table table1 = catalog().buildTable(identifier1, SCHEMA).create();
     Table table2 = catalog().buildTable(identifier2, SCHEMA).create();
@@ -2180,9 +2168,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     TableIdentifier identifier1 = TableIdentifier.of(namespace, "multiDiffTable1");
     TableIdentifier identifier2 = TableIdentifier.of(namespace, "multiDiffTable2");
 
-    if (requiresNamespaceCreate()) {
-      catalog().createNamespace(namespace);
-    }
+    catalog().createNamespace(namespace);
 
     catalog().createTable(identifier1, SCHEMA);
     catalog().createTable(identifier2, SCHEMA);
@@ -2368,9 +2354,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
     DataFile file =
@@ -2411,9 +2395,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
     Table table = catalog.loadTable(TABLE);
@@ -2446,9 +2428,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
     TableIdentifier newTable = TableIdentifier.of(TABLE.namespace(), "some_table");
@@ -2493,9 +2473,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
     TableIdentifier newTable = TableIdentifier.of(TABLE.namespace(), "some_table");
@@ -2535,9 +2513,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
     Mockito.doThrow(new NotAuthorizedException("not authorized"))
@@ -2578,9 +2554,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
     Mockito.doThrow(new ServiceFailureException("some service failure"))
@@ -2781,9 +2755,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
 
@@ -2802,9 +2774,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
 
@@ -2824,9 +2794,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     Table tbl = catalog.createTable(TABLE, SCHEMA);
 
@@ -2847,9 +2815,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     Table tbl = catalog.createTable(TABLE, SCHEMA);
 
@@ -2870,9 +2836,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     Table tbl = catalog.createTable(TABLE, SCHEMA);
 
@@ -2982,9 +2946,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
 
@@ -3042,9 +3004,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
 
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
+    catalog.createNamespace(TABLE.namespace());
 
     catalog.createTable(TABLE, SCHEMA);
 
