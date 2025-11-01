@@ -44,6 +44,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
@@ -130,11 +131,11 @@ public class HadoopTableOperations implements TableOperations {
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
     Pair<Integer, TableMetadata> current = versionAndMetadata();
-    if (base != current.second()) {
+    if (!Objects.equal(base, current.second())) {
       throw new CommitFailedException("Cannot commit changes based on stale table metadata");
     }
 
-    if (base == metadata) {
+    if (Objects.equal(base, metadata)) {
       LOG.info("Nothing to commit.");
       return;
     }
