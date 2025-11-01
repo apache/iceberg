@@ -22,6 +22,7 @@ import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_BIGQUERY;
 import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.util.List;
@@ -194,5 +195,39 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   public void testIsValidIdentifierWithEmptyNamespace() {
     assertThat(catalog.isValidIdentifier(TableIdentifier.of(Namespace.empty(), "table1")))
         .isFalse();
+  }
+
+  @Test
+  public void testCatalogUsesDefaultFactoryByDefault() {
+    Map<String, String> properties = Map.of(PROJECT_ID, "project-id");
+    BigQueryClientFactory factory = catalog.createClientFactory(properties);
+    assertThat(factory).isInstanceOf(DefaultBigQueryClientFactory.class);
+  }
+
+  @Test
+  public void testCatalogLoadsCustomFactory() {
+    Map<String, String> properties =
+        Map.of(
+            BigQueryMetastoreCatalog.CLIENT_FACTORY,
+            "org.apache.iceberg.gcp.bigquery.ImpersonatedBigQueryClientFactory",
+            ImpersonatedBigQueryClientFactory.IMPERSONATE_SERVICE_ACCOUNT,
+            "test-sa@test-project.iam.gserviceaccount.com",
+            PROJECT_ID,
+            "project-id");
+    BigQueryClientFactory factory = catalog.createClientFactory(properties);
+    assertThat(factory).isInstanceOf(ImpersonatedBigQueryClientFactory.class);
+  }
+
+  @Test
+  public void testCatalogFailsWithInvalidFactory() {
+    Map<String, String> properties =
+        Map.of(
+            BigQueryMetastoreCatalog.CLIENT_FACTORY,
+            "org.apache.iceberg.gcp.bigquery.DoesNotExist",
+            PROJECT_ID,
+            "project-id");
+    assertThatThrownBy(() -> catalog.createClientFactory(properties))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Failed to load custom BigQuery client factory");
   }
 }
