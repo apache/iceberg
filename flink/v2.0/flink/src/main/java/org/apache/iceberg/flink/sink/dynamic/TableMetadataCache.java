@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.time.Clock;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
@@ -50,13 +51,19 @@ class TableMetadataCache {
 
   private final Catalog catalog;
   private final long refreshMs;
+  private final Clock cacheRefreshClock;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final Map<TableIdentifier, CacheItem> tableCache;
 
   TableMetadataCache(
-      Catalog catalog, int maximumSize, long refreshMs, int inputSchemasPerTableCacheMaximumSize) {
+      Catalog catalog,
+      int maximumSize,
+      long refreshMs,
+      Clock cacheRefreshClock,
+      int inputSchemasPerTableCacheMaximumSize) {
     this.catalog = catalog;
     this.refreshMs = refreshMs;
+    this.cacheRefreshClock = cacheRefreshClock;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCache = new LRUCache<>(maximumSize);
   }
@@ -80,6 +87,14 @@ class TableMetadataCache {
     return schema(identifier, input, true);
   }
 
+  ResolvedSchemaInfo getResolvedSchemaInfo(TableIdentifier identifier, Schema input) {
+    CacheItem tableCacheItem = tableCache.get(identifier);
+    if (tableCacheItem == null) {
+      return null;
+    }
+    return tableCacheItem.inputSchemas.get(input);
+  }
+
   PartitionSpec spec(TableIdentifier identifier, PartitionSpec spec) {
     return spec(identifier, spec, true);
   }
@@ -88,6 +103,7 @@ class TableMetadataCache {
     tableCache.put(
         identifier,
         new CacheItem(
+            cacheRefreshClock.millis(),
             true,
             table.refs().keySet(),
             table.schemas(),
@@ -186,14 +202,15 @@ class TableMetadataCache {
       return EXISTS;
     } catch (NoSuchTableException e) {
       LOG.debug("Table doesn't exist {}", identifier, e);
-      tableCache.put(identifier, new CacheItem(false, null, null, null, 1));
+      tableCache.put(identifier, new CacheItem(-1, false, null, null, null, 1));
       return Tuple2.of(false, e);
     }
   }
 
   private boolean needsRefresh(CacheItem cacheItem, boolean allowRefresh) {
     return allowRefresh
-        && (cacheItem == null || cacheItem.created + refreshMs > System.currentTimeMillis());
+        && (cacheItem == null
+            || refreshMs < cacheRefreshClock.millis() - cacheItem.createdTimestampMillis);
   }
 
   public void invalidate(TableIdentifier identifier) {
@@ -202,8 +219,7 @@ class TableMetadataCache {
 
   /** Handles timeout for missing items only. Caffeine performance causes noticeable delays. */
   static class CacheItem {
-    private final long created = System.currentTimeMillis();
-
+    private final long createdTimestampMillis;
     private final boolean tableExists;
     private final Set<String> branches;
     private final Map<Integer, Schema> tableSchemas;
@@ -211,11 +227,13 @@ class TableMetadataCache {
     private final Map<Schema, ResolvedSchemaInfo> inputSchemas;
 
     private CacheItem(
+        long createdTimestampMillis,
         boolean tableExists,
         Set<String> branches,
         Map<Integer, Schema> tableSchemas,
         Map<Integer, PartitionSpec> specs,
         int inputSchemaCacheMaximumSize) {
+      this.createdTimestampMillis = createdTimestampMillis;
       this.tableExists = tableExists;
       this.branches = branches;
       this.tableSchemas = tableSchemas;
