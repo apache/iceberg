@@ -99,10 +99,13 @@ version prefix.
 
 Notes:
 1. Function definitions are identified by the tuple of `type`s and there can be only one definition for a given tuple.
-2. Parameter `name`s must not change, as some engines support named argument invocation (e.g., `foo(a => 1, b => 2)`). Only `doc` can be updated in place. 
-3. The `return-type` is immutable. To change it, users must create a new definition and remove the old one.
-4. Parameters cannot have default values; all arguments must be explicitly provided.
-5. The function MUST return a value assignable to the declared `return-type`, meaning the returned value’s type and
+2. Parameter `name`s are immutable since named argument invocation is supported (e.g., `foo(a => 1, b => 2)`). Only `doc` can be updated in place. 
+3. Parameters cannot have default values; all arguments must be explicitly provided.
+4. Each parameter input MUST be assignable to its declared Iceberg type. For complex types, the value’s
+   structure must match (correct field names, element/key/value types, and nesting). If a parameter—or any nested
+   field/element—is marked required, engines MUST reject null at that position (including inside structs, lists, and maps).
+5. The `return-type` is immutable. To change it, users must create a new definition and remove the old one.
+6. The function MUST return a value assignable to the declared `return-type`, meaning the returned value’s type and
    structure must match the declared Iceberg type (including field names, element types, and nesting for complex types),
    and any field or element marked as required MUST NOT be null. Engines MUST reject results that violate these rules.
 
