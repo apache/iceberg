@@ -248,7 +248,7 @@ public class SparkCatalog extends BaseCatalog {
         // if the original load didn't work, try using the namespace as an identifier because
         // the original identifier may include a snapshot selector or may point to the changelog
         TableIdentifier namespaceAsIdent =
-                buildIdentifier(namespaceToIdentifier(ident.namespace()));
+            buildIdentifier(namespaceToIdentifier(ident.namespace()));
         Matcher tag = TAG.matcher(ident.name());
         if (tag.matches()) {
           org.apache.iceberg.Table table = icebergCatalog.loadTable(namespaceAsIdent);
