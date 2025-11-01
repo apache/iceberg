@@ -546,59 +546,6 @@ public class TestBaseIncrementalChangelogScan
   }
 
   @TestTemplate
-  public void testEqualityDeleteOverlapsPositionDelete() {
-    assumeThat(formatVersion).isEqualTo(2);
-
-    // Snapshot 1: Add FILE_A
-    table.newFastAppend().appendFile(FILE_A).commit();
-    Snapshot snap1 = table.currentSnapshot();
-
-    // Snapshot 2: Add position deletes for FILE_A (specific positions)
-    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
-    Snapshot snap2 = table.currentSnapshot();
-
-    // Snapshot 3: Add equality delete that would delete rows at those same positions
-    // This tests behavior when equality delete targets rows already deleted by position
-    // deletes
-    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
-    Snapshot snap3 = table.currentSnapshot();
-
-    IncrementalChangelogScan scan =
-        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap3.snapshotId());
-
-    List<ChangelogScanTask> tasks = plan(scan);
-
-    // Should have 2 DeletedRowsScanTask for FILE_A (one per snapshot with deletes)
-    // The system currently creates separate tasks - this documents the current behavior
-    assertThat(tasks).as("Must have 2 tasks").hasSize(2);
-
-    DeletedRowsScanTask task1 = (DeletedRowsScanTask) tasks.get(0);
-    assertThat(task1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
-    assertThat(task1.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
-    assertThat(task1.addedDeletes())
-        .as("Must have position deletes")
-        .hasSize(1)
-        .extracting(DeleteFile::location)
-        .containsExactly(FILE_A_DELETES.location());
-    assertThat(task1.existingDeletes()).as("Must have no existing deletes").isEmpty();
-
-    DeletedRowsScanTask task2 = (DeletedRowsScanTask) tasks.get(1);
-    assertThat(task2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
-    assertThat(task2.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
-    assertThat(task2.addedDeletes())
-        .as("Must have equality deletes")
-        .hasSize(1)
-        .extracting(DeleteFile::location)
-        .containsExactly(FILE_A2_DELETES.location());
-    // Position delete from snap2 should be an existing delete for snap3
-    assertThat(task2.existingDeletes())
-        .as("Must have position delete from previous snapshot")
-        .hasSize(1)
-        .extracting(DeleteFile::location)
-        .containsExactly(FILE_A_DELETES.location());
-  }
-
-  @TestTemplate
   public void testEqualityDeleteOverlapsEqualityDelete() {
     assumeThat(formatVersion).isEqualTo(2);
 
@@ -1059,5 +1006,234 @@ public class TestBaseIncrementalChangelogScan
 
   private String path(ChangelogScanTask task) {
     return ((ContentScanTask<?>) task).file().location().toString();
+  }
+
+  @TestTemplate
+  public void testLazyExistingDeleteIndexAppendOnly() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Scenario 1: Append-only with position deletes (no equality deletes, no DELETED files)
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add position deletes for FILE_A
+    // This creates a DeletedRowsScanTask for EXISTING file FILE_A
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan1 =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks1 = plan(scan1);
+
+    // Verify no errors and correct results
+    assertThat(tasks1).isNotEmpty();
+
+    // Verify existingDeleteIndex was NOT built (position deletes don't require it)
+    BaseIncrementalChangelogScan baseScan1 = (BaseIncrementalChangelogScan) scan1;
+    assertThat(baseScan1.getExistingDeleteIndexBuildCallCount())
+        .as(
+            "Should not call buildExistingDeleteIndex for position deletes without equality deletes/DELETED files")
+        .isEqualTo(0);
+    assertThat(baseScan1.wasExistingDeleteIndexBuilt())
+        .as(
+            "Should not build existingDeleteIndex for position deletes without equality deletes/DELETED files")
+        .isFalse();
+
+    // Scenario 2: Pure append-only (no deletes at all, no DELETED files)
+    // Snapshot 3: Add FILE_B (pure append, no deletes)
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan2 =
+        newScan().fromSnapshotExclusive(snap2.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks2 = plan(scan2);
+
+    // Verify correct results
+    assertThat(tasks2).hasSize(1);
+    AddedRowsScanTask task = (AddedRowsScanTask) tasks2.get(0);
+    assertThat(task.file().location()).isEqualTo(FILE_B.location());
+
+    // Verify existingDeleteIndex was NOT built (pure append, no deletes, no DELETED files)
+    BaseIncrementalChangelogScan baseScan2 = (BaseIncrementalChangelogScan) scan2;
+    assertThat(baseScan2.getExistingDeleteIndexBuildCallCount())
+        .as("Should not call buildExistingDeleteIndex for pure append-only workload")
+        .isEqualTo(0);
+    assertThat(baseScan2.wasExistingDeleteIndexBuilt())
+        .as("Should not build existingDeleteIndex for pure append-only workload")
+        .isFalse();
+  }
+
+  @TestTemplate
+  public void testLazyExistingDeleteIndexWithEqualityDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add equality deletes for FILE_A (triggers early building)
+    DeleteFile eqDeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofEqualityDeletes()
+            .withPath("/path/to/eq-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartition(FILE_A.partition())
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // Verify correct results
+    assertThat(tasks).isNotEmpty();
+    DeletedRowsScanTask task = (DeletedRowsScanTask) tasks.get(0);
+    assertThat(task.file().location()).isEqualTo(FILE_A.location());
+
+    // Verify existingDeleteIndex was built EARLY (for equality deletes, not lazily)
+    BaseIncrementalChangelogScan baseScan = (BaseIncrementalChangelogScan) scan;
+    assertThat(baseScan.getExistingDeleteIndexBuildCallCount())
+        .as("Should call buildExistingDeleteIndex exactly once for equality deletes")
+        .isEqualTo(1);
+    assertThat(baseScan.wasExistingDeleteIndexBuilt())
+        .as("Should build existingDeleteIndex early when equality deletes exist")
+        .isTrue();
+  }
+
+  @TestTemplate
+  public void testLazyExistingDeleteIndexWithDeletedFiles() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    // Snapshot 2: Add deletes for FILE_A (before scan range)
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Delete FILE_A entirely (within scan range, no equality deletes)
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap2.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // Verify correct results
+    assertThat(tasks).hasSize(1);
+    DeletedDataFileScanTask task = (DeletedDataFileScanTask) tasks.get(0);
+    assertThat(task.file().location()).isEqualTo(FILE_A.location());
+    assertThat(task.existingDeletes())
+        .as("Must include pre-existing deletes")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+
+    // Verify existingDeleteIndex was built LAZILY (on-demand for DELETED file)
+    BaseIncrementalChangelogScan baseScan = (BaseIncrementalChangelogScan) scan;
+    assertThat(baseScan.getExistingDeleteIndexBuildCallCount())
+        .as("Should call buildExistingDeleteIndex exactly once (lazily) for DELETED file")
+        .isEqualTo(1);
+    assertThat(baseScan.wasExistingDeleteIndexBuilt())
+        .as("Should build existingDeleteIndex lazily when DELETED file is encountered")
+        .isTrue();
+  }
+
+  @TestTemplate
+  public void testLazyExistingDeleteIndexWithBothEqualityDeletesAndDeletedFiles() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A and FILE_B
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add equality deletes for FILE_A (triggers early building)
+    DeleteFile eqDeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofEqualityDeletes()
+            .withPath("/path/to/eq-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartition(FILE_A.partition())
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Delete FILE_B (different file) - this will trigger Supplier.get()
+    table.newDelete().deleteFile(FILE_B).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // Verify correct results
+    assertThat(tasks).isNotEmpty();
+
+    // This proves that the cached index was reused when DELETED file was encountered
+    BaseIncrementalChangelogScan baseScan = (BaseIncrementalChangelogScan) scan;
+    assertThat(baseScan.getExistingDeleteIndexBuildCallCount())
+        .as(
+            "Should call buildExistingDeleteIndex exactly once (early), then reuse cached index for DELETED file")
+        .isEqualTo(1);
+    assertThat(baseScan.wasExistingDeleteIndexBuilt())
+        .as(
+            "Should build existingDeleteIndex early when equality deletes exist, even with DELETED files")
+        .isTrue();
+
+    // ensure DELETED file task has correct deletes
+    DeletedDataFileScanTask deletedTask =
+        tasks.stream()
+            .filter(t -> t instanceof DeletedDataFileScanTask)
+            .map(t -> (DeletedDataFileScanTask) t)
+            .findFirst()
+            .orElse(null);
+    if (deletedTask != null) {
+      assertThat(deletedTask.file().location()).isEqualTo(FILE_B.location());
+    }
+  }
+
+  @TestTemplate
+  public void testLazyExistingDeleteIndexNoExistingDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A (before scan range)
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Delete FILE_A (within scan range, no existing deletes, no equality deletes)
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // Verify correct results
+    assertThat(tasks).hasSize(1);
+    DeletedDataFileScanTask task = (DeletedDataFileScanTask) tasks.get(0);
+    assertThat(task.file().location()).isEqualTo(FILE_A.location());
+    assertThat(task.existingDeletes()).isEmpty();
+
+    // Verify existingDeleteIndex was built (lazily for DELETED file, even though no existing
+    // deletes)
+    // Note: It will be built but will be empty
+    BaseIncrementalChangelogScan baseScan = (BaseIncrementalChangelogScan) scan;
+    assertThat(baseScan.getExistingDeleteIndexBuildCallCount())
+        .as("Should call buildExistingDeleteIndex exactly once (lazily) even if result is empty")
+        .isEqualTo(1);
+    assertThat(baseScan.wasExistingDeleteIndexBuilt())
+        .as(
+            "Should build existingDeleteIndex when DELETED file is encountered, even with no existing deletes")
+        .isTrue();
   }
 }

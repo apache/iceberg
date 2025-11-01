@@ -24,6 +24,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestGroup.CreateTasksFunction;
 import org.apache.iceberg.ManifestGroup.TaskContext;
@@ -63,6 +64,12 @@ class BaseIncrementalChangelogScan
     return new BaseIncrementalChangelogScan(newTable, newSchema, newContext);
   }
 
+  // Private fields to track build call count and cache (accessed via package-private methods for
+  // testing)
+  private int existingDeleteIndexBuildCallCount = 0;
+  // Cache for the built index (null if not built yet)
+  private DeleteFileIndex cachedExistingDeleteIndex = null;
+
   @Override
   protected CloseableIterable<ChangelogScanTask> doPlanFiles(
       Long fromSnapshotIdExclusive, long toSnapshotIdInclusive) {
@@ -82,11 +89,19 @@ class BaseIncrementalChangelogScan
             .filter(manifest -> changelogSnapshotIds.contains(manifest.snapshotId()))
             .toSet();
 
-    // Build delete file index for existing deletes (before the start snapshot)
-    DeleteFileIndex existingDeleteIndex = buildExistingDeleteIndex(fromSnapshotIdExclusive);
-
     // Build per-snapshot delete file indexes for added deletes
     Map<Long, DeleteFileIndex> addedDeletesBySnapshot = buildAddedDeleteIndexes(changelogSnapshots);
+
+    // Check if existing delete index is needed for equality deletes
+    boolean hasEqualityDeletes =
+        addedDeletesBySnapshot.values().stream()
+            .anyMatch(index -> !index.isEmpty() && index.hasEqualityDeletes());
+
+    // Build existing index early if needed for equality deletes, otherwise use lazy initialization
+    DeleteFileIndex existingDeleteIndex =
+        hasEqualityDeletes
+            ? buildExistingDeleteIndexTracked(fromSnapshotIdExclusive)
+            : DeleteFileIndex.emptyIndex();
 
     ManifestGroup manifestGroup =
         new ManifestGroup(table().io(), newDataManifests, ImmutableList.of())
@@ -106,12 +121,22 @@ class BaseIncrementalChangelogScan
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
+    // Create a supplier that reuses already-built index or builds lazily when first DELETED entry
+    // is encountered
+    Supplier<DeleteFileIndex> existingDeleteIndexSupplier =
+        () -> {
+          if (cachedExistingDeleteIndex != null) {
+            return cachedExistingDeleteIndex;
+          }
+          return buildExistingDeleteIndexTracked(fromSnapshotIdExclusive);
+        };
+
     // Plan data file tasks (ADDED and DELETED)
     CloseableIterable<ChangelogScanTask> dataFileTasks =
         manifestGroup.plan(
             new CreateDataFileChangeTasks(
                 changelogSnapshots,
-                existingDeleteIndex,
+                existingDeleteIndexSupplier,
                 addedDeletesBySnapshot,
                 table().specs(),
                 isCaseSensitive()));
@@ -191,6 +216,29 @@ class BaseIncrementalChangelogScan
         .specsById(table().specs())
         .caseSensitive(isCaseSensitive())
         .build();
+  }
+
+  /**
+   * Wrapper method that tracks build calls and caches the result for reuse. This ensures we only
+   * build the index once even if called from multiple places.
+   */
+  private DeleteFileIndex buildExistingDeleteIndexTracked(Long fromSnapshotIdExclusive) {
+    if (cachedExistingDeleteIndex != null) {
+      return cachedExistingDeleteIndex;
+    }
+    existingDeleteIndexBuildCallCount++;
+    cachedExistingDeleteIndex = buildExistingDeleteIndex(fromSnapshotIdExclusive);
+    return cachedExistingDeleteIndex;
+  }
+
+  // Visible for testing
+  int getExistingDeleteIndexBuildCallCount() {
+    return existingDeleteIndexBuildCallCount;
+  }
+
+  // Visible for testing
+  boolean wasExistingDeleteIndexBuilt() {
+    return existingDeleteIndexBuildCallCount > 0;
   }
 
   /**
@@ -598,7 +646,7 @@ class BaseIncrementalChangelogScan
     private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
 
     private final Map<Long, Integer> snapshotOrdinals;
-    private final DeleteFileIndex existingDeleteIndex;
+    private final Supplier<DeleteFileIndex> existingDeleteIndexSupplier;
     private final Map<Long, DeleteFileIndex> addedDeletesBySnapshot;
     private final Map<Long, List<DeleteFile>> cumulativeDeletesMap;
     private final Map<Integer, PartitionSpec> specsById;
@@ -606,12 +654,12 @@ class BaseIncrementalChangelogScan
 
     CreateDataFileChangeTasks(
         Deque<Snapshot> snapshots,
-        DeleteFileIndex existingDeleteIndex,
+        Supplier<DeleteFileIndex> existingDeleteIndexSupplier,
         Map<Long, DeleteFileIndex> addedDeletesBySnapshot,
         Map<Integer, PartitionSpec> specsById,
         boolean caseSensitive) {
       this.snapshotOrdinals = computeSnapshotOrdinals(snapshots);
-      this.existingDeleteIndex = existingDeleteIndex;
+      this.existingDeleteIndexSupplier = existingDeleteIndexSupplier;
       this.addedDeletesBySnapshot = addedDeletesBySnapshot;
       this.specsById = specsById;
       this.caseSensitive = caseSensitive;
@@ -710,7 +758,8 @@ class BaseIncrementalChangelogScan
 
       List<DeleteFile> allDeletes = Lists.newArrayList();
 
-      // Add existing deletes from before scan range
+      // Build existing delete index lazily when first DELETED entry is encountered
+      DeleteFileIndex existingDeleteIndex = existingDeleteIndexSupplier.get();
       DeleteFile[] existingDeletes =
           existingDeleteIndex.isEmpty() ? NO_DELETES : existingDeleteIndex.forEntry(entry);
       for (DeleteFile df : existingDeletes) {
