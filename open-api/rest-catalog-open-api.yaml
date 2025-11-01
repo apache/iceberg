@@ -2290,9 +2290,30 @@ components:
         - $ref: '#/components/schemas/TransformTerm'
 
     Reference:
+      oneOf:
+        - $ref: '#/components/schemas/NamedReference'
+        - $ref: '#/components/schemas/IDReference'
+
+    NamedReference:
+      description: Reference to a column by its name
       type: string
       example:
         - "column-name"
+
+    IDReference:
+      description: Reference to a column by its field ID
+      allOf:
+        - $ref: '#/components/schemas/NamedReference'
+        - type: object
+          required:
+            - type
+            - source-id
+          properties:
+            type:
+              type: string
+              const: "reference"
+            source-id:
+              type: integer
 
     TransformTerm:
       type: object
