@@ -66,6 +66,7 @@ public class PartitionStatsHandler {
   private PartitionStatsHandler() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(PartitionStatsHandler.class);
+  private static final PartitionStatistics PARTITION_STATS = new PartitionStatistics();
 
   // schema of the partition stats file as per spec
   public static final int PARTITION_FIELD_ID = 1;
@@ -189,6 +190,17 @@ public class PartitionStatsHandler {
   }
 
   /**
+   * @deprecated will be removed in 2.0.0. Use {@link #computeAndWriteStatsFile(Table,
+   *     PartitionStatistics, long)} instead.
+   */
+  @Deprecated
+  @SuppressWarnings("CatchBlockLogException")
+  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
+      throws IOException {
+    return computeAndWriteStatsFile(table, PARTITION_STATS, snapshotId);
+  }
+
+  /**
    * Computes the stats incrementally after the snapshot that has partition stats file till the
    * given snapshot and writes the combined result into a {@link PartitionStatisticsFile} after
    * merging the stats for a given snapshot.
@@ -196,13 +208,14 @@ public class PartitionStatsHandler {
    * <p>Does a full compute if previous statistics file does not exist.
    *
    * @param table The {@link Table} for which the partition statistics is computed.
+   * @param partitionStatistics The reader and writer of partition statistics files.
    * @param snapshotId snapshot for which partition statistics are computed.
    * @return {@link PartitionStatisticsFile} for the given snapshot, or null if no statistics are
    *     present.
    */
   @SuppressWarnings("CatchBlockLogException")
-  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
-      throws IOException {
+  public static PartitionStatisticsFile computeAndWriteStatsFile(
+      Table table, PartitionStatistics partitionStatistics, long snapshotId) throws IOException {
     Preconditions.checkArgument(table != null, "Invalid table: null");
     Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
     Snapshot snapshot = table.snapshot(snapshotId);
@@ -225,7 +238,9 @@ public class PartitionStatsHandler {
       }
 
       try {
-        stats = computeAndMergeStatsIncremental(table, snapshot, partitionType, statisticsFile);
+        stats =
+            computeAndMergeStatsIncremental(
+                table, partitionStatistics, snapshot, partitionType, statisticsFile);
       } catch (InvalidStatsFileException exception) {
         LOG.warn(
             "Using full compute as previous statistics file is corrupted for incremental compute.");
@@ -241,7 +256,7 @@ public class PartitionStatsHandler {
     }
 
     List<PartitionStats> sortedStats = sortStatsByPartition(stats, partitionType);
-    return writePartitionStatsFile(
+    return partitionStatistics.write(
         table,
         snapshot.snapshotId(),
         schema(partitionType, TableUtil.formatVersion(table)),
@@ -278,16 +293,7 @@ public class PartitionStatsHandler {
    */
   public static CloseableIterable<PartitionStats> readPartitionStatsFile(
       Schema schema, InputFile inputFile) {
-    Preconditions.checkArgument(schema != null, "Invalid schema: null");
-    Preconditions.checkArgument(inputFile != null, "Invalid input file: null");
-
-    FileFormat fileFormat = FileFormat.fromFileName(inputFile.location());
-    Preconditions.checkArgument(
-        fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
-
-    CloseableIterable<StructLike> records =
-        InternalData.read(fileFormat, inputFile).project(schema).build();
-    return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
+    return PARTITION_STATS.read(schema, inputFile);
   }
 
   private static OutputFile newPartitionStatsFile(
@@ -307,7 +313,7 @@ public class PartitionStatsHandler {
                             Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
   }
 
-  private static PartitionStats recordToPartitionStats(StructLike record) {
+  static PartitionStats recordToPartitionStats(StructLike record) {
     int pos = 0;
     PartitionStats stats =
         new PartitionStats(
@@ -322,13 +328,14 @@ public class PartitionStatsHandler {
 
   private static Collection<PartitionStats> computeAndMergeStatsIncremental(
       Table table,
+      PartitionStatistics partitionStatistics,
       Snapshot snapshot,
       StructType partitionType,
       PartitionStatisticsFile previousStatsFile) {
     PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
     // read previous stats, note that partition field will be read as GenericRecord
     try (CloseableIterable<PartitionStats> oldStats =
-        readPartitionStatsFile(
+        partitionStatistics.read(
             schema(partitionType, TableUtil.formatVersion(table)),
             table.io().newInputFile(previousStatsFile.path()))) {
       oldStats.forEach(
