@@ -36,6 +36,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -1912,5 +1913,56 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThatThrownBy(() -> view.sqlFor(""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid dialect: (empty string)");
+  }
+
+  @Test
+  public void dropNonEmptyNamespace() {
+    TableIdentifier viewIdent = TableIdentifier.of("ns", "view");
+    TableIdentifier tableIdent = TableIdentifier.of("ns", "tbl");
+
+    assertThat(catalog().namespaceExists(viewIdent.namespace()))
+        .as("Namespace should not exist")
+        .isFalse();
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(viewIdent.namespace());
+    }
+
+    assertThat(catalog().namespaceExists(viewIdent.namespace()))
+        .as("Namespace should exist")
+        .isTrue();
+
+    tableCatalog().buildTable(tableIdent, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdent)).as("Table should exist").isTrue();
+
+    catalog()
+        .buildView(viewIdent)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(viewIdent.namespace())
+        .withDefaultCatalog(catalog().name())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+    assertThat(catalog().viewExists(viewIdent)).as("View should exist").isTrue();
+
+    // dropping the namespace should fail, because the table & view hasn't been dropped
+    assertThatThrownBy(() -> catalog().dropNamespace(viewIdent.namespace()))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("is not empty");
+
+    tableCatalog().dropTable(tableIdent);
+    assertThat(tableCatalog().tableExists(tableIdent)).as("Table should not exist").isFalse();
+
+    // dropping the namespace should fail, because the view hasn't been dropped
+    assertThatThrownBy(() -> catalog().dropNamespace(viewIdent.namespace()))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("is not empty");
+
+    catalog().dropView(viewIdent);
+    assertThat(catalog().viewExists(viewIdent)).as("View should not exist").isFalse();
+
+    assertThat(catalog().dropNamespace(viewIdent.namespace())).isTrue();
+    assertThat(catalog().namespaceExists(viewIdent.namespace()))
+        .as("Namespace should not exist")
+        .isFalse();
   }
 }
