@@ -24,7 +24,7 @@ To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md
 
 ## Querying with SQL
 
-In Spark 3, tables use identifiers that include a [catalog name](spark-configuration.md#using-catalogs).
+In Spark, tables use identifiers that include a [catalog name](spark-configuration.md#using-catalogs).
 
 ```sql
 SELECT * FROM prod.db.table; -- catalog: prod, namespace: db, table: table
@@ -45,7 +45,7 @@ SELECT * FROM prod.db.table.files;
 | 0 | s3:/.../table/data/00002-5-8d6d60e8-d427-4809-bcf0-f5d45a4aad96.parquet | PARQUET   | 0  | {1999-01-01, 03} | 1            | 597                | [1 -> 90, 2 -> 62] | [1 -> 1, 2 -> 1] | [1 -> 0, 2 -> 0]  | []               | [1 -> , 2 -> a] | [1 -> , 2 -> a] | null         | [4]           | null | null |
 
 ### Time travel Queries with SQL
-Spark 3.3 and later supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
+Spark supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
 The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or tag name.
 
 !!! info
@@ -179,10 +179,6 @@ spark.read
     .format("iceberg")
     .load("path/to/table")
 ```
-
-!!! info
-    Spark 3.0 and earlier versions do not support using `option` with `table` in DataFrameReader commands. All options will be silently
-    ignored. Do not use `table` when attempting to time-travel or use other options. See [SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
 
 ### Incremental read
 
