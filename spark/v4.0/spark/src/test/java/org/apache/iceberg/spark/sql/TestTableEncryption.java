@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -36,6 +37,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
@@ -112,6 +114,24 @@ public class TestTableEncryption extends CatalogTestBase {
 
     table.refresh();
     assertThat(currentDataFiles(table)).isNotEmpty();
+  }
+
+  @TestTemplate
+  public void testTransaction() {
+    catalog.initialize(catalogName, catalogConfig);
+
+    Table table = catalog.loadTable(tableIdent);
+
+    List<DataFile> dataFiles = currentDataFiles(table);
+    Transaction transaction = table.newTransaction();
+    AppendFiles append = transaction.newAppend();
+
+    // add an arbitrary datafile
+    append.appendFile(dataFiles.get(0));
+    append.commit();
+    transaction.commitTransaction();
+
+    assertThat(currentDataFiles(table).size()).isEqualTo(dataFiles.size() + 1);
   }
 
   @TestTemplate

@@ -35,36 +35,6 @@ create_or_update_docs_remote () {
   git fetch "${REMOTE}"
 }
 
-# Pulls updates from a specified branch of a remote repository.
-# Arguments:
-#   $1: Branch name to pull updates from
-pull_remote () {
-  echo " --> pull remote"
-
-  local BRANCH="$1"
-
-  # Ensure the branch argument is not empty
-  assert_not_empty "${BRANCH}"  
-
-  # Perform a pull from the specified branch of the remote repository
-  git pull "${REMOTE}" "${BRANCH}"  
-}
-
-# Pushes changes from a local branch to a specified branch of a remote repository.
-# Arguments:
-#   $1: Branch name to push changes to
-push_remote () {
-  echo " --> push remote"
-
-  local BRANCH="$1"
-
-  # Ensure the branch argument is not empty
-  assert_not_empty "${BRANCH}"  
-
-  # Push changes to the specified branch of the remote repository
-  git push "${REMOTE}" "${BRANCH}"  
-}
-
 # Creates the virtual environment if it doesn't exist.
 create_venv () {
   if [ ! -d "${VENV_DIR}" ]; then
@@ -194,26 +164,6 @@ update_version () {
     sed -i'' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
   fi
 
-}
-
-# Excludes versioned documentation from search indexing by modifying .md files.
-# Arguments:
-#   $1: ICEBERG_VERSION - The version number of the documentation to exclude from search indexing.
-search_exclude_versioned_docs () {
-  local ICEBERG_VERSION="$1"
-
-  # Ensure ICEBERG_VERSION is not empty
-  assert_not_empty "${ICEBERG_VERSION}"
-
-  echo " --> search exclude version docs"
-
-  cd "${ICEBERG_VERSION}/docs/"
-
-  # Modify .md files to exclude versioned documentation from search indexing using venv python
-  "../../${VENV_DIR}/bin/python3" -c "import os
-for f in filter(lambda x: x.endswith('.md'), os.listdir()): lines = open(f).readlines(); open(f, 'w').writelines(lines[:2] + ['search:\n', '  exclude: true\n'] + lines[2:]);"
-
-  cd -
 }
 
 # Sets up local worktrees for the documentation and performs operations related to different versions.
