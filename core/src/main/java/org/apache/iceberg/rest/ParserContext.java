@@ -40,11 +40,11 @@ public class ParserContext {
     return new InjectableValues.Std(data);
   }
 
-  static Builder builder() {
+  public static Builder builder() {
     return new Builder();
   }
 
-  static class Builder {
+  public static class Builder {
     private final Map<String, Object> data = Maps.newHashMap();
 
     private Builder() {}
