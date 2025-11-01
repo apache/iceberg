@@ -116,7 +116,8 @@ public abstract class SizeBasedFileRewritePlanner<
   private int minInputFiles;
   private boolean rewriteAll;
   private long maxGroupSize;
-  private int outputSpecId;
+  private int defaultOutputSpecId;
+  private boolean retainOriginalSpecId;
 
   protected SizeBasedFileRewritePlanner(Table table) {
     this.table = table;
@@ -151,7 +152,8 @@ public abstract class SizeBasedFileRewritePlanner<
     this.minInputFiles = minInputFiles(options);
     this.rewriteAll = rewriteAll(options);
     this.maxGroupSize = maxGroupSize(options);
-    this.outputSpecId = outputSpecId(options);
+    this.defaultOutputSpecId = outputSpecId(options);
+    this.retainOriginalSpecId = retainOriginalSpecId(options);
 
     if (rewriteAll) {
       LOG.info("Configured to rewrite all provided files in table {}", table.name());
@@ -267,7 +269,11 @@ public abstract class SizeBasedFileRewritePlanner<
   }
 
   protected int outputSpecId() {
-    return outputSpecId;
+    return defaultOutputSpecId;
+  }
+
+  protected boolean retainOriginalSpecId() {
+    return retainOriginalSpecId;
   }
 
   private int outputSpecId(Map<String, String> options) {
@@ -278,6 +284,13 @@ public abstract class SizeBasedFileRewritePlanner<
         "Cannot use output spec id %s because the table does not contain a reference to this spec-id.",
         specId);
     return specId;
+  }
+
+  private boolean retainOriginalSpecId(Map<String, String> options) {
+    return PropertyUtil.propertyAsBoolean(
+        options,
+        RewriteDataFiles.RETAIN_ORIGINAL_PARTITION_SPEC,
+        RewriteDataFiles.RETAIN_ORIGINAL_PARTITION_SPEC_DEFAULT);
   }
 
   private Map<String, Long> sizeThresholds(Map<String, String> options) {

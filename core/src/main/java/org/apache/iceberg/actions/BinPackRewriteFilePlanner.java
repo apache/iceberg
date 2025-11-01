@@ -316,8 +316,12 @@ public class BinPackRewriteFilePlanner
       // If a task uses an incompatible partition spec the data inside could contain values
       // which belong to multiple partitions in the current spec. Treating all such files as
       // un-partitioned and grouping them together helps to minimize new files made.
+      // However, if we are retaining the original spec id, we should keep the original
+      // file partition
       StructLike taskPartition =
-          task.file().specId() == table.spec().specId() ? task.file().partition() : emptyStruct;
+          task.file().specId() == table.spec().specId() || retainOriginalSpecId()
+              ? task.file().partition()
+              : emptyStruct;
 
       filesByPartition.computeIfAbsent(taskPartition, unused -> Lists.newArrayList()).add(task);
     }
@@ -331,16 +335,30 @@ public class BinPackRewriteFilePlanner
       List<FileScanTask> tasks,
       long inputSplitSize,
       int expectedOutputFiles) {
+    int outputSpecId;
+    if (retainOriginalSpecId()) {
+      Set<Integer> partitionSpecs =
+          tasks.stream().map(task -> task.spec().specId()).collect(Collectors.toSet());
+      Preconditions.checkArgument(
+          partitionSpecs.size() == 1,
+          "Invalid File Task Group. Expected exactly one partition spec in partition " + partition);
+      outputSpecId = partitionSpecs.iterator().next();
+    } else {
+      outputSpecId = outputSpecId();
+    }
+
     FileGroupInfo info =
         ImmutableRewriteDataFiles.FileGroupInfo.builder()
             .globalIndex(ctx.currentGlobalIndex())
             .partitionIndex(ctx.currentPartitionIndex(partition))
             .partition(partition)
+            .partitionSpecId(outputSpecId)
             .build();
+
     return new RewriteFileGroup(
         info,
         Lists.newArrayList(tasks),
-        outputSpecId(),
+        outputSpecId,
         writeMaxFileSize(),
         inputSplitSize,
         expectedOutputFiles);

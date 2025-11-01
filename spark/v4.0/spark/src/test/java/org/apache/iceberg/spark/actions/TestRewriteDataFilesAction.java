@@ -2128,6 +2128,70 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(zorderBytes).isNotNull().isNotEmpty();
   }
 
+  @TestTemplate
+  public void testBinpackRewriteRetainingOriginalPartitionSpecs() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    int oldOutputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    writeRecords(1, SCALE);
+    shouldHaveFiles(table, 11);
+    int newOutputSpecId = table.spec().specId();
+
+    long dataSizeBefore = testDataSize(table);
+    int count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.RETAIN_ORIGINAL_PARTITION_SPEC, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(result.rewriteResults().size()).isEqualTo(2);
+    assertThat(result.rewriteResults())
+        .satisfiesOnlyOnce(
+            aResult -> assertThat(aResult.info().partitionSpecId()).isEqualTo(oldOutputSpecId));
+    assertThat(result.rewriteResults())
+        .satisfiesOnlyOnce(
+            aResult -> assertThat(aResult.info().partitionSpecId()).isEqualTo(newOutputSpecId));
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData()).hasSize((int) count);
+  }
+
+  @TestTemplate
+  public void testZOrderRewriteRetainingOriginalPartitionSpecs() {
+    Table table = createTable(10);
+    shouldHaveFiles(table, 10);
+    int oldOutputSpecId = table.spec().specId();
+    table.updateSpec().addField(Expressions.truncate("c2", 2)).commit();
+    writeRecords(1, SCALE);
+    shouldHaveFiles(table, 11);
+    int newOutputSpecId = table.spec().specId();
+
+    long dataSizeBefore = testDataSize(table);
+    int count = currentData().size();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(RewriteDataFiles.RETAIN_ORIGINAL_PARTITION_SPEC, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .zOrder("c2")
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(currentData()).hasSize((int) count);
+    assertThat(result.rewriteResults().size()).isEqualTo(2);
+    assertThat(result.rewriteResults())
+        .satisfiesOnlyOnce(
+            aResult -> assertThat(aResult.info().partitionSpecId()).isEqualTo(oldOutputSpecId));
+    assertThat(result.rewriteResults())
+        .satisfiesOnlyOnce(
+            aResult -> assertThat(aResult.info().partitionSpecId()).isEqualTo(newOutputSpecId));
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+  }
+
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
     assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
