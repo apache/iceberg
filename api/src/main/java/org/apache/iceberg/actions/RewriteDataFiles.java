@@ -148,6 +148,23 @@ public interface RewriteDataFiles
   String OUTPUT_SPEC_ID = "output-spec-id";
 
   /**
+   * Enable using ParquetFileMerger for efficient row-group level merging during bin-pack rewrites.
+   * When enabled, Parquet files will be merged at the row-group level without full deserialization,
+   * which is significantly faster than the standard Spark rewrite approach.
+   *
+   * <p>This optimization only applies to:
+   *
+   * <ul>
+   *   <li>Bin-pack rewrite strategy
+   *   <li>File groups containing only Parquet format files
+   * </ul>
+   *
+   * <p>The default value can be configured via the table property {@code
+   * write.parquet.use-file-merger}.
+   */
+  String USE_PARQUET_FILE_MERGER = "use-parquet-file-merger";
+
+  /**
    * Choose BINPACK as a strategy for this rewrite operation
    *
    * @return this for method chaining
