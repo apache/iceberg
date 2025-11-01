@@ -1846,3 +1846,8 @@ The Geometry and Geography class hierarchy and its Well-known text (WKT) and Wel
 Points are always defined by the coordinates X, Y, Z (optional), and M (optional), in this order. X is the longitude/easting, Y is the latitude/northing, and Z is usually the height, or elevation. M is a fourth optional dimension, for example a linear reference value (e.g., highway milepost value), a timestamp, or some other value as defined by the CRS.
 
 The version of the OGC standard first used here is 1.2.1, but future versions may also be used if the WKB representation remains wire-compatible.
+
+## Appendix H: Materialized Views
+
+Iceberg tables can be used as storage tables for [Iceberg Materialized Views](view-spec.md#materialized-views). The Materialized View specification is an extension of the [View Spec](view-spec.md) that defines how precomputed query results are stored and maintained using Iceberg tables as the underlying storage layer.
+
