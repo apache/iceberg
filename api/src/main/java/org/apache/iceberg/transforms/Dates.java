@@ -105,7 +105,21 @@ enum Dates implements Transform<Integer, Integer> {
     return Types.IntegerType.get();
   }
 
-  ChronoUnit granularity() {
+  @Override
+  public Type.TypeID sourceTypeId() {
+    return Type.TypeID.DATE;
+  }
+
+  @Override
+  public Type.TypeID resultTypeId() {
+    if (granularity == ChronoUnit.DAYS) {
+      return Type.TypeID.DATE;
+    }
+    return Type.TypeID.INTEGER;
+  }
+
+  @Override
+  public ChronoUnit granularity() {
     return granularity;
   }
 

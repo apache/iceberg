@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.transforms;
 
-import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -41,8 +40,6 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
 
     throw new IllegalArgumentException("Unsupported type: " + type);
   }
-
-  protected abstract ChronoUnit granularity();
 
   protected abstract Transform<S, Integer> toEnum(Type type);
 

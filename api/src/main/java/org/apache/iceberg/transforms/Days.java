@@ -32,7 +32,7 @@ public class Days<T> extends TimeTransform<T> {
   }
 
   @Override
-  protected ChronoUnit granularity() {
+  public ChronoUnit granularity() {
     return ChronoUnit.DAYS;
   }
 
