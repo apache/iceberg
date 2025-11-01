@@ -181,7 +181,8 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   @Test
   public void testTableWithMetadataTableName() throws Exception {
     TestableCachingCatalog catalog =
-        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+        TestableCachingCatalog.wrap(
+            hadoopCatalog(), EXPIRATION_TTL, CatalogProperties.CACHE_POLICY_DEFAULT, ticker);
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "partitions");
     TableIdentifier metaTableIdent =
         TableIdentifier.of("db", "ns1", "ns2", "partitions", "partitions");
@@ -207,7 +208,8 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   @Test
   public void testTableExpiresAfterInterval() throws IOException {
     TestableCachingCatalog catalog =
-        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+        TestableCachingCatalog.wrap(
+            hadoopCatalog(), EXPIRATION_TTL, CatalogProperties.CACHE_POLICY_DEFAULT, ticker);
 
     Namespace namespace = Namespace.of("db", "ns1", "ns2");
     TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
@@ -231,7 +233,8 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   @Test
   public void testCatalogExpirationTtlRefreshesAfterAccessViaCatalog() throws IOException {
     TestableCachingCatalog catalog =
-        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+        TestableCachingCatalog.wrap(
+            hadoopCatalog(), EXPIRATION_TTL, CatalogProperties.CACHE_POLICY_DEFAULT, ticker);
     Namespace namespace = Namespace.of("db", "ns1", "ns2");
     TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
 
@@ -277,7 +280,8 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   @Test
   public void testCacheExpirationEagerlyRemovesMetadataTables() throws IOException {
     TestableCachingCatalog catalog =
-        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+        TestableCachingCatalog.wrap(
+            hadoopCatalog(), EXPIRATION_TTL, CatalogProperties.CACHE_POLICY_DEFAULT, ticker);
     Namespace namespace = Namespace.of("db", "ns1", "ns2");
     TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
     Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
@@ -330,7 +334,11 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   public void testDeadlock() throws IOException, InterruptedException {
     HadoopCatalog underlyingCatalog = hadoopCatalog();
     TestableCachingCatalog catalog =
-        TestableCachingCatalog.wrap(underlyingCatalog, Duration.ofSeconds(1), ticker);
+        TestableCachingCatalog.wrap(
+            underlyingCatalog,
+            Duration.ofSeconds(1),
+            CatalogProperties.CACHE_POLICY_DEFAULT,
+            ticker);
     Namespace namespace = Namespace.of("db", "ns1", "ns2");
     int numThreads = 20;
     List<TableIdentifier> createdTables = Lists.newArrayList();
@@ -372,7 +380,10 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
   @Test
   public void testCachingCatalogRejectsExpirationIntervalOfZero() {
-    assertThatThrownBy(() -> TestableCachingCatalog.wrap(hadoopCatalog(), Duration.ZERO, ticker))
+    assertThatThrownBy(
+            () ->
+                TestableCachingCatalog.wrap(
+                    hadoopCatalog(), Duration.ZERO, CatalogProperties.CACHE_POLICY_DEFAULT, ticker))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "When cache.expiration-interval-ms is set to 0, the catalog cache should be disabled. This indicates a bug.");
@@ -384,6 +395,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
         TestableCachingCatalog.wrap(
             hadoopCatalog(),
             Duration.ofMillis(CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_OFF),
+            CatalogProperties.CACHE_POLICY_DEFAULT,
             ticker);
 
     assertThat(catalog.isCacheExpirationEnabled())
@@ -395,9 +407,11 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   @Test
   public void testInvalidateTableForChainedCachingCatalogs() throws Exception {
     TestableCachingCatalog wrappedCatalog =
-        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+        TestableCachingCatalog.wrap(
+            hadoopCatalog(), EXPIRATION_TTL, CatalogProperties.CACHE_POLICY_DEFAULT, ticker);
     TestableCachingCatalog catalog =
-        TestableCachingCatalog.wrap(wrappedCatalog, EXPIRATION_TTL, ticker);
+        TestableCachingCatalog.wrap(
+            wrappedCatalog, EXPIRATION_TTL, CatalogProperties.CACHE_POLICY_DEFAULT, ticker);
     Namespace namespace = Namespace.of("db", "ns1", "ns2");
     TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
     catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
@@ -405,6 +419,33 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     catalog.invalidateTable(tableIdent);
     assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
     assertThat(wrappedCatalog.cache().asMap()).doesNotContainKey(tableIdent);
+  }
+
+  @Test
+  public void testCachePolicyExpireAfterWrite() throws Exception {
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, "EXPIRE_AFTER_WRITE", ticker);
+
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Ensure table is cached with full ttl remaining upon creation
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(catalog.remainingAgeFor(tableIdent)).isPresent().get().isEqualTo(EXPIRATION_TTL);
+
+    ticker.advance(HALF_OF_EXPIRATION);
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(catalog.ageOf(tableIdent)).isPresent().get().isEqualTo(HALF_OF_EXPIRATION);
+
+    // Access the cache to check policy behaviour
+    catalog.loadTable(tableIdent);
+
+    ticker.advance(HALF_OF_EXPIRATION.plus(Duration.ofSeconds(10)));
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+    assertThat(catalog.loadTable(tableIdent))
+        .as("CachingCatalog should return a new instance after expiration")
+        .isNotSameAs(table);
   }
 
   public static TableIdentifier[] metadataTables(TableIdentifier tableIdent) {

@@ -165,6 +165,10 @@ public class FlinkCatalogFactory implements CatalogFactory {
         "%s is not allowed to be 0.",
         CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
 
+    String cachePolicy =
+        PropertyUtil.propertyAsString(
+            properties, CatalogProperties.CACHE_POLICY, CatalogProperties.CACHE_POLICY_DEFAULT);
+
     return new FlinkCatalog(
         name,
         defaultDatabase,
@@ -172,7 +176,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
         catalogLoader,
         properties,
         cacheEnabled,
-        cacheExpirationIntervalMs);
+        cacheExpirationIntervalMs,
+        cachePolicy);
   }
 
   private static Configuration mergeHiveConf(
