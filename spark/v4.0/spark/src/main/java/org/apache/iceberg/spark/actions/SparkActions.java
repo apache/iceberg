@@ -22,6 +22,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.ComputePartitionStats;
 import org.apache.iceberg.actions.ComputeTableStats;
+import org.apache.iceberg.actions.Hive2Iceberg;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
@@ -118,5 +119,14 @@ public class SparkActions implements ActionsProvider {
   @Override
   public RewriteTablePathSparkAction rewriteTablePath(Table table) {
     return new RewriteTablePathSparkAction(spark, table);
+  }
+
+  @Override
+  public Hive2Iceberg hive2Iceberg(String tableIdent) {
+    String ctx = "hive2Iceberg source";
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
+    return new Hive2IcebergAction(spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 }

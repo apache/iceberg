@@ -358,6 +358,36 @@ public class RewriteTablePathUtil {
   }
 
   /**
+   * Rewrite a data manifest, replacing path references.
+   *
+   * @param manifestFile source manifest file to rewrite
+   * @param snapshotIds snapshot ids for filtering returned data manifest entries
+   * @param outputFile output file to rewrite manifest file to
+   * @param io file io
+   * @param format format of the manifest file
+   * @param specsById map of partition specs by id should be performed.
+   * @return a copy plan of content files in the manifest that was rewritten
+   */
+  public static RewriteResult<DataFile> rewriteDataManifestForHiveMigrate(
+      ManifestFile manifestFile,
+      Set<Long> snapshotIds,
+      OutputFile outputFile,
+      FileIO io,
+      int format,
+      Map<Integer, PartitionSpec> specsById)
+      throws IOException {
+    PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
+    try (ManifestWriter<DataFile> writer =
+            ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
+        ManifestReader<DataFile> reader =
+            ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
+      return StreamSupport.stream(reader.entries().spliterator(), false)
+          .map(entry -> writeDataFileEntryForHiveMigrate(entry, snapshotIds, spec, writer))
+          .reduce(new RewriteResult<>(), RewriteResult::append);
+    }
+  }
+
+  /**
    * Rewrite a delete manifest, replacing path references.
    *
    * @param manifestFile source delete manifest to rewrite
@@ -423,6 +453,26 @@ public class RewriteTablePathUtil {
     DataFile newDataFile =
         DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
     appendEntryWithFile(entry, writer, newDataFile);
+    // keep the following entries in metadata but exclude them from copyPlan
+    // 1) deleted data files
+    // 2) entries not changed by snapshotIds
+    if (entry.isLive() && snapshotIds.contains(entry.snapshotId())) {
+      result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    }
+    return result;
+  }
+
+  private static RewriteResult<DataFile> writeDataFileEntryForHiveMigrate(
+      ManifestEntry<DataFile> entry,
+      Set<Long> snapshotIds,
+      PartitionSpec spec,
+      ManifestWriter<DataFile> writer) {
+    RewriteResult<DataFile> result = new RewriteResult<>();
+    DataFile dataFile = entry.file();
+    String sourceDataFilePath = dataFile.location();
+    DataFile newDataFile = DataFiles.builder(spec).copy(entry.file()).build();
+    appendEntryWithFile(entry, writer, newDataFile);
+
     // keep the following entries in metadata but exclude them from copyPlan
     // 1) deleted data files
     // 2) entries not changed by snapshotIds
