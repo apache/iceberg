@@ -92,14 +92,11 @@ create_nightly () {
   cd -
 }
 
-# Finds and retrieves the latest version of the documentation based on the directory structure.
-# Assumes the documentation versions are numeric folders within 'docs/docs/'.
+# Finds and retrieves the latest version of the documentation from mkdocs.yml.
+# Reads the icebergVersion from the extra section of mkdocs.yml.
 get_latest_version () {
-  # Find the latest numeric folder within 'docs/docs/' structure
-  local latest=$(ls -d docs/docs/[0-9]* | sort -V | tail -1)
-
-  # Extract the version number from the latest directory path
-  local latest_version=$(basename "${latest}")  
+  # Extract the icebergVersion from mkdocs.yml in the site directory
+  local latest_version=$(grep "icebergVersion:" mkdocs.yml | sed -E "s/.*icebergVersion:[[:space:]]*['\"]?([^'\"]+)['\"]?.*/\1/")
 
   # Output the latest version number
   echo "${latest_version}"
@@ -168,29 +165,59 @@ update_version () {
 
 # Sets up local worktrees for the documentation and performs operations related to different versions.
 pull_versioned_docs () {
-  echo " --> pull versioned docs"
-  
-  # Ensure the remote repository for documentation exists and is up-to-date
-  create_or_update_docs_remote  
+  # Retrieve the latest version of documentation for processing
+  local latest_version=$(get_latest_version)
 
+  # Output the latest version for debugging purposes
+  echo "Latest version is: ${latest_version}"
+
+  echo " --> pull versioned docs"
+
+  # Ensure the remote repository for documentation exists and is up-to-date
+  create_or_update_docs_remote
+  
   # Add local worktrees for documentation and javadoc either from the remote repository
   # or from a local branch.
   local docs_branch="${ICEBERG_VERSIONED_DOCS_BRANCH:-${REMOTE}/docs}"
   local javadoc_branch="${ICEBERG_VERSIONED_JAVADOC_BRANCH:-${REMOTE}/javadoc}"
-  git worktree add -f docs/docs "${docs_branch}"
-  git worktree add -f docs/javadoc "${javadoc_branch}"
-  
-  # Retrieve the latest version of documentation for processing
-  local latest_version=$(get_latest_version)  
 
-  # Output the latest version for debugging purposes
-  echo "Latest version is: ${latest_version}"
+  # Check if running in dev mode (only build nightly and latest for faster iteration)
+  if [ "${ICEBERG_DEV_MODE:-false}" = "true" ]; then
+    echo " --> running in DEV MODE - only building nightly and latest"
+    echo " --> This significantly reduces build time by skipping historical versions"
+
+    # Create docs worktree with sparse checkout for latest version only
+    git worktree add --no-checkout -f docs/docs "${docs_branch}"
+    (cd docs/docs && git sparse-checkout init --cone && git sparse-checkout set "${latest_version}" && git checkout)
+
+    # Create javadoc worktree with sparse checkout for latest version only
+    git worktree add --no-checkout -f docs/javadoc "${javadoc_branch}"
+    (cd docs/javadoc && git sparse-checkout init --cone && git sparse-checkout set "${latest_version}" && git checkout)
+  else
+    # Full checkout of all versions
+    git worktree add -f docs/docs "${docs_branch}"
+    git worktree add -f docs/javadoc "${javadoc_branch}"
+  fi
   
   # Create the 'latest' version of documentation
   create_latest "${latest_version}"
 
   # Create the 'nightly' version of documentation
-  create_nightly  
+  create_nightly
+}
+
+check_markdown_files () {
+  echo " --> check markdown file styles"
+  if ! python3 -m pymarkdown --config markdownlint.yml scan docs/docs/nightly/docs/*.md docs/*.md README.md
+  then
+    echo "Markdown style issues found. Please run './dev/lint.sh --fix' to fix them."
+    exit 1
+  fi
+}
+
+fix_markdown_files () {
+  echo " --> fix markdown file styles"
+  python3 -m pymarkdown --config markdownlint.yml fix docs/docs/nightly/docs/*.md docs/*.md README.md
 }
 
 check_markdown_files () {
