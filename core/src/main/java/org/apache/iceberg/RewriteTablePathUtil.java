@@ -94,26 +94,28 @@ public class RewriteTablePathUtil {
    * Create a new table metadata object, replacing path references
    *
    * @param metadata source table metadata
-   * @param sourcePrefix source prefix that will be replaced
-   * @param targetPrefix target prefix that will replace it
+   * @param prefixMappings source prefix amd target prefix mappings
    * @return copy of table metadata with paths replaced
    */
   public static TableMetadata replacePaths(
-      TableMetadata metadata, String sourcePrefix, String targetPrefix) {
-    String newLocation = metadata.location().replaceFirst(sourcePrefix, targetPrefix);
-    List<Snapshot> newSnapshots = updatePathInSnapshots(metadata, sourcePrefix, targetPrefix);
+      TableMetadata metadata, Map<String, String> prefixMappings) {
+    Map.Entry<String, String> prefixMap = lookupPrefixMappings(metadata.location(), prefixMappings);
+    if(prefixMap == null) {
+      throw new IllegalArgumentException("unable to find prefix mapping for path: " + metadata.location());
+    }
+    List<Snapshot> newSnapshots = updatePathInSnapshots(metadata, prefixMappings);
     List<TableMetadata.MetadataLogEntry> metadataLogEntries =
-        updatePathInMetadataLogs(metadata, sourcePrefix, targetPrefix);
+        updatePathInMetadataLogs(metadata, prefixMappings);
     long snapshotId =
         metadata.currentSnapshot() == null ? -1 : metadata.currentSnapshot().snapshotId();
     Map<String, String> properties =
-        updateProperties(metadata.properties(), sourcePrefix, targetPrefix);
+        updateProperties(metadata.properties(), prefixMappings);
 
     return new TableMetadata(
         null,
         metadata.formatVersion(),
         metadata.uuid(),
-        newLocation,
+        prefixMap.getValue(),
         metadata.lastSequenceNumber(),
         metadata.lastUpdatedMillis(),
         metadata.lastColumnId(),
@@ -131,47 +133,48 @@ public class RewriteTablePathUtil {
         metadata.snapshotLog(),
         metadataLogEntries,
         metadata.refs(),
-        updatePathInStatisticsFiles(metadata.statisticsFiles(), sourcePrefix, targetPrefix),
+        updatePathInStatisticsFiles(metadata.statisticsFiles(), prefixMappings),
         updatePathInPartitionStatisticsFiles(
-            metadata.partitionStatisticsFiles(), sourcePrefix, targetPrefix),
+            metadata.partitionStatisticsFiles(), prefixMappings),
         metadata.nextRowId(),
         metadata.encryptionKeys(),
         metadata.changes());
   }
 
   private static Map<String, String> updateProperties(
-      Map<String, String> tableProperties, String sourcePrefix, String targetPrefix) {
+      Map<String, String> tableProperties, Map<String, String> prefixMappings) {
     Map<String, String> properties = Maps.newHashMap(tableProperties);
-    updatePathInProperty(properties, sourcePrefix, targetPrefix, TableProperties.OBJECT_STORE_PATH);
-    updatePathInProperty(
-        properties, sourcePrefix, targetPrefix, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
-    updatePathInProperty(
-        properties, sourcePrefix, targetPrefix, TableProperties.WRITE_DATA_LOCATION);
-    updatePathInProperty(
-        properties, sourcePrefix, targetPrefix, TableProperties.WRITE_METADATA_LOCATION);
-
+    for (Map.Entry<String, String> entry : prefixMappings.entrySet()) {
+      updatePathInProperty(properties, entry.getKey(), entry.getValue(), TableProperties.OBJECT_STORE_PATH);
+      updatePathInProperty(
+          properties, entry.getKey(), entry.getValue(), TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+      updatePathInProperty(
+          properties, entry.getKey(), entry.getValue(), TableProperties.WRITE_DATA_LOCATION);
+      updatePathInProperty(
+          properties, entry.getKey(), entry.getValue(), TableProperties.WRITE_METADATA_LOCATION);
+    }
     return properties;
   }
 
   private static void updatePathInProperty(
-      Map<String, String> properties,
-      String sourcePrefix,
-      String targetPrefix,
-      String propertyName) {
+          Map<String, String> properties,
+          String sourcePrefix,
+          String targetPrefix,
+          String propertyName) {
     if (properties.containsKey(propertyName)) {
       properties.put(
-          propertyName, newPath(properties.get(propertyName), sourcePrefix, targetPrefix));
+              propertyName, newPath(properties.get(propertyName), sourcePrefix, targetPrefix));
     }
   }
 
   private static List<StatisticsFile> updatePathInStatisticsFiles(
-      List<StatisticsFile> statisticsFiles, String sourcePrefix, String targetPrefix) {
+      List<StatisticsFile> statisticsFiles, Map<String, String> prefixMappings) {
     return statisticsFiles.stream()
         .map(
             existing ->
                 new GenericStatisticsFile(
                     existing.snapshotId(),
-                    newPath(existing.path(), sourcePrefix, targetPrefix),
+                        newPath(existing.path(), prefixMappings),
                     existing.fileSizeInBytes(),
                     existing.fileFooterSizeInBytes(),
                     existing.blobMetadata()))
@@ -183,46 +186,44 @@ public class RewriteTablePathUtil {
    * sourcePrefix in the file paths with the targetPrefix.
    *
    * @param partitionStatisticsFiles The list of PartitionStatisticsFile to update.
-   * @param sourcePrefix The prefix to be replaced in the file paths.
-   * @param targetPrefix The new prefix to replace the sourcePrefix in the file paths.
+   * @param prefixMappings The mappings between source prefix and destination prefix.
    * @return A new list of PartitionStatisticsFile with updated file paths.
    */
   private static List<PartitionStatisticsFile> updatePathInPartitionStatisticsFiles(
       List<PartitionStatisticsFile> partitionStatisticsFiles,
-      String sourcePrefix,
-      String targetPrefix) {
+      Map<String, String> prefixMappings) {
 
     return partitionStatisticsFiles.stream()
         .map(
             existing ->
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(existing.snapshotId())
-                    .path(newPath(existing.path(), sourcePrefix, targetPrefix))
+                    .path(newPath(existing.path(), prefixMappings))
                     .fileSizeInBytes(existing.fileSizeInBytes())
                     .build())
         .collect(Collectors.toList());
   }
 
   private static List<TableMetadata.MetadataLogEntry> updatePathInMetadataLogs(
-      TableMetadata metadata, String sourcePrefix, String targetPrefix) {
+      TableMetadata metadata, Map<String, String> prefixMappings) {
     List<TableMetadata.MetadataLogEntry> metadataLogEntries =
         Lists.newArrayListWithCapacity(metadata.previousFiles().size());
     for (TableMetadata.MetadataLogEntry metadataLog : metadata.previousFiles()) {
       TableMetadata.MetadataLogEntry newMetadataLog =
           new TableMetadata.MetadataLogEntry(
               metadataLog.timestampMillis(),
-              newPath(metadataLog.file(), sourcePrefix, targetPrefix));
+                  newPath(metadataLog.file(), prefixMappings));
       metadataLogEntries.add(newMetadataLog);
     }
     return metadataLogEntries;
   }
 
   private static List<Snapshot> updatePathInSnapshots(
-      TableMetadata metadata, String sourcePrefix, String targetPrefix) {
+      TableMetadata metadata, Map<String, String> prefixMappings) {
     List<Snapshot> newSnapshots = Lists.newArrayListWithCapacity(metadata.snapshots().size());
     for (Snapshot snapshot : metadata.snapshots()) {
       String newManifestListLocation =
-          newPath(snapshot.manifestListLocation(), sourcePrefix, targetPrefix);
+              newPath(snapshot.manifestListLocation(), prefixMappings);
       Snapshot newSnapshot =
           new BaseSnapshot(
               snapshot.sequenceNumber(),
@@ -248,8 +249,7 @@ public class RewriteTablePathUtil {
    * @param io file io
    * @param tableMetadata metadata of table
    * @param manifestsToRewrite a list of manifest files to filter for rewrite
-   * @param sourcePrefix source prefix that will be replaced
-   * @param targetPrefix target prefix that will replace it
+   * @param prefixMappings map of source prefix to target prefix mappings
    * @param stagingDir staging directory
    * @param outputPath location to write the manifest list
    * @return a copy plan for manifest files whose metadata were contained in the rewritten manifest
@@ -260,21 +260,24 @@ public class RewriteTablePathUtil {
       FileIO io,
       TableMetadata tableMetadata,
       Set<String> manifestsToRewrite,
-      String sourcePrefix,
-      String targetPrefix,
+      Map<String, String> prefixMappings,
       String stagingDir,
       String outputPath) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
     OutputFile outputFile = io.newOutputFile(outputPath);
 
     List<ManifestFile> manifestFiles = manifestFilesInSnapshot(io, snapshot);
+    // Validate that all manifest files can be matched by at least one prefix
     manifestFiles.forEach(
-        mf ->
-            Preconditions.checkArgument(
-                mf.path().startsWith(sourcePrefix),
-                "Encountered manifest file %s not under the source prefix %s",
-                mf.path(),
-                sourcePrefix));
+        mf -> {
+          boolean hasMatchingPrefix = prefixMappings.keySet().stream()
+              .anyMatch(prefix -> mf.path().startsWith(prefix));
+          Preconditions.checkArgument(
+              hasMatchingPrefix,
+              "Encountered manifest file %s not matching any source prefix in %s",
+              mf.path(),
+              prefixMappings.keySet());
+        });
 
     EncryptionManager encryptionManager =
         (io instanceof EncryptingFileIO)
@@ -293,14 +296,14 @@ public class RewriteTablePathUtil {
 
       for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
-        ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
+        String newPath = newPath(newFile.path(), prefixMappings);
+        ((StructLike) newFile).set(0, newPath);
         writer.add(newFile);
 
         if (manifestsToRewrite.contains(file.path())) {
           result.toRewrite().add(file);
-          result
-              .copyPlan()
-              .add(Pair.of(stagingPath(file.path(), sourcePrefix, stagingDir), newFile.path()));
+          String stagingFilePath = stagingPath(file.path(),prefixMappings, stagingDir);
+          result.copyPlan().add(Pair.of(stagingFilePath != null ? stagingFilePath : file.path(), newPath));
         }
       }
       return result;
@@ -544,8 +547,7 @@ public class RewriteTablePathUtil {
    * @param outputFile output file to rewrite delete file to
    * @param io file io
    * @param spec spec of delete file
-   * @param sourcePrefix source prefix that will be replaced
-   * @param targetPrefix target prefix to replace it
+   * @param prefixMappings source prefix and target prefix mappings
    * @param posDeleteReaderWriter class to read and write position delete files
    */
   public static void rewritePositionDeleteFile(
@@ -553,14 +555,14 @@ public class RewriteTablePathUtil {
       OutputFile outputFile,
       FileIO io,
       PartitionSpec spec,
-      String sourcePrefix,
-      String targetPrefix,
+      Map<String, String> prefixMappings,
       PositionDeleteReaderWriter posDeleteReaderWriter)
       throws IOException {
     String path = deleteFile.location();
-    if (!path.startsWith(sourcePrefix)) {
+    Map.Entry<String, String>  matchEntry = lookupPrefixMappings(path, prefixMappings);
+    if (matchEntry == null) {
       throw new UnsupportedOperationException(
-          String.format("Expected delete file %s to start with prefix: %s", path, sourcePrefix));
+          String.format("Expected delete file %s to find in prefixes", path));
     }
     InputFile sourceFile = io.newInputFile(path);
     try (CloseableIterable<Record> reader =
@@ -579,12 +581,12 @@ public class RewriteTablePathUtil {
             posDeleteReaderWriter.writer(
                 outputFile, deleteFile.format(), spec, deleteFile.partition(), rowSchema)) {
 
-          writer.write(newPositionDeleteRecord(record, sourcePrefix, targetPrefix));
+          writer.write(newPositionDeleteRecord(record, matchEntry.getKey(), matchEntry.getValue()));
 
           while (recordIt.hasNext()) {
             record = recordIt.next();
             if (record != null) {
-              writer.write(newPositionDeleteRecord(record, sourcePrefix, targetPrefix));
+              writer.write(newPositionDeleteRecord(record, matchEntry.getKey(), matchEntry.getValue()));
             }
           }
         }
@@ -609,6 +611,43 @@ public class RewriteTablePathUtil {
   }
 
   /**
+   * Lookup the longest matching prefix mapping for a given path.
+   *
+   * @param path the path to find a prefix mapping for
+   * @param prefixMappings map of source prefix to target prefix mappings
+   * @return the Map.Entry with the longest matching source prefix, or null if no match found
+   */
+  public static Map.Entry<String, String> lookupPrefixMappings(
+          String path, Map<String, String> prefixMappings) {
+    if (prefixMappings == null || prefixMappings.isEmpty() || path == null) {
+      return null;
+    }
+
+    // Sort entries by key length in descending order to find the longest matching prefix
+    return prefixMappings.entrySet().stream()
+            .filter(entry -> path.startsWith(entry.getKey()))
+            .max(java.util.Comparator.comparing(entry -> entry.getKey().length()))
+            .orElse(null);
+  }
+
+  public static String newPath(String path, Map<String, String> prefixMappings) {
+    if (prefixMappings == null || prefixMappings.isEmpty()) {
+      return path;
+    }
+
+    // Use the centralized lookup method to find the longest matching prefix
+    Map.Entry<String, String> entry = lookupPrefixMappings(path, prefixMappings);
+    if (entry != null) {
+      String sourcePrefix = entry.getKey();
+      String targetPrefix = entry.getValue();
+      return path.replaceFirst(sourcePrefix, targetPrefix != null ? targetPrefix : "");
+    }
+
+    // No matching prefix found, return original path
+    return path;
+  }
+
+  /**
    * Replace path reference
    *
    * @param path path reference
@@ -624,6 +663,7 @@ public class RewriteTablePathUtil {
   public static String combinePaths(String absolutePath, String relativePath) {
     return maybeAppendFileSeparator(absolutePath) + relativePath;
   }
+
 
   /** Returns the file name of a path. */
   public static String fileName(String path) {
@@ -660,6 +700,20 @@ public class RewriteTablePathUtil {
    */
   public static String stagingPath(String originalPath, String sourcePrefix, String stagingDir) {
     String relativePath = relativize(originalPath, sourcePrefix);
+    return combinePaths(stagingDir, relativePath);
+  }
+
+  /**
+   * Construct a staging path under a given staging directory, preserving relative directory
+   * structure to avoid conflicts when multiple files have the same name but different paths.
+   *
+   * @param originalPath source path
+   * @param prefixMappings source prefix and target prefix mappings
+   * @param stagingDir staging directory
+   * @return a staging path under the staging directory that preserves the relative path structure
+   */
+  public static String stagingPath(String originalPath, Map<String, String> prefixMappings, String stagingDir) {
+    String relativePath = newPath(originalPath, prefixMappings);
     return combinePaths(stagingDir, relativePath);
   }
 }
