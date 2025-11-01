@@ -217,7 +217,8 @@ public class TestManifestListEncryption {
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
             SEQ_NUM,
-            SNAPSHOT_FIRST_ROW_ID);
+            SNAPSHOT_FIRST_ROW_ID,
+            Map.of());
     writer.add(TEST_MANIFEST);
     writer.close();
     ManifestListFile manifestListFile = writer.toManifestListFile();

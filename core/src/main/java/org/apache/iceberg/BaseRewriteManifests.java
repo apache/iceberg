@@ -163,7 +163,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         specsById,
         newFile,
         snapshotId(),
-        summaryBuilder);
+        summaryBuilder,
+        current.properties());
   }
 
   @Override

@@ -27,13 +27,16 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -445,12 +448,45 @@ public class TestManifestListVersions {
     assertThat(second.upperBound()).isEqualTo(secondSummaryUpperBound);
   }
 
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testOverrideManifestAvroCompression(int formatVersion) throws IOException {
+    InputFile nullCompressedFile =
+        writeManifestList(
+            formatVersion,
+            SNAPSHOT_FIRST_ROW_ID,
+            Map.of("write.avro.compression-codec", "uncompressed"),
+            TEST_MANIFEST);
+    AvroIterable<?> nullCompressedManifestFile = readManifestFile(nullCompressedFile);
+    assertThat(nullCompressedManifestFile.getMetadata().get("avro.codec")).isEqualTo("null");
+    nullCompressedManifestFile.close();
+
+    InputFile snappyCompressedFile =
+        writeManifestList(
+            formatVersion,
+            SNAPSHOT_FIRST_ROW_ID,
+            Map.of("write.avro.compression-codec", "snappy"),
+            TEST_MANIFEST);
+    AvroIterable<?> snappyCompressedManifestFile = readManifestFile(snappyCompressedFile);
+    assertThat(snappyCompressedManifestFile.getMetadata().get("avro.codec")).isEqualTo("snappy");
+    snappyCompressedManifestFile.close();
+  }
+
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
-    return writeManifestList(formatVersion, SNAPSHOT_FIRST_ROW_ID, manifest);
+    return writeManifestList(formatVersion, SNAPSHOT_FIRST_ROW_ID, Map.of(), manifest);
   }
 
   private InputFile writeManifestList(
       int formatVersion, long expectedNextRowId, ManifestFile... manifests) throws IOException {
+    return writeManifestList(formatVersion, expectedNextRowId, Map.of(), manifests);
+  }
+
+  private InputFile writeManifestList(
+      int formatVersion,
+      long expectedNextRowId,
+      Map<String, String> tableProperties,
+      ManifestFile... manifests)
+      throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
     ManifestListWriter writer =
         ManifestLists.write(
@@ -460,7 +496,8 @@ public class TestManifestListVersions {
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
             formatVersion > 1 ? SEQ_NUM : 0,
-            SNAPSHOT_FIRST_ROW_ID);
+            SNAPSHOT_FIRST_ROW_ID,
+            tableProperties);
 
     try (writer) {
       for (ManifestFile manifest : manifests) {
@@ -497,5 +534,20 @@ public class TestManifestListVersions {
     assertThatThrownBy(() -> record.get(field))
         .isInstanceOf(AvroRuntimeException.class)
         .hasMessage("Not a valid schema field: " + field);
+  }
+
+  private static AvroIterable<?> readManifestFile(InputFile inputFile) {
+    try (AvroIterable<?> manifestListFile =
+        (AvroIterable<?>)
+            InternalData.read(FileFormat.AVRO, inputFile)
+                .setRootType(GenericManifestFile.class)
+                .setCustomType(
+                    ManifestFile.PARTITION_SUMMARIES_ELEMENT_ID, GenericPartitionFieldSummary.class)
+                .project(ManifestFile.schema())
+                .build()) {
+      return manifestListFile;
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Cannot read manifest list file: %s", inputFile.location());
+    }
   }
 }

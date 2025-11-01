@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
@@ -55,7 +56,8 @@ class ManifestLists {
       long snapshotId,
       Long parentSnapshotId,
       long sequenceNumber,
-      Long firstRowId) {
+      Long firstRowId,
+      Map<String, String> tableProperties) {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(
@@ -63,10 +65,15 @@ class ManifestLists {
             "Invalid sequence number for v1 manifest list: %s",
             sequenceNumber);
         return new ManifestListWriter.V1Writer(
-            manifestListFile, encryptionManager, snapshotId, parentSnapshotId);
+            manifestListFile, encryptionManager, snapshotId, parentSnapshotId, tableProperties);
       case 2:
         return new ManifestListWriter.V2Writer(
-            manifestListFile, encryptionManager, snapshotId, parentSnapshotId, sequenceNumber);
+            manifestListFile,
+            encryptionManager,
+            snapshotId,
+            parentSnapshotId,
+            sequenceNumber,
+            tableProperties);
       case 3:
         return new ManifestListWriter.V3Writer(
             manifestListFile,
@@ -74,7 +81,8 @@ class ManifestLists {
             snapshotId,
             parentSnapshotId,
             sequenceNumber,
-            firstRowId);
+            firstRowId,
+            tableProperties);
       case 4:
         return new ManifestListWriter.V4Writer(
             manifestListFile,
@@ -82,7 +90,8 @@ class ManifestLists {
             snapshotId,
             parentSnapshotId,
             sequenceNumber,
-            firstRowId);
+            firstRowId,
+            tableProperties);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);
