@@ -235,6 +235,61 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public boolean tableExists(Identifier ident) {
+    try {
+      if (isPathIdentifier(ident)) {
+        loadFromPathIdentifier((PathIdentifier) ident);
+        return true;
+      } else {
+        boolean isExists = icebergCatalog.tableExists(buildIdentifier(ident));
+        if (isExists) {
+          return true;
+        }
+
+        // if the original load didn't work, try using the namespace as an identifier because
+        // the original identifier may include a snapshot selector or may point to the changelog
+        TableIdentifier namespaceAsIdent =
+            buildIdentifier(namespaceToIdentifier(ident.namespace()));
+        Matcher tag = TAG.matcher(ident.name());
+        if (tag.matches()) {
+          org.apache.iceberg.Table table = icebergCatalog.loadTable(namespaceAsIdent);
+          Snapshot tagSnapshot = table.snapshot(tag.group(1));
+          return tagSnapshot != null;
+        }
+
+        if (icebergCatalog.tableExists(namespaceAsIdent)) {
+          if (ident.name().equalsIgnoreCase(SparkChangelogTable.TABLE_NAME)) {
+            return true;
+          }
+
+          Matcher at = AT_TIMESTAMP.matcher(ident.name());
+          if (at.matches()) {
+            return true;
+          }
+
+          Matcher id = SNAPSHOT_ID.matcher(ident.name());
+          if (id.matches()) {
+            return true;
+          }
+
+          Matcher branch = BRANCH.matcher(ident.name());
+          if (branch.matches()) {
+            return true;
+          }
+
+          if (ident.name().equalsIgnoreCase(REWRITE)) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      return false;
+    }
+  }
+
+  @Override
   public Table createTable(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws TableAlreadyExistsException {
