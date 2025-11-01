@@ -44,10 +44,10 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.util.LocationUtil;
 
-class RESTTableOperations implements TableOperations {
+public class RESTTableOperations implements TableOperations {
   private static final String METADATA_FOLDER_NAME = "metadata";
 
-  enum UpdateType {
+  public enum UpdateType {
     CREATE,
     REPLACE,
     SIMPLE
@@ -63,7 +63,7 @@ class RESTTableOperations implements TableOperations {
   private UpdateType updateType;
   private TableMetadata current;
 
-  RESTTableOperations(
+  public RESTTableOperations(
       RESTClient client,
       String path,
       Supplier<Map<String, String>> headers,
@@ -73,7 +73,7 @@ class RESTTableOperations implements TableOperations {
     this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
   }
 
-  RESTTableOperations(
+  public RESTTableOperations(
       RESTClient client,
       String path,
       Supplier<Map<String, String>> headers,
@@ -183,7 +183,7 @@ class RESTTableOperations implements TableOperations {
    * refresh fails. In case of refresh failure, the failure is recorded as suppressed on the
    * provided {@code original} exception to aid diagnostics.
    */
-  private boolean reconcileOnSimpleUpdate(
+  protected boolean reconcileOnSimpleUpdate(
       List<MetadataUpdate> updates, CommitStateUnknownException original) {
     Long expectedSnapshotId = expectedSnapshotIdIfSnapshotAddOnly(updates);
     if (expectedSnapshotId == null) {
@@ -241,7 +241,7 @@ class RESTTableOperations implements TableOperations {
     return addedSnapshotId;
   }
 
-  private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
+  protected TableMetadata updateCurrentMetadata(LoadTableResponse response) {
     // LoadTableResponse is used to deserialize the response, but config is not allowed by the REST
     // spec so it can be
     // safely ignored. there is no requirement to update config on refresh or commit.
