@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.fail;
 import java.io.IOException;
 import java.io.Serializable;
 import java.time.Duration;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +55,6 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -69,8 +67,9 @@ import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
+import org.apache.iceberg.flink.sink.dynamic.TestDynamicCommitter.CommitHook;
+import org.apache.iceberg.flink.sink.dynamic.TestDynamicCommitter.FailBeforeAndAfterCommit;
 import org.apache.iceberg.inmemory.InMemoryInputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -528,7 +527,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     // Configure a Restart strategy to allow recovery
     Configuration configuration = new Configuration();
     configuration.set(RestartStrategyOptions.RESTART_STRATEGY, "fixed-delay");
-    configuration.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_ATTEMPTS, 2);
+    // Allow max 3 retries to make up for the three failures we are simulating here
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_ATTEMPTS, 3);
     configuration.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_DELAY, Duration.ZERO);
     env.configure(configuration);
 
@@ -539,14 +539,15 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
             new DynamicIcebergDataImpl(
                 SimpleDataUtil.SCHEMA, "t2", "main", PartitionSpec.unpartitioned()));
 
-    FailBeforeAndAfterCommit.reset();
     final CommitHook commitHook = new FailBeforeAndAfterCommit();
     assertThat(FailBeforeAndAfterCommit.failedBeforeCommit).isFalse();
+    assertThat(FailBeforeAndAfterCommit.failedDuringCommit).isFalse();
     assertThat(FailBeforeAndAfterCommit.failedAfterCommit).isFalse();
 
     executeDynamicSink(rows, env, true, 1, commitHook);
 
     assertThat(FailBeforeAndAfterCommit.failedBeforeCommit).isTrue();
+    assertThat(FailBeforeAndAfterCommit.failedDuringCommit).isTrue();
     assertThat(FailBeforeAndAfterCommit.failedAfterCommit).isTrue();
   }
 
@@ -567,44 +568,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     final CommitHook commitHook = new AppendRightBeforeCommit(tableIdentifier.toString());
 
     executeDynamicSink(rows, env, true, 1, commitHook);
-  }
-
-  interface CommitHook extends Serializable {
-    void beforeCommit();
-
-    void duringCommit();
-
-    void afterCommit();
-  }
-
-  private static class FailBeforeAndAfterCommit implements CommitHook {
-
-    static boolean failedBeforeCommit;
-    static boolean failedAfterCommit;
-
-    @Override
-    public void beforeCommit() {
-      if (!failedBeforeCommit) {
-        failedBeforeCommit = true;
-        throw new RuntimeException("Failing before commit");
-      }
-    }
-
-    @Override
-    public void duringCommit() {}
-
-    @Override
-    public void afterCommit() {
-      if (!failedAfterCommit) {
-        failedAfterCommit = true;
-        throw new RuntimeException("Failing before commit");
-      }
-    }
-
-    static void reset() {
-      failedBeforeCommit = false;
-      failedAfterCommit = false;
-    }
   }
 
   private static class AppendRightBeforeCommit implements CommitHook {
@@ -734,8 +697,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     @Override
     public Committer<DynamicCommittable> createCommitter(CommitterInitContext context) {
-      //      return super.createCommitter(context);
-      return new CommitHookEnabledDynamicCommitter(
+      return new TestDynamicCommitter.CommitHookEnabledDynamicCommitter(
           commitHook,
           CATALOG_EXTENSION.catalogLoader().loadCatalog(),
           Collections.emptyMap(),
@@ -743,46 +705,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           10,
           "sinkId",
           new DynamicCommitterMetrics(context.metricGroup()));
-    }
-  }
-
-  static class CommitHookEnabledDynamicCommitter extends DynamicCommitter {
-    private final CommitHook commitHook;
-
-    CommitHookEnabledDynamicCommitter(
-        CommitHook commitHook,
-        Catalog catalog,
-        Map<String, String> snapshotProperties,
-        boolean replacePartitions,
-        int workerPoolSize,
-        String sinkId,
-        DynamicCommitterMetrics committerMetrics) {
-      super(
-          catalog, snapshotProperties, replacePartitions, workerPoolSize, sinkId, committerMetrics);
-      this.commitHook = commitHook;
-    }
-
-    @Override
-    public void commit(Collection<CommitRequest<DynamicCommittable>> commitRequests)
-        throws IOException, InterruptedException {
-      commitHook.beforeCommit();
-      super.commit(commitRequests);
-      commitHook.afterCommit();
-    }
-
-    @Override
-    void commitOperation(
-        Table table,
-        String branch,
-        SnapshotUpdate<?> operation,
-        CommitSummary summary,
-        String description,
-        String newFlinkJobId,
-        String operatorId,
-        long checkpointId) {
-      commitHook.duringCommit();
-      super.commitOperation(
-          table, branch, operation, summary, description, newFlinkJobId, operatorId, checkpointId);
     }
   }
 
