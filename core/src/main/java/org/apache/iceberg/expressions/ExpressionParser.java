@@ -347,6 +347,8 @@ public class ExpressionParser {
       case NOT_EQ:
       case STARTS_WITH:
       case NOT_STARTS_WITH:
+      case CONTAINS:
+      case NOT_CONTAINS:
         // literal predicates
         Preconditions.checkArgument(
             node.has(VALUE), "Cannot parse %s predicate: missing value", op);
