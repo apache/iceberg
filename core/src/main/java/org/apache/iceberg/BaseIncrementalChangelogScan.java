@@ -110,7 +110,11 @@ class BaseIncrementalChangelogScan
     CloseableIterable<ChangelogScanTask> dataFileTasks =
         manifestGroup.plan(
             new CreateDataFileChangeTasks(
-                changelogSnapshots, existingDeleteIndex, addedDeletesBySnapshot));
+                changelogSnapshots,
+                existingDeleteIndex,
+                addedDeletesBySnapshot,
+                table().specs(),
+                isCaseSensitive()));
 
     // Find EXISTING data files affected by newly added delete files and create tasks for them
     CloseableIterable<ChangelogScanTask> deletedRowsTasks =
@@ -589,14 +593,49 @@ class BaseIncrementalChangelogScan
     private final Map<Long, Integer> snapshotOrdinals;
     private final DeleteFileIndex existingDeleteIndex;
     private final Map<Long, DeleteFileIndex> addedDeletesBySnapshot;
+    private final Map<Long, List<DeleteFile>> cumulativeDeletesMap;
+    private final Map<Integer, PartitionSpec> specsById;
+    private final boolean caseSensitive;
 
     CreateDataFileChangeTasks(
         Deque<Snapshot> snapshots,
         DeleteFileIndex existingDeleteIndex,
-        Map<Long, DeleteFileIndex> addedDeletesBySnapshot) {
+        Map<Long, DeleteFileIndex> addedDeletesBySnapshot,
+        Map<Integer, PartitionSpec> specsById,
+        boolean caseSensitive) {
       this.snapshotOrdinals = computeSnapshotOrdinals(snapshots);
       this.existingDeleteIndex = existingDeleteIndex;
       this.addedDeletesBySnapshot = addedDeletesBySnapshot;
+      this.specsById = specsById;
+      this.caseSensitive = caseSensitive;
+      this.cumulativeDeletesMap = buildCumulativeDeletesBySnapshot(snapshots);
+    }
+
+    /**
+     * Builds a map of snapshot ID -> all delete files that were added in the scan range up to that
+     * snapshot. This does NOT include existing deletes from before the scan range.
+     */
+    private Map<Long, List<DeleteFile>> buildCumulativeDeletesBySnapshot(
+        Deque<Snapshot> snapshots) {
+      Map<Long, List<DeleteFile>> result = Maps.newHashMap();
+      List<DeleteFile> accumulatedDeletes = Lists.newArrayList();
+
+      // Process each snapshot in chronological order, accumulating deletes
+      for (Snapshot snapshot : snapshots) {
+        // Store the current accumulated deletes for this snapshot (before adding this snapshot's
+        // deletes)
+        result.put(snapshot.snapshotId(), Lists.newArrayList(accumulatedDeletes));
+
+        // Add deletes from this snapshot to the accumulation
+        DeleteFileIndex addedDeleteIndex = addedDeletesBySnapshot.get(snapshot.snapshotId());
+        if (addedDeleteIndex != null && !addedDeleteIndex.isEmpty()) {
+          for (DeleteFile df : addedDeleteIndex.referencedDeleteFiles()) {
+            accumulatedDeletes.add(df);
+          }
+        }
+      }
+
+      return result;
     }
 
     @Override
@@ -625,12 +664,9 @@ class BaseIncrementalChangelogScan
                     context.residuals());
 
               case DELETED:
-                // For DELETED data files, attach existing deletes (deletes that were present
-                // before the file was deleted)
-                DeleteFile[] deletedFileDeletes =
-                    existingDeleteIndex.isEmpty()
-                        ? NO_DELETES
-                        : existingDeleteIndex.forEntry(entry);
+                // For DELETED data files, attach ALL deletes that were present up to deletion
+                // This includes existing deletes AND deletes added in the scan range
+                DeleteFile[] deletedFileDeletes = getDeletesForDeletedFile(entry, commitSnapshotId);
                 return new BaseDeletedDataFileScanTask(
                     changeOrdinal,
                     commitSnapshotId,
@@ -679,6 +715,44 @@ class BaseIncrementalChangelogScan
       System.arraycopy(existingDeletes, 0, allDeletes, 0, existingDeletes.length);
       System.arraycopy(addedDeletes, 0, allDeletes, existingDeletes.length, addedDeletes.length);
       return allDeletes;
+    }
+
+    /**
+     * Gets all delete files that were applied to a DELETED data file up to the point it was
+     * deleted. This includes existing deletes and all deletes added in the scan range up to (but
+     * not including) the deletion snapshot.
+     */
+    private DeleteFile[] getDeletesForDeletedFile(
+        ManifestEntry<DataFile> entry, long deletionSnapshotId) {
+
+      List<DeleteFile> allDeletes = Lists.newArrayList();
+
+      // Add existing deletes from before scan range
+      DeleteFile[] existingDeletes =
+          existingDeleteIndex.isEmpty() ? NO_DELETES : existingDeleteIndex.forEntry(entry);
+      for (DeleteFile df : existingDeletes) {
+        allDeletes.add(df);
+      }
+
+      // Add all deletes from snapshots in the scan range BEFORE the deletion
+      List<DeleteFile> cumulativeDeletes = cumulativeDeletesMap.get(deletionSnapshotId);
+      if (cumulativeDeletes != null) {
+        // For each cumulative delete, check if it applies to this entry
+        for (DeleteFile df : cumulativeDeletes) {
+          // Create a temporary index to check if this delete applies to the entry
+          DeleteFileIndex tempIndex =
+              DeleteFileIndex.builderFor(Lists.newArrayList(df))
+                  .specsById(specsById)
+                  .caseSensitive(caseSensitive)
+                  .build();
+          DeleteFile[] applicable = tempIndex.forEntry(entry);
+          for (DeleteFile applicableDelete : applicable) {
+            allDeletes.add(applicableDelete);
+          }
+        }
+      }
+
+      return allDeletes.isEmpty() ? NO_DELETES : allDeletes.toArray(new DeleteFile[0]);
     }
   }
 }

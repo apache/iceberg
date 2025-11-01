@@ -546,6 +546,274 @@ public class TestBaseIncrementalChangelogScan
   }
 
   @TestTemplate
+  public void testEqualityDeleteOverlapsPositionDelete() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add position deletes for FILE_A (specific positions)
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Add equality delete that would delete rows at those same positions
+    // This tests behavior when equality delete targets rows already deleted by position
+    // deletes
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // Should have 2 DeletedRowsScanTask for FILE_A (one per snapshot with deletes)
+    // The system currently creates separate tasks - this documents the current behavior
+    assertThat(tasks).as("Must have 2 tasks").hasSize(2);
+
+    DeletedRowsScanTask task1 = (DeletedRowsScanTask) tasks.get(0);
+    assertThat(task1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(task1.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task1.addedDeletes())
+        .as("Must have position deletes")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+    assertThat(task1.existingDeletes()).as("Must have no existing deletes").isEmpty();
+
+    DeletedRowsScanTask task2 = (DeletedRowsScanTask) tasks.get(1);
+    assertThat(task2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
+    assertThat(task2.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task2.addedDeletes())
+        .as("Must have equality deletes")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
+    // Position delete from snap2 should be an existing delete for snap3
+    assertThat(task2.existingDeletes())
+        .as("Must have position delete from previous snapshot")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteOverlapsEqualityDelete() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A2 (has equality delete support)
+    table.newFastAppend().appendFile(FILE_A2).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add equality delete on field 'id'
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Add equality delete on different field 'data' that matches the same logical rows
+    // This tests behavior when two equality deletes on different columns target overlapping
+    // rows
+    DeleteFile eqDeleteOnData =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofEqualityDeletes(1)
+            .withPath("/path/to/eq-delete-data.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(eqDeleteOnData).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // Should have 2 DeletedRowsScanTask for FILE_A2 (one per snapshot with deletes)
+    // This documents current behavior - whether duplicate DELETE rows are emitted or deduplicated
+    assertThat(tasks).as("Must have 2 tasks").hasSize(2);
+
+    DeletedRowsScanTask task1 = (DeletedRowsScanTask) tasks.get(0);
+    assertThat(task1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(task1.file().location()).as("Data file must match").isEqualTo(FILE_A2.location());
+    assertThat(task1.addedDeletes())
+        .as("Must have first equality delete")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
+    assertThat(task1.existingDeletes()).as("Must have no existing deletes").isEmpty();
+
+    DeletedRowsScanTask task2 = (DeletedRowsScanTask) tasks.get(1);
+    assertThat(task2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
+    assertThat(task2.file().location()).as("Data file must match").isEqualTo(FILE_A2.location());
+    assertThat(task2.addedDeletes())
+        .as("Must have second equality delete")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(eqDeleteOnData.location());
+    // First equality delete should be an existing delete for the second task
+    assertThat(task2.existingDeletes())
+        .as("Must have first equality delete as existing")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
+  }
+
+  @TestTemplate
+  public void testDeletedFileWithBothDeleteTypes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add position deletes for FILE_A
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Add equality deletes for FILE_A (potentially overlapping)
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    // Snapshot 4: Delete FILE_A entirely
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot snap4 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap4.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // Should have:
+    // 1. DeletedRowsScanTask for FILE_A with position deletes (snap2)
+    // 2. DeletedRowsScanTask for FILE_A with equality deletes (snap3)
+    // 3. DeletedDataFileScanTask for FILE_A deletion (snap4) with both types of existing deletes
+    assertThat(tasks).as("Must have 3 tasks").hasSize(3);
+
+    DeletedRowsScanTask task1 = (DeletedRowsScanTask) tasks.get(0);
+    assertThat(task1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(task1.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task1.addedDeletes())
+        .as("Must have position deletes")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+    assertThat(task1.existingDeletes()).as("Must have no existing deletes").isEmpty();
+
+    DeletedRowsScanTask task2 = (DeletedRowsScanTask) tasks.get(1);
+    assertThat(task2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
+    assertThat(task2.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task2.addedDeletes())
+        .as("Must have equality deletes")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
+    // Position delete from snap2 should be an existing delete for snap3
+    assertThat(task2.existingDeletes())
+        .as("Must have position delete as existing")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+
+    DeletedDataFileScanTask task3 = (DeletedDataFileScanTask) tasks.get(2);
+    assertThat(task3.changeOrdinal()).as("Ordinal must match").isEqualTo(2);
+    assertThat(task3.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    // When file is deleted, all existing deletes should be included to omit previously deleted rows
+    assertThat(task3.existingDeletes())
+        .as("Must have both position and equality deletes as existing")
+        .hasSize(2)
+        .extracting(DeleteFile::location)
+        .containsExactlyInAnyOrder(FILE_A_DELETES.location(), FILE_A2_DELETES.location());
+  }
+
+  @TestTemplate
+  public void testMultipleEqualityDeletesSameFile() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A2
+    table.newFastAppend().appendFile(FILE_A2).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add equality delete #1 on field 'id'
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Add equality delete #2 on field 'id' (different values, no overlap)
+    DeleteFile eqDelete2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofEqualityDeletes(1)
+            .withPath("/path/to/eq-delete-2.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(eqDelete2).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    // Snapshot 4: Add equality delete #3 on field 'data' (potentially overlaps with delete #1 or
+    // #2)
+    DeleteFile eqDelete3 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofEqualityDeletes(1)
+            .withPath("/path/to/eq-delete-3.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(eqDelete3).commit();
+    Snapshot snap4 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap4.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // Should have 3 DeletedRowsScanTask for FILE_A2 (one per snapshot with deletes)
+    // This documents cumulative equality delete tracking across multiple snapshots
+    assertThat(tasks).as("Must have 3 tasks").hasSize(3);
+
+    DeletedRowsScanTask task1 = (DeletedRowsScanTask) tasks.get(0);
+    assertThat(task1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(task1.file().location()).as("Data file must match").isEqualTo(FILE_A2.location());
+    assertThat(task1.addedDeletes())
+        .as("Must have first equality delete")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
+    assertThat(task1.existingDeletes()).as("Must have no existing deletes").isEmpty();
+
+    DeletedRowsScanTask task2 = (DeletedRowsScanTask) tasks.get(1);
+    assertThat(task2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
+    assertThat(task2.file().location()).as("Data file must match").isEqualTo(FILE_A2.location());
+    assertThat(task2.addedDeletes())
+        .as("Must have second equality delete")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(eqDelete2.location());
+    // First equality delete should be an existing delete for the second task
+    assertThat(task2.existingDeletes())
+        .as("Must have first equality delete as existing")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
+
+    DeletedRowsScanTask task3 = (DeletedRowsScanTask) tasks.get(2);
+    assertThat(task3.changeOrdinal()).as("Ordinal must match").isEqualTo(2);
+    assertThat(task3.file().location()).as("Data file must match").isEqualTo(FILE_A2.location());
+    assertThat(task3.addedDeletes())
+        .as("Must have third equality delete")
+        .hasSize(1)
+        .extracting(DeleteFile::location)
+        .containsExactly(eqDelete3.location());
+    // Both previous equality deletes should be existing deletes for the third task
+    assertThat(task3.existingDeletes())
+        .as("Must have both previous equality deletes as existing")
+        .hasSize(2)
+        .extracting(DeleteFile::location)
+        .containsExactlyInAnyOrder(FILE_A2_DELETES.location(), eqDelete2.location());
+  }
+
+  @TestTemplate
   public void testExistingAndNewDeletesBothApplied() {
     assumeThat(formatVersion).isEqualTo(2);
 
