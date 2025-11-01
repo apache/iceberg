@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.node.IntNode;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -75,6 +76,11 @@ public class DataGenerators {
         OffsetDateTime.of(2022, 1, 10, 0, 0, 0, 0, ZoneOffset.UTC);
     private static final LocalDateTime JAVA_LOCAL_DATE_TIME_20220110 =
         LocalDateTime.of(2022, 1, 10, 0, 0, 0);
+    // Timestamp with nanosecond precision
+    private static final OffsetDateTime JAVA_OFFSET_DATE_TIME_NANO_20220110 =
+        OffsetDateTime.of(2022, 1, 10, 0, 0, 0, 123456789, ZoneOffset.UTC);
+    private static final LocalDateTime JAVA_LOCAL_DATE_TIME_NANO_20220110 =
+        LocalDateTime.of(2022, 1, 10, 0, 0, 0, 123456789);
     private static final BigDecimal BIG_DECIMAL_NEGATIVE = new BigDecimal("-1.50");
     private static final byte[] FIXED_BYTES = "012345689012345".getBytes(StandardCharsets.UTF_8);
 
@@ -96,7 +102,12 @@ public class DataGenerators {
             Types.NestedField.required(12, "uuid_field", Types.UUIDType.get()),
             Types.NestedField.required(13, "binary_field", Types.BinaryType.get()),
             Types.NestedField.required(14, "decimal_field", Types.DecimalType.of(9, 2)),
-            Types.NestedField.required(15, "fixed_field", Types.FixedType.ofLength(16)));
+            Types.NestedField.required(15, "fixed_field", Types.FixedType.ofLength(16)),
+            // nanosecond timestamp fields
+            Types.NestedField.required(
+                16, "ts_nano_with_zone_field", Types.TimestampNanoType.withZone()),
+            Types.NestedField.required(
+                17, "ts_nano_without_zone_field", Types.TimestampNanoType.withoutZone()));
 
     private final RowType flinkRowType = FlinkSchemaUtil.convert(icebergSchema);
 
@@ -125,6 +136,14 @@ public class DataGenerators {
                               .addToSchema(
                                   org.apache.avro.Schema.create(org.apache.avro.Schema.Type.INT));
                       updatedField = new org.apache.avro.Schema.Field("time_field", fieldSchema);
+                    } else if (field.name().equals("ts_nano_with_zone_field")
+                        || field.name().equals("ts_nano_without_zone_field")) {
+                      // Use timestamp-nanos logical type to preserve nanosecond precision
+                      org.apache.avro.Schema fieldSchema =
+                          LogicalTypes.timestampNanos()
+                              .addToSchema(
+                                  org.apache.avro.Schema.create(org.apache.avro.Schema.Type.LONG));
+                      updatedField = new org.apache.avro.Schema.Field(field.name(), fieldSchema);
                     }
 
                     return new org.apache.avro.Schema.Field(updatedField, updatedField.schema());
@@ -188,6 +207,10 @@ public class DataGenerators {
       genericRecord.setField("decimal_field", BIG_DECIMAL_NEGATIVE);
       genericRecord.setField("fixed_field", FIXED_BYTES);
 
+      // nanosecond timestamp fields
+      genericRecord.setField("ts_nano_with_zone_field", JAVA_OFFSET_DATE_TIME_NANO_20220110);
+      genericRecord.setField("ts_nano_without_zone_field", JAVA_LOCAL_DATE_TIME_NANO_20220110);
+
       return genericRecord;
     }
 
@@ -220,7 +243,10 @@ public class DataGenerators {
           uuidBytes,
           binaryBytes,
           DecimalData.fromBigDecimal(BIG_DECIMAL_NEGATIVE, 9, 2),
-          FIXED_BYTES);
+          FIXED_BYTES,
+          // nanosecond timestamp fields
+          TimestampData.fromLocalDateTime(JAVA_LOCAL_DATE_TIME_NANO_20220110),
+          TimestampData.fromLocalDateTime(JAVA_LOCAL_DATE_TIME_NANO_20220110));
     }
 
     @Override
@@ -259,6 +285,19 @@ public class DataGenerators {
       genericRecord.put("decimal_field", ByteBuffer.wrap(bigDecimal.unscaledValue().toByteArray()));
 
       genericRecord.put("fixed_field", ByteBuffer.wrap(FIXED_BYTES));
+
+      // nanosecond timestamp fields
+      // Store as nanoseconds from epoch for timestamp-nanos logical type
+      long nanosWithZone =
+          Duration.between(java.time.Instant.EPOCH, JAVA_OFFSET_DATE_TIME_NANO_20220110.toInstant())
+              .toNanos();
+      long nanosWithoutZone =
+          Duration.between(
+                  java.time.Instant.EPOCH,
+                  JAVA_LOCAL_DATE_TIME_NANO_20220110.atOffset(ZoneOffset.UTC))
+              .toNanos();
+      genericRecord.put("ts_nano_with_zone_field", nanosWithZone);
+      genericRecord.put("ts_nano_without_zone_field", nanosWithoutZone);
 
       return genericRecord;
     }

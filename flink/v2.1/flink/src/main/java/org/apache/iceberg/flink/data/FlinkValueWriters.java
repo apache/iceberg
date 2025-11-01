@@ -139,9 +139,9 @@ public class FlinkValueWriters {
 
     @Override
     public void write(TimestampData timestampData, Encoder encoder) throws IOException {
-      long nanos =
-          timestampData.getMillisecond() * 1_000_000 + timestampData.getNanoOfMillisecond();
-      encoder.writeLong(nanos);
+      long value =
+          timestampData.getMillisecond() * 1_000_000L + timestampData.getNanoOfMillisecond();
+      encoder.writeLong(value);
     }
   }
 
