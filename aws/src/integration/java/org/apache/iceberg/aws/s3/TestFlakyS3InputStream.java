@@ -30,6 +30,7 @@ import java.net.SocketTimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import javax.net.ssl.SSLException;
+import org.apache.http.ConnectionClosedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -52,6 +53,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 public class TestFlakyS3InputStream extends TestS3InputStream {
 
   private AtomicInteger resetForRetryCounter;
+  private static final long CONTENT_LENGTH = 1024 * 1024; // An arbitrary content length.
 
   @BeforeEach
   public void setupTest() {
@@ -60,7 +62,7 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
 
   @Override
   S3InputStream newInputStream(S3Client s3Client, S3URI uri) {
-    return new S3InputStream(s3Client, uri) {
+    return new S3InputStream(s3Client, uri, CONTENT_LENGTH) {
       @Override
       void resetForRetry() throws IOException {
         resetForRetryCounter.incrementAndGet();
@@ -122,6 +124,7 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
   private static Stream<Arguments> retryableExceptions() {
     return Stream.of(
         Arguments.of(
+            new ConnectionClosedException("connection closed exception"),
             new SocketTimeoutException("socket timeout exception"),
             new SSLException("some ssl exception")));
   }
