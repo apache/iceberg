@@ -59,6 +59,10 @@ public class TestFlinkParquetWriter extends DataTestBase {
     return true;
   }
 
+  protected boolean supportsVariant() {
+    return true;
+  }
+
   private void writeAndValidate(Iterable<RowData> iterable, Schema schema) throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
 
