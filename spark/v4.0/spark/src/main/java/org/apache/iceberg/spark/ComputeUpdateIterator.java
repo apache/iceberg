@@ -100,7 +100,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
     return currentRow;
   }
 
-  private Row modify(Row row, int valueIndex, Object value) {
+  protected Row modify(Row row, int valueIndex, Object value) {
     if (row instanceof GenericRow) {
       GenericRow genericRow = (GenericRow) row;
       genericRow.values()[valueIndex] = value;
@@ -115,6 +115,15 @@ public class ComputeUpdateIterator extends ChangelogIterator {
     }
   }
 
+  protected boolean sameLogicalRow(Row currentRow, Row nextRow) {
+    for (int idx : identifierFieldIdx) {
+      if (isDifferentValue(currentRow, nextRow, idx)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   private boolean cachedUpdateRecord() {
     return cachedRow != null && changeType(cachedRow).equals(UPDATE_AFTER);
   }
@@ -127,14 +136,5 @@ public class ComputeUpdateIterator extends ChangelogIterator {
     } else {
       return rowIterator().next();
     }
-  }
-
-  private boolean sameLogicalRow(Row currentRow, Row nextRow) {
-    for (int idx : identifierFieldIdx) {
-      if (isDifferentValue(currentRow, nextRow, idx)) {
-        return false;
-      }
-    }
-    return true;
   }
 }
