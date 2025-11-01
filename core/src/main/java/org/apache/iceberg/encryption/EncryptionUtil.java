@@ -51,7 +51,11 @@ public class EncryptionUtil {
     KeyManagementClient kmsClient;
     DynConstructors.Ctor<KeyManagementClient> ctor;
     try {
-      ctor = DynConstructors.builder(KeyManagementClient.class).impl(kmsImpl).buildChecked();
+      ctor =
+          DynConstructors.builder(KeyManagementClient.class)
+              .loader(EncryptionUtil.class.getClassLoader())
+              .impl(kmsImpl)
+              .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
