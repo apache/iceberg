@@ -108,6 +108,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final List<Expression> filterExpressions;
   private final String branch;
   private final Supplier<ScanReport> scanReportSupplier;
+  private int pushedLimit;
 
   // lazy variables
   private StructType readSchema;
@@ -133,6 +134,18 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.scanReportSupplier = scanReportSupplier;
   }
 
+  SparkScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters,
+      Supplier<ScanReport> scanReportSupplier,
+      int pushedLimit) {
+    this(spark, table, readConf, expectedSchema, filters, scanReportSupplier);
+    this.pushedLimit = pushedLimit;
+  }
+
   protected Table table() {
     return table;
   }
@@ -155,6 +168,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   protected Types.StructType groupingKeyType() {
     return Types.StructType.of();
+  }
+
+  protected int setPushedLimit(int limit) {
+    this.pushedLimit = limit;
+    return pushedLimit;
   }
 
   protected abstract List<? extends ScanTaskGroup<?>> taskGroups();
@@ -262,10 +280,15 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         groupingKeyType().fields().stream()
             .map(Types.NestedField::name)
             .collect(Collectors.joining(", "));
+    String pushedLimitString = pushedLimit > 0 ? String.valueOf(pushedLimit) : "None";
 
     return String.format(
-        "%s (branch=%s) [filters=%s, groupedBy=%s]",
-        table(), branch(), Spark3Util.describe(filterExpressions), groupingKeyFieldNamesAsString);
+        "%s (branch=%s) [filters=%s, groupedBy=%s, pushedLimit=%s]",
+        table(),
+        branch(),
+        Spark3Util.describe(filterExpressions),
+        groupingKeyFieldNamesAsString,
+        pushedLimitString);
   }
 
   @Override
