@@ -56,6 +56,7 @@ class RESTTableOperations implements TableOperations {
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
+  private final Map<String, String> queryParams;
   private final FileIO io;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
@@ -69,8 +70,18 @@ class RESTTableOperations implements TableOperations {
       Supplier<Map<String, String>> headers,
       FileIO io,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
-    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
+      Set<Endpoint> endpoints,
+      Map<String, String> queryParams) {
+    this(
+        client,
+        path,
+        headers,
+        io,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints,
+        queryParams);
   }
 
   RESTTableOperations(
@@ -81,7 +92,8 @@ class RESTTableOperations implements TableOperations {
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      Map<String, String> queryParams) {
     this.client = client;
     this.path = path;
     this.headers = headers;
@@ -95,6 +107,7 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+    this.queryParams = queryParams;
   }
 
   @Override
@@ -106,7 +119,12 @@ class RESTTableOperations implements TableOperations {
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
+        client.get(
+            path,
+            queryParams,
+            LoadTableResponse.class,
+            headers,
+            ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
