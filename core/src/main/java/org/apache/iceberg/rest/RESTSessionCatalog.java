@@ -146,6 +146,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
+  private final RESTOperationsBuilder operationsBuilder;
   private FileIOTracker fileIOTracker = null;
   private AuthSession catalogAuth = null;
   private AuthManager authManager;
@@ -167,15 +168,25 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 .uri(config.get(CatalogProperties.URI))
                 .withHeaders(RESTUtil.configHeaders(config))
                 .build(),
+        null,
         null);
   }
 
   public RESTSessionCatalog(
       Function<Map<String, String>, RESTClient> clientBuilder,
       BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder) {
+    this(clientBuilder, ioBuilder, null);
+  }
+
+  public RESTSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder,
+      RESTOperationsBuilder operationsBuilder) {
     Preconditions.checkNotNull(clientBuilder, "Invalid client builder: null");
     this.clientBuilder = clientBuilder;
     this.ioBuilder = ioBuilder;
+    this.operationsBuilder =
+        operationsBuilder != null ? operationsBuilder : RESTOperationsBuilder.DEFAULT;
   }
 
   @Override
@@ -450,7 +461,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     RESTClient tableClient = client.withAuthSession(tableSession);
     RESTTableOperations ops =
-        new RESTTableOperations(
+        operationsBuilder.createTableOperations(
             tableClient,
             paths.table(finalIdentifier),
             Map::of,
@@ -529,7 +540,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
     RESTClient tableClient = client.withAuthSession(tableSession);
     RESTTableOperations ops =
-        new RESTTableOperations(
+        operationsBuilder.createTableOperations(
             tableClient,
             paths.table(ident),
             Map::of,
@@ -788,7 +799,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          new RESTTableOperations(
+          operationsBuilder.createTableOperations(
               tableClient,
               paths.table(ident),
               Map::of,
@@ -815,7 +826,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          new RESTTableOperations(
+          operationsBuilder.createTableOperationsForTransaction(
               tableClient,
               paths.table(ident),
               Map::of,
@@ -878,7 +889,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          new RESTTableOperations(
+          operationsBuilder.createTableOperationsForTransaction(
               tableClient,
               paths.table(ident),
               Map::of,
@@ -1154,7 +1165,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     ViewMetadata metadata = response.metadata();
 
     RESTViewOperations ops =
-        new RESTViewOperations(
+        operationsBuilder.createViewOperations(
             client.withAuthSession(tableSession),
             paths.view(identifier),
             Map::of,
@@ -1333,7 +1344,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Map<String, String> tableConf = response.config();
       AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
       RESTViewOperations ops =
-          new RESTViewOperations(
+          operationsBuilder.createViewOperations(
               client.withAuthSession(tableSession),
               paths.view(identifier),
               Map::of,
@@ -1424,7 +1435,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
       RESTViewOperations ops =
-          new RESTViewOperations(
+          operationsBuilder.createViewOperations(
               client.withAuthSession(tableSession),
               paths.view(identifier),
               Map::of,

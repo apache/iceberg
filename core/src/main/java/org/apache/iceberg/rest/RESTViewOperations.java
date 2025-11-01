@@ -29,14 +29,14 @@ import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewOperations;
 
-class RESTViewOperations implements ViewOperations {
+public class RESTViewOperations implements ViewOperations {
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
   private final Set<Endpoint> endpoints;
   private ViewMetadata current;
 
-  RESTViewOperations(
+  public RESTViewOperations(
       RESTClient client,
       String path,
       Supplier<Map<String, String>> headers,
@@ -79,7 +79,7 @@ class RESTViewOperations implements ViewOperations {
     updateCurrentMetadata(response);
   }
 
-  private ViewMetadata updateCurrentMetadata(LoadViewResponse response) {
+  protected ViewMetadata updateCurrentMetadata(LoadViewResponse response) {
     if (!Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
       this.current = response.metadata();
     }
