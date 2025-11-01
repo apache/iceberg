@@ -246,6 +246,10 @@ public class SparkCatalog extends BaseCatalog {
           return true;
         }
 
+        if (ident.namespace().length == 0) {
+          return false;
+        }
+
         // if the original load didn't work, try using the namespace as an identifier because
         // the original identifier may include a snapshot selector or may point to the changelog
         TableIdentifier namespaceAsIdent =
