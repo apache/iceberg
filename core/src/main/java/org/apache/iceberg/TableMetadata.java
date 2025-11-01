@@ -1521,6 +1521,15 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder setLastUpdatedMillis(long lastUpdatedAt) {
+      Preconditions.checkArgument(
+          this.lastUpdatedMillis == null,
+          "Cannot set lastUpdatedMillis: field has already been initialized with value %s",
+          this.lastUpdatedMillis);
+      this.lastUpdatedMillis = lastUpdatedAt;
+      return this;
+    }
+
     private boolean hasChanges() {
       return changes.size() != startingChangeCount
           || (discardChanges && !changes.isEmpty())
