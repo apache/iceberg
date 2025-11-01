@@ -168,7 +168,30 @@ public interface SessionCatalog {
    * @return a Table instance
    * @throws AlreadyExistsException if the table already exists in the catalog.
    */
-  Table registerTable(SessionContext context, TableIdentifier ident, String metadataFileLocation);
+  default Table registerTable(
+      SessionContext context, TableIdentifier ident, String metadataFileLocation) {
+    return registerTable(context, ident, metadataFileLocation, false);
+  }
+
+  /**
+   * Register a table with the catalog, optionally overwrite existing table metadata.
+   *
+   * <p><strong>Note:</strong> Overwriting an existing table may result in a change of table UUID,
+   * to match the one in the metadata file.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @param overwrite if true, overwrite the existing table with provided metadata
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists in the catalog and overwrite is
+   *     false.
+   */
+  Table registerTable(
+      SessionContext context,
+      TableIdentifier ident,
+      String metadataFileLocation,
+      boolean overwrite);
 
   /**
    * Check whether table exists.
