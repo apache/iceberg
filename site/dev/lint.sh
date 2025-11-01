@@ -20,6 +20,8 @@ source dev/common.sh
 
 set -e
 
+./dev/setup_env.sh
+
 if [[ "$1" == "--fix" ]]; then
   fix_markdown_files
 else

@@ -29,6 +29,14 @@ build: # Clean and build the docs site locally.
 deploy: # Clean, build, and deploy the Iceberg docs site.
 	dev/deploy.sh $(remote_name)
 
+.PHONY: lint
+lint: # Check linting on the docs.
+	dev/lint.sh
+
+.PHONY: lint-fix
+lint-fix: # Run linting with auto-fix on the docs.
+	dev/lint.sh --fix
+
 .PHONY: clean
 clean: # Clean the local docs site.
 	dev/clean.sh
