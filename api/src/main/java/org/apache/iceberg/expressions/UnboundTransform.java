@@ -50,11 +50,10 @@ public class UnboundTransform<S, T> implements UnboundTerm<T>, Term {
           "Cannot bind: %s cannot transform %s values from '%s'",
           transform,
           boundRef.type(),
-          ref.name());
+          ref);
     } catch (IllegalArgumentException e) {
       throw new ValidationException(
-          "Cannot bind: %s cannot transform %s values from '%s'",
-          transform, boundRef.type(), ref.name());
+          "Cannot bind: %s cannot transform %s values from '%s'", transform, boundRef.type(), ref);
     }
 
     return new BoundTransform<>(boundRef, transform);

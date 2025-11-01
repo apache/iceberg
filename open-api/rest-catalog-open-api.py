@@ -143,8 +143,19 @@ class FalseExpression(BaseModel):
     )
 
 
-class Reference(BaseModel):
-    __root__: str = Field(..., example=['column-name'])
+class NamedReference(BaseModel):
+    __root__: str = Field(
+        ..., description='Reference to a column by its name', example=['column-name']
+    )
+
+
+class IDReference(BaseModel):
+    """
+    Reference to a column by its field ID
+    """
+
+    type: str = Field('reference', const=True)
+    source_id: int = Field(..., alias='source-id')
 
 
 class Transform(BaseModel):
@@ -947,6 +958,10 @@ class CreateNamespaceRequest(BaseModel):
 class RenameTableRequest(BaseModel):
     source: TableIdentifier
     destination: TableIdentifier
+
+
+class Reference(BaseModel):
+    __root__: Union[NamedReference, IDReference]
 
 
 class TransformTerm(BaseModel):
