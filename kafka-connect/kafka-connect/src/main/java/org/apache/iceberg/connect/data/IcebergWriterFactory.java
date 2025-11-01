@@ -20,7 +20,9 @@ package org.apache.iceberg.connect.data;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
@@ -32,7 +34,9 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.Tasks;
 import org.apache.kafka.connect.errors.DataException;
@@ -83,7 +87,47 @@ class IcebergWriterFactory {
       structType = SchemaUtils.toIcebergType(sample.valueSchema(), config).asStructType();
     }
 
-    org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(structType.fields());
+    // Get ID columns configuration
+    List<String> idColumns = config.tableConfig(tableName).idColumns();
+    Set<String> idColumnNames = Sets.newHashSet(idColumns);
+
+    // Ensure identifier fields are required and create the schema
+    List<NestedField> finalFields =
+        structType.fields().stream()
+            .map(
+                field -> {
+                  if (idColumnNames.contains(field.name()) && field.isOptional()) {
+                    // Convert identifier fields to required
+                    return NestedField.required(
+                        field.fieldId(), field.name(), field.type(), field.doc());
+                  }
+                  return field;
+                })
+            .collect(Collectors.toList());
+
+    // Create initial schema to get field IDs
+    org.apache.iceberg.Schema initialSchema = new org.apache.iceberg.Schema(finalFields);
+
+    // Map ID columns to field IDs
+    Set<Integer> identifierFieldIds = Sets.newHashSet();
+    if (!idColumns.isEmpty()) {
+      for (String idColumn : idColumns) {
+        NestedField field = initialSchema.findField(idColumn);
+        if (field == null) {
+          LOG.warn(
+              "ID column '{}' not found in schema for table {}, ignoring", idColumn, tableName);
+        } else {
+          identifierFieldIds.add(field.fieldId());
+        }
+      }
+    }
+
+    // Create final schema with identifier field IDs
+    org.apache.iceberg.Schema schema =
+        identifierFieldIds.isEmpty()
+            ? initialSchema
+            : new org.apache.iceberg.Schema(finalFields, identifierFieldIds);
+
     TableIdentifier identifier = TableIdentifier.parse(tableName);
 
     createNamespaceIfNotExist(catalog, identifier.namespace());
