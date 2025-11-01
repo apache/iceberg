@@ -26,8 +26,8 @@ import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.OutputTag;
+import org.apache.iceberg.actions.ActionResult;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
-import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -47,11 +47,11 @@ import org.slf4j.LoggerFactory;
  *       {@link #ERROR_STREAM} of the operators
  * </ul>
  *
- * The operator emits a {@link TaskResult} with the overall result on {@link Watermark}.
+ * <p>The operator emits a {@link TaskResult} with the overall result on {@link Watermark}.
  */
 @Internal
 public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
-    implements TwoInputStreamOperator<Trigger, Exception, TaskResult> {
+    implements TwoInputStreamOperator<TaskResult, Exception, TaskResult> {
   public static final OutputTag<Exception> ERROR_STREAM =
       new OutputTag<>("error-stream", TypeInformation.of(Exception.class));
 
@@ -62,6 +62,7 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
   private final int taskIndex;
   private final List<Exception> exceptions;
   private transient long startTime;
+  private transient ActionResult actionResult;
 
   public TaskResultAggregator(String tableName, String taskName, int taskIndex) {
     Preconditions.checkNotNull(tableName, "Table name should no be null");
@@ -74,8 +75,16 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
   }
 
   @Override
-  public void processElement1(StreamRecord<Trigger> streamRecord) {
-    startTime = streamRecord.getValue().timestamp();
+  public void processElement1(StreamRecord<TaskResult> streamRecord) {
+    long timestamp = streamRecord.getValue().startEpoch();
+    if (timestamp != -1) {
+      startTime = timestamp;
+    } else {
+      actionResult =
+          actionResult == null
+              ? streamRecord.getValue().actionResult()
+              : actionResult.merge(streamRecord.getValue().actionResult());
+    }
   }
 
   @Override
@@ -87,7 +96,8 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
   @Override
   public void processWatermark(Watermark mark) throws Exception {
     if (startTime != 0L) {
-      TaskResult response = new TaskResult(taskIndex, startTime, exceptions.isEmpty(), exceptions);
+      TaskResult response =
+          new TaskResult(taskIndex, startTime, exceptions.isEmpty(), exceptions, actionResult);
       output.collect(new StreamRecord<>(response));
       LOG.info(
           "Aggregated result for table {}, task {}[{}] is {}",
