@@ -287,6 +287,7 @@ public class SparkCatalog extends BaseCatalog {
       return false;
     }
   }
+
   @Override
   public Table createTable(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
