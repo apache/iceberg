@@ -20,9 +20,3 @@ source dev/common.sh
 set -e
 
 clean
-
-# Restore the original nav.yml if a backup exists (from dev mode)
-if [ -f nav.yml.backup ]; then
-  echo " --> Restoring original nav.yml"
-  mv nav.yml.backup nav.yml
-fi

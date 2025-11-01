@@ -32,5 +32,4 @@ echo ""
 
 # Using mkdocs serve with --dirty flag for even faster rebuilds
 # The --dirty flag means only changed files are rebuilt
-mkdocs serve --dirty --watch .
-
+mkdocs serve --dirty --watch . -f mkdocs-dev.yml

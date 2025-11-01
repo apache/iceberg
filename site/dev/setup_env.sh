@@ -27,14 +27,3 @@ install_deps
 pull_versioned_docs
 
 git show "${REMOTE}/main:../.asf.yaml" > docs/.asf.yaml
-
-# If running in dev mode, temporarily use the dev navigation file
-if [ "${ICEBERG_DEV_MODE:-false}" = "true" ]; then
-  echo " --> Using dev navigation (nav-dev.yml) for faster builds"
-  # Create a backup of the original nav.yml
-  if [ ! -f nav.yml.backup ]; then
-    cp nav.yml nav.yml.backup
-  fi
-  # Use the dev nav file
-  cp nav-dev.yml nav.yml
-fi

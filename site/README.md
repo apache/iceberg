@@ -76,6 +76,7 @@ The docs are built, run, and released using [make](https://www.gnu.org/software/
 > help: Show help for each of the Makefile recipes.
 > [serve](dev/serve.sh): Clean, build, and run the site locally.
 > [serve-dev](dev/serve-dev.sh): Fast iterative development mode - only builds nightly and latest.
+> [lint](dev/lint.sh): Scan markdown files for style issues.
 
 To scaffold the versioned docs and build the project, run the `build` recipe. 
 
@@ -123,12 +124,12 @@ make serve-dev
 ```
 
 This development mode:
-- **Only builds `nightly` and `latest` versions** - Skips all historical versions (1.4.0 through 1.9.2)
+- **Only builds `nightly` and `latest` versions** - Skips all historical versions
 - **Significantly reduces build time** - Typically 5-10x faster than building all versions
 - **Uses the `--dirty` flag** - Only rebuilds changed files for even faster iteration
 - **Perfect for iterative development** - Great for working on documentation content
 
-The development mode sets the `ICEBERG_DEV_MODE=true` environment variable and uses a simplified navigation configuration (`nav-dev.yml`) that only includes the two most recent versions.
+The development mode sets the `ICEBERG_DEV_MODE=true` environment variable and uses a simplified mkdocs configuration (`mkdocs-dev.yml`) that only includes the two most recent versions.
 
 > [!NOTE]
 > Development mode is only for local iteration. Always use `make serve` or `make build` before creating a pull request to ensure all versioned docs build correctly.

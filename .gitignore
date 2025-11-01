@@ -29,7 +29,6 @@ site/site/
 site/docs/docs/
 site/docs/.asf.yaml
 site/docs/javadoc/
-site/nav.yml.backup
 
 # benchmark output
 spark/v3.4/spark/benchmark/*

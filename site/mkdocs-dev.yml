@@ -19,6 +19,8 @@
 # nightly and latest documentation for faster build times during
 # iterative development. Use this with ICEBERG_DEV_MODE=true.
 
+INHERIT: ./mkdocs.yml
+
 nav:
   - Home: index.md
   - Quickstart:
@@ -95,3 +97,11 @@ nav:
     - AES GCM Stream spec: gcm-stream-spec.md
     - Implementation status: status.md
 
+exclude_docs: |
+  !.asf.yaml
+  docs/
+  javadoc/
+  !docs/nightly/
+  !javadoc/nightly/
+  !docs/latest/
+  !javadoc/latest/
