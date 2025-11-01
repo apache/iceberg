@@ -19,7 +19,9 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -30,6 +32,7 @@ import org.apache.iceberg.util.SnapshotUtil;
 
 public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
   private Long startingSnapshotId = null; // check all versions by default
+  @Nullable private Consumer<Snapshot> snapshotValidator = null;
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
   private final DataFileSet removedDataFiles = DataFileSet.create();
   private boolean validateDeletes = false;
@@ -83,6 +86,12 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   @Override
   public RowDelta validateFromSnapshot(long snapshotId) {
     this.startingSnapshotId = snapshotId;
+    return this;
+  }
+
+  @Override
+  public RowDelta validateSnapshot(Consumer<Snapshot> validator) {
+    this.snapshotValidator = validator;
     return this;
   }
 
@@ -142,6 +151,10 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
             !validateDeletes,
             conflictDetectionFilter,
             parent);
+      }
+
+      if (snapshotValidator != null) {
+        validateSnapshots(snapshotValidator, base, startingSnapshotId, parent);
       }
 
       if (validateDeletes) {

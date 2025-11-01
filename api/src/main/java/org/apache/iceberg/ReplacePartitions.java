@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import java.util.function.Consumer;
+
 /**
  * API for overwriting files in a table by partition.
  *
@@ -70,6 +72,20 @@ public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
    * @return this for method chaining
    */
   ReplacePartitions validateFromSnapshot(long snapshotId);
+
+  /**
+   * Enables snapshot validation with a user-provided function, which must throw an exception on
+   * validation failures.
+   *
+   * <p>Clients can use this method to validate summary and other metadata of parent snapshots.
+   *
+   * @param snapshotValidator a user function to validate parent snapshots
+   * @return this for method chaining
+   */
+  default ReplacePartitions validateSnapshot(Consumer<Snapshot> snapshotValidator) {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " does not implement validateSnapshot");
+  }
 
   /**
    * Enables validation that deletes that happened concurrently do not conflict with this commit's
