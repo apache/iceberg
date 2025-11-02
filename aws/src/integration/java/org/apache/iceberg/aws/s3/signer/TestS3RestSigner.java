@@ -55,7 +55,6 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.auth.signer.internal.AbstractAws4Signer;
 import software.amazon.awssdk.auth.signer.internal.AbstractAwsS3V4Signer;
 import software.amazon.awssdk.auth.signer.internal.Aws4SignerRequestParams;
-import software.amazon.awssdk.auth.signer.internal.SignerConstant;
 import software.amazon.awssdk.auth.signer.params.Aws4PresignerParams;
 import software.amazon.awssdk.auth.signer.params.AwsS3V4SignerParams;
 import software.amazon.awssdk.core.checksums.SdkChecksum;
@@ -394,7 +393,7 @@ public class TestS3RestSigner {
         SdkChecksum contentFlexibleChecksum) {
       boolean isUnsignedStreamingTrailer =
           mutableRequest
-              .firstMatchingHeader(SignerConstant.X_AMZ_CONTENT_SHA256)
+              .firstMatchingHeader("x-amz-content-sha256")
               .map(STREAMING_UNSIGNED_PAYLOAD_TRAILER::equals)
               .orElse(false);
 
@@ -402,7 +401,7 @@ public class TestS3RestSigner {
         // To be consistent with other service clients using sig-v4,
         // we just set the header as "required", and AWS4Signer.sign() will be
         // notified to pick up the header value returned by this method.
-        mutableRequest.putHeader(SignerConstant.X_AMZ_CONTENT_SHA256, "required");
+        mutableRequest.putHeader("x-amz-content-sha256", "required");
       }
       return S3V4RestSignerClient.UNSIGNED_PAYLOAD;
     }

@@ -46,7 +46,6 @@ import org.mockserver.model.HttpResponse;
 import org.mockserver.model.Parameter;
 import org.mockserver.model.ParameterBody;
 import org.mockserver.verify.VerificationTimes;
-import software.amazon.awssdk.auth.signer.internal.SignerConstant;
 
 public class TestRESTSigV4Signer {
   private static ClientAndServer mockServer;
@@ -111,8 +110,7 @@ public class TestRESTSigV4Signer {
                     "Bearer existing_token"))
             // Require the empty body checksum
             .withHeader(
-                Header.header(
-                    SignerConstant.X_AMZ_CONTENT_SHA256, RESTSigV4AuthSession.EMPTY_BODY_SHA256));
+                Header.header("x-amz-content-sha256", RESTSigV4AuthSession.EMPTY_BODY_SHA256));
 
     mockServer
         .when(request)
@@ -144,7 +142,7 @@ public class TestRESTSigV4Signer {
                     RESTSigV4AuthSession.RELOCATED_HEADER_PREFIX + HttpHeaders.AUTHORIZATION,
                     "Bearer existing_token"))
             // Require a body checksum is set
-            .withHeader(Header.header(SignerConstant.X_AMZ_CONTENT_SHA256));
+            .withHeader(Header.header("x-amz-content-sha256"));
 
     mockServer
         .when(request)
