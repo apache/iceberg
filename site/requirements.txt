@@ -21,4 +21,4 @@ mkdocs-material==9.6.22
 mkdocs-material-extensions==1.3.1
 mkdocs-monorepo-plugin @ git+https://github.com/bitsondatadev/mkdocs-monorepo-plugin@url-fix
 mkdocs-redirects==1.2.2
-pymarkdownlnt==0.9.32
+pymarkdownlnt==0.9.33
