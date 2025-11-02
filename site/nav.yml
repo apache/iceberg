@@ -64,6 +64,12 @@ nav:
     - Blogs: blogs.md
     - Talks: talks.md
     - Vendors: vendors.md
+    
+  - About: about.md
+  - Benchmarks: benchmarks.md
+  - File I/O: fileio.md
+  - Security: security.md
+  
   - Specification:
     - Terms: terms.md
     - REST Catalog Spec: rest-catalog-spec.md
