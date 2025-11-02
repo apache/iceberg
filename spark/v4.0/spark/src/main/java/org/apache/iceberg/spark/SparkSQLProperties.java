@@ -119,4 +119,16 @@ public class SparkSQLProperties {
   public static final String VARIANT_INFERENCE_BUFFER_SIZE =
       "spark.sql.iceberg.variant.inference.buffer-size";
   public static final int VARIANT_INFERENCE_BUFFER_SIZE_DEFAULT = 10;
+
+  // Controls the minimum occurrence threshold for variant fields during shredding
+  // Fields that appear in fewer than this percentage of rows will be dropped
+  public static final String VARIANT_MIN_OCCURRENCE_THRESHOLD =
+      "spark.sql.iceberg.variant.min-occurrence-threshold";
+  public static final double VARIANT_MIN_OCCURRENCE_THRESHOLD_DEFAULT = 0.1; // 10%
+
+  // Controls the maximum number of fields to shred in a variant column
+  // This prevents creating overly wide Parquet schemas
+  public static final String VARIANT_MAX_SHREDDED_FIELDS =
+      "spark.sql.iceberg.variant.max-shredded-fields";
+  public static final int VARIANT_MAX_SHREDDED_FIELDS_DEFAULT = 300;
 }

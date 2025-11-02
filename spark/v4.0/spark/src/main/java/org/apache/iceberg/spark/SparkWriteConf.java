@@ -510,6 +510,24 @@ public class SparkWriteConf {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
         writeProperties.put(SparkSQLProperties.SHRED_VARIANTS, String.valueOf(shredVariants()));
+        
+        // Add variant shredding configuration properties
+        if (shredVariants()) {
+          String variantMaxFields = sessionConf.get(SparkSQLProperties.VARIANT_MAX_SHREDDED_FIELDS, null);
+          if (variantMaxFields != null) {
+            writeProperties.put(SparkSQLProperties.VARIANT_MAX_SHREDDED_FIELDS, variantMaxFields);
+          }
+          
+          String variantMinOccurrence = sessionConf.get(SparkSQLProperties.VARIANT_MIN_OCCURRENCE_THRESHOLD, null);
+          if (variantMinOccurrence != null) {
+            writeProperties.put(SparkSQLProperties.VARIANT_MIN_OCCURRENCE_THRESHOLD, variantMinOccurrence);
+          }
+          
+          String variantBufferSize = sessionConf.get(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, null);
+          if (variantBufferSize != null) {
+            writeProperties.put(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, variantBufferSize);
+          }
+        }
         break;
 
       case AVRO:
