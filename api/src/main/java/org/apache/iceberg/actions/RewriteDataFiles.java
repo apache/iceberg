@@ -148,6 +148,17 @@ public interface RewriteDataFiles
   String OUTPUT_SPEC_ID = "output-spec-id";
 
   /**
+   * Should we retain the original partition spec of each file when rewriting
+   *
+   * <p>By default, the rewrite data files action will repartition data to the latest partition spec
+   * of the table. Setting retain-original-spec-id to true will force the rewrite to use the
+   * partition spec of the original data.
+   */
+  String RETAIN_ORIGINAL_PARTITION_SPEC = "retain-original-spec-id";
+
+  boolean RETAIN_ORIGINAL_PARTITION_SPEC_DEFAULT = false;
+
+  /**
    * Choose BINPACK as a strategy for this rewrite operation
    *
    * @return this for method chaining
@@ -274,6 +285,9 @@ public interface RewriteDataFiles
 
     /** returns which file group this is out of the set of file groups for this partition */
     int partitionIndex();
+
+    /** returns which partition spec this file group was written to */
+    int partitionSpecId();
 
     /** returns which partition this file group contains files from */
     StructLike partition();

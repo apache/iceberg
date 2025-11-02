@@ -80,6 +80,7 @@ public class RewriteDataFilesSparkAction
           USE_STARTING_SEQUENCE_NUMBER,
           REWRITE_JOB_ORDER,
           OUTPUT_SPEC_ID,
+          RETAIN_ORIGINAL_PARTITION_SPEC,
           REMOVE_DANGLING_DELETES,
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE);
 
