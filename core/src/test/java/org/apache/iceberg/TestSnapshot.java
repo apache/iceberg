@@ -21,9 +21,15 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -243,6 +249,28 @@ public class TestSnapshot extends TestBase {
     runAddedDeleteFileSequenceNumberTest(newDeletes(FILE_A), 2);
 
     runAddedDeleteFileSequenceNumberTest(newDeletes(FILE_B), 3);
+  }
+
+  @TestTemplate
+  public void testManifestsHaveCorrectEncoding() {
+    assumeThat(formatVersion).as("Delete files only supported in V2").isGreaterThanOrEqualTo(2);
+
+    table.updateProperties().set("write.avro.compression-codec", "uncompressed").commit();
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
+    for (final ManifestFile mf : manifests) {
+      InputFile inputFile = table.io().newInputFile(mf);
+      CloseableIterable<ManifestEntry<DataFile>> headerReader =
+          InternalData.read(FileFormat.AVRO, inputFile)
+              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
+              .build();
+      assertThat(headerReader).isInstanceOf(AvroIterable.class);
+      Map<String, String> metadata =
+          ((AvroIterable<ManifestEntry<DataFile>>) headerReader).getMetadata();
+      assertThat(metadata.get("avro.codec")).isEqualTo("null");
+    }
   }
 
   private void runAddedDeleteFileSequenceNumberTest(

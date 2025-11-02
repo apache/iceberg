@@ -38,7 +38,10 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final OutputFile outputFile;
 
   private ManifestListWriter(
-      OutputFile file, EncryptionManager encryptionManager, Map<String, String> meta) {
+      OutputFile file,
+      EncryptionManager encryptionManager,
+      Map<String, String> meta,
+      Map<String, String> tableProperties) {
     if (encryptionManager instanceof StandardEncryptionManager) {
       // ability to encrypt the manifest list key is introduced for standard encryption.
       this.standardEncryptionManager = (StandardEncryptionManager) encryptionManager;
@@ -50,14 +53,13 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
       this.outputFile = file;
       this.manifestListKeyMetadata = null;
     }
-
-    this.writer = newAppender(outputFile, meta);
+    this.writer = newAppender(outputFile, meta, tableProperties);
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
 
   protected abstract FileAppender<ManifestFile> newAppender(
-      OutputFile file, Map<String, String> meta);
+      OutputFile file, Map<String, String> meta, Map<String, String> tableProps);
 
   @Override
   public void add(ManifestFile manifest) {
@@ -114,7 +116,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         long snapshotId,
         Long parentSnapshotId,
         long sequenceNumber,
-        long firstRowId) {
+        long firstRowId,
+        Map<String, String> tableProperties) {
       super(
           snapshotFile,
           encryptionManager,
@@ -123,7 +126,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
               "sequence-number", String.valueOf(sequenceNumber),
               "first-row-id", String.valueOf(firstRowId),
-              "format-version", "4"));
+              "format-version", "4"),
+          tableProperties);
       this.wrapper = new V4Metadata.ManifestFileWrapper(snapshotId, sequenceNumber);
       this.nextRowId = firstRowId;
     }
@@ -143,12 +147,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     }
 
     @Override
-    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+    protected FileAppender<ManifestFile> newAppender(
+        OutputFile file, Map<String, String> meta, Map<String, String> tableProperties) {
       try {
         return InternalData.write(FileFormat.AVRO, file)
             .schema(V4Metadata.MANIFEST_LIST_SCHEMA)
             .named("manifest_file")
             .meta(meta)
+            .set(tableProperties)
             .overwrite()
             .build();
 
@@ -174,7 +180,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         long snapshotId,
         Long parentSnapshotId,
         long sequenceNumber,
-        long firstRowId) {
+        long firstRowId,
+        Map<String, String> tableProperties) {
       super(
           snapshotFile,
           encryptionManager,
@@ -183,7 +190,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
               "sequence-number", String.valueOf(sequenceNumber),
               "first-row-id", String.valueOf(firstRowId),
-              "format-version", "3"));
+              "format-version", "3"),
+          tableProperties);
       this.wrapper = new V3Metadata.ManifestFileWrapper(snapshotId, sequenceNumber);
       this.nextRowId = firstRowId;
     }
@@ -203,12 +211,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     }
 
     @Override
-    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+    protected FileAppender<ManifestFile> newAppender(
+        OutputFile file, Map<String, String> meta, Map<String, String> tableProperties) {
       try {
         return InternalData.write(FileFormat.AVRO, file)
             .schema(V3Metadata.MANIFEST_LIST_SCHEMA)
             .named("manifest_file")
             .meta(meta)
+            .set(tableProperties)
             .overwrite()
             .build();
 
@@ -232,7 +242,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         EncryptionManager encryptionManager,
         long snapshotId,
         Long parentSnapshotId,
-        long sequenceNumber) {
+        long sequenceNumber,
+        Map<String, String> tableProperties) {
       super(
           snapshotFile,
           encryptionManager,
@@ -240,7 +251,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
               "sequence-number", String.valueOf(sequenceNumber),
-              "format-version", "2"));
+              "format-version", "2"),
+          tableProperties);
       this.wrapper = new V2Metadata.ManifestFileWrapper(snapshotId, sequenceNumber);
     }
 
@@ -250,12 +262,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     }
 
     @Override
-    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+    protected FileAppender<ManifestFile> newAppender(
+        OutputFile file, Map<String, String> meta, Map<String, String> tableProperties) {
       try {
         return InternalData.write(FileFormat.AVRO, file)
             .schema(V2Metadata.MANIFEST_LIST_SCHEMA)
             .named("manifest_file")
             .meta(meta)
+            .set(tableProperties)
             .overwrite()
             .build();
 
@@ -273,14 +287,16 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
         OutputFile snapshotFile,
         EncryptionManager encryptionManager,
         long snapshotId,
-        Long parentSnapshotId) {
+        Long parentSnapshotId,
+        Map<String, String> tableProperties) {
       super(
           snapshotFile,
           encryptionManager,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
-              "format-version", "1"));
+              "format-version", "1"),
+          tableProperties);
     }
 
     @Override
@@ -292,12 +308,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     }
 
     @Override
-    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+    protected FileAppender<ManifestFile> newAppender(
+        OutputFile file, Map<String, String> meta, Map<String, String> tableProperties) {
       try {
         return InternalData.write(FileFormat.AVRO, file)
             .schema(V1Metadata.MANIFEST_LIST_SCHEMA)
             .named("manifest_file")
             .meta(meta)
+            .set(tableProperties)
             .overwrite()
             .build();
 

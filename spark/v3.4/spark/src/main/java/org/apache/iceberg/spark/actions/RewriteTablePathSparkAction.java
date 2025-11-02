@@ -621,7 +621,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           format,
           specsById,
           sourcePrefix,
-          targetPrefix);
+          targetPrefix,
+          table.getValue().properties());
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
@@ -651,7 +652,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           specsById,
           sourcePrefix,
           targetPrefix,
-          stagingLocation);
+          stagingLocation,
+          table.getValue().properties());
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
