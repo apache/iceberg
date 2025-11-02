@@ -66,8 +66,9 @@ The UDF metadata file has the following fields:
 
 Notes:
 1. When `secure` is `true`:
-   - Engines **SHOULD NOT** expose the function definition through inspection (e.g., `SHOW FUNCTIONS`).
-   - Engines **SHOULD** ensure that execution does not leak sensitive information through error messages, logs, or query plans.
+   - Engines MUST NOT expose the function definition or its body through any form of metadata inspection (e.g., `SHOW FUNCTIONS`).
+   - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
+   - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
 
 ### Definition
 
