@@ -56,7 +56,7 @@ httpcomponents-httpclient5 = "5.5.1"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.11.6"
 jackson-annotations = "2.20"
-jackson-bom = "2.20.0"
+jackson-bom = "2.20.1"
 jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
 jackson212 = { strictly = "2.12.3"}
 jackson213 = { strictly = "2.13.4"}
