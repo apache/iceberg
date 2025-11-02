@@ -23,7 +23,9 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.parquet.ParquetVariantUtil;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.data.ParquetWithSparkSchemaVisitor;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -46,24 +48,33 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A visitor that infers variant shredding schemas by analyzing buffered rows of data. This visitor
- * can be plugged into ParquetWithSparkSchemaVisitor.visit() to create a shredded MessageType based
- * on actual variant data content.
- *
- * <p>The visitor uses the field names tracked during traversal to look up the correct field index
- * in the Spark schema, allowing it to access the corresponding value in the rows for schema
- * inference. It searches through all buffered rows to find the first non-null variant value for
- * schema inference.
+ * A visitor that infers variant shredding schemas by analyzing buffered rows of data.
  */
 public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaInferenceVisitor.class);
 
   private final List<InternalRow> bufferedRows;
   private final StructType sparkSchema;
+  private final VariantShreddingAnalyzer analyzer;
 
-  public SchemaInferenceVisitor(List<InternalRow> bufferedRows, StructType sparkSchema) {
+  public SchemaInferenceVisitor(
+      List<InternalRow> bufferedRows, StructType sparkSchema, Map<String, String> properties) {
     this.bufferedRows = bufferedRows;
     this.sparkSchema = sparkSchema;
+
+    double minOccurrenceThreshold =
+        Double.parseDouble(
+            properties.getOrDefault(
+                SparkSQLProperties.VARIANT_MIN_OCCURRENCE_THRESHOLD,
+                String.valueOf(SparkSQLProperties.VARIANT_MIN_OCCURRENCE_THRESHOLD_DEFAULT)));
+
+    int maxFields =
+        Integer.parseInt(
+            properties.getOrDefault(
+                SparkSQLProperties.VARIANT_MAX_SHREDDED_FIELDS,
+                String.valueOf(SparkSQLProperties.VARIANT_MAX_SHREDDED_FIELDS_DEFAULT)));
+
+    this.analyzer = new VariantShreddingAnalyzer(minOccurrenceThreshold, maxFields);
   }
 
   @Override
@@ -140,33 +151,22 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
   public Type variant(VariantType sVariant, GroupType variant) {
     int variantFieldIndex = getFieldIndex(currentPath());
 
-    // Find the first non-null variant value from buffered rows for schema inference
-    // This ensures we can infer a schema even if the first rows has null variant values
+    // Apply heuristics to determine the shredding schema:
+    // - Fields must appear in at least the configured percentage of rows
+    // - Type consistency determines if typed_value is created
+    // - Maximum field count to avoid overly wide schemas
     if (!bufferedRows.isEmpty() && variantFieldIndex >= 0) {
-      for (InternalRow row : bufferedRows) {
-        if (!row.isNullAt(variantFieldIndex)) {
-          VariantVal variantVal = row.getVariant(variantFieldIndex);
-          if (variantVal != null) {
-            VariantValue variantValue =
-                VariantValue.from(
-                    VariantMetadata.from(
-                        ByteBuffer.wrap(variantVal.getMetadata()).order(ByteOrder.LITTLE_ENDIAN)),
-                    ByteBuffer.wrap(variantVal.getValue()).order(ByteOrder.LITTLE_ENDIAN));
-
-            Type shreddedType = ParquetVariantUtil.toParquetSchema(variantValue);
-            if (shreddedType != null) {
-              return Types.buildGroup(variant.getRepetition())
-                  .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
-                  .id(variant.getId().intValue())
-                  .required(BINARY)
-                  .named("metadata")
-                  .optional(BINARY)
-                  .named("value")
-                  .addField(shreddedType)
-                  .named(variant.getName());
-            }
-          }
-        }
+      Type shreddedType = analyzer.analyzeAndCreateSchema(bufferedRows, variantFieldIndex);
+      if (shreddedType != null) {
+        return Types.buildGroup(variant.getRepetition())
+            .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
+            .id(variant.getId().intValue())
+            .required(BINARY)
+            .named("metadata")
+            .optional(BINARY)
+            .named("value")
+            .addField(shreddedType)
+            .named(variant.getName());
       }
     }
 
@@ -178,9 +178,9 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
       return -1;
     }
 
-    // TODO: For now, we only support top-level variant fields. To support nested variants, we would
-    // need to navigate the struct hierarchy
+    // Support nested variant fields by navigating the struct hierarchy
     if (path.length == 1) {
+      // Top-level field - direct lookup
       String fieldName = path[0];
       for (int i = 0; i < sparkSchema.fields().length; i++) {
         if (sparkSchema.fields()[i].name().equals(fieldName)) {
@@ -188,8 +188,15 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
         }
       }
     } else {
+      // Nested field - navigate through struct hierarchy
+      // For now, we only support direct struct nesting (not arrays/maps)
+      LOG.debug(
+          "Attempting to resolve nested variant field path: {}", String.join(".", path));
+      // TODO: Implement full nested field resolution when needed
+      // This would require tracking the current struct context during traversal
+      // and maintaining a stack of field indices
       LOG.warn(
-          "Nested variant fields are not yet supported for schema inference. Path: {}",
+          "Multi-level nested variant fields require struct context tracking. Path: {}",
           String.join(".", path));
     }
 

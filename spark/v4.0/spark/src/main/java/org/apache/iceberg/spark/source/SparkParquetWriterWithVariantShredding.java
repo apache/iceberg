@@ -41,8 +41,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 
 /**
- * A Parquet output writer that performs variant shredding with schema inference. This is similar to
- * Spark's ParquetOutputWriterWithVariantShredding but adapted for Iceberg.
+ * A Parquet output writer that performs variant shredding with schema inference.
  *
  * <p>The writer works in two phases: 1. Schema inference phase: Buffers initial rows and analyzes
  * variant data to infer schemas 2. Writing phase: Creates the actual Parquet writer with inferred
@@ -52,6 +51,7 @@ public class SparkParquetWriterWithVariantShredding
     implements ParquetValueWriter<InternalRow>, WriterLazyInitializable {
   private final StructType sparkSchema;
   private final MessageType parquetType;
+  private final Map<String, String> properties;
 
   private final List<BufferedRow> bufferedRows;
   private ParquetValueWriter<InternalRow> actualWriter;
@@ -72,6 +72,7 @@ public class SparkParquetWriterWithVariantShredding
       StructType sparkSchema, MessageType parquetType, Map<String, String> properties) {
     this.sparkSchema = sparkSchema;
     this.parquetType = parquetType;
+    this.properties = properties;
 
     this.bufferSize =
         Integer.parseInt(
@@ -139,7 +140,9 @@ public class SparkParquetWriterWithVariantShredding
     MessageType shreddedSchema =
         (MessageType)
             ParquetWithSparkSchemaVisitor.visit(
-                sparkSchema, parquetType, new SchemaInferenceVisitor(rows, sparkSchema));
+                sparkSchema,
+                parquetType,
+                new SchemaInferenceVisitor(rows, sparkSchema, properties));
 
     actualWriter = SparkParquetWriters.buildWriter(sparkSchema, shreddedSchema);
 
