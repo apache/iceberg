@@ -51,8 +51,8 @@ import org.apache.iceberg.actions.ImmutableRewriteTablePath;
 import org.apache.iceberg.actions.RewriteTablePath;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -725,7 +725,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         return Avro.read(inputFile)
             .project(deleteSchema)
             .reuseContainers()
-            .createReaderFunc(DataReader::create)
+            .createReaderFunc(fileSchema -> PlannedDataReader.create(deleteSchema))
             .build();
 
       case PARQUET:

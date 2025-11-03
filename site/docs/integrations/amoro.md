@@ -53,7 +53,7 @@ At the same time, we also provide a unique form based on Apache Iceberg, includi
 
 ### Iceberg Format
 
-Starting from Apache Amoro v0.4, Iceberg format including v1 and v2 is supported. Users only need to register Iceberg’s catalog in Amoro to host the table for Amoro maintenance. Amoro maintains the performance and economic availability of Iceberg tables with minimal read/write costs through means such as small file merging, eq-delete file conversion to pos-delete files, 
+Starting from Apache Amoro v0.4, Iceberg format including v1 and v2 is supported. Users only need to register Iceberg’s catalog in Amoro to host the table for Amoro maintenance. Amoro maintains the performance and economic availability of Iceberg tables with minimal read/write costs through means such as small file merging, eq-delete file conversion to pos-delete files,
 duplicate data elimination, and file cleaning, and Amoro has no intrusive impact on the functionality of Iceberg.
 
 ### Mixed-Iceberg Format
@@ -64,6 +64,6 @@ duplicate data elimination, and file cleaning, and Amoro has no intrusive impact
 - ChangeStore — stores the flow and change data of the table, usually written in real-time by streaming computing, and can also be used for downstream CDC consumption, and is more friendly to WriteStore for writing.
 - LogStore — serves as a cache layer for ChangeStore to accelerate stream processing. Amoro manages the consistency between LogStore and ChangeStore.
 
-### Mixed-Hive Format 
+### Mixed-Hive Format
 
-[Mixed-Hive](https://amoro.apache.org/docs/latest/mixed-hive-format/) format is a format that has better compatibility with Hive than Mixed-Iceberg format. Mixed-Hive format uses a Hive table as the BaseStore and an Iceberg table as the ChangeStore. 
+[Mixed-Hive](https://amoro.apache.org/docs/latest/mixed-hive-format/) format is a format that has better compatibility with Hive than Mixed-Iceberg format. Mixed-Hive format uses a Hive table as the BaseStore and an Iceberg table as the ChangeStore.

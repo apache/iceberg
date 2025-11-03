@@ -117,14 +117,28 @@ public class EncryptionUtil {
         "Snapshot key metadata encryption requires a StandardEncryptionManager");
     StandardEncryptionManager sem = (StandardEncryptionManager) em;
     String manifestListKeyId = manifestList.encryptionKeyID();
+    Map<String, EncryptedKey> encryptionKeys = sem.encryptionKeys();
+    EncryptedKey manifestListKey = encryptionKeys.get(manifestListKeyId);
+    ByteBuffer encryptedKeyMetadata = manifestListKey.encryptedKeyMetadata();
+    String keyEncryptionKeyID = manifestListKey.encryptedById();
     ByteBuffer keyEncryptionKey = sem.encryptedByKey(manifestListKeyId);
-    ByteBuffer encryptedKeyMetadata = sem.encryptedKeyMetadata(manifestListKeyId);
-
+    String keyEncryptionKeyTimestamp =
+        encryptionKeys
+            .get(keyEncryptionKeyID)
+            .properties()
+            .get(StandardEncryptionManager.KEY_TIMESTAMP);
+    Preconditions.checkState(
+        keyEncryptionKeyTimestamp != null, "Key encryption key must be timestamped");
     Ciphers.AesGcmDecryptor decryptor =
         new Ciphers.AesGcmDecryptor(ByteBuffers.toByteArray(keyEncryptionKey));
     byte[] keyMetadataBytes = ByteBuffers.toByteArray(encryptedKeyMetadata);
+
+    // Use key encryption key timestamp as AES GCM signature (AAD) of encryption - in order to
+    // prevent timestamp tampering attacks
     byte[] decryptedKeyMetadata =
-        decryptor.decrypt(keyMetadataBytes, manifestListKeyId.getBytes(StandardCharsets.UTF_8));
+        decryptor.decrypt(
+            keyMetadataBytes, keyEncryptionKeyTimestamp.getBytes(StandardCharsets.UTF_8));
+
     return ByteBuffer.wrap(decryptedKeyMetadata);
   }
 
@@ -140,16 +154,20 @@ public class EncryptionUtil {
    * Encrypts the key metadata for a manifest list.
    *
    * @param key key encryption key bytes
-   * @param keyId ID of the manifest list key
-   * @param keyMetadata manifest list key metadata
+   * @param keyTimestamp timestamp of the key encryption key
+   * @param mlkMetadata manifest list key metadata
    * @return encrypted key metadata
    */
   static ByteBuffer encryptManifestListKeyMetadata(
-      ByteBuffer key, String keyId, EncryptionKeyMetadata keyMetadata) {
+      ByteBuffer key, String keyTimestamp, EncryptionKeyMetadata mlkMetadata) {
     Ciphers.AesGcmEncryptor encryptor = new Ciphers.AesGcmEncryptor(ByteBuffers.toByteArray(key));
-    byte[] keyMetadataBytes = ByteBuffers.toByteArray(keyMetadata.buffer());
+    byte[] mlkMetadataBytes = ByteBuffers.toByteArray(mlkMetadata.buffer());
+
+    // Use key encryption key timestamp as AES GCM signature (AAD) of encryption - in order to
+    // prevent timestamp tampering attacks
     byte[] encryptedKeyMetadata =
-        encryptor.encrypt(keyMetadataBytes, keyId.getBytes(StandardCharsets.UTF_8));
+        encryptor.encrypt(mlkMetadataBytes, keyTimestamp.getBytes(StandardCharsets.UTF_8));
+
     return ByteBuffer.wrap(encryptedKeyMetadata);
   }
 }
