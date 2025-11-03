@@ -21,13 +21,28 @@ package org.apache.iceberg.arrow;
 import org.apache.arrow.memory.RootAllocator;
 
 public class ArrowAllocation {
+  private static final String ALLOCATION_MANAGER_TYPE_PROPERTY =
+      "arrow.memory.allocation.manager.type";
+
   static {
-    ROOT_ALLOCATOR = new RootAllocator(Long.MAX_VALUE);
+    if (System.getProperty(ALLOCATION_MANAGER_TYPE_PROPERTY) == null) {
+      System.setProperty(ALLOCATION_MANAGER_TYPE_PROPERTY, "Netty");
+    }
+
+    ROOT_ALLOCATOR = createRootAllocator();
   }
 
   private static final RootAllocator ROOT_ALLOCATOR;
 
   private ArrowAllocation() {}
+
+  private static RootAllocator createRootAllocator() {
+    try {
+      return new RootAllocator(Long.MAX_VALUE);
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to initialize Arrow RootAllocator", e);
+    }
+  }
 
   public static RootAllocator rootAllocator() {
     return ROOT_ALLOCATOR;
