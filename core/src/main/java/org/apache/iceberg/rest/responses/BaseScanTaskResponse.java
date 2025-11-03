@@ -55,7 +55,7 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
     return deleteFiles;
   }
 
-  public Map<Integer, PartitionSpec> specsById() {
+  protected Map<Integer, PartitionSpec> specsById() {
     return specsById;
   }
 
@@ -87,7 +87,7 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
       return self();
     }
 
-    public B withSpecsById(Map<Integer, PartitionSpec> specs) {
+    protected B withSpecsById(Map<Integer, PartitionSpec> specs) {
       this.specsById = specs;
       return self();
     }
@@ -104,7 +104,7 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
       return deleteFiles;
     }
 
-    public Map<Integer, PartitionSpec> specsById() {
+    protected Map<Integer, PartitionSpec> specsById() {
       return specsById;
     }
 

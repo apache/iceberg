@@ -101,6 +101,7 @@ public class PlanTableScanResponseParser {
         .withPlanTasks(planTasks)
         .withFileScanTasks(fileScanTasks)
         .withDeleteFiles(deleteFiles)
+        .withSpecsById(specsById)
         .build();
   }
 }
