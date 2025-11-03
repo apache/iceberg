@@ -35,11 +35,17 @@ import org.slf4j.LoggerFactory;
 
 public class StatsUtil {
   private static final Logger LOG = LoggerFactory.getLogger(StatsUtil.class);
-  static final int NUM_STATS_PER_COLUMN = 200;
-  static final int RESERVED_FIELD_IDS = 200;
-  static final int DATA_SPACE_FIELD_ID_START = 10_000;
-  static final int METADATA_SPACE_FIELD_ID_START = 2_147_000_000;
-  static final int RESERVED_FIELD_IDS_START = Integer.MAX_VALUE - RESERVED_FIELD_IDS;
+  // the number of reserved field IDs from the reserved field ID space as defined in
+  // https://iceberg.apache.org/spec/#reserved-field-ids
+  static final int NUM_RESERVED_FIELD_IDS = 200;
+  // the starting field ID of the reserved field ID space
+  static final int RESERVED_FIELD_IDS_START = Integer.MAX_VALUE - NUM_RESERVED_FIELD_IDS;
+  // the number of supported stats per table column
+  static final int NUM_SUPPORTED_STATS_PER_COLUMN = 200;
+  // the starting field ID of the stats space for data field IDs
+  static final int STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS = 10_000;
+  // the starting field ID of the stats space for metadata field IDs
+  static final int STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS = 2_147_000_000;
   // support stats for only up to this amount of data field IDs
   static final int MAX_DATA_FIELD_ID = 1_000_000;
   static final int MAX_DATA_STATS_FIELD_ID = 200_010_000;
@@ -53,7 +59,9 @@ public class StatsUtil {
   }
 
   private static int statsFieldIdForDataField(int fieldId) {
-    long statsFieldId = DATA_SPACE_FIELD_ID_START + NUM_STATS_PER_COLUMN * (long) fieldId;
+    long statsFieldId =
+        STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS
+            + (NUM_SUPPORTED_STATS_PER_COLUMN * (long) fieldId);
     if (fieldId < 0 || fieldId > MAX_DATA_FIELD_ID) {
       return -1;
     }
@@ -62,9 +70,11 @@ public class StatsUtil {
   }
 
   private static int statsFieldIdForReservedField(int fieldId) {
-    int offset = RESERVED_FIELD_IDS - (Integer.MAX_VALUE - fieldId);
+    int offset = NUM_RESERVED_FIELD_IDS - (Integer.MAX_VALUE - fieldId);
 
-    long statsFieldId = METADATA_SPACE_FIELD_ID_START + NUM_STATS_PER_COLUMN * (long) offset;
+    long statsFieldId =
+        STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS
+            + (NUM_SUPPORTED_STATS_PER_COLUMN * (long) offset);
     if (statsFieldId < 0 || statsFieldId > RESERVED_FIELD_IDS_START) {
       // ID overflows
       return -1;
@@ -74,26 +84,31 @@ public class StatsUtil {
   }
 
   public static int fieldIdForStatsField(int statsFieldId) {
-    if (statsFieldId < DATA_SPACE_FIELD_ID_START || statsFieldId % NUM_STATS_PER_COLUMN != 0) {
+    if (statsFieldId < STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS
+        || statsFieldId % NUM_SUPPORTED_STATS_PER_COLUMN != 0) {
       return -1;
     }
 
-    return statsFieldId < METADATA_SPACE_FIELD_ID_START
+    return statsFieldId < STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS
         ? fieldIdForStatsFieldFromDataField(statsFieldId)
         : fieldIdForStatsFieldFromReservedField(statsFieldId);
   }
 
   private static int fieldIdForStatsFieldFromDataField(int statsFieldId) {
-    return Math.max(-1, (statsFieldId - DATA_SPACE_FIELD_ID_START) / NUM_STATS_PER_COLUMN);
+    return Math.max(
+        -1,
+        (statsFieldId - STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS)
+            / NUM_SUPPORTED_STATS_PER_COLUMN);
   }
 
   private static int fieldIdForStatsFieldFromReservedField(int statsFieldId) {
     return Math.max(
         -1,
         statsFieldId
-            - RESERVED_FIELD_IDS
+            - NUM_RESERVED_FIELD_IDS
             + (Integer.MAX_VALUE - statsFieldId)
-            + (statsFieldId - METADATA_SPACE_FIELD_ID_START) / NUM_STATS_PER_COLUMN);
+            + (statsFieldId - STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS)
+                / NUM_SUPPORTED_STATS_PER_COLUMN);
   }
 
   public static Types.NestedField contentStatsFor(Schema schema) {

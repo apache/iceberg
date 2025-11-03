@@ -34,9 +34,9 @@ public class TestStatsUtil {
     int offset = 0;
     for (int id = 0; id < StatsUtil.MAX_DATA_FIELD_ID; id++) {
       int statsFieldId = StatsUtil.statsFieldIdForField(id);
-      int expected = StatsUtil.DATA_SPACE_FIELD_ID_START + offset;
+      int expected = StatsUtil.STATS_SPACE_FIELD_ID_START_FOR_DATA_FIELDS + offset;
       assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
-      offset += StatsUtil.NUM_STATS_PER_COLUMN;
+      offset += StatsUtil.NUM_SUPPORTED_STATS_PER_COLUMN;
       assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).as("at pos %s", id).isEqualTo(id);
     }
 
@@ -85,7 +85,9 @@ public class TestStatsUtil {
     for (int i = 0; i < 100; i++) {
       int id =
           ThreadLocalRandom.current()
-              .nextInt(StatsUtil.MAX_DATA_FIELD_ID + 1, StatsUtil.METADATA_SPACE_FIELD_ID_START);
+              .nextInt(
+                  StatsUtil.MAX_DATA_FIELD_ID + 1,
+                  StatsUtil.STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS);
       assertThat(StatsUtil.statsFieldIdForField(id)).as("at pos %s", id).isEqualTo(invalidFieldId);
     }
 
@@ -102,9 +104,9 @@ public class TestStatsUtil {
     int offset = 0;
     for (int id = StatsUtil.RESERVED_FIELD_IDS_START; id < Integer.MAX_VALUE; id++) {
       int statsFieldId = StatsUtil.statsFieldIdForField(id);
-      int expected = StatsUtil.METADATA_SPACE_FIELD_ID_START + offset;
+      int expected = StatsUtil.STATS_SPACE_FIELD_ID_START_FOR_METADATA_FIELDS + offset;
       assertThat(statsFieldId).as("at pos %s", id).isEqualTo(expected);
-      offset = offset + StatsUtil.NUM_STATS_PER_COLUMN;
+      offset = offset + StatsUtil.NUM_SUPPORTED_STATS_PER_COLUMN;
       assertThat(StatsUtil.fieldIdForStatsField(statsFieldId)).as("at pos %s", id).isEqualTo(id);
     }
 
