@@ -16,11 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.exceptions;
 
-public class TestParquetPartitionStatsHandler extends PartitionStatsHandlerTestBase {
+import com.google.errorprone.annotations.FormatMethod;
 
-  public FileFormat format() {
-    return FileFormat.PARQUET;
+/** Exception thrown when attempting to fetch result tasks for a plan task that does not exist. */
+public class NoSuchPlanTaskException extends RESTException {
+  @FormatMethod
+  public NoSuchPlanTaskException(String message, Object... args) {
+    super(message, args);
+  }
+
+  @FormatMethod
+  public NoSuchPlanTaskException(Throwable cause, String message, Object... args) {
+    super(cause, message, args);
   }
 }

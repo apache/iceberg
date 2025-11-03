@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Random;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -85,6 +87,18 @@ public class TestValueArray {
     VariantTestUtil.assertVariantString(actual.get(1), "iceberg");
     assertThat(actual.get(2)).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get(2).asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+  }
+
+  @Test
+  public void testByteBufferConversion() {
+    ValueArray arr = createArray(ELEMENTS);
+    VariantMetadata metadata = Variants.metadata("$['arr']");
+    Variant expectedVariant = Variant.of(metadata, arr);
+    ByteBuffer convertedValue = Conversions.toByteBuffer(Types.VariantType.get(), expectedVariant);
+    Variant readValue = Conversions.fromByteBuffer(Types.VariantType.get(), convertedValue);
+
+    VariantTestUtil.assertEqual(expectedVariant.metadata(), readValue.metadata());
+    VariantTestUtil.assertEqual(expectedVariant.value(), readValue.value());
   }
 
   @ParameterizedTest

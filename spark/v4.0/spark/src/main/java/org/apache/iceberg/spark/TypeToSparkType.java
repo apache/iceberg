@@ -25,6 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.expressions.Literal$;
 import org.apache.spark.sql.types.ArrayType$;
 import org.apache.spark.sql.types.BinaryType$;
 import org.apache.spark.sql.types.BooleanType$;
@@ -69,6 +70,22 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       if (field.doc() != null) {
         sparkField = sparkField.withComment(field.doc());
       }
+
+      // Convert both write and initial default values to Spark SQL string literal representations
+      // on the StructField metadata
+      if (field.writeDefault() != null) {
+        Object writeDefault = SparkUtil.internalToSpark(field.type(), field.writeDefault());
+        sparkField =
+            sparkField.withCurrentDefaultValue(Literal$.MODULE$.create(writeDefault, type).sql());
+      }
+
+      if (field.initialDefault() != null) {
+        Object initialDefault = SparkUtil.internalToSpark(field.type(), field.initialDefault());
+        sparkField =
+            sparkField.withExistenceDefaultValue(
+                Literal$.MODULE$.create(initialDefault, type).sql());
+      }
+
       sparkFields.add(sparkField);
     }
 
