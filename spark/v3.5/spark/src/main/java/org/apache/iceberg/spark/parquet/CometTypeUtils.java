@@ -118,7 +118,7 @@ public class CometTypeUtils {
     PrimitiveType primitiveType;
     if (primType == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY) {
       primitiveType =
-          org.apache.parquet.schema.Types.primitive(primType, repetition)
+          Types.primitive(primType, repetition)
               .length(columnSpec.getTypeLength())
               .as(logicalType)
               .id(columnSpec.getFieldId())
@@ -139,7 +139,7 @@ public class CometTypeUtils {
   }
 
   private static LogicalTypeAnnotation reconstructLogicalType(
-      String logicalTypeName, java.util.Map<String, String> params) {
+      String logicalTypeName, Map<String, String> params) {
 
     switch (logicalTypeName) {
         // MAP

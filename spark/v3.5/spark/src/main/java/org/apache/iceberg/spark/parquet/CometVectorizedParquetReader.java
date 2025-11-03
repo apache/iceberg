@@ -130,7 +130,6 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {
-    // private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
     private final VectorizedReader<T> model;
     private final long totalValues;
