@@ -23,10 +23,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Factory methods for creating {@link TrackedFileReader} instances. */
-public class TrackedFileReaders {
+/** Factory methods for creating {@link V4ManifestReader} instances. */
+public class V4ManifestReaders {
 
-  private TrackedFileReaders() {}
+  private V4ManifestReaders() {}
 
   /**
    * Create a reader for a root manifest.
@@ -36,15 +36,15 @@ public class TrackedFileReaders {
    * @param snapshotId snapshot ID for metadata inheritance
    * @param sequenceNumber sequence number for metadata inheritance
    * @param firstRowId starting first row ID for data files (can be null)
-   * @return a TrackedFileReader for the root manifest
+   * @return a V4ManifestReader for the root manifest
    */
-  public static TrackedFileReader readRoot(
+  public static V4ManifestReader readRoot(
       String rootManifestPath, FileIO io, long snapshotId, long sequenceNumber, Long firstRowId) {
     InputFile inputFile = io.newInputFile(rootManifestPath);
     InheritableTrackedMetadata metadata =
         InheritableTrackedMetadataFactory.create(snapshotId, sequenceNumber);
 
-    return new TrackedFileReader(inputFile, metadata, firstRowId);
+    return new V4ManifestReader(inputFile, metadata, firstRowId);
   }
 
   /**
@@ -53,9 +53,9 @@ public class TrackedFileReaders {
    * @param manifestEntry the DATA_MANIFEST or DELETE_MANIFEST entry from root
    * @param io file IO for reading
    * @param specsById map of partition specs by ID
-   * @return a TrackedFileReader for the leaf manifest
+   * @return a V4ManifestReader for the leaf manifest
    */
-  public static TrackedFileReader readLeaf(
+  public static V4ManifestReader readLeaf(
       TrackedFile<?> manifestEntry, FileIO io, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         manifestEntry.contentType() == FileContent.DATA_MANIFEST
@@ -71,6 +71,6 @@ public class TrackedFileReaders {
     TrackingInfo tracking = manifestEntry.trackingInfo();
     Long firstRowId = tracking != null ? tracking.firstRowId() : null;
 
-    return new TrackedFileReader(inputFile, metadata, firstRowId);
+    return new V4ManifestReader(inputFile, metadata, firstRowId);
   }
 }

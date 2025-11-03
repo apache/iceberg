@@ -32,7 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestTrackedFileReader {
+public class TestV4ManifestReader {
 
   private final FileIO io = new InMemoryFileIO();
   private static final long SNAPSHOT_ID = 12345L;
@@ -56,8 +56,8 @@ public class TestTrackedFileReader {
 
     String manifestPath = writeManifest(file1, file2);
 
-    TrackedFileReader reader =
-        TrackedFileReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader reader =
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
     List<TrackedFile<?>> files = Lists.newArrayList(reader);
 
@@ -84,8 +84,8 @@ public class TestTrackedFileReader {
 
     String manifestPath = writeManifest(file1);
 
-    TrackedFileReader reader =
-        TrackedFileReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader reader =
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
     List<TrackedFile<?>> files = Lists.newArrayList(reader);
 
@@ -113,8 +113,8 @@ public class TestTrackedFileReader {
 
     String manifestPath = writeManifest(added, existing);
 
-    TrackedFileReader reader =
-        TrackedFileReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader reader =
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
     List<TrackedFile<?>> files = Lists.newArrayList(reader);
 
@@ -142,8 +142,8 @@ public class TestTrackedFileReader {
     String manifestPath = writeManifest(file1, file2);
 
     long startingRowId = 1000L;
-    TrackedFileReader reader =
-        TrackedFileReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, startingRowId);
+    V4ManifestReader reader =
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, startingRowId);
 
     List<TrackedFile<?>> files = Lists.newArrayList(reader);
 
@@ -172,8 +172,8 @@ public class TestTrackedFileReader {
 
     String manifestPath = writeManifest(added, deleted, existing);
 
-    TrackedFileReader reader =
-        TrackedFileReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader reader =
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
     List<TrackedFile<?>> liveFiles = Lists.newArrayList(reader.liveEntries());
 
@@ -203,8 +203,8 @@ public class TestTrackedFileReader {
 
     String manifestPath = writeManifest(file1);
 
-    TrackedFileReader reader =
-        TrackedFileReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null)
+    V4ManifestReader reader =
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null)
             .select(ImmutableList.of("location", "record_count"));
 
     List<TrackedFile<?>> files = Lists.newArrayList(reader);
@@ -223,8 +223,8 @@ public class TestTrackedFileReader {
 
     String manifestPath = writeManifest(file1, file2, file3);
 
-    TrackedFileReader reader =
-        TrackedFileReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader reader =
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
     List<TrackedFile<?>> files = Lists.newArrayList(reader.entries());
 

@@ -35,7 +35,7 @@ import org.apache.iceberg.types.Types;
  * <p>Supports reading both root manifests and leaf manifests. Returns TrackedFile entries which can
  * represent data files, delete files, or manifest references.
  */
-class TrackedFileReader extends CloseableGroup implements CloseableIterable<TrackedFile<?>> {
+class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile<?>> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
 
   private final InputFile file;
@@ -44,14 +44,14 @@ class TrackedFileReader extends CloseableGroup implements CloseableIterable<Trac
 
   private Collection<String> columns = null;
 
-  protected TrackedFileReader(
+  protected V4ManifestReader(
       InputFile file, InheritableTrackedMetadata inheritableMetadata, Long manifestFirstRowId) {
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
     this.manifestFirstRowId = manifestFirstRowId;
   }
 
-  public TrackedFileReader select(Collection<String> newColumns) {
+  public V4ManifestReader select(Collection<String> newColumns) {
     this.columns = newColumns;
     return this;
   }
