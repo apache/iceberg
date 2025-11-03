@@ -195,7 +195,7 @@ pull_versioned_docs () {
 
 check_markdown_files () {
   echo " --> check markdown file styles"
-  if ! "${VENV_DIR}/bin/python3" -m pymarkdown --config markdownlint.yml scan docs/docs/nightly/docs/*.md docs/*.md README.md
+  if ! "${VENV_DIR}/bin/python3" -m pymarkdown --config markdownlint.yml scan ../docs/docs/*.md docs/*.md README.md
   then
     echo "Markdown style issues found. Please run 'make lint-fix' to fix them."
     exit 1
@@ -204,7 +204,7 @@ check_markdown_files () {
 
 fix_markdown_files () {
   echo " --> fix markdown file styles"
-  "${VENV_DIR}/bin/python3" -m pymarkdown --config markdownlint.yml fix docs/docs/nightly/docs/*.md docs/*.md README.md
+  "${VENV_DIR}/bin/python3" -m pymarkdown --config markdownlint.yml fix ../docs/docs/*.md docs/*.md README.md
 }
 
 # Cleans up artifacts and temporary files generated during documentation management.
