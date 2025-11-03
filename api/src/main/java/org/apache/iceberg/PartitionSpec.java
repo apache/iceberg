@@ -19,8 +19,8 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
@@ -203,11 +203,7 @@ public class PartitionSpec implements Serializable {
   }
 
   private String escape(String string) {
-    try {
-      return URLEncoder.encode(string, "UTF-8");
-    } catch (UnsupportedEncodingException e) {
-      throw new RuntimeException(e);
-    }
+    return URLEncoder.encode(string, StandardCharsets.UTF_8);
   }
 
   public String partitionToPath(StructLike data) {
