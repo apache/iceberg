@@ -101,6 +101,12 @@ public interface TrackedFile<F> {
               + " Location of affiliated data manifest if content_type is 4 or null if delete manifest is unaffiliated");
 
   /**
+   * Returns the path of the manifest which this file is referenced in or null if it was not read
+   * from a manifest.
+   */
+  String manifestLocation();
+
+  /**
    * Returns the tracking information for this entry.
    *
    * <p>Contains status, snapshot ID, sequence numbers, and first-row-id. Optional - may be null if
@@ -233,4 +239,29 @@ public interface TrackedFile<F> {
 
   /** Set the ordinal position in the manifest. */
   void setPos(Long position);
+
+  /**
+   * Returns this TrackedFile as a DataFile.
+   *
+   * <p>This method creates an adapter that implements the DataFile interface, allowing TrackedFile
+   * instances to be used where DataFile is expected. The adapter returns null for partition data
+   * and column-level statistics.
+   *
+   * @return a DataFile view of this TrackedFile
+   * @throws IllegalStateException if the content type is not DATA
+   */
+  DataFile asDataFile();
+
+  /**
+   * Returns this TrackedFile as a DeleteFile.
+   *
+   * <p>This method creates an adapter that implements the DeleteFile interface, allowing
+   * TrackedFile instances to be used where DeleteFile is expected. The adapter returns null for
+   * partition data and column-level statistics.
+   *
+   * @return a DeleteFile view of this TrackedFile
+   * @throws IllegalStateException if the content type is not a delete type (POSITION_DELETES or
+   *     EQUALITY_DELETES)
+   */
+  DeleteFile asDeleteFile();
 }

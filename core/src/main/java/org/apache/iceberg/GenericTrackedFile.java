@@ -45,6 +45,7 @@ public class GenericTrackedFile extends SupportsIndexProjection
   private static final FileContent[] FILE_CONTENT_VALUES = FileContent.values();
 
   // Tracking metadata
+  private String manifestLocation = null;
   private TrackingInfo.Status status = null;
   private Long snapshotId = null;
   private Long sequenceNumber = null;
@@ -174,6 +175,7 @@ public class GenericTrackedFile extends SupportsIndexProjection
     super(toCopy);
 
     // Tracking metadata
+    this.manifestLocation = toCopy.manifestLocation;
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
     this.sequenceNumber = toCopy.sequenceNumber;
@@ -227,6 +229,15 @@ public class GenericTrackedFile extends SupportsIndexProjection
       this.minSequenceNumber = toCopy.minSequenceNumber;
       this.contentStats = toCopy.contentStats;
     }
+  }
+
+  @Override
+  public String manifestLocation() {
+    return manifestLocation;
+  }
+
+  public void setManifestLocation(String manifestLocation) {
+    this.manifestLocation = manifestLocation;
   }
 
   @Override
@@ -707,6 +718,16 @@ public class GenericTrackedFile extends SupportsIndexProjection
   private Schema getAvroSchema() {
     return AvroSchemaUtil.convert(
         BASE_TYPE, ImmutableMap.of(BASE_TYPE, GenericTrackedFile.class.getName()));
+  }
+
+  @Override
+  public DataFile asDataFile() {
+    return new TrackedDataFileAdapter(this);
+  }
+
+  @Override
+  public DeleteFile asDeleteFile() {
+    return new TrackedDeleteFileAdapter(this);
   }
 
   @Override
