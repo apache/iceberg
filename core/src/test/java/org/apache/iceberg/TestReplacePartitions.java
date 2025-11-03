@@ -102,6 +102,23 @@ public class TestReplacePartitions extends TestBase {
           .withRecordCount(1)
           .build();
 
+  static final PartitionSpec SPEC_ALL_VOID =
+      PartitionSpec.builderFor(SCHEMA).alwaysNull("id").alwaysNull("data").build();
+
+  static final DataFile FILE_ALL_VOID_UNPARTITIONED_A =
+      DataFiles.builder(SPEC_ALL_VOID)
+          .withPath("/path/to/data-all-void-unpartitioned-a.parquet")
+          .withFileSizeInBytes(10)
+          .withRecordCount(1)
+          .build();
+
+  static final DataFile FILE_ALL_VOID_UNPARTITIONED_B =
+      DataFiles.builder(SPEC_ALL_VOID)
+          .withPath("/path/to/data-all-void-unpartitioned-b.parquet")
+          .withFileSizeInBytes(10)
+          .withRecordCount(1)
+          .build();
+
   @Parameter(index = 1)
   private String branch;
 
@@ -195,6 +212,42 @@ public class TestReplacePartitions extends TestBase {
         latestSnapshot(replaceMetadata, branch).allManifests(unpartitioned.io()).get(1),
         ids(replaceId),
         files(FILE_A),
+        statuses(Status.DELETED));
+  }
+
+  @TestTemplate
+  public void testReplaceAllVoidUnpartitionedTable() {
+    Table tableVoid =
+        TestTables.create(tableDir, "allvoidUnpartitioned", SCHEMA, SPEC_ALL_VOID, formatVersion);
+
+    commit(tableVoid, tableVoid.newAppend().appendFile(FILE_ALL_VOID_UNPARTITIONED_A), branch);
+    validateSnapshot(
+        null,
+        latestSnapshot(TestTables.readMetadata("allvoidUnpartitioned"), branch),
+        FILE_ALL_VOID_UNPARTITIONED_A);
+
+    ReplacePartitions replacePartitions =
+        tableVoid.newReplacePartitions().addFile(FILE_ALL_VOID_UNPARTITIONED_B);
+    commit(tableVoid, replacePartitions, branch);
+
+    assertThat(TestTables.metadataVersion("allvoidUnpartitioned")).isEqualTo(2);
+    TableMetadata replaceMetadata = TestTables.readMetadata("allvoidUnpartitioned");
+    long replaceId = latestSnapshot(replaceMetadata, branch).snapshotId();
+    List<ManifestFile> manifestFiles =
+        latestSnapshot(replaceMetadata, branch).allManifests(tableVoid.io());
+
+    assertThat(manifestFiles).hasSize(2);
+
+    validateManifestEntries(
+        manifestFiles.get(0),
+        ids(replaceId),
+        files(FILE_ALL_VOID_UNPARTITIONED_B),
+        statuses(Status.ADDED));
+
+    validateManifestEntries(
+        manifestFiles.get(1),
+        ids(replaceId),
+        files(FILE_ALL_VOID_UNPARTITIONED_A),
         statuses(Status.DELETED));
   }
 

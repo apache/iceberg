@@ -23,9 +23,12 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.Table;
@@ -49,10 +52,10 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
+import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
@@ -64,22 +67,14 @@ import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
-import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.GetNamespaceResponse;
-import org.apache.iceberg.rest.responses.ListNamespacesResponse;
-import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
-import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
-import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
 public class RESTCatalogAdapter extends BaseHTTPClient {
-  private static final Splitter SLASH = Splitter.on('/');
-
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
       ImmutableMap.<Class<? extends Exception>, Integer>builder()
           .put(IllegalArgumentException.class, 400)
@@ -109,147 +104,6 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     this.asNamespaceCatalog =
         catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
     this.asViewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
-  }
-
-  enum Route {
-    TOKENS(HTTPMethod.POST, "v1/oauth/tokens", null, OAuthTokenResponse.class),
-    SEPARATE_AUTH_TOKENS_URI(
-        HTTPMethod.POST, "https://auth-server.com/token", null, OAuthTokenResponse.class),
-    CONFIG(HTTPMethod.GET, "v1/config", null, ConfigResponse.class),
-    LIST_NAMESPACES(
-        HTTPMethod.GET, ResourcePaths.V1_NAMESPACES, null, ListNamespacesResponse.class),
-    CREATE_NAMESPACE(
-        HTTPMethod.POST,
-        ResourcePaths.V1_NAMESPACES,
-        CreateNamespaceRequest.class,
-        CreateNamespaceResponse.class),
-    NAMESPACE_EXISTS(HTTPMethod.HEAD, ResourcePaths.V1_NAMESPACE),
-    LOAD_NAMESPACE(HTTPMethod.GET, ResourcePaths.V1_NAMESPACE, null, GetNamespaceResponse.class),
-    DROP_NAMESPACE(HTTPMethod.DELETE, ResourcePaths.V1_NAMESPACE),
-    UPDATE_NAMESPACE(
-        HTTPMethod.POST,
-        ResourcePaths.V1_NAMESPACE_PROPERTIES,
-        UpdateNamespacePropertiesRequest.class,
-        UpdateNamespacePropertiesResponse.class),
-    LIST_TABLES(HTTPMethod.GET, ResourcePaths.V1_TABLES, null, ListTablesResponse.class),
-    CREATE_TABLE(
-        HTTPMethod.POST,
-        ResourcePaths.V1_TABLES,
-        CreateTableRequest.class,
-        LoadTableResponse.class),
-    TABLE_EXISTS(HTTPMethod.HEAD, ResourcePaths.V1_TABLE),
-    LOAD_TABLE(HTTPMethod.GET, ResourcePaths.V1_TABLE, null, LoadTableResponse.class),
-    REGISTER_TABLE(
-        HTTPMethod.POST,
-        ResourcePaths.V1_TABLE_REGISTER,
-        RegisterTableRequest.class,
-        LoadTableResponse.class),
-    UPDATE_TABLE(
-        HTTPMethod.POST, ResourcePaths.V1_TABLE, UpdateTableRequest.class, LoadTableResponse.class),
-    DROP_TABLE(HTTPMethod.DELETE, ResourcePaths.V1_TABLE),
-    RENAME_TABLE(HTTPMethod.POST, ResourcePaths.V1_TABLE_RENAME, RenameTableRequest.class, null),
-    REPORT_METRICS(
-        HTTPMethod.POST, ResourcePaths.V1_TABLE_METRICS, ReportMetricsRequest.class, null),
-    COMMIT_TRANSACTION(
-        HTTPMethod.POST,
-        ResourcePaths.V1_TRANSACTIONS_COMMIT,
-        CommitTransactionRequest.class,
-        null),
-    LIST_VIEWS(HTTPMethod.GET, ResourcePaths.V1_VIEWS, null, ListTablesResponse.class),
-    VIEW_EXISTS(HTTPMethod.HEAD, ResourcePaths.V1_VIEW),
-    LOAD_VIEW(HTTPMethod.GET, ResourcePaths.V1_VIEW, null, LoadViewResponse.class),
-    CREATE_VIEW(
-        HTTPMethod.POST, ResourcePaths.V1_VIEWS, CreateViewRequest.class, LoadViewResponse.class),
-    UPDATE_VIEW(
-        HTTPMethod.POST, ResourcePaths.V1_VIEW, UpdateTableRequest.class, LoadViewResponse.class),
-    RENAME_VIEW(HTTPMethod.POST, ResourcePaths.V1_VIEW_RENAME, RenameTableRequest.class, null),
-    DROP_VIEW(HTTPMethod.DELETE, ResourcePaths.V1_VIEW);
-
-    private final HTTPMethod method;
-    private final int requiredLength;
-    private final Map<Integer, String> requirements;
-    private final Map<Integer, String> variables;
-    private final Class<? extends RESTRequest> requestClass;
-    private final Class<? extends RESTResponse> responseClass;
-    private final String resourcePath;
-
-    Route(HTTPMethod method, String pattern) {
-      this(method, pattern, null, null);
-    }
-
-    Route(
-        HTTPMethod method,
-        String pattern,
-        Class<? extends RESTRequest> requestClass,
-        Class<? extends RESTResponse> responseClass) {
-      this.method = method;
-      this.resourcePath = pattern;
-
-      // parse the pattern into requirements and variables
-      List<String> parts =
-          SLASH.splitToList(pattern.replaceFirst("/v1/", "v1/").replace("/{prefix}", ""));
-      ImmutableMap.Builder<Integer, String> requirementsBuilder = ImmutableMap.builder();
-      ImmutableMap.Builder<Integer, String> variablesBuilder = ImmutableMap.builder();
-      for (int pos = 0; pos < parts.size(); pos += 1) {
-        String part = parts.get(pos);
-        if (part.startsWith("{") && part.endsWith("}")) {
-          variablesBuilder.put(pos, part.substring(1, part.length() - 1));
-        } else {
-          requirementsBuilder.put(pos, part);
-        }
-      }
-
-      this.requestClass = requestClass;
-      this.responseClass = responseClass;
-
-      this.requiredLength = parts.size();
-      this.requirements = requirementsBuilder.build();
-      this.variables = variablesBuilder.build();
-    }
-
-    private boolean matches(HTTPMethod requestMethod, List<String> requestPath) {
-      return method == requestMethod
-          && requiredLength == requestPath.size()
-          && requirements.entrySet().stream()
-              .allMatch(
-                  requirement ->
-                      requirement
-                          .getValue()
-                          .equalsIgnoreCase(requestPath.get(requirement.getKey())));
-    }
-
-    private Map<String, String> variables(List<String> requestPath) {
-      ImmutableMap.Builder<String, String> vars = ImmutableMap.builder();
-      variables.forEach((key, value) -> vars.put(value, requestPath.get(key)));
-      return vars.build();
-    }
-
-    public static Pair<Route, Map<String, String>> from(HTTPMethod method, String path) {
-      List<String> parts = SLASH.splitToList(path);
-      for (Route candidate : Route.values()) {
-        if (candidate.matches(method, parts)) {
-          return Pair.of(candidate, candidate.variables(parts));
-        }
-      }
-
-      return null;
-    }
-
-    public Class<? extends RESTRequest> requestClass() {
-      return requestClass;
-    }
-
-    public Class<? extends RESTResponse> responseClass() {
-      return responseClass;
-    }
-
-    HTTPMethod method() {
-      return method;
-    }
-
-    String resourcePath() {
-      return resourcePath;
-    }
   }
 
   private static OAuthTokenResponse handleOAuthRequest(Object body) {
@@ -287,7 +141,12 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   @SuppressWarnings({"MethodLength", "checkstyle:CyclomaticComplexity"})
   public <T extends RESTResponse> T handleRequest(
-      Route route, Map<String, String> vars, Object body, Class<T> responseType) {
+      Route route,
+      Map<String, String> vars,
+      HTTPRequest httpRequest,
+      Class<T> responseType,
+      Consumer<Map<String, String>> responseHeaders) {
+    Object body = httpRequest.body();
     switch (route) {
       case TOKENS:
         return castResponse(responseType, handleOAuthRequest(body));
@@ -298,7 +157,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             ConfigResponse.builder()
                 .withEndpoints(
                     Arrays.stream(Route.values())
-                        .map(r -> Endpoint.create(r.method.name(), r.resourcePath))
+                        .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                         .collect(Collectors.toList()))
                 .build());
 
@@ -306,11 +165,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         if (asNamespaceCatalog != null) {
           Namespace ns;
           if (vars.containsKey("parent")) {
-            ns =
-                Namespace.of(
-                    RESTUtil.NAMESPACE_SPLITTER
-                        .splitToStream(vars.get("parent"))
-                        .toArray(String[]::new));
+            ns = RESTUtil.namespaceFromQueryParam(vars.get("parent"));
           } else {
             ns = Namespace.empty();
           }
@@ -388,12 +243,15 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           Namespace namespace = namespaceFromPathVars(vars);
           CreateTableRequest request = castRequest(CreateTableRequest.class, body);
           request.validate();
+
           if (request.stageCreate()) {
             return castResponse(
                 responseType, CatalogHandlers.stageTableCreate(catalog, namespace, request));
           } else {
-            return castResponse(
-                responseType, CatalogHandlers.createTable(catalog, namespace, request));
+            LoadTableResponse response = CatalogHandlers.createTable(catalog, namespace, request);
+            responseHeaders.accept(
+                ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+            return castResponse(responseType, response);
           }
         }
 
@@ -416,23 +274,52 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
       case LOAD_TABLE:
         {
-          TableIdentifier ident = tableIdentFromPathVars(vars);
-          return castResponse(responseType, CatalogHandlers.loadTable(catalog, ident));
+          LoadTableResponse response =
+              CatalogHandlers.loadTable(
+                  catalog,
+                  tableIdentFromPathVars(vars),
+                  snapshotModeFromQueryParams(httpRequest.queryParameters()));
+
+          Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
+              httpRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH);
+
+          String eTag = ETagProvider.of(response.metadataLocation());
+
+          if (ifNoneMatchHeader.isPresent() && eTag.equals(ifNoneMatchHeader.get().value())) {
+            return null;
+          }
+
+          responseHeaders.accept(ImmutableMap.of(HttpHeaders.ETAG, eTag));
+
+          return castResponse(responseType, response);
         }
 
       case REGISTER_TABLE:
         {
-          Namespace namespace = namespaceFromPathVars(vars);
-          RegisterTableRequest request = castRequest(RegisterTableRequest.class, body);
-          return castResponse(
-              responseType, CatalogHandlers.registerTable(catalog, namespace, request));
+          LoadTableResponse response =
+              CatalogHandlers.registerTable(
+                  catalog,
+                  namespaceFromPathVars(vars),
+                  castRequest(RegisterTableRequest.class, body));
+
+          responseHeaders.accept(
+              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+
+          return castResponse(responseType, response);
         }
 
       case UPDATE_TABLE:
         {
-          TableIdentifier ident = tableIdentFromPathVars(vars);
-          UpdateTableRequest request = castRequest(UpdateTableRequest.class, body);
-          return castResponse(responseType, CatalogHandlers.updateTable(catalog, ident, request));
+          LoadTableResponse response =
+              CatalogHandlers.updateTable(
+                  catalog,
+                  tableIdentFromPathVars(vars),
+                  castRequest(UpdateTableRequest.class, body));
+
+          responseHeaders.accept(
+              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+
+          return castResponse(responseType, response);
         }
 
       case RENAME_TABLE:
@@ -625,8 +512,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         vars.putAll(request.queryParameters());
         vars.putAll(routeAndVars.second());
 
-        return handleRequest(routeAndVars.first(), vars.build(), request.body(), responseType);
-
+        return handleRequest(
+            routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
       } catch (RuntimeException e) {
         configureResponseFromException(e, errorBuilder);
       }
@@ -703,5 +590,12 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
         namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+  }
+
+  private static SnapshotMode snapshotModeFromQueryParams(Map<String, String> queryParams) {
+    return SnapshotMode.valueOf(
+        queryParams
+            .getOrDefault("snapshots", RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
+            .toUpperCase(Locale.US));
   }
 }

@@ -60,7 +60,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
   @Override
   protected ParquetValueReader<Record> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, StructType structType) {
+      List<ParquetValueReader<?>> fieldReaders, StructType structType, Integer fieldId) {
     return ParquetValueReaders.recordReader(fieldReaders, structType);
   }
 

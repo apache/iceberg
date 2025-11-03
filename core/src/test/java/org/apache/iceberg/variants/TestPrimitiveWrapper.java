@@ -24,6 +24,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Random;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -52,10 +54,10 @@ public class TestPrimitiveWrapper {
         Variants.ofIsoTimestamptz("1957-11-07T12:33:54.123456+00:00"),
         Variants.ofIsoTimestampntz("2024-11-07T12:33:54.123456"),
         Variants.ofIsoTimestampntz("1957-11-07T12:33:54.123456"),
-        Variants.of(new BigDecimal("123456.7890")), // decimal4
-        Variants.of(new BigDecimal("-123456.7890")), // decimal4
-        Variants.of(new BigDecimal("1234567890.987654321")), // decimal8
-        Variants.of(new BigDecimal("-1234567890.987654321")), // decimal8
+        Variants.of(new BigDecimal("12345.6789")), // decimal4
+        Variants.of(new BigDecimal("-12345.6789")), // decimal4
+        Variants.of(new BigDecimal("123456789.987654321")), // decimal8
+        Variants.of(new BigDecimal("-123456789.987654321")), // decimal8
         Variants.of(new BigDecimal("9876543210.123456789")), // decimal16
         Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
@@ -83,5 +85,17 @@ public class TestPrimitiveWrapper {
     assertThat(actual.type()).isEqualTo(primitive.type());
     assertThat(actual).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.asPrimitive().get()).isEqualTo(primitive.get());
+  }
+
+  @ParameterizedTest
+  @FieldSource("PRIMITIVES")
+  public void testByteBufferConversion(VariantPrimitive<?> primitive) {
+    VariantMetadata primitiveMetadata = Variants.metadata("$['primitive']");
+    Variant expectedVariant = Variant.of(primitiveMetadata, primitive);
+    ByteBuffer convertedValue = Conversions.toByteBuffer(Types.VariantType.get(), expectedVariant);
+    Variant readValue = Conversions.fromByteBuffer(Types.VariantType.get(), convertedValue);
+
+    VariantTestUtil.assertEqual(expectedVariant.metadata(), readValue.metadata());
+    VariantTestUtil.assertEqual(expectedVariant.value(), readValue.value());
   }
 }

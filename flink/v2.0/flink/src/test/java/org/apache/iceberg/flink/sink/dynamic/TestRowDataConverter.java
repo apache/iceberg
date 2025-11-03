@@ -21,7 +21,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import org.apache.flink.table.data.DecimalData;
@@ -81,9 +81,9 @@ class TestRowDataConverter {
             Types.NestedField.optional(1, "id", Types.IntegerType.get()),
             required(2, "data", Types.StringType.get()));
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> convert(GenericRowData.of(42), currentSchema, targetSchema));
+    assertThatThrownBy(() -> convert(GenericRowData.of(42), currentSchema, targetSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("is non-nullable but does not exist in source schema");
   }
 
   @Test
@@ -207,7 +207,9 @@ class TestRowDataConverter {
                     required(103, "required", Types.StringType.get()),
                     required(102, "name", Types.StringType.get()))));
 
-    assertThrows(IllegalArgumentException.class, () -> convert(oldData, oldSchema, newSchema));
+    assertThatThrownBy(() -> convert(oldData, oldSchema, newSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("is non-nullable but does not exist in source schema");
   }
 
   @Test

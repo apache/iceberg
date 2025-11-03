@@ -27,6 +27,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
@@ -44,8 +46,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -277,9 +277,9 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     if (globalStatistics != null) {
       runInCoordinatorThread(
           () -> {
-            if (event.signature() != null && event.signature() != globalStatistics.hashCode()) {
+            if (event.signature() != null && event.signature() == globalStatistics.hashCode()) {
               LOG.debug(
-                  "Skip responding to statistics request from subtask {}, as hashCode matches or not included in the request",
+                  "Skip responding to statistics request from subtask {}, as the operator task already holds the same global statistics",
                   subtask);
             } else {
               LOG.info(
@@ -517,7 +517,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     }
 
     @Override
-    public synchronized Thread newThread(@NotNull Runnable runnable) {
+    public synchronized Thread newThread(@Nonnull Runnable runnable) {
       thread = new Thread(runnable, coordinatorThreadName);
       thread.setContextClassLoader(classLoader);
       thread.setUncaughtExceptionHandler(this);

@@ -122,10 +122,10 @@ public class TestVariantReaders {
         Variants.ofIsoTimestamptz("1957-11-07T12:33:54.123456+00:00"),
         Variants.ofIsoTimestampntz("2024-11-07T12:33:54.123456"),
         Variants.ofIsoTimestampntz("1957-11-07T12:33:54.123456"),
-        Variants.of(new BigDecimal("123456.7890")), // decimal4
-        Variants.of(new BigDecimal("-123456.7890")), // decimal4
-        Variants.of(new BigDecimal("1234567890.987654321")), // decimal8
-        Variants.of(new BigDecimal("-1234567890.987654321")), // decimal8
+        Variants.of(new BigDecimal("12345.6789")), // decimal4
+        Variants.of(new BigDecimal("-12345.6789")), // decimal4
+        Variants.of(new BigDecimal("123456789.987654321")), // decimal8
+        Variants.of(new BigDecimal("-123456789.987654321")), // decimal8
         Variants.of(new BigDecimal("9876543210.123456789")), // decimal16
         Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
@@ -1574,22 +1574,6 @@ public class TestVariantReaders {
 
   private static GroupType list(GroupType elementType) {
     return Types.optionalList().element(elementType).named("typed_value");
-  }
-
-  private static void checkListType(GroupType listType) {
-    // Check the list is a 3-level structure
-    Preconditions.checkArgument(
-        listType.getFieldCount() == 1
-            && listType.getFields().get(0).isRepetition(Type.Repetition.REPEATED),
-        "Invalid list type: does not contain single repeated field: %s",
-        listType);
-
-    GroupType repeated = listType.getFields().get(0).asGroupType();
-    Preconditions.checkArgument(
-        repeated.getFieldCount() == 1
-            && repeated.getFields().get(0).isRepetition(Type.Repetition.REQUIRED),
-        "Invalid list type: does not contain single required subfield: %s",
-        listType);
   }
 
   private static org.apache.avro.Schema avroSchema(GroupType schema) {

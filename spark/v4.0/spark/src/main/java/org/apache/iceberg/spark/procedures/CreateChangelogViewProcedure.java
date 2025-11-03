@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -184,16 +185,13 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         identifierColumns.length > 0,
         "Cannot compute the update images because identifier columns are not set");
 
-    Column[] repartitionSpec = new Column[identifierColumns.length + 1];
-    for (int i = 0; i < identifierColumns.length; i++) {
-      repartitionSpec[i] = df.col(CreateChangelogViewProcedure.delimitedName(identifierColumns[i]));
-    }
-
-    repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
-
-    String[] identifierFields = Arrays.copyOf(identifierColumns, identifierColumns.length + 1);
-    identifierFields[identifierFields.length - 1] = MetadataColumns.CHANGE_ORDINAL.name();
-
+    String[] identifierFields =
+        ArrayUtil.add(identifierColumns, MetadataColumns.CHANGE_ORDINAL.name());
+    Column[] repartitionSpec =
+        Arrays.stream(identifierFields)
+            .map(CreateChangelogViewProcedure::delimitedName)
+            .map(df::col)
+            .toArray(Column[]::new);
     return applyChangelogIterator(df, repartitionSpec, identifierFields);
   }
 
@@ -292,7 +290,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
    * @return A name that can be safely used within Spark to reference a column by its name.
    */
   private static String delimitedName(String columnName) {
-    var delimited = columnName.startsWith("`") && columnName.endsWith("`");
+    boolean delimited = columnName.startsWith("`") && columnName.endsWith("`");
     if (delimited) {
       return columnName;
     } else {

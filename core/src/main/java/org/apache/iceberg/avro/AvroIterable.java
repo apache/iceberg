@@ -25,6 +25,7 @@ import java.util.NoSuchElementException;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.FileReader;
+import org.apache.avro.file.SeekableInput;
 import org.apache.avro.io.DatumReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
@@ -97,10 +98,18 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
   }
 
   private DataFileReader<D> newFileReader() {
+    SeekableInput stream = null;
     try {
-      return (DataFileReader<D>)
-          DataFileReader.openReader(AvroIO.stream(file.newStream(), file.getLength()), reader);
+      stream = AvroIO.stream(file.newStream(), file.getLength());
+      return (DataFileReader<D>) DataFileReader.openReader(stream, reader);
     } catch (IOException e) {
+      if (stream != null) {
+        try {
+          stream.close();
+        } catch (IOException closeException) {
+          // Ignore close exception
+        }
+      }
       throw new RuntimeIOException(e, "Failed to open file: %s", file.location());
     }
   }

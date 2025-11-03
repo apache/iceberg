@@ -19,6 +19,7 @@
 set -e
 
 export REMOTE="iceberg_docs"
+export VENV_DIR=".venv"
 
 # Ensures the presence of a specified remote repository for documentation.
 # If the remote doesn't exist, it adds it using the provided URL.
@@ -34,42 +35,20 @@ create_or_update_docs_remote () {
   git fetch "${REMOTE}"
 }
 
-# Pulls updates from a specified branch of a remote repository.
-# Arguments:
-#   $1: Branch name to pull updates from
-pull_remote () {
-  echo " --> pull remote"
-
-  local BRANCH="$1"
-
-  # Ensure the branch argument is not empty
-  assert_not_empty "${BRANCH}"  
-
-  # Perform a pull from the specified branch of the remote repository
-  git pull "${REMOTE}" "${BRANCH}"  
-}
-
-# Pushes changes from a local branch to a specified branch of a remote repository.
-# Arguments:
-#   $1: Branch name to push changes to
-push_remote () {
-  echo " --> push remote"
-
-  local BRANCH="$1"
-
-  # Ensure the branch argument is not empty
-  assert_not_empty "${BRANCH}"  
-
-  # Push changes to the specified branch of the remote repository
-  git push "${REMOTE}" "${BRANCH}"  
+# Creates the virtual environment if it doesn't exist.
+create_venv () {
+  if [ ! -d "${VENV_DIR}" ]; then
+    echo " --> creating virtual environment at ${VENV_DIR}"
+    python3 -m venv "${VENV_DIR}"
+  fi
 }
 
 # Installs or upgrades dependencies specified in the 'requirements.txt' file using pip.
 install_deps () {
   echo " --> install deps"
 
-  # Use pip to install or upgrade dependencies from the 'requirements.txt' file quietly
-  pip -q install -r requirements.txt --upgrade
+  # Use pip from venv to install or upgrade dependencies from the 'requirements.txt' file quietly
+  "${VENV_DIR}/bin/pip3" -q install -r requirements.txt --upgrade
 }
 
 # Checks if a provided argument is not empty. If empty, displays an error message and exits with a status code 1.
@@ -123,19 +102,19 @@ get_latest_version () {
   local latest_version=$(basename "${latest}")  
 
   # Output the latest version number
-  echo "${latest_version}"  
+  echo "${latest_version}"
 }
 
 # Creates a 'latest' version of the documentation based on a specified ICEBERG_VERSION.
 # Arguments:
 #   $1: ICEBERG_VERSION - The version number of the documentation to be treated as the latest.
 create_latest () {
-  echo " --> create latest"
-
   local ICEBERG_VERSION="$1"
 
   # Ensure ICEBERG_VERSION is not empty
-  assert_not_empty "${ICEBERG_VERSION}"  
+  assert_not_empty "${ICEBERG_VERSION}"
+
+  echo " --> create latest from ${ICEBERG_VERSION}"
 
   # Output the provided ICEBERG_VERSION for verification
   echo "${ICEBERG_VERSION}"  
@@ -167,12 +146,12 @@ create_latest () {
 # Arguments:
 #   $1: ICEBERG_VERSION - The version number used for updating the mkdocs.yml file.
 update_version () {
-  echo " --> update version"
-
   local ICEBERG_VERSION="$1"
 
   # Ensure ICEBERG_VERSION is not empty
   assert_not_empty "${ICEBERG_VERSION}"  
+
+  echo " --> update version: ${ICEBERG_VERSION}"
 
   # Update version information within the mkdocs.yml file using sed commands
   if [ "$(uname)" == "Darwin" ]
@@ -185,25 +164,6 @@ update_version () {
     sed -i'' -E "s/(^[[:space:]]*-[[:space:]]+Javadoc:.*\/javadoc\/).*$/\1${ICEBERG_VERSION}/" "${ICEBERG_VERSION}/mkdocs.yml"
   fi
 
-}
-
-# Excludes versioned documentation from search indexing by modifying .md files.
-# Arguments:
-#   $1: ICEBERG_VERSION - The version number of the documentation to exclude from search indexing.
-search_exclude_versioned_docs () {
-  echo " --> search exclude version docs"
-  local ICEBERG_VERSION="$1"
-
-  # Ensure ICEBERG_VERSION is not empty
-  assert_not_empty "${ICEBERG_VERSION}"  
-
-  cd "${ICEBERG_VERSION}/docs/"
-
-  # Modify .md files to exclude versioned documentation from search indexing
-  python3 -c "import os
-for f in filter(lambda x: x.endswith('.md'), os.listdir()): lines = open(f).readlines(); open(f, 'w').writelines(lines[:2] + ['search:\n', '  exclude: true\n'] + lines[2:]);"
-
-  cd -
 }
 
 # Sets up local worktrees for the documentation and performs operations related to different versions.
@@ -224,13 +184,27 @@ pull_versioned_docs () {
   local latest_version=$(get_latest_version)  
 
   # Output the latest version for debugging purposes
-  echo "Latest version is: ${latest_version}" 
+  echo "Latest version is: ${latest_version}"
   
   # Create the 'latest' version of documentation
-  create_latest "${latest_version}"  
+  create_latest "${latest_version}"
 
   # Create the 'nightly' version of documentation
   create_nightly  
+}
+
+check_markdown_files () {
+  echo " --> check markdown file styles"
+  if ! "${VENV_DIR}/bin/python3" -m pymarkdown --config markdownlint.yml scan docs/docs/nightly/docs/*.md docs/*.md README.md
+  then
+    echo "Markdown style issues found. Please run 'make lint-fix' to fix them."
+    exit 1
+  fi
+}
+
+fix_markdown_files () {
+  echo " --> fix markdown file styles"
+  "${VENV_DIR}/bin/python3" -m pymarkdown --config markdownlint.yml fix docs/docs/nightly/docs/*.md docs/*.md README.md
 }
 
 # Cleans up artifacts and temporary files generated during documentation management.

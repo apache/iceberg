@@ -26,7 +26,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.8'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.9'
     classpath 'com.palantir.baseline:gradle-baseline-java:5.72.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
@@ -36,7 +36,7 @@ buildscript {
     classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.4.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.14.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.17.0'
   }
 }
 
@@ -136,7 +136,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.9.0"
+      oldVersion = "1.10.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -182,6 +182,7 @@ subprojects {
       exclude group: 'com.sun.jersey'
       exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
+      exclude group: 'org.jetbrains', module: 'annotations'
     }
 
     testArtifacts
@@ -348,6 +349,7 @@ project(':iceberg-core') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    testRuntimeOnly project(':iceberg-parquet')
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
 
@@ -515,6 +517,7 @@ project(':iceberg-aws') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
     testImplementation libs.jetty.servlet
+    testImplementation libs.mockito.junit.jupiter
   }
 
   sourceSets {
@@ -567,6 +570,7 @@ project(':iceberg-azure') {
     testImplementation libs.testcontainers
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
+    testImplementation libs.mockito.junit.jupiter
   }
 
   sourceSets {
@@ -712,6 +716,7 @@ project(':iceberg-gcp') {
 
     compileOnly platform(libs.google.libraries.bom)
     compileOnly "com.google.cloud:google-cloud-storage"
+    compileOnly "com.google.cloud:google-cloud-kms"
 
     testImplementation "com.google.cloud:google-cloud-nio"
 
@@ -728,6 +733,27 @@ project(':iceberg-gcp') {
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.mockito.junit.jupiter
+  }
+
+  sourceSets {
+    integration {
+      java.srcDir "$projectDir/src/integration/java"
+      resources.srcDir "$projectDir/src/integration/resources"
+      compileClasspath += main.output + test.output
+      runtimeClasspath += main.output + test.output
+    }
+  }
+
+  configurations {
+    integrationImplementation.extendsFrom testImplementation
+    integrationRuntime.extendsFrom testRuntimeOnly
+  }
+
+  task integrationTest(type: Test) {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath
+    jvmArgs += project.property('extraJvmArgs')
   }
 }
 
@@ -845,6 +871,7 @@ project(':iceberg-orc') {
 }
 
 project(':iceberg-parquet') {
+  apply plugin: 'java-test-fixtures'
 
   test {
     useJUnitPlatform()
@@ -1014,6 +1041,7 @@ project(':iceberg-open-api') {
     testFixturesImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testFixturesImplementation project(':iceberg-aws')
     testFixturesImplementation project(':iceberg-gcp')
+    testFixturesImplementation project(':iceberg-bigquery')
     testFixturesImplementation project(':iceberg-azure')
     testFixturesImplementation(libs.hadoop3.common) {
       exclude group: 'org.slf4j'

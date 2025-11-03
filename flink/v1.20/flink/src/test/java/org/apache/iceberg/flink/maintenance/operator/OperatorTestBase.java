@@ -89,6 +89,10 @@ public class OperatorTestBase {
   protected static final String DUMMY_TASK_NAME = "dummyTask";
   protected static final String DUMMY_TABLE_NAME = "dummyTable";
 
+  static final String FILE_NAME_1 = "fileName1";
+  static final String FILE_NAME_2 = "fileName2";
+  static final Watermark WATERMARK_2 = new Watermark(EVENT_TIME_2);
+
   @RegisterExtension
   protected static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
       new MiniClusterExtension(
@@ -162,6 +166,12 @@ public class OperatorTestBase {
   protected void insert(Table table, Integer id, String data) throws IOException {
     new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
         .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data)));
+    table.refresh();
+  }
+
+  protected void insert(Table table, Integer id, String data, String extra) throws IOException {
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+        .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data, extra)));
     table.refresh();
   }
 

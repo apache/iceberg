@@ -155,10 +155,11 @@ public class ParquetMetricsRowGroupFilter {
       // if the column has no non-null values, the expression cannot match
       int id = ref.fieldId();
 
-      // When filtering nested types notNull() is implicit filter passed even though complex
-      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
-      // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      // When filtering nested types or variant types, notNull() is an implicit filter passed
+      // even though complex filters aren't pushed down in Parquet. Leave these type filters
+      // to be evaluated post scan.
+      Type type = schema.findType(id);
+      if (type instanceof Type.NestedType || type.isVariantType()) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -325,10 +326,10 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      // When filtering nested types notNull() is implicit filter passed even though complex
-      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // Leave all nested column type and variant type filters to be
       // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      Type type = schema.findType(id);
+      if (type instanceof Type.NestedType || type.isVariantType()) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -375,10 +376,10 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
 
-      // When filtering nested types notNull() is implicit filter passed even though complex
-      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // Leave all nested column type and variant type filters to be
       // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      Type type = schema.findType(id);
+      if (type instanceof Type.NestedType || type.isVariantType()) {
         return ROWS_MIGHT_MATCH;
       }
 

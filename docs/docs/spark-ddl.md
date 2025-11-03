@@ -82,7 +82,7 @@ Supported transformations are:
     * Strings are truncated to the given length
     * Integers and longs truncate to bins: `truncate(10, i)` produces partitions 0, 10, 20, 30, ...
 
-Note: Old syntax of `years(ts)`, `months(ts)`, `days(ts)` and `hours(ts)` are also supported for compatibility. 
+Note: Old syntax of `years(ts)`, `months(ts)`, `days(ts)` and `hours(ts)` are also supported for compatibility.
 
 ## `CREATE TABLE ... AS SELECT`
 
@@ -352,11 +352,9 @@ Dynamic partition overwrite behavior will change when the table's partitioning c
 !!! note
     To migrate from daily to hourly partitioning with transforms, it is not necessary to drop the daily partition field. Keeping the field ensures existing metadata table queries continue to work.
 
-
 !!! danger
     **Dynamic partition overwrite behavior will change** when partitioning changes
     For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
-
 
 ### `ALTER TABLE ... DROP PARTITION FIELD`
 
@@ -378,10 +376,8 @@ Dropping a partition field is a metadata operation and does not change any of th
     **Dynamic partition overwrite behavior will change** when partitioning changes
     For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
 
-
 !!! danger
     Be careful when dropping a partition field because it will change the schema of metadata tables, like `files`, and may cause metadata queries to fail or produce different results.
-
 
 ### `ALTER TABLE ... REPLACE PARTITION FIELD`
 
@@ -409,7 +405,6 @@ ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC NULLS LAST, id DESC NUL
 
 !!! info
     Table write order does not guarantee data order for queries. It only affects how data is written to the table.
-
 
 `WRITE ORDERED BY` sets a global ordering where rows are ordered across tasks, like using `ORDER BY` in an `INSERT` command:
 
@@ -457,7 +452,7 @@ ALTER TABLE prod.db.sample SET IDENTIFIER FIELDS id, data
 -- multiple columns
 ```
 
-Identifier fields must be `NOT NULL` columns when they are created or added. 
+Identifier fields must be `NOT NULL` columns when they are created or added.
 The later `ALTER` statement will overwrite the previous setting.
 
 ### `ALTER TABLE ... DROP IDENTIFIER FIELDS`
@@ -534,7 +529,7 @@ AS OF VERSION 1234 RETAIN 365 DAYS
 #### `ALTER TABLE ... REPLACE BRANCH`
 
 The snapshot which a branch references can be updated via
-the `REPLACE BRANCH` sql. Retention can also be updated in this statement. 
+the `REPLACE BRANCH` sql. Retention can also be updated in this statement.
 
 ```sql
 -- REPLACE audit-branch to reference snapshot 4567 and update the retention to 60 days.
@@ -585,7 +580,6 @@ This section covers how to create and manage views in Spark using Spark 3.4 and 
      * [SHOW TBLPROPERTIES](https://spark.apache.org/docs/latest/sql-ref-syntax-aux-show-tblproperties.html)
      * [SHOW CREATE TABLE](https://spark.apache.org/docs/latest/sql-ref-syntax-aux-show-create-table.html)
 
-
 #### Creating a view
 
 Create a simple view without any comments or properties:
@@ -618,6 +612,18 @@ Display view properties:
 ```sql
 SHOW TBLPROPERTIES <viewName>
 ```
+
+#### Creating a view with location
+
+To specify the view metadata location, use `TBLPROPERTIES ('location'='fully-qualified-uri')`:
+
+```sql
+CREATE VIEW <viewName>
+    TBLPROPERTIES ('location' = '/path/to/custom-location')
+AS SELECT * FROM <tableName>
+```
+
+The view metadata is stored in the specified location with `/metadata` appended, such as `/path/to/custom-location/metadata`.
 
 #### Dropping a view
 

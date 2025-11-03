@@ -169,34 +169,18 @@ public abstract class TestWriterMetrics<T> {
     // structField.longValue)
 
     Map<Integer, ByteBuffer> lowerBounds = deleteFile.lowerBounds();
-
     assertThat(Conversions.<T>fromByteBuffer(Types.StringType.get(), lowerBounds.get(pathFieldId)))
         .isEqualTo(CharBuffer.wrap("File A"));
     assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(posFieldId)))
         .isEqualTo(1L);
-
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)))
-        .isEqualTo(3);
-    assertThat(lowerBounds).doesNotContainKey(2);
-    assertThat(lowerBounds).doesNotContainKey(3);
-    assertThat(lowerBounds).doesNotContainKey(4);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)))
-        .isEqualTo(3L);
+    checkRowStatistics(lowerBounds);
 
     Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
-
     assertThat(Conversions.<T>fromByteBuffer(Types.StringType.get(), upperBounds.get(pathFieldId)))
         .isEqualTo(CharBuffer.wrap("File A"));
     assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(posFieldId)))
         .isEqualTo(1L);
-
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)))
-        .isEqualTo(3);
-    assertThat(upperBounds).doesNotContainKey(2);
-    assertThat(upperBounds).doesNotContainKey(3);
-    assertThat(upperBounds).doesNotContainKey(4);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)))
-        .isEqualTo(3L);
+    checkRowStatistics(upperBounds);
   }
 
   @TestTemplate
@@ -222,19 +206,8 @@ public abstract class TestWriterMetrics<T> {
     DeleteFile deleteFile = deleteWriter.toDeleteFile();
 
     // should have NO bounds for path and position as the file covers multiple data paths
-    Map<Integer, ByteBuffer> lowerBounds = deleteFile.lowerBounds();
-    assertThat(lowerBounds).hasSize(2);
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)))
-        .isEqualTo(3);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)))
-        .isEqualTo(3L);
-
-    Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
-    assertThat(upperBounds).hasSize(2);
-    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)))
-        .isEqualTo(3);
-    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)))
-        .isEqualTo(3L);
+    checkNotExistingRowStatistics(deleteFile.lowerBounds());
+    checkNotExistingRowStatistics(deleteFile.upperBounds());
   }
 
   @TestTemplate
@@ -298,6 +271,43 @@ public abstract class TestWriterMetrics<T> {
   }
 
   @TestTemplate
+  public void testMaxColumnsBounded() throws IOException {
+    List<Types.NestedField> fields = Arrays.asList(ID_FIELD, DATA_FIELD, STRUCT_FIELD);
+
+    Schema maxColSchema = new Schema(fields);
+
+    Table maxColumnTable =
+        TestTables.create(
+            tableDir,
+            "max_col_table",
+            maxColSchema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            FORMAT_V2);
+
+    long maxInferredColumns = 3;
+
+    maxColumnTable
+        .updateProperties()
+        .set(
+            TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
+            String.valueOf(maxInferredColumns))
+        .commit();
+
+    OutputFileFactory maxColFactory =
+        OutputFileFactory.builderFor(maxColumnTable, 1, 1).format(fileFormat).build();
+
+    T row = toRow(1, "data", false, Long.MAX_VALUE);
+    DataWriter<T> dataWriter =
+        newWriterFactory(maxColumnTable)
+            .newDataWriter(maxColFactory.newOutputFile(), PartitionSpec.unpartitioned(), null);
+    dataWriter.write(row);
+    dataWriter.close();
+    DataFile dataFile = dataWriter.toDataFile();
+    assertThat(dataFile.upperBounds().keySet().size()).isEqualTo(maxInferredColumns);
+  }
+
+  @TestTemplate
   public void testMaxColumnsWithDefaultOverride() throws IOException {
     int numColumns = TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT + 1;
     List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
@@ -340,5 +350,24 @@ public abstract class TestWriterMetrics<T> {
       assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)))
           .isEqualTo(1);
     }
+  }
+
+  protected void checkRowStatistics(Map<Integer, ByteBuffer> bounds) {
+    assertThat(bounds).hasSize(4);
+    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), bounds.get(1)))
+        .isEqualTo(3);
+    assertThat(bounds).doesNotContainKey(2);
+    assertThat(bounds).doesNotContainKey(3);
+    assertThat(bounds).doesNotContainKey(4);
+    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), bounds.get(5)))
+        .isEqualTo(3L);
+  }
+
+  protected void checkNotExistingRowStatistics(Map<Integer, ByteBuffer> bounds) {
+    assertThat(bounds).hasSize(2);
+    assertThat((int) Conversions.fromByteBuffer(Types.IntegerType.get(), bounds.get(1)))
+        .isEqualTo(3);
+    assertThat((long) Conversions.fromByteBuffer(Types.LongType.get(), bounds.get(5)))
+        .isEqualTo(3L);
   }
 }

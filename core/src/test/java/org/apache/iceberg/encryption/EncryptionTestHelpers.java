@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class EncryptionTestHelpers {
@@ -34,9 +35,22 @@ public class EncryptionTestHelpers {
         CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1);
-    tableProperties.put(TableProperties.FORMAT_VERSION, "2");
 
     return EncryptionUtil.createEncryptionManager(
         List.of(), tableProperties, EncryptionUtil.createKmsClient(catalogProperties));
+  }
+
+  public static String keyEncryptionKeyID(EncryptionManager em) {
+    Preconditions.checkState(
+        em instanceof StandardEncryptionManager,
+        "Retrieving key encryption key requires a StandardEncryptionManager");
+    return ((StandardEncryptionManager) em).keyEncryptionKeyID();
+  }
+
+  public static void shiftEncryptionManagerTime(EncryptionManager em, long shiftMillis) {
+    Preconditions.checkState(
+        em instanceof StandardEncryptionManager,
+        "Shifting test clock requires a StandardEncryptionManager");
+    ((StandardEncryptionManager) em).setTestTimeShift(shiftMillis);
   }
 }

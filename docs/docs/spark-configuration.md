@@ -52,7 +52,6 @@ spark.sql.catalog.hadoop_prod.warehouse = hdfs://nn:8020/warehouse/path
 !!! info
     The Hive-based catalog only loads Iceberg tables. To load non-Iceberg tables in the same Hive metastore, use a [session catalog](#replacing-the-session-catalog).
 
-
 ### Catalog configuration
 
 A catalog is created and named by adding a property `spark.sql.catalog.(catalog-name)` with an implementation class for its value.
@@ -82,7 +81,6 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.use-nullable-query-schema | `true` or `false` | Whether to preserve fields' nullability when creating the table using CTAS and RTAS. If set to `true`, all fields will be marked as nullable. If set to `false`, fields' nullability will be preserved. The default value is `true`. Available in Spark 3.5 and above.   |
 
 Additional properties can be found in common [catalog configuration](configuration.md#catalog-properties).
-
 
 ### Using catalogs
 
@@ -137,7 +135,6 @@ spark.sql.catalog.custom_prod.my-additional-catalog-config = my-value
 Iceberg 0.11.0 and later add an extension module to Spark to add new SQL commands, like `CALL` for stored procedures or `ALTER TABLE ... WRITE ORDERED BY`.
 
 Using those SQL commands requires adding Iceberg extensions to your Spark environment using the following Spark property:
-
 
 | Spark extensions property | Iceberg extensions implementation                                   |
 |---------------------------|---------------------------------------------------------------------|
@@ -211,23 +208,18 @@ spark.read
     .table("catalog.db.table")
 ```
 
-| Spark option    | Default               | Description                                                                               |
-| --------------- | --------------------- | ----------------------------------------------------------------------------------------- |
-| snapshot-id     | (latest)              | Snapshot ID of the table snapshot to read                                                 |
-| as-of-timestamp | (latest)              | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time. |
-| split-size      | As per table property | Overrides this table's read.split.target-size and read.split.metadata-target-size         |
-| lookback        | As per table property | Overrides this table's read.split.planning-lookback                                       |
-| file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                          |
-| vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                          |
-| batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
-| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
-| streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch |
-| streaming-max-rows-per-micro-batch  | INT_MAX | Maximum number of rows per microbatch |
-
-!!! warning
-    streaming-max-rows-per-micro-batch option sets a “soft max”, a batch will always include all the rows in the next unprocessed data file but additional files will not be included if doing so would exceed the soft max limit.
-
-
+| Spark option    | Default               | Description                                                                                                                                                                   |
+| --------------- | --------------------- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| snapshot-id     | (latest)              | Snapshot ID of the table snapshot to read                                                                                                                                     |
+| as-of-timestamp | (latest)              | A timestamp in milliseconds; the snapshot used will be the snapshot current at this time.                                                                                     |
+| split-size      | As per table property | Overrides this table's read.split.target-size and read.split.metadata-target-size                                                                                             |
+| lookback        | As per table property | Overrides this table's read.split.planning-lookback                                                                                                                           |
+| file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                                                                                                              |
+| vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                                                                                                     |
+| batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                                                                                                  |
+| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used                                                             |
+| streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch                                                                                                                                        |
+| streaming-max-rows-per-micro-batch  | INT_MAX | "Soft maximum" number of rows per microbatch; always includes all rows in next unprocessed file, excludes additional files if their inclusion would exceed the soft max limit |
 
 ### Write options
 

@@ -25,6 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.expressions.Literal$;
 import org.apache.spark.sql.types.ArrayType$;
 import org.apache.spark.sql.types.BinaryType$;
 import org.apache.spark.sql.types.BooleanType$;
@@ -38,6 +39,7 @@ import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.MapType$;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.MetadataBuilder;
+import org.apache.spark.sql.types.NullType$;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType$;
@@ -68,6 +70,22 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       if (field.doc() != null) {
         sparkField = sparkField.withComment(field.doc());
       }
+
+      // Convert both write and initial default values to Spark SQL string literal representations
+      // on the StructField metadata
+      if (field.writeDefault() != null) {
+        Object writeDefault = SparkUtil.internalToSpark(field.type(), field.writeDefault());
+        sparkField =
+            sparkField.withCurrentDefaultValue(Literal$.MODULE$.create(writeDefault, type).sql());
+      }
+
+      if (field.initialDefault() != null) {
+        Object initialDefault = SparkUtil.internalToSpark(field.type(), field.initialDefault());
+        sparkField =
+            sparkField.withExistenceDefaultValue(
+                Literal$.MODULE$.create(initialDefault, type).sql());
+      }
+
       sparkFields.add(sparkField);
     }
 
@@ -130,9 +148,11 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return DecimalType$.MODULE$.apply(decimal.precision(), decimal.scale());
+      case UNKNOWN:
+        return NullType$.MODULE$;
       default:
         throw new UnsupportedOperationException(
-            "Cannot convert unknown type to Spark: " + primitive);
+            "Cannot convert unsupported type to Spark: " + primitive);
     }
   }
 

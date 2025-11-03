@@ -38,7 +38,6 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceb
     <!-- markdown-link-check-disable-next-line -->
     If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-3.5_2.12` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) to Spark's `jars` folder.
 
-
 ### Adding catalogs
 
 Iceberg comes with [catalogs](spark-configuration.md#catalogs) that enable SQL commands to manage tables and load them by name. Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.
@@ -179,7 +178,7 @@ This type conversion table describes how Iceberg types are converted to the Spar
 | date                       | date                    |               |
 | time                       |                         | Not supported |
 | timestamp with timezone    | timestamp               |               |
-| timestamp without timezone | timestamp_ntz            |               |
+| timestamp without timezone | timestamp_ntz           |               |
 | string                     | string                  |               |
 | uuid                       | string                  |               |
 | fixed                      | binary                  |               |
@@ -188,6 +187,12 @@ This type conversion table describes how Iceberg types are converted to the Spar
 | struct                     | struct                  |               |
 | list                       | array                   |               |
 | map                        | map                     |               |
+| nanosecond timestamp       |                         | Not supported |
+| nanosecond timestamp with timezone |                 | Not supported |
+| unknown                    | null                    | Spark 4.0+    |
+| variant                    | variant                 | Spark 4.0+    |
+| geometry                   |                         | Not supported |
+| geography                  |                         | Not supported |
 
 ### Next steps
 

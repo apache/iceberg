@@ -108,7 +108,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     this.maxContinuousEmptyCommitsMap = Maps.newHashMap();
     this.continuousEmptyCheckpointsMap = Maps.newHashMap();
 
-    this.workerPool = ThreadPools.newWorkerPool("iceberg-committer-pool-" + sinkId, workerPoolSize);
+    this.workerPool =
+        ThreadPools.newFixedThreadPool("iceberg-committer-pool-" + sinkId, workerPoolSize);
   }
 
   @Override
@@ -273,26 +274,25 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       CommitSummary summary,
       String newFlinkJobId,
       String operatorId) {
-    for (Map.Entry<Long, List<WriteResult>> e : pendingResults.entrySet()) {
-      // We don't commit the merged result into a single transaction because for the sequential
-      // transaction txn1 and txn2, the equality-delete files of txn2 are required to be applied
-      // to data files from txn1. Committing the merged one will lead to the incorrect delete
-      // semantic.
-      for (WriteResult result : e.getValue()) {
-        ReplacePartitions dynamicOverwrite =
-            table.newReplacePartitions().scanManifestsWith(workerPool);
+    // Iceberg tables are unsorted. So the order of the append data does not matter.
+    // Hence, we commit everything in one snapshot.
+    ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
+
+    for (List<WriteResult> writeResults : pendingResults.values()) {
+      for (WriteResult result : writeResults) {
         Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
-        commitOperation(
-            table,
-            branch,
-            dynamicOverwrite,
-            summary,
-            "dynamic partition overwrite",
-            newFlinkJobId,
-            operatorId,
-            e.getKey());
       }
     }
+
+    commitOperation(
+        table,
+        branch,
+        dynamicOverwrite,
+        summary,
+        "dynamic partition overwrite",
+        newFlinkJobId,
+        operatorId,
+        pendingResults.lastKey());
   }
 
   private void commitDeltaTxn(
@@ -303,11 +303,11 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String newFlinkJobId,
       String operatorId) {
     for (Map.Entry<Long, List<WriteResult>> e : pendingResults.entrySet()) {
-      // We don't commit the merged result into a single transaction because for the sequential
-      // transaction txn1 and txn2, the equality-delete files of txn2 are required to be applied
-      // to data files from txn1. Committing the merged one will lead to the incorrect delete
-      // semantic.
-      for (WriteResult result : e.getValue()) {
+      long checkpointId = e.getKey();
+      List<WriteResult> writeResults = e.getValue();
+
+      RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+      for (WriteResult result : writeResults) {
         // Row delta validations are not needed for streaming changes that write equality deletes.
         // Equality deletes are applied to data in all previous sequence numbers, so retries may
         // push deletes further in the future, but do not affect correctness. Position deletes
@@ -315,13 +315,17 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
         // being added in this commit. There is no way for data files added along with the delete
         // files to be concurrently removed, so there is no need to validate the files referenced by
         // the position delete files that are being committed.
-        RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
-
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-        commitOperation(
-            table, branch, rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, e.getKey());
       }
+
+      // Every Flink checkpoint contains a set of independent changes which can be committed
+      // together. While it is technically feasible to combine append-only data across checkpoints,
+      // for the sake of simplicity, we do not implement this (premature) optimization. Multiple
+      // pending checkpoints here are very rare to occur, i.e. only with very short checkpoint
+      // intervals or when concurrent checkpointing is enabled.
+      commitOperation(
+          table, branch, rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, checkpointId);
     }
   }
 
@@ -368,7 +372,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
   @Override
   public void close() throws IOException {
-    // do nothing
+    workerPool.shutdown();
   }
 
   private static class TableKey implements Serializable {

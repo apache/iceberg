@@ -93,6 +93,10 @@
         <property name="message" value="assertThatThrownBy() should be statically imported from org.assertj.core.api.Assertions"/>
     </module>
     <module name="RegexpMultiline">
+        <property name="format" value="^\s*import\s+static\s+org\.junit\.jupiter\.api\.Assertions\.\w+;"/>
+        <property name="message" value="Prefer using org.assertj.core.api.Assertions instead."/>
+    </module>
+    <module name="RegexpMultiline">
         <property name="id" value="AssertThatThrownByWithMessageCheck"/>
         <property name="fileExtensions" value="java"/>
         <property name="matchAcrossLines" value="true"/>
@@ -260,6 +264,12 @@
             <property name="id" value="BanFlinkPreconditions"/>
             <property name="illegalClasses" value="org.apache.flink.util.Preconditions"/>
             <message key="import.illegal" value="Use org.apache.iceberg.relocated.com.google.common.base.Preconditions instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanHadoopUtils"/>
+            <property name="regexp" value="true"/>
+            <property name="illegalClasses" value="^org\.apache\.hadoop\.util\.(Sets|Lists|Preconditions)"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
         </module>
         <module name="IllegalImport">
             <property name="id" value="GuavaClassesInAssertJ"/>
