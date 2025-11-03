@@ -223,78 +223,48 @@ public class TestContentFileParser {
       boolean hasNanValueCount,
       boolean hasLowBound,
       boolean hasUpperBound) {
-    StringBuilder sb = new StringBuilder();
-    sb.append(
-            "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\",")
-        .append("\"file-format\":\"PARQUET\",")
-        .append("\"partition\":{\"1000\":1},")
-        .append("\"file-size-in-bytes\":350,")
-        .append("\"record-count\":10,")
-        .append("\"key-metadata\":\"00000000000000000000000000000000\",")
-        .append("\"split-offsets\":[128,256],")
-        .append("\"sort-order-id\":1,")
-        .append("\"content-stats\":{");
+    return "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-with-stats.parquet\","
+        + "\"file-format\":\"PARQUET\","
+        + "\"partition\":{\"1000\":1},"
+        + "\"file-size-in-bytes\":350,"
+        + "\"record-count\":10,"
+        + "\"key-metadata\":\"00000000000000000000000000000000\","
+        + "\"split-offsets\":[128,256],"
+        + "\"sort-order-id\":1,"
+        + "\"content-stats\":{"
+        + "\"10200\":{"
+        + contentStatsEntry(
+            hasValueCount ? "\"10202\":90" : null,
+            hasNullValueCount ? "\"10203\":10" : null,
+            hasNanValueCount ? "\"10204\":0" : null,
+            hasLowBound ? "\"10205\":1000000" : null,
+            hasUpperBound ? "\"10206\":5000000" : null)
+        + "},"
+        + "\"10400\":{"
+        + contentStatsEntry(
+            hasValueCount ? "\"10402\":180" : null,
+            hasNullValueCount ? "\"10403\":20" : null,
+            hasNanValueCount ? "\"10404\":0" : null,
+            hasLowBound ? "\"10405\":\"02000000\"" : null,
+            hasUpperBound ? "\"10406\":\"0A000000\"" : null)
+        + "}"
+        + "}"
+        + "}";
+  }
 
-    // Use a loop to reduce repetition in serializing field stats
-    int[] fieldIds = {10200, 10400};
-    Object[][] fieldValues = {
-      // int field: field id, valueCount, nullValueCount, nanValueCount, lowerBound, upperBound
-      {90, 10, 0, 1000000, 5000000},
-      // string field: field id, valueCount, nullValueCount, nanValueCount, lowerBound, upperBound
-      {180, 20, 0, "02000000", "0A000000"}
-    };
-
-    for (int i = 0; i < fieldIds.length; i++) {
-      sb.append("\"").append(fieldIds[i]).append("\":{");
-      boolean first = true;
-
-      // value count
-      if (hasValueCount) {
-        sb.append("\"").append(fieldIds[i] + 2).append("\":").append(fieldValues[i][0]);
-        first = false;
-      }
-      // null value count
-      if (hasNullValueCount) {
-        if (!first) sb.append(",");
-        sb.append("\"").append(fieldIds[i] + 3).append("\":").append(fieldValues[i][1]);
-        first = false;
-      }
-      // nan value count
-      if (hasNanValueCount) {
-        if (!first) sb.append(",");
-        sb.append("\"").append(fieldIds[i] + 4).append("\":").append(fieldValues[i][2]);
-        first = false;
-      }
-      // lower bound
-      if (hasLowBound) {
-        if (!first) sb.append(",");
-        boolean isStringField = (i == 1);
-        sb.append("\"").append(fieldIds[i] + 5).append("\":");
-        if (isStringField) {
-          sb.append("\"").append(fieldValues[i][3]).append("\"");
-        } else {
-          sb.append(fieldValues[i][3]);
-        }
-        first = false;
-      }
-      // upper bound
-      if (hasUpperBound) {
-        if (!first) sb.append(",");
-        boolean isStringField = (i == 1);
-        sb.append("\"").append(fieldIds[i] + 6).append("\":");
-        if (isStringField) {
-          sb.append("\"").append(fieldValues[i][4]).append("\"");
-        } else {
-          sb.append(fieldValues[i][4]);
-        }
-      }
-      sb.append("}");
-      if (i < fieldIds.length - 1) {
-        sb.append(",");
+  // Helper method to build field entries with correct comma placement.
+  private static String contentStatsEntry(String... entries) {
+    StringBuilder builder = new StringBuilder();
+    for (String entry : entries) {
+      if (entry != null) {
+        builder.append(entry + ",");
       }
     }
-    sb.append("}}");
-    return sb.toString();
+    int length = builder.length();
+    if (length > 0) {
+      builder.deleteCharAt(length - 1);
+    }
+    return builder.toString();
   }
 
   private static DataFile dataFileWithContentStats(
