@@ -1380,9 +1380,7 @@ public class Parquet {
       return this;
     }
 
-    /**
-     * Convenience method to enable comet
-     */
+    /** Convenience method to enable comet */
     public ReadBuilder enableComet(boolean enableComet) {
       if (enableComet) {
         this.properties.put(VECTORIZED_READER_FACTORY, "comet");
