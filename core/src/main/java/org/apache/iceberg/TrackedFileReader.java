@@ -45,9 +45,7 @@ class TrackedFileReader extends CloseableGroup implements CloseableIterable<Trac
   private Collection<String> columns = null;
 
   protected TrackedFileReader(
-      InputFile file,
-      InheritableTrackedMetadata inheritableMetadata,
-      Long manifestFirstRowId) {
+      InputFile file, InheritableTrackedMetadata inheritableMetadata, Long manifestFirstRowId) {
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
     this.manifestFirstRowId = manifestFirstRowId;
@@ -95,7 +93,7 @@ class TrackedFileReader extends CloseableGroup implements CloseableIterable<Trac
   }
 
   private Schema buildProjection(Collection<String> cols) {
-    if (cols == null || ALL_COLUMNS.equals(cols)) {
+    if (cols == null || cols.containsAll(ALL_COLUMNS)) {
       return new Schema(GenericTrackedFile.BASE_TYPE.fields());
     }
 

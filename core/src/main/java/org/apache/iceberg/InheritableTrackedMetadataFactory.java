@@ -81,7 +81,8 @@ class InheritableTrackedMetadataFactory {
       // in v1 tables, the sequence number is not persisted and can be safely defaulted to 0
       // in v2+ tables, the sequence number should be inherited iff the entry status is ADDED
       if (tracking == null || tracking.sequenceNumber() == null) {
-        if (sequenceNumber == 0 || (tracking != null && tracking.status() == TrackingInfo.Status.ADDED)) {
+        if (sequenceNumber == 0
+            || (tracking != null && tracking.status() == TrackingInfo.Status.ADDED)) {
           entry.setSequenceNumber(sequenceNumber);
           entry.setFileSequenceNumber(sequenceNumber);
         }
