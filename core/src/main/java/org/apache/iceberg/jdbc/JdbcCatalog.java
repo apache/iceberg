@@ -538,7 +538,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
           "Namespace %s is not empty. Contains %d table(s).", namespace, tableIdentifiers.size());
     }
 
-    if (schemaVersion == JdbcUtil.SchemaVersion.V1) {
+    if (schemaVersion != JdbcUtil.SchemaVersion.V0) {
       List<TableIdentifier> viewIdentifiers = listViews(namespace);
       if (viewIdentifiers != null && !viewIdentifiers.isEmpty()) {
         throw new NamespaceNotEmptyException(
