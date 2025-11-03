@@ -31,13 +31,15 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.sink.CommitSummary;
@@ -69,8 +71,6 @@ import org.slf4j.LoggerFactory;
  */
 @Internal
 class DynamicCommitter implements Committer<DynamicCommittable> {
-
-  private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
   private static final Logger LOG = LoggerFactory.getLogger(DynamicCommitter.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
   private static final WriteResult EMPTY_WRITE_RESULT =
@@ -79,13 +79,9 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           .addDeleteFiles(Lists.newArrayList())
           .build();
 
-  private static final long INITIAL_CHECKPOINT_ID = -1L;
-
   @VisibleForTesting
   static final String MAX_CONTINUOUS_EMPTY_COMMITS = "flink.max-continuous-empty-commits";
 
-  private static final String FLINK_JOB_ID = "flink.job-id";
-  private static final String OPERATOR_ID = "flink.operator-id";
   private final Map<String, String> snapshotProperties;
   private final boolean replacePartitions;
   private final DynamicCommitterMetrics committerMetrics;
@@ -138,7 +134,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       Table table = catalog.loadTable(TableIdentifier.parse(entry.getKey().tableName()));
       DynamicCommittable last = entry.getValue().lastEntry().getValue().get(0).getCommittable();
       long maxCommittedCheckpointId =
-          getMaxCommittedCheckpointId(
+          MaxCommittedCheckpointIdValidator.getMaxCommittedCheckpointId(
               table, last.jobId(), last.operatorId(), entry.getKey().branch());
       // Mark the already committed FilesCommittable(s) as finished
       entry
@@ -153,31 +149,6 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
             table, entry.getKey().branch(), uncommitted, last.jobId(), last.operatorId());
       }
     }
-  }
-
-  private static long getMaxCommittedCheckpointId(
-      Table table, String flinkJobId, String operatorId, String branch) {
-    Snapshot snapshot = table.snapshot(branch);
-    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
-
-    while (snapshot != null) {
-      Map<String, String> summary = snapshot.summary();
-      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      String snapshotOperatorId = summary.get(OPERATOR_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)
-          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
-        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
-        if (value != null) {
-          lastCommittedCheckpointId = Long.parseLong(value);
-          break;
-        }
-      }
-
-      Long parentSnapshotId = snapshot.parentId();
-      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
-    }
-
-    return lastCommittedCheckpointId;
   }
 
   /**
@@ -274,9 +245,17 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       CommitSummary summary,
       String newFlinkJobId,
       String operatorId) {
+    long checkpointId = pendingResults.lastKey();
+
     // Iceberg tables are unsorted. So the order of the append data does not matter.
     // Hence, we commit everything in one snapshot.
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
+    ReplacePartitions dynamicOverwrite =
+        new FlinkReplacePartitions(
+                fullTableName(table),
+                tableOperations(table),
+                new MaxCommittedCheckpointIdValidator(checkpointId, newFlinkJobId, operatorId))
+            .validateFromSnapshot(table.snapshot(branch))
+            .scanManifestsWith(workerPool);
 
     for (List<WriteResult> writeResults : pendingResults.values()) {
       for (WriteResult result : writeResults) {
@@ -306,7 +285,14 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       long checkpointId = e.getKey();
       List<WriteResult> writeResults = e.getValue();
 
-      RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+      RowDelta rowDelta =
+          new FlinkRowDelta(
+                  fullTableName(table),
+                  tableOperations(table),
+                  new MaxCommittedCheckpointIdValidator(checkpointId, newFlinkJobId, operatorId))
+              .validateFromSnapshot(table.snapshot(branch))
+              .scanManifestsWith(workerPool);
+
       for (WriteResult result : writeResults) {
         // Row delta validations are not needed for streaming changes that write equality deletes.
         // Equality deletes are applied to data in all previous sequence numbers, so retries may
@@ -350,9 +336,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     snapshotProperties.forEach(operation::set);
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
-    operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
-    operation.set(FLINK_JOB_ID, newFlinkJobId);
-    operation.set(OPERATOR_ID, operatorId);
+    MaxCommittedCheckpointIdValidator.setFlinkProperties(
+        operation, checkpointId, newFlinkJobId, operatorId);
     operation.toBranch(branch);
 
     long startNano = System.nanoTime();
@@ -368,6 +353,19 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     if (committerMetrics != null) {
       committerMetrics.commitDuration(table.name(), durationMs);
     }
+  }
+
+  private String fullTableName(Table table) {
+    return CatalogUtil.fullTableName(catalog.name(), TableIdentifier.parse(table.name()));
+  }
+
+  private static TableOperations tableOperations(Table table) {
+    if (table instanceof HasTableOperations) {
+      return ((HasTableOperations) table).operations();
+    }
+
+    throw new IllegalArgumentException(
+        "Catalog tables must implement: " + HasTableOperations.class.getSimpleName());
   }
 
   @Override

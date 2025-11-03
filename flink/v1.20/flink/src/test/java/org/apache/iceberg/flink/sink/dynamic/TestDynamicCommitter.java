@@ -41,10 +41,12 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.io.WriteResult;
@@ -56,6 +58,8 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestDynamicCommitter {
 
@@ -532,11 +536,15 @@ class TestDynamicCommitter {
     assertThatThrownBy(commitExecutable);
     assertThat(FailBeforeAndAfterCommit.failedBeforeCommit).isTrue();
 
-    // Second fail during commit
+    // Second fail before table update
     assertThatThrownBy(commitExecutable);
-    assertThat(FailBeforeAndAfterCommit.failedDuringCommit).isTrue();
+    assertThat(FailBeforeAndAfterCommit.failedBeforeCommitOperation).isTrue();
 
-    // Third fail after commit
+    // Third fail after table update
+    assertThatThrownBy(commitExecutable);
+    assertThat(FailBeforeAndAfterCommit.failedAfterCommitOperation).isTrue();
+
+    // Fourth fail after commit
     assertThatThrownBy(commitExecutable);
     assertThat(FailBeforeAndAfterCommit.failedAfterCommit).isTrue();
 
@@ -675,18 +683,106 @@ class TestDynamicCommitter {
                 .build());
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testThrowsValidationExceptionOnDuplicateCommit(boolean overwriteMode) throws Exception {
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int checkpointId = 1;
+
+    WriteTarget writeTarget =
+        new WriteTarget(TABLE1, SnapshotRef.MAIN_BRANCH, 42, 0, false, Sets.newHashSet(1, 2));
+    byte[] manifest =
+        aggregator.writeToManifest(
+            writeTarget,
+            Sets.newHashSet(
+                new DynamicWriteResult(
+                    writeTarget, WriteResult.builder().addDataFiles(DATA_FILE).build())),
+            checkpointId);
+
+    CommitRequest<DynamicCommittable> commitRequest1 =
+        new MockCommitRequest<>(
+            new DynamicCommittable(writeTarget, manifest, jobId, operatorId, checkpointId));
+    Collection<CommitRequest<DynamicCommittable>> commitRequests = Sets.newHashSet(commitRequest1);
+
+    int workerPoolSize = 1;
+    String sinkId = "sinkId";
+    UnregisteredMetricsGroup metricGroup = new UnregisteredMetricsGroup();
+    DynamicCommitterMetrics committerMetrics = new DynamicCommitterMetrics(metricGroup);
+
+    CommitHook commitHook =
+        new TestDynamicIcebergSink.DuplicateCommitHook(
+            () ->
+                new DynamicCommitter(
+                    CATALOG_EXTENSION.catalog(),
+                    Map.of(),
+                    overwriteMode,
+                    workerPoolSize,
+                    sinkId,
+                    committerMetrics));
+
+    DynamicCommitter mainCommitter =
+        new CommitHookEnabledDynamicCommitter(
+            commitHook,
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            overwriteMode,
+            workerPoolSize,
+            sinkId,
+            committerMetrics);
+
+    assertThatThrownBy(() -> mainCommitter.commit(commitRequests))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageMatching(
+            String.format(
+                "(?s)The new parent snapshot '\\d+' has 'flink.max-committed-checkpoint-id': '%s' >= '%s' of the currently staged committable.*",
+                checkpointId, checkpointId));
+
+    // Only one commit should succeed
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(table.currentSnapshot().summary())
+        .containsAllEntriesOf(
+            ImmutableMap.<String, String>builder()
+                .put("added-data-files", "1")
+                .put("added-records", "42")
+                .put("changed-partition-count", "1")
+                .put("flink.job-id", jobId)
+                .put("flink.max-committed-checkpoint-id", String.valueOf(checkpointId))
+                .put("flink.operator-id", operatorId)
+                .put("total-data-files", "1")
+                .put("total-delete-files", "0")
+                .put("total-equality-deletes", "0")
+                .put("total-files-size", "0")
+                .put("total-position-deletes", "0")
+                .put("total-records", "42")
+                .build());
+  }
+
   interface CommitHook extends Serializable {
-    void beforeCommit();
+    default void beforeCommit(Collection<CommitRequest<DynamicCommittable>> commitRequests) {}
 
-    void duringCommit();
+    default void beforeCommitOperation() {}
 
-    void afterCommit();
+    default void afterCommitOperation() {}
+
+    default void afterCommit() {}
   }
 
   static class FailBeforeAndAfterCommit implements CommitHook {
 
     static boolean failedBeforeCommit;
-    static boolean failedDuringCommit;
+    static boolean failedBeforeCommitOperation;
+    static boolean failedAfterCommitOperation;
     static boolean failedAfterCommit;
 
     FailBeforeAndAfterCommit() {
@@ -694,7 +790,7 @@ class TestDynamicCommitter {
     }
 
     @Override
-    public void beforeCommit() {
+    public void beforeCommit(Collection<CommitRequest<DynamicCommittable>> ignored) {
       if (!failedBeforeCommit) {
         failedBeforeCommit = true;
         throw new RuntimeException("Failing before commit");
@@ -702,10 +798,18 @@ class TestDynamicCommitter {
     }
 
     @Override
-    public void duringCommit() {
-      if (!failedDuringCommit) {
-        failedDuringCommit = true;
-        throw new RuntimeException("Failing during commit");
+    public void beforeCommitOperation() {
+      if (!failedBeforeCommitOperation) {
+        failedBeforeCommitOperation = true;
+        throw new RuntimeException("Failing before commit operation");
+      }
+    }
+
+    @Override
+    public void afterCommitOperation() {
+      if (!failedAfterCommitOperation) {
+        failedAfterCommitOperation = true;
+        throw new RuntimeException("Failing after commit operation");
       }
     }
 
@@ -719,7 +823,8 @@ class TestDynamicCommitter {
 
     static void reset() {
       failedBeforeCommit = false;
-      failedDuringCommit = false;
+      failedBeforeCommitOperation = false;
+      failedAfterCommitOperation = false;
       failedAfterCommit = false;
     }
   }
@@ -743,7 +848,7 @@ class TestDynamicCommitter {
     @Override
     public void commit(Collection<CommitRequest<DynamicCommittable>> commitRequests)
         throws IOException, InterruptedException {
-      commitHook.beforeCommit();
+      commitHook.beforeCommit(commitRequests);
       super.commit(commitRequests);
       commitHook.afterCommit();
     }
@@ -758,9 +863,10 @@ class TestDynamicCommitter {
         String newFlinkJobId,
         String operatorId,
         long checkpointId) {
+      commitHook.beforeCommitOperation();
       super.commitOperation(
           table, branch, operation, summary, description, newFlinkJobId, operatorId, checkpointId);
-      commitHook.duringCommit();
+      commitHook.afterCommitOperation();
     }
   }
 }

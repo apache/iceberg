@@ -31,7 +31,7 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
   private boolean validateConflictingData = false;
   private boolean validateConflictingDeletes = false;
 
-  BaseReplacePartitions(String tableName, TableOperations ops) {
+  protected BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
     set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
     replacedPartitions = PartitionSet.create(ops.current().specsById());
