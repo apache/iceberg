@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.SnapshotRef;
@@ -32,13 +33,20 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
+import org.apache.iceberg.encryption.EncryptedKey;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -57,20 +65,37 @@ class RESTTableOperations implements TableOperations {
   private final String path;
   private final Supplier<Map<String, String>> headers;
   private final FileIO io;
+  private final KeyManagementClient kmsClient;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
 
+  private EncryptionManager encryptionManager;
+  private EncryptingFileIO encryptingFileIO;
+  private String tableKeyId;
+  private int encryptionDekLength;
+  private List<EncryptedKey> encryptedKeysFromMetadata;
+
   RESTTableOperations(
       RESTClient client,
       String path,
       Supplier<Map<String, String>> headers,
       FileIO io,
+      KeyManagementClient kmsClient,
       TableMetadata current,
       Set<Endpoint> endpoints) {
-    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
+    this(
+        client,
+        path,
+        headers,
+        io,
+        kmsClient,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints);
   }
 
   RESTTableOperations(
@@ -78,6 +103,7 @@ class RESTTableOperations implements TableOperations {
       String path,
       Supplier<Map<String, String>> headers,
       FileIO io,
+      KeyManagementClient kmsClient,
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
@@ -86,6 +112,7 @@ class RESTTableOperations implements TableOperations {
     this.path = path;
     this.headers = headers;
     this.io = io;
+    this.kmsClient = kmsClient;
     this.updateType = updateType;
     this.createChanges = createChanges;
     this.replaceBase = current;
@@ -95,6 +122,10 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+
+    // N.B. We don't use this.current because for tables-to-be-created, because it would be null,
+    // and we still want encrypted properties in this case for its TableOperations.
+    encryptionPropsFromMetadata(current);
   }
 
   @Override
@@ -115,6 +146,17 @@ class RESTTableOperations implements TableOperations {
     Consumer<ErrorResponse> errorHandler;
     List<UpdateRequirement> requirements;
     List<MetadataUpdate> updates;
+
+    TableMetadata metadataToCommit = metadata;
+    if (encryption() instanceof StandardEncryptionManager) {
+      TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
+      for (Map.Entry<String, EncryptedKey> entry :
+          EncryptionUtil.encryptionKeys(encryption()).entrySet()) {
+        builder.addEncryptionKey(entry.getValue());
+      }
+      metadataToCommit = builder.build();
+    }
+
     switch (updateType) {
       case CREATE:
         Preconditions.checkState(
@@ -122,7 +164,7 @@ class RESTTableOperations implements TableOperations {
         updates =
             ImmutableList.<MetadataUpdate>builder()
                 .addAll(createChanges)
-                .addAll(metadata.changes())
+                .addAll(metadataToCommit.changes())
                 .build();
         requirements = UpdateRequirements.forCreateTable(updates);
         errorHandler = ErrorHandlers.tableErrorHandler(); // throws NoSuchTableException
@@ -133,7 +175,7 @@ class RESTTableOperations implements TableOperations {
         updates =
             ImmutableList.<MetadataUpdate>builder()
                 .addAll(createChanges)
-                .addAll(metadata.changes())
+                .addAll(metadataToCommit.changes())
                 .build();
         // use the original replace base metadata because the transaction will refresh
         requirements = UpdateRequirements.forReplaceTable(replaceBase, updates);
@@ -142,7 +184,7 @@ class RESTTableOperations implements TableOperations {
 
       case SIMPLE:
         Preconditions.checkState(base != null, "Invalid base metadata: null");
-        updates = metadata.changes();
+        updates = metadataToCommit.changes();
         requirements = UpdateRequirements.forUpdateTable(base, updates);
         errorHandler = ErrorHandlers.tableCommitHandler();
         break;
@@ -150,6 +192,17 @@ class RESTTableOperations implements TableOperations {
       default:
         throw new UnsupportedOperationException(
             String.format("Update type %s is not supported", updateType));
+    }
+
+    if (base != null) {
+      Set<String> removedProps =
+          base.properties().keySet().stream()
+              .filter(key -> !metadata.properties().containsKey(key))
+              .collect(Collectors.toSet());
+
+      if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
+        throw new RuntimeException("Cannot remove key in encrypted table");
+      }
     }
 
     UpdateTableRequest request = new UpdateTableRequest(requirements, updates);
@@ -201,7 +254,41 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    return io;
+    if (tableKeyId == null) {
+      return io;
+    }
+
+    if (encryptingFileIO == null) {
+      encryptingFileIO = EncryptingFileIO.combine(io, encryption());
+    }
+
+    return encryptingFileIO;
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    if (encryptionManager != null) {
+      return encryptionManager;
+    }
+
+    if (tableKeyId != null) {
+      if (kmsClient == null) {
+        throw new RuntimeException(
+            "Cant create encryption manager, because key management client is not set");
+      }
+
+      Map<String, String> encryptionProperties = Maps.newHashMap();
+      encryptionProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, tableKeyId);
+      encryptionProperties.put(
+          TableProperties.ENCRYPTION_DEK_LENGTH, String.valueOf(encryptionDekLength));
+      encryptionManager =
+          EncryptionUtil.createEncryptionManager(
+              encryptedKeysFromMetadata, encryptionProperties, kmsClient);
+    } else {
+      return PlaintextEncryptionManager.instance();
+    }
+
+    return encryptionManager;
   }
 
   private static Long expectedSnapshotIdIfSnapshotAddOnly(List<MetadataUpdate> updates) {
@@ -241,12 +328,38 @@ class RESTTableOperations implements TableOperations {
     return addedSnapshotId;
   }
 
+  private void encryptionPropsFromMetadata(TableMetadata metadata) {
+    if (metadata == null || metadata.properties() == null) {
+      return;
+    }
+
+    encryptedKeysFromMetadata = metadata.encryptionKeys();
+
+    Map<String, String> tableProperties = metadata.properties();
+    if (tableKeyId == null) {
+      tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
+    }
+
+    if (tableKeyId != null && encryptionDekLength <= 0) {
+      String dekLength = tableProperties.get(TableProperties.ENCRYPTION_DEK_LENGTH);
+      encryptionDekLength =
+          (dekLength == null)
+              ? TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT
+              : Integer.parseInt(dekLength);
+    }
+
+    // Force re-creation of encryptingFileIO and encryptionManager
+    encryptingFileIO = null;
+    encryptionManager = null;
+  }
+
   private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
     // LoadTableResponse is used to deserialize the response, but config is not allowed by the REST
     // spec so it can be
     // safely ignored. there is no requirement to update config on refresh or commit.
     if (current == null
         || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
+      encryptionPropsFromMetadata(response.tableMetadata());
       this.current = response.tableMetadata();
     }
 
