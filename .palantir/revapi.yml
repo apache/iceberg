@@ -1469,8 +1469,7 @@ acceptedBreaks:
           \ R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R\
           \ extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::withSpecsById(java.util.Map<java.lang.Integer,\
           \ org.apache.iceberg.PartitionSpec>)"
-        justification: "specById API is not part of Plan API response spec. No actual\
-          \ breakage because it never worked before."
+        justification: "specById API is not part of Plan API response spec."
       - code: "java.method.visibilityReduced"
         old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
           \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
@@ -1482,15 +1481,13 @@ acceptedBreaks:
           \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B extends\
           \ org.apache.iceberg.rest.responses.BaseScanTaskResponse.Builder<B, R extends\
           \ org.apache.iceberg.rest.responses.BaseScanTaskResponse>, R>, R extends org.apache.iceberg.rest.responses.BaseScanTaskResponse>::specsById()"
-        justification: "specById API is not part of Plan API response spec. No actual\
-          \ breakage because it never worked before."
+        justification: "specById API is not part of Plan API response spec."
       - code: "java.method.visibilityReduced"
         old: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
           \ org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
         new: "method java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>\
           \ org.apache.iceberg.rest.responses.BaseScanTaskResponse::specsById()"
-        justification: "specById API is not part of Plan API response spec. No actual\
-          \ breakage because it never worked before."
+        justification: "specById API is not part of Plan API response spec."
     org.apache.iceberg:iceberg-data:
       - code: "java.class.removed"
         old: "class org.apache.iceberg.data.PartitionStatsHandler"
