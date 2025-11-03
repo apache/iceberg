@@ -26,6 +26,8 @@ import org.apache.iceberg.expressions.Term;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public interface ExtendedParser extends ParserInterface {
   class RawOrderField {
@@ -74,18 +76,15 @@ public interface ExtendedParser extends ParserInterface {
         return clazz.cast(current);
       }
 
-      ParserInterface next = getNextDelegateParser(current);
-      if (next == null) {
-        break;
-      }
-
-      current = next;
+      current = getNextDelegateParser(current);
     }
 
     return null;
   }
 
   private static ParserInterface getNextDelegateParser(ParserInterface parser) {
+    Logger LOG = LoggerFactory.getLogger(ExtendedParser.class);
+
     try {
       Class<?> clazz = parser.getClass();
       while (clazz != null) {
@@ -100,6 +99,7 @@ public interface ExtendedParser extends ParserInterface {
       }
     } catch (Exception e) {
       // ignore
+      LOG.warn("Failed to scan delegate parser in {}: {}", parser.getClass().getName(), e.toString());
     }
 
     return null;
