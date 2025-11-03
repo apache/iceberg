@@ -56,7 +56,7 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
   }
 
   /**
-   * @deprecated : visibility will be reduced in 1.12.0.
+   * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
    */
   @Deprecated
   public Map<Integer, PartitionSpec> specsById() {
@@ -92,7 +92,7 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
     }
 
     /**
-     * @deprecated : visibility will be reduced in 1.12.0.
+     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
      */
     @Deprecated
     public B withSpecsById(Map<Integer, PartitionSpec> specs) {
@@ -113,7 +113,7 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
     }
 
     /**
-     * @deprecated : visibility will be reduced in 1.12.0.
+     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
      */
     @Deprecated
     public Map<Integer, PartitionSpec> specsById() {
