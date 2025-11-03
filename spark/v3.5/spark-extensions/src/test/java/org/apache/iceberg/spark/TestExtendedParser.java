@@ -67,6 +67,10 @@ public class TestExtendedParser {
       try {
         parserField = clazz.getDeclaredField(SQL_PARSER_FIELD);
       } catch (NoSuchFieldException e) {
+        LOG.warn(
+                "Field '{}' not found in class {}. Trying superclass.",
+                SQL_PARSER_FIELD,
+                clazz.getName());
         clazz = clazz.getSuperclass();
       }
     }
@@ -95,6 +99,10 @@ public class TestExtendedParser {
         parserField.setAccessible(true);
         origParser = (ParserInterface) parserField.get(spark.sessionState());
       } catch (NoSuchFieldException e) {
+        LOG.warn(
+                "Field '{}' not found in class {}. Trying superclass.",
+                SQL_PARSER_FIELD,
+                clazz.getName());
         clazz = clazz.getSuperclass();
       }
     }
@@ -187,6 +195,10 @@ public class TestExtendedParser {
       try {
         targetField = clazz.getDeclaredField(SQL_PARSER_FIELD);
       } catch (NoSuchFieldException e) {
+        LOG.warn(
+                "Field '{}' not found in class {}. Trying superclass.",
+                SQL_PARSER_FIELD,
+                clazz.getName());
         clazz = clazz.getSuperclass();
       }
     }
