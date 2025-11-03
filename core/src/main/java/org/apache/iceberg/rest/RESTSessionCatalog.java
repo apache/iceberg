@@ -387,7 +387,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         .withAuthSession(contextualSession)
         .get(
             paths.table(identifier),
-            referencedByToQueryParam(mode.params(), viewContext),
+            referencedByToQueryParam(snapshotModeToParam(mode), viewContext),
             LoadTableResponse.class,
             Map.of(),
             ErrorHandlers.tableErrorHandler());

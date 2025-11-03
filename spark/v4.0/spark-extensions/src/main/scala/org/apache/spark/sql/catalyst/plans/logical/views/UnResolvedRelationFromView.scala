@@ -32,9 +32,6 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
  * - Definer rights: Use view creator's permissions to access the underlying table
  * - Invoker rights: Use current user's permissions to access the underlying table
  *
- * When passed to REST catalogs, the view identifier is encoded using unit separator
- * character (0x1F) for nested namespaces in the "referenced-by" query parameter.
- *
  * @param tableMultipartIdentifier The multipart identifier for the target table
  * @param viewMultipartIdentifier The multipart identifier for the view that references this table
  * @param options Options passed to the table (similar to UnresolvedRelation)

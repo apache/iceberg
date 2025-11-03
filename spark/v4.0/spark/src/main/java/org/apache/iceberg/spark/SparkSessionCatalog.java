@@ -151,8 +151,7 @@ public class SparkSessionCatalog<
       throws NoSuchTableException {
     try {
       if (icebergCatalog instanceof ContextAwareTableCatalog && !context.isEmpty()) {
-        return ((ContextAwareTableCatalog) icebergCatalog)
-            .loadTable(identifier, context);
+        return ((ContextAwareTableCatalog) icebergCatalog).loadTable(identifier, context);
       } else {
         return icebergCatalog.loadTable(identifier);
       }
@@ -172,8 +171,7 @@ public class SparkSessionCatalog<
   }
 
   @Override
-  public Table loadTable(
-      Identifier identifier, String version, Map<String, Object> loadingContext)
+  public Table loadTable(Identifier identifier, String version, Map<String, Object> loadingContext)
       throws NoSuchTableException {
     try {
       if (icebergCatalog instanceof ContextAwareTableCatalog && !loadingContext.isEmpty()) {
@@ -188,8 +186,7 @@ public class SparkSessionCatalog<
   }
 
   @Override
-  public Table loadTable(
-      Identifier identifier, long timestamp, Map<String, Object> loadingContext)
+  public Table loadTable(Identifier identifier, long timestamp, Map<String, Object> loadingContext)
       throws NoSuchTableException {
     try {
       if (icebergCatalog instanceof ContextAwareTableCatalog && !loadingContext.isEmpty()) {
