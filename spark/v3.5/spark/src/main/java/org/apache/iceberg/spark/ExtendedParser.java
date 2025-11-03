@@ -59,11 +59,11 @@ public interface ExtendedParser extends ParserInterface {
         return extParser.parseSortOrder(orderString);
       } catch (AnalysisException e) {
         throw new IllegalArgumentException(
-                String.format("Unable to parse sortOrder: %s", orderString), e);
+            String.format("Unable to parse sortOrder: %s", orderString), e);
       }
     } else {
       throw new IllegalStateException(
-              "Cannot parse order: parser is not an Iceberg ExtendedParser");
+          "Cannot parse order: parser is not an Iceberg ExtendedParser");
     }
   }
 
