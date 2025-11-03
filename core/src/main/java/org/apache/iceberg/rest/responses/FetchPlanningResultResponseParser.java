@@ -69,11 +69,7 @@ public class FetchPlanningResultResponseParser {
       String json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(
         json != null, "Invalid fetchPlanningResult response: null or empty");
-    return JsonUtil.parse(
-        json,
-        node -> {
-          return fromJson(node, specsById, caseSensitive);
-        });
+    return JsonUtil.parse(json, node -> fromJson(node, specsById, caseSensitive));
   }
 
   public static FetchPlanningResultResponse fromJson(
