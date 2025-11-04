@@ -109,7 +109,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   @VisibleForTesting
   static final String MAX_ORPHAN_FILE_SAMPLE_SIZE = "max-orphan-file-sample-size";
 
-  @VisibleForTesting static final int MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT = 20000;
+  private static final int MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT = 20000;
 
   private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
   private static final Map<String, String> EQUAL_SCHEMES_DEFAULT = ImmutableMap.of("s3n,s3a", "s3");
@@ -259,8 +259,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     Dataset<String> orphanFileDS =
         findOrphanFiles(actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
-
-    return deleteFiles(orphanFileDS);
+    try {
+      return deleteFiles(orphanFileDS);
+    } finally {
+      orphanFileDS.unpersist();
+    }
   }
 
   /**
@@ -270,42 +273,34 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
    * @return result with orphan file paths
    */
   private DeleteOrphanFiles.Result deleteFiles(Dataset<String> orphanFileDS) {
-    try {
-      int maxSampleSize =
-          PropertyUtil.propertyAsInt(
-              options(), MAX_ORPHAN_FILE_SAMPLE_SIZE, MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT);
-      List<String> orphanFileList = Lists.newArrayListWithCapacity(maxSampleSize);
-      long filesCount = 0;
+    int maxSampleSize =
+        PropertyUtil.propertyAsInt(
+            options(), MAX_ORPHAN_FILE_SAMPLE_SIZE, MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT);
+    List<String> orphanFileList = Lists.newArrayListWithCapacity(maxSampleSize);
+    long filesCount = 0;
 
-      Iterator<String> orphanFiles =
-          streamResults()
-              ? orphanFileDS.toLocalIterator()
-              : orphanFileDS.collectAsList().iterator();
+    Iterator<String> orphanFiles =
+        streamResults() ? orphanFileDS.toLocalIterator() : orphanFileDS.collectAsList().iterator();
 
-      Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
+    Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
 
-      while (fileGroups.hasNext()) {
-        List<String> fileGroup = fileGroups.next();
+    while (fileGroups.hasNext()) {
+      List<String> fileGroup = fileGroups.next();
 
-        collectPathsForOutput(fileGroup, orphanFileList, maxSampleSize);
+      collectPathsForOutput(fileGroup, orphanFileList, maxSampleSize);
 
-        if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
-          deleteBulk((SupportsBulkOperations) table.io(), fileGroup);
-        } else {
-          deleteNonBulk(fileGroup);
-        }
-
-        filesCount += fileGroup.size();
+      if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
+        deleteBulk((SupportsBulkOperations) table.io(), fileGroup);
+      } else {
+        deleteNonBulk(fileGroup);
       }
 
-      LOG.info("Deleted {} orphan files", filesCount);
-
-      return ImmutableDeleteOrphanFiles.Result.builder()
-          .orphanFileLocations(orphanFileList)
-          .build();
-    } finally {
-      orphanFileDS.unpersist();
+      filesCount += fileGroup.size();
     }
+
+    LOG.info("Deleted {} orphan files", filesCount);
+
+    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFileList).build();
   }
 
   private void collectPathsForOutput(

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.MAX_ORPHAN_FILE_SAMPLE_SIZE;
+import static org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.STREAM_RESULTS;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -202,7 +204,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .deleteOrphanFiles(table)
             .usePrefixListing(usePrefixListing)
             .olderThan(System.currentTimeMillis())
-            .option("stream-results", "true")
+            .option(STREAM_RESULTS, "true")
             .deleteWith(s -> {})
             .execute();
     assertThat(result3.orphanFileLocations())
@@ -1286,8 +1288,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .deleteOrphanFiles(table)
             .usePrefixListing(usePrefixListing)
             .olderThan(System.currentTimeMillis())
-            .option("stream-results", "true")
-            .option("max-orphan-file-sample-size", "5")
+            .option(STREAM_RESULTS, "true")
+            .option(MAX_ORPHAN_FILE_SAMPLE_SIZE, "5")
             .execute();
 
     assertThat(streamingResult.orphanFileLocations())
