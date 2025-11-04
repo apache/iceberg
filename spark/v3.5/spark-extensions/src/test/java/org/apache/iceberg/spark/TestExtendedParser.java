@@ -40,8 +40,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TestExtendedParser {
+  private static final Logger LOG = LoggerFactory.getLogger(TestExtendedParser.class);
 
   private static SparkSession spark;
   private static final String SQL_PARSER_FIELD = "sqlParser";
@@ -68,9 +71,9 @@ public class TestExtendedParser {
         parserField = clazz.getDeclaredField(SQL_PARSER_FIELD);
       } catch (NoSuchFieldException e) {
         LOG.warn(
-                "Field '{}' not found in class {}. Trying superclass.",
-                SQL_PARSER_FIELD,
-                clazz.getName());
+            "Field '{}' not found in class {}. Trying superclass.",
+            SQL_PARSER_FIELD,
+            clazz.getName());
         clazz = clazz.getSuperclass();
       }
     }
@@ -100,9 +103,9 @@ public class TestExtendedParser {
         origParser = (ParserInterface) parserField.get(spark.sessionState());
       } catch (NoSuchFieldException e) {
         LOG.warn(
-                "Field '{}' not found in class {}. Trying superclass.",
-                SQL_PARSER_FIELD,
-                clazz.getName());
+            "Field '{}' not found in class {}. Trying superclass.",
+            SQL_PARSER_FIELD,
+            clazz.getName());
         clazz = clazz.getSuperclass();
       }
     }
@@ -196,9 +199,9 @@ public class TestExtendedParser {
         targetField = clazz.getDeclaredField(SQL_PARSER_FIELD);
       } catch (NoSuchFieldException e) {
         LOG.warn(
-                "Field '{}' not found in class {}. Trying superclass.",
-                SQL_PARSER_FIELD,
-                clazz.getName());
+            "Field '{}' not found in class {}. Trying superclass.",
+            SQL_PARSER_FIELD,
+            clazz.getName());
         clazz = clazz.getSuperclass();
       }
     }

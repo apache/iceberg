@@ -26,6 +26,8 @@ import org.apache.iceberg.expressions.Term;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public interface ExtendedParser extends ParserInterface {
   class RawOrderField {
