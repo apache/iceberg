@@ -99,7 +99,8 @@ public interface ExtendedParser extends ParserInterface {
       }
     } catch (Exception e) {
       // ignore
-      LOG.warn("Failed to scan delegate parser in {}: {}", parser.getClass().getName(), e.toString());
+      LOG.warn(
+          "Failed to scan delegate parser in {}: {}", parser.getClass().getName(), e.toString());
     }
 
     return null;
