@@ -34,7 +34,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.FileRewriteRunner;
@@ -82,7 +81,7 @@ public class RewriteDataFilesSparkAction
           REWRITE_JOB_ORDER,
           OUTPUT_SPEC_ID,
           REMOVE_DANGLING_DELETES,
-          USE_PARQUET_FILE_MERGER,
+          USE_PARQUET_ROW_GROUP_MERGE,
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
@@ -155,17 +154,13 @@ public class RewriteDataFilesSparkAction
 
   private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
       createFileRewriteRunner() {
-    // First check action option, then fall back to table property
-    boolean defaultValue =
+    // Read the option from action options only (no table property fallback)
+    boolean useParquetRowGroupMerge =
         PropertyUtil.propertyAsBoolean(
-            table.properties(),
-            TableProperties.PARQUET_USE_FILE_MERGER,
-            TableProperties.PARQUET_USE_FILE_MERGER_DEFAULT);
+            options(), USE_PARQUET_ROW_GROUP_MERGE, USE_PARQUET_ROW_GROUP_MERGE_DEFAULT);
 
-    boolean useParquetFileMerger =
-        PropertyUtil.propertyAsBoolean(options(), USE_PARQUET_FILE_MERGER, defaultValue);
-
-    if (useParquetFileMerger) {
+    if (useParquetRowGroupMerge) {
+      LOG.info("Using Parquet row-group merge runner for rewrite operation");
       return new SparkParquetFileMergeRunner(spark(), table);
     } else {
       return new SparkBinPackFileRewriteRunner(spark(), table);

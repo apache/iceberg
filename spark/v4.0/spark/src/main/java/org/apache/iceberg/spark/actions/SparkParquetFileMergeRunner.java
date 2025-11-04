@@ -34,7 +34,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteFileGroup;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.parquet.ParquetFileMerger;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -72,127 +71,149 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
   @Override
   protected void doRewrite(String groupId, RewriteFileGroup group) {
-    // Check if all files are Parquet format
-    if (canUseMerger(group)) {
-      try {
-        LOG.info(
-            "Merging {} Parquet files using row-group level merge (group: {})",
-            group.rewrittenFiles().size(),
-            groupId);
-        mergeParquetFilesDistributed(groupId, group);
-        return;
-      } catch (Exception e) {
-        LOG.warn(
-            "Failed to merge Parquet files using ParquetFileMerger, falling back to Spark rewrite",
-            e);
-      }
+    // Early validation: check if requirements are met
+    if (!canUseMerger(group)) {
+      LOG.info(
+          "Row-group merge requirements not met for group {}. Using standard Spark rewrite.",
+          groupId);
+      super.doRewrite(groupId, group);
+      return;
     }
 
-    // Use standard Spark rewrite (same as parent class)
-    super.doRewrite(groupId, group);
-  }
-
-  private boolean canUseMerger(RewriteFileGroup group) {
-    // Check if all files are Parquet format
-    return group.rewrittenFiles().stream().allMatch(file -> file.format() == FileFormat.PARQUET);
+    // Requirements met - attempt row-group level merge
+    try {
+      LOG.info(
+          "Merging {} Parquet files using row-group level merge (group: {})",
+          group.rewrittenFiles().size(),
+          groupId);
+      mergeParquetFilesDistributed(groupId, group);
+    } catch (Exception e) {
+      LOG.warn(
+          "Row-group merge failed for group {}, falling back to standard Spark rewrite: {}",
+          groupId,
+          e.getMessage(),
+          e);
+      // Fallback to standard rewrite
+      super.doRewrite(groupId, group);
+    }
   }
 
   /**
-   * Distributes Parquet file merging across Spark executors. Groups input files by target size and
-   * processes each group in parallel.
+   * Checks if the file group can use row-group level merging.
+   *
+   * <p>Requirements:
+   *
+   * <ul>
+   *   <li>All files must be Parquet format
+   *   <li>Files must have compatible schemas (verified by ParquetFileMerger.canMerge)
+   *   <li>Files must not be encrypted (TODO: add encryption check)
+   * </ul>
+   *
+   * @param group the file group to check
+   * @return true if row-group merging can be used, false otherwise
+   */
+  private boolean canUseMerger(RewriteFileGroup group) {
+    // Check if all files are Parquet format
+    boolean allParquet =
+        group.rewrittenFiles().stream().allMatch(file -> file.format() == FileFormat.PARQUET);
+
+    if (!allParquet) {
+      LOG.debug("Cannot use row-group merge: not all files are Parquet format");
+      return false;
+    }
+
+    // Validate schema compatibility
+    try {
+      List<String> filePaths =
+          group.rewrittenFiles().stream()
+              .map(f -> f.path().toString())
+              .collect(Collectors.toList());
+
+      List<Path> paths = filePaths.stream().map(Path::new).collect(Collectors.toList());
+      Configuration hadoopConf = spark().sessionState().newHadoopConf();
+
+      boolean canMerge = ParquetFileMerger.canMerge(paths, hadoopConf);
+
+      if (!canMerge) {
+        LOG.warn(
+            "Cannot use row-group merge: schema validation failed for {} files. "
+                + "Falling back to standard rewrite.",
+            group.rewrittenFiles().size());
+        return false;
+      }
+
+      // TODO: Add encryption check here
+      // if (hasEncryptedFiles(group)) {
+      //   LOG.warn("Cannot use row-group merge: encrypted files detected");
+      //   return false;
+      // }
+
+      return true;
+    } catch (Exception e) {
+      LOG.warn("Cannot use row-group merge: validation failed", e);
+      return false;
+    }
+  }
+
+  /**
+   * Merges all Parquet files in the group into a single output file. The planner has already
+   * created appropriately-sized groups, so the runner merges the entire group without further
+   * splitting.
    */
   private void mergeParquetFilesDistributed(String groupId, RewriteFileGroup group) {
-    long targetFileSize = group.maxOutputFileSize();
     PartitionSpec spec = table().specs().get(group.outputSpecId());
     StructLike partition = group.info().partition();
 
-    // Group files by target size
-    List<List<DataFile>> fileGroups = groupFilesBySize(group.rewrittenFiles(), targetFileSize);
-
     LOG.info(
-        "Grouped {} input files into {} output groups (target size: {} bytes, group: {})",
+        "Merging {} Parquet files into a single output file (group: {})",
         group.rewrittenFiles().size(),
-        fileGroups.size(),
-        targetFileSize,
         groupId);
 
-    // Create merge tasks - lightweight serializable objects with just the data needed
-    List<MergeTaskInfo> mergeTasks = Lists.newArrayList();
-    for (int i = 0; i < fileGroups.size(); i++) {
-      List<DataFile> filesInGroup = fileGroups.get(i);
-      String taskId = String.format("%s-%d", groupId, i);
+    // Extract file paths for the entire group
+    List<String> filePaths =
+        group.rewrittenFiles().stream().map(f -> f.path().toString()).collect(Collectors.toList());
 
-      // Extract just the file paths for serialization
-      List<String> filePaths =
-          filesInGroup.stream().map(f -> f.path().toString()).collect(Collectors.toList());
-
-      mergeTasks.add(new MergeTaskInfo(taskId, filePaths, spec, partition));
-    }
+    // Create a single merge task for the entire group
+    MergeTaskInfo mergeTask = new MergeTaskInfo(groupId, filePaths, spec, partition);
 
     // Get Hadoop configuration for executors
     Configuration hadoopConf = spark().sessionState().newHadoopConf();
 
-    // Use JavaRDD for simpler distributed processing
+    // Execute merge on an executor - returns only metadata (path + size)
     JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark().sparkContext());
-    JavaRDD<MergeTaskInfo> tasksRDD = jsc.parallelize(mergeTasks, mergeTasks.size());
+    JavaRDD<MergeTaskInfo> taskRDD = jsc.parallelize(Lists.newArrayList(mergeTask), 1);
+    MergeResult mergeResult =
+        taskRDD.map(task -> mergeFilesForTask(task, hadoopConf)).collect().get(0);
 
-    // Execute merges in parallel and collect results
-    List<DataFile> resultFiles =
-        tasksRDD.map(task -> mergeFilesForTask(task, hadoopConf)).collect();
+    // Driver constructs DataFile from metadata using Table.io()
+    MetricsConfig metricsConfig = MetricsConfig.getDefault();
+    Metrics metrics =
+        ParquetUtil.fileMetrics(table().io().newInputFile(mergeResult.getPath()), metricsConfig);
 
-    // Register merged files with coordinator
-    Set<DataFile> newFiles = Sets.newHashSet(resultFiles);
+    DataFile resultFile =
+        org.apache.iceberg.DataFiles.builder(mergeResult.getSpec())
+            .withPath(mergeResult.getPath())
+            .withFormat(FileFormat.PARQUET)
+            .withPartition(mergeResult.getPartition())
+            .withFileSizeInBytes(mergeResult.getFileSize())
+            .withMetrics(metrics)
+            .build();
+
+    // Register merged file with coordinator
+    Set<DataFile> newFiles = Sets.newHashSet(resultFile);
     coordinator.stageRewrite(table(), groupId, newFiles);
 
     LOG.info(
-        "Successfully merged {} Parquet files into {} output files (group: {})",
+        "Successfully merged {} Parquet files into 1 output file (group: {})",
         group.rewrittenFiles().size(),
-        resultFiles.size(),
         groupId);
   }
 
   /**
-   * Groups files into sub-groups where each group's total size is close to the target size. Uses a
-   * simple bin-packing algorithm.
+   * Performs the actual merge operation for a single task on an executor. Returns only metadata
+   * (file path and size); DataFile construction happens on the driver.
    */
-  private List<List<DataFile>> groupFilesBySize(Set<DataFile> files, long targetSize) {
-    List<DataFile> sortedFiles =
-        files.stream()
-            .sorted((f1, f2) -> Long.compare(f2.fileSizeInBytes(), f1.fileSizeInBytes()))
-            .collect(Collectors.toList());
-
-    List<List<DataFile>> groups = Lists.newArrayList();
-    List<DataFile> currentGroup = Lists.newArrayList();
-    long currentGroupSize = 0;
-
-    for (DataFile file : sortedFiles) {
-      long fileSize = file.fileSizeInBytes();
-
-      // If adding this file would exceed target size and we already have files in the group,
-      // start a new group
-      if (currentGroupSize > 0 && currentGroupSize + fileSize > targetSize * 1.1) {
-        groups.add(currentGroup);
-        currentGroup = Lists.newArrayList();
-        currentGroupSize = 0;
-      }
-
-      currentGroup.add(file);
-      currentGroupSize += fileSize;
-    }
-
-    // Add the last group if it's not empty
-    if (!currentGroup.isEmpty()) {
-      groups.add(currentGroup);
-    }
-
-    return groups;
-  }
-
-  /**
-   * Performs the actual merge operation for a single task on an executor. This is a static method
-   * to ensure it can be serialized and sent to executors.
-   */
-  private static DataFile mergeFilesForTask(MergeTaskInfo task, Configuration hadoopConf)
+  private static MergeResult mergeFilesForTask(MergeTaskInfo task, Configuration hadoopConf)
       throws IOException {
     // Convert file path strings to Hadoop Path objects
     List<Path> inputPaths =
@@ -203,28 +224,15 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     Path firstInputFilePath = new Path(task.getFilePaths().get(0));
     Path outputDir = firstInputFilePath.getParent();
     Path outputPath = new Path(outputDir, outputFileName);
-    String outputLocation = outputPath.toString();
 
-    // Create ParquetFileMerger and merge files
-    ParquetFileMerger merger = new ParquetFileMerger(hadoopConf);
-    merger.mergeFiles(inputPaths, outputPath);
-
-    // Read the merged file's metrics
-    HadoopFileIO fileIO = new HadoopFileIO(hadoopConf);
-    MetricsConfig metricsConfig = MetricsConfig.getDefault();
-    Metrics metrics = ParquetUtil.fileMetrics(fileIO.newInputFile(outputLocation), metricsConfig);
+    // Merge files using static method
+    ParquetFileMerger.mergeFiles(inputPaths, outputPath, hadoopConf);
 
     // Get file size
     long fileSize = outputPath.getFileSystem(hadoopConf).getFileStatus(outputPath).getLen();
 
-    // Create DataFile from the merged output
-    return org.apache.iceberg.DataFiles.builder(task.getSpec())
-        .withPath(outputLocation)
-        .withFormat(FileFormat.PARQUET)
-        .withPartition(task.getPartition())
-        .withFileSizeInBytes(fileSize)
-        .withMetrics(metrics)
-        .build();
+    // Return lightweight metadata - driver will construct DataFile with metrics
+    return new MergeResult(outputPath.toString(), fileSize, task.getSpec(), task.getPartition());
   }
 
   /**
@@ -250,6 +258,40 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
     List<String> getFilePaths() {
       return filePaths;
+    }
+
+    PartitionSpec getSpec() {
+      return spec;
+    }
+
+    StructLike getPartition() {
+      return partition;
+    }
+  }
+
+  /**
+   * Result of a merge operation on an executor. Contains only lightweight metadata; DataFile
+   * construction with metrics happens on the driver.
+   */
+  private static class MergeResult implements Serializable {
+    private final String path;
+    private final long fileSize;
+    private final PartitionSpec spec;
+    private final StructLike partition;
+
+    MergeResult(String path, long fileSize, PartitionSpec spec, StructLike partition) {
+      this.path = path;
+      this.fileSize = fileSize;
+      this.spec = spec;
+      this.partition = partition;
+    }
+
+    String getPath() {
+      return path;
+    }
+
+    long getFileSize() {
+      return fileSize;
     }
 
     PartitionSpec getSpec() {

@@ -39,7 +39,7 @@ import org.apache.parquet.schema.MessageType;
  * serialization/deserialization, providing significant performance benefits over traditional
  * read-rewrite approaches.
  *
- * <p>TODO: Encerypted tables are not supported
+ * <p>TODO: Encrypted tables are not supported
  *
  * <p>Key features:
  *
@@ -53,17 +53,15 @@ import org.apache.parquet.schema.MessageType;
  *
  * <pre>
  * Configuration conf = new Configuration();
- * ParquetFileMerger merger = new ParquetFileMerger(conf);
  * List&lt;Path&gt; inputFiles = Arrays.asList(file1, file2, file3);
  * Path outputFile = new Path("/path/to/output.parquet");
- * merger.mergeFiles(inputFiles, outputFile);
+ * ParquetFileMerger.mergeFiles(inputFiles, outputFile, conf);
  * </pre>
  */
 public class ParquetFileMerger {
-  private final Configuration conf;
 
-  public ParquetFileMerger(Configuration configuration) {
-    this.conf = configuration;
+  private ParquetFileMerger() {
+    // Utility class - prevent instantiation
   }
 
   /**
@@ -75,11 +73,13 @@ public class ParquetFileMerger {
    *
    * @param inputFiles List of input Parquet file paths to merge
    * @param outputFile Output file path for the merged result
+   * @param conf Hadoop configuration to use for file operations
    * @throws IOException if I/O error occurs during merge operation
    * @throws IllegalArgumentException if no input files provided or schemas don't match
    */
-  public void mergeFiles(List<Path> inputFiles, Path outputFile) throws IOException {
-    mergeFiles(inputFiles, outputFile, null);
+  public static void mergeFiles(List<Path> inputFiles, Path outputFile, Configuration conf)
+      throws IOException {
+    mergeFiles(inputFiles, outputFile, null, conf);
   }
 
   /**
@@ -93,13 +93,15 @@ public class ParquetFileMerger {
    * @param inputFiles List of input Parquet file paths to merge
    * @param outputFile Output file path for the merged result
    * @param extraMetadata Additional metadata to include in the output file footer (can be null)
+   * @param conf Hadoop configuration to use for file operations
    * @throws IOException if I/O error occurs during merge operation
    * @throws IllegalArgumentException if no input files provided or schemas don't match
    */
-  public void mergeFiles(List<Path> inputFiles, Path outputFile, Map<String, String> extraMetadata)
+  public static void mergeFiles(
+      List<Path> inputFiles, Path outputFile, Map<String, String> extraMetadata, Configuration conf)
       throws IOException {
     // Validate and get the common schema
-    MessageType schema = validateAndGetSchema(inputFiles);
+    MessageType schema = validateAndGetSchema(inputFiles, conf);
 
     // Create the output Parquet file writer
     try (ParquetFileWriter writer =
@@ -128,11 +130,13 @@ public class ParquetFileMerger {
    * schema differs, an {@link IllegalArgumentException} is thrown with details about the mismatch.
    *
    * @param inputFiles List of input Parquet file paths to validate
+   * @param conf Hadoop configuration to use for file operations
    * @return The common {@link MessageType} schema shared by all input files
    * @throws IOException if I/O error occurs while reading file metadata
    * @throws IllegalArgumentException if no input files provided or schemas don't match
    */
-  private MessageType validateAndGetSchema(List<Path> inputFiles) throws IOException {
+  private static MessageType validateAndGetSchema(List<Path> inputFiles, Configuration conf)
+      throws IOException {
     Preconditions.checkArgument(
         inputFiles != null && !inputFiles.isEmpty(), "No input files provided for merging");
 
@@ -164,15 +168,16 @@ public class ParquetFileMerger {
   /**
    * Checks if a list of Parquet files can be merged (i.e., they all have identical schemas).
    *
-   * <p>This is a non-throwing version of {@link #validateAndGetSchema(List)} that returns a boolean
-   * instead of throwing an exception.
+   * <p>This is a non-throwing version of {@link #validateAndGetSchema(List, Configuration)} that
+   * returns a boolean instead of throwing an exception.
    *
    * @param inputFiles List of input Parquet file paths to check
+   * @param conf Hadoop configuration to use for file operations
    * @return true if all files have identical schemas and can be merged, false otherwise
    */
-  public boolean canMerge(List<Path> inputFiles) {
+  public static boolean canMerge(List<Path> inputFiles, Configuration conf) {
     try {
-      validateAndGetSchema(inputFiles);
+      validateAndGetSchema(inputFiles, conf);
       return true;
     } catch (IllegalArgumentException | IOException e) {
       return false;
