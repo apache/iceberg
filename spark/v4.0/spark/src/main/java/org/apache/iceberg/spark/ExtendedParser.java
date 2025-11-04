@@ -83,7 +83,7 @@ public interface ExtendedParser extends ParserInterface {
   }
 
   private static ParserInterface getNextDelegateParser(ParserInterface parser) {
-    Logger LOG = LoggerFactory.getLogger(ExtendedParser.class);
+    Logger logger = LoggerFactory.getLogger(ExtendedParser.class);
 
     try {
       Class<?> clazz = parser.getClass();
@@ -99,7 +99,7 @@ public interface ExtendedParser extends ParserInterface {
       }
     } catch (Exception e) {
       // ignore
-      LOG.warn(
+      logger.warn(
           "Failed to scan delegate parser in {}: {}", parser.getClass().getName(), e.toString());
     }
 
