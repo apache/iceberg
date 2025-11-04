@@ -19,10 +19,18 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import org.apache.iceberg.SupportsCommitValidation.CommitValidator;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSnapshotProducer {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSnapshotProducer extends TestBase {
 
   @Test
   public void testManifestFileGroupSize() {
@@ -73,5 +81,93 @@ public class TestSnapshotProducer {
       int workerPoolSize, int fileCount, int expectedManifestWriterCount, String errMsg) {
     int writerCount = SnapshotProducer.manifestWriterCount(workerPoolSize, fileCount);
     assertThat(writerCount).as(errMsg).isEqualTo(expectedManifestWriterCount);
+  }
+
+  @TestTemplate
+  public void testCommitValidationPreventingCommit() throws IOException {
+    // Commit the first file
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // Create a file with no records for testing
+    DataFile fileNoRecords =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-no-records.parquet")
+            .withFileSizeInBytes(100)
+            .withRecordCount(0) // File with no records
+            .build();
+
+    // Create a CommitValidator that will reject commits based on snapshot summary
+    CommitValidator validator =
+        (baseMetadata, newMetadata) -> {
+          long addedRecords =
+              PropertyUtil.propertyAsInt(
+                  newMetadata.currentSnapshot().summary(), SnapshotSummary.ADDED_RECORDS_PROP, 0);
+          long addedFiles =
+              PropertyUtil.propertyAsInt(
+                  newMetadata.currentSnapshot().summary(), SnapshotSummary.ADDED_FILES_PROP, 0);
+          // Reject if no records are added (empty file)
+          if (addedFiles >= 1 && addedRecords == 0) {
+            throw new CommitFailedException("Cannot add files with no records");
+          }
+        };
+
+    // Test that the validator rejects commits with no records
+    AppendFiles append1 = table.newAppend().appendFile(fileNoRecords);
+    assertThatThrownBy(() -> ((SupportsCommitValidation) append1).commit(validator))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Cannot add files with no records");
+
+    // Verify the file was not committed
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
+    assertThat(table.currentSnapshot().summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP))
+        .isEqualTo("1");
+
+    // Verify files were not committed
+    assertThat(table.currentSnapshot().summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP))
+        .isEqualTo("1");
+
+    // Test that a valid commit passes the validator (FILE_B has only 1 record)
+    AppendFiles append4 = table.newFastAppend().appendFile(FILE_B);
+    ((SupportsCommitValidation) append4).commit(validator);
+
+    // Verify the file was committed successfully
+    assertThat(table.currentSnapshot().summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP))
+        .isEqualTo("2");
+    assertThat(table.currentSnapshot().summary().get(SnapshotSummary.ADDED_FILES_PROP))
+        .isEqualTo("1");
+    assertThat(table.currentSnapshot().summary().get(SnapshotSummary.ADDED_RECORDS_PROP))
+        .isEqualTo("1");
+  }
+
+  @TestTemplate
+  public void testCommitValidationWithCustomSummaryProperties() throws IOException {
+    // Create a validator that checks custom summary properties
+    CommitValidator customPropertyValidator =
+        (baseMetadata, newMetadata) -> {
+          String operationType = newMetadata.currentSnapshot().summary().get("operation-type");
+          if ("restricted".equals(operationType)) {
+            throw new CommitFailedException("Restricted operation type not allowed");
+          }
+        };
+
+    // Add a file with a custom summary property that will be rejected
+    AppendFiles append1 =
+        table.newFastAppend().appendFile(FILE_A).set("operation-type", "restricted");
+
+    assertThatThrownBy(() -> ((SupportsCommitValidation) append1).commit(customPropertyValidator))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Restricted operation type not allowed");
+
+    // Verify no snapshot was created
+    assertThat(table.currentSnapshot()).isNull();
+
+    // Add the file with an allowed operation type
+    AppendFiles append2 = table.newFastAppend().appendFile(FILE_A).set("operation-type", "allowed");
+
+    ((SupportsCommitValidation) append2).commit(customPropertyValidator);
+
+    // Verify the snapshot was created with the custom property
+    assertThat(table.currentSnapshot()).isNotNull();
+    assertThat(table.currentSnapshot().summary().get("operation-type")).isEqualTo("allowed");
   }
 }
