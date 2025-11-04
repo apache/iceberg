@@ -247,10 +247,23 @@ class RESTTableOperations implements TableOperations {
     // safely ignored. there is no requirement to update config on refresh or commit.
     if (current == null
         || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
-      this.current = response.tableMetadata();
+      this.current = checkUUID(current, response.tableMetadata());
     }
 
     return current;
+  }
+
+  private static TableMetadata checkUUID(TableMetadata currentMetadata, TableMetadata newMetadata) {
+    String newUUID = newMetadata.uuid();
+    if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
+      Preconditions.checkState(
+          newUUID.equals(currentMetadata.uuid()),
+          "Table UUID does not match: current=%s != refreshed=%s",
+          currentMetadata.uuid(),
+          newUUID);
+    }
+
+    return newMetadata;
   }
 
   private static String metadataFileLocation(TableMetadata metadata, String filename) {
