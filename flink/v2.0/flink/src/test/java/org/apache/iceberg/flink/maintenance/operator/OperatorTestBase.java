@@ -143,6 +143,10 @@ public class OperatorTestBase {
   }
 
   protected static Table createTableWithDelete() {
+    return createTableWithDelete(2);
+  }
+
+  protected static Table createTableWithDelete(int formatVersion) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -150,7 +154,8 @@ public class OperatorTestBase {
             SCHEMA_WITH_PRIMARY_KEY,
             PartitionSpec.unpartitioned(),
             null,
-            ImmutableMap.of("format-version", "2", "write.upsert.enabled", "true"));
+            ImmutableMap.of(
+                "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
   }
 
   protected static Table createPartitionedTable(int formatVersion) {
@@ -221,6 +226,35 @@ public class OperatorTestBase {
    * @param oldData the old data to be deleted
    * @param tempData the temp data to be inserted and deleted with a position delete
    * @param newData the new data to be inserted
+   * @param formatVersion the format version to use
+   */
+  protected void update(
+      Table table, Integer id, String oldData, String tempData, String newData, int formatVersion)
+      throws IOException {
+    DataFile dataFile =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+            .writeFile(
+                Lists.newArrayList(
+                    SimpleDataUtil.createRecord(id, tempData),
+                    SimpleDataUtil.createRecord(id, newData)));
+    DeleteFile eqDelete = writeEqualityDelete(table, id, oldData);
+    DeleteFile posDelete = writePosDelete(table, dataFile.path(), 0, id, tempData, formatVersion);
+
+    table.newRowDelta().addRows(dataFile).addDeletes(eqDelete).addDeletes(posDelete).commit();
+  }
+
+  /**
+   * For the same identifier column id this methods simulate the following row operations: <tr>
+   * <li>add an equality delete on oldData
+   * <li>insert tempData
+   * <li>add a position delete on tempData
+   * <li>insert newData </tr>
+   *
+   * @param table to modify
+   * @param id the identifier column id
+   * @param oldData the old data to be deleted
+   * @param tempData the temp data to be inserted and deleted with a position delete
+   * @param newData the new data to be inserted
    */
   protected void update(Table table, Integer id, String oldData, String tempData, String newData)
       throws IOException {
@@ -231,7 +265,7 @@ public class OperatorTestBase {
                     SimpleDataUtil.createRecord(id, tempData),
                     SimpleDataUtil.createRecord(id, newData)));
     DeleteFile eqDelete = writeEqualityDelete(table, id, oldData);
-    DeleteFile posDelete = writePosDelete(table, dataFile.path(), 0, id, tempData);
+    DeleteFile posDelete = writePosDelete(table, dataFile.path(), 0, id, tempData, 2);
 
     table.newRowDelta().addRows(dataFile).addDeletes(eqDelete).addDeletes(posDelete).commit();
   }
@@ -350,7 +384,8 @@ public class OperatorTestBase {
   }
 
   private DeleteFile writePosDelete(
-      Table table, CharSequence path, Integer pos, Integer id, String oldData) throws IOException {
+      Table table, CharSequence path, Integer pos, Integer id, String oldData, int formatVersion)
+      throws IOException {
     File file = File.createTempFile("junit", null, warehouseDir.toFile());
     assertThat(file.delete()).isTrue();
     PositionDelete<GenericRecord> posDelete = PositionDelete.create();
@@ -359,7 +394,7 @@ public class OperatorTestBase {
     nested.set(1, oldData);
     posDelete.set(path, pos, nested);
     return FileHelpers.writePosDeleteFile(
-        table, Files.localOutput(file), null, Lists.newArrayList(posDelete));
+        table, Files.localOutput(file), null, Lists.newArrayList(posDelete), formatVersion);
   }
 
   static void trigger(OneInputStreamOperatorTestHarness<Trigger, ?> harness) throws Exception {
