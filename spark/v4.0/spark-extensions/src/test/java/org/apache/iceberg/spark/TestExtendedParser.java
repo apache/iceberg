@@ -42,6 +42,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class TestExtendedParser {
+
   private static SparkSession spark;
   private static final String SQL_PARSER_FIELD = "sqlParser";
   private ParserInterface originalParser;
