@@ -237,7 +237,6 @@ public class SparkCatalog extends BaseCatalog {
   public boolean tableExists(Identifier ident) {
     if (isPathIdentifier(ident)) {
       return tables.exists(((PathIdentifier) ident).location());
-
     } else {
       return icebergCatalog.tableExists(buildIdentifier(ident));
     }
