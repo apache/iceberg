@@ -30,6 +30,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public interface ExtendedParser extends ParserInterface {
+  Logger LOG = LoggerFactory.getLogger(ExtendedParser.class);
+
   class RawOrderField {
     private final Term term;
     private final SortDirection direction;
@@ -83,8 +85,6 @@ public interface ExtendedParser extends ParserInterface {
   }
 
   private static ParserInterface getNextDelegateParser(ParserInterface parser) {
-    Logger logger = LoggerFactory.getLogger(ExtendedParser.class);
-
     try {
       Class<?> clazz = parser.getClass();
       while (clazz != null) {
@@ -99,8 +99,7 @@ public interface ExtendedParser extends ParserInterface {
       }
     } catch (Exception e) {
       // ignore
-      logger.warn(
-          "Failed to scan delegate parser in {}: {}", parser.getClass().getName(), e.toString());
+      LOG.warn("Failed to scan delegate parser in {}: {}", parser.getClass().getName(), e);
     }
 
     return null;
