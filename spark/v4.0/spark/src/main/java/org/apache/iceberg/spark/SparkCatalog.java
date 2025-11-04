@@ -237,12 +237,8 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public boolean tableExists(Identifier ident) {
     if (isPathIdentifier(ident)) {
-      try {
-        tables.load(((PathIdentifier) ident).location());
-        return true;
-      } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-        return false;
-      }
+      return tables.exists(((PathIdentifier) ident).location());
+
     } else {
       return icebergCatalog.tableExists(buildIdentifier(ident));
     }
