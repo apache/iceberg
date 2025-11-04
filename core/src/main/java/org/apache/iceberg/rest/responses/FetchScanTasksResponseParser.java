@@ -77,6 +77,7 @@ public class FetchScanTasksResponseParser {
         TableScanResponseParser.parseFileScanTasks(json, deleteFiles, specsById, caseSensitive);
     return FetchScanTasksResponse.builder()
         .withPlanTasks(planTasks)
+        .withSpecsById(specsById)
         .withFileScanTasks(fileScanTasks)
         .withDeleteFiles(deleteFiles)
         .build();
