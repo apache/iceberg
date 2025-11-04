@@ -609,6 +609,9 @@ class Literals {
   }
 
   static class UUIDLiteral extends ComparableLiteral<UUID> {
+    private static final Comparator<UUID> CMP =
+        Comparators.<UUID>nullsFirst().thenComparing(Comparators.uuids());
+
     UUIDLiteral(UUID value) {
       super(value);
     }
@@ -620,6 +623,11 @@ class Literals {
         return (Literal<T>) this;
       }
       return null;
+    }
+
+    @Override
+    public Comparator<UUID> comparator() {
+      return CMP;
     }
 
     @Override
