@@ -578,7 +578,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
                 parentSnapshot.schemaId(),
                 parentSnapshot.sequenceNumber()),
             row(
-                DateTimeUtils.toJavaTimestamp(currentSnapshot.timestampMillis() * 1000),
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 currentSnapshot.snapshotId(),
                 currentSnapshot.schemaId(),
@@ -597,8 +597,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
         "Result should match the latest snapshot entry",
         ImmutableList.of(
             row(
-                DateTimeUtils.toJavaTimestamp(
-                    tableMetadata.currentSnapshot().timestampMillis() * 1000),
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 tableMetadata.currentSnapshot().snapshotId(),
                 tableMetadata.currentSnapshot().schemaId(),

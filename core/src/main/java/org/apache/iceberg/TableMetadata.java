@@ -1021,6 +1021,13 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    private boolean metadataTimestampFollowsSnapshots(Map<String, String> props) {
+      return PropertyUtil.propertyAsBoolean(
+          props,
+          TableProperties.METADATA_TIMESTAMP_FOLLOWS_SNAPSHOTS,
+          TableProperties.METADATA_TIMESTAMP_FOLLOWS_SNAPSHOTS_DEFAULT);
+    }
+
     public Builder assignUUID() {
       if (uuid == null) {
         this.uuid = UUID.randomUUID().toString();
@@ -1255,7 +1262,9 @@ public class TableMetadata implements Serializable {
           snapshot.sequenceNumber(),
           lastSequenceNumber);
 
-      this.lastUpdatedMillis = snapshot.timestampMillis();
+      if (metadataTimestampFollowsSnapshots(properties)) {
+        this.lastUpdatedMillis = snapshot.timestampMillis();
+      }
       this.lastSequenceNumber = snapshot.sequenceNumber();
       snapshots.add(snapshot);
       snapshotsById.put(snapshot.snapshotId(), snapshot);
@@ -1313,7 +1322,7 @@ public class TableMetadata implements Serializable {
       Snapshot snapshot = snapshotsById.get(snapshotId);
       ValidationException.check(
           snapshot != null, "Cannot set %s to unknown snapshot: %s", name, snapshotId);
-      if (isAddedSnapshot(snapshotId)) {
+      if (isAddedSnapshot(snapshotId) && metadataTimestampFollowsSnapshots(properties)) {
         this.lastUpdatedMillis = snapshot.timestampMillis();
       }
 
@@ -1323,7 +1332,7 @@ public class TableMetadata implements Serializable {
           this.lastUpdatedMillis = System.currentTimeMillis();
         }
 
-        snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, ref.snapshotId()));
+        snapshotLog.add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()));
       }
 
       refs.put(name, ref);
