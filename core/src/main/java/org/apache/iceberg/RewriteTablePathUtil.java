@@ -446,16 +446,8 @@ public class RewriteTablePathUtil {
 
     switch (file.content()) {
       case POSITION_DELETES:
-        String targetDeleteFilePath = newPath(file.location(), sourcePrefix, targetPrefix);
-        Metrics metricsWithTargetPath =
-            ContentFileUtil.replacePathBounds(file, sourcePrefix, targetPrefix);
-        DeleteFile movedFile =
-            FileMetadata.deleteFileBuilder(spec)
-                .copy(file)
-                .withPath(targetDeleteFilePath)
-                .withMetrics(metricsWithTargetPath)
-                .build();
-        appendEntryWithFile(entry, writer, movedFile);
+        DeleteFile posDeleteFile = newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix);
+        appendEntryWithFile(entry, writer, posDeleteFile);
         // keep the following entries in metadata but exclude them from copyPlan
         // 1) deleted position delete files
         // 2) entries not changed by snapshotIds
@@ -465,7 +457,7 @@ public class RewriteTablePathUtil {
               .add(
                   Pair.of(
                       stagingPath(file.location(), sourcePrefix, stagingLocation),
-                      movedFile.location()));
+                      posDeleteFile.location()));
         }
         result.toRewrite().add(file);
         return result;
@@ -524,6 +516,31 @@ public class RewriteTablePathUtil {
         .build();
   }
 
+  private static DeleteFile newPositionDeleteEntry(
+      DeleteFile file, PartitionSpec spec, String sourcePrefix, String targetPrefix) {
+    String path = file.location();
+    Preconditions.checkArgument(
+        path.startsWith(sourcePrefix),
+        "Expected delete file %s to start with prefix: %s",
+        path,
+        sourcePrefix);
+
+    FileMetadata.Builder builder =
+        FileMetadata.deleteFileBuilder(spec)
+            .copy(file)
+            .withPath(newPath(path, sourcePrefix, targetPrefix))
+            .withMetrics(ContentFileUtil.replacePathBounds(file, sourcePrefix, targetPrefix));
+
+    // Update referencedDataFile for DV files
+    String newReferencedDataFile =
+        ContentFileUtil.replaceReferencedDataFile(file, sourcePrefix, targetPrefix);
+    if (newReferencedDataFile != null) {
+      builder.withReferencedDataFile(newReferencedDataFile);
+    }
+
+    return builder.build();
+  }
+
   /** Class providing engine-specific methods to read and write position delete files. */
   public interface PositionDeleteReaderWriter extends Serializable {
     CloseableIterable<Record> reader(InputFile inputFile, FileFormat format, PartitionSpec spec);
@@ -562,6 +579,14 @@ public class RewriteTablePathUtil {
       throw new UnsupportedOperationException(
           String.format("Expected delete file %s to start with prefix: %s", path, sourcePrefix));
     }
+
+    // DV files (Puffin format for v3+) need special handling to rewrite internal blob metadata
+    if (ContentFileUtil.isDV(deleteFile)) {
+      rewriteDVFile(deleteFile, outputFile, io, sourcePrefix, targetPrefix);
+      return;
+    }
+
+    // For non-DV position delete files (v2), rewrite using the reader/writer
     InputFile sourceFile = io.newInputFile(path);
     try (CloseableIterable<Record> reader =
         posDeleteReaderWriter.reader(sourceFile, deleteFile.format(), spec)) {
@@ -587,6 +612,66 @@ public class RewriteTablePathUtil {
               writer.write(newPositionDeleteRecord(record, sourcePrefix, targetPrefix));
             }
           }
+        }
+      }
+    }
+  }
+
+  /**
+   * Rewrite a DV (Deletion Vector) file, updating the referenced data file paths in blob metadata.
+   *
+   * @param deleteFile source DV file to be rewritten
+   * @param outputFile output file to write the rewritten DV to
+   * @param io file io
+   * @param sourcePrefix source prefix that will be replaced
+   * @param targetPrefix target prefix to replace it
+   */
+  private static void rewriteDVFile(
+      DeleteFile deleteFile,
+      OutputFile outputFile,
+      FileIO io,
+      String sourcePrefix,
+      String targetPrefix)
+      throws IOException {
+    InputFile sourceFile = io.newInputFile(deleteFile.location());
+
+    try (org.apache.iceberg.puffin.PuffinReader reader =
+        org.apache.iceberg.puffin.Puffin.read(sourceFile).build()) {
+
+      List<org.apache.iceberg.puffin.BlobMetadata> blobs = reader.fileMetadata().blobs();
+
+      try (org.apache.iceberg.puffin.PuffinWriter writer =
+          org.apache.iceberg.puffin.Puffin.write(outputFile)
+              .createdBy(org.apache.iceberg.IcebergBuild.fullVersion())
+              .build()) {
+
+        // Read all blobs and rewrite them with updated referenced data file paths
+        for (Pair<org.apache.iceberg.puffin.BlobMetadata, java.nio.ByteBuffer> blobPair :
+            reader.readAll(blobs)) {
+          org.apache.iceberg.puffin.BlobMetadata blobMetadata = blobPair.first();
+          java.nio.ByteBuffer blobData = blobPair.second();
+
+          // Get the original properties and update the referenced data file path
+          Map<String, String> properties = Maps.newHashMap(blobMetadata.properties());
+          String referencedDataFile = properties.get("referenced-data-file");
+          if (referencedDataFile != null && referencedDataFile.startsWith(sourcePrefix)) {
+            String newReferencedDataFile = newPath(referencedDataFile, sourcePrefix, targetPrefix);
+            properties.put("referenced-data-file", newReferencedDataFile);
+          }
+
+          // Create a new blob with updated properties
+          org.apache.iceberg.puffin.Blob blob =
+              new org.apache.iceberg.puffin.Blob(
+                  blobMetadata.type(),
+                  blobMetadata.inputFields(),
+                  blobMetadata.snapshotId(),
+                  blobMetadata.sequenceNumber(),
+                  blobData,
+                  null, // compression codec (keep uncompressed)
+                  properties);
+
+          // Write the blob to the new DV file
+          writer.write(blob);
         }
       }
     }

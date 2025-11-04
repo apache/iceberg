@@ -409,6 +409,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @TestTemplate
+<<<<<<< HEAD
   public void testPositionDeletesParquet() throws Exception {
     runPositionDeletesTest("parquet");
   }
@@ -430,6 +431,9 @@ public class TestRewriteTablePathsAction extends TestBase {
                     tableDir.toFile().toURI().toString().concat("tableWithPosDeletes").concat(fileFormat),
                     2,
                     Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, fileFormat));
+=======
+  public void testPositionDeletes() throws Exception {
+>>>>>>> 2f5774818f (DV files (Puffin format) store the referenced data file path in two separate locations:)
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
             Pair.of(
