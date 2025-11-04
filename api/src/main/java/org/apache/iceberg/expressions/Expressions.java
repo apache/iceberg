@@ -363,6 +363,10 @@ public class Expressions {
     return new UnboundAggregate<>(Operation.COUNT, ref(name));
   }
 
+  public static <T> UnboundAggregate<T> countNull(String name) {
+    return new UnboundAggregate<>(Operation.COUNT_NULL, ref(name));
+  }
+
   public static <T> UnboundAggregate<T> countStar() {
     return new UnboundAggregate<>(Operation.COUNT_STAR, null);
   }

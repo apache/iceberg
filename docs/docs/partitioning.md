@@ -35,7 +35,6 @@ Configuring the `logs` table to partition by the date of `event_time` will group
 
 Iceberg can partition timestamps by year, month, day, and hour granularity. It can also use a categorical column, like `level` in this logs example, to store rows together and speed up queries.
 
-
 ## What does Iceberg do differently?
 
 Other tables formats like Hive support partitioning, but Iceberg supports *hidden partitioning*.

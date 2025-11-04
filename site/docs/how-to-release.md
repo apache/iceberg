@@ -162,7 +162,6 @@ cd apache-iceberg-1.8.0
 
 To build and publish the convenience binaries, run the `dev/stage-binaries.sh` script. This will push to a release staging repository.
 
-
 ```
 dev/stage-binaries.sh
 ```
@@ -173,7 +172,7 @@ Next, you need to close the staging repository:
 2. In the menu on the left, choose "Staging Repositories"
 3. Select the Iceberg repository
    * If multiple staging repositories are created after running the script, verify that gradle parallelism is disabled and try again.
-   * Multiple staging repositories can be created if the script is run in a corporate network 
+   * Multiple staging repositories can be created if the script is run in a corporate network
    with a proxy that has floating IPs for outbound requests. You can verify this by checking
    the client IP address in the `Activity` tab of the staging repositories. To avoid this, you
    can run the `dev/stage-binaries.sh` script outside the corporate network.
@@ -244,7 +243,6 @@ The vote result is:
 
 Therefore, the release candidate is passed/rejected.
 ```
-
 
 ### Finishing the release
 
@@ -324,11 +322,9 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 
 ### Documentation Release
 
-Please follow the instructions on the GitHub repository in the [`README.md` in the `site/`](https://github.com/apache/iceberg/tree/main/site) directory.
+#### Generate versioned Docs
 
-#### Versioned Docs
-
-The versioned docs is located in the `docs` directory within the source of the released tag (e.g. https://github.com/apache/iceberg/tree/apache-iceberg-1.8.0/docs). 
+The versioned docs is located in the `docs` directory within the source of the released tag (e.g. https://github.com/apache/iceberg/tree/apache-iceberg-1.8.0/docs).
 Check out the `docs` branch in the `iceberg` repo and copy the versioned docs over:
 
 ```
@@ -339,7 +335,7 @@ Once this is done, create a PR against the `docs` branch containing the changes 
 
 Note: Update the site name from `docs/latest` to `docs/1.8.0` in the copied `mkdocs.yml` file.
 
-#### Versioned Javadoc
+#### Generate versioned Javadoc
 
 Navigate to the source tarball and generate Javadoc:
 
@@ -360,9 +356,13 @@ cp -R apache-iceberg-1.8.0/site/docs/javadoc/1.8.0 1.8.0
 
 Once this is done, create a PR against the `javadoc` branch, similar to https://github.com/apache/iceberg/pull/12412.
 
+#### Release versioned docs and javadoc
+
+Please follow the instructions on the GitHub repository in the [`README.md` in the `site/`](https://github.com/apache/iceberg/tree/main/site) directory.
+
 #### Site update
 
-Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12242, 
+Submit a PR, following the approach in https://github.com/apache/iceberg/pull/12242,
 to update the Iceberg version, the links to the new version's documentation, and the release notes.
 
 # How to Verify a Release
@@ -399,21 +399,21 @@ gpg --import KEYS
 
 Next, verify the `.asc` file.
 ```bash
-gpg --verify apache-iceberg-{{ icebergVersion }}.tar.gz.asc
+gpg --verify apache-iceberg-*.tar.gz.asc
 ```
 
 ### Verifying Checksums
 
 ```bash
-shasum -a 512 --check apache-iceberg-{{ icebergVersion }}.tar.gz.sha512
+shasum -a 512 --check apache-iceberg-*.tar.gz.sha512
 ```
 
 ### Verifying License Documentation
 
 Untar the archive and change into the source directory.
 ```bash
-tar xzf apache-iceberg-{{ icebergVersion }}.tar.gz
-cd apache-iceberg-{{ icebergVersion }}
+tar xzf apache-iceberg-*.tar.gz
+cd apache-iceberg-*/
 ```
 
 Run RAT checks to validate license headers.
@@ -486,7 +486,6 @@ sql-client.sh embedded \
     -j flink-connector-hive_2.12-1.20.jar \
     shell
 ```
-
 
 ## Voting
 

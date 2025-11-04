@@ -34,7 +34,7 @@ See [Project Nessie](https://projectnessie.org) for more information on Nessie. 
 
 The `iceberg-nessie` module is bundled with Spark and Flink runtimes for all versions from `0.11.0`. To get started
 with Nessie (with spark-3.5) and Iceberg simply add the Iceberg runtime to your process. Eg: `spark-sql --packages
-org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}`. 
+org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}`.
 
 ## Spark SQL Extensions
 
@@ -52,7 +52,7 @@ Please refer [Nessie SQL extension document](https://projectnessie.org/tools/sql
 ## Nessie Catalog
 
 One major feature introduced in release `0.11.0` is the ability to easily interact with a [Custom Catalog](custom-catalog.md) from Spark and Flink. See [Spark Configuration](spark-configuration.md#catalog-configuration)
-  and [Flink Configuration](flink.md#custom-catalog) for instructions for adding a custom catalog to Iceberg. 
+  and [Flink Configuration](flink.md#custom-catalog) for instructions for adding a custom catalog to Iceberg.
 
 To use the Nessie Catalog the following properties are required:
 
@@ -99,11 +99,11 @@ table_env.execute_sql("CREATE CATALOG nessie_catalog WITH ("
                       "'warehouse'='/path/to/warehouse')")
 ```
 
-There is nothing special above about the `nessie` name. A spark catalog can have any name, the important parts are the 
+There is nothing special above about the `nessie` name. A spark catalog can have any name, the important parts are the
 settings for the `type` or `catalog-impl` and the required config to start Nessie correctly.
 Once you have a Nessie catalog you have access to your entire Nessie repo. You can then perform create/delete/merge
 operations on branches and perform commits on branches. Each Iceberg table in a Nessie Catalog is identified by an
-arbitrary length namespace and table name (eg `data.base.name.table`). These namespaces must be explicitly created 
+arbitrary length namespace and table name (eg `data.base.name.table`). These namespaces must be explicitly created
 as mentioned [here](https://projectnessie.org/blog/namespace-enforcement/).
 Any transaction on a Nessie enabled Iceberg table is a single commit in Nessie. Nessie commits
 can encompass an arbitrary number of actions on an arbitrary number of tables, however in Iceberg this will be limited
@@ -111,7 +111,7 @@ to the set of single table transactions currently available.
 
 Further operations such as merges, viewing the commit log or diffs are performed by direct interaction with the
 `NessieClient` in java or by using the python client or cli. See [Nessie CLI](https://projectnessie.org/tools/cli/) for
-more details on the CLI and [Spark Guide](https://projectnessie.org/tools/iceberg/spark/) for a more complete description of 
+more details on the CLI and [Spark Guide](https://projectnessie.org/tools/iceberg/spark/) for a more complete description of
 Nessie functionality.
 
 ## Nessie and Iceberg
@@ -125,13 +125,12 @@ Iceberg every Iceberg transaction becomes a Nessie commit. This history can be l
 By creating a branch and performing a set of operations on that branch you can approximate a multi-table transaction.
 A sequence of commits can be performed on the newly created branch and then merged back into the main branch atomically.
 This gives the appearance of a series of connected changes being exposed to the main branch simultaneously. While downstream
-consumers will see multiple transactions appear at once this isn't a true multi-table transaction on the database. It is 
+consumers will see multiple transactions appear at once this isn't a true multi-table transaction on the database. It is
 effectively a fast-forward merge of multiple commits (in git language) and each operation from the branch is its own distinct
 transaction and commit. This is different from a real multi-table transaction where all changes would be in the same commit.
-This does allow multiple applications to take part in modifying a branch and for this distributed set of transactions to be 
+This does allow multiple applications to take part in modifying a branch and for this distributed set of transactions to be
 exposed to the downstream users simultaneously.
 
- 
 ### Experimentation
 
 Changes to a table can be tested in a branch before merging back into main. This is particularly useful when performing
@@ -142,16 +141,15 @@ incorrect or not performant the branch can be dropped without being merged.
 
 ### Further use cases
 
-Please see the [Nessie Documentation](https://projectnessie.org/features/) for further descriptions of 
+Please see the [Nessie Documentation](https://projectnessie.org/features/) for further descriptions of
 Nessie features.
 
 !!! danger
     Regular table maintenance in Iceberg is complicated when using nessie. Please consult
-    [Management Services](https://projectnessie.org/features/management/) before performing any 
+    [Management Services](https://projectnessie.org/features/management/) before performing any
     [table maintenance](maintenance.md).
 
-
-## Example 
+## Example
 
 Please have a look at the [Nessie Demos repo](https://github.com/projectnessie/nessie-demos)
 for different examples of Nessie and Iceberg in action together.

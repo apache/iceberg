@@ -32,6 +32,7 @@ on:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/workflows/api-binary-compatibility.yml'
     - '.github/workflows/delta-conversion-ci.yml'
+    - '.github/workflows/docs-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.github/workflows/java-ci.yml'
@@ -67,7 +68,7 @@ concurrency:
 
 jobs:
   spark-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         jvm: [11, 17, 21]
