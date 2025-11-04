@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -69,7 +70,8 @@ public class TestInclusiveManifestEvaluator {
           optional(15, "no_nulls_same_value_a", Types.StringType.get()),
           optional(16, "single_value_with_nan", Types.FloatType.get()),
           optional(17, "single_value_nan_unknown", Types.FloatType.get()),
-          optional(18, "single_value_no_nan", Types.FloatType.get()));
+          optional(18, "single_value_no_nan", Types.FloatType.get()),
+          optional(19, "uuid", Types.UUIDType.get()));
 
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA)
@@ -90,6 +92,7 @@ public class TestInclusiveManifestEvaluator {
           .identity("single_value_with_nan")
           .identity("single_value_nan_unknown")
           .identity("single_value_no_nan")
+          .identity("uuid")
           .build();
 
   private static final int INT_MIN_VALUE = 30;
@@ -100,6 +103,18 @@ public class TestInclusiveManifestEvaluator {
 
   private static final ByteBuffer STRING_MIN = toByteBuffer(Types.StringType.get(), "a");
   private static final ByteBuffer STRING_MAX = toByteBuffer(Types.StringType.get(), "z");
+
+  // UUID_MIN has all zeros in MSB, all ones in LSB: 00000000-0000-0000-ffff-ffffffffffff
+  // UUID_MAX has all ones in MSB, all zeros in LSB: ffffffff-ffff-ffff-0000-000000000000
+  // With unsigned byte-wise comparison (correct): UUID_MIN < UUID_MAX (0x00... < 0xFF...)
+  // With Java's natural order (incorrect): UUID_MIN > UUID_MAX (MSB 0 > MSB -1 as signed long)
+  private static final UUID UUID_MIN_VALUE =
+      UUID.fromString("00000000-0000-0000-ffff-ffffffffffff");
+  private static final UUID UUID_MAX_VALUE =
+      UUID.fromString("ffffffff-ffff-ffff-0000-000000000000");
+
+  private static final ByteBuffer UUID_MIN = toByteBuffer(Types.UUIDType.get(), UUID_MIN_VALUE);
+  private static final ByteBuffer UUID_MAX = toByteBuffer(Types.UUIDType.get(), UUID_MAX_VALUE);
 
   private static final ManifestFile NO_STATS =
       new TestHelpers.TestManifestFile(
@@ -148,7 +163,8 @@ public class TestInclusiveManifestEvaluator {
                   false,
                   false,
                   toByteBuffer(Types.FloatType.get(), 5.0F),
-                  toByteBuffer(Types.FloatType.get(), 5.0F))),
+                  toByteBuffer(Types.FloatType.get(), 5.0F)),
+              new TestHelpers.TestFieldSummary(false, UUID_MIN, UUID_MAX)),
           null);
 
   @Test
@@ -852,5 +868,160 @@ public class TestInclusiveManifestEvaluator {
     assertThat(shouldRead)
         .as("Should not read: manifest contains single float value with no NaNs")
         .isFalse();
+  }
+
+  @Test
+  public void testUuidEq() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(equal("uuid", belowMin), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuid below lower bound").isFalse();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(equal("uuid", UUID_MIN_VALUE), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid equal to lower bound").isTrue();
+
+    UUID between = UUID.fromString("7fffffff-ffff-ffff-7fff-ffffffffffff");
+    shouldRead = ManifestEvaluator.forRowFilter(equal("uuid", between), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid between lower and upper bounds").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(equal("uuid", UUID_MAX_VALUE), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid equal to upper bound").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead = ManifestEvaluator.forRowFilter(equal("uuid", aboveMax), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuid above upper bound").isFalse();
+  }
+
+  @Test
+  public void testUuidLt() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(lessThan("uuid", belowMin), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuid range below lower bound").isFalse();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(lessThan("uuid", UUID_MIN_VALUE), SPEC, true).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not read: uuid range below lower bound (UUID_MIN is not < UUID_MIN)")
+        .isFalse();
+
+    UUID justAboveMin = UUID.fromString("00000000-0000-0001-0000-000000000000");
+    shouldRead =
+        ManifestEvaluator.forRowFilter(lessThan("uuid", justAboveMin), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(lessThan("uuid", UUID_MAX_VALUE), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid between lower and upper bounds").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead = ManifestEvaluator.forRowFilter(lessThan("uuid", aboveMax), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+  }
+
+  @Test
+  public void testUuidLtEq() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(lessThanOrEqual("uuid", belowMin), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuid range below lower bound").isFalse();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(lessThanOrEqual("uuid", UUID_MIN_VALUE), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(lessThanOrEqual("uuid", UUID_MAX_VALUE), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead =
+        ManifestEvaluator.forRowFilter(lessThanOrEqual("uuid", aboveMax), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+  }
+
+  @Test
+  public void testUuidGt() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(greaterThan("uuid", belowMin), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(greaterThan("uuid", UUID_MIN_VALUE), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid between lower and upper bounds").isTrue();
+
+    UUID justBelowMax = UUID.fromString("ffffffff-ffff-fffe-ffff-ffffffffffff");
+    shouldRead =
+        ManifestEvaluator.forRowFilter(greaterThan("uuid", justBelowMax), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(greaterThan("uuid", UUID_MAX_VALUE), SPEC, true).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not read: uuid range above upper bound (UUID_MAX is not > UUID_MAX)")
+        .isFalse();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead =
+        ManifestEvaluator.forRowFilter(greaterThan("uuid", aboveMax), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuid range above upper bound").isFalse();
+  }
+
+  @Test
+  public void testUuidGtEq() {
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(greaterThanOrEqual("uuid", belowMin), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(greaterThanOrEqual("uuid", UUID_MIN_VALUE), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(greaterThanOrEqual("uuid", UUID_MAX_VALUE), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead =
+        ManifestEvaluator.forRowFilter(greaterThanOrEqual("uuid", aboveMax), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuid range above upper bound").isFalse();
+  }
+
+  @Test
+  public void testUuidIn() {
+    UUID belowMin1 = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    UUID belowMin2 = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(in("uuid", belowMin1, belowMin2), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuids below lower bound").isFalse();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(in("uuid", belowMin1, UUID_MIN_VALUE), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid equal to lower bound").isTrue();
+
+    UUID middle1 = UUID.fromString("7fffffff-ffff-ffff-0000-000000000000");
+    UUID middle2 = UUID.fromString("7fffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead =
+        ManifestEvaluator.forRowFilter(in("uuid", middle1, middle2), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuids between lower and upper bounds").isTrue();
+
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    shouldRead =
+        ManifestEvaluator.forRowFilter(in("uuid", UUID_MAX_VALUE, aboveMax), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should read: uuid equal to upper bound").isTrue();
+
+    UUID aboveMax2 = UUID.fromString("ffffffff-ffff-ffff-ffff-fffffffffffe");
+    shouldRead =
+        ManifestEvaluator.forRowFilter(in("uuid", aboveMax, aboveMax2), SPEC, true).eval(FILE);
+    assertThat(shouldRead).as("Should not read: uuids above upper bound").isFalse();
   }
 }
