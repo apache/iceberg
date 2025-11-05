@@ -1213,8 +1213,8 @@ class Projection(BaseModel):
     Defines a projection for a column.
     """
 
-    source_id: Any = Field(
-        ..., alias='source-id', description='field id of the column being projected.'
+    field_id: int = Field(
+        ..., alias='field-id', description='field id of the column being projected.'
     )
     action: Action
 
@@ -1509,16 +1509,16 @@ class ViewUpdate(BaseModel):
 
 class ReadRestrictions(BaseModel):
     """
-    Read restrictions for a table, including projections and row filter expressions, according to the current schema.
+    Read restrictions for a table, including column projections and row filter expressions, according to the current schema.
     A client MUST enforce the restrictions defined in this object when reading data from the table.
     These restrictions apply only to the authenticated principal, user, or account associated with the client. They MUST NOT be interpreted as global policy and MUST NOT be applied beyond the entity identified by the Authentication header (or other applicable authentication mechanism).
 
     """
 
-    required_projections: Optional[List[Projection]] = Field(
+    required_column_projections: Optional[List[Projection]] = Field(
         None,
-        alias='required-projections',
-        description='A list of projections that MUST be applied prior to any query-specified projections. If the required-projection property is absent, no mandatory projection applies, and a reader MAY project any subset of columns of the table, including all columns.\n1. A reader MUST project only columns listed in the required-projection.\n  - If a listed column has a transform, the reader MUST apply it and replace\n    all references to the underlying column with the transformed value\n    (for example, truncate[4](cc) MUST be projected as truncate[4](cc) AS cc,\n    and all references to cc during query evaluation post applying required-row-filter MUST resolve to this alias).\n  - Columns not listed in the required-projection MUST NOT be read.\n\n2. A column MUST appear at most once in the required-projection.\n3. Multiple transformed versions of the same column (e.g., truncate[5](col)\n  and truncate[3](col) MUST NOT appear in the required-projection.\n\n4. If a projection entry includes an action that the reader cannot evaluate,\n  the reader MUST fail rather than ignore the transform.\n\n5. An identity transform is equivalent to projecting the column directly.\n8. The data type of the projected column MUST match the data type defined for the transform result.\n',
+        alias='required-column-projections',
+        description='A list of projections that MUST be applied prior to any query-specified projections. If the required-colum-projections property is absent, no mandatory projection applies, and a reader MAY project any subset of columns of the table, including all columns.\n1. A reader MUST project only columns listed in the required-colum-projections.\n  - If a listed column has a transform, the reader MUST apply it and replace\n    all references to the underlying column with the transformed value\n    (for example, truncate[4](cc) MUST be projected as truncate[4](cc) AS cc,\n    and all references to cc during query evaluation post applying required-row-filter MUST resolve to this alias).\n  - Columns not listed in the required-colum-projections MUST NOT be read.\n\n2. A column MUST appear at most once in the required-colum-projections.\n3. If a projection entry includes an action that the reader cannot evaluate,\n  the reader MUST fail rather than ignore the transform.\n\n5. An identity transform is equivalent to projecting the column directly.\n8. The data type of the projected column MUST match the data type defined for the transform result.\n',
     )
     required_row_filter: Optional[Expression] = Field(
         None,
