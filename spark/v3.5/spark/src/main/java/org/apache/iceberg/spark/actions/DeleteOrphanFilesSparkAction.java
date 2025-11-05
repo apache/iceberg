@@ -361,23 +361,28 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     // Cache and force computation to populate conflicts accumulator
     orphanFileDS = orphanFileDS.cache();
-    orphanFileDS.count();
 
-    if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
+    try {
+      orphanFileDS.count();
+
+      if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
+        throw new ValidationException(
+            "Unable to determine whether certain files are orphan. Metadata references files that"
+                + " match listed/provided files except for authority/scheme. Please, inspect the"
+                + " conflicting authorities/schemes and provide which of them are equal by further"
+                + " configuring the action via equalSchemes() and equalAuthorities() methods. Set the"
+                + " prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting"
+                + " authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that"
+                + " remaining conflicting authorities/schemes are different. It will be impossible to"
+                + " recover deleted files. Conflicting authorities/schemes: %s.",
+            conflicts.value());
+      }
+
+      return orphanFileDS;
+    } catch (Exception e) {
       orphanFileDS.unpersist();
-      throw new ValidationException(
-          "Unable to determine whether certain files are orphan. Metadata references files that"
-              + " match listed/provided files except for authority/scheme. Please, inspect the"
-              + " conflicting authorities/schemes and provide which of them are equal by further"
-              + " configuring the action via equalSchemes() and equalAuthorities() methods. Set the"
-              + " prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting"
-              + " authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that"
-              + " remaining conflicting authorities/schemes are different. It will be impossible to"
-              + " recover deleted files. Conflicting authorities/schemes: %s.",
-          conflicts.value());
+      throw e;
     }
-
-    return orphanFileDS;
   }
 
   private Dataset<FileURI> validFileIdentDS() {
