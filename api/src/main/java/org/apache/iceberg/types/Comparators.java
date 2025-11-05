@@ -453,17 +453,17 @@ public class Comparators {
     }
   }
 
+  /**
+   * Compares UUIDs using unsigned byte-wise comparison using big-endian byte-order compliant with
+   * RFC 4122 and RFC 9562. Java's UUID.compareTo() compares most significant bits first, then least
+   * significant bits using signed value comparisons, which is a <a
+   * href="https://bugs.openjdk.org/browse/JDK-7025832">known bug</a>.
+   */
   private static class UUIDComparator implements Comparator<UUID> {
     private static final UUIDComparator INSTANCE = new UUIDComparator();
 
     private UUIDComparator() {}
 
-    /**
-     * Compares UUIDs using unsigned byte-wise comparison using big-endian byte-order compliant with
-     * RFC 4122 and RFC 9562. Java's UUID.compareTo() compares most significant bits first, then
-     * least significant bits using signed value comparisons, which is a <a
-     * href="https://bugs.openjdk.org/browse/JDK-7025832">known bug</a>.
-     */
     @Override
     public int compare(UUID uuid1, UUID uuid2) {
       if (uuid1 == uuid2) {

@@ -125,6 +125,10 @@ public class TestComparators {
         Comparators.forType(Types.UUIDType.get()),
         UUID.fromString("a0000000-0000-0000-0000-000000000000"),
         UUID.fromString("f0000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("ffffffff-ffff-ffff-ffff-fffffffffffe"),
+        UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"));
   }
 
   @Test
