@@ -76,7 +76,7 @@ public interface FormatModel<D, S> {
    * @param outputFile destination for the written data
    * @return configured writer builder
    */
-  WriteBuilder writeBuilder(OutputFile outputFile);
+  WriteBuilder<D, S> writeBuilder(OutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.
@@ -87,5 +87,5 @@ public interface FormatModel<D, S> {
    * @param inputFile source file to read from
    * @return configured reader builder for the specified input
    */
-  ReadBuilder readBuilder(InputFile inputFile);
+  ReadBuilder<D, S> readBuilder(InputFile inputFile);
 }

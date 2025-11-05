@@ -34,18 +34,21 @@ import org.apache.iceberg.mapping.NameMapping;
  * schema projection, predicate filtering, record batching, and encryption settings.
  *
  * <p>This interface is directly exposed to users for parameterizing readers.
+ *
+ * @param <D> the output data type produced by the reader
+ * @param <S> the type of the schema for the output data type
  */
-public interface ReadBuilder {
+public interface ReadBuilder<D, S> {
   /**
    * Restricts the read to the given range: [start, start + length).
    *
    * @param newStart the start position for this read
    * @param newLength the length of the range this read should scan
    */
-  ReadBuilder split(long newStart, long newLength);
+  ReadBuilder<D, S> split(long newStart, long newLength);
 
   /** Set the projection schema. */
-  ReadBuilder project(Schema schema);
+  ReadBuilder<D, S> project(Schema schema);
 
   /**
    * Configures whether filtering should be case-sensitive. If the reader supports filtering, it
@@ -53,7 +56,7 @@ public interface ReadBuilder {
    *
    * @param caseSensitive indicates if filtering is case-sensitive
    */
-  ReadBuilder caseSensitive(boolean caseSensitive);
+  ReadBuilder<D, S> caseSensitive(boolean caseSensitive);
 
   /**
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
@@ -63,7 +66,7 @@ public interface ReadBuilder {
    *
    * @param filter the filter to set
    */
-  ReadBuilder filter(Expression filter);
+  ReadBuilder<D, S> filter(Expression filter);
 
   /**
    * Set a reader configuration property which affects the reader behavior. Reader builders should
@@ -73,7 +76,7 @@ public interface ReadBuilder {
    * @param value config value
    * @return this for method chaining
    */
-  ReadBuilder set(String key, String value);
+  ReadBuilder<D, S> set(String key, String value);
 
   /**
    * Sets multiple reader configuration properties that affect the reader behavior. Reader builders
@@ -82,39 +85,39 @@ public interface ReadBuilder {
    * @param properties reader config properties to set
    * @return this for method chaining
    */
-  default ReadBuilder setAll(Map<String, String> properties) {
+  default ReadBuilder<D, S> setAll(Map<String, String> properties) {
     properties.forEach(this::set);
     return this;
   }
 
   /** Enables reusing the containers returned by the reader. Decreases pressure on GC. */
-  ReadBuilder reuseContainers();
+  ReadBuilder<D, S> reuseContainers();
 
   /** Sets the batch size for vectorized readers. */
-  ReadBuilder recordsPerBatch(int numRowsPerBatch);
+  ReadBuilder<D, S> recordsPerBatch(int numRowsPerBatch);
 
   /**
    * Contains the values in the result objects which are coming from metadata and not coming from
    * the data files themselves. The keys of the map are the column ids, the values are the constant
    * values to be used in the result.
    */
-  ReadBuilder constantValues(Map<Integer, ?> constantValues);
+  ReadBuilder<D, S> constantValues(Map<Integer, ?> constantValues);
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
-  ReadBuilder withNameMapping(NameMapping nameMapping);
+  ReadBuilder<D, S> withNameMapping(NameMapping nameMapping);
 
   /**
    * Sets the file encryption key used for reading the file. If the reader does not support
    * encryption, then an exception should be thrown.
    */
-  ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey);
+  ReadBuilder<D, S> withFileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
    * Sets the additional authentication data (AAD) prefix for decryption. If the reader does not
    * support decryption, then an exception should be thrown.
    */
-  ReadBuilder withAADPrefix(ByteBuffer aadPrefix);
+  ReadBuilder<D, S> withAADPrefix(ByteBuffer aadPrefix);
 
   /** Builds the reader. */
-  <D> CloseableIterable<D> build();
+  CloseableIterable<D> build();
 }

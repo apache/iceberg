@@ -120,12 +120,12 @@ class TestFormatModelRegistry {
     }
 
     @Override
-    public WriteBuilder writeBuilder(OutputFile outputFile) {
+    public WriteBuilder<Object, Object> writeBuilder(OutputFile outputFile) {
       return null;
     }
 
     @Override
-    public ReadBuilder readBuilder(InputFile inputFile) {
+    public ReadBuilder<Object, Object> readBuilder(InputFile inputFile) {
       return null;
     }
   }

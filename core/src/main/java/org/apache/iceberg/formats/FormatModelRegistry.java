@@ -139,9 +139,10 @@ public final class FormatModelRegistry {
    * @param type the output type
    * @param inputFile source file to read data from
    * @param <D> the type of data records the reader will produce
+   * @param <S> the type of the output schema for the reader
    * @return a configured reader builder for the specified format and object model
    */
-  public static <D, S> ReadBuilder readBuilder(
+  public static <D, S> ReadBuilder<D, S> readBuilder(
       FileFormat format, Class<D> type, InputFile inputFile) {
     FormatModel<D, S> factory = factoryFor(format, type);
     return factory.readBuilder(inputFile);
@@ -165,7 +166,7 @@ public final class FormatModelRegistry {
   public static <D, S> DataWriteBuilder<D, S> dataWriteBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
     FormatModel<D, S> factory = factoryFor(format, type);
-    WriteBuilder writeBuilder =
+    WriteBuilder<D, S> writeBuilder =
         factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
     return ContentFileWriteBuilderImpl.forDataFile(
         writeBuilder, outputFile.encryptingOutputFile().location(), format);
@@ -189,7 +190,7 @@ public final class FormatModelRegistry {
   public static <D, S> EqualityDeleteWriteBuilder<D, S> equalityDeleteWriteBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
     FormatModel<D, S> factory = factoryFor(format, type);
-    WriteBuilder writeBuilder =
+    WriteBuilder<D, S> writeBuilder =
         factory
             .writeBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.EQUALITY_DELETES);
@@ -213,7 +214,7 @@ public final class FormatModelRegistry {
   public static PositionDeleteWriteBuilder positionDeleteWriteBuilder(
       FileFormat format, EncryptedOutputFile outputFile) {
     FormatModel<PositionDelete, ?> factory = factoryFor(format, PositionDelete.class);
-    WriteBuilder writeBuilder =
+    WriteBuilder<PositionDelete, ?> writeBuilder =
         factory
             .writeBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.POSITION_DELETES);
@@ -228,7 +229,7 @@ public final class FormatModelRegistry {
 
   @SuppressWarnings("unchecked")
   private static <D, S> FormatModel<D, S> factoryFor(FileFormat format, Class<D> type) {
-    FormatModel<D, S> model = ((FormatModel<D, S>) MODELS.get(Pair.of(format, type)));
+    FormatModel<D, S> model = (FormatModel<D, S>) MODELS.get(Pair.of(format, type));
     Preconditions.checkArgument(
         model != null, "Format model is not registered for format %s and type %s", format, type);
     return model;
