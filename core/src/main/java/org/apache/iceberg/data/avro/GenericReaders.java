@@ -62,11 +62,11 @@ class GenericReaders {
   }
 
   static ValueReader<LocalDateTime> timestampMillis() {
-    return TimestampMilliReader.INSTANCE;
+    return TimestampMillisReader.INSTANCE;
   }
 
   static ValueReader<OffsetDateTime> timestamptzMillis() {
-    return TimestamptzMilliReader.INSTANCE;
+    return TimestamptzMillisReader.INSTANCE;
   }
 
   static ValueReader<Record> struct(
@@ -145,10 +145,10 @@ class GenericReaders {
     }
   }
 
-  private static class TimestampMilliReader implements ValueReader<LocalDateTime> {
-    private static final TimestampMilliReader INSTANCE = new TimestampMilliReader();
+  private static class TimestampMillisReader implements ValueReader<LocalDateTime> {
+    private static final TimestampMillisReader INSTANCE = new TimestampMillisReader();
 
-    private TimestampMilliReader() {}
+    private TimestampMillisReader() {}
 
     @Override
     public LocalDateTime read(Decoder decoder, Object reuse) throws IOException {
@@ -156,10 +156,10 @@ class GenericReaders {
     }
   }
 
-  private static class TimestamptzMilliReader implements ValueReader<OffsetDateTime> {
-    private static final TimestamptzMilliReader INSTANCE = new TimestamptzMilliReader();
+  private static class TimestamptzMillisReader implements ValueReader<OffsetDateTime> {
+    private static final TimestamptzMillisReader INSTANCE = new TimestamptzMillisReader();
 
-    private TimestamptzMilliReader() {}
+    private TimestamptzMillisReader() {}
 
     @Override
     public OffsetDateTime read(Decoder decoder, Object reuse) throws IOException {

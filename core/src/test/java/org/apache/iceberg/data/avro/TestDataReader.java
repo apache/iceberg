@@ -41,7 +41,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
 
-public class TestPlannedDataReader {
+class TestDataReader {
 
   @Test
   public void testTimestampDataReader() throws IOException {
@@ -69,7 +69,7 @@ public class TestPlannedDataReader {
     avroSchema.getField("timestamp_micros").addProp("field-id", 2);
     avroSchema.getField("timestamp_millis").addProp("field-id", 3);
 
-    PlannedDataReader<Record> reader = PlannedDataReader.create(icebergSchema);
+    DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
     reader.setSchema(avroSchema);
 
     GenericRecord avroRecord = new GenericData.Record(avroSchema);
@@ -114,7 +114,7 @@ public class TestPlannedDataReader {
     avroSchema.getField("timestamp_micros_tz").addProp("field-id", 2);
     avroSchema.getField("timestamp_millis_tz").addProp("field-id", 3);
 
-    PlannedDataReader<Record> reader = PlannedDataReader.create(icebergSchema);
+    DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
     reader.setSchema(avroSchema);
 
     GenericRecord avroRecord = new GenericData.Record(avroSchema);
@@ -142,8 +142,7 @@ public class TestPlannedDataReader {
         .isEqualTo(offsetTimestampMillis.withOffsetSameInstant(ZoneOffset.UTC));
   }
 
-  private Record readRecord(
-      PlannedDataReader<Record> reader, Schema avroSchema, GenericRecord avroRecord)
+  private Record readRecord(DataReader<Record> reader, Schema avroSchema, GenericRecord avroRecord)
       throws IOException {
     try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
       BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);

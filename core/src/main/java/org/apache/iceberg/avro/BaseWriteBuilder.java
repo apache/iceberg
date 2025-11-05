@@ -87,9 +87,6 @@ abstract class BaseWriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
         case "timestamp-nanos":
           return ValueWriters.longs();
 
-        case "timestamp-millis":
-          return ValueWriters.longs();
-
         case "decimal":
           LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
           return ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
