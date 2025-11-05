@@ -132,7 +132,7 @@ make clean
 
 #### Fast iterative development mode
 
-When working on the documentation, building all historical versions (1.4.0 through 1.9.2) significantly slows down the build process. For faster iteration during development, use the `serve-dev` recipe:
+When working on the documentation, building all historical versions significantly slows down the build process. For faster iteration during development, use the `serve-dev` recipe:
 
 ```sh
 make serve-dev
@@ -144,7 +144,7 @@ This development mode:
 - **Uses the `--dirty` flag** - Only rebuilds changed files for even faster iteration
 - **Perfect for iterative development** - Great for working on documentation content
 
-The development mode sets the `ICEBERG_DEV_MODE=true` environment variable and uses a simplified mkdocs configuration (`mkdocs-dev.yml`) that only includes the two most recent versions.
+The development mode sets the `ICEBERG_DEV_MODE=true` environment variable and uses a simplified mkdocs configuration (`mkdocs-dev.yml`) that only includes the most recent versions.
 
 > [!NOTE]
 > Development mode is only for local iteration. Always use `make serve` or `make build` before creating a pull request to ensure all versioned docs build correctly.
