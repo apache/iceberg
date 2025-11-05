@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.function.BiConsumer;
+import org.apache.iceberg.exceptions.CommitFailedException;
 
 public interface SupportsCommitValidation {
   CommitValidator NON_VALIDATING = (base, metadata) -> {};
@@ -26,8 +27,17 @@ public interface SupportsCommitValidation {
   @FunctionalInterface
   interface CommitValidator extends BiConsumer<TableMetadata, TableMetadata> {
     @Override
-    void accept(TableMetadata snapshot, TableMetadata snapshot2);
+    void accept(TableMetadata base, TableMetadata current);
   }
 
+  /**
+   * Commits the updated metadata to the table taking a validator that will be called with the
+   * refreshed metadata and pending metadata.
+   * <p>
+   * The validator should throw a {@link CommitFailedException} if validation fails.  Retries will still
+   * apply so subsequent attempts to commit will be validated until retries are exhausted.
+   *
+   * @param validator
+   */
   void commit(CommitValidator validator);
 }
