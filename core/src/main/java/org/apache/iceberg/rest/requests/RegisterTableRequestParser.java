@@ -28,6 +28,7 @@ public class RegisterTableRequestParser {
 
   private static final String NAME = "name";
   private static final String METADATA_LOCATION = "metadata-location";
+  private static final String OVERWRITE = "overwrite";
 
   private RegisterTableRequestParser() {}
 
@@ -46,6 +47,7 @@ public class RegisterTableRequestParser {
 
     gen.writeStringField(NAME, request.name());
     gen.writeStringField(METADATA_LOCATION, request.metadataLocation());
+    gen.writeBooleanField(OVERWRITE, request.overwrite());
 
     gen.writeEndObject();
   }
@@ -60,10 +62,12 @@ public class RegisterTableRequestParser {
 
     String name = JsonUtil.getString(NAME, json);
     String metadataLocation = JsonUtil.getString(METADATA_LOCATION, json);
+    Boolean overwrite = JsonUtil.getBool(OVERWRITE, json);
 
     return ImmutableRegisterTableRequest.builder()
         .name(name)
         .metadataLocation(metadataLocation)
+        .overwrite(Boolean.TRUE.equals(overwrite))
         .build();
   }
 }
