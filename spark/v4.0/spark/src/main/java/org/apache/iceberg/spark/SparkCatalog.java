@@ -457,6 +457,12 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public boolean namespaceExists(String[] namespace) {
+    return asNamespaceCatalog != null
+        && asNamespaceCatalog.namespaceExists(Namespace.of(namespace));
+  }
+
+  @Override
   public Map<String, String> loadNamespaceMetadata(String[] namespace)
       throws NoSuchNamespaceException {
     if (asNamespaceCatalog != null) {
