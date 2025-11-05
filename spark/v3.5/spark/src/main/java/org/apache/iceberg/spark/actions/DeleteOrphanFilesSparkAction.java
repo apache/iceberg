@@ -93,8 +93,8 @@ import scala.Tuple2;
  *
  * <p>Streaming mode can be enabled via the {@value #STREAM_RESULTS} option to avoid loading all
  * orphan file paths into driver memory. When enabled, the result will contain only a sample of file
- * paths (up to {@value #MAX_ORPHAN_FILE_PATHS_TO_RETURN_WHEN_STREAMING}). The total count of
- * deleted files is logged but not included in the result.
+ * paths (up to {@value #MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT}). The total count of deleted files is
+ * logged but not included in the result.
  *
  * <p><em>Note:</em> It is dangerous to call this action with a short retention interval as it might
  * corrupt the state of the table if another operation is writing at the same time.
