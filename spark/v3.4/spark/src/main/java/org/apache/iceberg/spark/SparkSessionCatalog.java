@@ -408,6 +408,11 @@ public class SparkSessionCatalog<
   }
 
   @Override
+  public boolean functionExists(Identifier ident) {
+    return super.functionExists(ident) || getSessionCatalog().functionExists(ident);
+  }
+
+  @Override
   public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
     try {
       return super.loadFunction(ident);
@@ -429,6 +434,12 @@ public class SparkSessionCatalog<
     }
 
     return new Identifier[0];
+  }
+
+  @Override
+  public boolean viewExists(Identifier ident) {
+    return (asViewCatalog != null && asViewCatalog.viewExists(ident))
+        || (isViewCatalog() && getSessionCatalog().viewExists(ident));
   }
 
   @Override

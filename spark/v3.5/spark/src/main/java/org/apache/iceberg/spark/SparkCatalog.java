@@ -561,6 +561,11 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public boolean viewExists(Identifier ident) {
+    return asViewCatalog != null && asViewCatalog.viewExists(buildIdentifier(ident));
+  }
+
+  @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
