@@ -19,8 +19,8 @@
 package org.apache.iceberg.formats;
 
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 
 /**
  * Interface that provides a unified abstraction for converting between data file formats and
@@ -76,7 +76,7 @@ public interface FormatModel<D, S> {
    * @param outputFile destination for the written data
    * @return configured writer builder
    */
-  WriteBuilder<D, S> writeBuilder(OutputFile outputFile);
+  WriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.
