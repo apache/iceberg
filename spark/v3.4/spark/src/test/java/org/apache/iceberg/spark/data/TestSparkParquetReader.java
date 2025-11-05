@@ -52,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.arrow.vectorized.VectorizedTableScanIterable;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
@@ -230,6 +231,73 @@ public class TestSparkParquetReader extends AvroDataTestBase {
 
       return new org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport();
     }
+  }
+
+  @Test
+  public void testTimestampMillisProducedBySparkIsReadCorrectly() throws IOException {
+    String outputFilePath =
+        String.format("%s/%s", temp.toAbsolutePath(), "parquet_timestamp_millis.parquet");
+    HadoopOutputFile outputFile =
+        HadoopOutputFile.fromPath(
+            new org.apache.hadoop.fs.Path(outputFilePath), new Configuration());
+
+    Schema schema = new Schema(required(1, "event_time", Types.TimestampType.withZone()));
+
+    StructType sparkSchema =
+        new StructType(
+            new StructField[] {
+              new StructField("event_time", DataTypes.TimestampType, false, Metadata.empty())
+            });
+
+    List<InternalRow> originalRows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
+    List<InternalRow> rows = Lists.newArrayList();
+    for (InternalRow row : originalRows) {
+      long timestampMicros = row.getLong(0);
+      long timestampMillis = (timestampMicros / 1000) * 1000;
+      rows.add(
+          new org.apache.spark.sql.catalyst.expressions.GenericInternalRow(
+              new Object[] {timestampMillis}));
+    }
+
+    try (ParquetWriter<InternalRow> writer =
+        new NativeSparkWriterBuilder(outputFile)
+            .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
+            .set("spark.sql.parquet.writeLegacyFormat", "false")
+            .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MILLIS")
+            .set("spark.sql.parquet.fieldId.write.enabled", "true")
+            .build()) {
+      for (InternalRow row : rows) {
+        writer.write(row);
+      }
+    }
+
+    InputFile parquetInputFile = Files.localInput(outputFilePath);
+    Table timestampMillisTable = tableFromInputFile(parquetInputFile, schema);
+
+    int totalRowsRead = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(
+            timestampMillisTable.newScan(),
+            1024,
+            false
+        )) {
+
+      for (org.apache.iceberg.arrow.vectorized.ColumnarBatch batch : vectorizedReader) {
+        org.apache.arrow.vector.VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+
+        org.apache.arrow.vector.FieldVector eventTimeVector = root.getVector("event_time");
+        assertThat(eventTimeVector).isNotNull();
+        assertThat(eventTimeVector).isInstanceOf(org.apache.arrow.vector.BigIntVector.class);
+
+        org.apache.arrow.vector.BigIntVector bigIntVector =
+            (org.apache.arrow.vector.BigIntVector) eventTimeVector;
+
+        totalRowsRead += root.getRowCount();
+        root.close();
+      }
+    }
+
+    assertThat(totalRowsRead).as("Should read all rows").isEqualTo(rows.size());
   }
 
   @Test
