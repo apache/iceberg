@@ -35,6 +35,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.arrow.vectorized.VectorizedTableScanIterable;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -52,7 +53,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.arrow.vectorized.VectorizedTableScanIterable;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
@@ -275,11 +275,7 @@ public class TestSparkParquetReader extends AvroDataTestBase {
 
     int totalRowsRead = 0;
     try (VectorizedTableScanIterable vectorizedReader =
-        new VectorizedTableScanIterable(
-            timestampMillisTable.newScan(),
-            1024,
-            false
-        )) {
+        new VectorizedTableScanIterable(timestampMillisTable.newScan(), 1024, false)) {
 
       for (org.apache.iceberg.arrow.vectorized.ColumnarBatch batch : vectorizedReader) {
         org.apache.arrow.vector.VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();

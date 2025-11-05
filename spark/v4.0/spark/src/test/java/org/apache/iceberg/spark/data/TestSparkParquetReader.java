@@ -34,6 +34,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.arrow.vectorized.VectorizedTableScanIterable;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -58,7 +59,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.iceberg.arrow.vectorized.VectorizedTableScanIterable;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkParquetReader extends AvroDataTestBase {
@@ -271,11 +271,7 @@ public class TestSparkParquetReader extends AvroDataTestBase {
 
     int totalRowsRead = 0;
     try (VectorizedTableScanIterable vectorizedReader =
-        new VectorizedTableScanIterable(
-            timestampMillisTable.newScan(),
-            1024,
-            false
-        )) {
+        new VectorizedTableScanIterable(timestampMillisTable.newScan(), 1024, false)) {
 
       for (org.apache.iceberg.arrow.vectorized.ColumnarBatch batch : vectorizedReader) {
         org.apache.arrow.vector.VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
