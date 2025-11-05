@@ -3350,7 +3350,7 @@ components:
     ReadRestrictions:
       type: object
       description: >
-          Read restrictions for a table, including projections and row filter expressions, according to the current schema.
+          Read restrictions for a table, including column projections and row filter expressions, according to the current schema.
 
           A client MUST enforce the restrictions defined in this object when reading data
           from the table.
@@ -3360,26 +3360,23 @@ components:
           MUST NOT be applied beyond the entity identified by the Authentication header
           (or other applicable authentication mechanism).
       properties:
-        required-projections:
+        required-column-projections:
           description: >
             A list of projections that MUST be applied prior to any query-specified
             projections.
-            If the required-projection property is absent, no mandatory projection applies,
+            If the required-colum-projections property is absent, no mandatory projection applies,
             and a reader MAY project any subset of columns of the table, including all columns.
 
-            1. A reader MUST project only columns listed in the required-projection.
+            1. A reader MUST project only columns listed in the required-colum-projections.
               - If a listed column has a transform, the reader MUST apply it and replace
                 all references to the underlying column with the transformed value
                 (for example, truncate[4](cc) MUST be projected as truncate[4](cc) AS cc,
                 and all references to cc during query evaluation post applying required-row-filter MUST resolve to this alias).
-              - Columns not listed in the required-projection MUST NOT be read.
+              - Columns not listed in the required-colum-projections MUST NOT be read.
 
-            2. A column MUST appear at most once in the required-projection.
+            2. A column MUST appear at most once in the required-colum-projections.
       
-            3. Multiple transformed versions of the same column (e.g., truncate[5](col)
-              and truncate[3](col) MUST NOT appear in the required-projection.
-      
-            4. If a projection entry includes an action that the reader cannot evaluate,
+            3. If a projection entry includes an action that the reader cannot evaluate,
               the reader MUST fail rather than ignore the transform.
       
             5. An identity transform is equivalent to projecting the column directly.
@@ -3411,13 +3408,13 @@ components:
       type: object
       description: Defines a projection for a column.
       properties:
-        source-id:
-          type: int
+        field-id:
+          type: integer
           description: field id of the column being projected.
         action:
           $ref: '#/components/schemas/Action'
       required:
-        - source-id
+        - field-id
         - action
 
     Action:
