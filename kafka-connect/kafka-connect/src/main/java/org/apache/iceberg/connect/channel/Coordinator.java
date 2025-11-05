@@ -38,9 +38,13 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.PendingUpdate;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SupportsCommitValidation;
+import org.apache.iceberg.SupportsCommitValidation.CommitValidator;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -50,6 +54,7 @@ import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -251,7 +256,7 @@ class Coordinator extends Channel {
           appendOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
         dataFiles.forEach(appendOp::appendFile);
-        appendOp.commit();
+        validateAndCommit(appendOp, branch, committedOffsets);
       } else {
         RowDelta deltaOp = table.newRowDelta();
         if (branch != null) {
@@ -264,7 +269,7 @@ class Coordinator extends Channel {
         }
         dataFiles.forEach(deltaOp::addRows);
         deleteFiles.forEach(deltaOp::addDeletes);
-        deltaOp.commit();
+        validateAndCommit(deltaOp, branch, committedOffsets);
       }
 
       Long snapshotId = latestSnapshot(table, branch).snapshotId();
@@ -284,6 +289,29 @@ class Coordinator extends Channel {
     }
   }
 
+  private void validateAndCommit(
+      PendingUpdate<?> pendingUpdate, String branch, Map<Integer, Long> expectedOffsets) {
+    CommitValidator validator =
+        (base, metadata) -> {
+          Map<Integer, Long> lastCommittedOffsets = lastCommittedOffsetsForTable(base, branch);
+
+          if (expectedOffsets == null || expectedOffsets.isEmpty()) {
+            return; // there are no stored offsets, so assume we're starting with new offsets
+          }
+
+          if (!expectedOffsets.equals(lastCommittedOffsets)) {
+            throw new CommitFailedException(
+                "Latest offsets do not match expected offsets for this commit.");
+          }
+        };
+
+    if (pendingUpdate instanceof SupportsCommitValidation) {
+      ((SupportsCommitValidation) pendingUpdate).commit(validator);
+    } else {
+      pendingUpdate.commit();
+    }
+  }
+
   private <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
     Map<Object, Boolean> seen = Maps.newConcurrentMap();
     return t -> seen.putIfAbsent(keyExtractor.apply(t), Boolean.TRUE) == null;
@@ -294,6 +322,13 @@ class Coordinator extends Channel {
       return table.currentSnapshot();
     }
     return table.snapshot(branch);
+  }
+
+  private Snapshot latestSnapshot(TableMetadata metadata, String branch) {
+    if (branch == null) {
+      return metadata.currentSnapshot();
+    }
+    return metadata.snapshot(metadata.ref(branch).snapshotId());
   }
 
   private Map<Integer, Long> lastCommittedOffsetsForTable(Table table, String branch) {
@@ -311,6 +346,25 @@ class Coordinator extends Channel {
       }
       Long parentSnapshotId = snapshot.parentId();
       snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
+    }
+    return ImmutableMap.of();
+  }
+
+  private Map<Integer, Long> lastCommittedOffsetsForTable(TableMetadata metadata, String branch) {
+    Snapshot snapshot = latestSnapshot(metadata, branch);
+    while (snapshot != null) {
+      Map<String, String> summary = snapshot.summary();
+      String value = summary.get(snapshotOffsetsProp);
+      if (value != null) {
+        TypeReference<Map<Integer, Long>> typeRef = new TypeReference<Map<Integer, Long>>() {};
+        try {
+          return MAPPER.readValue(value, typeRef);
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      }
+      Long parentSnapshotId = snapshot.parentId();
+      snapshot = parentSnapshotId != null ? metadata.snapshot(parentSnapshotId) : null;
     }
     return ImmutableMap.of();
   }
