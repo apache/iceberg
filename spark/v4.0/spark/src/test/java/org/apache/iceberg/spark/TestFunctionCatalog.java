@@ -68,6 +68,75 @@ public class TestFunctionCatalog extends TestBaseWithCatalog {
     assertThatThrownBy(() -> asFunctionCatalog.listFunctions(DB_NAMESPACE))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageStartingWith("[SCHEMA_NOT_FOUND] The schema `db` cannot be found.");
+
+    // POC: registering a SQL UDF should surface via the Iceberg function catalog listing
+    org.apache.iceberg.spark.udf.SparkUDFRegistrar.registerFromJson(
+        spark,
+        "add_one",
+        "{\n"
+            + "  \"function-uuid\": \"42fd3f91-bc10-41c1-8a52-92b57dd0a9b2\",\n"
+            + "  \"format-version\": 1,\n"
+            + "  \"definitions\": [\n"
+            + "    {\n"
+            + "      \"definition-id\": \"(int)\",\n"
+            + "      \"parameters\": [ { \"name\": \"x\", \"type\": \"int\", \"doc\": \"Input integer\" } ],\n"
+            + "      \"return-type\": \"int\",\n"
+            + "      \"doc\": \"Add one to the input integer\",\n"
+            + "      \"versions\": [\n"
+            + "        {\n"
+            + "          \"version-id\": 1,\n"
+            + "          \"deterministic\": true,\n"
+            + "          \"representations\": [ { \"dialect\": \"trino\", \"body\": \"x + 2\" } ],\n"
+            + "          \"timestamp-ms\": 1734507000123\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"version-id\": 2,\n"
+            + "          \"deterministic\": true,\n"
+            + "          \"representations\": [ { \"dialect\": \"trino\", \"parameters\": [{ \"name\": \"val\", \"type\": \"int\" }], \"body\": \"val + 1\" }, { \"dialect\": \"spark\", \"parameters\": [{ \"name\": \"x\", \"type\": \"int\" }], \"body\": \"x + 1\" } ],\n"
+            + "          \"timestamp-ms\": 1735507000124\n"
+            + "        }\n"
+            + "      ],\n"
+            + "      \"current-version-id\": 2\n"
+            + "    },\n"
+            + "    {\n"
+            + "      \"definition-id\": \"(float)\",\n"
+            + "      \"parameters\": [ { \"name\": \"x\", \"type\": \"float\", \"doc\": \"Input float\" } ],\n"
+            + "      \"return-type\": \"float\",\n"
+            + "      \"doc\": \"Add one to the input float\",\n"
+            + "      \"versions\": [\n"
+            + "        {\n"
+            + "          \"version-id\": 1,\n"
+            + "          \"deterministic\": true,\n"
+            + "          \"representations\": [ { \"dialect\": \"trino\", \"body\": \"x + 1.0\" }, { \"dialect\": \"spark\", \"body\": \"x + 1.0\" } ],\n"
+            + "          \"timestamp-ms\": 1734507001123\n"
+            + "        }\n"
+            + "      ],\n"
+            + "      \"current-version-id\": 1\n"
+            + "    }\n"
+            + "  ],\n"
+            + "  \"definition-log\": [\n"
+            + "    {\n"
+            + "      \"timestamp-ms\": 1734507001123,\n"
+            + "      \"definition-versions\": [ { \"definition-id\": \"(int)\", \"version-id\": 1 }, { \"definition-id\": \"(float)\", \"version-id\": 1 } ]\n"
+            + "    },\n"
+            + "    {\n"
+            + "      \"timestamp-ms\": 1735507000124,\n"
+            + "      \"definition-versions\": [ { \"definition-id\": \"(int)\", \"version-id\": 2 }, { \"definition-id\": \"(float)\", \"version-id\": 1 } ]\n"
+            + "    }\n"
+            + "  ],\n"
+            + "  \"doc\": \"Overloaded scalar UDF for integer and float inputs\",\n"
+            + "  \"secure\": false\n"
+            + "}");
+
+    Identifier[] functions = asFunctionCatalog.listFunctions(EMPTY_NAMESPACE);
+    assertThat(functions).anyMatch(func -> "add_one".equals(func.name()));
+
+    // Registrar registers both (int) and (float) overloads under the same name; Spark shows one
+    // identifier per function name. To ensure both overloads are executable, call both.
+    Object r1 = scalarSql("SELECT add_one(41)");
+    assertThat(((Number) r1).intValue()).isEqualTo(42);
+    Object r2 = scalarSql("SELECT add_one(1.5)");
+    assertThat(((Number) r2).doubleValue()).isEqualTo(2.5d);
   }
 
   @TestTemplate

@@ -1,0 +1,44 @@
+{
+  "function-uuid": "8a7fa39a-6d8f-4a2f-9d8d-3f3a8f3c2a10",
+  "format-version": 1,
+  "definitions": [
+    {
+      "definition-id": "(string)",
+      "parameters": [
+        { "name": "c", "type": "string", "doc": "Color of fruits" }
+      ],
+      "return-type": {
+        "type": "struct",
+        "fields": [
+          { "id": 1, "name": "name", "type": "string" },
+          { "id": 2, "name": "color", "type": "string" }
+        ]
+      },
+      "function-type": "udtf",
+      "doc": "Return fruits of a specific color from the fruits table",
+      "versions": [
+        {
+          "version-id": 1,
+          "deterministic": true,
+          "representations": [
+            { "dialect": "trino", "body": "SELECT name, color FROM fruits WHERE color = c" },
+            { "dialect": "spark", "body": "SELECT name, color FROM fruits WHERE color = c" }
+          ],
+          "timestamp-ms": 1734508000123
+        }
+      ],
+      "current-version-id": 1
+    }
+  ],
+  "definition-log": [
+    {
+      "timestamp-ms": 1734508000123,
+      "definition-versions": [
+        { "definition-id": "(string)", "version-id": 1 }
+      ]
+    }
+  ],
+  "doc": "UDTF returning (name, color) rows filtered by the given color",
+  "secure": false
+}
+

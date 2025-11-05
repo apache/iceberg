@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.functions.SparkFunctions;
+import org.apache.iceberg.spark.functions.UserSqlFunctions;
 import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
@@ -38,9 +41,10 @@ interface SupportsFunctions extends FunctionCatalog {
   @Override
   default Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
     if (isFunctionNamespace(namespace)) {
-      return SparkFunctions.list().stream()
-          .map(name -> Identifier.of(namespace, name))
-          .toArray(Identifier[]::new);
+      Set<String> names = Sets.newLinkedHashSet();
+      names.addAll(SparkFunctions.list());
+      names.addAll(UserSqlFunctions.list());
+      return names.stream().map(name -> Identifier.of(namespace, name)).toArray(Identifier[]::new);
     } else if (isExistingNamespace(namespace)) {
       return new Identifier[0];
     }

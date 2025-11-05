@@ -1,0 +1,72 @@
+{
+  "function-uuid": "42fd3f91-bc10-41c1-8a52-92b57dd0a9b2",
+  "format-version": 1,
+  "definitions": [
+    {
+      "definition-id": "(int)",
+      "parameters": [
+        { "name": "x", "type": "int", "doc": "Input integer" }
+      ],
+      "return-type": "int",
+      "doc": "Add one to the input integer",
+      "versions": [
+        {
+          "version-id": 1,
+          "deterministic": true,
+          "representations": [
+            { "dialect": "trino", "body": "x + 2" }
+          ],
+          "timestamp-ms": 1734507000123
+        },
+        {
+          "version-id": 2,
+          "deterministic": true,
+          "representations": [
+            { "dialect": "trino", "parameters": [{ "name": "val", "type": "int" }], "body": "val + 1" },
+            { "dialect": "spark", "parameters": [{ "name": "x", "type": "int" }], "body": "x + 1" }
+          ],
+          "timestamp-ms": 1735507000124
+        }
+      ],
+      "current-version-id": 2
+    },
+    {
+      "definition-id": "(float)",
+      "parameters": [
+        { "name": "x", "type": "float", "doc": "Input float" }
+      ],
+      "return-type": "float",
+      "doc": "Add one to the input float",
+      "versions": [
+        {
+          "version-id": 1,
+          "deterministic": true,
+          "representations": [
+            { "dialect": "trino", "body": "x + 1.0" }
+          ],
+          "timestamp-ms": 1734507001123
+        }
+      ],
+      "current-version-id": 1
+    }
+  ],
+  "definition-log": [
+    {
+      "timestamp-ms": 1734507001123,
+      "definition-versions": [
+        { "definition-id": "(int)", "version-id": 1 },
+        { "definition-id": "(float)", "version-id": 1 }
+      ]
+    },
+    {
+      "timestamp-ms": 1735507000124,
+      "definition-versions": [
+        { "definition-id": "(int)", "version-id": 2 },
+        { "definition-id": "(float)", "version-id": 1 }
+      ]
+    }
+  ],
+  "doc": "Overloaded scalar UDF for integer and float inputs",
+  "secure": false
+}
+
