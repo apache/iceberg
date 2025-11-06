@@ -41,14 +41,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.MetadataUpdate;
@@ -56,6 +61,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -71,6 +77,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -89,6 +96,7 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.view.ViewMetadata;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
@@ -3064,6 +3072,98 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageContaining("Cannot determine whether the commit was successful")
         .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
+  }
+
+  @Test
+  public void testFileIOAndOperationsBuilderInjection() throws IOException {
+    AtomicBoolean customTableOps = new AtomicBoolean();
+    AtomicBoolean customTxnOps = new AtomicBoolean();
+    AtomicBoolean customViewOps = new AtomicBoolean();
+    AtomicBoolean customFileIO = new AtomicBoolean();
+
+    RESTOperationsBuilder operationsBuilder =
+        new RESTOperationsBuilder() {
+          @Override
+          public RESTTableOperations createTableOperations(
+              RESTClient client,
+              String path,
+              Supplier<Map<String, String>> headers,
+              FileIO io,
+              TableMetadata current,
+              Set<Endpoint> endpoints) {
+            customTableOps.set(true);
+            return RESTOperationsBuilder.super.createTableOperations(
+                client, path, headers, io, current, endpoints);
+          }
+
+          @Override
+          public RESTTableOperations createTableOperationsForTransaction(
+              RESTClient client,
+              String path,
+              Supplier<Map<String, String>> headers,
+              FileIO io,
+              RESTTableOperations.UpdateType updateType,
+              List<MetadataUpdate> createChanges,
+              TableMetadata current,
+              Set<Endpoint> endpoints) {
+            customTxnOps.set(true);
+            return RESTOperationsBuilder.super.createTableOperationsForTransaction(
+                client, path, headers, io, updateType, createChanges, current, endpoints);
+          }
+
+          @Override
+          public RESTViewOperations createViewOperations(
+              RESTClient client,
+              String path,
+              Supplier<Map<String, String>> headers,
+              ViewMetadata current,
+              Set<Endpoint> endpoints) {
+            customViewOps.set(true);
+            return RESTOperationsBuilder.super.createViewOperations(
+                client, path, headers, current, endpoints);
+          }
+        };
+
+    BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder =
+        (context, config) -> {
+          customFileIO.set(true);
+          return CatalogUtil.loadFileIO(
+              config.getOrDefault(
+                  CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"),
+              config,
+              new Configuration());
+        };
+
+    try (RESTCatalog catalog =
+        new RESTCatalog(
+            SessionCatalog.SessionContext.createEmpty(),
+            (config) -> new RESTCatalogAdapter(backendCatalog),
+            ioBuilder,
+            operationsBuilder)) {
+      catalog.setConf(new Configuration());
+      catalog.initialize(
+          "test",
+          ImmutableMap.of(
+              CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+      Namespace ns = Namespace.of("test_builder");
+      catalog.createNamespace(ns);
+
+      catalog.createTable(TableIdentifier.of(ns, "table1"), SCHEMA);
+      assertThat(customTableOps).isTrue();
+      assertThat(customFileIO).isTrue();
+
+      catalog.buildTable(TableIdentifier.of(ns, "table2"), SCHEMA).createTransaction().commitTransaction();
+      assertThat(customTxnOps).isTrue();
+
+      catalog
+          .buildView(TableIdentifier.of(ns, "view1"))
+          .withSchema(SCHEMA)
+          .withDefaultNamespace(ns)
+          .withQuery("spark", "select * from ns.table")
+          .create();
+      assertThat(customViewOps).isTrue();
+    }
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
