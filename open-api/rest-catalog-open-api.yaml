@@ -1192,6 +1192,13 @@ paths:
         - Catalog API
       summary: Load vended credentials for a table from the catalog
       operationId: loadCredentials
+      parameters:
+        - name: planId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The plan ID that has been used for server-side scan planning
       description: Load vended credentials for a table from the catalog.
       responses:
         200:
