@@ -532,13 +532,37 @@ public class RewriteTablePathUtil {
             .withMetrics(ContentFileUtil.replacePathBounds(file, sourcePrefix, targetPrefix));
 
     // Update referencedDataFile for DV files
-    String newReferencedDataFile =
-        ContentFileUtil.replaceReferencedDataFile(file, sourcePrefix, targetPrefix);
+    String newReferencedDataFile = replaceReferencedDataFile(file, sourcePrefix, targetPrefix);
     if (newReferencedDataFile != null) {
       builder.withReferencedDataFile(newReferencedDataFile);
     }
 
     return builder.build();
+  }
+
+  /**
+   * Replace the referenced data file path for a DV (Deletion Vector) file.
+   *
+   * <p>For DV files, returns the updated path with the target prefix. For non-DV files or files
+   * without a referenced data file, returns null.
+   *
+   * @param deleteFile delete file to check
+   * @param sourcePrefix source prefix that will be replaced
+   * @param targetPrefix target prefix that will replace it
+   * @return updated referenced data file path, or null if not applicable
+   */
+  private static String replaceReferencedDataFile(
+      DeleteFile deleteFile, String sourcePrefix, String targetPrefix) {
+    if (!ContentFileUtil.isDV(deleteFile) || deleteFile.referencedDataFile() == null) {
+      return null;
+    }
+
+    String oldReferencedDataFile = deleteFile.referencedDataFile();
+    if (oldReferencedDataFile.startsWith(sourcePrefix)) {
+      return newPath(oldReferencedDataFile, sourcePrefix, targetPrefix);
+    }
+
+    return oldReferencedDataFile;
   }
 
   /** Class providing engine-specific methods to read and write position delete files. */
