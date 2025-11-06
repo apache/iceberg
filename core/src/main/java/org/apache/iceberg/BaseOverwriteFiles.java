@@ -32,7 +32,6 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     implements OverwriteFiles {
   private final DataFileSet deletedDataFiles = DataFileSet.create();
   private boolean validateAddedFilesMatchOverwriteFilter = false;
-  private Long startingSnapshotId = null;
   private Expression conflictDetectionFilter = null;
   private boolean validateNewDataFiles = false;
   private boolean validateNewDeletes = false;
@@ -99,12 +98,6 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
   }
 
   @Override
-  public OverwriteFiles validateFromSnapshot(long snapshotId) {
-    this.startingSnapshotId = snapshotId;
-    return this;
-  }
-
-  @Override
   public OverwriteFiles conflictDetectionFilter(Expression newConflictDetectionFilter) {
     Preconditions.checkArgument(
         newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
@@ -134,6 +127,8 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
 
   @Override
   protected void validate(TableMetadata base, Snapshot parent) {
+    super.validate(base, parent);
+
     if (validateAddedFilesMatchOverwriteFilter) {
       PartitionSpec spec = dataSpec();
       Expression rowFilter = rowFilter();
@@ -161,19 +156,19 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     }
 
     if (validateNewDataFiles) {
-      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter(), parent);
+      validateAddedDataFiles(base, startingSnapshotId(), dataConflictDetectionFilter(), parent);
     }
 
     if (validateNewDeletes) {
       if (rowFilter() != Expressions.alwaysFalse()) {
         Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
-        validateNoNewDeleteFiles(base, startingSnapshotId, filter, parent);
-        validateDeletedDataFiles(base, startingSnapshotId, filter, parent);
+        validateNoNewDeleteFiles(base, startingSnapshotId(), filter, parent);
+        validateDeletedDataFiles(base, startingSnapshotId(), filter, parent);
       }
 
       if (!deletedDataFiles.isEmpty()) {
         validateNoNewDeletesForDataFiles(
-            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
+            base, startingSnapshotId(), conflictDetectionFilter, deletedDataFiles, parent);
       }
     }
   }

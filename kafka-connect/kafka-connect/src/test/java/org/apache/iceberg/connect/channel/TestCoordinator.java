@@ -32,6 +32,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.connect.events.AvroUtil;
 import org.apache.iceberg.connect.events.CommitComplete;
 import org.apache.iceberg.connect.events.CommitToTable;
@@ -228,5 +229,46 @@ public class TestCoordinator extends ChannelTestBase {
     // Now finally revoking partition zero and this should result in the closure of the coordinator
     sourceConsumer.rebalance(ImmutableList.of(tp1));
     assertThat(mockIcebergSinkTask.isCoordinatorRunning()).isFalse();
+  }
+
+  @Test
+  public void testCoordinatorCommittedOffsetValidation() {
+    // This test demonstrates that the Coordinator's validateAndCommit method
+    // prevents commits when another independent commit has updated the offsets
+    // during the commit process
+
+    // Set the initial offsets
+    table
+        .newAppend()
+        .appendFile(EventTestUtil.createDataFile())
+        .set(OFFSETS_SNAPSHOT_PROP, "{\"0\":1}")
+        .commit();
+
+    Table frozenTable = catalog.loadTable(TABLE_IDENTIFIER);
+
+    // return the original table state on the first load, so that the update will happen
+    // during the commit refresh
+    when(catalog.loadTable(TABLE_IDENTIFIER)).thenReturn(frozenTable).thenCallRealMethod();
+
+    // Independently update the offsets
+    table
+        .newAppend()
+        .appendFile(EventTestUtil.createDataFile())
+        .set(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}")
+        .commit();
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+    Snapshot firstSnapshot = table.currentSnapshot();
+    assertThat(firstSnapshot.summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
+
+    // Trigger commit to the table
+    coordinatorTest(
+        ImmutableList.of(EventTestUtil.createDataFile()), ImmutableList.of(), EventTestUtil.now());
+
+    // Assert that the table was not updated and offsets remain
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(firstSnapshot.summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");
   }
 }

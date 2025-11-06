@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
@@ -117,6 +118,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private TableMetadata base;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
+  @Nullable private Long startingSnapshotId = null; // check all versions by default
+  @Nullable private Consumer<Snapshot> snapshotValidator = null;
 
   private ExecutorService workerPool;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
@@ -211,6 +214,23 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return self();
   }
 
+  @Override
+  public ThisT validateWith(Consumer<Snapshot> validator) {
+    this.snapshotValidator = validator;
+    return self();
+  }
+
+  @Override
+  public ThisT validateFromSnapshot(long startSnapshotId) {
+    this.startingSnapshotId = startSnapshotId;
+    return self();
+  }
+
+  @Nullable
+  protected Long startingSnapshotId() {
+    return this.startingSnapshotId;
+  }
+
   /**
    * Clean up any uncommitted manifests that were created.
    *
@@ -238,7 +258,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * @param currentMetadata current table metadata to validate
    * @param snapshot ending snapshot on the lineage which is being validated
    */
-  protected void validate(TableMetadata currentMetadata, Snapshot snapshot) {}
+  protected void validate(TableMetadata currentMetadata, Snapshot snapshot) {
+    if (snapshotValidator != null && snapshot != null) {
+      SnapshotUtil.ancestorsBetween(
+              snapshot.snapshotId(), startingSnapshotId, currentMetadata::snapshot)
+          .forEach(snapshotValidator);
+    }
+  }
 
   /**
    * Apply the update's changes to the given metadata and snapshot. Return the new manifest list.

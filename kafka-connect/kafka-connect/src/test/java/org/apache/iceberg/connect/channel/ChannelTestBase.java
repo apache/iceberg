@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -92,7 +93,7 @@ public class ChannelTestBase {
   @BeforeEach
   @SuppressWarnings("deprecation")
   public void before() {
-    catalog = initInMemoryCatalog();
+    catalog = spy(initInMemoryCatalog());
     catalog.createNamespace(NAMESPACE);
     table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA);
 

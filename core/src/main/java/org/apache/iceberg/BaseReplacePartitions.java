@@ -27,7 +27,6 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
     implements ReplacePartitions {
 
   private final PartitionSet replacedPartitions;
-  private Long startingSnapshotId;
   private boolean validateConflictingData = false;
   private boolean validateConflictingDeletes = false;
 
@@ -62,12 +61,6 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
   }
 
   @Override
-  public ReplacePartitions validateFromSnapshot(long newStartingSnapshotId) {
-    this.startingSnapshotId = newStartingSnapshotId;
-    return this;
-  }
-
-  @Override
   public ReplacePartitions validateNoConflictingDeletes() {
     this.validateConflictingDeletes = true;
     return this;
@@ -87,24 +80,26 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
 
   @Override
   public void validate(TableMetadata currentMetadata, Snapshot parent) {
+    super.validate(currentMetadata, parent);
+
     if (validateConflictingData) {
       if (dataSpec().isUnpartitioned()) {
         validateAddedDataFiles(
-            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+            currentMetadata, startingSnapshotId(), Expressions.alwaysTrue(), parent);
       } else {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
+        validateAddedDataFiles(currentMetadata, startingSnapshotId(), replacedPartitions, parent);
       }
     }
 
     if (validateConflictingDeletes) {
       if (dataSpec().isUnpartitioned()) {
         validateDeletedDataFiles(
-            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+            currentMetadata, startingSnapshotId(), Expressions.alwaysTrue(), parent);
         validateNoNewDeleteFiles(
-            currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), parent);
+            currentMetadata, startingSnapshotId(), Expressions.alwaysTrue(), parent);
       } else {
-        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
-        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions, parent);
+        validateDeletedDataFiles(currentMetadata, startingSnapshotId(), replacedPartitions, parent);
+        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId(), replacedPartitions, parent);
       }
     }
   }
