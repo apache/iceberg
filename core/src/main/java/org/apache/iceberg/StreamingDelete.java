@@ -70,6 +70,8 @@ public class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implem
 
   @Override
   protected void validate(TableMetadata base, Snapshot parent) {
+    super.validate(base, parent);
+
     if (validateFilesToDeleteExist) {
       failMissingDeletePaths();
     }

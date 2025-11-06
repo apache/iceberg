@@ -71,4 +71,32 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
             "Cannot commit to branch %s: %s does not support branch commits",
             branch, this.getClass().getName()));
   }
+
+  /**
+   * Enables snapshot validation with a user-provided function, which must throw a {@link
+   * org.apache.iceberg.exceptions.ValidationException} on validation failures.
+   *
+   * <p>Clients can use this method to validate summary and other metadata of parent snapshots.
+   *
+   * @param snapshotValidator a user function to validate parent snapshots
+   * @return this for method chaining
+   */
+  default ThisT validateWith(Consumer<Snapshot> snapshotValidator) {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " does not implement validateWith");
+  }
+
+  /**
+   * Set the snapshot ID used in any reads for this operation.
+   *
+   * <p>Validations will check changes after this snapshot ID. If the from snapshot is not set, all
+   * ancestor snapshots through the table's initial snapshot are validated.
+   *
+   * @param snapshotId a snapshot ID
+   * @return this for method chaining
+   */
+  default ThisT validateFromSnapshot(long snapshotId) {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " does not implement validateFromSnapshot");
+  }
 }

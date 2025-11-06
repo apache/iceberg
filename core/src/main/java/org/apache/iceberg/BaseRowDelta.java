@@ -29,7 +29,6 @@ import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.SnapshotUtil;
 
 public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
-  private Long startingSnapshotId = null; // check all versions by default
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
   private final DataFileSet removedDataFiles = DataFileSet.create();
   private boolean validateDeletes = false;
@@ -81,12 +80,6 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   }
 
   @Override
-  public RowDelta validateFromSnapshot(long snapshotId) {
-    this.startingSnapshotId = snapshotId;
-    return this;
-  }
-
-  @Override
   public RowDelta validateDeletedFiles() {
     this.validateDeletes = true;
     return this;
@@ -126,18 +119,20 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
 
   @Override
   protected void validate(TableMetadata base, Snapshot parent) {
+    super.validate(base, parent);
+
     if (parent != null) {
-      if (startingSnapshotId != null) {
+      if (startingSnapshotId() != null) {
         Preconditions.checkArgument(
-            SnapshotUtil.isAncestorOf(parent.snapshotId(), startingSnapshotId, base::snapshot),
+            SnapshotUtil.isAncestorOf(parent.snapshotId(), startingSnapshotId(), base::snapshot),
             "Snapshot %s is not an ancestor of %s",
-            startingSnapshotId,
+            startingSnapshotId(),
             parent.snapshotId());
       }
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
             base,
-            startingSnapshotId,
+            startingSnapshotId(),
             referencedDataFiles,
             !validateDeletes,
             conflictDetectionFilter,
@@ -149,23 +144,23 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
       }
 
       if (validateNewDataFiles) {
-        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
+        validateAddedDataFiles(base, startingSnapshotId(), conflictDetectionFilter, parent);
       }
 
       if (validateNewDeleteFiles) {
         // validate that explicitly deleted files have not had added deletes
         if (!removedDataFiles.isEmpty()) {
           validateNoNewDeletesForDataFiles(
-              base, startingSnapshotId, conflictDetectionFilter, removedDataFiles, parent);
+              base, startingSnapshotId(), conflictDetectionFilter, removedDataFiles, parent);
         }
 
         // validate that previous deletes do not conflict with added deletes
-        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
+        validateNoNewDeleteFiles(base, startingSnapshotId(), conflictDetectionFilter, parent);
       }
 
       validateNoConflictingFileAndPositionDeletes();
 
-      validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
+      validateAddedDVs(base, startingSnapshotId(), conflictDetectionFilter, parent);
     }
   }
 
