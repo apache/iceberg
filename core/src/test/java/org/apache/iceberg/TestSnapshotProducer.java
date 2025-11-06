@@ -18,11 +18,22 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.SnapshotSummary.PUBLISHED_WAP_ID_PROP;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSnapshotProducer {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSnapshotProducer extends TestBase {
 
   @Test
   public void testManifestFileGroupSize() {
@@ -73,5 +84,79 @@ public class TestSnapshotProducer {
       int workerPoolSize, int fileCount, int expectedManifestWriterCount, String errMsg) {
     int writerCount = SnapshotProducer.manifestWriterCount(workerPoolSize, fileCount);
     assertThat(writerCount).as(errMsg).isEqualTo(expectedManifestWriterCount);
+  }
+
+  @TestTemplate
+  public void testCommitValidationPreventsCommit() throws IOException {
+    // Commit the first file
+    table.newAppend().commit();
+    String validationMessage = "Validation force failed";
+
+    // Create a CommitValidator that will reject commits
+    SnapshotAncestryValidator validator =
+        new SnapshotAncestryValidator() {
+          @Override
+          public Boolean apply(Iterable<Snapshot> baseSnapshots) {
+            return false;
+          }
+
+          @Nonnull
+          @Override
+          public String errorMessage() {
+            return validationMessage;
+          }
+        };
+
+    // Test that the validator rejects commit
+    AppendFiles append1 = table.newAppend().validateWith(validator).appendFile(FILE_A);
+    assertThatThrownBy(append1::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Snapshot ancestry validation failed: " + validationMessage);
+
+    // Verify the file was not committed
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(0);
+  }
+
+  @TestTemplate
+  public void testCommitValidationWithCustomSummaryProperties() throws IOException {
+    String wapId = "wap-12345-staging-audit";
+
+    // Create a validator that checks custom summary properties
+    SnapshotAncestryValidator customPropertyValidator =
+        baseSnapshots -> {
+          List<String> publishedWapIds =
+              Streams.stream(baseSnapshots)
+                  .filter(snapshot -> snapshot.summary().containsKey(PUBLISHED_WAP_ID_PROP))
+                  .map(snapshot -> snapshot.summary().get(PUBLISHED_WAP_ID_PROP))
+                  .collect(Collectors.toList());
+
+          return !publishedWapIds.contains(wapId);
+        };
+
+    // Add a file with and set a published WAP id
+    table
+        .newFastAppend()
+        .validateWith(customPropertyValidator)
+        .appendFile(FILE_A)
+        .set(PUBLISHED_WAP_ID_PROP, wapId)
+        .commit();
+
+    // Verify the current state of the table
+    assertThat(table.currentSnapshot().summary().get(PUBLISHED_WAP_ID_PROP)).isEqualTo(wapId);
+
+    // Attempt to add the same published WAP id
+    AppendFiles append2 =
+        table
+            .newFastAppend()
+            .validateWith(customPropertyValidator)
+            .appendFile(FILE_A)
+            .set(PUBLISHED_WAP_ID_PROP, wapId);
+
+    assertThatThrownBy(append2::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Snapshot ancestry validation failed");
+
+    // Verify the table wasn't updated
+    assertThat(table.snapshots()).hasSize(1);
   }
 }
