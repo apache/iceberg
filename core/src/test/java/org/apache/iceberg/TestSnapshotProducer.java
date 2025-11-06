@@ -88,7 +88,6 @@ public class TestSnapshotProducer extends TestBase {
 
   @TestTemplate
   public void testCommitValidationPreventsCommit() throws IOException {
-    // Commit the first file
     table.newAppend().commit();
     String validationMessage = "Validation force failed";
 

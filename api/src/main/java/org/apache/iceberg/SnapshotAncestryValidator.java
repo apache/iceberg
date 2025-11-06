@@ -49,6 +49,6 @@ public interface SnapshotAncestryValidator extends Function<Iterable<Snapshot>, 
    */
   @Nonnull
   default String errorMessage() {
-    return "";
+    return "error message not provided";
   }
 }

@@ -165,6 +165,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   /**
    * Set a validator to check snapshot ancestry before committing changes.
    *
+   * <p>If there is no parent snapshot, an empty iterable will be supplied to the validator.
+   *
    * @param validator a validator to check snapshot ancestry validity
    * @return this for method chaining
    */
@@ -353,10 +355,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             : List.of();
 
     boolean valid = snapshotAncestryValidator.apply(snapshotAncestry);
-    if (!valid) {
-      String message = snapshotAncestryValidator.errorMessage();
-      throw new ValidationException("Snapshot ancestry validation failed: %s", message);
-    }
+    ValidationException.check(
+        valid, "Snapshot ancestry validation failed: %s", snapshotAncestryValidator.errorMessage());
   }
 
   protected abstract Map<String, String> summary();
