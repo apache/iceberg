@@ -21,20 +21,20 @@ package org.apache.iceberg.flink.maintenance.api;
 import io.etcd.jetcd.launcher.Etcd;
 import io.etcd.jetcd.launcher.EtcdCluster;
 import java.io.IOException;
+import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
-public class TestEctdLockFactory extends TestLockFactoryBase {
+public class TestEtcdLockFactory extends TestLockFactoryBase {
   private EtcdCluster etcdCluster;
 
   @Override
   TriggerLockFactory lockFactory(String tableName) {
-    String endpoints =
-        etcdCluster.clientEndpoints().stream()
-            .map(Object::toString)
-            .collect(Collectors.joining(","));
-    return new EtcdLockFactory(endpoints, tableName, 5000, 30000, 10000, 2);
+    List<String> endpointsList =
+        etcdCluster.clientEndpoints().stream().map(Object::toString).collect(Collectors.toList());
+    return new EtcdLockFactory(
+        endpointsList.toArray(new String[0]), tableName, 5000, 30000, 10000, 2);
   }
 
   @BeforeEach

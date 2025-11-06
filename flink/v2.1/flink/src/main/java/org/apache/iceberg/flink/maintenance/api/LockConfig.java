@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public class LockConfig {
 
   public static final String PREFIX = FlinkMaintenanceConfig.PREFIX + "lock.";
+  public static final String COMMA = ",";
 
   public static final ConfigOption<String> LOCK_TYPE_OPTION =
       ConfigOptions.key(PREFIX + "type")
@@ -307,13 +308,19 @@ public class LockConfig {
   }
 
   /** Gets the Etcd service URI configuration. */
-  public String etcdEndpoints() {
-    return confParser
-        .stringConf()
-        .option(EtcdLockConfig.ETCD_ENDPOINTS_OPTION.key())
-        .flinkConfig(EtcdLockConfig.ETCD_ENDPOINTS_OPTION)
-        .defaultValue(EtcdLockConfig.ETCD_ENDPOINTS_OPTION.defaultValue())
-        .parse();
+  public String[] etcdEndpoints() {
+    String endpoints =
+        confParser
+            .stringConf()
+            .option(EtcdLockConfig.ETCD_ENDPOINTS_OPTION.key())
+            .flinkConfig(EtcdLockConfig.ETCD_ENDPOINTS_OPTION)
+            .defaultValue(EtcdLockConfig.ETCD_ENDPOINTS_OPTION.defaultValue())
+            .parse();
+    if (endpoints != null && !endpoints.isEmpty()) {
+      return endpoints.split(COMMA);
+    } else {
+      return new String[0];
+    }
   }
 
   /** Gets the Etcd connection timeout configuration (in milliseconds). */

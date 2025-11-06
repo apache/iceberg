@@ -92,11 +92,11 @@ public class LockFactoryBuilder {
   }
 
   private static TriggerLockFactory createEtcdLockFactory(LockConfig lockConfig, String tableName) {
-    String endPoints = lockConfig.etcdEndpoints();
+    String[] endPoints = lockConfig.etcdEndpoints();
     String lockId = lockConfig.lockId(tableName);
     Preconditions.checkArgument(
-        StringUtils.isNotEmpty(endPoints),
-        "Etcd lock requires %s parameter",
+        endPoints != null && endPoints.length > 0,
+        "Etcd lock requires at least one %s parameter",
         LockConfig.EtcdLockConfig.ETCD_ENDPOINTS_OPTION.key());
 
     return new EtcdLockFactory(

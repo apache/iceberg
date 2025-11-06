@@ -36,13 +36,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Etcd backed implementation of the {@link EtcdLockFactory}. */
+/** Etcd backed implementation of the {@link TriggerLockFactory}. */
 public class EtcdLockFactory implements TriggerLockFactory {
 
   private static final Logger LOG = LoggerFactory.getLogger(EtcdLockFactory.class);
   private static final String LOCK_BASE_PATH = "/iceberg/flink/maintenance/locks/";
 
-  private final String etcdEndpoint;
+  private final String[] etcdEndpoints;
   private final String lockId;
   private final Duration connectionTimeoutMs;
   private final Duration keepAliveMs;
@@ -54,7 +54,7 @@ public class EtcdLockFactory implements TriggerLockFactory {
   /**
    * Constructs a new EtcdLockFactory instance.
    *
-   * @param etcdEndpoint The Etcd server endpoint (e.g., "http://127.0.0.1:2379") — required, no
+   * @param etcdEndpoints The Etcd server endpoint (e.g., "http://127.0.0.1:2379") — required, no
    *     default
    * @param lockId A unique identifier for the lock — required, no default
    * @param connectionTimeoutMs Connection timeout in milliseconds (must be > 0). Default (if not
@@ -64,17 +64,17 @@ public class EtcdLockFactory implements TriggerLockFactory {
    *     considered dead. Default: 10000 ms
    * @param maxRetries Maximum number of retries in case of connection or request failures. Default:
    *     2
-   * @throws NullPointerException if {@code etcdEndpoint} or {@code lockId} is null
+   * @throws NullPointerException if {@code etcdEndpoints} or {@code lockId} is null
    * @throws IllegalArgumentException if {@code connectionTimeoutMs} is negative
    */
   public EtcdLockFactory(
-      String etcdEndpoint,
+      String[] etcdEndpoints,
       String lockId,
       int connectionTimeoutMs,
       int keepAliveMs,
       int keepAliveTimeoutMs,
       int maxRetries) {
-    Preconditions.checkNotNull(etcdEndpoint, "Etcd endpoint cannot be null");
+    Preconditions.checkNotNull(etcdEndpoints, "Etcd endpoint cannot be null");
     Preconditions.checkNotNull(lockId, "Lock ID cannot be null");
 
     // connectionTimeout must be strictly positive ( > 0 )
@@ -103,7 +103,7 @@ public class EtcdLockFactory implements TriggerLockFactory {
     // maxRetries must be non-negative
     Preconditions.checkArgument(maxRetries >= 0, "Max retries must be >= 0, got: %s", maxRetries);
 
-    this.etcdEndpoint = etcdEndpoint;
+    this.etcdEndpoints = etcdEndpoints;
     this.lockId = lockId;
     this.connectionTimeoutMs = Duration.ofMillis(connectionTimeoutMs);
     this.keepAliveMs = Duration.ofMillis(keepAliveMs);
@@ -121,7 +121,7 @@ public class EtcdLockFactory implements TriggerLockFactory {
     try {
       this.client =
           Client.builder()
-              .endpoints(etcdEndpoint)
+              .endpoints(etcdEndpoints)
               .connectTimeout(connectionTimeoutMs)
               .retryMaxAttempts(maxRetries)
               .keepaliveTime(keepAliveMs)
@@ -204,6 +204,7 @@ public class EtcdLockFactory implements TriggerLockFactory {
           lockKeyRef.set(response.getKey());
           return true;
         }
+
         return false;
       } catch (Exception e) {
         LOG.warn("Failed to acquire Etcd lock", e);
@@ -214,7 +215,7 @@ public class EtcdLockFactory implements TriggerLockFactory {
     @Override
     public boolean isHeld() {
       try {
-        GetOption option = GetOption.builder().withPrefix(lockKey).build();
+        GetOption option = GetOption.builder().withKeysOnly(true).build();
         CompletableFuture<GetResponse> future = kvClient.get(lockKey, option);
         GetResponse response = future.orTimeout(timeoutMs, TimeUnit.MILLISECONDS).get();
         if (response == null) {
@@ -222,7 +223,9 @@ public class EtcdLockFactory implements TriggerLockFactory {
               "Null response from Etcd for lock path: {}, timeout: {} ms", lockPath, timeoutMs);
           return false;
         }
-        return response.getKvs().size() > 0;
+
+        // Check if the exact lock key is present
+        return response.getKvs().stream().anyMatch(kv -> kv.getKey().equals(lockKey));
       } catch (Exception e) {
         throw new RuntimeException("Failed to check Etcd lock status", e);
       }
@@ -233,7 +236,7 @@ public class EtcdLockFactory implements TriggerLockFactory {
       try {
         ByteSequence key = lockKeyRef.get();
         if (key == null) {
-          GetOption option = GetOption.builder().withPrefix(lockKey).build();
+          GetOption option = GetOption.builder().withKeysOnly(true).build();
           CompletableFuture<GetResponse> future = kvClient.get(lockKey, option);
           GetResponse response = future.orTimeout(timeoutMs, TimeUnit.MILLISECONDS).get();
 
@@ -247,9 +250,11 @@ public class EtcdLockFactory implements TriggerLockFactory {
 
           if (response.getKvs().size() > 0) {
             for (KeyValue kv : response.getKvs()) {
-              CompletableFuture<UnlockResponse> unlockFuture = lockClient.unlock(kv.getKey());
-              unlockFuture.get();
-              LOG.debug("Cleaned up stale lock for path: {}", lockPath);
+              if (kv.getKey().equals(lockKey)) {
+                CompletableFuture<UnlockResponse> unlockFuture = lockClient.unlock(kv.getKey());
+                unlockFuture.get();
+                LOG.debug("Released lock for path: {}", lockPath);
+              }
             }
           }
         } else {
@@ -262,6 +267,7 @@ public class EtcdLockFactory implements TriggerLockFactory {
                 timeoutMs);
             throw new RuntimeException("Null response when releasing lock");
           }
+
           lockKeyRef.set(null);
           LOG.debug("Released lock for path: {}", lockPath);
         }
