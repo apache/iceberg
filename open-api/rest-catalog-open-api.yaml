@@ -3286,7 +3286,7 @@ components:
         In encrypted Iceberg tables, malicious modifications of the table metadata fields can break the data encryption
         or alter the table content via replay and other attacks. The REST catalog implementations, working with encrypted
         Iceberg tables, must protect integrity of the table metadata, by either storing it in a trusted tamper-proof storage
-        or database, or by cryptographically signing the metadata content in an untrusted storage.
+        or database, or by checking the metadata content in an untrusted storage.
 
         The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
       
