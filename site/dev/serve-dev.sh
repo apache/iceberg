@@ -18,6 +18,8 @@
 
 # Development mode serve script - only builds nightly and latest for fast iteration
 
+source dev/common.sh
+
 set -e
 
 export ICEBERG_DEV_MODE=true
