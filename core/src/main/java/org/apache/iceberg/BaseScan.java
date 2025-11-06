@@ -293,6 +293,11 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return newRefinedScan(table, schema, context.reportWith(reporter));
   }
 
+  @Override
+  public ThisT minRowsRequested(long numRows) {
+    return newRefinedScan(table, schema, context.minRowsRequested(numRows));
+  }
+
   /**
    * Retrieves a list of column names based on the type of manifest content provided.
    *
