@@ -44,7 +44,7 @@ import org.junit.jupiter.api.Test;
 class TestDataReader {
 
   @Test
-  public void testTimestampDataReader() throws IOException {
+  public void timestampDataReader() throws IOException {
     org.apache.iceberg.Schema icebergSchema =
         new org.apache.iceberg.Schema(
             Types.NestedField.required(1, "timestamp_nanos", Types.TimestampType.withoutZone()),
@@ -72,6 +72,7 @@ class TestDataReader {
     DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
     reader.setSchema(avroSchema);
 
+    // post-epoch timestamps
     GenericRecord avroRecord = new GenericData.Record(avroSchema);
     LocalDateTime timestampNanos = LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123456789);
     LocalDateTime timestampMicros = LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123456000);
@@ -86,10 +87,26 @@ class TestDataReader {
     assertThat(result.getField("timestamp_nanos")).isEqualTo(timestampNanos);
     assertThat(result.getField("timestamp_micros")).isEqualTo(timestampMicros);
     assertThat(result.getField("timestamp_millis")).isEqualTo(timestampMillis);
+
+    // pre-epoch timestamps
+    GenericRecord preEpochRecord = new GenericData.Record(avroSchema);
+    LocalDateTime preEpochNanos = LocalDateTime.of(1969, 1, 1, 10, 11, 12, 123456789);
+    LocalDateTime preEpochMicros = LocalDateTime.of(1968, 1, 1, 10, 11, 12, 123456000);
+    LocalDateTime preEpochMillis = LocalDateTime.of(1967, 1, 1, 10, 11, 12, 123000000);
+
+    preEpochRecord.put("timestamp_nanos", DateTimeUtil.nanosFromTimestamp(preEpochNanos));
+    preEpochRecord.put("timestamp_micros", DateTimeUtil.microsFromTimestamp(preEpochMicros));
+    preEpochRecord.put("timestamp_millis", DateTimeUtil.millisFromTimestamp(preEpochMillis));
+
+    Record preEpochResult = readRecord(reader, avroSchema, preEpochRecord);
+
+    assertThat(preEpochResult.getField("timestamp_nanos")).isEqualTo(preEpochNanos);
+    assertThat(preEpochResult.getField("timestamp_micros")).isEqualTo(preEpochMicros);
+    assertThat(preEpochResult.getField("timestamp_millis")).isEqualTo(preEpochMillis);
   }
 
   @Test
-  public void testTimestampTzDataReader() throws IOException {
+  public void timestampTzDataReader() throws IOException {
     org.apache.iceberg.Schema icebergSchema =
         new org.apache.iceberg.Schema(
             Types.NestedField.required(1, "timestamp_nanos_tz", Types.TimestampType.withZone()),
@@ -117,6 +134,7 @@ class TestDataReader {
     DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
     reader.setSchema(avroSchema);
 
+    // post-epoch timestamps
     GenericRecord avroRecord = new GenericData.Record(avroSchema);
 
     OffsetDateTime offsetTimestampNanos =
@@ -140,6 +158,32 @@ class TestDataReader {
         .isEqualTo(offsetTimestampMicros.withOffsetSameInstant(ZoneOffset.UTC));
     assertThat(result.getField("timestamp_millis_tz"))
         .isEqualTo(offsetTimestampMillis.withOffsetSameInstant(ZoneOffset.UTC));
+
+    // pre-epoch timestamps
+    GenericRecord preEpochRecord = new GenericData.Record(avroSchema);
+
+    OffsetDateTime preEpochTimestampNanos =
+        OffsetDateTime.of(1969, 1, 1, 10, 11, 12, 123456789, ZoneOffset.ofHours(-8));
+    OffsetDateTime preEpochTimestampMicros =
+        OffsetDateTime.of(1968, 1, 1, 10, 11, 12, 123456000, ZoneOffset.ofHours(5));
+    OffsetDateTime preEpochTimestampMillis =
+        OffsetDateTime.of(1967, 1, 1, 10, 11, 12, 123000000, ZoneOffset.ofHours(-3));
+
+    preEpochRecord.put(
+        "timestamp_nanos_tz", DateTimeUtil.nanosFromTimestamptz(preEpochTimestampNanos));
+    preEpochRecord.put(
+        "timestamp_micros_tz", DateTimeUtil.microsFromTimestamptz(preEpochTimestampMicros));
+    preEpochRecord.put(
+        "timestamp_millis_tz", DateTimeUtil.millisFromTimestamptz(preEpochTimestampMillis));
+
+    Record preEpochResult = readRecord(reader, avroSchema, preEpochRecord);
+
+    assertThat(preEpochResult.getField("timestamp_nanos_tz"))
+        .isEqualTo(preEpochTimestampNanos.withOffsetSameInstant(ZoneOffset.UTC));
+    assertThat(preEpochResult.getField("timestamp_micros_tz"))
+        .isEqualTo(preEpochTimestampMicros.withOffsetSameInstant(ZoneOffset.UTC));
+    assertThat(preEpochResult.getField("timestamp_millis_tz"))
+        .isEqualTo(preEpochTimestampMillis.withOffsetSameInstant(ZoneOffset.UTC));
   }
 
   private Record readRecord(DataReader<Record> reader, Schema avroSchema, GenericRecord avroRecord)
