@@ -3153,7 +3153,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       assertThat(customTableOps).isTrue();
       assertThat(customFileIO).isTrue();
 
-      catalog.buildTable(TableIdentifier.of(ns, "table2"), SCHEMA).createTransaction().commitTransaction();
+      catalog
+          .buildTable(TableIdentifier.of(ns, "table2"), SCHEMA)
+          .createTransaction()
+          .commitTransaction();
       assertThat(customTxnOps).isTrue();
 
       catalog
