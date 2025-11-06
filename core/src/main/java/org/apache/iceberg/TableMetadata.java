@@ -1021,13 +1021,6 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    private boolean metadataTimestampFollowsSnapshots(Map<String, String> props) {
-      return PropertyUtil.propertyAsBoolean(
-          props,
-          TableProperties.METADATA_TIMESTAMP_FOLLOWS_SNAPSHOTS,
-          TableProperties.METADATA_TIMESTAMP_FOLLOWS_SNAPSHOTS_DEFAULT);
-    }
-
     public Builder assignUUID() {
       if (uuid == null) {
         this.uuid = UUID.randomUUID().toString();
@@ -1262,9 +1255,6 @@ public class TableMetadata implements Serializable {
           snapshot.sequenceNumber(),
           lastSequenceNumber);
 
-      if (metadataTimestampFollowsSnapshots(properties)) {
-        this.lastUpdatedMillis = snapshot.timestampMillis();
-      }
       this.lastSequenceNumber = snapshot.sequenceNumber();
       snapshots.add(snapshot);
       snapshotsById.put(snapshot.snapshotId(), snapshot);
@@ -1322,9 +1312,6 @@ public class TableMetadata implements Serializable {
       Snapshot snapshot = snapshotsById.get(snapshotId);
       ValidationException.check(
           snapshot != null, "Cannot set %s to unknown snapshot: %s", name, snapshotId);
-      if (isAddedSnapshot(snapshotId) && metadataTimestampFollowsSnapshots(properties)) {
-        this.lastUpdatedMillis = snapshot.timestampMillis();
-      }
 
       if (SnapshotRef.MAIN_BRANCH.equals(name)) {
         this.currentSnapshotId = ref.snapshotId();
@@ -1900,11 +1887,6 @@ public class TableMetadata implements Serializable {
     private static Map<Long, List<PartitionStatisticsFile>> indexPartitionStatistics(
         List<PartitionStatisticsFile> files) {
       return files.stream().collect(Collectors.groupingBy(PartitionStatisticsFile::snapshotId));
-    }
-
-    private boolean isAddedSnapshot(long snapshotId) {
-      return changes(MetadataUpdate.AddSnapshot.class)
-          .anyMatch(add -> add.snapshot().snapshotId() == snapshotId);
     }
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
