@@ -235,6 +235,15 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public boolean tableExists(Identifier ident) {
+    if (isPathIdentifier(ident)) {
+      return tables.exists(((PathIdentifier) ident).location());
+    } else {
+      return icebergCatalog.tableExists(buildIdentifier(ident));
+    }
+  }
+
+  @Override
   public Table createTable(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws TableAlreadyExistsException {
@@ -556,6 +565,11 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     return new Identifier[0];
+  }
+
+  @Override
+  public boolean viewExists(Identifier ident) {
+    return asViewCatalog != null && asViewCatalog.viewExists(buildIdentifier(ident));
   }
 
   @Override
