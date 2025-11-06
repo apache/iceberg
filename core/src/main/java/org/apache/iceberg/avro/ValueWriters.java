@@ -46,6 +46,10 @@ import org.apache.iceberg.variants.VariantValue;
 public class ValueWriters {
   private ValueWriters() {}
 
+  /**
+   * @deprecated since 1.11.0, return type will be changed to {@code ValueWriter<Object>} in 1.12.0
+   */
+  @Deprecated
   public static ValueWriter<Void> nulls() {
     return NullWriter.INSTANCE;
   }
@@ -583,6 +587,8 @@ public class ValueWriters {
         Object datum = get(row, i);
         ValueWriter<Object> writer = writers[i];
 
+        // TODO: remove this workaround once the return type of ValueWriters.nulls() has been
+        // changed from ValueWriter<Void> to ValueWriter<Object>
         if (NullWriter.INSTANCE.getClass().equals(writer.getClass()) && null != datum) {
           // this is an UnknownType that has a value
           writer.write(null, encoder);

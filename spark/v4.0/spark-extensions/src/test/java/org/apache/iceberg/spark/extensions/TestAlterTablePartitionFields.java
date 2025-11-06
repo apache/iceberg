@@ -603,9 +603,6 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
 
     assertThat(sql("SELECT * FROM %s WHERE %s ORDER BY col_int", tableName, predicate))
         .containsExactlyElementsOf(expected);
-
-    sql("DELETE FROM %s WHERE %s", tableName, predicate);
-    assertThat(sql("SELECT * FROM %s WHERE %s", tableName, predicate)).isEmpty();
   }
 
   @TestTemplate
@@ -629,5 +626,25 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
     runCreateAndDropPartitionField("col_long", "col_long", expected, predicate);
     runCreateAndDropPartitionField("col_long", "truncate(2, col_long)", expected, predicate);
     runCreateAndDropPartitionField("col_long", "bucket(16, col_long)", expected, predicate);
+  }
+
+  @TestTemplate
+  public void deleteAfterDroppingPartitionAndSourceColumn() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql(
+        "CREATE TABLE %s (id INTEGER, data STRING) USING ICEBERG TBLPROPERTIES ('format-version' = %d)",
+        tableName, formatVersion);
+    sql("INSERT INTO %s VALUES (1, 'data1')", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD data", tableName);
+    sql("INSERT INTO %s VALUES (2, 'data2')", tableName);
+    sql("ALTER TABLE %s DROP PARTITION FIELD data", tableName);
+    sql("INSERT INTO %s VALUES (3, 'data3')", tableName);
+    sql("ALTER TABLE %s DROP COLUMN data", tableName);
+
+    assertThat(sql("SELECT * FROM %s WHERE id >= 1 ORDER BY id", tableName))
+        .containsExactly(row(1), row(2), row(3));
+
+    sql("DELETE FROM %s WHERE id >= 1", tableName);
+    assertThat(sql("SELECT * FROM %s WHERE id >= 1", tableName)).isEmpty();
   }
 }

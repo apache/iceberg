@@ -48,7 +48,7 @@ public class Comparators {
           .put(Types.StringType.get(), Comparators.charSequences())
           .put(Types.UUIDType.get(), Comparator.naturalOrder())
           .put(Types.BinaryType.get(), Comparators.unsignedBytes())
-          .put(Types.UnknownType.get(), Comparator.naturalOrder())
+          .put(Types.UnknownType.get(), Comparator.nullsFirst(Comparator.naturalOrder()))
           .buildOrThrow();
 
   public static Comparator<StructLike> forType(Types.StructType struct) {

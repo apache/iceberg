@@ -55,16 +55,16 @@ public class ManifestFileUtil {
     }
 
     boolean canContain(Object value) {
-      if (Types.UnknownType.get().equals(type)) {
-        return true;
-      }
-
       if (value == null) {
         return containsNull;
       }
 
       if (NaNUtil.isNaN(value)) {
         return containsNaN;
+      }
+
+      if (Types.UnknownType.get().equals(type)) {
+        return true;
       }
 
       // if lower bound is null, then there are no non-null values
