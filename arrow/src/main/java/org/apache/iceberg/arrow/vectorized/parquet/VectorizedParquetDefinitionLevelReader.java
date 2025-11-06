@@ -426,6 +426,9 @@ public final class VectorizedParquetDefinitionLevelReader
         for (int i = 0; i < numValues; i++) {
           nextVal(vector, bufferIdx, valuesReader, typeWidth, byteArray);
           nullabilityHolder.setNotNull(bufferIdx);
+          if (setArrowValidityVector) {
+            BitVectorHelper.setBit(vector.getValidityBuffer(), bufferIdx);
+          }
           bufferIdx++;
         }
       } else {
@@ -447,6 +450,9 @@ public final class VectorizedParquetDefinitionLevelReader
         if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
           nextVal(vector, bufferIdx, valuesReader, typeWidth, byteArray);
           nullabilityHolder.setNotNull(bufferIdx);
+          if (setArrowValidityVector) {
+            BitVectorHelper.setBit(vector.getValidityBuffer(), bufferIdx);
+          }
         } else {
           setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
         }

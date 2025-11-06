@@ -274,6 +274,7 @@ public class TestSparkParquetReader extends AvroDataTestBase {
     Table timestampMillisTable = tableFromInputFile(parquetInputFile, schema);
 
     int totalRowsRead = 0;
+    int rowIndex = 0;
     try (VectorizedTableScanIterable vectorizedReader =
         new VectorizedTableScanIterable(timestampMillisTable.newScan(), 1024, false)) {
 
@@ -286,6 +287,17 @@ public class TestSparkParquetReader extends AvroDataTestBase {
 
         org.apache.arrow.vector.BigIntVector bigIntVector =
             (org.apache.arrow.vector.BigIntVector) eventTimeVector;
+
+        for (int i = 0; i < root.getRowCount(); i++) {
+          long actualValue = bigIntVector.get(i);
+          long expectedValue = rows.get(rowIndex).getLong(0);
+
+          assertThat(actualValue)
+              .as("Row %d timestamp value should match", rowIndex)
+              .isEqualTo(expectedValue);
+
+          rowIndex++;
+        }
 
         totalRowsRead += root.getRowCount();
         root.close();
