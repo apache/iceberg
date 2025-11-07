@@ -156,6 +156,8 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
 
   @Override
   protected void validate(TableMetadata base, Snapshot snapshot) {
+    super.validate(base, snapshot);
+
     // this is only called after apply() passes off to super, but check fast-forward status just in
     // case
     if (!isFastForward(base)) {

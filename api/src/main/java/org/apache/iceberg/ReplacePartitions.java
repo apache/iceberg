@@ -56,22 +56,6 @@ public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
   ReplacePartitions validateAppendOnly();
 
   /**
-   * Set the snapshot ID used in validations for this operation.
-   *
-   * <p>All validations will check changes after this snapshot ID. If this is not called, validation
-   * will occur from the beginning of the table's history.
-   *
-   * <p>This method should be called before this operation is committed. If a concurrent operation
-   * committed a data or delta file or removed a data file after the given snapshot ID that might
-   * contain rows matching a partition marked for deletion, validation will detect this and fail.
-   *
-   * @param snapshotId a snapshot ID, it should be set to when this operation started to read the
-   *     table.
-   * @return this for method chaining
-   */
-  ReplacePartitions validateFromSnapshot(long snapshotId);
-
-  /**
    * Enables validation that deletes that happened concurrently do not conflict with this commit's
    * operation.
    *

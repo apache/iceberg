@@ -173,15 +173,4 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
       Set<DeleteFile> deleteFilesToReplace,
       Set<DataFile> dataFilesToAdd,
       Set<DeleteFile> deleteFilesToAdd);
-
-  /**
-   * Set the snapshot ID used in any reads for this operation.
-   *
-   * <p>Validations will check changes after this snapshot ID. If this is not called, all ancestor
-   * snapshots through the table's initial snapshot are validated.
-   *
-   * @param snapshotId a snapshot ID
-   * @return this for method chaining
-   */
-  RewriteFiles validateFromSnapshot(long snapshotId);
 }
