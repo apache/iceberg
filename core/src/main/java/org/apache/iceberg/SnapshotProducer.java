@@ -56,6 +56,7 @@ import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -117,6 +118,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private TableMetadata base;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
+  private SnapshotAncestryValidator snapshotAncestryValidator =
+      SnapshotAncestryValidator.NON_VALIDATING;
 
   private ExecutorService workerPool;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
@@ -156,6 +159,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
+    return self();
+  }
+
+  /**
+   * Set a validator to check snapshot ancestry before committing changes.
+   *
+   * <p>If there is no parent snapshot, an empty iterable will be supplied to the validator.
+   *
+   * @param validator a validator to check snapshot ancestry validity
+   * @return this for method chaining
+   */
+  @Override
+  public ThisT validateWith(SnapshotAncestryValidator validator) {
+    this.snapshotAncestryValidator = validator;
     return self();
   }
 
@@ -257,7 +274,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     long sequenceNumber = base.nextSequenceNumber();
     Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();
 
-    validate(base, parentSnapshot);
+    runValidations(parentSnapshot);
+
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
     OutputFile manifestList = manifestListPath();
@@ -325,6 +343,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         nextRowId,
         assignedRows,
         writer.toManifestListFile().encryptionKeyID());
+  }
+
+  private void runValidations(Snapshot parentSnapshot) {
+    validate(base, parentSnapshot);
+
+    // Validate snapshot ancestry
+    Iterable<Snapshot> snapshotAncestry =
+        parentSnapshot != null
+            ? SnapshotUtil.ancestorsOf(parentSnapshot.snapshotId(), base::snapshot)
+            : List.of();
+
+    boolean valid = snapshotAncestryValidator.apply(snapshotAncestry);
+    ValidationException.check(
+        valid, "Snapshot ancestry validation failed: %s", snapshotAncestryValidator.errorMessage());
   }
 
   protected abstract Map<String, String> summary();
