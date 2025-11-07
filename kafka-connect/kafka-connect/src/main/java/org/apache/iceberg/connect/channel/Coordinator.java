@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -153,8 +154,6 @@ class Coordinator extends Channel {
 
   private void doCommit(boolean partialCommit) {
     Map<TableReference, List<Envelope>> commitMap = commitState.tableCommitMap();
-
-    String offsetsJson = offsetsJson();
     OffsetDateTime validThroughTs = commitState.validThroughTs(partialCommit);
 
     Tasks.foreach(commitMap.entrySet())
@@ -162,7 +161,8 @@ class Coordinator extends Channel {
         .stopOnFailure()
         .run(
             entry -> {
-              commitToTable(entry.getKey(), entry.getValue(), offsetsJson, validThroughTs);
+              commitToTable(
+                  entry.getKey(), entry.getValue(), controlTopicOffsets(), validThroughTs);
             });
 
     // we should only get here if all tables committed successfully...
@@ -182,9 +182,9 @@ class Coordinator extends Channel {
         validThroughTs);
   }
 
-  private String offsetsJson() {
+  private String offsetsToJson(Map<Integer, Long> offsets) {
     try {
-      return MAPPER.writeValueAsString(controlTopicOffsets());
+      return MAPPER.writeValueAsString(offsets);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -193,7 +193,7 @@ class Coordinator extends Channel {
   private void commitToTable(
       TableReference tableReference,
       List<Envelope> envelopeList,
-      String offsetsJson,
+      Map<Integer, Long> controlTopicOffsets,
       OffsetDateTime validThroughTs) {
     TableIdentifier tableIdentifier = tableReference.identifier();
     Table table;
@@ -206,7 +206,15 @@ class Coordinator extends Channel {
 
     String branch = config.tableConfig(tableIdentifier.toString()).commitBranch();
 
+    // Control topic partition offsets may include a subset of partition ids if there were no
+    // records for other partitions.  Merge the updated topic partitions with the last committed
+    // offsets.
     Map<Integer, Long> committedOffsets = lastCommittedOffsetsForTable(table, branch);
+    Map<Integer, Long> mergedOffsets =
+        Stream.of(committedOffsets, controlTopicOffsets)
+            .flatMap(map -> map.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Long::max));
+    String offsetsJson = offsetsToJson(mergedOffsets);
 
     List<DataWritten> payloads =
         envelopeList.stream()
