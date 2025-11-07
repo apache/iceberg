@@ -311,10 +311,6 @@ class Coordinator extends Channel {
       public Boolean apply(Iterable<Snapshot> baseSnapshots) {
         lastCommittedOffsets = lastCommittedOffsets(baseSnapshots);
 
-        if (expectedOffsets.isEmpty() && lastCommittedOffsets.isEmpty()) {
-          return true; // there are no stored offsets, so assume we're starting with new offsets
-        }
-
         return expectedOffsets.equals(lastCommittedOffsets);
       }
 
