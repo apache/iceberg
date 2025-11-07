@@ -117,4 +117,30 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
         .as("Should have the right datafile count in the procedure result")
         .contains(originalFileCount, atIndex(2));
   }
+
+  @TestTemplate
+  public void testRegisterTableNotOverwrite() throws NoSuchTableException, ParseException {
+    testRegisterTable();
+
+    long numRows = 100;
+
+    spark
+        .range(0, numRows)
+        .withColumn("data", functions.col("id").cast(DataTypes.StringType))
+        .writeTo(tableName)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    long originalFileCount = (long) scalarSql("SELECT COUNT(*) from %s.files", tableName);
+    long currentSnapshotId = table.currentSnapshot().snapshotId();
+    String metadataJson = TableUtil.metadataFileLocation(table);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.register_table('%s', '%s', '%b')",
+            catalogName, targetName, metadataJson, false);
+    assertThat(result.get(0))
+        .as("Current Snapshot is not correct")
+        .contains(currentSnapshotId, atIndex(0));
+  }
 }
