@@ -20,10 +20,6 @@ package org.apache.iceberg.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
@@ -36,7 +32,7 @@ public class TestEncryptionUtil {
     Map<String, String> arg =
         Map.of(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName());
 
-    CustomClassLoader customClassLoader = new CustomClassLoader();
+    UnitTestCustomClassLoader customClassLoader = new UnitTestCustomClassLoader();
 
     Class<?> aClass = customClassLoader.findClass(EncryptionUtil.class.getName());
 
@@ -51,37 +47,5 @@ public class TestEncryptionUtil {
 
     assertThat(kmsClientObj.getClass().getClassLoader().getName())
         .isEqualTo(customClassLoader.getName());
-  }
-}
-
-class CustomClassLoader extends ClassLoader {
-
-  @Override
-  public String getName() {
-    return "CustomClassLoaderForTest";
-  }
-
-  @Override
-  public Class findClass(String name) {
-    byte[] b = loadClassData(name);
-    return defineClass(name, b, 0, b.length);
-  }
-
-  private byte[] loadClassData(String fileName) {
-    InputStream inputStream =
-        getClass()
-            .getClassLoader()
-            .getResourceAsStream(fileName.replace('.', File.separatorChar) + ".class");
-    byte[] buffer;
-    try (ByteArrayOutputStream byteStream = new ByteArrayOutputStream()) {
-      int nextValue;
-      while ((nextValue = inputStream.read()) != -1) {
-        byteStream.write(nextValue);
-      }
-      buffer = byteStream.toByteArray();
-      return buffer;
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
   }
 }
