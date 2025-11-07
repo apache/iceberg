@@ -93,7 +93,9 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
     TableOperations ops = newTableOps(identifier);
     InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
     TableMetadata metadata = TableMetadataParser.read(metadataFile);
-    ops.commit(null, metadata);
+
+    TableMetadata current = overwrite ? ops.current() : null;
+    ops.commit(current, metadata);
 
     return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
   }
