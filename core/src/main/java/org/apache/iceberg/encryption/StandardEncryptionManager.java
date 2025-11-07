@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.hadoop.HasConfiguration;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -291,10 +292,15 @@ public class StandardEncryptionManager implements EncryptionManager {
     public OutputFile encryptingOutputFile() {
       if (null == lazyEncryptingOutputFile) {
         this.lazyEncryptingOutputFile =
-            new AesGcmOutputFile(
-                plainOutputFile,
-                ByteBuffers.toByteArray(keyMetadata().encryptionKey()),
-                ByteBuffers.toByteArray(keyMetadata().aadPrefix()));
+            plainOutputFile instanceof HasConfiguration
+                ? new HadoopAesGcmOutputFile(
+                    plainOutputFile,
+                    ByteBuffers.toByteArray(keyMetadata().encryptionKey()),
+                    ByteBuffers.toByteArray(keyMetadata().aadPrefix()))
+                : new AesGcmOutputFile(
+                    plainOutputFile,
+                    ByteBuffers.toByteArray(keyMetadata().encryptionKey()),
+                    ByteBuffers.toByteArray(keyMetadata().aadPrefix()));
       }
 
       return lazyEncryptingOutputFile;

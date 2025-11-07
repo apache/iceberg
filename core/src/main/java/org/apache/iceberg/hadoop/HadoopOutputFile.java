@@ -32,7 +32,8 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 
 /** {@link OutputFile} implementation using the Hadoop {@link FileSystem} API. */
-public class HadoopOutputFile implements OutputFile, NativelyEncryptedFile {
+public class HadoopOutputFile
+    implements OutputFile, NativelyEncryptedFile, HasConfiguration<Configuration> {
 
   private final FileSystem fs;
   private final Path path;
@@ -92,6 +93,7 @@ public class HadoopOutputFile implements OutputFile, NativelyEncryptedFile {
     return path;
   }
 
+  @Override
   public Configuration getConf() {
     return conf;
   }

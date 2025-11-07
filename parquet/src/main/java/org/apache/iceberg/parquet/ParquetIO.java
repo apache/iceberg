@@ -29,9 +29,11 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
+import org.apache.iceberg.hadoop.HasConfiguration;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.DelegatingOutputStream;
 import org.apache.iceberg.io.FileRange;
@@ -82,15 +84,16 @@ class ParquetIO {
   }
 
   static OutputFile file(org.apache.iceberg.io.OutputFile file, Configuration conf) {
-    if (file instanceof HadoopOutputFile) {
-      HadoopOutputFile hfile = (HadoopOutputFile) file;
+    if (file instanceof HasConfiguration) {
       try {
-        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(hfile.getPath(), conf);
+        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(
+            new Path(file.location()), conf);
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create Parquet output file for %s", file.location());
       }
     }
+
     return new ParquetOutputFile(file);
   }
 

@@ -85,7 +85,7 @@ import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.hadoop.HadoopOutputFile;
+import org.apache.iceberg.hadoop.HasConfiguration;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -173,10 +173,11 @@ public class Parquet {
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
 
+    @SuppressWarnings("unchecked")
     private WriteBuilder(OutputFile file) {
       this.file = file;
-      if (file instanceof HadoopOutputFile) {
-        this.conf = new Configuration(((HadoopOutputFile) file).getConf());
+      if (file instanceof HasConfiguration) {
+        this.conf = new Configuration(((HasConfiguration<Configuration>) file).getConf());
       } else {
         this.conf = new Configuration();
       }
