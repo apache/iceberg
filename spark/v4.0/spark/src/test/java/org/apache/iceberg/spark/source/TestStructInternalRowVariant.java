@@ -76,29 +76,6 @@ public class TestStructInternalRowVariant {
   }
 
   @Test
-  public void testGetVariantPassesThroughVariantVal() {
-    Types.StructType structType = variantStructType();
-    GenericRecord rec = newRecord(structType);
-
-    Variant variant = sampleVariant();
-    byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
-    ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
-    variant.metadata().writeTo(metadataBuffer, 0);
-
-    byte[] valueBytes = new byte[variant.value().sizeInBytes()];
-    ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
-    variant.value().writeTo(valueBuffer, 0);
-
-    VariantVal expected = new VariantVal(valueBytes, metadataBytes);
-    rec.set(0, expected);
-
-    InternalRow row = new StructInternalRow(structType).setStruct(rec);
-    VariantVal actual = row.getVariant(0);
-
-    assertThat(actual).isSameAs(expected);
-  }
-
-  @Test
   public void testArrayOfVariant() {
     Types.ListType listType = Types.ListType.ofOptional(2, Types.VariantType.get());
     Types.StructType structType =
@@ -107,7 +84,7 @@ public class TestStructInternalRowVariant {
     GenericRecord rec = GenericRecord.create(structType);
 
     Variant v1 = sampleVariant();
-    VariantVal v2 = toVariantVal(v1);
+    Variant v2 = sampleVariant();
 
     List<Object> elements = Arrays.asList(v1, v2, null);
     rec.set(0, elements);
@@ -135,7 +112,7 @@ public class TestStructInternalRowVariant {
     GenericRecord rec = GenericRecord.create(structType);
     Map<String, Object> map = Maps.newHashMap();
     map.put("a", sampleVariant());
-    map.put("b", toVariantVal(sampleVariant()));
+    map.put("b", sampleVariant());
     rec.set(0, map);
 
     InternalRow row = new StructInternalRow(structType).setStruct(rec);
@@ -166,17 +143,6 @@ public class TestStructInternalRowVariant {
     InternalRow nested = structRow.getStruct(0, 1);
     VariantVal variantVal1 = nested.getVariant(0);
     assertVariantValEqualsKV(variantVal1, "k", "v1");
-
-    // Case 2: nested struct holds Spark VariantVal (pass-through)
-    GenericRecord variantStructRec2 = GenericRecord.create(variant);
-    variantStructRec2.set(0, toVariantVal(sampleVariant()));
-    GenericRecord structRec2 = GenericRecord.create(structVariant);
-    structRec2.set(0, variantStructRec2);
-
-    InternalRow structRow2 = new StructInternalRow(structVariant).setStruct(structRec2);
-    InternalRow nested2 = structRow2.getStruct(0, 1);
-    VariantVal variantVal2 = nested2.getVariant(0);
-    assertVariantValEqualsKV(variantVal2, "k", "v1");
   }
 
   @Test
@@ -204,18 +170,6 @@ public class TestStructInternalRowVariant {
     org.apache.iceberg.variants.ShreddedObject obj = Variants.object(md);
     obj.put("k", Variants.of("v1"));
     return Variant.of(md, obj);
-  }
-
-  private static VariantVal toVariantVal(Variant variant) {
-    byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
-    ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
-    variant.metadata().writeTo(metadataBuffer, 0);
-
-    byte[] valueBytes = new byte[variant.value().sizeInBytes()];
-    ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
-    variant.value().writeTo(valueBuffer, 0);
-
-    return new VariantVal(valueBytes, metadataBytes);
   }
 
   private static void assertVariantValEqualsKV(VariantVal vv, String key, String expected) {

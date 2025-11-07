@@ -358,10 +358,6 @@ class StructInternalRow extends InternalRow {
   }
 
   private static VariantVal toVariantVal(Object value) {
-    if (value instanceof VariantVal) {
-      return (VariantVal) value;
-    }
-
     if (value instanceof Variant) {
       Variant variant = (Variant) value;
       byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
