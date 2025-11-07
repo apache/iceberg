@@ -42,6 +42,9 @@ final class JdbcUtil {
   // property to control if catalog tables are created during initialization
   static final String INIT_CATALOG_TABLES_PROPERTY =
       JdbcCatalog.PROPERTY_PREFIX + "init-catalog-tables";
+  // property to control if catalog schema is updated if necessary during initialization
+  static final String UPDATE_CATALOG_SCHEMA_IF_NECESSARY_PROPERTY =
+      JdbcCatalog.PROPERTY_PREFIX + "update-catalog-schema-if-necessary";
 
   static final String RETRYABLE_STATUS_CODES = "retryable_status_codes";
 
