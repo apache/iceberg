@@ -34,7 +34,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestRootManifestReader {
+public class TestManifestExpander {
 
   private final FileIO io = new InMemoryFileIO();
   private final Map<Integer, PartitionSpec> specsById;
@@ -44,7 +44,7 @@ public class TestRootManifestReader {
 
   @TempDir private Path temp;
 
-  public TestRootManifestReader() {
+  public TestManifestExpander() {
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.LongType.get()),
@@ -63,8 +63,9 @@ public class TestRootManifestReader {
 
     String rootPath = writeRootManifest(file1, file2);
 
-    RootManifestReader reader =
-        new RootManifestReader(rootPath, io, specsById, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
@@ -83,8 +84,9 @@ public class TestRootManifestReader {
 
     String rootPath = writeRootManifest(manifestEntry);
 
-    RootManifestReader reader =
-        new RootManifestReader(rootPath, io, specsById, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
@@ -106,8 +108,9 @@ public class TestRootManifestReader {
 
     String rootPath = writeRootManifest(directFile, manifestEntry);
 
-    RootManifestReader reader =
-        new RootManifestReader(rootPath, io, specsById, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
@@ -138,8 +141,9 @@ public class TestRootManifestReader {
 
     String rootPath = writeRootManifest(manifestEntry1, manifestEntry2);
 
-    RootManifestReader reader =
-        new RootManifestReader(rootPath, io, specsById, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
@@ -157,8 +161,9 @@ public class TestRootManifestReader {
 
     String rootPath = writeRootManifest(manifestEntry);
 
-    RootManifestReader reader =
-        new RootManifestReader(rootPath, io, specsById, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
@@ -179,8 +184,9 @@ public class TestRootManifestReader {
 
     String rootPath = writeRootManifest(dataManifestEntry, deleteManifestEntry);
 
-    RootManifestReader reader =
-        new RootManifestReader(rootPath, io, specsById, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
@@ -192,6 +198,207 @@ public class TestRootManifestReader {
 
     assertThat(dataFiles).isEqualTo(1);
     assertThat(deleteFiles).isEqualTo(1);
+  }
+
+  @Test
+  public void testPlanDataFilesOnlyReturnsData() throws IOException {
+    GenericTrackedFile dataFile = createDataFile("data.parquet", 1000L);
+    GenericTrackedFile deleteFile = createDeleteFile("delete.parquet", 100L);
+
+    String rootPath = writeRootManifest(dataFile, deleteFile);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(1);
+    assertThat(scanInfos.get(0).dataFile().contentType()).isEqualTo(FileContent.DATA);
+    assertThat(scanInfos.get(0).dataFile().location()).endsWith("data.parquet");
+  }
+
+  @Test
+  public void testIgnoreDeleted() throws IOException {
+    GenericTrackedFile added = createDataFile("added.parquet", 1000L);
+    added.setStatus(TrackingInfo.Status.ADDED);
+
+    GenericTrackedFile deleted = createDataFile("deleted.parquet", 2000L);
+    deleted.setStatus(TrackingInfo.Status.DELETED);
+
+    GenericTrackedFile existing = createDataFile("existing.parquet", 3000L);
+    existing.setStatus(TrackingInfo.Status.EXISTING);
+
+    String rootPath = writeRootManifest(added, deleted, existing);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById).ignoreDeleted();
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(2);
+    assertThat(scanInfos).noneMatch(info -> info.dataFile().location().endsWith("deleted.parquet"));
+  }
+
+  @Test
+  public void testIgnoreExisting() throws IOException {
+    GenericTrackedFile added = createDataFile("added.parquet", 1000L);
+    added.setStatus(TrackingInfo.Status.ADDED);
+
+    GenericTrackedFile existing = createDataFile("existing.parquet", 2000L);
+    existing.setStatus(TrackingInfo.Status.EXISTING);
+
+    String rootPath = writeRootManifest(added, existing);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById).ignoreExisting();
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(1);
+    assertThat(scanInfos.get(0).dataFile().location()).endsWith("added.parquet");
+  }
+
+  @Test
+  public void testPlanDataFilesFromManifests() throws IOException {
+    GenericTrackedFile dataFile1 = createDataFile("data1.parquet", 1000L);
+    GenericTrackedFile dataFile2 = createDataFile("data2.parquet", 2000L);
+    String dataManifestPath = writeLeafManifest(dataFile1, dataFile2);
+
+    GenericTrackedFile manifestEntry = createManifestEntry(dataManifestPath, 2, 3000L);
+
+    String rootPath = writeRootManifest(manifestEntry);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(2);
+    assertThat(scanInfos).allMatch(info -> info.dataFile().contentType() == FileContent.DATA);
+  }
+
+  @Test
+  public void testDeleteMatching() throws IOException {
+    String dataFilePath = "s3://bucket/table/data/file1.parquet";
+    GenericTrackedFile dataFile = createDataFile("file1.parquet", 1000L);
+    dataFile.setLocation(dataFilePath);
+
+    GenericTrackedFile deleteFile = createDeleteFile("delete1.parquet", 50L);
+    deleteFile.setReferencedFile(dataFilePath);
+
+    String rootPath = writeRootManifest(dataFile, deleteFile);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(1);
+    ManifestExpander.DataFileScanInfo scanInfo = scanInfos.get(0);
+
+    assertThat(scanInfo.dataFile().location()).isEqualTo(dataFilePath);
+    assertThat(scanInfo.deleteFiles()).hasSize(1);
+    assertThat(scanInfo.deleteFiles().get(0).location()).endsWith("delete1.parquet");
+  }
+
+  @Test
+  public void testMultipleDeletesMatchToSameFile() throws IOException {
+    String dataFilePath = "s3://bucket/table/data/file1.parquet";
+    GenericTrackedFile dataFile = createDataFile("file1.parquet", 1000L);
+    dataFile.setLocation(dataFilePath);
+
+    GenericTrackedFile deleteFile1 = createDeleteFile("delete1.parquet", 50L);
+    deleteFile1.setReferencedFile(dataFilePath);
+
+    GenericTrackedFile deleteFile2 = createDeleteFile("delete2.parquet", 30L);
+    deleteFile2.setReferencedFile(dataFilePath);
+
+    String rootPath = writeRootManifest(dataFile, deleteFile1, deleteFile2);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(1);
+    assertThat(scanInfos.get(0).deleteFiles()).hasSize(2);
+  }
+
+  @Test
+  public void testDeleteWithoutReferencedFileNotMatched() throws IOException {
+    GenericTrackedFile dataFile = createDataFile("data.parquet", 1000L);
+
+    GenericTrackedFile deleteFile = createDeleteFile("delete.parquet", 50L);
+
+    String rootPath = writeRootManifest(dataFile, deleteFile);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(1);
+    assertThat(scanInfos.get(0).deleteFiles()).isEmpty();
+  }
+
+  @Test
+  public void testDataFileWithNoDeletes() throws IOException {
+    GenericTrackedFile dataFile = createDataFile("data.parquet", 1000L);
+
+    String rootPath = writeRootManifest(dataFile);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(1);
+    assertThat(scanInfos.get(0).deleteFiles()).isEmpty();
+  }
+
+  @Test
+  public void testSequenceNumberFiltering() throws IOException {
+    String dataFilePath = "s3://bucket/table/data/file1.parquet";
+    GenericTrackedFile dataFile = createDataFile("file1.parquet", 1000L);
+    dataFile.setLocation(dataFilePath);
+    dataFile.setSequenceNumber(100L);
+
+    GenericTrackedFile delete1 = createDeleteFile("delete1.parquet", 50L);
+    delete1.setReferencedFile(dataFilePath);
+    delete1.setSequenceNumber(95L);
+
+    GenericTrackedFile delete2 = createDeleteFile("delete2.parquet", 30L);
+    delete2.setReferencedFile(dataFilePath);
+    delete2.setSequenceNumber(105L);
+
+    String rootPath = writeRootManifest(dataFile, delete1, delete2);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(1);
+    assertThat(scanInfos.get(0).deleteFiles()).hasSize(1);
+    assertThat(scanInfos.get(0).deleteFiles().get(0).location()).endsWith("delete1.parquet");
   }
 
   private GenericTrackedFile createDataFile(String filename, long recordCount) {

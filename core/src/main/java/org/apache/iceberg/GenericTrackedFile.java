@@ -721,13 +721,13 @@ public class GenericTrackedFile extends SupportsIndexProjection
   }
 
   @Override
-  public DataFile asDataFile() {
-    return new TrackedDataFileAdapter(this);
+  public DataFile asDataFile(PartitionSpec spec) {
+    return new TrackedDataFileAdapter(this, spec);
   }
 
   @Override
-  public DeleteFile asDeleteFile() {
-    return new TrackedDeleteFileAdapter(this);
+  public DeleteFile asDeleteFile(PartitionSpec spec) {
+    return new TrackedDeleteFileAdapter(this, spec);
   }
 
   @Override

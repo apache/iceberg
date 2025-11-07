@@ -33,7 +33,7 @@ import org.apache.iceberg.types.Types;
  * Reader for V4 manifest files containing TrackedFile entries.
  *
  * <p>Supports reading both root manifests and leaf manifests. Returns TrackedFile entries which can
- * represent data files, delete files, or manifest references.
+ * represent data files, delete files, or manifest references. TODO: implement caching.
  */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile<?>> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");

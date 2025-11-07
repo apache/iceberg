@@ -27,13 +27,18 @@ import java.util.Set;
  * Adapter that wraps a TrackedFile and presents it as a DataFile.
  *
  * <p>This adapter allows TrackedFile instances to be used in contexts that expect DataFile. The
- * adapter returns null for partition data and column-level statistics, as these are not stored in
- * TrackedFile.
+ * adapter returns null for partition data and column-level statistics until ContentStats is
+ * implemented.
+ *
+ * <p>TODO: When ContentStats is implemented, use spec to extract partition from contentStats.
  */
 class TrackedDataFileAdapter implements DataFile {
   private final TrackedFile<?> trackedFile;
 
-  TrackedDataFileAdapter(TrackedFile<?> trackedFile) {
+  @SuppressWarnings("UnusedVariable")
+  private final PartitionSpec spec;
+
+  TrackedDataFileAdapter(TrackedFile<?> trackedFile, PartitionSpec spec) {
     if (trackedFile.contentType() != FileContent.DATA) {
       throw new IllegalStateException(
           "Cannot convert TrackedFile with content type "
@@ -41,6 +46,7 @@ class TrackedDataFileAdapter implements DataFile {
               + " to DataFile");
     }
     this.trackedFile = trackedFile;
+    this.spec = spec;
   }
 
   @Override
@@ -164,12 +170,12 @@ class TrackedDataFileAdapter implements DataFile {
 
   @Override
   public DataFile copy() {
-    return new TrackedDataFileAdapter((TrackedFile<?>) trackedFile.copy());
+    return new TrackedDataFileAdapter((TrackedFile<?>) trackedFile.copy(), spec);
   }
 
   @Override
   public DataFile copyWithoutStats() {
-    return new TrackedDataFileAdapter((TrackedFile<?>) trackedFile.copyWithoutStats());
+    return new TrackedDataFileAdapter((TrackedFile<?>) trackedFile.copyWithoutStats(), spec);
   }
 
   @Override

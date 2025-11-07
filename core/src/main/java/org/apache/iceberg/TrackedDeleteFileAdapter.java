@@ -27,13 +27,18 @@ import java.util.Set;
  * Adapter that wraps a TrackedFile and presents it as a DeleteFile.
  *
  * <p>This adapter allows TrackedFile instances to be used in contexts that expect DeleteFile. The
- * adapter returns null for partition data and column-level statistics, as these are not stored in
- * TrackedFile.
+ * adapter returns null for partition data and column-level statistics until ContentStats is
+ * implemented.
+ *
+ * <p>TODO: When ContentStats is implemented, use spec to extract partition from contentStats.
  */
 class TrackedDeleteFileAdapter implements DeleteFile {
   private final TrackedFile<?> trackedFile;
 
-  TrackedDeleteFileAdapter(TrackedFile<?> trackedFile) {
+  @SuppressWarnings("UnusedVariable")
+  private final PartitionSpec spec;
+
+  TrackedDeleteFileAdapter(TrackedFile<?> trackedFile, PartitionSpec spec) {
     FileContent contentType = trackedFile.contentType();
     if (contentType != FileContent.POSITION_DELETES
         && contentType != FileContent.EQUALITY_DELETES) {
@@ -41,6 +46,7 @@ class TrackedDeleteFileAdapter implements DeleteFile {
           "Cannot convert TrackedFile with content type " + contentType + " to DeleteFile");
     }
     this.trackedFile = trackedFile;
+    this.spec = spec;
   }
 
   @Override
@@ -175,12 +181,12 @@ class TrackedDeleteFileAdapter implements DeleteFile {
 
   @Override
   public DeleteFile copy() {
-    return new TrackedDeleteFileAdapter((TrackedFile<?>) trackedFile.copy());
+    return new TrackedDeleteFileAdapter((TrackedFile<?>) trackedFile.copy(), spec);
   }
 
   @Override
   public DeleteFile copyWithoutStats() {
-    return new TrackedDeleteFileAdapter((TrackedFile<?>) trackedFile.copyWithoutStats());
+    return new TrackedDeleteFileAdapter((TrackedFile<?>) trackedFile.copyWithoutStats(), spec);
   }
 
   @Override

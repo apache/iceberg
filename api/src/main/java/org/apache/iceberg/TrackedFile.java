@@ -222,6 +222,32 @@ public interface TrackedFile<F> {
    */
   Long pos();
 
+  /**
+   * Converts this tracked file to a DataFile.
+   *
+   * <p>Only valid when content_type is DATA. Extracts partition from contentStats using the
+   * provided spec.
+   *
+   * @param spec the partition spec (needed to know which transforms to apply)
+   * @return a DataFile representation
+   * @throws IllegalStateException if content_type is not DATA
+   * @throws UnsupportedOperationException if ContentStats not yet implemented
+   */
+  DataFile asDataFile(PartitionSpec spec);
+
+  /**
+   * Converts this tracked file to a DeleteFile.
+   *
+   * <p>Only valid when content_type is POSITION_DELETES or EQUALITY_DELETES. Extracts partition
+   * from contentStats using the provided spec.
+   *
+   * @param spec the partition spec (needed to know which transforms to apply)
+   * @return a DeleteFile representation
+   * @throws IllegalStateException if content_type is not a delete type
+   * @throws UnsupportedOperationException if ContentStats not yet implemented
+   */
+  DeleteFile asDeleteFile(PartitionSpec spec);
+
   /** Set the status for this tracked file entry. */
   void setStatus(TrackingInfo.Status status);
 
@@ -239,29 +265,4 @@ public interface TrackedFile<F> {
 
   /** Set the ordinal position in the manifest. */
   void setPos(Long position);
-
-  /**
-   * Returns this TrackedFile as a DataFile.
-   *
-   * <p>This method creates an adapter that implements the DataFile interface, allowing TrackedFile
-   * instances to be used where DataFile is expected. The adapter returns null for partition data
-   * and column-level statistics.
-   *
-   * @return a DataFile view of this TrackedFile
-   * @throws IllegalStateException if the content type is not DATA
-   */
-  DataFile asDataFile();
-
-  /**
-   * Returns this TrackedFile as a DeleteFile.
-   *
-   * <p>This method creates an adapter that implements the DeleteFile interface, allowing
-   * TrackedFile instances to be used where DeleteFile is expected. The adapter returns null for
-   * partition data and column-level statistics.
-   *
-   * @return a DeleteFile view of this TrackedFile
-   * @throws IllegalStateException if the content type is not a delete type (POSITION_DELETES or
-   *     EQUALITY_DELETES)
-   */
-  DeleteFile asDeleteFile();
 }
