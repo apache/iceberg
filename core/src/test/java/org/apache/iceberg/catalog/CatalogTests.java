@@ -3385,7 +3385,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return namespaces;
   }
 
-  public void assertBoundFileScanTasks(Table table, PartitionSpec partitionSpec) {
+  protected void assertBoundFileScanTasks(Table table, PartitionSpec partitionSpec) {
     PartitionData partitionData = new PartitionData(partitionSpec.partitionType());
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       Streams.stream(tasks)
@@ -3400,16 +3400,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
                     .forEach(
                         deleteFile -> assertThat(deleteFile.partition().equals(partitionData)));
               });
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
-  public void assertBoundFiles(Table table, DataFile dataFile) {
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      Streams.stream(tasks)
-          .map(FileScanTask::file)
-          .forEach(file -> assertThat(file.partition()).isEqualTo(dataFile.partition()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

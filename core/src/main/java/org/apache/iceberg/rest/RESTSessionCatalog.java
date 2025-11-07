@@ -114,9 +114,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    */
   @Deprecated public static final String REST_PAGE_SIZE = "rest-page-size";
 
-  // rest scan planning endpoint
-  public static final String REST_SERVER_PLANNING_ENABLED = "rest-server-planning-enabled";
-
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
   private static final Set<Endpoint> DEFAULT_ENDPOINTS =
@@ -263,7 +260,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
     this.restServerPlanningEnabled =
-        PropertyUtil.propertyAsBoolean(mergedProps, REST_SERVER_PLANNING_ENABLED, false);
+        PropertyUtil.propertyAsBoolean(
+            mergedProps, RESTCatalogProperties.REST_SERVER_PLANNING_ENABLED, false);
     super.initialize(name, mergedProps);
   }
 
