@@ -68,6 +68,7 @@ class DynamicWriteResultAggregator
 
   private transient Map<WriteTarget, Collection<DynamicWriteResult>> results;
   private transient Map<String, Map<Integer, PartitionSpec>> specs;
+  private transient Map<String, Integer> tableFormatVersions;
   private transient Map<String, ManifestOutputFileFactory> outputFileFactories;
   private transient String flinkJobId;
   private transient String operatorId;
@@ -96,6 +97,7 @@ class DynamicWriteResultAggregator
     this.results = Maps.newHashMap();
     this.specs = new LRUCache<>(cacheMaximumSize);
     this.outputFileFactories = new LRUCache<>(cacheMaximumSize);
+    this.tableFormatVersions = new LRUCache<>(cacheMaximumSize);
     this.catalog = catalogLoader.loadCatalog();
   }
 
@@ -161,13 +163,12 @@ class DynamicWriteResultAggregator
     writeResults.forEach(w -> builder.add(w.writeResult()));
     WriteResult result = builder.build();
 
-    Table table = catalog.loadTable(TableIdentifier.parse(key.tableName()));
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result,
             () -> outputFileFactory(key.tableName()).create(checkpointId),
             spec(key.tableName(), key.specId()),
-            TableUtil.formatVersion(table));
+            formatVersion(key.tableName()));
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
@@ -191,6 +192,7 @@ class DynamicWriteResultAggregator
         unused -> {
           Table table = catalog.loadTable(TableIdentifier.parse(tableName));
           specs.put(tableName, table.specs());
+          tableFormatVersions.put(tableName, TableUtil.formatVersion(table));
           // Make sure to append an identifier to avoid file clashes in case the factory was to get
           // re-created during a checkpoint, i.e. due to cache eviction.
           String fileSuffix = UUID.randomUUID().toString();
@@ -216,5 +218,15 @@ class DynamicWriteResultAggregator
 
     Table table = catalog.loadTable(TableIdentifier.parse(tableName));
     return table.specs().get(specId);
+  }
+
+  private int formatVersion(String tableName) {
+    Integer cachedFormatVersion = tableFormatVersions.get(tableName);
+    if (cachedFormatVersion != null) {
+      return cachedFormatVersion;
+    }
+
+    Table table = catalog.loadTable(TableIdentifier.parse(tableName));
+    return TableUtil.formatVersion(table);
   }
 }
