@@ -59,6 +59,10 @@ nav:
       - flink-configuration.md
     - Kafka Connect: kafka-connect.md
     - Apache Hive: hive.md
+  - Migration:
+      - Overview: table-migration.md
+      - Hive Migration: hive-migration.md
+      - Delta Lake Migration: delta-lake-migration.md
   - Catalogs:
     - AWS Glue: aws/#glue-catalog
     - AWS DynamoDB: aws/#dynamodb-catalog
