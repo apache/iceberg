@@ -35,7 +35,11 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.arrow.vectorized.ColumnarBatch;
 import org.apache.iceberg.arrow.vectorized.VectorizedTableScanIterable;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -57,6 +61,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -253,9 +258,7 @@ public class TestSparkParquetReader extends AvroDataTestBase {
     for (InternalRow row : originalRows) {
       long timestampMicros = row.getLong(0);
       long timestampMillis = (timestampMicros / 1000) * 1000;
-      rows.add(
-          new org.apache.spark.sql.catalyst.expressions.GenericInternalRow(
-              new Object[] {timestampMillis}));
+      rows.add(new GenericInternalRow(new Object[] {timestampMillis}));
     }
 
     try (ParquetWriter<InternalRow> writer =
@@ -278,15 +281,14 @@ public class TestSparkParquetReader extends AvroDataTestBase {
     try (VectorizedTableScanIterable vectorizedReader =
         new VectorizedTableScanIterable(timestampMillisTable.newScan(), 1024, false)) {
 
-      for (org.apache.iceberg.arrow.vectorized.ColumnarBatch batch : vectorizedReader) {
-        org.apache.arrow.vector.VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+      for (ColumnarBatch batch : vectorizedReader) {
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
 
-        org.apache.arrow.vector.FieldVector eventTimeVector = root.getVector("event_time");
+        FieldVector eventTimeVector = root.getVector("event_time");
         assertThat(eventTimeVector).isNotNull();
-        assertThat(eventTimeVector).isInstanceOf(org.apache.arrow.vector.BigIntVector.class);
+        assertThat(eventTimeVector).isInstanceOf(BigIntVector.class);
 
-        org.apache.arrow.vector.BigIntVector bigIntVector =
-            (org.apache.arrow.vector.BigIntVector) eventTimeVector;
+        BigIntVector bigIntVector = (BigIntVector) eventTimeVector;
 
         for (int i = 0; i < root.getRowCount(); i++) {
           long actualValue = bigIntVector.get(i);
