@@ -281,7 +281,6 @@ public class TestCoordinator extends ChannelTestBase {
         .set(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}")
         .commit();
 
-    table.refresh();
     assertThat(table.snapshots()).hasSize(2);
     Snapshot firstSnapshot = table.currentSnapshot();
     assertThat(firstSnapshot.summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":7}");

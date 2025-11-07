@@ -317,7 +317,7 @@ class Coordinator extends Channel {
       @Override
       public String errorMessage() {
         return String.format(
-            "Latest offsets do not match expected offsets for this commit. Table: %s, Expected: %s, Last Committed: %s",
+            "Cannot commit to %s, stale offsets: Expected: %s Committed: %s",
             tableIdentifier, expectedOffsets, lastCommittedOffsets);
       }
     };
