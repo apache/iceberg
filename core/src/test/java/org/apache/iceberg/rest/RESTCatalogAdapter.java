@@ -19,8 +19,6 @@
 package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
@@ -28,16 +26,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
@@ -64,7 +57,6 @@ import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -81,11 +73,8 @@ import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
-import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
-import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -117,19 +106,12 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   private AuthSession authSession = AuthSession.EMPTY;
   private final PlanningBehavior planningBehavior = planningBehavior();
-  private final Map<String, List<FileScanTask>> planTaskToFileScanTasks;
-
-  // Simple implementation where every plan task just has a single next plan task
-  private final Map<String, String> planTaskToNext;
-  private static final ExecutorService asyncPlanningPool = Executors.newSingleThreadExecutor();
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
     this.asNamespaceCatalog =
         catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
     this.asViewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
-    this.planTaskToFileScanTasks = Maps.newConcurrentMap();
-    this.planTaskToNext = Maps.newConcurrentMap();
   }
 
   private static OAuthTokenResponse handleOAuthRequest(Object body) {
@@ -324,107 +306,36 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         {
           TableIdentifier ident = tableIdentFromPathVars(vars);
           PlanTableScanRequest request = castRequest(PlanTableScanRequest.class, body);
-          Table table = catalog.loadTable(ident);
-          TableScan tableScan = table.newScan();
-
-          if (request.snapshotId() != null) {
-            tableScan = tableScan.useSnapshot(request.snapshotId());
-          }
-          if (request.select() != null) {
-            tableScan = tableScan.select(request.select());
-          }
-          if (request.filter() != null) {
-            tableScan = tableScan.filter(request.filter());
-          }
-          if (request.statsFields() != null) {
-            tableScan = tableScan.includeColumnStats(request.statsFields());
-          }
-
-          tableScan = tableScan.caseSensitive(request.caseSensitive());
-
-          if (planningBehavior.shouldPlanTableScanAsync(tableScan)) {
-            String asyncPlanId = UUID.randomUUID().toString();
-            asyncPlanFiles(tableScan, asyncPlanId);
-            return castResponse(
-                responseType,
-                PlanTableScanResponse.builder()
-                    .withPlanId(asyncPlanId)
-                    .withPlanStatus(PlanStatus.SUBMITTED)
-                    .withSpecsById(table.specs())
-                    .build());
-          }
-
-          String planId = UUID.randomUUID().toString();
-          planFilesFor(tableScan, planId);
-          Pair<List<FileScanTask>, String> tasksAndPlan = initialScanTasksForPlan(planId);
           return castResponse(
               responseType,
-              PlanTableScanResponse.builder()
-                  .withPlanStatus(PlanStatus.COMPLETED)
-                  .withPlanTasks(nextPlanTasks(tasksAndPlan.second()))
-                  .withFileScanTasks(tasksAndPlan.first())
-                  .withDeleteFiles(
-                      tasksAndPlan.first().stream()
-                          .flatMap(t -> t.deletes().stream())
-                          .distinct()
-                          .collect(Collectors.toList()))
-                  .withSpecsById(table.specs())
-                  .build());
+              CatalogHandlers.planTableScan(
+                  catalog,
+                  ident,
+                  request,
+                  planningBehavior::shouldPlanTableScanAsync,
+                  scan -> planningBehavior.numberFileScanTasksPerPlanTask()));
         }
 
       case FETCH_PLANNING_RESULT:
         {
           TableIdentifier ident = tableIdentFromPathVars(vars);
-          Table table = catalog.loadTable(ident);
           String planId = planIDFromPathVars(vars);
-          Pair<List<FileScanTask>, String> tasksAndPlan = initialScanTasksForPlan(planId);
           return castResponse(
-              responseType,
-              FetchPlanningResultResponse.builder()
-                  .withPlanStatus(PlanStatus.COMPLETED)
-                  .withDeleteFiles(
-                      tasksAndPlan.first().stream()
-                          .flatMap(t -> t.deletes().stream())
-                          .distinct()
-                          .collect(Collectors.toList()))
-                  .withFileScanTasks(tasksAndPlan.first())
-                  .withPlanTasks(nextPlanTasks(tasksAndPlan.second()))
-                  .withSpecsById(table.specs())
-                  .build());
+              responseType, CatalogHandlers.fetchPlanningResult(catalog, ident, planId));
         }
 
       case FETCH_SCAN_TASKS:
         {
           TableIdentifier ident = tableIdentFromPathVars(vars);
-          Table table = catalog.loadTable(ident);
           FetchScanTasksRequest request = castRequest(FetchScanTasksRequest.class, body);
-          String planTask = request.planTask();
-          List<FileScanTask> fileScanTasks = planTaskToFileScanTasks.get(planTask);
-          if (fileScanTasks == null) {
-            throw new NoSuchPlanTaskException("Could not find tasks for plan task %s", planTask);
-          }
-
-          // Simple implementation, only have at most 1 "next" plan task to simulate pagination
           return castResponse(
-              responseType,
-              FetchScanTasksResponse.builder()
-                  .withFileScanTasks(fileScanTasks)
-                  .withPlanTasks(nextPlanTasks(planTask))
-                  .withSpecsById(table.specs())
-                  .withDeleteFiles(
-                      fileScanTasks.stream()
-                          .flatMap(t -> t.deletes().stream())
-                          .distinct()
-                          .collect(Collectors.toList()))
-                  .build());
+              responseType, CatalogHandlers.fetchScanTasks(catalog, ident, request));
         }
 
       case CANCEL_PLAN_TABLE_SCAN:
         {
-          String planId = planIDFromPathVars(vars);
-          // Remove all the state related to the provided plan ID
-          planTaskToNext.entrySet().removeIf(entry -> entry.getKey().contains(planId));
-          planTaskToFileScanTasks.entrySet().removeIf(entry -> entry.getKey().contains(planId));
+          CatalogHandlers.cancelPlanTableScan(planIDFromPathVars(vars));
+          return null;
         }
 
       case REGISTER_TABLE:
@@ -563,68 +474,6 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   /**
-   * Do all the planning upfront but batch the file scan tasks across plan tasks. Plan Tasks have a
-   * key like <plan ID - table UUID - plan task sequence> The current implementation simply uses
-   * plan tasks as a pagination mechanism to control response sizes.
-   *
-   * @param tableScan
-   * @param planId
-   */
-  private void planFilesFor(TableScan tableScan, String planId) {
-    Iterable<List<FileScanTask>> taskGroupings =
-        Iterables.partition(
-            tableScan.planFiles(), planningBehavior.numberFileScanTasksPerPlanTask());
-    int planTaskSequence = 0;
-    String prevPlanTask = null;
-    for (List<FileScanTask> taskGrouping : taskGroupings) {
-      String planTaskKey =
-          String.format("%s-%s-%s", planId, tableScan.table().uuid(), planTaskSequence++);
-      planTaskToFileScanTasks.put(planTaskKey, taskGrouping);
-      if (prevPlanTask != null) {
-        planTaskToNext.put(prevPlanTask, planTaskKey);
-      }
-
-      prevPlanTask = planTaskKey;
-    }
-  }
-
-  private void asyncPlanFiles(TableScan scan, String asyncPlanId) {
-    asyncPlanningPool.submit(
-        () -> {
-          planFilesFor(scan, asyncPlanId);
-        });
-  }
-
-  // The initial set of file scan tasks is going to have a sentinel plan task which ends in
-  // 0. Directly return this set of file scan tasks as the initial set, along with
-  // any next plan task if applicable
-  private Pair<List<FileScanTask>, String> initialScanTasksForPlan(String planId) {
-    Set<Map.Entry<String, List<FileScanTask>>> initialPlanTaskAndFileScanTasks =
-        planTaskToFileScanTasks.entrySet().stream()
-            .filter(
-                planTask -> planTask.getKey().contains(planId) && planTask.getKey().endsWith("0"))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-            .entrySet();
-    if (initialPlanTaskAndFileScanTasks.isEmpty()) {
-      throw new NoSuchPlanIdException("Could not find plan ID %s", planId);
-    }
-
-    Map.Entry<String, List<FileScanTask>> initialTasks =
-        Iterables.getOnlyElement(initialPlanTaskAndFileScanTasks);
-    return Pair.of(initialTasks.getValue(), initialTasks.getKey());
-  }
-
-  // Use plan tasks as a way to simulate pagination, at most one plan task per response
-  private List<String> nextPlanTasks(String planTaskKey) {
-    String nextPlanTask = planTaskToNext.get(planTaskKey);
-    if (nextPlanTask != null) {
-      return ImmutableList.of(nextPlanTask);
-    }
-
-    return ImmutableList.of();
-  }
-
-  /**
    * This is a very simplistic approach that only validates the requirements for each table and does
    * not do any other conflict detection. Therefore, it does not guarantee true transactional
    * atomicity, which is left to the implementation details of a REST server.
@@ -753,6 +602,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     // The calling test is responsible for closing the underlying catalog backing this REST catalog
     // so that the underlying backend catalog is not closed and reopened during the REST catalog's
     // initialize method when fetching the server configuration.
+    CatalogHandlers.clearPlanningState();
   }
 
   private static class BadResponseType extends RuntimeException {
