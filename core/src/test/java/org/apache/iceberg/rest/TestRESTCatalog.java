@@ -2808,7 +2808,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private Table createRESTTableAndInsertData(TableIdentifier tableIdentifier) {
     RESTCatalog catalog =
         initCatalog(
-            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
+            "prod", ImmutableMap.of(RESTCatalogProperties.REST_SERVER_PLANNING_ENABLED, "true"));
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(tableIdentifier.namespace());
     }
@@ -3670,7 +3670,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog =
         initCatalog(
-            "prod", ImmutableMap.of(RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED, "true"));
+            "prod", ImmutableMap.of(RESTCatalogProperties.REST_SERVER_PLANNING_ENABLED, "true"));
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TABLE_COMPLETED_WITH_FILE_SCAN_TASK.namespace());
     }
