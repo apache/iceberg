@@ -725,9 +725,10 @@ Creates a catalog entry for a metadata.json file which already exists but does n
 #### Usage
 
 | Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Table which is to be registered |
-| `metadata_file`| ✔️  | string | Metadata file which is to be registered as a new catalog identifier |
+|---------------|----------|------|-------------|
+| `table`       | ✔️ | string | Table which is to be registered |
+| `metadata_file`| ✔️ | string | Metadata file which is to be registered as a new catalog identifier |
+| `overwrite`| ️  | boolean | Whether to overwrite table metadata if the table already exists |
 
 !!! warning
     Having the same metadata.json registered in more than one catalog can lead to missing updates, loss of data, and table corruption.
@@ -748,6 +749,14 @@ Register a new table as `db.tbl` to `spark_catalog` pointing to metadata.json fi
 CALL spark_catalog.system.register_table(
   table => 'db.tbl',
   metadata_file => 'path/to/metadata/file.json'
+);
+```
+Re-register an existing table `db.tbl` in `spark_catalog` to point to new metadata.json file `path/to/metadata/file.json`.
+```sql
+CALL spark_catalog.system.register_table(
+  table => 'db.tbl',
+  metadata_file => 'path/to/metadata/file.json',
+  overwrite => true
 );
 ```
 
