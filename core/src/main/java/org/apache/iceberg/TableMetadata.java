@@ -1319,7 +1319,10 @@ public class TableMetadata implements Serializable {
           this.lastUpdatedMillis = System.currentTimeMillis();
         }
 
-        snapshotLog.add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()));
+        // rollback to an existing snapshot will use current timestamp as the time of the change
+        long timeOfChange =
+            isAddedSnapshot(snapshotId) ? snapshot.timestampMillis() : System.currentTimeMillis();
+        snapshotLog.add(new SnapshotLogEntry(timeOfChange, ref.snapshotId()));
       }
 
       refs.put(name, ref);
@@ -1887,6 +1890,11 @@ public class TableMetadata implements Serializable {
     private static Map<Long, List<PartitionStatisticsFile>> indexPartitionStatistics(
         List<PartitionStatisticsFile> files) {
       return files.stream().collect(Collectors.groupingBy(PartitionStatisticsFile::snapshotId));
+    }
+
+    private boolean isAddedSnapshot(long snapshotId) {
+      return changes(MetadataUpdate.AddSnapshot.class)
+          .anyMatch(add -> add.snapshot().snapshotId() == snapshotId);
     }
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {

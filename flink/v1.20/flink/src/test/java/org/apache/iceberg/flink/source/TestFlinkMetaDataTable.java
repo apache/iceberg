@@ -625,7 +625,8 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     assertThat(metadataLog.getField("latest_snapshot_id")).isEqualTo(parentSnapshot.snapshotId());
 
     metadataLog = metadataLogs.get(2);
-    assertThat(metadataLog.getField("timestamp"))
+    assertThat((Instant) metadataLog.getFieldAs("timestamp"))
+        .isAfterOrEqualTo(Instant.ofEpochMilli(currentSnapshot.timestampMillis()))
         .isEqualTo(Instant.ofEpochMilli(tableMetadata.lastUpdatedMillis()));
     assertThat(metadataLog.getField("file")).isEqualTo(tableMetadata.metadataFileLocation());
     assertThat(metadataLog.getField("latest_snapshot_id")).isEqualTo(currentSnapshot.snapshotId());

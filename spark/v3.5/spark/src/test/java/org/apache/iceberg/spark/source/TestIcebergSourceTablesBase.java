@@ -821,6 +821,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     // rollback the table state to the first snapshot
     table.manageSnapshots().rollbackTo(firstSnapshotId).commit();
     long rollbackTimestamp = Iterables.getLast(table.history()).timestampMillis();
+    assertThat(rollbackTimestamp)
+        .as("Rollback history timestamp should be greater than first snapshot timestamp")
+        .isGreaterThan(firstSnapshotTimestamp);
 
     inputDf
         .select("id", "data")
