@@ -20,6 +20,10 @@ package org.apache.iceberg.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
@@ -47,5 +51,37 @@ public class TestEncryptionUtil {
 
     assertThat(kmsClientObj.getClass().getClassLoader().getName())
         .isEqualTo(customClassLoader.getName());
+  }
+
+  static class UnitTestCustomClassLoader extends ClassLoader {
+
+    @Override
+    public String getName() {
+      return "UnitTestCustomClassLoader";
+    }
+
+    @Override
+    public Class<?> findClass(String name) {
+      byte[] classData = loadClassData(name);
+      return defineClass(name, classData, 0, classData.length);
+    }
+
+    private byte[] loadClassData(String fileName) {
+      try (InputStream inputStream =
+              getClass()
+                  .getClassLoader()
+                  .getResourceAsStream(fileName.replace('.', File.separatorChar) + ".class");
+          ByteArrayOutputStream byteStream = new ByteArrayOutputStream()) {
+        int nextValue;
+
+        while ((nextValue = inputStream.read()) != -1) {
+          byteStream.write(nextValue);
+        }
+
+        return byteStream.toByteArray();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
   }
 }
