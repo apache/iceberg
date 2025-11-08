@@ -78,6 +78,8 @@ public class SparkValueConverter {
         return ByteBuffer.wrap((byte[]) object);
       case INTEGER:
         return ((Number) object).intValue();
+      case UUID:
+        return java.util.UUID.fromString((String) object);
       case BOOLEAN:
       case LONG:
       case FLOAT:
