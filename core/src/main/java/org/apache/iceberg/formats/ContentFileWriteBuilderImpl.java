@@ -34,7 +34,9 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -70,26 +72,35 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
   private SortOrder sortOrder = null;
 
   static <D, S> DataWriteBuilder<D, S> forDataFile(
-      WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
-    return new DataFileWriteBuilder<>(writeBuilder, location, format);
+      WriteBuilder<D, S> writeBuilder, EncryptedOutputFile outputFile, FileFormat format) {
+    return new DataFileWriteBuilder<>(writeBuilder, outputFile, format);
   }
 
   static <D, S> EqualityDeleteWriteBuilder<D, S> forEqualityDelete(
-      WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
-    return new EqualityDeleteFileWriteBuilder<>(writeBuilder, location, format);
+      WriteBuilder<D, S> writeBuilder, EncryptedOutputFile outputFile, FileFormat format) {
+    return new EqualityDeleteFileWriteBuilder<>(writeBuilder, outputFile, format);
   }
 
+  @SuppressWarnings({"unchecked", "rawtypes"})
   static PositionDeleteWriteBuilder forPositionDelete(
-      WriteBuilder<PositionDelete, ?> writeBuilder, String location, FileFormat format) {
+      WriteBuilder<PositionDelete, ?> writeBuilder,
+      EncryptedOutputFile outputFile,
+      FileFormat format) {
     return new PositionDeleteFileWriteBuilder(
-        (WriteBuilder<PositionDelete, Object>) writeBuilder, location, format);
+        (WriteBuilder<PositionDelete, Object>) writeBuilder, outputFile, format);
   }
 
   private ContentFileWriteBuilderImpl(
-      WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
+      WriteBuilder<D, S> writeBuilder, EncryptedOutputFile outputFile, FileFormat format) {
     this.writeBuilder = writeBuilder;
-    this.location = location;
+    this.location = outputFile.encryptingOutputFile().location();
     this.format = format;
+    if (outputFile instanceof NativeEncryptionOutputFile) {
+      NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) outputFile;
+      writeBuilder
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
+    }
   }
 
   @Override
@@ -156,8 +167,8 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
       extends ContentFileWriteBuilderImpl<DataWriteBuilder<D, S>, D, S>
       implements DataWriteBuilder<D, S> {
     private DataFileWriteBuilder(
-        WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
-      super(writeBuilder, location, format);
+        WriteBuilder<D, S> writeBuilder, EncryptedOutputFile outputFile, FileFormat format) {
+      super(writeBuilder, outputFile, format);
     }
 
     @Override
@@ -202,8 +213,8 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
     private int[] equalityFieldIds = null;
 
     private EqualityDeleteFileWriteBuilder(
-        WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
-      super(writeBuilder, location, format);
+        WriteBuilder<D, S> writeBuilder, EncryptedOutputFile outputFile, FileFormat format) {
+      super(writeBuilder, outputFile, format);
     }
 
     @Override
@@ -261,14 +272,16 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
     }
   }
 
-  @SuppressWarnings("rawtypes")
+  @SuppressWarnings({"rawtypes", "unchecked"})
   private static class PositionDeleteFileWriteBuilder
       extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder, PositionDelete, Object>
       implements PositionDeleteWriteBuilder {
 
     private PositionDeleteFileWriteBuilder(
-        WriteBuilder<PositionDelete, Object> writeBuilder, String location, FileFormat format) {
-      super(writeBuilder, location, format);
+        WriteBuilder<PositionDelete, Object> writeBuilder,
+        EncryptedOutputFile outputFile,
+        FileFormat format) {
+      super(writeBuilder, outputFile, format);
     }
 
     @Override
