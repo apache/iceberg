@@ -147,7 +147,7 @@ class RESTTableOperations implements TableOperations {
     List<UpdateRequirement> requirements;
     List<MetadataUpdate> updates;
 
-    TableMetadata metadataToCommit = metadata;
+    TableMetadata metadataToCommit;
     if (encryption() instanceof StandardEncryptionManager) {
       TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
       for (Map.Entry<String, EncryptedKey> entry :
@@ -155,6 +155,8 @@ class RESTTableOperations implements TableOperations {
         builder.addEncryptionKey(entry.getValue());
       }
       metadataToCommit = builder.build();
+    } else {
+      metadataToCommit = metadata;
     }
 
     switch (updateType) {
@@ -197,7 +199,7 @@ class RESTTableOperations implements TableOperations {
     if (base != null) {
       Set<String> removedProps =
           base.properties().keySet().stream()
-              .filter(key -> !metadata.properties().containsKey(key))
+              .filter(key -> !metadataToCommit.properties().containsKey(key))
               .collect(Collectors.toSet());
 
       if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
