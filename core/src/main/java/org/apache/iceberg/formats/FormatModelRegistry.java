@@ -93,7 +93,7 @@ public final class FormatModelRegistry {
    * @throws IllegalArgumentException if a factory is already registered for the combination of
    *     {@link FormatModel#format()} and {@link FormatModel#type()}
    */
-  public static void register(FormatModel<?, ?> formatModel) {
+  public synchronized static void register(FormatModel<?, ?> formatModel) {
     Pair<FileFormat, Class<?>> key = Pair.of(formatModel.format(), formatModel.type());
 
     FormatModel<?, ?> existing = MODELS.get(key);
@@ -173,7 +173,7 @@ public final class FormatModelRegistry {
     FormatModel<D, S> factory = factoryFor(format, type);
     WriteBuilder<D, S> writeBuilder =
         factory.writeBuilder(outputFile.encryptingOutputFile()).content(FileContent.DATA);
-    return ContentFileWriteBuilderImpl.forDataFile(writeBuilder, outputFile, format);
+    return ContentFileWriteBuilderImpl.forDataFile(writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
 
   /**
@@ -198,7 +198,7 @@ public final class FormatModelRegistry {
         factory
             .writeBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.EQUALITY_DELETES);
-    return ContentFileWriteBuilderImpl.forEqualityDelete(writeBuilder, outputFile, format);
+    return ContentFileWriteBuilderImpl.forEqualityDelete(writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
 
   /**
@@ -221,7 +221,7 @@ public final class FormatModelRegistry {
         factory
             .writeBuilder(outputFile.encryptingOutputFile())
             .content(FileContent.POSITION_DELETES);
-    return ContentFileWriteBuilderImpl.forPositionDelete(writeBuilder, outputFile, format);
+    return ContentFileWriteBuilderImpl.forPositionDelete(writeBuilder, outputFile.encryptingOutputFile().location(), format);
   }
 
   @VisibleForTesting
