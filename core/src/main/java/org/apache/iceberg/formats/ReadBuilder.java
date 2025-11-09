@@ -101,7 +101,7 @@ public interface ReadBuilder<D, S> {
    * the data files themselves. The keys of the map are the column ids, the values are the constant
    * values to be used in the result.
    */
-  ReadBuilder<D, S> constantValues(Map<Integer, ?> constantValues);
+  ReadBuilder<D, S> idToConstant(Map<Integer, ?> idToConstant);
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
   ReadBuilder<D, S> withNameMapping(NameMapping nameMapping);
