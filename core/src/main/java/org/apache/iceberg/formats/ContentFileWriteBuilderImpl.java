@@ -81,9 +81,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
 
   @SuppressWarnings({"unchecked", "rawtypes"})
   static PositionDeleteWriteBuilder forPositionDelete(
-      WriteBuilder<PositionDelete, ?> writeBuilder,
-      String location,
-      FileFormat format) {
+      WriteBuilder<PositionDelete, ?> writeBuilder, String location, FileFormat format) {
     return new PositionDeleteFileWriteBuilder(
         (WriteBuilder<PositionDelete, Object>) writeBuilder, location, format);
   }
@@ -270,9 +268,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
       implements PositionDeleteWriteBuilder {
 
     private PositionDeleteFileWriteBuilder(
-        WriteBuilder<PositionDelete, Object> writeBuilder,
-        String location,
-        FileFormat format) {
+        WriteBuilder<PositionDelete, Object> writeBuilder, String location, FileFormat format) {
       super(writeBuilder, location, format);
     }
 

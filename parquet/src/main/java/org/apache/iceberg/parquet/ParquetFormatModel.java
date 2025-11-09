@@ -254,7 +254,7 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
     private final F readerFunction;
     private final Map<String, String> config = Maps.newHashMap();
     private Schema icebergSchema;
-    private Map<Integer, ?> constantValues = ImmutableMap.of();
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilderWrapper(InputFile inputFile, F readerFunction) {
       this.internal = Parquet.read(inputFile);
@@ -278,7 +278,7 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
     }
 
     Map<Integer, ?> constantValues() {
-      return constantValues;
+      return idToConstant;
     }
 
     @Override
@@ -326,8 +326,8 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
     }
 
     @Override
-    public ReadBuilder<D, S> constantValues(Map<Integer, ?> newConstantValues) {
-      this.constantValues = newConstantValues;
+    public ReadBuilder<D, S> idToConstant(Map<Integer, ?> newIdToConstant) {
+      this.idToConstant = newIdToConstant;
       return this;
     }
 

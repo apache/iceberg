@@ -87,7 +87,7 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
     private final Avro.ReadBuilder internal;
     private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
     private Schema icebergSchema;
-    private Map<Integer, ?> constantValues = ImmutableMap.of();
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilderWrapper(
         InputFile inputFile, BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction) {
@@ -138,8 +138,8 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
     }
 
     @Override
-    public ReadBuilder<D, S> constantValues(Map<Integer, ?> newConstantValues) {
-      this.constantValues = newConstantValues;
+    public ReadBuilder<D, S> idToConstant(Map<Integer, ?> newIdToConstant) {
+      this.idToConstant = newIdToConstant;
       return this;
     }
 
@@ -164,7 +164,7 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
     @Override
     public CloseableIterable<D> build() {
       return internal
-          .createResolvingReader(unused -> readerFunction.apply(icebergSchema, constantValues))
+          .createResolvingReader(unused -> readerFunction.apply(icebergSchema, idToConstant))
           .build();
     }
   }

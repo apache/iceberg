@@ -124,7 +124,7 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
     private final BatchReaderFunction<D> batchReaderFunction;
     private boolean reuseContainers = false;
     private Schema icebergSchema;
-    private Map<Integer, ?> constantValues = ImmutableMap.of();
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilderWrapper(
         InputFile inputFile,
@@ -179,9 +179,9 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
     }
 
     @Override
-    public ReadBuilder<D, S> constantValues(Map<Integer, ?> newConstantValues) {
-      internal.constantValues(newConstantValues.keySet());
-      this.constantValues = newConstantValues;
+    public ReadBuilder<D, S> idToConstant(Map<Integer, ?> newIdToConstant) {
+      internal.constantValues(newIdToConstant.keySet());
+      this.idToConstant = newIdToConstant;
       return this;
     }
 
@@ -210,13 +210,13 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
         return internal
             .createReaderFunc(
                 typeDescription ->
-                    readerFunction.read(icebergSchema, typeDescription, constantValues))
+                    readerFunction.read(icebergSchema, typeDescription, idToConstant))
             .build();
       } else if (batchReaderFunction != null) {
         return internal
             .createBatchedReaderFunc(
                 typeDescription ->
-                    batchReaderFunction.read(icebergSchema, typeDescription, constantValues))
+                    batchReaderFunction.read(icebergSchema, typeDescription, idToConstant))
             .build();
       } else {
         throw new IllegalStateException("Either readerFunction or batchReaderFunction must be set");

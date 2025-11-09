@@ -97,7 +97,7 @@ class GenericReader implements Serializable {
 
     return builder
         .project(fileProjection)
-        .constantValues(partition)
+        .idToConstant(partition)
         .split(task.start(), task.length())
         .caseSensitive(caseSensitive)
         .filter(task.residual())

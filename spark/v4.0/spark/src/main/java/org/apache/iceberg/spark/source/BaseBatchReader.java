@@ -84,7 +84,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
 
     return readBuilder
         .project(requiredSchema)
-        .constantValues(idToConstant)
+        .idToConstant(idToConstant)
         .split(start, length)
         .caseSensitive(caseSensitive())
         .filter(residual)

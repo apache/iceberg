@@ -115,7 +115,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       iter =
           builder
               .project(schema)
-              .constantValues(idToConstant)
+              .idToConstant(idToConstant)
               .split(task.start(), task.length())
               .caseSensitive(caseSensitive)
               .filter(task.residual())
