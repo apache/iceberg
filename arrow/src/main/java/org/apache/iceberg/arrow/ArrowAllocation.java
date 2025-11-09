@@ -19,42 +19,15 @@
 package org.apache.iceberg.arrow;
 
 import org.apache.arrow.memory.RootAllocator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ArrowAllocation {
-  private static final Logger LOG = LoggerFactory.getLogger(ArrowAllocation.class);
-
-  private static final String ALLOCATION_MANAGER_TYPE_PROPERTY =
-      "arrow.memory.allocation.manager.type";
-
   static {
-    // Set Arrow allocation manager to Netty if not already configured
-    // This prevents Arrow's auto-detection from failing when classes are shaded
-    // (e.g.; org.apache.iceberg.shaded.org.apache.arrow.*) since the path-based
-    // detection in CheckAllocator.check() doesn't recognize shaded package structures
-    String existingValue = System.getProperty(ALLOCATION_MANAGER_TYPE_PROPERTY);
-    if (existingValue == null) {
-      System.setProperty(ALLOCATION_MANAGER_TYPE_PROPERTY, "Netty");
-      LOG.debug(
-          "Setting system property {}=Netty for Arrow allocator compatibility with shaded dependencies",
-          ALLOCATION_MANAGER_TYPE_PROPERTY);
-    }
-
-    ROOT_ALLOCATOR = createRootAllocator();
+    ROOT_ALLOCATOR = new RootAllocator(Long.MAX_VALUE);
   }
 
   private static final RootAllocator ROOT_ALLOCATOR;
 
   private ArrowAllocation() {}
-
-  private static RootAllocator createRootAllocator() {
-    try {
-      return new RootAllocator(Long.MAX_VALUE);
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to initialize Arrow RootAllocator", e);
-    }
-  }
 
   public static RootAllocator rootAllocator() {
     return ROOT_ALLOCATOR;
