@@ -42,10 +42,10 @@ public interface ReadBuilder<D, S> {
   /**
    * Restricts the read to the given range: [start, start + length).
    *
-   * @param newStart the start position for this read
-   * @param newLength the length of the range this read should scan
+   * @param start the start position for this read
+   * @param length the length of the range this read should scan
    */
-  ReadBuilder<D, S> split(long newStart, long newLength);
+  ReadBuilder<D, S> split(long start, long length);
 
   /** Set the projection schema. */
   ReadBuilder<D, S> project(Schema schema);
@@ -94,7 +94,7 @@ public interface ReadBuilder<D, S> {
   ReadBuilder<D, S> reuseContainers();
 
   /** Sets the batch size for vectorized readers. */
-  ReadBuilder<D, S> recordsPerBatch(int numRowsPerBatch);
+  ReadBuilder<D, S> recordsPerBatch(int rowsPerBatch);
 
   /**
    * Contains the values in the result objects which are coming from metadata and not coming from
