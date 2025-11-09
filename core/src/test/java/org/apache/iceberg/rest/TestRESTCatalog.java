@@ -2238,9 +2238,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "-1")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Invalid value for %s, must be a positive integer",
-                RESTCatalogProperties.PAGE_SIZE));
+            "Invalid value for %s, must be a positive integer", RESTCatalogProperties.PAGE_SIZE);
   }
 
   @ParameterizedTest
