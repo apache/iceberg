@@ -121,10 +121,11 @@ public class SinkWriter {
 
     String routeValue = extractRouteValue(record.value(), routeField);
     if (routeValue != null) {
-      String tableName = (routeNamespace !=null)
-        ? routeNamespace.toLowerCase() + "." + routeValue.toLowerCase(Locale.ROOT)
-        : routeValue.toLowerCase(Locale.ROOT);
-        
+      String tableName =
+          (routeNamespace != null)
+              ? routeNamespace.toLowerCase() + "." + routeValue.toLowerCase(Locale.ROOT)
+              : routeValue.toLowerCase(Locale.ROOT);
+
       writerForTable(tableName, record, true).write(record);
     }
   }
