@@ -538,7 +538,8 @@ public class RewriteTablePathUtil {
             .withMetrics(ContentFileUtil.replacePathBounds(file, sourcePrefix, targetPrefix));
 
     // Update referencedDataFile for DV files
-    String newReferencedDataFile = rewriteReferencedDataFilePathForDV(file, sourcePrefix, targetPrefix);
+    String newReferencedDataFile =
+        rewriteReferencedDataFilePathForDV(file, sourcePrefix, targetPrefix);
     if (newReferencedDataFile != null) {
       builder.withReferencedDataFile(newReferencedDataFile);
     }

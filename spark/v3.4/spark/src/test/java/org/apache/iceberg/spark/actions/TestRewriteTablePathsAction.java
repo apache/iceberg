@@ -426,10 +426,10 @@ public class TestRewriteTablePathsAction extends TestBase {
   private void runPositionDeletesTest(String fileFormat) throws Exception {
     assumeThat(formatVersion).isEqualTo(2);
     Table tableWithPosDeletes =
-            createTableWithSnapshots(
-                    tableDir.toFile().toURI().toString().concat("tableWithPosDeletes").concat(fileFormat),
-                    2,
-                    Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, fileFormat));
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithPosDeletes").concat(fileFormat),
+            2,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, fileFormat));
 
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
