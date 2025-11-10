@@ -219,7 +219,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
                 "Cannot write pos-deletes for unsupported file format: " + format);
         }
       } catch (IOException e) {
-        throw new UncheckedIOException(e);
+        throw new UncheckedIOException("Failed to create new position delete writer", e);
       }
     }
   }

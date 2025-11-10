@@ -122,7 +122,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
           .overwrite()
           .build();
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new UncheckedIOException("Failed to create new data writer", e);
     }
   }
 

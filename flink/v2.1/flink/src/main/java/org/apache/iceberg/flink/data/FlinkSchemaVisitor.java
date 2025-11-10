@@ -31,7 +31,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 @Internal
-public abstract class FlinkSchemaVisitor<T> {
+abstract class FlinkSchemaVisitor<T> {
 
   public static <T> T visit(RowType flinkType, Schema schema, FlinkSchemaVisitor<T> visitor) {
     return visit(flinkType, schema.asStruct(), visitor);

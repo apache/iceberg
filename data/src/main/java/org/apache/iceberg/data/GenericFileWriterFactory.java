@@ -287,7 +287,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
                 "Cannot write pos-deletes for unsupported file format: " + format);
         }
       } catch (IOException e) {
-        throw new UncheckedIOException(e);
+        throw new UncheckedIOException("Failed to create new position delete writer", e);
       }
     }
   }

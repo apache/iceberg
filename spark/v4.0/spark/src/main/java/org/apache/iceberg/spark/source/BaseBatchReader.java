@@ -73,13 +73,13 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
               .set(
                   VectorizedSparkParquetReaders.PARQUET_READER_TYPE,
                   parquetConf.readerType().name());
+
+      if (readBuilder instanceof ParquetFormatModel.SupportsDeleteFilter<?>) {
+        ((ParquetFormatModel.SupportsDeleteFilter<SparkDeleteFilter>) readBuilder)
+            .deleteFilter(deleteFilter);
+      }
     } else if (orcConf != null) {
       readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
-    }
-
-    if (readBuilder instanceof ParquetFormatModel.SupportsDeleteFilter<?>) {
-      ((ParquetFormatModel.SupportsDeleteFilter<SparkDeleteFilter>) readBuilder)
-          .deleteFilter(deleteFilter);
     }
 
     return readBuilder
