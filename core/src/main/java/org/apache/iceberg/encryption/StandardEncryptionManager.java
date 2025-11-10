@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -290,35 +289,6 @@ public class StandardEncryptionManager implements EncryptionManager {
 
     @Override
     public OutputFile encryptingOutputFile() {
-      return this;
-    }
-
-    @Override
-    public OutputFile plainOutputFile() {
-      return plainOutputFile;
-    }
-
-    @Override
-    public PositionOutputStream create() {
-      return lazyEncryptingOutputFile().create();
-    }
-
-    @Override
-    public PositionOutputStream createOrOverwrite() {
-      return lazyEncryptingOutputFile().createOrOverwrite();
-    }
-
-    @Override
-    public String location() {
-      return lazyEncryptingOutputFile().location();
-    }
-
-    @Override
-    public InputFile toInputFile() {
-      return lazyEncryptingOutputFile().toInputFile();
-    }
-
-    private OutputFile lazyEncryptingOutputFile() {
       if (null == lazyEncryptingOutputFile) {
         this.lazyEncryptingOutputFile =
             new AesGcmOutputFile(
@@ -328,6 +298,11 @@ public class StandardEncryptionManager implements EncryptionManager {
       }
 
       return lazyEncryptingOutputFile;
+    }
+
+    @Override
+    public OutputFile plainOutputFile() {
+      return plainOutputFile;
     }
   }
 
