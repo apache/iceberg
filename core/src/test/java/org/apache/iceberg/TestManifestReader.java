@@ -232,4 +232,12 @@ public class TestManifestReader extends TestBase {
       assertThat(file.splitOffsets()).isNull();
     }
   }
+
+  @TestTemplate
+  public void testFormatVersion() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      assertThat(reader.formatVersion()).isEqualTo(formatVersion);
+    }
+  }
 }
