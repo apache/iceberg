@@ -328,9 +328,6 @@ If you already have a Spark environment, you can add Iceberg, using the `--packa
     If you want to include Iceberg in your Spark installation, add the Iceberg Spark runtime to Spark's `jars` folder.
     You can download the runtime by visiting to the [Releases](releases.md) page.
 
-<!-- markdown-link-check-disable-next-line -->
-[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-{{ sparkVersionMajor }}/{{ icebergVersion }}/iceberg-spark-runtime-{{ sparkVersionMajor }}-{{ icebergVersion }}.jar
-
 #### Learn More
 
 Now that you're up an running with Iceberg and Spark, check out the [Iceberg-Spark docs](docs/latest/spark-ddl.md) to learn more!
