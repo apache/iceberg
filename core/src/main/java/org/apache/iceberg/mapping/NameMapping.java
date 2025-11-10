@@ -61,19 +61,19 @@ public class NameMapping implements Serializable {
   }
 
   public MappedField find(String... names) {
-    return lazyFieldsByName().get(DOT.join(names));
+    return lazyFieldsByName().get(DOT.join(names).toLowerCase());
   }
 
   public MappedField find(List<String> names) {
-    return lazyFieldsByName().get(DOT.join(names));
+    return lazyFieldsByName().get(DOT.join(names).toLowerCase());
   }
 
   public MappedField find(Iterable<String> names) {
-    return lazyFieldsByName().get(DOT.join(names));
+    return lazyFieldsByName().get(DOT.join(names).toLowerCase());
   }
 
   public MappedField find(Iterable<String> names, String name) {
-    return lazyFieldsByName().get(DOT.join(Iterables.concat(names, ImmutableList.of(name))));
+    return lazyFieldsByName().get(DOT.join(Iterables.concat(names, ImmutableList.of(name))).toLowerCase());
   }
 
   public MappedFields asMappedFields() {
