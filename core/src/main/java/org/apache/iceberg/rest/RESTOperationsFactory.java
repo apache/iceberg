@@ -28,7 +28,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.view.ViewMetadata;
 
 /**
- * A builder interface for creating {@link RESTTableOperations} and {@link RESTViewOperations}
+ * A factory interface for creating {@link RESTTableOperations} and {@link RESTViewOperations}
  * instances for REST catalogs.
  *
  * <p>This interface allows custom implementations of table and view operations to be injected into
@@ -38,7 +38,7 @@ import org.apache.iceberg.view.ViewMetadata;
  * <p>Example usage:
  *
  * <pre>
- * RESTOperationsBuilder customBuilder = new RESTOperationsBuilder() {
+ * RESTOperationsFactory customFactory = new RESTOperationsFactory() {
  *   {@literal @}Override
  *   public RESTTableOperations createTableOperations(
  *       RESTClient client,
@@ -61,10 +61,10 @@ import org.apache.iceberg.view.ViewMetadata;
  *   }
  * };
  *
- * RESTSessionCatalog catalog = new RESTSessionCatalog(clientBuilder, ioBuilder, customBuilder);
+ * RESTSessionCatalog catalog = new RESTSessionCatalog(clientBuilder, ioBuilder, customFactory);
  * </pre>
  */
-public interface RESTOperationsBuilder {
+public interface RESTOperationsFactory {
 
   /**
    * Create a new {@link RESTTableOperations} instance for simple table operations.
@@ -140,6 +140,6 @@ public interface RESTOperationsBuilder {
     return new RESTViewOperations(client, path, headers, current, endpoints);
   }
 
-  /** Default {@link RESTOperationsBuilder} instance. */
-  RESTOperationsBuilder DEFAULT = new RESTOperationsBuilder() {};
+  /** Default {@link RESTOperationsFactory} instance. */
+  RESTOperationsFactory DEFAULT = new RESTOperationsFactory() {};
 }

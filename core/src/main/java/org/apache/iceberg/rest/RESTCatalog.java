@@ -65,7 +65,7 @@ public class RESTCatalog
   }
 
   public RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
-    this(SessionCatalog.SessionContext.createEmpty(), clientBuilder, null, null);
+    this(SessionCatalog.SessionContext.createEmpty(), clientBuilder);
   }
 
   public RESTCatalog(
@@ -77,16 +77,16 @@ public class RESTCatalog
   public RESTCatalog(
       Function<Map<String, String>, RESTClient> clientBuilder,
       BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder,
-      RESTOperationsBuilder operationsBuilder) {
-    this(SessionCatalog.SessionContext.createEmpty(), clientBuilder, ioBuilder, operationsBuilder);
+      RESTOperationsFactory operationsFactory) {
+    this(SessionCatalog.SessionContext.createEmpty(), clientBuilder, ioBuilder, operationsFactory);
   }
 
   public RESTCatalog(
       SessionCatalog.SessionContext context,
       Function<Map<String, String>, RESTClient> clientBuilder,
       BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder,
-      RESTOperationsBuilder operationsBuilder) {
-    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, ioBuilder, operationsBuilder);
+      RESTOperationsFactory operationsFactory) {
+    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, ioBuilder, operationsFactory);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
     this.context = context;

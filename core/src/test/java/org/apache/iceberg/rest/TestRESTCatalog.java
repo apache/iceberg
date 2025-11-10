@@ -3081,8 +3081,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     AtomicBoolean customViewOps = new AtomicBoolean();
     AtomicBoolean customFileIO = new AtomicBoolean();
 
-    RESTOperationsBuilder operationsBuilder =
-        new RESTOperationsBuilder() {
+    RESTOperationsFactory operationsFactory =
+        new RESTOperationsFactory() {
           @Override
           public RESTTableOperations createTableOperations(
               RESTClient client,
@@ -3092,7 +3092,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               TableMetadata current,
               Set<Endpoint> endpoints) {
             customTableOps.set(true);
-            return RESTOperationsBuilder.super.createTableOperations(
+            return RESTOperationsFactory.super.createTableOperations(
                 client, path, headers, io, current, endpoints);
           }
 
@@ -3107,7 +3107,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               TableMetadata current,
               Set<Endpoint> endpoints) {
             customTxnOps.set(true);
-            return RESTOperationsBuilder.super.createTableOperationsForTransaction(
+            return RESTOperationsFactory.super.createTableOperationsForTransaction(
                 client, path, headers, io, updateType, createChanges, current, endpoints);
           }
 
@@ -3119,7 +3119,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               ViewMetadata current,
               Set<Endpoint> endpoints) {
             customViewOps.set(true);
-            return RESTOperationsBuilder.super.createViewOperations(
+            return RESTOperationsFactory.super.createViewOperations(
                 client, path, headers, current, endpoints);
           }
         };
@@ -3139,7 +3139,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             SessionCatalog.SessionContext.createEmpty(),
             (config) -> new RESTCatalogAdapter(backendCatalog),
             ioBuilder,
-            operationsBuilder)) {
+            operationsFactory)) {
       catalog.setConf(new Configuration());
       catalog.initialize(
           "test",
