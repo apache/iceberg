@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,11 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.Puffin;
+import org.apache.iceberg.puffin.PuffinCompressionCodec;
+import org.apache.iceberg.puffin.PuffinReader;
+import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -532,7 +538,7 @@ public class RewriteTablePathUtil {
             .withMetrics(ContentFileUtil.replacePathBounds(file, sourcePrefix, targetPrefix));
 
     // Update referencedDataFile for DV files
-    String newReferencedDataFile = replaceReferencedDataFile(file, sourcePrefix, targetPrefix);
+    String newReferencedDataFile = rewriteReferencedDataFilePathForDV(file, sourcePrefix, targetPrefix);
     if (newReferencedDataFile != null) {
       builder.withReferencedDataFile(newReferencedDataFile);
     }
@@ -551,7 +557,7 @@ public class RewriteTablePathUtil {
    * @param targetPrefix target prefix that will replace it
    * @return updated referenced data file path, or null if not applicable
    */
-  private static String replaceReferencedDataFile(
+  private static String rewriteReferencedDataFilePathForDV(
       DeleteFile deleteFile, String sourcePrefix, String targetPrefix) {
     if (!ContentFileUtil.isDV(deleteFile) || deleteFile.referencedDataFile() == null) {
       return null;
@@ -657,47 +663,38 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix)
       throws IOException {
-    InputFile sourceFile = io.newInputFile(deleteFile.location());
+    List<Blob> rewrittenBlobs = Lists.newArrayList();
+    try (PuffinReader reader = Puffin.read(io.newInputFile(deleteFile.location())).build()) {
+      // Read all blobs and rewrite them with updated referenced data file paths
+      for (Pair<org.apache.iceberg.puffin.BlobMetadata, ByteBuffer> blobPair :
+          reader.readAll(reader.fileMetadata().blobs())) {
+        org.apache.iceberg.puffin.BlobMetadata blobMetadata = blobPair.first();
+        ByteBuffer blobData = blobPair.second();
 
-    try (org.apache.iceberg.puffin.PuffinReader reader =
-        org.apache.iceberg.puffin.Puffin.read(sourceFile).build()) {
-
-      List<org.apache.iceberg.puffin.BlobMetadata> blobs = reader.fileMetadata().blobs();
-
-      try (org.apache.iceberg.puffin.PuffinWriter writer =
-          org.apache.iceberg.puffin.Puffin.write(outputFile)
-              .createdBy(org.apache.iceberg.IcebergBuild.fullVersion())
-              .build()) {
-
-        // Read all blobs and rewrite them with updated referenced data file paths
-        for (Pair<org.apache.iceberg.puffin.BlobMetadata, java.nio.ByteBuffer> blobPair :
-            reader.readAll(blobs)) {
-          org.apache.iceberg.puffin.BlobMetadata blobMetadata = blobPair.first();
-          java.nio.ByteBuffer blobData = blobPair.second();
-
-          // Get the original properties and update the referenced data file path
-          Map<String, String> properties = Maps.newHashMap(blobMetadata.properties());
-          String referencedDataFile = properties.get("referenced-data-file");
-          if (referencedDataFile != null && referencedDataFile.startsWith(sourcePrefix)) {
-            String newReferencedDataFile = newPath(referencedDataFile, sourcePrefix, targetPrefix);
-            properties.put("referenced-data-file", newReferencedDataFile);
-          }
-
-          // Create a new blob with updated properties
-          org.apache.iceberg.puffin.Blob blob =
-              new org.apache.iceberg.puffin.Blob(
-                  blobMetadata.type(),
-                  blobMetadata.inputFields(),
-                  blobMetadata.snapshotId(),
-                  blobMetadata.sequenceNumber(),
-                  blobData,
-                  null, // compression codec (keep uncompressed)
-                  properties);
-
-          // Write the blob to the new DV file
-          writer.write(blob);
+        // Get the original properties and update the referenced data file path
+        Map<String, String> properties = Maps.newHashMap(blobMetadata.properties());
+        String referencedDataFile = properties.get("referenced-data-file");
+        if (referencedDataFile != null && referencedDataFile.startsWith(sourcePrefix)) {
+          String newReferencedDataFile = newPath(referencedDataFile, sourcePrefix, targetPrefix);
+          properties.put("referenced-data-file", newReferencedDataFile);
         }
+
+        // Create a new blob with updated properties
+        rewrittenBlobs.add(
+            new Blob(
+                blobMetadata.type(),
+                blobMetadata.inputFields(),
+                blobMetadata.snapshotId(),
+                blobMetadata.sequenceNumber(),
+                blobData,
+                PuffinCompressionCodec.forName(blobMetadata.compressionCodec()),
+                properties));
       }
+    }
+
+    try (PuffinWriter writer =
+        Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build()) {
+      rewrittenBlobs.forEach(writer::write);
     }
   }
 
