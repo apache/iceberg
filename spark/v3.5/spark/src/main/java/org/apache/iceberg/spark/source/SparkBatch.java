@@ -137,9 +137,18 @@ class SparkBatch implements Batch {
   }
 
   private ParquetBatchReadConf parquetBatchReadConf(ParquetReaderType readerType) {
+    String factoryClassName = readConf.parquetVectorizedReaderFactory();
+
+    // If no explicit factory is set and reader type is COMET, use the default Comet factory
+    if (factoryClassName == null && readerType == ParquetReaderType.COMET) {
+      factoryClassName =
+          org.apache.iceberg.spark.SparkSQLProperties.COMET_VECTORIZED_READER_FACTORY_CLASS;
+    }
+
     return ImmutableParquetBatchReadConf.builder()
         .batchSize(readConf.parquetBatchSize())
         .readerType(readerType)
+        .factoryClassName(factoryClassName)
         .build();
   }
 

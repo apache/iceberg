@@ -30,12 +30,11 @@ import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.schema.MessageType;
 
 /**
- * Service Provider Interface (SPI) for creating custom vectorized Parquet readers.
+ * Interface for creating custom vectorized Parquet readers.
  *
- * <p>Implementations of this interface can be loaded at runtime using Java's {@link
- * java.util.ServiceLoader} mechanism. To register an implementation, create a file named {@code
- * META-INF/services/org.apache.iceberg.parquet.VectorizedParquetReaderFactory} containing the fully
- * qualified class name of the implementation.
+ * <p>Implementations of this interface are loaded at runtime via reflection by specifying the fully
+ * qualified class name in the {@code read.parquet.vectorized-reader.factory} configuration
+ * property.
  *
  * <p>This allows for pluggable vectorized reader implementations (e.g., Comet, Arrow, Velox)
  * without requiring the core parquet module to depend on specific execution engines.

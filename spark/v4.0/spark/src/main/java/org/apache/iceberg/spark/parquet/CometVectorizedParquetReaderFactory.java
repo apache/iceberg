@@ -34,8 +34,9 @@ import org.apache.parquet.schema.MessageType;
 /**
  * Factory for creating Comet-based vectorized Parquet readers.
  *
- * <p>This factory is loaded via Java's ServiceLoader mechanism and provides Comet's native
- * vectorized Parquet reader implementation for Iceberg tables.
+ * <p>This factory is loaded via reflection when the {@code read.parquet.vectorized-reader.factory}
+ * property is set to {@code org.apache.iceberg.spark.parquet.CometVectorizedParquetReaderFactory}.
+ * It provides Comet's native vectorized Parquet reader implementation for Iceberg tables.
  */
 public class CometVectorizedParquetReaderFactory implements VectorizedParquetReaderFactory {
 

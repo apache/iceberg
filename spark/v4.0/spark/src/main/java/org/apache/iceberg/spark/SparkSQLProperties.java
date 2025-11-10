@@ -30,6 +30,15 @@ public class SparkSQLProperties {
   // Controls which Parquet reader implementation to use
   public static final String PARQUET_READER_TYPE = "spark.sql.iceberg.parquet.reader-type";
   public static final ParquetReaderType PARQUET_READER_TYPE_DEFAULT = ParquetReaderType.ICEBERG;
+
+  // Controls the fully qualified class name of the vectorized Parquet reader factory
+  public static final String PARQUET_VECTORIZED_READER_FACTORY =
+      "spark.sql.iceberg.parquet.vectorized-reader.factory";
+
+  // Comet vectorized reader factory class name
+  public static final String COMET_VECTORIZED_READER_FACTORY_CLASS =
+      "org.apache.iceberg.spark.parquet.CometVectorizedParquetReaderFactory";
+
   // Controls whether to perform the nullability check during writes
   public static final String CHECK_NULLABILITY = "spark.sql.iceberg.check-nullability";
   public static final boolean CHECK_NULLABILITY_DEFAULT = true;

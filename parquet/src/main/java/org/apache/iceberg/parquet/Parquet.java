@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -1383,7 +1382,25 @@ public class Parquet {
     /** Convenience method to enable comet */
     public ReadBuilder enableComet(boolean enableComet) {
       if (enableComet) {
-        this.properties.put(VECTORIZED_READER_FACTORY, "comet");
+        this.properties.put(
+            VECTORIZED_READER_FACTORY,
+            "org.apache.iceberg.spark.parquet.CometVectorizedParquetReaderFactory");
+      } else {
+        this.properties.remove(VECTORIZED_READER_FACTORY);
+      }
+      return this;
+    }
+
+    /**
+     * Sets the vectorized reader factory class to use for reading Parquet files.
+     *
+     * @param factoryClassName fully qualified class name of the VectorizedParquetReaderFactory
+     *     implementation, or null to use the default reader
+     * @return this builder for method chaining
+     */
+    public ReadBuilder vectorizedReaderFactory(String factoryClassName) {
+      if (factoryClassName != null) {
+        this.properties.put(VECTORIZED_READER_FACTORY, factoryClassName);
       } else {
         this.properties.remove(VECTORIZED_READER_FACTORY);
       }
@@ -1575,18 +1592,25 @@ public class Parquet {
     }
   }
 
-  private static VectorizedParquetReaderFactory loadReaderFactory(String name) {
-    ServiceLoader<VectorizedParquetReaderFactory> loader =
-        ServiceLoader.load(VectorizedParquetReaderFactory.class);
-
-    for (VectorizedParquetReaderFactory factory : loader) {
-      if (factory.name().equalsIgnoreCase(name)) {
-        return factory;
+  private static VectorizedParquetReaderFactory loadReaderFactory(String className) {
+    try {
+      Class<?> factoryClass = Class.forName(className);
+      if (!VectorizedParquetReaderFactory.class.isAssignableFrom(factoryClass)) {
+        LOG.warn("Class {} does not implement VectorizedParquetReaderFactory interface", className);
+        return null;
       }
+      return (VectorizedParquetReaderFactory) factoryClass.getDeclaredConstructor().newInstance();
+    } catch (ClassNotFoundException e) {
+      LOG.warn("Could not find vectorized reader factory class: {}", className, e);
+      return null;
+    } catch (NoSuchMethodException e) {
+      LOG.warn(
+          "Vectorized reader factory class {} does not have a no-arg constructor", className, e);
+      return null;
+    } catch (Exception e) {
+      LOG.warn("Failed to instantiate vectorized reader factory: {}", className, e);
+      return null;
     }
-
-    LOG.warn("Could not find vectorized reader factory: {}", name);
-    return null;
   }
 
   private static class ParquetReadBuilder<T> extends ParquetReader.Builder<T> {
