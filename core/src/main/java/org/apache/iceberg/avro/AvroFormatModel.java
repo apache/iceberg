@@ -27,6 +27,7 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.FormatModel;
 import org.apache.iceberg.formats.ReadBuilder;
@@ -34,7 +35,6 @@ import org.apache.iceberg.formats.WriteBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class AvroFormatModel<D, S> implements FormatModel<D, S> {
@@ -74,7 +74,7 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public WriteBuilder<D, S> writeBuilder(OutputFile outputFile) {
+  public WriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
     return new WriteBuilderWrapper<>(outputFile, writerFunction);
   }
 
@@ -175,9 +175,9 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
     private S inputSchema;
 
     private WriteBuilderWrapper(
-        OutputFile outputFile,
+        EncryptedOutputFile outputFile,
         BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction) {
-      this.internal = Avro.write(outputFile);
+      this.internal = Avro.write(outputFile.encryptingOutputFile());
       this.writerFunction = writerFunction;
     }
 

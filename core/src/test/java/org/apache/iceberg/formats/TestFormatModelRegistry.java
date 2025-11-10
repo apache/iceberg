@@ -22,8 +22,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
 
@@ -122,7 +122,7 @@ class TestFormatModelRegistry {
     }
 
     @Override
-    public WriteBuilder<Object, Object> writeBuilder(OutputFile outputFile) {
+    public WriteBuilder<Object, Object> writeBuilder(EncryptedOutputFile outputFile) {
       return null;
     }
 

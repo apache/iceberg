@@ -27,6 +27,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.FormatModel;
 import org.apache.iceberg.formats.ReadBuilder;
@@ -35,7 +36,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -97,7 +97,7 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
   }
 
   @Override
-  public WriteBuilder<D, S> writeBuilder(OutputFile outputFile) {
+  public WriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
     return new WriteBuilderWrapper<>(outputFile, writerFunction);
   }
 
@@ -142,7 +142,7 @@ public class ParquetFormatModel<D, S, F> implements FormatModel<D, S> {
     private final WriterFunction<S> writerFunction;
     private S inputSchema;
 
-    private WriteBuilderWrapper(OutputFile outputFile, WriterFunction<S> writerFunction) {
+    private WriteBuilderWrapper(EncryptedOutputFile outputFile, WriterFunction<S> writerFunction) {
       this.internal = Parquet.write(outputFile);
       this.writerFunction = writerFunction;
     }

@@ -27,13 +27,13 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.FormatModel;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.formats.WriteBuilder;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -92,7 +92,7 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public WriteBuilder<D, S> writeBuilder(OutputFile outputFile) {
+  public WriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
     return new WriteBuilderWrapper<>(outputFile, writerFunction);
   }
 
@@ -229,7 +229,7 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
     private final WriterFunction<S> writerFunction;
     private S inputSchema;
 
-    private WriteBuilderWrapper(OutputFile outputFile, WriterFunction<S> writerFunction) {
+    private WriteBuilderWrapper(EncryptedOutputFile outputFile, WriterFunction<S> writerFunction) {
       this.internal = ORC.write(outputFile);
       this.writerFunction = writerFunction;
     }
