@@ -3350,13 +3350,13 @@ components:
     ReadRestrictions:
       type: object
       description: >
-          Read restrictions for a table, including column projections and row filter expressions, according to the current schema.
+          Read restrictions for a table, including column projections and row filter expressions.
 
           A client MUST enforce the restrictions defined in this object when reading data
           from the table.
 
           These restrictions apply only to the authenticated principal, user, or account
-          associated with the client. They MUST NOT be interpreted as global policy and
+          associated with the request. They MUST NOT be interpreted as global policy and
           MUST NOT be applied beyond the entity identified by the Authentication header
           (or other applicable authentication mechanism).
       properties:
@@ -3364,31 +3364,31 @@ components:
           description: >
             A list of projections that MUST be applied prior to any query-specified
             projections.
-            If the required-colum-projections property is absent, no mandatory projection applies,
+            If this property is absent, no mandatory projection applies,
             and a reader MAY project any subset of columns of the table, including all columns.
 
-            1. A reader MUST project only columns listed in the required-colum-projections.
+            1. A reader MUST project only columns listed in the required-column-projections.
               - If a listed column has a transform, the reader MUST apply it and replace
                 all references to the underlying column with the transformed value
                 (for example, truncate[4](cc) MUST be projected as truncate[4](cc) AS cc,
                 and all references to cc during query evaluation post applying required-row-filter MUST resolve to this alias).
-              - Columns not listed in the required-colum-projections MUST NOT be read.
+              - Columns not listed in the required-column-projections MUST NOT be read.
 
-            2. A column MUST appear at most once in the required-colum-projections.
+            2. A column MUST appear at most once in the required-column-projections.
       
-            3. If a projection entry includes an action that the reader cannot evaluate,
+            3. If a projected column's corresponding entry includes an action that the reader cannot evaluate,
               the reader MUST fail rather than ignore the transform.
       
-            5. An identity transform is equivalent to projecting the column directly.
+            4. An identity transform is equivalent to projecting the column directly.
             
-            8. The data type of the projected column MUST match the data type defined for the transform result.
+            5. The data type of the projected column MUST match the data type defined for the transform result.
 
           type: array
           items:
             $ref: '#/components/schemas/Projection'
         required-row-filter:
           description: >
-            An expression that filters rows in the table.
+            An expression that filters rows in the table that the authenticated principal does not have access to.
       
             1. A reader MUST discard any row for which the filter evaluates to false or null, and
               no information derived from discarded rows MAY be included in the query result.
@@ -3396,12 +3396,9 @@ components:
             2. Row filters MUST be evaluated against the original, untransformed column values.
               Required projections MUST be applied only after row filters are applied.
       
-            3. If the catalog supports multiple row access filters for the table, it is
-              the catalog's responsibility to combine them using the appropriate logic (e.g., AND, OR).
+            3. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.
       
-            4. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.
-      
-            5. If the required-row-filter property is absent or empty, no mandatory filtering is imposed.
+            4. If this property is absent, null, or always true then no mandatory filtering is required.
           $ref: '#/components/schemas/Expression'
 
     Projection:
@@ -3421,58 +3418,32 @@ components:
       description: Defines the specific action to be executed for computing the projection.
       oneOf:
         - $ref: '#/components/schemas/MaskHashSha256'
-        - $ref: '#/components/schemas/MaskReplaceWithNull'
+        - $ref: '#/components/schemas/ReplaceWithNull'
         - $ref: '#/components/schemas/MaskAlphanumeric'
         - $ref: '#/components/schemas/ApplyTransform'
 
     MaskHashSha256:
-      type: object
-      description: Mask the data of the column by apply SHA256 hash algorithm. Engines are free to use their own implementation of SHA256.
-      properties:
-        type:
-          type: string
-          enum: [ mask_hash_sha256 ]
-      required:
-        - type
+      description: |
+        Mask the data of the column by applying SHA-256. 
+        The input must be UTF-8 encoded bytes of the column value. 
+        The SHA-256 digest is represented as a lowercase hexadecimal string. 
+        Engines must follow this procedure to ensure consistency:
+        1. Convert the column value to a UTF-8 byte array.
+        2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.
+        3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.
 
-    MaskReplaceWithNull:
-      type: object
+    ReplaceWithNull:
       description: Masks data by replacing it with a NULL value.
-      properties:
-        type:
-          type: string
-          enum: [ mask_replace_with_null ]
-      required:
-        - type
 
     MaskAlphanumeric:
-      type: object
       description: mask all alphabetic characters with 'x' and numeric characters with 'n'
-      properties:
-        type:
-          type: string
-          enum: [ mask_alphanumeric ]
-      required:
-        - type
 
     ApplyTransform:
       type: object
-      description: Applies the transform
+      description: Replace the field with the result of a transform expression. Produce the original field name with the transformed values.
       properties:
-        type:
-          type: string
-          enum: [ apply_transform ]
-        transform:
-          $ref: '#/components/schemas/Transform'
-        source-ids:
-          description: args of transform
-          type: array
-          items:
-            type: integer
-      required:
-        - type
-        - transform
-        - source-ids
+        term:
+          $ref: '#/components/schemas/Term'
 
     LoadCredentialsResponse:
       type: object
