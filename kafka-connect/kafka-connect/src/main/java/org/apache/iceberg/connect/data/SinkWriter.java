@@ -120,6 +120,9 @@ public class SinkWriter {
     Preconditions.checkNotNull(routeField, "Route field cannot be null with dynamic routing");
 
     String routeValue = extractRouteValue(record.value(), routeField);
+    if (config.tablesRoutePrefix() != null) {
+      routeValue = config.tablesRoutePrefix() + "_" + routeValue;
+    }
     if (routeValue != null) {
       String tableName =
           (routeNamespace != null)
