@@ -155,7 +155,7 @@ public class TestSinkWriter {
   }
 
   @Test
-  public void testDynamicRoute() {
+  public void testDynamicNamespaceRoute() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
