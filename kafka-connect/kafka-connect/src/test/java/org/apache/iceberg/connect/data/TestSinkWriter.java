@@ -61,6 +61,7 @@ public class TestSinkWriter {
           optional(1, "id", Types.LongType.get()),
           optional(2, "data", Types.StringType.get()),
           optional(3, "date", Types.StringType.get()));
+  private static final String ROUTE_NAMESPACE = "namespace";
   private static final String ROUTE_FIELD = "fld";
 
   @BeforeEach
@@ -151,6 +152,23 @@ public class TestSinkWriter {
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
     assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @Test
+  public void testDynamicRoute() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.dynamicTablesEnabled()).thenReturn(true);
+    when(config.tablesRouteNamespace()).thenReturn(ROUTE_NAMESPACE);
+    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+
+    Map<String, Object> value = ImmutableMap.of(ROUTE_FIELD, ROUTE_NAMESPACE);
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults).hasSize(1);
+    IcebergWriterResult writerResult = writerResults.get(0);
+    assertThat(writerResult.tableIdentifier()).isEqualTo(ROUTE_NAMESPACE + "." + ROUTE_FIELD);
   }
 
   @Test

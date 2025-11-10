@@ -115,12 +115,16 @@ public class SinkWriter {
   }
 
   private void routeRecordDynamically(SinkRecord record) {
+    String routeNamespace = config.tablesRouteNamespace();
     String routeField = config.tablesRouteField();
     Preconditions.checkNotNull(routeField, "Route field cannot be null with dynamic routing");
 
     String routeValue = extractRouteValue(record.value(), routeField);
     if (routeValue != null) {
-      String tableName = routeValue.toLowerCase(Locale.ROOT);
+      String tableName = (routeNamespace !=null)
+        ? routeNamespace.toLowerCase() + "." + routeValue.toLowerCase(Locale.ROOT)
+        : routeValue.toLowerCase(Locale.ROOT);
+        
       writerForTable(tableName, record, true).write(record);
     }
   }
