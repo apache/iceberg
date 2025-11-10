@@ -17,7 +17,7 @@
  * under the License.
  */
 
-project(':iceberg-kafka-connect:iceberg-kafka-connect-events') {
+project(':iceberg-kafka-connect-parent:iceberg-kafka-connect-events') {
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
@@ -31,14 +31,14 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-events') {
   }
 }
 
-project(':iceberg-kafka-connect:iceberg-kafka-connect') {
+project(':iceberg-kafka-connect-parent:iceberg-kafka-connect') {
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation project(':iceberg-data')
-    implementation project(':iceberg-kafka-connect:iceberg-kafka-connect-events')
+    implementation project(':iceberg-kafka-connect-parent:iceberg-kafka-connect-events')
     implementation platform(libs.jackson.bom)
     implementation libs.jackson.core
     implementation libs.jackson.databind
@@ -58,7 +58,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect') {
   }
 }
 
-project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
+project(':iceberg-kafka-connect-parent:iceberg-kafka-connect-runtime') {
   apply plugin: 'distribution'
 
   configurations {
@@ -93,8 +93,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   }
 
   dependencies {
-    implementation project(':iceberg-kafka-connect:iceberg-kafka-connect')
-    implementation project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms')
+    implementation project(':iceberg-kafka-connect-parent:iceberg-kafka-connect')
+    implementation project(':iceberg-kafka-connect-parent:iceberg-kafka-connect-transforms')
     implementation(libs.hadoop3.common) {
       exclude group: 'log4j'
       exclude group: 'org.slf4j'
@@ -250,7 +250,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   assemble.dependsOn distZip, hiveDistZip
 }
 
-project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {
+project(':iceberg-kafka-connect-parent:iceberg-kafka-connect-transforms') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation libs.bson
