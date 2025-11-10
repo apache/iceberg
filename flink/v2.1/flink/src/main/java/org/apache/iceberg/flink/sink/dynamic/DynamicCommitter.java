@@ -38,6 +38,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.sink.CommitSummary;
@@ -211,6 +212,14 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           DeltaManifests deltaManifests =
               SimpleVersionedSerialization.readVersionAndDeSerialize(
                   DeltaManifestsSerializer.INSTANCE, committable.getCommittable().manifest());
+
+          int commitFormatVersion =
+              FlinkManifestUtil.readFormatVersionFromManifest(
+                  deltaManifests, table.io(), table.specs());
+          Preconditions.checkArgument(
+              commitFormatVersion == TableUtil.formatVersion(table),
+              "Dynamic Sink does not support upgrading the underlying table version directly");
+
           pendingResults
               .computeIfAbsent(e.getKey(), unused -> Lists.newArrayList())
               .add(FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));

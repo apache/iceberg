@@ -43,6 +43,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
+import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
@@ -333,6 +336,61 @@ class TestDynamicCommitter {
                 .put("total-position-deletes", "0")
                 .put("total-records", "42")
                 .build());
+  }
+
+  @Test
+  void testCommitWithDifferentFormatVersionFail() throws Exception {
+    Table table1 = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table1.snapshots()).isEmpty();
+
+    boolean overwriteMode = false;
+    int workerPoolSize = 1;
+    String sinkId = "sinkId";
+    UnregisteredMetricsGroup metricGroup = new UnregisteredMetricsGroup();
+    DynamicCommitterMetrics committerMetrics = new DynamicCommitterMetrics(metricGroup);
+    DynamicCommitter dynamicCommitter =
+        new DynamicCommitter(
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            overwriteMode,
+            workerPoolSize,
+            sinkId,
+            committerMetrics);
+
+    WriteTarget writeTarget =
+        new WriteTarget(TABLE1, "branch", 42, 0, false, Sets.newHashSet(1, 2));
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int checkpointId = 10;
+
+    byte[] deltaManifest =
+        aggregator.writeToManifest(
+            writeTarget,
+            Sets.newHashSet(
+                new DynamicWriteResult(
+                    writeTarget, WriteResult.builder().addDataFiles(DATA_FILE).build())),
+            checkpointId);
+
+    CommitRequest<DynamicCommittable> commitRequest =
+        new MockCommitRequest<>(
+            new DynamicCommittable(writeTarget, deltaManifest, jobId, operatorId, checkpointId));
+
+    // Upgrade the table version
+    UpdateProperties updateApi = table1.updateProperties();
+    updateApi.set(
+        TableProperties.FORMAT_VERSION, String.valueOf(TableUtil.formatVersion(table1) + 1));
+    updateApi.commit();
+
+    assertThatThrownBy(() -> dynamicCommitter.commit(Sets.newHashSet(commitRequest)))
+        .hasMessage("Dynamic Sink does not support upgrading the underlying table version directly")
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
