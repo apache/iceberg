@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,6 +113,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   private FileIO fileIO;
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
+  private boolean uniqueTableLocation;
 
   public DynamoDbCatalog() {}
 
@@ -123,12 +125,21 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
         new AwsProperties(properties),
         AwsClientFactories.from(properties).dynamo(),
-        initializeFileIO(properties));
+        initializeFileIO(properties),
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT));
   }
 
   @VisibleForTesting
   void initialize(
-      String name, String path, AwsProperties properties, DynamoDbClient client, FileIO io) {
+      String name,
+      String path,
+      AwsProperties properties,
+      DynamoDbClient client,
+      FileIO io,
+      boolean uniqTableLocation) {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(path),
         "Cannot initialize DynamoDbCatalog because warehousePath must not be null or empty");
@@ -138,6 +149,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     this.warehousePath = LocationUtil.stripTrailingSlash(path);
     this.dynamo = client;
     this.fileIO = io;
+    this.uniqueTableLocation = uniqTableLocation;
 
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(dynamo);
@@ -177,12 +189,12 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     }
 
     String defaultLocationCol = toPropertyCol(PROPERTY_DEFAULT_LOCATION);
+    String tableLocation = LocationUtil.tableLocation(tableIdentifier, uniqueTableLocation);
     if (response.item().containsKey(defaultLocationCol)) {
-      return String.format(
-          "%s/%s", response.item().get(defaultLocationCol).s(), tableIdentifier.name());
+      return String.format("%s/%s", response.item().get(defaultLocationCol).s(), tableLocation);
     } else {
       return String.format(
-          "%s/%s.db/%s", warehousePath, tableIdentifier.namespace(), tableIdentifier.name());
+          "%s/%s.db/%s", warehousePath, tableIdentifier.namespace(), tableLocation);
     }
   }
 

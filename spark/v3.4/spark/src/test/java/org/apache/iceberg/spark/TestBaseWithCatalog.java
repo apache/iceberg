@@ -151,6 +151,13 @@ public abstract class TestBaseWithCatalog extends TestBase {
         catalogConfig, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
   }
 
+  protected boolean uniqueTableLocation() {
+    return PropertyUtil.propertyAsBoolean(
+        catalogConfig,
+        CatalogProperties.UNIQUE_TABLE_LOCATION,
+        CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
+  }
+
   protected void configurePlanningMode(PlanningMode planningMode) {
     configurePlanningMode(tableName, planningMode);
   }
