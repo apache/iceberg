@@ -46,10 +46,6 @@ import org.apache.iceberg.variants.VariantValue;
 public class ValueWriters {
   private ValueWriters() {}
 
-  /**
-   * @deprecated since 1.11.0, return type will be changed to {@code ValueWriter<Object>} in 1.12.0
-   */
-  @Deprecated
   public static ValueWriter<Void> nulls() {
     return NullWriter.INSTANCE;
   }
@@ -148,13 +144,14 @@ public class ValueWriters {
     return new StructLikeWriter(writers);
   }
 
-  private static class NullWriter implements ValueWriter<Void> {
-    private static final NullWriter INSTANCE = new NullWriter();
+  private static class NullWriter implements ValueWriter<Object> {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static final ValueWriter<Void> INSTANCE = (ValueWriter) new NullWriter();
 
     private NullWriter() {}
 
     @Override
-    public void write(Void ignored, Encoder encoder) throws IOException {
+    public void write(Object ignored, Encoder encoder) throws IOException {
       encoder.writeNull();
     }
   }
@@ -584,17 +581,7 @@ public class ValueWriters {
     @Override
     public void write(S row, Encoder encoder) throws IOException {
       for (int i = 0; i < writers.length; i += 1) {
-        Object datum = get(row, i);
-        ValueWriter<Object> writer = writers[i];
-
-        // TODO: remove this workaround once the return type of ValueWriters.nulls() has been
-        // changed from ValueWriter<Void> to ValueWriter<Object>
-        if (NullWriter.INSTANCE.getClass().equals(writer.getClass()) && null != datum) {
-          // this is an UnknownType that has a value
-          writer.write(null, encoder);
-        } else {
-          writer.write(datum, encoder);
-        }
+        writers[i].write(get(row, i), encoder);
       }
     }
   }
