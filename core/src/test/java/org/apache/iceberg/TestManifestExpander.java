@@ -19,8 +19,12 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.roaringbitmap.RoaringBitmap;
 
 public class TestManifestExpander {
 
@@ -501,5 +506,123 @@ public class TestManifestExpander {
     }
 
     return outputFile.location();
+  }
+
+  @Test
+  public void testManifestDVFiltersPositions() throws IOException {
+    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
+    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L);
+    GenericTrackedFile file3 = createDataFile("file3.parquet", 3000L);
+    String leafManifestPath = writeLeafManifest(file1, file2, file3);
+
+    GenericTrackedFile manifestEntry = createManifestEntry(leafManifestPath, 3, 6000L);
+
+    GenericTrackedFile manifestDV = createManifestDV(leafManifestPath, new long[] {1});
+
+    String rootPath = writeRootManifest(manifestEntry, manifestDV);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(2);
+    assertThat(scanInfos)
+        .anyMatch(info -> info.dataFile().location().endsWith("file1.parquet"))
+        .anyMatch(info -> info.dataFile().location().endsWith("file3.parquet"));
+    assertThat(scanInfos).noneMatch(info -> info.dataFile().location().endsWith("file2.parquet"));
+  }
+
+  @Test
+  public void testManifestWithoutDV() throws IOException {
+    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
+    String leafManifestPath = writeLeafManifest(file1);
+
+    GenericTrackedFile manifestEntry = createManifestEntry(leafManifestPath, 1, 1000L);
+
+    String rootPath = writeRootManifest(manifestEntry);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(1);
+    assertThat(scanInfos.get(0).dataFile().location()).endsWith("file1.parquet");
+  }
+
+  @Test
+  public void testMultipleManifestDVsForSameManifest() throws IOException {
+    String leafManifestPath = writeLeafManifest(createDataFile("file1.parquet", 1000L));
+
+    GenericTrackedFile manifestEntry = createManifestEntry(leafManifestPath, 1, 1000L);
+    GenericTrackedFile manifestDV1 = createManifestDV(leafManifestPath, new long[] {0});
+    GenericTrackedFile manifestDV2 = createManifestDV(leafManifestPath, new long[] {1});
+
+    String rootPath = writeRootManifest(manifestEntry, manifestDV1, manifestDV2);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    assertThatThrownBy(() -> Lists.newArrayList(expander.allTrackedFiles()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Multiple MANIFEST_DVs found for manifest");
+  }
+
+  @Test
+  public void testManifestDVDeletesMultiplePositions() throws IOException {
+    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
+    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L);
+    GenericTrackedFile file3 = createDataFile("file3.parquet", 3000L);
+    GenericTrackedFile file4 = createDataFile("file4.parquet", 4000L);
+    String leafManifestPath = writeLeafManifest(file1, file2, file3, file4);
+
+    GenericTrackedFile manifestEntry = createManifestEntry(leafManifestPath, 4, 10000L);
+
+    GenericTrackedFile manifestDV = createManifestDV(leafManifestPath, new long[] {0, 2});
+
+    String rootPath = writeRootManifest(manifestEntry, manifestDV);
+
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
+
+    List<ManifestExpander.DataFileScanInfo> scanInfos =
+        Lists.newArrayList(expander.planDataFiles());
+
+    assertThat(scanInfos).hasSize(2);
+    assertThat(scanInfos)
+        .anyMatch(info -> info.dataFile().location().endsWith("file2.parquet"))
+        .anyMatch(info -> info.dataFile().location().endsWith("file4.parquet"));
+  }
+
+  private GenericTrackedFile createManifestDV(String targetManifest, long[] deletedPositions)
+      throws IOException {
+    RoaringBitmap bitmap = new RoaringBitmap();
+    for (long pos : deletedPositions) {
+      // positions are 0-based and should not exceed Integer.MAX_VALUE
+      bitmap.add((int) pos);
+    }
+
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    bitmap.serialize(new DataOutputStream(baos));
+    byte[] serialized = baos.toByteArray();
+
+    GenericTrackedFile dv = new GenericTrackedFile();
+    dv.setContentType(FileContent.MANIFEST_DV);
+    dv.setFileFormat(FileFormat.PUFFIN);
+    dv.setPartitionSpecId(0);
+    dv.setRecordCount(deletedPositions.length);
+    dv.setReferencedFile(targetManifest);
+    dv.setDeletionVectorInlineContent(ByteBuffer.wrap(serialized));
+    dv.setStatus(TrackingInfo.Status.ADDED);
+    dv.setSnapshotId(SNAPSHOT_ID);
+
+    return dv;
   }
 }

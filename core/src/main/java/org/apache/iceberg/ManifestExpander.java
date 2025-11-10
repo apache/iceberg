@@ -32,6 +32,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -394,27 +395,48 @@ public class ManifestExpander extends CloseableGroup {
    *
    * <p>Loads all root entries to identify manifests, then reads each leaf manifest serially.
    *
+   * <p>Applies manifest DVs (MANIFEST_DV entries) to skip deleted positions in leaf manifests.
+   *
    * <p>TODO: Add parallel manifest reading support via ExecutorService (like
    * ManifestGroup.planWith). This would use ParallelIterable to read leaf manifests concurrently.
-   *
-   * <p>TODO: Add manifest DV support - group MANIFEST_DV entries by referencedFile and apply to
-   * leaf readers.
    */
   private CloseableIterable<TrackedFile<?>> expandManifests() {
     List<TrackedFile<?>> rootEntries = Lists.newArrayList(rootReader.liveEntries());
+
+    Map<String, TrackedFile<?>> dvByTarget = indexManifestDVs(rootEntries);
 
     List<CloseableIterable<TrackedFile<?>>> allLeafFiles = Lists.newArrayList();
 
     for (TrackedFile<?> manifestEntry : rootEntries) {
       if (manifestEntry.contentType() == FileContent.DATA_MANIFEST
           || manifestEntry.contentType() == FileContent.DELETE_MANIFEST) {
+        TrackedFile<?> dv = dvByTarget.get(manifestEntry.location());
+
         V4ManifestReader leafReader =
-            V4ManifestReaders.readLeaf(manifestEntry, io, specsById).select(columns);
+            V4ManifestReaders.readLeaf(manifestEntry, io, specsById)
+                .select(columns)
+                .withDeletionVector(dv);
         addCloseable(leafReader);
         allLeafFiles.add(leafReader.liveEntries());
       }
     }
 
     return CloseableIterable.concat(allLeafFiles);
+  }
+
+  private Map<String, TrackedFile<?>> indexManifestDVs(List<TrackedFile<?>> rootEntries) {
+    Map<String, TrackedFile<?>> index = Maps.newHashMap();
+
+    for (TrackedFile<?> entry : rootEntries) {
+      if (entry.contentType() == FileContent.MANIFEST_DV) {
+        String target = entry.referencedFile();
+        TrackedFile<?> existing = index.put(target, entry);
+
+        Preconditions.checkState(
+            existing == null, "Multiple MANIFEST_DVs found for manifest: %s", target);
+      }
+    }
+
+    return index;
   }
 }

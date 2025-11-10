@@ -18,16 +18,23 @@
  */
 package org.apache.iceberg;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.roaringbitmap.RoaringBitmap;
 
 /**
  * Reader for V4 manifest files containing TrackedFile entries.
@@ -43,6 +50,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final Long manifestFirstRowId;
 
   private Collection<String> columns = null;
+  private TrackedFile<?> manifestDV = null;
 
   protected V4ManifestReader(
       InputFile file, InheritableTrackedMetadata inheritableMetadata, Long manifestFirstRowId) {
@@ -53,6 +61,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   public V4ManifestReader select(Collection<String> newColumns) {
     this.columns = newColumns;
+    return this;
+  }
+
+  public V4ManifestReader withDeletionVector(TrackedFile<?> dv) {
+    this.manifestDV = dv;
     return this;
   }
 
@@ -89,7 +102,46 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     transformed = assignPositions(transformed);
 
+    if (manifestDV != null) {
+      RoaringBitmap deletedPositions = deserializeManifestDV(manifestDV);
+      transformed =
+          CloseableIterable.filter(
+              transformed,
+              entry -> {
+                Long pos = entry.pos();
+                // positions are 0-based and should not exceed Integer.MAX_VALUE
+                return pos == null || !deletedPositions.contains(pos.intValue());
+              });
+    }
+
     return transformed;
+  }
+
+  private static RoaringBitmap deserializeManifestDV(TrackedFile<?> manifestDV) {
+    Preconditions.checkArgument(
+        manifestDV.contentType() == FileContent.MANIFEST_DV,
+        "Expected MANIFEST_DV, got: %s",
+        manifestDV.contentType());
+
+    DeletionVector dvInfo = manifestDV.deletionVector();
+    Preconditions.checkNotNull(dvInfo, "MANIFEST_DV must have deletion_vector");
+
+    Preconditions.checkNotNull(
+        dvInfo.inlineContent(),
+        "Manifest DV must have inline content (External not supported): %s",
+        manifestDV.referencedFile());
+
+    ByteBuffer buffer = dvInfo.inlineContent();
+    byte[] bytes = new byte[buffer.remaining()];
+    buffer.asReadOnlyBuffer().get(bytes);
+
+    RoaringBitmap bitmap = new RoaringBitmap();
+    try {
+      bitmap.deserialize(new DataInputStream(new ByteArrayInputStream(bytes)));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to deserialize Roaring bitmap from manifest DV");
+    }
+    return bitmap;
   }
 
   private Schema buildProjection(Collection<String> cols) {
