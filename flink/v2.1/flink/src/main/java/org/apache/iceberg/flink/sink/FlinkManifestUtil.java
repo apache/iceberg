@@ -26,7 +26,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
@@ -42,15 +41,15 @@ import org.slf4j.LoggerFactory;
 public class FlinkManifestUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(FlinkManifestUtil.class);
+  private static final int FORMAT_V2 = 2;
   private static final Long DUMMY_SNAPSHOT_ID = 0L;
 
   private FlinkManifestUtil() {}
 
   static ManifestFile writeDataFiles(
-      OutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles, int formatVersion)
-      throws IOException {
+      OutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles) throws IOException {
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, spec, outputFile, DUMMY_SNAPSHOT_ID);
+        ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID);
 
     try (ManifestWriter<DataFile> closeableWriter = writer) {
       closeableWriter.addAll(dataFiles);
@@ -109,11 +108,7 @@ public class FlinkManifestUtil {
     // Write the completed data files into a newly created data manifest file.
     if (result.dataFiles() != null && result.dataFiles().length > 0) {
       dataManifest =
-          writeDataFiles(
-              outputFileSupplier.get(),
-              spec,
-              Lists.newArrayList(result.dataFiles()),
-              formatVersion);
+          writeDataFiles(outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()));
     }
 
     // Write the completed delete files into a newly created delete manifest file.
@@ -154,26 +149,6 @@ public class FlinkManifestUtil {
     }
 
     return builder.addReferencedDataFiles(deltaManifests.referencedDataFiles()).build();
-  }
-
-  public static int readFormatVersionFromManifest(
-      DeltaManifests deltaManifests, FileIO io, Map<Integer, PartitionSpec> specsById)
-      throws IOException {
-    if (deltaManifests.dataManifest() != null) {
-      try (ManifestReader<DataFile> manifestReader =
-          ManifestFiles.read(deltaManifests.dataManifest(), io, specsById)) {
-        return manifestReader.formatVersion();
-      }
-    }
-
-    if (deltaManifests.deleteManifest() != null) {
-      try (ManifestReader<DeleteFile> manifestReader =
-          ManifestFiles.readDeleteManifest(deltaManifests.deleteManifest(), io, specsById)) {
-        return manifestReader.formatVersion();
-      }
-    }
-
-    throw new RuntimeException("Failed to read format version from manifest files");
   }
 
   public static void deleteCommittedManifests(
