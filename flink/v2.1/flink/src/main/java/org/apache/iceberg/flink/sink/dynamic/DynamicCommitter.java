@@ -304,7 +304,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String newFlinkJobId,
       String operatorId) {
     if (summary.deleteFilesCount() == 0) {
-      // To be compatible with iceberg format V1.
+      // Use append snapshot operation where possible
       AppendFiles appendFiles = table.newAppend().scanManifestsWith(workerPool);
       for (List<WriteResult> resultList : pendingResults.values()) {
         for (WriteResult result : resultList) {
@@ -314,15 +314,13 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
         }
       }
-      String description = "append";
 
-      // fail all commits as really its only one
       commitOperation(
           table,
           branch,
           appendFiles,
           summary,
-          description,
+          "append",
           newFlinkJobId,
           operatorId,
           pendingResults.lastKey());
