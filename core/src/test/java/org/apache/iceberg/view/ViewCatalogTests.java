@@ -1732,6 +1732,141 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .buildView(identifier)
             .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+
+    ReplaceViewVersion replaceViewVersionOne =
+        view.replaceVersion()
+            .withQuery("trino", "select count(id) from ns.tbl")
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace());
+
+    ReplaceViewVersion replaceViewVersionTwo =
+        view.replaceVersion()
+            .withQuery("spark", "select count(some_id) from ns.tbl")
+            .withSchema(OTHER_SCHEMA)
+            .withDefaultNamespace(identifier.namespace());
+
+    // simulate a concurrent replace of the view version
+    ViewOperations viewOps = ((BaseView) view).operations();
+    ViewMetadata current = viewOps.current();
+
+    ViewMetadata trinoUpdate = ((ViewVersionReplace) replaceViewVersionTwo).internalApply();
+    ViewMetadata sparkUpdate = ((ViewVersionReplace) replaceViewVersionOne).internalApply();
+
+    viewOps.commit(current, trinoUpdate);
+
+    if (supportsServerSideRetry()) {
+      // retry should succeed and the changes should be applied
+      viewOps.commit(current, sparkUpdate);
+
+      View updatedView = catalog().loadView(identifier);
+      ViewVersion viewVersion = updatedView.currentVersion();
+      assertThat(viewVersion.versionId()).isEqualTo(3);
+      assertThat(updatedView.versions()).hasSize(3);
+      assertThat(updatedView.version(1))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(1).timestampMillis())
+                  .versionId(1)
+                  .schemaId(0)
+                  .summary(updatedView.version(1).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select * from ns.tbl")
+                          .dialect("trino")
+                          .build())
+                  .build());
+
+      assertThat(updatedView.version(2))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(2).timestampMillis())
+                  .versionId(2)
+                  .schemaId(1)
+                  .summary(updatedView.version(2).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select count(some_id) from ns.tbl")
+                          .dialect("spark")
+                          .build())
+                  .build());
+
+      assertThat(updatedView.version(3))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(3).timestampMillis())
+                  .versionId(3)
+                  .schemaId(0)
+                  .summary(updatedView.version(3).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select count(id) from ns.tbl")
+                          .dialect("trino")
+                          .build())
+                  .build());
+    } else {
+      assertThatThrownBy(() -> viewOps.commit(current, sparkUpdate))
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageContaining("Cannot commit");
+
+      View updatedView = catalog().loadView(identifier);
+      ViewVersion viewVersion = updatedView.currentVersion();
+      assertThat(viewVersion.versionId()).isEqualTo(2);
+      assertThat(updatedView.versions()).hasSize(2);
+      assertThat(updatedView.version(1))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(1).timestampMillis())
+                  .versionId(1)
+                  .schemaId(0)
+                  .summary(updatedView.version(1).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select * from ns.tbl")
+                          .dialect("trino")
+                          .build())
+                  .build());
+
+      assertThat(updatedView.version(2))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(2).timestampMillis())
+                  .versionId(2)
+                  .schemaId(1)
+                  .summary(updatedView.version(2).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select count(some_id) from ns.tbl")
+                          .dialect("spark")
+                          .build())
+                  .build());
+    }
+  }
+
+  @Test
+  public void concurrentUpdateViewSchema() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
             .withQuery("trino", "select id, data from ns.tbl")
             .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
             .create();
@@ -1746,11 +1881,11 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     ReplaceViewVersion replaceViewVersionTwo =
         view.replaceVersion()
-            .withQuery("spark", "select count(some_id) from ns.tbl")
+            .withQuery("spark", "select count(id, data) from ns.tbl")
             .withSchema(OTHER_SCHEMA)
             .withDefaultNamespace(identifier.namespace());
 
-    // simulate a concurrent replace of the view version
+    // simulate a concurrent replace of the view version with 2 different schema updates
     ViewOperations viewOps = ((BaseView) view).operations();
     ViewMetadata current = viewOps.current();
 
@@ -1759,78 +1894,165 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     viewOps.commit(current, trinoUpdate);
 
-    // second commit should fail with a conflict
-    assertThatThrownBy(() -> viewOps.commit(current, sparkUpdate))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("Commit failed");
+    if (supportsServerSideRetry()) {
+      // retry should succeed and the changes should be applied
+      viewOps.commit(current, sparkUpdate);
+
+      View updatedView = catalog().loadView(identifier);
+      ViewVersion viewVersion = updatedView.currentVersion();
+      assertThat(viewVersion.versionId()).isEqualTo(3);
+      assertThat(updatedView.versions()).hasSize(3);
+      assertThat(updatedView.version(1))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(1).timestampMillis())
+                  .versionId(1)
+                  .schemaId(0)
+                  .summary(updatedView.version(1).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select id, data from ns.tbl")
+                          .dialect("trino")
+                          .build())
+                  .build());
+      assertThat(updatedView.schemas().get(updatedView.version(1).schemaId()).sameSchema(SCHEMA));
+
+      assertThat(updatedView.version(2))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(2).timestampMillis())
+                  .versionId(2)
+                  .schemaId(1)
+                  .summary(updatedView.version(2).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select id, data, extra from ns.tbl")
+                          .dialect("trino")
+                          .build())
+                  .build());
+      assertThat(
+          updatedView
+              .schemas()
+              .get(updatedView.version(2).schemaId())
+              .sameSchema(SCHEMA_WITH_EXTRA_COL));
+
+      assertThat(updatedView.version(3))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(3).timestampMillis())
+                  .versionId(3)
+                  .schemaId(2)
+                  .summary(updatedView.version(3).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select count(id, data) from ns.tbl")
+                          .dialect("spark")
+                          .build())
+                  .build());
+      assertThat(
+          updatedView.schemas().get(updatedView.version(3).schemaId()).sameSchema(OTHER_SCHEMA));
+    } else {
+      assertThatThrownBy(() -> viewOps.commit(current, sparkUpdate))
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageContaining("Cannot commit");
+
+      View updatedView = catalog().loadView(identifier);
+      ViewVersion viewVersion = updatedView.currentVersion();
+      assertThat(viewVersion.versionId()).isEqualTo(2);
+      assertThat(updatedView.versions()).hasSize(2);
+      assertThat(updatedView.version(1))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(1).timestampMillis())
+                  .versionId(1)
+                  .schemaId(0)
+                  .summary(updatedView.version(1).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select id, data from ns.tbl")
+                          .dialect("trino")
+                          .build())
+                  .build());
+      assertThat(updatedView.schemas().get(updatedView.version(1).schemaId()).sameSchema(SCHEMA));
+
+      assertThat(updatedView.version(2))
+          .isEqualTo(
+              ImmutableViewVersion.builder()
+                  .timestampMillis(updatedView.version(2).timestampMillis())
+                  .versionId(2)
+                  .schemaId(1)
+                  .summary(updatedView.version(2).summary())
+                  .defaultNamespace(identifier.namespace())
+                  .addRepresentations(
+                      ImmutableSQLViewRepresentation.builder()
+                          .sql("select id, data, extra from ns.tbl")
+                          .dialect("trino")
+                          .build())
+                  .build());
+      assertThat(
+          updatedView
+              .schemas()
+              .get(updatedView.version(2).schemaId())
+              .sameSchema(SCHEMA_WITH_EXTRA_COL));
+    }
+  }
+
+  @Test
+  public void concurrentIdenticalUpdates() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("spark", "select id, data from ns.tbl")
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+
+    ReplaceViewVersion replaceViewVersion =
+        view.replaceVersion()
+            .withQuery("spark", "select id, data, extra from ns.tbl")
+            .withSchema(SCHEMA_WITH_EXTRA_COL)
+            .withDefaultNamespace(identifier.namespace());
+
+    ViewOperations viewOps = ((BaseView) view).operations();
+    ViewMetadata current = viewOps.current();
+
+    // simulate a concurrent update with identical changes (expects idempotent behavior)
+    ViewMetadata update1 = ((ViewVersionReplace) replaceViewVersion).internalApply();
+    ViewMetadata update2 = ((ViewVersionReplace) replaceViewVersion).internalApply();
+
+    viewOps.commit(current, update1);
+
+    if (supportsServerSideRetry()) {
+      // retry should succeed and the changes should be applied
+      viewOps.commit(current, update2);
+    } else {
+      assertThatThrownBy(() -> viewOps.commit(current, update2))
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageContaining("Cannot commit");
+    }
 
     View updatedView = catalog().loadView(identifier);
-    ViewVersion viewVersion = updatedView.currentVersion();
-    assertThat(viewVersion.versionId()).isEqualTo(2);
-    assertThat(updatedView.versions()).hasSize(2);
-    assertThat(updatedView.version(1))
-        .isEqualTo(
-            ImmutableViewVersion.builder()
-                .timestampMillis(updatedView.version(1).timestampMillis())
-                .versionId(1)
-                .schemaId(0)
-                .summary(updatedView.version(1).summary())
-                .defaultNamespace(identifier.namespace())
-                .addRepresentations(
-                    ImmutableSQLViewRepresentation.builder()
-                        .sql("select id, data from ns.tbl")
-                        .dialect("trino")
-                        .build())
-                .build());
-    assertThat(
-        SCHEMA.sameSchema(viewOps.current().schemasById().get(updatedView.version(1).schemaId())));
 
-    assertThat(updatedView.version(2))
-        .isEqualTo(
-            ImmutableViewVersion.builder()
-                .timestampMillis(updatedView.version(2).timestampMillis())
-                .versionId(2)
-                .schemaId(1)
-                .summary(updatedView.version(2).summary())
-                .defaultNamespace(identifier.namespace())
-                .addRepresentations(
-                    ImmutableSQLViewRepresentation.builder()
-                        .sql("select id, data, extra from ns.tbl")
-                        .dialect("trino")
-                        .build())
-                .build());
+    // idempotency: verify the latest version matches either of the
+    // desired schema and sql string, no matter the type of catalog
+    assertThat(updatedView.schema().sameSchema(SCHEMA_WITH_EXTRA_COL));
     assertThat(
-        SCHEMA_WITH_EXTRA_COL.sameSchema(
-            viewOps.current().schemasById().get(updatedView.version(2).schemaId())));
-
-    // assert that the same conflicting update can go through after client side
-    // retry through the catalog API
-    catalog()
-        .loadView(identifier)
-        .replaceVersion()
-        .withQuery("spark", "select count(some_id) from ns.tbl")
-        .withSchema(OTHER_SCHEMA)
-        .withDefaultNamespace(identifier.namespace())
-        .commit();
-
-    updatedView = catalog().loadView(identifier);
-    assertThat(updatedView.version(3))
-        .isEqualTo(
-            ImmutableViewVersion.builder()
-                .timestampMillis(updatedView.version(3).timestampMillis())
-                .versionId(3)
-                .schemaId(2)
-                .summary(updatedView.version(2).summary())
-                .defaultNamespace(identifier.namespace())
-                .addRepresentations(
-                    ImmutableSQLViewRepresentation.builder()
-                        .sql("select count(some_id) from ns.tbl")
-                        .dialect("spark")
-                        .build())
-                .build());
-    assertThat(
-        OTHER_SCHEMA.sameSchema(
-            viewOps.refresh().schemasById().get(updatedView.version(3).schemaId())));
+            ((SQLViewRepresentation) updatedView.currentVersion().representations().get(0)).sql())
+        .isEqualTo("select id, data, extra from ns.tbl");
   }
 
   @Test

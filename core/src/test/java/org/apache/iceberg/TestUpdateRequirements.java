@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -907,21 +906,17 @@ public class TestUpdateRequirements {
 
   @Test
   public void addViewVersion() {
-    when(viewMetadata.versionsById())
-        .thenReturn(
-            ImmutableMap.of(
-                1,
-                ImmutableViewVersion.builder()
-                    .versionId(1)
-                    .schemaId(1)
-                    .timestampMillis(System.currentTimeMillis())
-                    .defaultNamespace(Namespace.of("ns"))
-                    .build()));
-
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceView(
             viewMetadata,
             ImmutableList.of(
+                new MetadataUpdate.AddViewVersion(
+                    ImmutableViewVersion.builder()
+                        .versionId(1)
+                        .schemaId(1)
+                        .timestampMillis(System.currentTimeMillis())
+                        .defaultNamespace(Namespace.of("ns"))
+                        .build()),
                 new MetadataUpdate.AddViewVersion(
                     ImmutableViewVersion.builder()
                         .versionId(2)
@@ -932,13 +927,6 @@ public class TestUpdateRequirements {
                 new MetadataUpdate.AddViewVersion(
                     ImmutableViewVersion.builder()
                         .versionId(3)
-                        .schemaId(1)
-                        .timestampMillis(System.currentTimeMillis())
-                        .defaultNamespace(Namespace.of("ns"))
-                        .build()),
-                new MetadataUpdate.AddViewVersion(
-                    ImmutableViewVersion.builder()
-                        .versionId(4)
                         .schemaId(1)
                         .timestampMillis(System.currentTimeMillis())
                         .defaultNamespace(Namespace.of("ns"))
@@ -946,56 +934,18 @@ public class TestUpdateRequirements {
     requirements.forEach(req -> req.validate(viewMetadata));
 
     assertThat(requirements)
-        .hasSize(4)
-        .hasOnlyElementsOfTypes(
-            UpdateRequirement.AssertViewUUID.class,
-            UpdateRequirement.AssertLastAssignedViewVersionID.class);
+        .hasSize(1)
+        .hasOnlyElementsOfTypes(UpdateRequirement.AssertViewUUID.class);
 
     assertViewUUID(requirements);
-
-    // On top of the AssertViewUUID requirement, three AssertLastAssignedViewVersionID
-    // requirements will be added each for the three AddViewVersion updates; however,
-    // they are all validated against the same lastAssignedViewVersionId of the current
-    // base metadata
-    int lastAssignedVersionId =
-        viewMetadata.versionsById().keySet().stream().max(Integer::compareTo).get();
-    assertThat(
-            requirements.stream()
-                .filter(r -> r instanceof UpdateRequirement.AssertLastAssignedViewVersionID)
-                .map(
-                    r ->
-                        ((UpdateRequirement.AssertLastAssignedViewVersionID) r)
-                            .lastAssignedViewId()))
-        .hasSize(3)
-        .containsExactly(lastAssignedVersionId, lastAssignedVersionId, lastAssignedVersionId);
-    // reset custom mock setup for this test
-    reset(viewMetadata);
   }
 
   @Test
   public void setCurrentViewVersion() {
-    when(viewMetadata.versionsById())
-        .thenReturn(
-            ImmutableMap.of(
-                1,
-                ImmutableViewVersion.builder()
-                    .versionId(1)
-                    .schemaId(1)
-                    .timestampMillis(System.currentTimeMillis())
-                    .defaultNamespace(Namespace.of("ns"))
-                    .build()));
-
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceView(
             viewMetadata,
             ImmutableList.of(
-                new MetadataUpdate.AddViewVersion(
-                    ImmutableViewVersion.builder()
-                        .versionId(4)
-                        .schemaId(1)
-                        .timestampMillis(System.currentTimeMillis())
-                        .defaultNamespace(Namespace.of("ns"))
-                        .build()),
                 new MetadataUpdate.AddViewVersion(
                     ImmutableViewVersion.builder()
                         .versionId(3)
@@ -1006,6 +956,13 @@ public class TestUpdateRequirements {
                 new MetadataUpdate.AddViewVersion(
                     ImmutableViewVersion.builder()
                         .versionId(2)
+                        .schemaId(1)
+                        .timestampMillis(System.currentTimeMillis())
+                        .defaultNamespace(Namespace.of("ns"))
+                        .build()),
+                new MetadataUpdate.AddViewVersion(
+                    ImmutableViewVersion.builder()
+                        .versionId(1)
                         .schemaId(1)
                         .timestampMillis(System.currentTimeMillis())
                         .defaultNamespace(Namespace.of("ns"))
@@ -1014,34 +971,10 @@ public class TestUpdateRequirements {
     requirements.forEach(req -> req.validate(viewMetadata));
 
     assertThat(requirements)
-        .hasSize(5)
-        .hasOnlyElementsOfTypes(
-            UpdateRequirement.AssertViewUUID.class,
-            UpdateRequirement.AssertLastAssignedViewVersionID.class,
-            UpdateRequirement.AssertCurrentViewVersionID.class);
+        .hasSize(1)
+        .hasOnlyElementsOfTypes(UpdateRequirement.AssertViewUUID.class);
 
     assertViewUUID(requirements);
-
-    int lastAssignedVersionId =
-        viewMetadata.versionsById().keySet().stream().max(Integer::compareTo).get();
-    assertThat(
-            requirements.stream()
-                .filter(r -> r instanceof UpdateRequirement.AssertLastAssignedViewVersionID)
-                .map(
-                    r ->
-                        ((UpdateRequirement.AssertLastAssignedViewVersionID) r)
-                            .lastAssignedViewId()))
-        .hasSize(3)
-        .containsExactly(lastAssignedVersionId, lastAssignedVersionId, lastAssignedVersionId);
-    assertThat(
-            requirements.stream()
-                .filter(r -> r instanceof UpdateRequirement.AssertCurrentViewVersionID))
-        .map(r -> ((UpdateRequirement.AssertCurrentViewVersionID) r).viewVersionId())
-        .hasSize(1)
-        .containsExactly(viewMetadata.currentVersionId());
-
-    // reset custom mock setup for this test
-    reset(viewMetadata);
   }
 
   private void assertTableUUID(List<UpdateRequirement> requirements) {

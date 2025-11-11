@@ -43,8 +43,6 @@ public class UpdateRequirementParser {
   static final String ASSERT_LAST_ASSIGNED_PARTITION_ID = "assert-last-assigned-partition-id";
   static final String ASSERT_DEFAULT_SPEC_ID = "assert-default-spec-id";
   static final String ASSERT_DEFAULT_SORT_ORDER_ID = "assert-default-sort-order-id";
-  static final String ASSERT_CURRENT_VIEW_VERSION_ID = "assert-current-view-version-id";
-  static final String ASSERT_LAST_ASSIGNED_VIEW_VERSION_ID = "assert-last-assigned-view-version-id";
 
   // AssertTableUUID
   private static final String UUID = "uuid";
@@ -68,12 +66,6 @@ public class UpdateRequirementParser {
   // AssertDefaultSortOrderID
   private static final String SORT_ORDER_ID = "default-sort-order-id";
 
-  // AssertCurrentViewVersionID
-  private static final String CURRENT_VIEW_VERSION_ID = "current-view-version-id";
-
-  // AssertLastAssignedViewVersionID
-  private static final String LAST_ASSIGNED_VIEW_VERSION_ID = "last-assigned-view-version-id";
-
   private static final Map<Class<? extends UpdateRequirement>, String> TYPES =
       ImmutableMap.<Class<? extends UpdateRequirement>, String>builder()
           .put(UpdateRequirement.AssertTableUUID.class, ASSERT_TABLE_UUID)
@@ -87,10 +79,6 @@ public class UpdateRequirementParser {
               ASSERT_LAST_ASSIGNED_PARTITION_ID)
           .put(UpdateRequirement.AssertDefaultSpecID.class, ASSERT_DEFAULT_SPEC_ID)
           .put(UpdateRequirement.AssertDefaultSortOrderID.class, ASSERT_DEFAULT_SORT_ORDER_ID)
-          .put(UpdateRequirement.AssertCurrentViewVersionID.class, ASSERT_CURRENT_VIEW_VERSION_ID)
-          .put(
-              UpdateRequirement.AssertLastAssignedViewVersionID.class,
-              ASSERT_LAST_ASSIGNED_VIEW_VERSION_ID)
           .buildOrThrow();
 
   public static String toJson(UpdateRequirement updateRequirement) {
@@ -142,14 +130,6 @@ public class UpdateRequirementParser {
         writeAssertDefaultSortOrderId(
             (UpdateRequirement.AssertDefaultSortOrderID) updateRequirement, generator);
         break;
-      case ASSERT_CURRENT_VIEW_VERSION_ID:
-        writeAssertCurrentViewVersionId(
-            (UpdateRequirement.AssertCurrentViewVersionID) updateRequirement, generator);
-        break;
-      case ASSERT_LAST_ASSIGNED_VIEW_VERSION_ID:
-        writeAssertLastAssignedViewVersionId(
-            (UpdateRequirement.AssertLastAssignedViewVersionID) updateRequirement, generator);
-        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -198,10 +178,6 @@ public class UpdateRequirementParser {
         return readAssertDefaultSpecId(jsonNode);
       case ASSERT_DEFAULT_SORT_ORDER_ID:
         return readAssertDefaultSortOrderId(jsonNode);
-      case ASSERT_CURRENT_VIEW_VERSION_ID:
-        return readAssertCurrentViewVersionId(jsonNode);
-      case ASSERT_LAST_ASSIGNED_VIEW_VERSION_ID:
-        return readAssertLastAssignedViewVersionId(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Unrecognized update requirement. Cannot convert to json: %s", type));
@@ -256,18 +232,6 @@ public class UpdateRequirementParser {
     gen.writeNumberField(SORT_ORDER_ID, requirement.sortOrderId());
   }
 
-  private static void writeAssertCurrentViewVersionId(
-      UpdateRequirement.AssertCurrentViewVersionID requirement, JsonGenerator gen)
-      throws IOException {
-    gen.writeNumberField(CURRENT_VIEW_VERSION_ID, requirement.viewVersionId());
-  }
-
-  private static void writeAssertLastAssignedViewVersionId(
-      UpdateRequirement.AssertLastAssignedViewVersionID requirement, JsonGenerator gen)
-      throws IOException {
-    gen.writeNumberField(LAST_ASSIGNED_VIEW_VERSION_ID, requirement.lastAssignedViewId());
-  }
-
   @SuppressWarnings(
       "unused") // Keep same signature in case this requirement class evolves and gets fields
   private static UpdateRequirement readAssertTableDoesNotExist(JsonNode node) {
@@ -313,15 +277,5 @@ public class UpdateRequirementParser {
   private static UpdateRequirement readAssertDefaultSortOrderId(JsonNode node) {
     int sortOrderId = JsonUtil.getInt(SORT_ORDER_ID, node);
     return new UpdateRequirement.AssertDefaultSortOrderID(sortOrderId);
-  }
-
-  private static UpdateRequirement readAssertCurrentViewVersionId(JsonNode node) {
-    int viewVersionId = JsonUtil.getInt(CURRENT_VIEW_VERSION_ID, node);
-    return new UpdateRequirement.AssertCurrentViewVersionID(viewVersionId);
-  }
-
-  private static UpdateRequirement readAssertLastAssignedViewVersionId(JsonNode node) {
-    int viewVersionId = JsonUtil.getInt(LAST_ASSIGNED_VIEW_VERSION_ID, node);
-    return new UpdateRequirement.AssertLastAssignedViewVersionID(viewVersionId);
   }
 }

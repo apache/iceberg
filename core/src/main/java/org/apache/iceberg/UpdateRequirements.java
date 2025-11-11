@@ -31,7 +31,7 @@ public class UpdateRequirements {
 
   public static List<UpdateRequirement> forCreateTable(List<MetadataUpdate> metadataUpdates) {
     Preconditions.checkArgument(null != metadataUpdates, "Invalid metadata updates: null");
-    Builder builder = new Builder((TableMetadata) null, false);
+    Builder builder = new Builder(null, false);
     builder.require(new UpdateRequirement.AssertTableDoesNotExist());
     metadataUpdates.forEach(builder::update);
     return builder.build();
@@ -61,15 +61,14 @@ public class UpdateRequirements {
       ViewMetadata base, List<MetadataUpdate> metadataUpdates) {
     Preconditions.checkArgument(null != base, "Invalid view metadata: null");
     Preconditions.checkArgument(null != metadataUpdates, "Invalid metadata updates: null");
-    Builder builder = new Builder(base, false);
+    Builder builder = new Builder(null, false);
     builder.require(new UpdateRequirement.AssertViewUUID(base.uuid()));
     metadataUpdates.forEach(builder::update);
     return builder.build();
   }
 
   private static class Builder {
-    private final TableMetadata baseTable;
-    private final ViewMetadata baseView;
+    private final TableMetadata base;
     private final ImmutableList.Builder<UpdateRequirement> requirements = ImmutableList.builder();
     private final Set<String> changedRefs = Sets.newHashSet();
     private final boolean isReplace;
@@ -79,15 +78,8 @@ public class UpdateRequirements {
     private boolean setSpecId = false;
     private boolean setOrderId = false;
 
-    private Builder(TableMetadata baseTable, boolean isReplace) {
-      this.baseTable = baseTable;
-      this.baseView = null;
-      this.isReplace = isReplace;
-    }
-
-    private Builder(ViewMetadata baseView, boolean isReplace) {
-      this.baseTable = null;
-      this.baseView = baseView;
+    private Builder(TableMetadata base, boolean isReplace) {
+      this.base = base;
       this.isReplace = isReplace;
     }
 
@@ -118,13 +110,6 @@ public class UpdateRequirements {
       } else if (update instanceof MetadataUpdate.RemoveSchemas) {
         update((MetadataUpdate.RemoveSchemas) update);
       }
-      // the above handles requirement for table updates
-      // the below handles requirement for view updates
-      else if (update instanceof MetadataUpdate.AddViewVersion) {
-        update((MetadataUpdate.AddViewVersion) update);
-      } else if (update instanceof MetadataUpdate.SetCurrentViewVersion) {
-        update((MetadataUpdate.SetCurrentViewVersion) update);
-      }
 
       return this;
     }
@@ -134,8 +119,8 @@ public class UpdateRequirements {
       String name = setRef.name();
       // add returns true the first time the ref name is added
       boolean added = changedRefs.add(name);
-      if (added && baseTable != null && !isReplace) {
-        SnapshotRef baseRef = baseTable.ref(name);
+      if (added && base != null && !isReplace) {
+        SnapshotRef baseRef = base.ref(name);
         // require that the ref does not exist (null) or is the same as the base snapshot
         require(
             new UpdateRequirement.AssertRefSnapshotID(
@@ -145,8 +130,8 @@ public class UpdateRequirements {
 
     private void update(MetadataUpdate.AddSchema unused) {
       if (!addedSchema) {
-        if (baseTable != null) {
-          require(new UpdateRequirement.AssertLastAssignedFieldId(baseTable.lastColumnId()));
+        if (base != null) {
+          require(new UpdateRequirement.AssertLastAssignedFieldId(base.lastColumnId()));
         }
         this.addedSchema = true;
       }
@@ -158,10 +143,9 @@ public class UpdateRequirements {
 
     private void update(MetadataUpdate.AddPartitionSpec unused) {
       if (!addedSpec) {
-        if (baseTable != null) {
+        if (base != null) {
           require(
-              new UpdateRequirement.AssertLastAssignedPartitionId(
-                  baseTable.lastAssignedPartitionId()));
+              new UpdateRequirement.AssertLastAssignedPartitionId(base.lastAssignedPartitionId()));
         }
         this.addedSpec = true;
       }
@@ -173,9 +157,9 @@ public class UpdateRequirements {
 
     private void update(MetadataUpdate.SetDefaultSortOrder unused) {
       if (!setOrderId) {
-        if (baseTable != null && !isReplace) {
+        if (base != null && !isReplace) {
           // require that the default write order has not changed
-          require(new UpdateRequirement.AssertDefaultSortOrderID(baseTable.defaultSortOrderId()));
+          require(new UpdateRequirement.AssertDefaultSortOrderID(base.defaultSortOrderId()));
         }
         this.setOrderId = true;
       }
@@ -195,26 +179,10 @@ public class UpdateRequirements {
       requireNoBranchesChanged();
     }
 
-    private void update(MetadataUpdate.AddViewVersion unused) {
-      Preconditions.checkArgument(baseView != null, "Base view metadata is required");
-
-      baseView.versionsById().keySet().stream()
-          .max(Integer::compareTo)
-          .ifPresent(
-              viewVersion ->
-                  require(new UpdateRequirement.AssertLastAssignedViewVersionID(viewVersion)));
-    }
-
-    private void update(MetadataUpdate.SetCurrentViewVersion unused) {
-      Preconditions.checkArgument(baseView != null, "Base view metadata is required");
-
-      require(new UpdateRequirement.AssertCurrentViewVersionID(baseView.currentVersionId()));
-    }
-
     private void requireDefaultPartitionSpecNotChanged() {
       if (!setSpecId) {
-        if (baseTable != null && !isReplace) {
-          require(new UpdateRequirement.AssertDefaultSpecID(baseTable.defaultSpecId()));
+        if (base != null && !isReplace) {
+          require(new UpdateRequirement.AssertDefaultSpecID(base.defaultSpecId()));
         }
         this.setSpecId = true;
       }
@@ -222,17 +190,16 @@ public class UpdateRequirements {
 
     private void requireCurrentSchemaNotChanged() {
       if (!setSchemaId) {
-        if (baseTable != null && !isReplace) {
-          require(new UpdateRequirement.AssertCurrentSchemaID(baseTable.currentSchemaId()));
+        if (base != null && !isReplace) {
+          require(new UpdateRequirement.AssertCurrentSchemaID(base.currentSchemaId()));
         }
         this.setSchemaId = true;
       }
     }
 
     private void requireNoBranchesChanged() {
-      if (baseTable != null && !isReplace) {
-        baseTable
-            .refs()
+      if (base != null && !isReplace) {
+        base.refs()
             .forEach(
                 (name, ref) -> {
                   if (ref.isBranch() && !name.equals(SnapshotRef.MAIN_BRANCH)) {
