@@ -18,10 +18,17 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+import org.apache.iceberg.spark.functions.SparkFunctions;
+import org.apache.iceberg.spark.functions.UserSqlFunctions;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.rest.functions.RestFunctionService;
+import org.apache.iceberg.spark.udf.SparkUDFRegistrar;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.ProcedureCatalog;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
@@ -29,6 +36,7 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.apache.spark.sql.SparkSession;
 
 abstract class BaseCatalog
     implements StagingTableCatalog,
@@ -42,6 +50,8 @@ abstract class BaseCatalog
   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
   private boolean useNullableQuerySchema = USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT;
+  private String functionsRestUri = null;
+  private String functionsRestAuth = null;
 
   @Override
   public UnboundProcedure loadProcedure(Identifier ident) {
@@ -81,6 +91,10 @@ abstract class BaseCatalog
             options,
             USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS,
             USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT);
+
+    // POC config for REST-backed function listing/loading
+    this.functionsRestUri = options.get("functions.rest.uri");
+    this.functionsRestAuth = options.get("functions.rest.auth");
   }
 
   @Override
@@ -90,5 +104,36 @@ abstract class BaseCatalog
 
   private static boolean isSystemNamespace(String[] namespace) {
     return namespace.length == 1 && namespace[0].equalsIgnoreCase("system");
+  }
+
+  @Override
+  public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
+    if (isFunctionNamespace(namespace)) {
+      Set<String> names = new LinkedHashSet<>();
+      names.addAll(SparkFunctions.list());
+      names.addAll(UserSqlFunctions.list());
+
+      // If configured, fetch functions from REST and register them as SQL UDFs
+      if (functionsRestUri != null && !functionsRestUri.isEmpty()) {
+        RestFunctionService svc = new RestFunctionService(functionsRestUri, functionsRestAuth);
+        for (String fn : svc.listFunctions(namespace)) {
+          try {
+            // Only register if not already present
+            if (!names.contains(fn)) {
+              String json = svc.getFunctionSpecJson(namespace, fn);
+              SparkUDFRegistrar.registerFromJson(SparkSession.active(), fn, json);
+              names.add(fn);
+            }
+          } catch (RuntimeException e) {
+            // Best-effort: skip failing functions in POC
+          }
+        }
+      }
+
+      return names.stream().map(name -> Identifier.of(namespace, name)).toArray(Identifier[]::new);
+    } else if (isExistingNamespace(namespace)) {
+      return new Identifier[0];
+    }
+    throw new NoSuchNamespaceException(namespace);
   }
 }

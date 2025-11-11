@@ -62,27 +62,48 @@ public final class SparkUDFRegistrar {
   public static void registerFromJson(
       SparkSession spark, String functionName, String udfMetadataJson) {
     try {
+      // Validate that every definition's current version has a Spark representation
+      preValidateAllDefinitionsSupportSpark(udfMetadataJson);
+
       List<ResolvedSpec> all =
           org.apache.iceberg.udf.UdfSpecResolver.resolveAll(udfMetadataJson, "spark");
       for (ResolvedSpec spec : all) {
 
         List<String> sparkParams = Lists.newArrayList();
-        for (Param p : spec.parameters()) {
-          String sparkType = icebergTypeToSparkSql(parseTypeJson(p.icebergTypeJson()));
-          sparkParams.add(p.name() + " " + sparkType);
+        for (Param param : spec.parameters()) {
+          String sparkType;
+          try {
+            sparkType = icebergTypeToSparkSql(parseTypeJson(param.icebergTypeJson()));
+          } catch (RuntimeException e) {
+            throw new IllegalArgumentException(
+                "Unsupported parameter type for Spark in definition: " + param.name(), e);
+          }
+          sparkParams.add(param.name() + " " + sparkType);
         }
 
         String body = spec.body();
 
         String ddl;
         if (spec.functionType().equalsIgnoreCase("udtf")) {
-          String tableColumns = structReturnToSparkColumns(parseTypeJson(spec.returnTypeJson()));
+          String tableColumns;
+          try {
+            tableColumns = structReturnToSparkColumns(parseTypeJson(spec.returnTypeJson()));
+          } catch (RuntimeException e) {
+            throw new IllegalArgumentException(
+                "Unsupported UDTF return type for Spark (must be struct)", e);
+          }
           ddl =
               String.format(
                   "CREATE OR REPLACE TEMPORARY FUNCTION %s(%s) RETURNS TABLE (%s) RETURN %s",
                   functionName, String.join(", ", sparkParams), tableColumns, body);
         } else {
-          String returnType = icebergTypeToSparkSql(parseTypeJson(spec.returnTypeJson()));
+          String returnType;
+          try {
+            returnType = icebergTypeToSparkSql(parseTypeJson(spec.returnTypeJson()));
+          } catch (RuntimeException e) {
+            throw new IllegalArgumentException(
+                "Unsupported scalar return type for Spark", e);
+          }
           ddl =
               String.format(
                   "CREATE OR REPLACE TEMPORARY FUNCTION %s(%s) RETURNS %s RETURN %s",
@@ -94,6 +115,48 @@ public final class SparkUDFRegistrar {
 
       UserSqlFunctions.register(functionName);
     } catch (RuntimeException e) {
+      throw new RuntimeException("Failed to parse UDF metadata JSON", e);
+    }
+  }
+
+  private static void preValidateAllDefinitionsSupportSpark(String udfMetadataJson) {
+    try {
+      ObjectNode root = (ObjectNode) MAPPER.readTree(udfMetadataJson);
+      if (root.has("secure") && root.get("secure").asBoolean()) {
+        throw new IllegalArgumentException(
+            "Spark does not support secure UDFs; 'secure': true is not allowed");
+      }
+      ArrayNode definitions = (ArrayNode) root.get("definitions");
+      if (definitions == null || definitions.isEmpty()) {
+        throw new IllegalArgumentException("UDF metadata must contain at least one definition");
+      }
+
+      // Validate that versions exist and current-version-id (if present) resolves to a version.
+      for (JsonNode defNode : definitions) {
+        ObjectNode definition = (ObjectNode) defNode;
+        int currentVersionId =
+            definition.has("current-version-id") ? definition.get("current-version-id").asInt() : -1;
+        ArrayNode versions = (ArrayNode) definition.get("versions");
+        if (versions == null || versions.isEmpty()) {
+          throw new IllegalArgumentException("UDF definition must contain at least one version");
+        }
+
+        if (currentVersionId != -1) {
+          boolean matched = false;
+          for (JsonNode v : versions) {
+            if (v.has("version-id") && v.get("version-id").asInt() == currentVersionId) {
+              matched = true;
+              break;
+            }
+          }
+          if (!matched) {
+            throw new IllegalArgumentException(
+                "current-version-id does not match any version in definition: "
+                    + getText(definition, "definition-id", "<unknown>"));
+          }
+        }
+      }
+    } catch (IOException e) {
       throw new RuntimeException("Failed to parse UDF metadata JSON", e);
     }
   }

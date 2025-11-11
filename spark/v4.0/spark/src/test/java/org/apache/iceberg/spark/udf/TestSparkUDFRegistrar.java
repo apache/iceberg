@@ -66,7 +66,7 @@ public class TestSparkUDFRegistrar extends TestBase {
             + "        {\n"
             + "          \"version-id\": 1,\n"
             + "          \"deterministic\": true,\n"
-            + "          \"representations\": [ { \"dialect\": \"trino\", \"body\": \"x + 1.0\" } ],\n"
+            + "          \"representations\": [ { \"dialect\": \"trino\", \"body\": \"x + 1.0\" }, { \"dialect\": \"spark\", \"body\": \"x + 1.0\" } ],\n"
             + "          \"timestamp-ms\": 1734507001123\n"
             + "        }\n"
             + "      ],\n"
