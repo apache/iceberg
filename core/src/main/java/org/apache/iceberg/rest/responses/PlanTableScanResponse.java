@@ -66,16 +66,24 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
         planStatus() != null, "Invalid response: plan status must be defined");
     Preconditions.checkArgument(
         planStatus() != PlanStatus.SUBMITTED || planId() != null,
-        "Invalid response: plan id should be defined when status is 'submitted'");
+        "Invalid response: plan id should be defined when status is '%s'",
+        PlanStatus.SUBMITTED.status());
     Preconditions.checkArgument(
         planStatus() != PlanStatus.CANCELLED,
-        "Invalid response: 'cancelled' is not a valid status for planTableScan");
+        "Invalid response: '%s' is not a valid status for planTableScan",
+        PlanStatus.CANCELLED.status());
     Preconditions.checkArgument(
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
-        "Invalid response: tasks can only be defined when status is 'completed'");
-    Preconditions.checkArgument(
-        planStatus() == PlanStatus.SUBMITTED || planId() == null,
-        "Invalid response: plan id can only be defined when status is 'submitted'");
+        "Invalid response: tasks can only be defined when status is '%s'",
+        PlanStatus.COMPLETED.status());
+    if (null != planId()) {
+      Preconditions.checkArgument(
+          planStatus() == PlanStatus.SUBMITTED || planStatus() == PlanStatus.COMPLETED,
+          "Invalid response: plan id can only be defined when status is '%s' or '%s'",
+          PlanStatus.SUBMITTED.status(),
+          PlanStatus.COMPLETED.status());
+    }
+
     if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),
