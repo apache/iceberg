@@ -120,6 +120,11 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
    */
   ThisT filter(Expression expr);
 
+  default ThisT removeUnusedDeletesWhenPlanning() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement planByPartition");
+  }
+
   /**
    * Returns this scan's filter {@link Expression}.
    *
