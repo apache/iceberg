@@ -424,7 +424,6 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   private void runPositionDeletesTest(String fileFormat) throws Exception {
-    assumeThat(formatVersion).isEqualTo(2);
     Table tableWithPosDeletes =
         createTableWithSnapshots(
             tableDir.toFile().toURI().toString().concat("tableWithPosDeletes").concat(fileFormat),
@@ -450,7 +449,8 @@ public class TestRewriteTablePathsAction extends TestBase {
         FileHelpers.writeDeleteFile(
                 tableWithPosDeletes,
                 tableWithPosDeletes.io().newOutputFile(file.toURI().toString()),
-                deletes)
+                deletes,
+                formatVersion)
             .first();
 
     tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
