@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
@@ -51,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -213,16 +216,22 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
               SimpleVersionedSerialization.readVersionAndDeSerialize(
                   DeltaManifestsSerializer.INSTANCE, committable.getCommittable().manifest());
 
-          int commitFormatVersion =
-              FlinkManifestUtil.readFormatVersionFromManifest(
-                  deltaManifests, table.io(), table.specs());
-          Preconditions.checkArgument(
-              commitFormatVersion == TableUtil.formatVersion(table),
-              "Dynamic Sink does not support upgrading the underlying table version directly");
+          WriteResult writeResult =
+              FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
+          if (TableUtil.formatVersion(table) > 2) {
+            for (DeleteFile deleteFile : writeResult.deleteFiles()) {
+              if (deleteFile.content() == FileContent.POSITION_DELETES) {
+                Preconditions.checkArgument(
+                    ContentFileUtil.isDV(deleteFile),
+                    "Dynamic Sink does not support upgrading the underlying table version directly for table V2 to V3 when position deletes are present.Table is "
+                        + table.name());
+              }
+            }
+          }
 
           pendingResults
               .computeIfAbsent(e.getKey(), unused -> Lists.newArrayList())
-              .add(FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
+              .add(writeResult);
           manifests.addAll(deltaManifests.manifests());
         }
       }

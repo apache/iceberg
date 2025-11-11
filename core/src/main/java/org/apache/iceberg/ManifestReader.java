@@ -85,7 +85,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
-  private final int formatVersion;
 
   // updated by configuration methods
   private PartitionSet partitionSet = null;
@@ -130,7 +129,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       this.spec = readPartitionSpec(file);
     }
 
-    this.formatVersion = readFormatVersion(file);
     this.fileSchema = new Schema(DataFile.getType(spec.rawPartitionType()).fields());
   }
 
@@ -145,18 +143,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     Schema schema = SchemaParser.fromJson(metadata.get("schema"));
     return PartitionSpecParser.fromJsonFields(schema, specId, metadata.get("partition-spec"));
-  }
-
-  private int readFormatVersion(InputFile inputFile) {
-    Map<String, String> metadata = readMetadata(inputFile);
-
-    int tableFormatVersion = TableMetadata.DEFAULT_TABLE_FORMAT_VERSION;
-    String formatVersionProperty = metadata.get("format-version");
-    if (formatVersionProperty != null) {
-      tableFormatVersion = Integer.parseInt(formatVersionProperty);
-    }
-
-    return tableFormatVersion;
   }
 
   private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
@@ -194,10 +180,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   public PartitionSpec spec() {
     return spec;
-  }
-
-  public int formatVersion() {
-    return formatVersion;
   }
 
   public ManifestReader<F> select(Collection<String> newColumns) {
