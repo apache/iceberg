@@ -62,12 +62,12 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
   private final int batchSize;
   private final NameMapping nameMapping;
   private final Map<String, String> properties;
-  private Long start = null;
-  private Long length = null;
-  private ByteBuffer fileEncryptionKey = null;
-  private ByteBuffer fileAADPrefix = null;
+  private final Long start;
+  private final Long length;
+  private final ByteBuffer fileEncryptionKey;
+  private final ByteBuffer fileAADPrefix;
 
-  public CometVectorizedParquetReader(
+  private CometVectorizedParquetReader(
       InputFile input,
       Schema expectedSchema,
       ParquetReadOptions options,
@@ -97,6 +97,102 @@ public class CometVectorizedParquetReader<T> extends CloseableGroup
     this.length = length;
     this.fileEncryptionKey = fileEncryptionKey;
     this.fileAADPrefix = fileAADPrefix;
+  }
+
+  public static Builder builder(
+      InputFile file,
+      Schema schema,
+      ParquetReadOptions options,
+      Function<MessageType, VectorizedReader<?>> batchedReaderFunc) {
+    return new Builder(file, schema, options, batchedReaderFunc);
+  }
+
+  public static class Builder {
+    private final InputFile file;
+    private final Schema schema;
+    private final ParquetReadOptions options;
+    private final Function<MessageType, VectorizedReader<?>> batchedReaderFunc;
+    private NameMapping nameMapping = null;
+    private Expression filter = null;
+    private boolean reuseContainers = false;
+    private boolean caseSensitive = true;
+    private int maxRecordsPerBatch = 10000;
+    private Map<String, String> properties = null;
+    private Long start = null;
+    private Long length = null;
+    private ByteBuffer fileEncryptionKey = null;
+    private ByteBuffer fileAADPrefix = null;
+
+    private Builder(
+        InputFile file,
+        Schema schema,
+        ParquetReadOptions options,
+        Function<MessageType, VectorizedReader<?>> batchedReaderFunc) {
+      this.file = file;
+      this.schema = schema;
+      this.options = options;
+      this.batchedReaderFunc = batchedReaderFunc;
+    }
+
+    public Builder nameMapping(NameMapping mapping) {
+      this.nameMapping = mapping;
+      return this;
+    }
+
+    public Builder filter(Expression filterExpr) {
+      this.filter = filterExpr;
+      return this;
+    }
+
+    public Builder reuseContainers(boolean reuse) {
+      this.reuseContainers = reuse;
+      return this;
+    }
+
+    public Builder caseSensitive(boolean sensitive) {
+      this.caseSensitive = sensitive;
+      return this;
+    }
+
+    public Builder maxRecordsPerBatch(int maxRecords) {
+      this.maxRecordsPerBatch = maxRecords;
+      return this;
+    }
+
+    public Builder properties(Map<String, String> props) {
+      this.properties = props;
+      return this;
+    }
+
+    public Builder split(Long splitStart, Long splitLength) {
+      this.start = splitStart;
+      this.length = splitLength;
+      return this;
+    }
+
+    public Builder encryption(ByteBuffer encryptionKey, ByteBuffer aadPrefix) {
+      this.fileEncryptionKey = encryptionKey;
+      this.fileAADPrefix = aadPrefix;
+      return this;
+    }
+
+    public <T> CometVectorizedParquetReader<T> build() {
+      return new CometVectorizedParquetReader<>(
+          file,
+          schema,
+          options,
+          batchedReaderFunc,
+          nameMapping,
+          filter,
+          reuseContainers,
+          caseSensitive,
+          maxRecordsPerBatch,
+          properties,
+          start,
+          length,
+          fileEncryptionKey,
+          fileAADPrefix);
+    }
   }
 
   private ReadConf conf = null;

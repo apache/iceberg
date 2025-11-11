@@ -1479,20 +1479,17 @@ public class Parquet {
             VectorizedParquetReaderFactory factory = loadReaderFactory(readerName);
             if (factory != null) {
               return factory.createReader(
-                  file,
-                  schema,
-                  options,
-                  batchedReaderFunc,
-                  mapping,
-                  filter,
-                  reuseContainers,
-                  caseSensitive,
-                  maxRecordsPerBatch,
-                  properties,
-                  start,
-                  length,
-                  fileEncryptionKey,
-                  fileAADPrefix);
+                  VectorizedParquetReaderFactory.ReaderParams.builder(
+                          file, schema, options, batchedReaderFunc)
+                      .nameMapping(mapping)
+                      .filter(filter)
+                      .reuseContainers(reuseContainers)
+                      .caseSensitive(caseSensitive)
+                      .maxRecordsPerBatch(maxRecordsPerBatch)
+                      .properties(properties)
+                      .split(start, length)
+                      .encryption(fileEncryptionKey, fileAADPrefix)
+                      .build());
             }
           }
 
