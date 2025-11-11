@@ -223,8 +223,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
               if (deleteFile.content() == FileContent.POSITION_DELETES) {
                 Preconditions.checkArgument(
                     ContentFileUtil.isDV(deleteFile),
-                    "Dynamic Sink does not support upgrading the underlying table version directly for table V2 to V3 when position deletes are present.Table is "
-                        + table.name());
+                    "Can't add position delete file to the %s table. Concurrent table upgrade to V3 is not supported.",
+                    table.name());
               }
             }
           }
