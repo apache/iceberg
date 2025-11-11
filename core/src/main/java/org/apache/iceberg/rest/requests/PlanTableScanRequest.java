@@ -88,9 +88,17 @@ public class PlanTableScanRequest implements RESTRequest {
 
   @Override
   public void validate() {
-    Preconditions.checkArgument(
-        snapshotId != null ^ (startSnapshotId != null && endSnapshotId != null),
-        "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
+    if (null != snapshotId) {
+      Preconditions.checkArgument(
+          null == startSnapshotId && null == endSnapshotId,
+          "Invalid scan: cannot provide both snapshotId and startSnapshotId/endSnapshotId");
+    }
+
+    if (null != startSnapshotId || null != endSnapshotId) {
+      Preconditions.checkArgument(
+          null != startSnapshotId && null != endSnapshotId,
+          "Invalid incremental scan: startSnapshotId and endSnapshotId is required");
+    }
   }
 
   @Override
@@ -107,6 +115,10 @@ public class PlanTableScanRequest implements RESTRequest {
         .toString();
   }
 
+  public static Builder builder() {
+    return new Builder();
+  }
+
   public static class Builder {
     private Long snapshotId;
     private List<String> select;
@@ -117,6 +129,11 @@ public class PlanTableScanRequest implements RESTRequest {
     private Long endSnapshotId;
     private List<String> statsFields;
 
+    /**
+     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0; use {@link
+     *     PlanTableScanRequest#builder()} instead.
+     */
+    @Deprecated
     public Builder() {}
 
     public Builder withSnapshotId(Long withSnapshotId) {

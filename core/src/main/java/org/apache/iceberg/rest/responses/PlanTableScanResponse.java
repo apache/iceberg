@@ -91,6 +91,13 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
     private PlanStatus planStatus;
     private String planId;
 
+    /**
+     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0; use {@link
+     *     PlanTableScanResponse#builder()} instead.
+     */
+    @Deprecated
+    public Builder() {}
+
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
       return this;
