@@ -394,8 +394,8 @@ class TestDynamicCommitter {
 
     assertThatThrownBy(() -> dynamicCommitter.commit(Sets.newHashSet(commitRequest)))
         .hasMessage(
-            "Dynamic Sink does not support upgrading the underlying table version directly for table V2 to V3 when position deletes are present.Table is "
-                + table1.name())
+            "Can't add position delete file to the %s table. Concurrent table upgrade to V3 is not supported.",
+            table1.name())
         .isInstanceOf(IllegalArgumentException.class);
   }
 
