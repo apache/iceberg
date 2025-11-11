@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.iceberg.CombinedScanTask;
@@ -48,7 +47,6 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.parquet.ParquetFormatModel;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -126,18 +124,6 @@ public class ArrowReader extends CloseableGroup {
   private final int batchSize;
   private final boolean reuseContainers;
 
-  public static void register() {
-    FormatModelRegistry.register(
-        new ParquetFormatModel<>(
-            ColumnarBatch.class,
-            Object.class,
-            (schema, messageType, constantValues, deleteFilter, properties) ->
-                VectorizedCombinedScanIterator.buildReader(
-                    schema,
-                    messageType, /* setArrowValidityVector */
-                    NullCheckingForGet.NULL_CHECKING_ENABLED)));
-  }
-
   /**
    * Create a new instance of the reader.
    *
@@ -203,8 +189,7 @@ public class ArrowReader extends CloseableGroup {
    * Reads the data file and returns an iterator of {@link VectorSchemaRoot}. Only Parquet data file
    * format is supported.
    */
-  private static final class VectorizedCombinedScanIterator
-      implements CloseableIterator<ColumnarBatch> {
+  static final class VectorizedCombinedScanIterator implements CloseableIterator<ColumnarBatch> {
 
     private final Iterator<FileScanTask> fileItr;
     private final Map<String, InputFile> inputFiles;
@@ -224,8 +209,8 @@ public class ArrowReader extends CloseableGroup {
      * @param nameMapping Mapping from external schema names to Iceberg type IDs.
      * @param io File I/O.
      * @param encryptionManager Encryption manager.
-     * @param caseSensitive If {@code true}, column names are case-sensitive. If {@code false},
-     *     column names are not case-sensitive.
+     * @param caseSensitive If {@code true}, column names are case sensitive. If {@code false},
+     *     column names are not case sensitive.
      * @param batchSize Batch size in number of rows. Each Arrow batch contains a maximum of {@code
      *     batchSize} rows.
      * @param reuseContainers If set to {@code false}, every {@link Iterator#next()} call creates
@@ -386,7 +371,7 @@ public class ArrowReader extends CloseableGroup {
      * @param fileSchema Schema of the data file.
      * @param setArrowValidityVector Indicates whether to set the validity vector in Arrow vectors.
      */
-    private static ArrowBatchReader buildReader(
+    static ArrowBatchReader buildReader(
         Schema expectedSchema, MessageType fileSchema, boolean setArrowValidityVector) {
       return (ArrowBatchReader)
           TypeWithSchemaVisitor.visit(
