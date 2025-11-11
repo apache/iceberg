@@ -70,7 +70,9 @@ public final class FormatModelRegistry {
   private static final Map<Pair<FileFormat, Class<?>>, FormatModel<?, ?>> MODELS =
       Maps.newConcurrentMap();
 
-  private FormatModelRegistry() {}
+  static {
+    registerSupportedFormats();
+  }
 
   /**
    * Registers an {@link FormatModel} in this registry.
@@ -102,31 +104,6 @@ public final class FormatModelRegistry {
         existing == null ? null : existing.schemaType());
 
     MODELS.put(key, formatModel);
-  }
-
-  private static boolean equals(FormatModel<?, ?> model1, FormatModel<?, ?> model2) {
-    return Objects.equals(model1.getClass().getName(), model2.getClass().getName())
-        && Objects.equals(model1.type().getName(), model2.type().getName())
-        && Objects.equals(
-            model1.schemaType() == null ? null : model1.schemaType().getName(),
-            model2.schemaType() == null ? null : model2.schemaType().getName());
-  }
-
-  @SuppressWarnings("CatchBlockLogException")
-  private static void registerSupportedFormats() {
-    // Uses dynamic methods to call the `register` for the listed classes
-    for (String classToRegister : CLASSES_TO_REGISTER) {
-      try {
-        DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
-      } catch (NoSuchMethodException e) {
-        // failing to register a factory is normal and does not require a stack trace
-        LOG.info("Unable to register {}: {}", classToRegister, e.getMessage());
-      }
-    }
-  }
-
-  static {
-    registerSupportedFormats();
   }
 
   /**
@@ -229,4 +206,27 @@ public final class FormatModelRegistry {
         model != null, "Format model is not registered for format %s and type %s", format, type);
     return model;
   }
+
+  private static boolean equals(FormatModel<?, ?> model1, FormatModel<?, ?> model2) {
+    return Objects.equals(model1.getClass().getName(), model2.getClass().getName())
+        && Objects.equals(model1.type().getName(), model2.type().getName())
+        && Objects.equals(
+            model1.schemaType() == null ? null : model1.schemaType().getName(),
+            model2.schemaType() == null ? null : model2.schemaType().getName());
+  }
+
+  @SuppressWarnings("CatchBlockLogException")
+  private static void registerSupportedFormats() {
+    // Uses dynamic methods to call the `register` for the listed classes
+    for (String classToRegister : CLASSES_TO_REGISTER) {
+      try {
+        DynMethods.builder("register").impl(classToRegister).buildStaticChecked().invoke();
+      } catch (NoSuchMethodException e) {
+        // failing to register a factory is normal and does not require a stack trace
+        LOG.info("Unable to register {}: {}", classToRegister, e.getMessage());
+      }
+    }
+  }
+
+  private FormatModelRegistry() {}
 }
