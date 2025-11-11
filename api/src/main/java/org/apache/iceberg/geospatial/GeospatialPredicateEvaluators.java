@@ -99,13 +99,13 @@ public class GeospatialPredicateEvaluators {
      *
      * <p>Wraparound (or antimeridian crossing) occurs when a geography crosses the 180°/-180°
      * longitude line on a map. In these cases, the minimum X value is greater than the maximum X
-     * value (xmin > xmax). This represents a bounding box that wraps around the globe.
+     * value (xmin &gt; xmax). This represents a bounding box that wraps around the globe.
      *
      * <p>For example, a bounding box with xmin=170° and xmax=-170° represents an area that spans
      * from 170° east to 190° east (or equivalently, -170° west). This is important for geometries
      * that cross the antimeridian, like a path from Japan to Alaska.
      *
-     * <p>When xmin > xmax, a point matches if its X coordinate is either X ≥ xmin OR X ≤ xmax,
+     * <p>When xmin &gt; xmax, a point matches if its X coordinate is either X ≥ xmin OR X ≤ xmax,
      * rather than the usual X ≥ xmin AND X ≤ xmax. In geographic terms, if the westernmost
      * longitude is greater than the easternmost longitude, this indicates an antimeridian crossing.
      *
