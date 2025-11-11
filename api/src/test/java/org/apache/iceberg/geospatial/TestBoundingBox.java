@@ -104,12 +104,8 @@ public class TestBoundingBox {
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
     BoundingBox box = new BoundingBox(min, max);
     ByteBuffer buffer = box.toByteBuffer();
-    for (ByteOrder byteOrder : new ByteOrder[] {ByteOrder.BIG_ENDIAN, ByteOrder.LITTLE_ENDIAN}) {
-      buffer.order(byteOrder);
-      assertThat(BoundingBox.fromByteBuffer(buffer)).isEqualTo(box);
-      assertThat(buffer.position()).isEqualTo(0);
-      assertThat(buffer.order()).isEqualTo(byteOrder);
-    }
+    assertThat(BoundingBox.fromByteBuffer(buffer)).isEqualTo(box);
+    assertThat(buffer.position()).isEqualTo(0);
   }
 
   @Test

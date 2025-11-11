@@ -213,17 +213,13 @@ public class TestGeospatialBound {
           0, 0, 0, 0, 0, 0, 36, 64, // 10.0 in little-endian IEEE 754
           0, 0, 0, 0, 0, 0, 42, 64 // 13.0 in little-endian IEEE 754
         };
-    ByteBuffer xyBuffer = ByteBuffer.wrap(xyBytes);
-    for (ByteOrder endianness : new ByteOrder[] {ByteOrder.BIG_ENDIAN, ByteOrder.LITTLE_ENDIAN}) {
-      xyBuffer.order(endianness);
-      GeospatialBound xy = GeospatialBound.fromByteBuffer(xyBuffer);
-      assertThat(xy.x()).isEqualTo(10.0);
-      assertThat(xy.y()).isEqualTo(13.0);
-      assertThat(xy.hasZ()).isFalse();
-      assertThat(xy.hasM()).isFalse();
-      assertThat(xyBuffer.position()).isEqualTo(0);
-      assertThat(xyBuffer.order()).isEqualTo(endianness);
-    }
+    ByteBuffer xyBuffer = ByteBuffer.wrap(xyBytes).order(ByteOrder.LITTLE_ENDIAN);
+    GeospatialBound xy = GeospatialBound.fromByteBuffer(xyBuffer);
+    assertThat(xy.x()).isEqualTo(10.0);
+    assertThat(xy.y()).isEqualTo(13.0);
+    assertThat(xy.hasZ()).isFalse();
+    assertThat(xy.hasM()).isFalse();
+    assertThat(xyBuffer.position()).isEqualTo(0);
   }
 
   private GeospatialBound roundTripSerDe(GeospatialBound original) {
