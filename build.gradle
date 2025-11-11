@@ -29,8 +29,10 @@ buildscript {
     classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.9'
     classpath 'com.palantir.baseline:gradle-baseline-java:5.72.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
-    classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.3'
+    // Commented out for Gradle 9.x compatibility - plugin uses deprecated 'convention' property
+    // Modern Gradle has native annotation processor support via annotationProcessor configuration
+    // classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
@@ -239,7 +241,7 @@ subprojects {
       } else {
         events "failed"
       }
-      exceptionFormat "full"
+      exceptionFormat = "full"
     }
 
     systemProperty 'project.version', project.version
@@ -274,7 +276,7 @@ project(':iceberg-bundled-guava') {
   shadowJar {
     archiveClassifier.set(null)
     configurations = [project.configurations.compileClasspath]
-    zip64 true
+    zip64 = true
 
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
@@ -428,7 +430,7 @@ project(':iceberg-data') {
   test {
     useJUnitPlatform()
     // Only for TestSplitScan as of Gradle 5.0+
-    maxHeapSize '1500m'
+    maxHeapSize = '1500m'
   }
 }
 
@@ -1024,7 +1026,8 @@ project(':iceberg-open-api') {
   dependencies {
     testImplementation project(':iceberg-api')
     testImplementation project(':iceberg-core')
-    testImplementation project(':iceberg-core').sourceSets.test.runtimeClasspath
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation(testFixtures(project(':iceberg-open-api')))
 
     testImplementation libs.junit.jupiter
@@ -1108,7 +1111,7 @@ project(':iceberg-open-api') {
     archiveClassifier.set(null)
     configurations = [project.configurations.testFixturesRuntimeClasspath]
     from sourceSets.testFixtures.output
-    zip64 true
+    zip64 = true
 
     // include the LICENSE and NOTICE files for the runtime Jar
     from(projectDir) {

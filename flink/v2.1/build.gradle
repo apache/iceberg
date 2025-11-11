@@ -226,7 +226,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   shadowJar {
     configurations = [project.configurations.runtimeClasspath]
 
-    zip64 true
+    zip64 = true
 
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
@@ -255,6 +255,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   task integrationTest(type: Test) {
     description = "Test Flink Runtime Jar against Flink ${flinkMajorVersion}"
     group = "verification"
+    failOnNoDiscoveredTests = false
     jvmArgs += project.property('extraJvmArgs')
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
