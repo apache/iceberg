@@ -441,7 +441,7 @@ public class TestHiveTable extends HiveTableTestBase {
     // create an iceberg table with the same name
     assertThatThrownBy(() -> catalog.createTable(identifier, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(NoSuchIcebergTableException.class)
-        .hasMessageStartingWith(String.format("Not an iceberg table: hive.%s", identifier));
+        .hasMessageStartingWith("Not an iceberg table: hive.%s", identifier);
 
     assertThat(catalog.tableExists(identifier)).isFalse();
 

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.lang.reflect.Field;
 import java.util.List;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.SortDirection;
@@ -25,6 +26,8 @@ import org.apache.iceberg.expressions.Term;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public interface ExtendedParser extends ParserInterface {
   class RawOrderField {
@@ -52,10 +55,10 @@ public interface ExtendedParser extends ParserInterface {
   }
 
   static List<RawOrderField> parseSortOrder(SparkSession spark, String orderString) {
-    if (spark.sessionState().sqlParser() instanceof ExtendedParser) {
-      ExtendedParser parser = (ExtendedParser) spark.sessionState().sqlParser();
+    ExtendedParser extParser = findParser(spark.sessionState().sqlParser(), ExtendedParser.class);
+    if (extParser != null) {
       try {
-        return parser.parseSortOrder(orderString);
+        return extParser.parseSortOrder(orderString);
       } catch (AnalysisException e) {
         throw new IllegalArgumentException(
             String.format("Unable to parse sortOrder: %s", orderString), e);
@@ -64,6 +67,43 @@ public interface ExtendedParser extends ParserInterface {
       throw new IllegalStateException(
           "Cannot parse order: parser is not an Iceberg ExtendedParser");
     }
+  }
+
+  private static <T> T findParser(ParserInterface parser, Class<T> clazz) {
+    ParserInterface current = parser;
+    while (current != null) {
+      if (clazz.isInstance(current)) {
+        return clazz.cast(current);
+      }
+
+      current = getNextDelegateParser(current);
+    }
+
+    return null;
+  }
+
+  private static ParserInterface getNextDelegateParser(ParserInterface parser) {
+    try {
+      Class<?> clazz = parser.getClass();
+      while (clazz != null) {
+        for (Field field : clazz.getDeclaredFields()) {
+          field.setAccessible(true);
+          Object value = field.get(parser);
+          if (value instanceof ParserInterface && value != parser) {
+            return (ParserInterface) value;
+          }
+        }
+        clazz = clazz.getSuperclass();
+      }
+    } catch (Exception e) {
+      log().warn("Failed to scan delegate parser in {}: ", parser.getClass().getName(), e);
+    }
+
+    return null;
+  }
+
+  private static Logger log() {
+    return LoggerFactory.getLogger(ExtendedParser.class);
   }
 
   List<RawOrderField> parseSortOrder(String orderString) throws AnalysisException;
