@@ -31,7 +31,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
-import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
@@ -303,58 +302,30 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       CommitSummary summary,
       String newFlinkJobId,
       String operatorId) {
-    if (summary.deleteFilesCount() == 0) {
-      // To be compatible with iceberg format V1.
-      AppendFiles appendFiles = table.newAppend().scanManifestsWith(workerPool);
-      for (List<WriteResult> resultList : pendingResults.values()) {
-        for (WriteResult result : resultList) {
-          Preconditions.checkState(
-              result.referencedDataFiles().length == 0,
-              "Should have no referenced data files for append.");
-          Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
-        }
-      }
-      String description = "append";
+    for (Map.Entry<Long, List<WriteResult>> e : pendingResults.entrySet()) {
+      long checkpointId = e.getKey();
+      List<WriteResult> writeResults = e.getValue();
 
-      // fail all commits as really its only one
+      RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+      for (WriteResult result : writeResults) {
+        // Row delta validations are not needed for streaming changes that write equality deletes.
+        // Equality deletes are applied to data in all previous sequence numbers, so retries may
+        // push deletes further in the future, but do not affect correctness. Position deletes
+        // committed to the table in this path are used only to delete rows from data files that are
+        // being added in this commit. There is no way for data files added along with the delete
+        // files to be concurrently removed, so there is no need to validate the files referenced by
+        // the position delete files that are being committed.
+        Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
+        Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
+      }
+
+      // Every Flink checkpoint contains a set of independent changes which can be committed
+      // together. While it is technically feasible to combine append-only data across checkpoints,
+      // for the sake of simplicity, we do not implement this (premature) optimization. Multiple
+      // pending checkpoints here are very rare to occur, i.e. only with very short checkpoint
+      // intervals or when concurrent checkpointing is enabled.
       commitOperation(
-          table,
-          branch,
-          appendFiles,
-          summary,
-          description,
-          newFlinkJobId,
-          operatorId,
-          pendingResults.lastKey());
-    } else {
-      for (Map.Entry<Long, List<WriteResult>> e : pendingResults.entrySet()) {
-        long checkpointId = e.getKey();
-        List<WriteResult> writeResults = e.getValue();
-
-        RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
-        for (WriteResult result : writeResults) {
-          // Row delta validations are not needed for streaming changes that write equality deletes.
-          // Equality deletes are applied to data in all previous sequence numbers, so retries may
-          // push deletes further in the future, but do not affect correctness. Position deletes
-          // committed to the table in this path are used only to delete rows from data files that
-          // are
-          // being added in this commit. There is no way for data files added along with the delete
-          // files to be concurrently removed, so there is no need to validate the files referenced
-          // by
-          // the position delete files that are being committed.
-          Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
-          Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-        }
-
-        // Every Flink checkpoint contains a set of independent changes which can be committed
-        // together. While it is technically feasible to combine append-only data across
-        // checkpoints,
-        // for the sake of simplicity, we do not implement this (premature) optimization. Multiple
-        // pending checkpoints here are very rare to occur, i.e. only with very short checkpoint
-        // intervals or when concurrent checkpointing is enabled.
-        commitOperation(
-            table, branch, rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, checkpointId);
-      }
+          table, branch, rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, checkpointId);
     }
   }
 
