@@ -1439,6 +1439,11 @@ class PlanTableScanRequest(BaseModel):
     filter: Optional[Expression] = Field(
         None, description='Expression used to filter the table data'
     )
+    min_rows_requested: Optional[int] = Field(
+        None,
+        alias='min-rows-requested',
+        description='The minimum number of rows requested for the scan',
+    )
     case_sensitive: Optional[bool] = Field(
         True,
         alias='case-sensitive',

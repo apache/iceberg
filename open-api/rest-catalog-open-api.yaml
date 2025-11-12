@@ -4402,6 +4402,11 @@ components:
           description:
             Expression used to filter the table data
           $ref: '#/components/schemas/Expression'
+        min-rows-requested:
+          description:
+            The minimum number of rows requested for the scan
+          type: integer
+          format: int64
         case-sensitive:
           description: Enables case sensitive field matching for filter and select
           type: boolean
