@@ -1493,6 +1493,9 @@ class CompletedPlanningResult(ScanTasks):
     """
 
     status: Literal['completed'] = Field(..., const=True)
+    storage_credentials: Optional[List[StorageCredential]] = Field(
+        None, alias='storage-credentials'
+    )
 
 
 class FetchScanTasksResult(ScanTasks):

@@ -3372,6 +3372,10 @@ components:
             status:
               $ref: '#/components/schemas/PlanStatus'
               const: "completed"
+            storage-credentials:
+              type: array
+              items:
+                $ref: '#/components/schemas/StorageCredential'
 
     CompletedPlanningWithIDResult:
       type: object
