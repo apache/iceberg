@@ -145,11 +145,16 @@ class SparkBatch implements Batch {
           org.apache.iceberg.spark.SparkSQLProperties.COMET_VECTORIZED_READER_FACTORY_CLASS;
     }
 
-    return ImmutableParquetBatchReadConf.builder()
-        .batchSize(readConf.parquetBatchSize())
-        .readerType(readerType)
-        .factoryClassName(factoryClassName)
-        .build();
+    ImmutableParquetBatchReadConf.Builder builder =
+        ImmutableParquetBatchReadConf.builder()
+            .batchSize(readConf.parquetBatchSize())
+            .readerType(readerType);
+
+    if (factoryClassName != null) {
+      builder.factoryClassName(factoryClassName);
+    }
+
+    return builder.build();
   }
 
   private OrcBatchReadConf orcBatchReadConf() {
