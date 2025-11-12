@@ -63,8 +63,17 @@ public class DataTableScan extends BaseTableScan {
   @Override
   public CloseableIterable<FileScanTask> doPlanFiles() {
     Snapshot snapshot = snapshot();
-
     FileIO io = table().io();
+
+    int formatVersion =
+        table() instanceof HasTableOperations
+            ? ((HasTableOperations) table()).operations().current().formatVersion()
+            : 2;
+
+    if (formatVersion >= 4) {
+      return planV4Files(snapshot, io);
+    }
+
     List<ManifestFile> dataManifests = snapshot.dataManifests(io);
     List<ManifestFile> deleteManifests = snapshot.deleteManifests(io);
     scanMetrics().totalDataManifests().increment((long) dataManifests.size());
@@ -88,5 +97,29 @@ public class DataTableScan extends BaseTableScan {
     }
 
     return manifestGroup.planFiles();
+  }
+
+  private CloseableIterable<FileScanTask> planV4Files(Snapshot snapshot, FileIO io) {
+    V4ManifestReader rootReader =
+        V4ManifestReaders.readRoot(
+            snapshot.manifestListLocation(),
+            io,
+            snapshot.snapshotId(),
+            snapshot.sequenceNumber(),
+            snapshot.firstRowId());
+
+    @SuppressWarnings("UnusedVariable")
+    ManifestExpander expander =
+        new ManifestExpander(rootReader, io, specs())
+            .filterData(filter())
+            .ignoreDeleted()
+            .select(scanColumns())
+            .caseSensitive(isCaseSensitive())
+            .scanMetrics(scanMetrics());
+
+    // TODO(anoop): implement file scan task creation after content stats
+    // implementation supports TrackedFile.asDataFile(spec)
+    throw new UnsupportedOperationException(
+        "V4 scans require ContentStats implementation for FileScanTask creation.");
   }
 }
