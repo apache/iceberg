@@ -20,12 +20,11 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
@@ -105,6 +104,8 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
    *
    * <ul>
    *   <li>All files must be Parquet format
+   *   <li>Table must not have a sort order (no sorting or z-ordering)
+   *   <li>Files must not have delete files or delete vectors
    *   <li>Files must have compatible schemas (verified by ParquetFileMerger.canMerge)
    *   <li>Files must not be encrypted (TODO: add encryption check)
    * </ul>
@@ -122,17 +123,33 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       return false;
     }
 
-    // Validate schema compatibility
+    // Check if table has a sort order - row-group merge cannot preserve sort order
+    if (table().sortOrder().isSorted()) {
+      LOG.debug(
+          "Cannot use row-group merge: table has a sort order ({}). "
+              + "Row-group merging would not preserve the sort order.",
+          table().sortOrder());
+      return false;
+    }
+
+    // Check for delete files - row-group merge cannot apply deletes
+    boolean hasDeletes = group.fileScanTasks().stream().anyMatch(task -> !task.deletes().isEmpty());
+
+    if (hasDeletes) {
+      LOG.debug(
+          "Cannot use row-group merge: files have delete files or delete vectors. "
+              + "Row-group merging cannot apply deletes.");
+      return false;
+    }
+
+    // Validate schema compatibility using Iceberg InputFile API
     try {
-      List<String> filePaths =
+      List<org.apache.iceberg.io.InputFile> inputFiles =
           group.rewrittenFiles().stream()
-              .map(f -> f.path().toString())
+              .map(f -> table().io().newInputFile(f.path().toString()))
               .collect(Collectors.toList());
 
-      List<Path> paths = filePaths.stream().map(Path::new).collect(Collectors.toList());
-      Configuration hadoopConf = spark().sessionState().newHadoopConf();
-
-      boolean canMerge = ParquetFileMerger.canMerge(paths, hadoopConf);
+      boolean canMerge = ParquetFileMerger.canMerge(inputFiles);
 
       if (!canMerge) {
         LOG.warn(
@@ -156,83 +173,142 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
   }
 
   /**
-   * Merges all Parquet files in the group into a single output file. The planner has already
-   * created appropriately-sized groups, so the runner merges the entire group without further
-   * splitting.
+   * Merges Parquet files in the group, respecting the target file size and expected output file
+   * count. Files are grouped into batches based on maxOutputFileSize, and each batch is merged into
+   * a separate output file.
    */
   private void mergeParquetFilesDistributed(String groupId, RewriteFileGroup group) {
     PartitionSpec spec = table().specs().get(group.outputSpecId());
     StructLike partition = group.info().partition();
+    long maxOutputFileSize = group.maxOutputFileSize();
+    int expectedOutputFiles = group.expectedOutputFiles();
 
     LOG.info(
-        "Merging {} Parquet files into a single output file (group: {})",
+        "Merging {} Parquet files into {} expected output files (group: {}, max size: {})",
         group.rewrittenFiles().size(),
-        groupId);
+        expectedOutputFiles,
+        groupId,
+        maxOutputFileSize);
 
-    // Extract file paths for the entire group
-    List<String> filePaths =
-        group.rewrittenFiles().stream().map(f -> f.path().toString()).collect(Collectors.toList());
+    // Group files into batches based on target size
+    List<List<DataFile>> fileBatches = groupFilesBySize(group.rewrittenFiles(), maxOutputFileSize);
 
-    // Create a single merge task for the entire group
-    MergeTaskInfo mergeTask = new MergeTaskInfo(groupId, filePaths, spec, partition);
+    // Create merge tasks for each batch
+    List<MergeTaskInfo> mergeTasks = Lists.newArrayList();
+    int batchIndex = 0;
+    for (List<DataFile> batch : fileBatches) {
+      String taskId = String.format("%s-%d", groupId, batchIndex++);
+      List<String> filePaths =
+          batch.stream().map(f -> f.path().toString()).collect(Collectors.toList());
+      mergeTasks.add(new MergeTaskInfo(taskId, filePaths, spec, partition));
+    }
 
-    // Get Hadoop configuration for executors
-    Configuration hadoopConf = spark().sessionState().newHadoopConf();
+    // Get FileIO for executors - table().io() is serializable
+    org.apache.iceberg.io.FileIO fileIO = table().io();
 
-    // Execute merge on an executor - returns only metadata (path + size)
+    // Execute merges on executors in parallel
     JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark().sparkContext());
-    JavaRDD<MergeTaskInfo> taskRDD = jsc.parallelize(Lists.newArrayList(mergeTask), 1);
-    MergeResult mergeResult =
-        taskRDD.map(task -> mergeFilesForTask(task, hadoopConf)).collect().get(0);
+    JavaRDD<MergeTaskInfo> taskRDD = jsc.parallelize(mergeTasks, mergeTasks.size());
+    List<MergeResult> mergeResults = taskRDD.map(task -> mergeFilesForTask(task, fileIO)).collect();
 
-    // Driver constructs DataFile from metadata using Table.io()
+    // Driver constructs DataFiles from metadata
     MetricsConfig metricsConfig = MetricsConfig.getDefault();
-    Metrics metrics =
-        ParquetUtil.fileMetrics(table().io().newInputFile(mergeResult.getPath()), metricsConfig);
+    Set<DataFile> newFiles = Sets.newHashSet();
 
-    DataFile resultFile =
-        org.apache.iceberg.DataFiles.builder(mergeResult.getSpec())
-            .withPath(mergeResult.getPath())
-            .withFormat(FileFormat.PARQUET)
-            .withPartition(mergeResult.getPartition())
-            .withFileSizeInBytes(mergeResult.getFileSize())
-            .withMetrics(metrics)
-            .build();
+    for (MergeResult mergeResult : mergeResults) {
+      Metrics metrics =
+          ParquetUtil.fileMetrics(table().io().newInputFile(mergeResult.getPath()), metricsConfig);
 
-    // Register merged file with coordinator
-    Set<DataFile> newFiles = Sets.newHashSet(resultFile);
+      DataFile resultFile =
+          org.apache.iceberg.DataFiles.builder(mergeResult.getSpec())
+              .withPath(mergeResult.getPath())
+              .withFormat(FileFormat.PARQUET)
+              .withPartition(mergeResult.getPartition())
+              .withFileSizeInBytes(mergeResult.getFileSize())
+              .withMetrics(metrics)
+              .build();
+
+      newFiles.add(resultFile);
+    }
+
+    // Register merged files with coordinator
     coordinator.stageRewrite(table(), groupId, newFiles);
 
     LOG.info(
-        "Successfully merged {} Parquet files into 1 output file (group: {})",
+        "Successfully merged {} Parquet files into {} output files (group: {})",
         group.rewrittenFiles().size(),
+        newFiles.size(),
         groupId);
+  }
+
+  /**
+   * Groups files into batches based on target size. Uses a bin-packing algorithm to group files
+   * such that each batch doesn't exceed the target size (with a small tolerance).
+   */
+  private List<List<DataFile>> groupFilesBySize(Set<DataFile> files, long targetSize) {
+    List<List<DataFile>> groups = Lists.newArrayList();
+    List<DataFile> sortedFiles =
+        files.stream()
+            .sorted(Comparator.comparingLong(DataFile::fileSizeInBytes).reversed())
+            .collect(Collectors.toList());
+
+    List<DataFile> currentGroup = Lists.newArrayList();
+    long currentSize = 0;
+    long tolerance = (long) (targetSize * 1.1); // Allow 10% over target
+
+    for (DataFile file : sortedFiles) {
+      long fileSize = file.fileSizeInBytes();
+
+      // If adding this file would exceed tolerance and we have files in current group, start new
+      // group
+      if (currentSize + fileSize > tolerance && !currentGroup.isEmpty()) {
+        groups.add(currentGroup);
+        currentGroup = Lists.newArrayList();
+        currentSize = 0;
+      }
+
+      currentGroup.add(file);
+      currentSize += fileSize;
+    }
+
+    // Add the last group if it has any files
+    if (!currentGroup.isEmpty()) {
+      groups.add(currentGroup);
+    }
+
+    return groups;
   }
 
   /**
    * Performs the actual merge operation for a single task on an executor. Returns only metadata
    * (file path and size); DataFile construction happens on the driver.
    */
-  private static MergeResult mergeFilesForTask(MergeTaskInfo task, Configuration hadoopConf)
-      throws IOException {
-    // Convert file path strings to Hadoop Path objects
-    List<Path> inputPaths =
-        task.getFilePaths().stream().map(Path::new).collect(Collectors.toList());
+  private static MergeResult mergeFilesForTask(
+      MergeTaskInfo task, org.apache.iceberg.io.FileIO fileIO) throws IOException {
+    // Convert file path strings to Iceberg InputFile objects
+    List<org.apache.iceberg.io.InputFile> inputFiles =
+        task.getFilePaths().stream()
+            .map(path -> fileIO.newInputFile(path))
+            .collect(Collectors.toList());
 
     // Generate output file path - derive directory from first input file
     String outputFileName = String.format("%s-%s.parquet", task.getTaskId(), UUID.randomUUID());
-    Path firstInputFilePath = new Path(task.getFilePaths().get(0));
-    Path outputDir = firstInputFilePath.getParent();
-    Path outputPath = new Path(outputDir, outputFileName);
+    String firstInputFilePath = task.getFilePaths().get(0);
+    int lastSlash = firstInputFilePath.lastIndexOf('/');
+    String outputDir = lastSlash > 0 ? firstInputFilePath.substring(0, lastSlash) : "";
+    String outputPath = outputDir.isEmpty() ? outputFileName : outputDir + "/" + outputFileName;
 
-    // Merge files using static method
-    ParquetFileMerger.mergeFiles(inputPaths, outputPath, hadoopConf);
+    // Create output file using Iceberg FileIO
+    org.apache.iceberg.io.OutputFile outputFile = fileIO.newOutputFile(outputPath);
 
-    // Get file size
-    long fileSize = outputPath.getFileSystem(hadoopConf).getFileStatus(outputPath).getLen();
+    // Merge files using FileIO-based static method
+    ParquetFileMerger.mergeFiles(inputFiles, outputFile, null);
+
+    // Get file size from the output file
+    long fileSize = fileIO.newInputFile(outputPath).getLength();
 
     // Return lightweight metadata - driver will construct DataFile with metrics
-    return new MergeResult(outputPath.toString(), fileSize, task.getSpec(), task.getPartition());
+    return new MergeResult(outputPath, fileSize, task.getSpec(), task.getPartition());
   }
 
   /**
