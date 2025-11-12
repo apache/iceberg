@@ -49,8 +49,7 @@ public class TestEncryptionUtil {
     assertThat(kmsClientObj.getClass().getClassLoader())
         .isNotInstanceOf(Thread.currentThread().getContextClassLoader().getClass());
 
-    assertThat(kmsClientObj.getClass().getClassLoader().getName())
-        .isEqualTo(customClassLoader.getName());
+    assertThat(kmsClientObj.getClass().getClassLoader()).isSameAs(customClassLoader);
   }
 
   static class UnitTestCustomClassLoader extends ClassLoader {
