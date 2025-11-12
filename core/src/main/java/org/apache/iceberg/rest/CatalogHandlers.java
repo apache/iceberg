@@ -30,11 +30,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataUpdate.UpgradeFormatVersion;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -42,6 +48,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.Catalog;
@@ -55,23 +62,29 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
+import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
@@ -86,6 +99,9 @@ import org.apache.iceberg.view.ViewRepresentation;
 public class CatalogHandlers {
   private static final Schema EMPTY_SCHEMA = new Schema();
   private static final String INITIAL_PAGE_TOKEN = "";
+  private static final InMemoryPlanningState IN_MEMORY_PLANNING_STATE =
+      InMemoryPlanningState.getInstance();
+  private static final ExecutorService ASYNC_PLANNING_POOL = Executors.newSingleThreadExecutor();
 
   private CatalogHandlers() {}
 
@@ -618,5 +634,149 @@ public class CatalogHandlers {
     }
 
     return ops.current();
+  }
+
+  public static PlanTableScanResponse planTableScan(
+      Catalog catalog,
+      TableIdentifier ident,
+      PlanTableScanRequest request,
+      Predicate<TableScan> shouldPlanAsync,
+      ToIntFunction<TableScan> tasksPerPlanTask) {
+    Table table = catalog.loadTable(ident);
+    TableScan tableScan = table.newScan();
+
+    if (request.snapshotId() != null) {
+      tableScan = tableScan.useSnapshot(request.snapshotId());
+    }
+    if (request.select() != null) {
+      tableScan = tableScan.select(request.select());
+    }
+    if (request.filter() != null) {
+      tableScan = tableScan.filter(request.filter());
+    }
+    if (request.statsFields() != null) {
+      tableScan = tableScan.includeColumnStats(request.statsFields());
+    }
+
+    tableScan = tableScan.caseSensitive(request.caseSensitive());
+
+    if (shouldPlanAsync.test(tableScan)) {
+      String asyncPlanId = UUID.randomUUID().toString();
+      asyncPlanFiles(tableScan, asyncPlanId, tasksPerPlanTask.applyAsInt(tableScan));
+      return PlanTableScanResponse.builder()
+          .withPlanId(asyncPlanId)
+          .withPlanStatus(PlanStatus.SUBMITTED)
+          .withSpecsById(table.specs())
+          .build();
+    }
+
+    String planId = UUID.randomUUID().toString();
+    planFilesFor(tableScan, planId, tasksPerPlanTask.applyAsInt(tableScan));
+    Pair<List<FileScanTask>, String> initial = IN_MEMORY_PLANNING_STATE.initialScanTasksFor(planId);
+    return PlanTableScanResponse.builder()
+        .withPlanStatus(PlanStatus.COMPLETED)
+        .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(initial.second()))
+        .withFileScanTasks(initial.first())
+        .withDeleteFiles(
+            initial.first().stream()
+                .flatMap(task -> task.deletes().stream())
+                .distinct()
+                .collect(Collectors.toList()))
+        .withSpecsById(table.specs())
+        .build();
+  }
+
+  /**
+   * Fetches the planning result for an async plan.
+   *
+   * @param catalog the catalog to use for loading the table
+   * @param ident the table identifier
+   * @param planId the plan identifier
+   * @return the fetch planning result response
+   */
+  public static FetchPlanningResultResponse fetchPlanningResult(
+      Catalog catalog, TableIdentifier ident, String planId) {
+    Table table = catalog.loadTable(ident);
+    Pair<List<FileScanTask>, String> initial = IN_MEMORY_PLANNING_STATE.initialScanTasksFor(planId);
+    return FetchPlanningResultResponse.builder()
+        .withPlanStatus(PlanStatus.COMPLETED)
+        .withDeleteFiles(
+            initial.first().stream()
+                .flatMap(task -> task.deletes().stream())
+                .distinct()
+                .collect(Collectors.toList()))
+        .withFileScanTasks(initial.first())
+        .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(initial.second()))
+        .withSpecsById(table.specs())
+        .build();
+  }
+
+  /**
+   * Fetches scan tasks for a specific plan task.
+   *
+   * @param catalog the catalog to use for loading the table
+   * @param ident the table identifier
+   * @param request the fetch scan tasks request
+   * @return the fetch scan tasks response
+   */
+  public static FetchScanTasksResponse fetchScanTasks(
+      Catalog catalog, TableIdentifier ident, FetchScanTasksRequest request) {
+    Table table = catalog.loadTable(ident);
+    String planTask = request.planTask();
+    List<FileScanTask> fileScanTasks = IN_MEMORY_PLANNING_STATE.fileScanTasksForPlanTask(planTask);
+
+    return FetchScanTasksResponse.builder()
+        .withFileScanTasks(fileScanTasks)
+        .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(planTask))
+        .withSpecsById(table.specs())
+        .withDeleteFiles(
+            fileScanTasks.stream()
+                .flatMap(task -> task.deletes().stream())
+                .distinct()
+                .collect(Collectors.toList()))
+        .build();
+  }
+
+  /**
+   * Cancels a plan table scan by removing all associated state.
+   *
+   * @param planId the plan identifier to cancel
+   */
+  public static void cancelPlanTableScan(String planId) {
+    IN_MEMORY_PLANNING_STATE.removePlan(planId);
+  }
+
+  static void clearPlanningState() {
+    InMemoryPlanningState.getInstance().clear();
+    ASYNC_PLANNING_POOL.shutdown();
+  }
+
+  /**
+   * Plans file scan tasks for a table scan, grouping them into plan tasks for pagination.
+   *
+   * @param tableScan the table scan to plan
+   * @param planId the unique identifier for this plan
+   * @param tasksPerPlanTask number of file scan tasks to group per plan task
+   */
+  private static void planFilesFor(TableScan tableScan, String planId, int tasksPerPlanTask) {
+    Iterable<List<FileScanTask>> taskGroupings =
+        Iterables.partition(tableScan.planFiles(), tasksPerPlanTask);
+    int planTaskSequence = 0;
+    String previousPlanTask = null;
+    for (List<FileScanTask> taskGrouping : taskGroupings) {
+      String planTaskKey =
+          String.format("%s-%s-%s", planId, tableScan.table().uuid(), planTaskSequence++);
+      IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, taskGrouping);
+      if (previousPlanTask != null) {
+        IN_MEMORY_PLANNING_STATE.addNextPlanTask(previousPlanTask, planTaskKey);
+      }
+
+      previousPlanTask = planTaskKey;
+    }
+  }
+
+  private static void asyncPlanFiles(
+      TableScan tableScan, String asyncPlanId, int tasksPerPlanTask) {
+    ASYNC_PLANNING_POOL.execute(() -> planFilesFor(tableScan, asyncPlanId, tasksPerPlanTask));
   }
 }

@@ -32,6 +32,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
@@ -46,6 +47,8 @@ import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchPlanIdException;
+import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
@@ -61,6 +64,8 @@ import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
@@ -91,6 +96,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(CommitFailedException.class, 409)
           .put(UnprocessableEntityException.class, 422)
           .put(CommitStateUnknownException.class, 500)
+          .put(NoSuchPlanIdException.class, 404)
+          .put(NoSuchPlanTaskException.class, 404)
           .buildOrThrow();
 
   private final Catalog catalog;
@@ -98,6 +105,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private final ViewCatalog asViewCatalog;
 
   private AuthSession authSession = AuthSession.EMPTY;
+  private final PlanningBehavior planningBehavior = planningBehavior();
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
@@ -292,6 +300,42 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           responseHeaders.accept(ImmutableMap.of(HttpHeaders.ETAG, eTag));
 
           return castResponse(responseType, response);
+        }
+
+      case PLAN_TABLE_SCAN:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          PlanTableScanRequest request = castRequest(PlanTableScanRequest.class, body);
+          return castResponse(
+              responseType,
+              CatalogHandlers.planTableScan(
+                  catalog,
+                  ident,
+                  request,
+                  planningBehavior::shouldPlanTableScanAsync,
+                  scan -> planningBehavior.numberFileScanTasksPerPlanTask()));
+        }
+
+      case FETCH_PLANNING_RESULT:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          String planId = planIDFromPathVars(vars);
+          return castResponse(
+              responseType, CatalogHandlers.fetchPlanningResult(catalog, ident, planId));
+        }
+
+      case FETCH_SCAN_TASKS:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          FetchScanTasksRequest request = castRequest(FetchScanTasksRequest.class, body);
+          return castResponse(
+              responseType, CatalogHandlers.fetchScanTasks(catalog, ident, request));
+        }
+
+      case CANCEL_PLAN_TABLE_SCAN:
+        {
+          CatalogHandlers.cancelPlanTableScan(planIDFromPathVars(vars));
+          return null;
         }
 
       case REGISTER_TABLE:
@@ -533,11 +577,32 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     throw new RESTException("Unhandled error: %s", error);
   }
 
+  /**
+   * Supplied interface to allow RESTCatalogAdapter implementations to have a mechanism to change
+   * how many file scan tasks get grouped in a plan task or under what conditions a table scan
+   * should be performed async. Primarily used in testing to allow overriding more deterministic
+   * ways of planning behavior.
+   */
+  public interface PlanningBehavior {
+    default int numberFileScanTasksPerPlanTask() {
+      return 100;
+    }
+
+    default boolean shouldPlanTableScanAsync(TableScan tableScan) {
+      return false;
+    }
+  }
+
+  protected PlanningBehavior planningBehavior() {
+    return new PlanningBehavior() {};
+  }
+
   @Override
   public void close() throws IOException {
     // The calling test is responsible for closing the underlying catalog backing this REST catalog
     // so that the underlying backend catalog is not closed and reopened during the REST catalog's
     // initialize method when fetching the server configuration.
+    CatalogHandlers.clearPlanningState();
   }
 
   private static class BadResponseType extends RuntimeException {
@@ -590,6 +655,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
         namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+  }
+
+  private static String planIDFromPathVars(Map<String, String> pathVars) {
+    return RESTUtil.decodeString(pathVars.get("plan-id"));
   }
 
   private static SnapshotMode snapshotModeFromQueryParams(Map<String, String> queryParams) {
