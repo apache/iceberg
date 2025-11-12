@@ -20,6 +20,10 @@ package org.apache.iceberg.rest.responses;
 
 import static org.apache.iceberg.TestBase.FILE_A;
 import static org.apache.iceberg.TestBase.FILE_A_DELETES;
+import static org.apache.iceberg.TestBase.FILE_B;
+import static org.apache.iceberg.TestBase.FILE_B_DELETES;
+import static org.apache.iceberg.TestBase.FILE_C;
+import static org.apache.iceberg.TestBase.FILE_C2_DELETES;
 import static org.apache.iceberg.TestBase.PARTITION_SPECS_BY_ID;
 import static org.apache.iceberg.TestBase.SCHEMA;
 import static org.apache.iceberg.TestBase.SPEC;
@@ -263,6 +267,80 @@ public class TestPlanTableScanResponseParser {
             .build();
 
     assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedToJson);
+  }
+
+  @Test
+  public void multipleTasksWithDifferentDeleteFilesDontAccumulateReferences() {
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(SPEC, Expressions.alwaysTrue(), true);
+
+    // Create three tasks, each with its own distinct delete file
+    FileScanTask taskA =
+        new BaseFileScanTask(
+            FILE_A,
+            new DeleteFile[] {FILE_A_DELETES},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+
+    FileScanTask taskB =
+        new BaseFileScanTask(
+            FILE_B,
+            new DeleteFile[] {FILE_B_DELETES},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+
+    FileScanTask taskC =
+        new BaseFileScanTask(
+            FILE_C,
+            new DeleteFile[] {FILE_C2_DELETES},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withFileScanTasks(List.of(taskA, taskB, taskC))
+            .withDeleteFiles(List.of(FILE_A_DELETES, FILE_B_DELETES, FILE_C2_DELETES))
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+
+    String json = PlanTableScanResponseParser.toJson(response);
+
+    // Verify each task only references its own delete file
+    // Task A should reference index 0 (fileADeletes)
+    // Task B should reference index 1 (fileBDeletes)
+    // Task C should reference index 2 (fileCDeletes)
+    assertThat(json).contains("\"delete-file-references\":[0]");
+    assertThat(json).contains("\"delete-file-references\":[1]");
+    assertThat(json).contains("\"delete-file-references\":[2]");
+
+    // Verify that no task has accumulated references (e.g., [0,1] or [0,1,2])
+    assertThat(json).doesNotContain("\"delete-file-references\":[0,1]");
+    assertThat(json).doesNotContain("\"delete-file-references\":[0,1,2]");
+
+    // Round-trip test: deserialize and verify each task has the correct delete files
+    PlanTableScanResponse deserialized =
+        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+
+    assertThat(deserialized.fileScanTasks()).hasSize(3);
+
+    // Task A should only have FILE_A_DELETES
+    assertThat(deserialized.fileScanTasks().get(0).deletes()).hasSize(1);
+    assertThat(deserialized.fileScanTasks().get(0).deletes().get(0).path().toString())
+        .isEqualTo(FILE_A_DELETES.location());
+
+    // Task B should only have FILE_B_DELETES
+    assertThat(deserialized.fileScanTasks().get(1).deletes()).hasSize(1);
+    assertThat(deserialized.fileScanTasks().get(1).deletes().get(0).path().toString())
+        .isEqualTo(FILE_B_DELETES.location());
+
+    // Task C should only have FILE_C2_DELETES
+    assertThat(deserialized.fileScanTasks().get(2).deletes()).hasSize(1);
+    assertThat(deserialized.fileScanTasks().get(2).deletes().get(0).path().toString())
+        .isEqualTo(FILE_C2_DELETES.location());
   }
 
   @Test
