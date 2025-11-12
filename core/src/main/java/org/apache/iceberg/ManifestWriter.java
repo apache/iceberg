@@ -253,7 +253,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
       try {
-        return InternalData.write(FileFormat.AVRO, file)
+        return InternalData.write(FileFormat.PARQUET, file)
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
@@ -288,7 +288,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
       try {
-        return InternalData.write(FileFormat.AVRO, file)
+        return InternalData.write(FileFormat.PARQUET, file)
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))

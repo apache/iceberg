@@ -277,7 +277,8 @@ public class TestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
-    File manifestFile = temp.resolve("input.m0.avro").toFile();
+    String extension = formatVersion >= 4 ? ".parquet" : ".avro";
+    File manifestFile = temp.resolve("input.m0" + extension).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -299,7 +300,8 @@ public class TestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, ManifestEntry<?>... entries) throws IOException {
-    return writeManifest(snapshotId, "input.m0.avro", entries);
+    String extension = formatVersion >= 4 ? ".parquet" : ".avro";
+    return writeManifest(snapshotId, "input.m0" + extension, entries);
   }
 
   @SuppressWarnings("unchecked")
@@ -333,9 +335,10 @@ public class TestBase {
 
   ManifestFile writeDeleteManifest(int newFormatVersion, Long snapshotId, DeleteFile... deleteFiles)
       throws IOException {
+    FileFormat manifestFormat = newFormatVersion >= 4 ? FileFormat.PARQUET : FileFormat.AVRO;
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
-            FileFormat.AVRO.addExtension(
+            manifestFormat.addExtension(
                 temp.resolve("junit" + System.nanoTime()).toFile().toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
@@ -350,7 +353,8 @@ public class TestBase {
   }
 
   ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
-    File manifestFile = temp.resolve(name + ".avro").toFile();
+    String extension = formatVersion >= 4 ? ".parquet" : ".avro";
+    File manifestFile = temp.resolve(name + extension).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 

@@ -28,9 +28,27 @@ import org.apache.parquet.hadoop.ParquetReader;
 
 public class ParquetIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final ParquetReader.Builder<T> builder;
+  private final org.apache.iceberg.io.InputFile inputFile;
+  private java.util.Map<String, String> metadata = null;
 
-  ParquetIterable(ParquetReader.Builder<T> builder) {
+  ParquetIterable(ParquetReader.Builder<T> builder, org.apache.iceberg.io.InputFile inputFile) {
     this.builder = builder;
+    this.inputFile = inputFile;
+  }
+
+  public java.util.Map<String, String> getMetadata() {
+    if (metadata == null) {
+      try {
+        org.apache.parquet.hadoop.ParquetFileReader reader =
+            org.apache.parquet.hadoop.ParquetFileReader.open(
+                org.apache.iceberg.parquet.ParquetIO.file(inputFile));
+        metadata = reader.getFooter().getFileMetaData().getKeyValueMetaData();
+        reader.close();
+      } catch (java.io.IOException e) {
+        throw new org.apache.iceberg.exceptions.RuntimeIOException(e);
+      }
+    }
+    return metadata;
   }
 
   @Override

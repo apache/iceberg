@@ -652,9 +652,10 @@ public class TestTransaction extends TestBase {
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     assertThat(manifests).hasSize(2);
 
+    String extension = formatVersion >= 4 ? ".parquet" : ".avro";
     ManifestFile newManifest =
         writeManifest(
-            "manifest-file-1.avro",
+            "manifest-file-1" + extension,
             manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshotId, FILE_A),
             manifestEntry(ManifestEntry.Status.EXISTING, secondSnapshotId, FILE_B));
 
@@ -863,12 +864,13 @@ public class TestTransaction extends TestBase {
     overwriteFiles.commit();
 
     // cause the overwrite transaction commit to fail and retry
+    String extension = formatVersion >= 4 ? ".parquet" : ".avro";
     RewriteManifests rewriteManifests =
         table
             .rewriteManifests()
             .addManifest(
                 writeManifest(
-                    "new_manifest.avro",
+                    "new_manifest" + extension,
                     manifestEntry(Status.EXISTING, first.snapshotId(), FILE_A),
                     manifestEntry(Status.EXISTING, first.snapshotId(), FILE_A2),
                     manifestEntry(Status.EXISTING, second.snapshotId(), FILE_B)))

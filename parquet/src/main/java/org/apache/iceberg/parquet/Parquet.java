@@ -1533,7 +1533,7 @@ public class Parquet {
         builder.withDecryption(fileDecryptionProperties);
       }
 
-      return new ParquetIterable<>(builder);
+      return new ParquetIterable<>(builder, file);
     }
   }
 

@@ -560,9 +560,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected EncryptedOutputFile newManifestOutputFile() {
+    // Use Parquet for v4 manifests, Avro for earlier versions
+    FileFormat manifestFormat =
+        ops.current().formatVersion() >= 4 ? FileFormat.PARQUET : FileFormat.AVRO;
     String manifestFileLocation =
         ops.metadataFileLocation(
-            FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
+            manifestFormat.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
     return EncryptingFileIO.combine(ops.io(), ops.encryption())
         .newEncryptingOutputFile(manifestFileLocation);
   }

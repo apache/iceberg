@@ -146,24 +146,37 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
-    Map<String, String> metadata;
-    try {
-      try (CloseableIterable<ManifestEntry<T>> headerReader =
-          InternalData.read(FileFormat.AVRO, inputFile)
-              .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-              .build()) {
+    FileFormat format = FileFormat.fromFileName(inputFile.location());
+    if (format == null) {
+      // Default to Avro for backward compatibility
+      format = FileFormat.AVRO;
+    }
 
-        if (headerReader instanceof AvroIterable) {
-          metadata = ((AvroIterable<ManifestEntry<T>>) headerReader).getMetadata();
-        } else {
-          throw new RuntimeException(
-              "Reader does not support metadata reading: " + headerReader.getClass().getName());
-        }
+    try (CloseableIterable<ManifestEntry<T>> headerReader =
+        InternalData.read(format, inputFile)
+            .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
+            .build()) {
+
+      if (headerReader instanceof AvroIterable) {
+        return ((AvroIterable<ManifestEntry<T>>) headerReader).getMetadata();
+      } else {
+        return extractMetadataViaReflection(headerReader);
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
-    return metadata;
+  }
+
+  private static <T extends ContentFile<T>> Map<String, String> extractMetadataViaReflection(
+      CloseableIterable<ManifestEntry<T>> reader) {
+    // For Parquet and other formats, use reflection to call getMetadata if available
+    try {
+      java.lang.reflect.Method getMetadataMethod = reader.getClass().getMethod("getMetadata");
+      return (Map<String, String>) getMetadataMethod.invoke(reader);
+    } catch (Exception e) {
+      throw new RuntimeException(
+          "Reader does not support metadata reading: " + reader.getClass().getName(), e);
+    }
   }
 
   public boolean isDeleteManifestReader() {
