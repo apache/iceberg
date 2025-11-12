@@ -183,9 +183,8 @@ public class TestLocationProvider extends TestBase {
     assertThatThrownBy(() -> table.locationProvider())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Provided implementation for dynamic instantiation should implement %s.",
-                LocationProvider.class));
+            "Provided implementation for dynamic instantiation should implement %s.",
+            LocationProvider.class);
   }
 
   @TestTemplate

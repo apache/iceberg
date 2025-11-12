@@ -1576,22 +1576,6 @@ public class TestVariantReaders {
     return Types.optionalList().element(elementType).named("typed_value");
   }
 
-  private static void checkListType(GroupType listType) {
-    // Check the list is a 3-level structure
-    Preconditions.checkArgument(
-        listType.getFieldCount() == 1
-            && listType.getFields().get(0).isRepetition(Type.Repetition.REPEATED),
-        "Invalid list type: does not contain single repeated field: %s",
-        listType);
-
-    GroupType repeated = listType.getFields().get(0).asGroupType();
-    Preconditions.checkArgument(
-        repeated.getFieldCount() == 1
-            && repeated.getFields().get(0).isRepetition(Type.Repetition.REQUIRED),
-        "Invalid list type: does not contain single required subfield: %s",
-        listType);
-  }
-
   private static org.apache.avro.Schema avroSchema(GroupType schema) {
     if (schema instanceof MessageType) {
       return new AvroSchemaConverter(CONF).convert((MessageType) schema);

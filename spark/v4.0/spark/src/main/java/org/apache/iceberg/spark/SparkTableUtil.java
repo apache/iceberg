@@ -39,6 +39,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
@@ -105,8 +107,6 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Function2;
@@ -143,7 +143,9 @@ public class SparkTableUtil {
    * @param spark a Spark session
    * @param table a table name and (optional) database
    * @return a DataFrame of the table's partitions
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static Dataset<Row> partitionDF(SparkSession spark, String table) {
     List<SparkPartition> partitions = getPartitions(spark, table);
     return spark
@@ -158,7 +160,9 @@ public class SparkTableUtil {
    * @param table name of the table.
    * @param expression The expression whose matching partitions are returned.
    * @return a DataFrame of the table partitions.
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static Dataset<Row> partitionDFByFilter(
       SparkSession spark, String table, String expression) {
     List<SparkPartition> partitions = getPartitionsByFilter(spark, table, expression);
@@ -173,7 +177,9 @@ public class SparkTableUtil {
    * @param spark a Spark session
    * @param table a table name and (optional) database
    * @return all table's partitions
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static List<SparkPartition> getPartitions(SparkSession spark, String table) {
     try {
       TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
@@ -228,7 +234,9 @@ public class SparkTableUtil {
    * @param table a table name and (optional) database
    * @param predicate a predicate on partition columns
    * @return matching table's partitions
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static List<SparkPartition> getPartitionsByFilter(
       SparkSession spark, String table, String predicate) {
     TableIdentifier tableIdent;
@@ -258,7 +266,9 @@ public class SparkTableUtil {
    * @param tableIdent a table identifier
    * @param predicateExpr a predicate expression on partition columns
    * @return matching table's partitions
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static List<SparkPartition> getPartitionsByFilter(
       SparkSession spark, TableIdentifier tableIdent, Expression predicateExpr) {
     try {
@@ -411,7 +421,9 @@ public class SparkTableUtil {
    * @param partitionFilter only import partitions whose values match those in the map, can be
    *     partially defined
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkTable(
       SparkSession spark,
       TableIdentifier sourceTableIdent,
@@ -434,7 +446,9 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
    * @param parallelism number of threads to use for file reading
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkTable(
       SparkSession spark,
       TableIdentifier sourceTableIdent,
@@ -627,7 +641,9 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkTable(
       SparkSession spark,
       TableIdentifier sourceTableIdent,
@@ -732,7 +748,9 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkPartitions(
       SparkSession spark,
       List<SparkPartition> partitions,
@@ -930,7 +948,9 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkPartitions(
       SparkSession spark,
       List<SparkPartition> partitions,
@@ -940,6 +960,10 @@ public class SparkTableUtil {
     importSparkPartitions(spark, partitions, targetTable, spec, stagingDir, false, 1);
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0
+   */
+  @Deprecated
   public static List<SparkPartition> filterPartitions(
       List<SparkPartition> partitions, Map<String, String> partitionFilter) {
     if (partitionFilter.isEmpty()) {
@@ -1109,7 +1133,7 @@ public class SparkTableUtil {
       getService().shutdown();
     }
 
-    @NotNull
+    @Nonnull
     @Override
     public List<Runnable> shutdownNow() {
       return getService().shutdownNow();
@@ -1126,60 +1150,60 @@ public class SparkTableUtil {
     }
 
     @Override
-    public boolean awaitTermination(long timeout, @NotNull TimeUnit unit)
+    public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit)
         throws InterruptedException {
       return getService().awaitTermination(timeout, unit);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public <T> Future<T> submit(@NotNull Callable<T> task) {
+    public <T> Future<T> submit(@Nonnull Callable<T> task) {
       return getService().submit(task);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public <T> Future<T> submit(@NotNull Runnable task, T result) {
+    public <T> Future<T> submit(@Nonnull Runnable task, T result) {
       return getService().submit(task, result);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public Future<?> submit(@NotNull Runnable task) {
+    public Future<?> submit(@Nonnull Runnable task) {
       return getService().submit(task);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks)
+    public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks)
         throws InterruptedException {
       return getService().invokeAll(tasks);
     }
 
-    @NotNull
+    @Nonnull
     @Override
     public <T> List<Future<T>> invokeAll(
-        @NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit)
+        @Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit)
         throws InterruptedException {
       return getService().invokeAll(tasks, timeout, unit);
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks)
+    public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks)
         throws InterruptedException, ExecutionException {
       return getService().invokeAny(tasks);
     }
 
     @Override
     public <T> T invokeAny(
-        @NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit)
+        @Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit)
         throws InterruptedException, ExecutionException, TimeoutException {
       return getService().invokeAny(tasks, timeout, unit);
     }
 
     @Override
-    public void execute(@NotNull Runnable command) {
+    public void execute(@Nonnull Runnable command) {
       getService().execute(command);
     }
 

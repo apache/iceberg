@@ -121,7 +121,7 @@ public class PlanTableScanRequestParser {
 
     List<String> statsFields = JsonUtil.getStringListOrNull(STATS_FIELDS, json);
 
-    return new PlanTableScanRequest.Builder()
+    return PlanTableScanRequest.builder()
         .withSnapshotId(snapshotId)
         .withSelect(select)
         .withFilter(filter)

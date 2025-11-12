@@ -53,7 +53,6 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void roundTripSerdeWithEmptyObject() {
-
     assertThatThrownBy(() -> PlanTableScanResponse.builder().build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: plan status must be defined");
@@ -63,6 +62,45 @@ public class TestPlanTableScanResponseParser {
             () -> PlanTableScanResponseParser.fromJson(emptyJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse planTableScan response from empty or null object");
+  }
+
+  @Test
+  public void roundTripSerdeWithCompletedPlanningWithAndWithoutPlanId() {
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.COMPLETED);
+    assertThat(response.planId()).isNull();
+    assertThat(PlanTableScanResponseParser.toJson(response))
+        .isEqualTo("{\"plan-status\":\"completed\"}");
+
+    response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withPlanId("somePlanId")
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.COMPLETED);
+    assertThat(response.planId()).isEqualTo("somePlanId");
+
+    assertThat(PlanTableScanResponseParser.toJson(response))
+        .isEqualTo("{\"plan-status\":\"completed\",\"plan-id\":\"somePlanId\"}");
+  }
+
+  @Test
+  public void roundTripSerdeWithSubmittedPlanningWithPlanId() {
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.SUBMITTED)
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .withPlanId("somePlanId")
+            .build();
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.SUBMITTED);
+    assertThat(response.planId()).isEqualTo("somePlanId");
+    assertThat(PlanTableScanResponseParser.toJson(response))
+        .isEqualTo("{\"plan-status\":\"submitted\",\"plan-id\":\"somePlanId\"}");
   }
 
   @Test
@@ -78,9 +116,8 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithoutPlanId() {
-    PlanStatus planStatus = PlanStatus.fromName("submitted");
-
-    assertThatThrownBy(() -> PlanTableScanResponse.builder().withPlanStatus(planStatus).build())
+    assertThatThrownBy(
+            () -> PlanTableScanResponse.builder().withPlanStatus(PlanStatus.SUBMITTED).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: plan id should be defined when status is 'submitted'");
 
@@ -93,8 +130,8 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusCancelled() {
-    PlanStatus planStatus = PlanStatus.fromName("cancelled");
-    assertThatThrownBy(() -> PlanTableScanResponse.builder().withPlanStatus(planStatus).build())
+    assertThatThrownBy(
+            () -> PlanTableScanResponse.builder().withPlanStatus(PlanStatus.CANCELLED).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: 'cancelled' is not a valid status for planTableScan");
 
@@ -107,11 +144,10 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithTasksPresent() {
-    PlanStatus planStatus = PlanStatus.fromName("submitted");
     assertThatThrownBy(
             () ->
                 PlanTableScanResponse.builder()
-                    .withPlanStatus(planStatus)
+                    .withPlanStatus(PlanStatus.SUBMITTED)
                     .withPlanId("somePlanId")
                     .withPlanTasks(List.of("task1", "task2"))
                     .build())
@@ -131,31 +167,31 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanIdWithIncorrectStatus() {
-    PlanStatus planStatus = PlanStatus.fromName("failed");
     assertThatThrownBy(
             () ->
                 PlanTableScanResponse.builder()
-                    .withPlanStatus(planStatus)
+                    .withPlanStatus(PlanStatus.FAILED)
                     .withPlanId("somePlanId")
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: plan id can only be defined when status is 'submitted'");
+        .hasMessage(
+            "Invalid response: plan id can only be defined when status is 'submitted' or 'completed'");
 
     String invalidJson = "{\"plan-status\":\"failed\"," + "\"plan-id\":\"somePlanId\"}";
 
     assertThatThrownBy(
             () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: plan id can only be defined when status is 'submitted'");
+        .hasMessage(
+            "Invalid response: plan id can only be defined when status is 'submitted' or 'completed'");
   }
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
-    PlanStatus planStatus = PlanStatus.fromName("submitted");
     assertThatThrownBy(
             () ->
                 PlanTableScanResponse.builder()
-                    .withPlanStatus(planStatus)
+                    .withPlanStatus(PlanStatus.SUBMITTED)
                     .withPlanId("somePlanId")
                     .withDeleteFiles(List.of(FILE_A_DELETES))
                     .build())
@@ -190,10 +226,9 @@ public class TestPlanTableScanResponseParser {
             PartitionSpecParser.toJson(SPEC),
             residualEvaluator);
 
-    PlanStatus planStatus = PlanStatus.fromName("completed");
     PlanTableScanResponse response =
         PlanTableScanResponse.builder()
-            .withPlanStatus(planStatus)
+            .withPlanStatus(PlanStatus.COMPLETED)
             .withFileScanTasks(List.of(fileScanTask))
             .withDeleteFiles(List.of(FILE_A_DELETES))
             .withSpecsById(PARTITION_SPECS_BY_ID)

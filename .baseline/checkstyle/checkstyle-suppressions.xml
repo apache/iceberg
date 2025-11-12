@@ -51,6 +51,7 @@
 
     <!-- Allow using Flink's shaded Curator dependency -->
     <suppress files="org.apache.iceberg.flink.maintenance.api.ZkLockFactory" id="BanShadedClasses"/>
+    <suppress files="org.apache.iceberg.flink.maintenance.api.TestZkLockFactory" id="BanShadedClasses"/>
 
     <!-- Suppress checks for CometColumnReader -->
     <suppress files="org.apache.iceberg.spark.data.vectorized.CometColumnReader" checks="IllegalImport"/>

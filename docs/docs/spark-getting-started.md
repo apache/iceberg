@@ -26,18 +26,17 @@ Spark is currently the most feature-rich compute engine for Iceberg operations.
 We recommend you to get started with Spark to understand Iceberg concepts and features with examples.
 You can also view documentations of using Iceberg with other compute engine under the [Multi-Engine Support](../../multi-engine-support.md) page.
 
-## Using Iceberg in Spark 3
+## Using Iceberg in Spark
 
 To use Iceberg in a Spark shell, use the `--packages` option:
 
 ```sh
-spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
 ```
 
 !!! info
     <!-- markdown-link-check-disable-next-line -->
-    If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-3.5_2.12` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) to Spark's `jars` folder.
-
+    If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-{{ sparkVersionMajor }}` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-{{ sparkVersionMajor }}/{{ icebergVersion }}/iceberg-spark-runtime-{{ sparkVersionMajor }}-{{ icebergVersion }}.jar) to Spark's `jars` folder.
 
 ### Adding catalogs
 
@@ -46,7 +45,7 @@ Iceberg comes with [catalogs](spark-configuration.md#catalogs) that enable SQL c
 This command creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog:
 
 ```sh
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}\
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}\
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
     --conf spark.sql.catalog.spark_catalog.type=hive \
@@ -190,8 +189,8 @@ This type conversion table describes how Iceberg types are converted to the Spar
 | map                        | map                     |               |
 | nanosecond timestamp       |                         | Not supported |
 | nanosecond timestamp with timezone |                 | Not supported |
-| unknown                    |                         | Not supported |
-| variant                    | variant                 | Spark 4.0+    | 
+| unknown                    | null                    | Spark 4.0+    |
+| variant                    | variant                 | Spark 4.0+    |
 | geometry                   |                         | Not supported |
 | geography                  |                         | Not supported |
 

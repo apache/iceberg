@@ -78,7 +78,7 @@ public class TestStaticTable extends HadoopTableTestBase {
       } else {
         assertThatThrownBy(() -> staticTable.newScan().appendsAfter(1))
             .isInstanceOf(UnsupportedOperationException.class)
-            .hasMessage(String.format("Cannot incrementally scan table of type %s", type));
+            .hasMessage("Cannot incrementally scan table of type %s", type);
       }
     }
   }
