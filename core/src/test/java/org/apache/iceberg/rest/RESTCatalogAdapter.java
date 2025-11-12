@@ -578,10 +578,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   /**
-   * Supplied interface to allow RESTCatalogAdapter implementations to have a really simple way to
-   * change how many file scan tasks get grouped in a plan task or under what conditions a table
-   * scan should be performed async. Primarily used in testing to allow overriding more
-   * deterministic ways of planning behavior.
+   * Supplied interface to allow RESTCatalogAdapter implementations to have a mechanism to change
+   * how many file scan tasks get grouped in a plan task or under what conditions a table scan
+   * should be performed async. Primarily used in testing to allow overriding more deterministic
+   * ways of planning behavior.
    */
   public interface PlanningBehavior {
     default int numberFileScanTasksPerPlanTask() {

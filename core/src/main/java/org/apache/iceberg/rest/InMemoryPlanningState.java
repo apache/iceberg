@@ -39,6 +39,7 @@ import org.apache.iceberg.util.Pair;
  */
 class InMemoryPlanningState {
   private static volatile InMemoryPlanningState instance;
+  private static final String INITIAL_TASK_SEQUENCE_NUMBER = "0";
 
   private final Map<String, List<FileScanTask>> planTaskToFileScanTasks;
   private final Map<String, String> planTaskToNext;
@@ -107,7 +108,7 @@ class InMemoryPlanningState {
                     return false;
                   }
 
-                  return "0".equals(keyParts.get(keyParts.size() - 1));
+                  return INITIAL_TASK_SEQUENCE_NUMBER.equals(keyParts.get(keyParts.size() - 1));
                 })
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
             .entrySet();
