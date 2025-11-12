@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -36,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ParallelIterable;
 
 /**
  * Expands V4 root manifests and plans file scan tasks.
@@ -85,6 +87,8 @@ public class ManifestExpander extends CloseableGroup {
 
   @SuppressWarnings("UnusedVariable")
   private ScanMetrics scanMetrics;
+
+  private ExecutorService executorService;
 
   public ManifestExpander(
       V4ManifestReader rootReader, FileIO io, Map<Integer, PartitionSpec> specsById) {
@@ -183,6 +187,11 @@ public class ManifestExpander extends CloseableGroup {
 
   public ManifestExpander scanMetrics(ScanMetrics metrics) {
     this.scanMetrics = metrics;
+    return this;
+  }
+
+  public ManifestExpander planWith(ExecutorService newExecutorService) {
+    this.executorService = newExecutorService;
     return this;
   }
 
@@ -393,12 +402,11 @@ public class ManifestExpander extends CloseableGroup {
   /**
    * Expands manifest references (DATA_MANIFEST and DELETE_MANIFEST) to their contained files.
    *
-   * <p>Loads all root entries to identify manifests, then reads each leaf manifest serially.
+   * <p>Loads all root entries to identify manifests, then reads each leaf manifest. If an
+   * ExecutorService is provided via planWith(), manifests are read in parallel using
+   * ParallelIterable. Otherwise, manifests are read serially.
    *
    * <p>Applies manifest DVs (MANIFEST_DV entries) to skip deleted positions in leaf manifests.
-   *
-   * <p>TODO: Add parallel manifest reading support via ExecutorService (like
-   * ManifestGroup.planWith). This would use ParallelIterable to read leaf manifests concurrently.
    */
   private CloseableIterable<TrackedFile<?>> expandManifests() {
     List<TrackedFile<?>> rootEntries = Lists.newArrayList(rootReader.liveEntries());
@@ -421,7 +429,11 @@ public class ManifestExpander extends CloseableGroup {
       }
     }
 
-    return CloseableIterable.concat(allLeafFiles);
+    if (executorService != null) {
+      return new ParallelIterable<>(allLeafFiles, executorService);
+    } else {
+      return CloseableIterable.concat(allLeafFiles);
+    }
   }
 
   private Map<String, TrackedFile<?>> indexManifestDVs(List<TrackedFile<?>> rootEntries) {

@@ -28,6 +28,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
@@ -624,5 +626,44 @@ public class TestManifestExpander {
     dv.setSnapshotId(SNAPSHOT_ID);
 
     return dv;
+  }
+
+  @Test
+  public void testParallelManifestReading() throws IOException {
+    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
+    String manifest1Path = writeLeafManifest(file1);
+
+    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L);
+    GenericTrackedFile file3 = createDataFile("file3.parquet", 3000L);
+    String manifest2Path = writeLeafManifest(file2, file3);
+
+    GenericTrackedFile manifestEntry1 = createManifestEntry(manifest1Path, 1, 1000L);
+    GenericTrackedFile manifestEntry2 = createManifestEntry(manifest2Path, 2, 5000L);
+
+    String rootPath = writeRootManifest(manifestEntry1, manifestEntry2);
+
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    try {
+      V4ManifestReader rootReader =
+          V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+      ManifestExpander expander =
+          new ManifestExpander(rootReader, io, specsById).planWith(executor);
+
+      List<ManifestExpander.DataFileScanInfo> scanInfos =
+          Lists.newArrayList(expander.planDataFiles());
+
+      assertThat(scanInfos).hasSize(3);
+      List<String> locations = Lists.newArrayList();
+      for (ManifestExpander.DataFileScanInfo info : scanInfos) {
+        locations.add(info.dataFile().location());
+      }
+
+      assertThat(locations)
+          .anyMatch(loc -> loc.endsWith("file1.parquet"))
+          .anyMatch(loc -> loc.endsWith("file2.parquet"))
+          .anyMatch(loc -> loc.endsWith("file3.parquet"));
+    } finally {
+      executor.shutdown();
+    }
   }
 }
