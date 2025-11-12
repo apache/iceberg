@@ -210,4 +210,9 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
   DynamicWriterMetrics getMetrics() {
     return metrics;
   }
+
+  @VisibleForTesting
+  Map<WriteTarget, RowDataTaskWriterFactory> getTaskWriterFactories() {
+    return taskWriterFactories;
+  }
 }
