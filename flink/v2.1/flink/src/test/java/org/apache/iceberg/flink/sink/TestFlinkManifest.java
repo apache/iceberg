@@ -213,7 +213,8 @@ public class TestFlinkManifest {
 
     List<DataFile> dataFiles = generateDataFiles(10);
     ManifestFile manifest =
-        FlinkManifestUtil.writeDataFiles(factory.create(checkpointId), table.spec(), dataFiles);
+        FlinkManifestUtil.writeDataFiles(
+            factory.create(checkpointId), table.spec(), dataFiles, TableUtil.formatVersion(table));
     byte[] dataV1 =
         SimpleVersionedSerialization.writeVersionAndSerialize(new V1Serializer(), manifest);
 
