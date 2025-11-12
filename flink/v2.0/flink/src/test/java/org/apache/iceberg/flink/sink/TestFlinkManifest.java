@@ -137,7 +137,7 @@ public class TestFlinkManifest {
             ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION,
             userProvidedFolder.getAbsolutePath() + "///");
     ManifestOutputFileFactory factory =
-        new ManifestOutputFileFactory(() -> table, props, flinkJobId, operatorId, 1, 1);
+        new ManifestOutputFileFactory(() -> table, props, flinkJobId, operatorId, 1, 1, null);
 
     List<DataFile> dataFiles = generateDataFiles(5);
     DeltaManifests deltaManifests =

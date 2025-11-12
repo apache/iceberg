@@ -68,6 +68,8 @@ class TestDynamicCommitter {
 
   Catalog catalog;
 
+  final int cacheMaximumSize = 10;
+
   private static final DataFile DATA_FILE =
       DataFiles.builder(PartitionSpec.unpartitioned())
           .withPath("/path/to/data-1.parquet")
@@ -155,7 +157,7 @@ class TestDynamicCommitter {
         new WriteTarget(TABLE2, "branch2", 43, 0, true, Sets.newHashSet(1, 2));
 
     DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -281,7 +283,7 @@ class TestDynamicCommitter {
         new WriteTarget(TABLE1, "branch", 42, 0, false, Sets.newHashSet(1, 2));
 
     DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -339,7 +341,7 @@ class TestDynamicCommitter {
     assertThat(table.snapshots()).isEmpty();
 
     DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -454,7 +456,7 @@ class TestDynamicCommitter {
     assertThat(table.snapshots()).isEmpty();
 
     DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
@@ -613,7 +615,7 @@ class TestDynamicCommitter {
         new WriteTarget(TABLE1, "branch", 42, 0, false, Sets.newHashSet(1, 2));
 
     DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader());
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
     OneInputStreamOperatorTestHarness aggregatorHarness =
         new OneInputStreamOperatorTestHarness(aggregator);
     aggregatorHarness.open();
