@@ -264,4 +264,49 @@ public class TestPlanTableScanResponseParser {
 
     assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedToJson);
   }
+
+  @Test
+  public void roundTripSerdeWithoutDeleteFiles() {
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(SPEC, Expressions.equal("id", 1), true);
+    FileScanTask fileScanTask =
+        new BaseFileScanTask(
+            FILE_A,
+            new DeleteFile[] {},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withFileScanTasks(List.of(fileScanTask))
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+
+    String expectedJson =
+        "{\"plan-status\":\"completed\","
+            + "\"file-scan-tasks\":["
+            + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
+            + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"
+            + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+            + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
+            + "}";
+
+    String json = PlanTableScanResponseParser.toJson(response);
+    assertThat(json).isEqualTo(expectedJson);
+
+    PlanTableScanResponse fromResponse =
+        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    PlanTableScanResponse copyResponse =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(fromResponse.planStatus())
+            .withPlanId(fromResponse.planId())
+            .withPlanTasks(fromResponse.planTasks())
+            .withDeleteFiles(fromResponse.deleteFiles())
+            .withFileScanTasks(fromResponse.fileScanTasks())
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+
+    assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedJson);
+  }
 }
