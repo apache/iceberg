@@ -150,8 +150,28 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
       for (int i = 0; i < taskFutures.length; i += 1) {
         if (taskFutures[i] == null || taskFutures[i].isDone()) {
-          handleCompletedTask(i);
-          trySubmitNewTask(i);
+          if (taskFutures[i] != null) {
+            // check for task failure and re-throw any exception. Enqueue continuation if any.
+            try {
+              Optional<Task<T>> continuation = taskFutures[i].get();
+              continuation.ifPresent(yieldedTasks::addLast);
+              taskFutures[i] = null;
+            } catch (ExecutionException e) {
+              if (e.getCause() instanceof RuntimeException) {
+                // rethrow a runtime exception
+                throw (RuntimeException) e.getCause();
+              } else {
+                throw new RuntimeException("Failed while running parallel task", e.getCause());
+              }
+            } catch (InterruptedException e) {
+              throw new RuntimeException("Interrupted while running parallel task", e);
+            }
+          }
+
+          // submit a new task if there is space in the queue
+          if (queue.size() < maxQueueSize) {
+            taskFutures[i] = submitNextTask();
+          }
         }
 
         if (taskFutures[i] != null) {
@@ -159,39 +179,6 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         }
       }
 
-      return hasPendingWork(hasRunningTask);
-    }
-
-    private void handleCompletedTask(int index) {
-      if (taskFutures[index] != null) {
-        try {
-          Optional<Task<T>> continuation = taskFutures[index].get();
-          continuation.ifPresent(yieldedTasks::addLast);
-          taskFutures[index] = null;
-        } catch (ExecutionException e) {
-          handleExecutionException(e);
-        } catch (InterruptedException e) {
-          throw new RuntimeException("Interrupted while running parallel task", e);
-        }
-      }
-    }
-
-    private void handleExecutionException(ExecutionException executionException) {
-      if (executionException.getCause() instanceof RuntimeException) {
-        throw (RuntimeException) executionException.getCause();
-      } else {
-        throw new RuntimeException(
-            "Failed while running parallel task", executionException.getCause());
-      }
-    }
-
-    private void trySubmitNewTask(int index) {
-      if (queue.size() < maxQueueSize) {
-        taskFutures[index] = submitNextTask();
-      }
-    }
-
-    private boolean hasPendingWork(boolean hasRunningTask) {
       return !closed.get() && (tasks.hasNext() || hasRunningTask);
     }
 
