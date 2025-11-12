@@ -56,8 +56,8 @@ public class TestRestFunctionCatalog extends TestBaseWithCatalog {
           public void handle(HttpExchange exchange) throws IOException {
             String query = exchange.getRequestURI().getQuery();
             if (query != null && query.contains("namespace=")) {
-              // Return a JSON array of names
-              String body = "[\"add_one_file\", \"fruits_by_color\"]";
+              // Return a JSON object with names
+              String body = "{\"names\":[\"add_one_file\",\"fruits_by_color\"]}";
               byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
               exchange.sendResponseHeaders(200, bytes.length);
               try (OutputStream os = exchange.getResponseBody()) {
@@ -73,10 +73,10 @@ public class TestRestFunctionCatalog extends TestBaseWithCatalog {
     // /v1/functions/{namespace}/{name}
     server.createContext(
         "/v1/functions/default/add_one_file",
-        ex -> respondWithFile(ex, pathToExample("add_one.json")));
+        ex -> respondWithWrappedFile(ex, pathToExample("add_one.json")));
     server.createContext(
         "/v1/functions/default/fruits_by_color",
-        ex -> respondWithFile(ex, pathToExample("fruits_by_color.json")));
+        ex -> respondWithWrappedFile(ex, pathToExample("fruits_by_color.json")));
 
     server.start();
 
@@ -121,6 +121,21 @@ public class TestRestFunctionCatalog extends TestBaseWithCatalog {
       return;
     }
     byte[] bytes = Files.readAllBytes(path);
+    exchange.sendResponseHeaders(200, bytes.length);
+    try (OutputStream os = exchange.getResponseBody()) {
+      os.write(bytes);
+    }
+  }
+
+  private void respondWithWrappedFile(HttpExchange exchange, Path path) throws IOException {
+    if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+      exchange.sendResponseHeaders(405, -1);
+      exchange.close();
+      return;
+    }
+    String content = Files.readString(path, StandardCharsets.UTF_8);
+    String body = "{\"spec\":" + content + "}";
+    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
     exchange.sendResponseHeaders(200, bytes.length);
     try (OutputStream os = exchange.getResponseBody()) {
       os.write(bytes);

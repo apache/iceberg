@@ -18,114 +18,62 @@
  */
 package org.apache.iceberg.rest.functions;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.ErrorHandlers;
+import org.apache.iceberg.rest.HTTPHeaders;
+import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
+import org.apache.iceberg.rest.responses.ListFunctionsResponse;
+import org.apache.iceberg.rest.responses.LoadFunctionResponse;
 
-/** Minimal REST client to list and fetch UDF function specs for the POC. */
+/** Minimal REST client to list and fetch UDF function specs for the POC, using Iceberg HTTPClient. */
 public class RestFunctionService {
 
   private final String baseUri; // e.g., http://localhost:8181
-  private final String authHeader; // optional bearer token or header value
-  private final HttpClient client;
+  private final HTTPClient http;
 
   public RestFunctionService(String baseUri, String authHeader) {
     this.baseUri = baseUri.endsWith("/") ? baseUri.substring(0, baseUri.length() - 1) : baseUri;
-    this.authHeader = authHeader;
-    this.client =
-        HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .version(HttpClient.Version.HTTP_1_1)
+
+    java.util.Map<String, String> props = new java.util.HashMap<>();
+    HTTPHeaders headers =
+        authHeader != null && !authHeader.isEmpty()
+            ? HTTPHeaders.of(java.util.Map.of("Authorization", authHeader))
+            : HTTPHeaders.EMPTY;
+    this.http =
+        HTTPClient.builder(props)
+            .uri(this.baseUri)
+            .withAuthSession(DefaultAuthSession.of(headers))
             .build();
   }
 
   public List<String> listFunctions(String[] namespace) {
-    try {
-      String ns = String.join(".", namespace);
-      String url = baseUri + "/v1/functions?namespace=" + urlEncode(ns);
-      HttpRequest.Builder req = HttpRequest.newBuilder().uri(URI.create(url)).GET();
-      if (authHeader != null && !authHeader.isEmpty()) {
-        req.header("Authorization", authHeader);
-      }
-
-      HttpResponse<String> resp = client.send(req.build(), HttpResponse.BodyHandlers.ofString());
-      if (resp.statusCode() == 200) {
-        // Expect newline or comma separated list for POC; be permissive
-        String body = resp.body().trim();
-        if (body.isEmpty()) {
-          return Lists.newArrayList();
-        }
-        if (body.startsWith("[") && body.endsWith("]")) {
-          // naive JSON array parsing (no external deps here)
-          String inner = body.substring(1, body.length() - 1).trim();
-          if (inner.isEmpty()) {
-            return Lists.newArrayList();
-          }
-          Iterable<String> parts = Splitter.on(',').split(inner);
-          List<String> out = Lists.newArrayList();
-          for (String p : parts) {
-            String s = stripQuotes(p.trim());
-            if (!s.isEmpty()) {
-              out.add(s);
-            }
-          }
-          return out;
-        }
-        // fallback: newline separated
-        List<String> out = Lists.newArrayList();
-        for (String line : Splitter.on('\n').split(body)) {
-          String s = line.trim();
-          if (!s.isEmpty()) {
-            out.add(s);
-          }
-        }
-        return out;
-      }
-      throw new RuntimeException("Failed to list functions: HTTP " + resp.statusCode());
-    } catch (IOException | InterruptedException e) {
-      throw new RuntimeException("Failed to list functions", e);
-    }
+    String ns = String.join(".", namespace);
+    java.util.Map<String, String> params = java.util.Map.of("namespace", ns);
+    ListFunctionsResponse resp =
+        http.get(
+            "v1/functions",
+            params,
+            ListFunctionsResponse.class,
+            java.util.Map.of(),
+            ErrorHandlers.defaultErrorHandler());
+    List<String> names = Lists.newArrayList();
+    names.addAll(resp.names());
+    return names;
   }
 
   public String getFunctionSpecJson(String[] namespace, String name) {
-    try {
-      String ns = String.join(".", namespace);
-      if (ns.isEmpty()) {
-        ns = "default"; // POC fallback
-      }
-      String url = baseUri + "/v1/functions/" + urlEncode(ns) + "/" + urlEncode(name);
-      HttpRequest.Builder req = HttpRequest.newBuilder().uri(URI.create(url)).GET();
-      if (authHeader != null && !authHeader.isEmpty()) {
-        req.header("Authorization", authHeader);
-      }
-      HttpResponse<String> resp = client.send(req.build(), HttpResponse.BodyHandlers.ofString());
-      if (resp.statusCode() == 200) {
-        return resp.body();
-      }
-      throw new RuntimeException(
-          "Failed to get function spec: HTTP " + resp.statusCode() + " for " + name);
-    } catch (IOException | InterruptedException e) {
-      throw new RuntimeException("Failed to get function spec", e);
+    String ns = String.join(".", namespace);
+    if (ns.isEmpty()) {
+      ns = "default";
     }
-  }
-
-  private static String urlEncode(String s) {
-    return URLEncoder.encode(s, StandardCharsets.UTF_8);
-  }
-
-  private static String stripQuotes(String s) {
-    if ((s.startsWith("\"") && s.endsWith("\"")) || (s.startsWith("'") && s.endsWith("'"))) {
-      return s.substring(1, s.length() - 1);
-    }
-    return s;
+    String path = String.format("v1/functions/%s/%s", ns, name);
+    LoadFunctionResponse resp =
+        http.get(path, LoadFunctionResponse.class, java.util.Map.of(), ErrorHandlers.defaultErrorHandler());
+    ObjectNode spec = resp.spec();
+    return spec.toString();
   }
 }
 

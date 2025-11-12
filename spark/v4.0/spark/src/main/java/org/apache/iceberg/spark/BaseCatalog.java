@@ -52,6 +52,8 @@ abstract class BaseCatalog
   private boolean useNullableQuerySchema = USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT;
   private String functionsRestUri = null;
   private String functionsRestAuth = null;
+  private org.apache.iceberg.rest.functions.RestFunctionService restFunctions = null;
+  private java.util.List<String> cachedRestFunctionNames = null;
 
   @Override
   public UnboundProcedure loadProcedure(Identifier ident) {
@@ -95,6 +97,9 @@ abstract class BaseCatalog
     // POC config for REST-backed function listing/loading
     this.functionsRestUri = options.get("functions.rest.uri");
     this.functionsRestAuth = options.get("functions.rest.auth");
+    if (functionsRestUri != null && !functionsRestUri.isEmpty()) {
+      this.restFunctions = new RestFunctionService(functionsRestUri, functionsRestAuth);
+    }
   }
 
   @Override
@@ -109,18 +114,20 @@ abstract class BaseCatalog
   @Override
   public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
     if (isFunctionNamespace(namespace)) {
-      Set<String> names = new LinkedHashSet<>();
+      Set<String> names = new java.util.LinkedHashSet<>();
       names.addAll(SparkFunctions.list());
       names.addAll(UserSqlFunctions.list());
 
       // If configured, fetch functions from REST and register them as SQL UDFs
-      if (functionsRestUri != null && !functionsRestUri.isEmpty()) {
-        RestFunctionService svc = new RestFunctionService(functionsRestUri, functionsRestAuth);
-        for (String fn : svc.listFunctions(namespace)) {
+      if (restFunctions != null) {
+        if (cachedRestFunctionNames == null) {
+          cachedRestFunctionNames = restFunctions.listFunctions(namespace);
+        }
+        for (String fn : cachedRestFunctionNames) {
           try {
             // Only register if not already present
             if (!names.contains(fn)) {
-              String json = svc.getFunctionSpecJson(namespace, fn);
+              String json = restFunctions.getFunctionSpecJson(namespace, fn);
               SparkUDFRegistrar.registerFromJson(SparkSession.active(), fn, json);
               names.add(fn);
             }
