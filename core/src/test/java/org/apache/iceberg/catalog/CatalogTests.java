@@ -93,16 +93,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   protected static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
   protected static final TableIdentifier TBL = TableIdentifier.of("ns", "tbl");
 
-  protected static final Namespace REST_DB = Namespace.of("restDB");
-  public static final TableIdentifier TABLE_COMPLETED_WITH_FILE_SCAN_TASK =
-      TableIdentifier.of(REST_DB, "table_completed_with_file_scan_task");
-  public static final TableIdentifier TABLE_SUBMITTED_WITH_FILE_SCAN_TASK =
-      TableIdentifier.of(REST_DB, "table_submitted_with_file_scan_task");
-  public static final TableIdentifier TABLE_COMPLETED_WITH_PLAN_TASK =
-      TableIdentifier.of(REST_DB, "table_completed_with_plan_task");
-  public static final TableIdentifier TABLE_COMPLETED_WITH_NESTED_PLAN_TASK =
-      TableIdentifier.of(REST_DB, "table_completed_with_nested_plan_task");
-
   // Schema passed to create tables
   protected static final Schema SCHEMA =
       new Schema(
