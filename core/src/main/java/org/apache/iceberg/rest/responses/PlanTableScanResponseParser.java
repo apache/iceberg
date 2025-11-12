@@ -28,14 +28,18 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.TableScanResponseParser;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.CredentialParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class PlanTableScanResponseParser {
   private static final String PLAN_STATUS = "plan-status";
   private static final String PLAN_ID = "plan-id";
   private static final String PLAN_TASKS = "plan-tasks";
+  private static final String STORAGE_CREDENTIALS = "storage-credentials";
 
   private PlanTableScanResponseParser() {}
 
@@ -62,6 +66,15 @@ public class PlanTableScanResponseParser {
     }
     if (response.planTasks() != null) {
       JsonUtil.writeStringArray(PLAN_TASKS, response.planTasks(), gen);
+    }
+
+    if (!response.credentials().isEmpty()) {
+      gen.writeArrayFieldStart(STORAGE_CREDENTIALS);
+      for (Credential credential : response.credentials()) {
+        CredentialParser.toJson(credential, gen);
+      }
+
+      gen.writeEndArray();
     }
 
     TableScanResponseParser.serializeScanTasks(
@@ -92,13 +105,28 @@ public class PlanTableScanResponseParser {
     List<FileScanTask> fileScanTasks =
         TableScanResponseParser.parseFileScanTasks(json, deleteFiles, specsById, caseSensitive);
 
-    return PlanTableScanResponse.builder()
-        .withPlanId(planId)
-        .withPlanStatus(planStatus)
-        .withPlanTasks(planTasks)
-        .withFileScanTasks(fileScanTasks)
-        .withDeleteFiles(deleteFiles)
-        .withSpecsById(specsById)
-        .build();
+    PlanTableScanResponse.Builder builder =
+        PlanTableScanResponse.builder()
+            .withPlanId(planId)
+            .withPlanStatus(planStatus)
+            .withPlanTasks(planTasks)
+            .withFileScanTasks(fileScanTasks)
+            .withDeleteFiles(deleteFiles)
+            .withSpecsById(specsById);
+
+    if (json.hasNonNull(STORAGE_CREDENTIALS)) {
+      JsonNode credsNode = JsonUtil.get(STORAGE_CREDENTIALS, json);
+      Preconditions.checkArgument(
+          credsNode.isArray(), "Cannot parse credentials from non-array: %s", credsNode);
+
+      List<Credential> credentials = Lists.newArrayList();
+      for (JsonNode credential : credsNode) {
+        credentials.add(CredentialParser.fromJson(credential));
+      }
+
+      builder.withCredentials(credentials);
+    }
+
+    return builder.build();
   }
 }
