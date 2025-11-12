@@ -84,7 +84,7 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
 
   @Test
   @Override
-  public void testLoadTableWithMissingMetadatafile(@TempDir Path tempDir) throws IOException {
+  public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) throws IOException {
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(TBL.namespace());

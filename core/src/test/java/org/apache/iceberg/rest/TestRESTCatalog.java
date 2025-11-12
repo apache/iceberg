@@ -3456,7 +3456,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   @Override
-  public void testLoadTableWithMissingMetadatafile(@TempDir Path tempDir) {
+  public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) {
 
     if (requiresNamespaceCreate()) {
       restCatalog.createNamespace(TBL.namespace());
