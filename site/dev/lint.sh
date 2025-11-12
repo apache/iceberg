@@ -20,6 +20,10 @@ source dev/common.sh
 
 set -e
 
+create_venv
+
+install_deps
+
 if [[ "$1" == "--fix" ]]; then
   fix_markdown_files
 else

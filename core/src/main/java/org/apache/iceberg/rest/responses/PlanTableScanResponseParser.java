@@ -76,10 +76,7 @@ public class PlanTableScanResponseParser {
     Preconditions.checkArgument(
         json != null, "Cannot parse planTableScan response from empty or null object");
     return JsonUtil.parse(
-        json,
-        node -> {
-          return PlanTableScanResponseParser.fromJson(node, specsById, caseSensitive);
-        });
+        json, node -> PlanTableScanResponseParser.fromJson(node, specsById, caseSensitive));
   }
 
   public static PlanTableScanResponse fromJson(
@@ -101,6 +98,7 @@ public class PlanTableScanResponseParser {
         .withPlanTasks(planTasks)
         .withFileScanTasks(fileScanTasks)
         .withDeleteFiles(deleteFiles)
+        .withSpecsById(specsById)
         .build();
   }
 }

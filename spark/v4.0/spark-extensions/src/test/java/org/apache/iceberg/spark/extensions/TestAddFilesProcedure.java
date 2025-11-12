@@ -731,9 +731,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                       catalogName, tableName, fileTableDir.getAbsolutePath()))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining(
-              String.format(
-                  "Cannot find a partition spec in Iceberg table %s that matches the partition columns ([id]) in input table",
-                  tableName));
+              "Cannot find a partition spec in Iceberg table %s that matches the partition columns ([id]) in input table",
+              tableName);
       return;
     }
 
@@ -780,9 +779,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                     catalogName, tableName, fileTableDir.getAbsolutePath()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            String.format(
-                "Cannot find a partition spec in Iceberg table %s that matches the partition columns (%s) in input table",
-                fullTableName, "[id]"));
+            "Cannot find a partition spec in Iceberg table %s that matches the partition columns (%s) in input table",
+            fullTableName, "[id]");
   }
 
   @TestTemplate

@@ -75,7 +75,9 @@ The docs are built, run, and released using [make](https://www.gnu.org/software/
 > [deploy](dev/deploy.sh): Clean, build, and deploy the Iceberg docs site.
 > help: Show help for each of the Makefile recipes.
 > [serve](dev/serve.sh): Clean, build, and run the site locally.
+> [serve-dev](dev/serve-dev.sh): Fast iterative development mode - only builds nightly and latest.
 > [lint](dev/lint.sh): Scan markdown files for style issues.
+> [lint-fix](dev/lint.sh): Run linting with auto-fix on the markdown files.
 
 To scaffold the versioned docs and build the project, run the `build` recipe.
 
@@ -103,9 +105,18 @@ This step will generate the staged source code which blends into the original so
     └─.asf.yaml
 ```
 
-It will also scan all markdown files and fail the build on any style issues. To fix style issues, run the `lint` script with fix mode.
+#### Linting
+
+To check for markdown style issues without building the entire site, use the `lint` make command:
+
 ```sh
-./dev/lint.sh --fix
+make lint
+```
+
+To automatically fix markdown style issues, use the `lint-fix` make command:
+
+```sh
+make lint-fix
 ```
 
 <!-- markdown-link-check-disable-next-line -->
@@ -118,6 +129,25 @@ To clear all build files, run `clean`.
 ```sh
 make clean
 ```
+
+#### Fast iterative development mode
+
+When working on the documentation, building all historical versions significantly slows down the build process. For faster iteration during development, use the `serve-dev` recipe:
+
+```sh
+make serve-dev
+```
+
+This development mode:
+- **Only builds `nightly` and `latest` versions** - Skips all historical versions
+- **Significantly reduces build time** - Typically 5-10x faster than building all versions
+- **Uses the `--dirty` flag** - Only rebuilds changed files for even faster iteration
+- **Perfect for iterative development** - Great for working on documentation content
+
+The development mode sets the `ICEBERG_DEV_MODE=true` environment variable and uses a simplified mkdocs configuration (`mkdocs-dev.yml`) that only includes the most recent versions.
+
+> [!NOTE]
+> Development mode is only for local iteration. Always use `make serve` or `make build` before creating a pull request to ensure all versioned docs build correctly.
 
 #### Testing local changes on versioned docs
 

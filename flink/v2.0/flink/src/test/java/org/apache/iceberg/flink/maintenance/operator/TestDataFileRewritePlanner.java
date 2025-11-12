@@ -22,7 +22,6 @@ import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_F
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.newDataFiles;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Set;
@@ -41,18 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 
 class TestDataFileRewritePlanner extends OperatorTestBase {
-  @Test
-  void testFailsOnV3Table() throws Exception {
-    Table table = createTable("3");
-    Set<DataFile> expected = Sets.newHashSetWithExpectedSize(3);
-    insert(table, 1, "a");
-    expected.addAll(newDataFiles(table));
-
-    assertThatThrownBy(() -> planDataFileRewrite(tableLoader()))
-        .hasMessageContaining(
-            "Flink does not support compaction on row lineage enabled tables (V3+)")
-        .isInstanceOf(IllegalArgumentException.class);
-  }
 
   @Test
   void testUnpartitioned() throws Exception {

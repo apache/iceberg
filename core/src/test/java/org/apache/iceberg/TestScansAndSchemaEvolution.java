@@ -135,6 +135,45 @@ public class TestScansAndSchemaEvolution {
   }
 
   @TestTemplate
+  public void testPartitionSourceAdd() throws IOException {
+    Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
+
+    DataFile fileOne = createDataFile("one");
+    DataFile fileTwo = createDataFile("two");
+
+    table.newAppend().appendFile(fileOne).appendFile(fileTwo).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    List<FileScanTask> tasks =
+        Lists.newArrayList(table.newScan().filter(Expressions.equal("part", "one")).planFiles());
+
+    assertThat(tasks).hasSize(1);
+
+    // add a new partition column
+    table.updateSchema().addColumn("hour", Types.IntegerType.get()).commit();
+    table.updateSpec().addField("hour").commit();
+
+    // plan the scan using the new column in a filter
+    tasks = Lists.newArrayList(table.newScan().filter(Expressions.isNull("hour")).planFiles());
+
+    assertThat(tasks).hasSize(2);
+
+    // create a new commit
+    table.newAppend().appendFile(createDataFile("three")).commit();
+
+    // plan the scan using the existing column in a filter
+    tasks =
+        Lists.newArrayList(
+            table
+                .newScan()
+                .useSnapshot(firstSnapshotId)
+                .filter(Expressions.equal("part", "one"))
+                .planFiles());
+
+    assertThat(tasks).hasSize(1);
+  }
+
+  @TestTemplate
   public void testPartitionSourceDrop() throws IOException {
     Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
 
@@ -177,6 +216,37 @@ public class TestScansAndSchemaEvolution {
                 .map(ContentScanTask::file)
                 .map(ContentFile::location)
                 .collect(Collectors.toList()));
+  }
+
+  @TestTemplate
+  public void testColumnAdd() throws IOException {
+    Table table = TestTables.create(temp, "test", SCHEMA, SPEC, formatVersion);
+
+    DataFile fileOne = createDataFile("one");
+    DataFile fileTwo = createDataFile("two");
+
+    table.newAppend().appendFile(fileOne).appendFile(fileTwo).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.updateSchema().addColumn("hour", Types.IntegerType.get()).commit();
+
+    DataFile fileThree = createDataFile("three", table.schema(), table.spec());
+    table.newAppend().appendFile(fileThree).commit();
+
+    // plan the scan using the new column in a filter
+    List<FileScanTask> tasks =
+        Lists.newArrayList(table.newScan().filter(Expressions.isNull("hour")).planFiles());
+    assertThat(tasks).hasSize(3);
+
+    // plan the scan using the existing column in a filter
+    tasks =
+        Lists.newArrayList(
+            table
+                .newScan()
+                .useSnapshot(firstSnapshotId)
+                .filter(Expressions.equal("data", "xyz"))
+                .planFiles());
+    assertThat(tasks).hasSize(2);
   }
 
   @TestTemplate
