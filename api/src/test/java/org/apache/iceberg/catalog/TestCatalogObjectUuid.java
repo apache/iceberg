@@ -27,26 +27,27 @@ public class TestCatalogObjectUuid {
 
   @Test
   void testInvalidUuid() {
-    assertThatThrownBy(() -> new CatalogObjectUuid(null, CatalogObjectType.TABLE))
+    assertThatThrownBy(() -> new CatalogObjectUuid(null, CatalogObjectType.TABLE.type()))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid UUID: null");
 
-    assertThatThrownBy(() -> new CatalogObjectUuid("", CatalogObjectType.TABLE))
+    assertThatThrownBy(() -> new CatalogObjectUuid("", CatalogObjectType.TABLE.type()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid UUID: empty");
   }
 
   @Test
-  void testInvalidObjectType() {
-    assertThatThrownBy(() -> new CatalogObjectUuid("valid-uuid", null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid objectType: null");
+  void testInvalidType() {
+    assertThatThrownBy(
+            () -> new CatalogObjectUuid("valid-uuid", CatalogObjectType.NAMESPACE.type()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid type: " + CatalogObjectType.NAMESPACE.type());
   }
 
   @Test
-  void testValidUuidAndObjectType() {
+  void testValidUuidAndType() {
     String validUuid = "123e4567-e89b-12d3-a456-426614174000";
-    CatalogObjectType type = CatalogObjectType.TABLE;
+    String type = CatalogObjectType.TABLE.type();
 
     CatalogObjectUuid catalogObjectUuid = new CatalogObjectUuid(validUuid, type);
 

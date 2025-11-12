@@ -29,23 +29,23 @@ public class TestCatalogObjectUuidParser {
   @Test
   void testToJson() {
     CatalogObjectUuid catalogObjectUuid =
-        new CatalogObjectUuid("uuid", CatalogObjectType.NAMESPACE);
-    String catalogObjectUuidJson = "{\"uuid\":\"uuid\",\"type\":\"namespace\"}";
+        new CatalogObjectUuid("uuid", CatalogObjectType.TABLE.type());
+    String catalogObjectUuidJson = "{\"uuid\":\"uuid\",\"type\":\"table\"}";
     assertThat(CatalogObjectUuidParser.toJson(catalogObjectUuid)).isEqualTo(catalogObjectUuidJson);
   }
 
   @Test
   void testToJsonPretty() {
     CatalogObjectUuid catalogObjectUuid =
-        new CatalogObjectUuid("uuid", CatalogObjectType.NAMESPACE);
+        new CatalogObjectUuid("uuid", CatalogObjectType.TABLE.type());
     String catalogObjectUuidJson =
-        "{\n" + "  \"uuid\" : \"uuid\",\n" + "  \"type\" : \"namespace\"\n" + "}";
+        "{\n" + "  \"uuid\" : \"uuid\",\n" + "  \"type\" : \"table\"\n" + "}";
     assertThat(CatalogObjectUuidParser.toJsonPretty(catalogObjectUuid))
         .isEqualTo(catalogObjectUuidJson);
   }
 
   @Test
-  void testToJsonWithNullOperation() {
+  void testToJsonWithNullInput() {
     assertThatNullPointerException()
         .isThrownBy(() -> CatalogObjectUuidParser.toJson(null))
         .withMessage("Invalid catalog object uuid: null");
@@ -54,8 +54,8 @@ public class TestCatalogObjectUuidParser {
   @Test
   void testFromJson() {
     CatalogObjectUuid catalogObjectUuid =
-        new CatalogObjectUuid("uuid", CatalogObjectType.NAMESPACE);
-    String catalogObjectUuidJson = "{\"uuid\":\"uuid\",\"type\":\"namespace\"}";
+        new CatalogObjectUuid("uuid", CatalogObjectType.TABLE.type());
+    String catalogObjectUuidJson = "{\"uuid\":\"uuid\",\"type\":\"table\"}";
     assertThat(CatalogObjectUuidParser.fromJson(catalogObjectUuidJson))
         .isEqualTo(catalogObjectUuid);
   }
@@ -69,7 +69,7 @@ public class TestCatalogObjectUuidParser {
 
   @Test
   void testFromJsonWithMissingProperties() {
-    String missingUuid = "{\"type\":\"namespace\"}";
+    String missingUuid = "{\"type\":\"table\"}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CatalogObjectUuidParser.fromJson(missingUuid));
 
@@ -88,9 +88,5 @@ public class TestCatalogObjectUuidParser {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidType));
 
-    String invalidCatalogObjectType = "{\"uuid\":\"uuid\",\"type\":\"unknown\"}";
-    assertThatIllegalArgumentException()
-        .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidCatalogObjectType))
-        .withMessage("Invalid CatalogObjectType: unknown");
   }
 }

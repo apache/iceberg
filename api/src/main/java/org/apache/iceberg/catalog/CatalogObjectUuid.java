@@ -22,18 +22,21 @@ import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Identifies a {@link CatalogObject} by UUID. */
+/** Identifies a {@link org.apache.iceberg.Table} or {@link org.apache.iceberg.view.View} by UUID. */
 public class CatalogObjectUuid {
   private final String uuid;
-  private final CatalogObjectType type;
+  /** one of ["table", "view"]. Assign using {@link CatalogObjectType#type()} */
+  private final String type;
 
-  public CatalogObjectUuid(String uuid, CatalogObjectType type) {
+  public CatalogObjectUuid(String uuid, String type) {
     Preconditions.checkNotNull(uuid, "Invalid UUID: null");
+
     if (uuid.isEmpty()) {
       throw new IllegalArgumentException("Invalid UUID: empty");
     }
 
-    Preconditions.checkNotNull(type, "Invalid objectType: null");
+    if(!type.equals(CatalogObjectType.TABLE.type()) && !type.equals(CatalogObjectType.VIEW.type()))
+        throw new IllegalArgumentException("Invalid type: " + type);
 
     this.uuid = uuid;
     this.type = type;
@@ -43,13 +46,13 @@ public class CatalogObjectUuid {
     return uuid;
   }
 
-  public CatalogObjectType type() {
+  public String type() {
     return type;
   }
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this).add("uuid", uuid).add("type", type.type()).toString();
+    return MoreObjects.toStringHelper(this).add("uuid", uuid).add("type", type).toString();
   }
 
   @Override
@@ -63,7 +66,7 @@ public class CatalogObjectUuid {
     }
 
     CatalogObjectUuid that = (CatalogObjectUuid) o;
-    return uuid.equals(that.uuid) && type == that.type;
+    return uuid.equals(that.uuid) && type.equals(that.type);
   }
 
   @Override

@@ -48,7 +48,7 @@ public class CatalogObjectUuidParser {
 
     gen.writeStartObject();
     gen.writeStringField(UUID, catalogObjectUuid.uuid());
-    gen.writeStringField(TYPE, catalogObjectUuid.type().type());
+    gen.writeStringField(TYPE, catalogObjectUuid.type());
     gen.writeEndObject();
   }
 
@@ -60,7 +60,7 @@ public class CatalogObjectUuidParser {
     Preconditions.checkNotNull(json, "Cannot parse catalog object uuid from null object");
 
     String uuid = JsonUtil.getString(UUID, json);
-    CatalogObjectType type = CatalogObjectType.fromType(JsonUtil.getString(TYPE, json));
+    String type = JsonUtil.getString(TYPE, json);
 
     return new CatalogObjectUuid(uuid, type);
   }
