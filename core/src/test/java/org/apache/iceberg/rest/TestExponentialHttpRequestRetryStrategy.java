@@ -54,7 +54,7 @@ public class TestExponentialHttpRequestRetryStrategy {
   public void invalidRetries(int retries) {
     assertThatThrownBy(() -> new ExponentialHttpRequestRetryStrategy(retries))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(String.format("Cannot set retries to %s, the value must be positive", retries));
+        .hasMessage("Cannot set retries to %s, the value must be positive", retries);
   }
 
   @Test
