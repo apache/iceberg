@@ -20,7 +20,9 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,16 +42,18 @@ import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ParallelIterable;
 
 class ManifestGroup {
   private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
 
   private final FileIO io;
-  private final Set<ManifestFile> dataManifests;
+  private Set<ManifestFile> dataManifests;
   private final DeleteFileIndex.Builder deleteIndexBuilder;
   private Predicate<ManifestEntry<DataFile>> manifestEntryPredicate;
   private Map<Integer, PartitionSpec> specsById;
@@ -64,6 +68,7 @@ class ManifestGroup {
   private Set<Integer> columnsToKeepStats;
   private ExecutorService executorService;
   private ScanMetrics scanMetrics;
+  private DeleteFileIndex deleteFiles;
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
     this(
@@ -162,6 +167,34 @@ class ManifestGroup {
     return this;
   }
 
+  ManifestGroup planByPartition() {
+    Map<Pair<Integer, StructLike>, Integer> partitionRefCount = Maps.newHashMap();
+    Map<ManifestFile, Set<Pair<Integer, StructLike>>> distinctPartitionsInManifest =
+        Maps.newHashMap();
+    for (ManifestFile file : dataManifests) {
+      Set<Pair<Integer, StructLike>> visited = Sets.newHashSet();
+      try (ManifestReader<DataFile> reader = ManifestFiles.read(file, io)) {
+        for (DataFile dataFile : reader) {
+          Pair<Integer, StructLike> partition = Pair.of(dataFile.specId(), dataFile.partition());
+          if (visited.add(partition)) {
+            partitionRefCount.put(partition, partitionRefCount.getOrDefault(partition, 0) + 1);
+          }
+        }
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+      distinctPartitionsInManifest.put(file, visited);
+    }
+
+    Set<ManifestFile> newDataFiles = Sets.newHashSet();
+    for (ManifestFile file : dataManifests) {
+      newDataFiles.add(
+          new CloseableManifest(file, partitionRefCount, distinctPartitionsInManifest));
+    }
+    this.dataManifests = newDataFiles;
+    return this;
+  }
+
   /**
    * Returns an iterable of scan tasks. It is safe to add entries of this iterable to a collection
    * as {@link DataFile} in each {@link FileScanTask} is defensively copied.
@@ -170,6 +203,144 @@ class ManifestGroup {
    */
   public CloseableIterable<FileScanTask> planFiles() {
     return plan(ManifestGroup::createFileScanTasks);
+  }
+
+  private class CloseableManifest implements ManifestFile, Closeable {
+    private final ManifestFile delegate;
+    private final Map<Pair<Integer, StructLike>, Integer> partitionRefCount;
+    private final Map<ManifestFile, Set<Pair<Integer, StructLike>>> distinctPartitionsInManifest;
+
+    private CloseableManifest(
+        ManifestFile delegate,
+        Map<Pair<Integer, StructLike>, Integer> partitionRefCount,
+        Map<ManifestFile, Set<Pair<Integer, StructLike>>> distinctPartitionsInManifest) {
+      this.delegate = delegate;
+      this.partitionRefCount = partitionRefCount;
+      this.distinctPartitionsInManifest = distinctPartitionsInManifest;
+    }
+
+    @Override
+    public void close() {
+      synchronized (partitionRefCount) {
+        Set<Pair<Integer, StructLike>> pairs = distinctPartitionsInManifest.get(delegate);
+        for (Pair<Integer, StructLike> partition : pairs) {
+          partitionRefCount.put(partition, partitionRefCount.get(partition) - 1);
+          if (partitionRefCount.get(partition) == 0) {
+            deleteFiles.removeIndex(partition.first(), partition.second());
+          }
+        }
+      }
+    }
+
+    @Override
+    public boolean hasAddedFiles() {
+      return delegate.hasAddedFiles();
+    }
+
+    @Override
+    public boolean hasExistingFiles() {
+      return delegate.hasExistingFiles();
+    }
+
+    @Override
+    public boolean hasDeletedFiles() {
+      return delegate.hasDeletedFiles();
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return delegate.keyMetadata();
+    }
+
+    @Override
+    public Long firstRowId() {
+      return delegate.firstRowId();
+    }
+
+    @Override
+    public String path() {
+      return delegate.path();
+    }
+
+    @Override
+    public long length() {
+      return delegate.length();
+    }
+
+    @Override
+    public int partitionSpecId() {
+      return delegate.partitionSpecId();
+    }
+
+    @Override
+    public ManifestContent content() {
+      return delegate.content();
+    }
+
+    @Override
+    public long sequenceNumber() {
+      return delegate.sequenceNumber();
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return delegate.minSequenceNumber();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return delegate.snapshotId();
+    }
+
+    @Override
+    public Integer addedFilesCount() {
+      return delegate.addedFilesCount();
+    }
+
+    @Override
+    public Long addedRowsCount() {
+      return delegate.addedRowsCount();
+    }
+
+    @Override
+    public Integer existingFilesCount() {
+      return delegate.existingFilesCount();
+    }
+
+    @Override
+    public Long existingRowsCount() {
+      return delegate.existingRowsCount();
+    }
+
+    @Override
+    public Integer deletedFilesCount() {
+      return delegate.deletedFilesCount();
+    }
+
+    @Override
+    public Long deletedRowsCount() {
+      return delegate.deletedRowsCount();
+    }
+
+    @Override
+    public List<PartitionFieldSummary> partitions() {
+      return delegate.partitions();
+    }
+
+    @Override
+    public ManifestFile copy() {
+      return delegate.copy();
+    }
+
+    @Override
+    public int hashCode() {
+      return delegate.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      return delegate.equals(obj);
+    }
   }
 
   public <T extends ScanTask> CloseableIterable<T> plan(CreateTasksFunction<T> createTasksFunc) {
@@ -182,7 +353,7 @@ class ManifestGroup {
                   return ResidualEvaluator.of(spec, filter, caseSensitive);
                 });
 
-    DeleteFileIndex deleteFiles = deleteIndexBuilder.scanMetrics(scanMetrics).build();
+    deleteFiles = deleteIndexBuilder.scanMetrics(scanMetrics).build();
 
     boolean dropStats = ManifestReader.dropStats(columns);
     if (deleteFiles.hasEqualityDeletes()) {
@@ -351,6 +522,9 @@ class ManifestGroup {
               public void close() throws IOException {
                 if (iterable != null) {
                   iterable.close();
+                }
+                if (manifest instanceof CloseableManifest) {
+                  ((CloseableManifest) manifest).close();
                 }
               }
             });
