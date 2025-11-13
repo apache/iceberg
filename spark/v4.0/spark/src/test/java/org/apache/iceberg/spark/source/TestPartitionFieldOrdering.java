@@ -21,13 +21,13 @@ package org.apache.iceberg.spark.source;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
@@ -353,7 +353,7 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
       // Verify this executor's tasks are in sorted partition order
       // Use nullsFirst comparator to handle null partition values (from partition evolution)
-      List<T> sortedExecutorValues = new ArrayList<>(executorPartitionValues);
+      List<T> sortedExecutorValues = Lists.newArrayList(executorPartitionValues);
       sortedExecutorValues.sort(
           java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()));
 
@@ -383,7 +383,7 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
       // Only check executors with multiple tasks
       if (executorPartitionValues.size() > 1) {
-        List<T> sortedExecutorValues = new ArrayList<>(executorPartitionValues);
+        List<T> sortedExecutorValues = Lists.newArrayList(executorPartitionValues);
         sortedExecutorValues.sort(
             java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()));
 
@@ -416,7 +416,7 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
                           + "-"
                           + Thread.currentThread().getId();
 
-                  List<Row> rows = new ArrayList<>();
+                  List<Row> rows = Lists.newArrayList();
 
                   while (partition.hasNext()) {
                     Row row = partition.next();
@@ -424,7 +424,7 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
                     // Record partition value for each row
                     T partitionValue = partitionValueExtractor.apply(row);
                     EXECUTION_LOG
-                        .computeIfAbsent(executorId, k -> new ArrayList<>())
+                        .computeIfAbsent(executorId, k -> Lists.newArrayList())
                         .add(partitionValue);
 
                     rows.add(row);
@@ -540,8 +540,12 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
             row -> {
               int id = row.getInt(0);
               if (id <= 3) {
-                if (id == 1) return 20708;
-                if (id == 2) return 20099;
+                if (id == 1) {
+                  return 20708;
+                }
+                if (id == 2) {
+                  return 20099;
+                }
                 return 20346;
               } else {
                 return null;
