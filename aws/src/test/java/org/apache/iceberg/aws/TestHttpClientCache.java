@@ -27,27 +27,28 @@ import static org.mockito.Mockito.when;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
+import org.apache.iceberg.aws.HttpClientCache.WrappedSdkHttpClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import software.amazon.awssdk.http.SdkHttpClient;
 
-public class TestManagedHttpClientRegistry {
+public class TestHttpClientCache {
 
   @Mock private SdkHttpClient mockHttpClient1;
   @Mock private SdkHttpClient mockHttpClient2;
   @Mock private Supplier<SdkHttpClient> mockFactory1;
   @Mock private Supplier<SdkHttpClient> mockFactory2;
 
-  private ManagedHttpClientRegistry registry;
+  private HttpClientCache cache;
 
   @BeforeEach
   public void before() {
     MockitoAnnotations.openMocks(this);
-    registry = ManagedHttpClientRegistry.getInstance();
+    cache = HttpClientCache.getInstance();
     // Clean up any existing clients from previous tests
-    registry.shutdown();
+    cache.shutdown();
 
     when(mockFactory1.get()).thenReturn(mockHttpClient1);
     when(mockFactory2.get()).thenReturn(mockHttpClient2);
@@ -55,38 +56,38 @@ public class TestManagedHttpClientRegistry {
 
   @Test
   public void testSingletonPattern() {
-    ManagedHttpClientRegistry instance1 = ManagedHttpClientRegistry.getInstance();
-    ManagedHttpClientRegistry instance2 = ManagedHttpClientRegistry.getInstance();
+    HttpClientCache instance1 = HttpClientCache.getInstance();
+    HttpClientCache instance2 = HttpClientCache.getInstance();
 
     assertThat(instance1).isSameAs(instance2);
   }
 
   @Test
   public void testClientCaching() {
-    String cacheKey = "test-key";
+    final String cacheKey = "test-key";
 
     // First call should create client and increment ref count
-    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey, mockFactory1);
+    SdkHttpClient client1 = cache.getOrCreateClient(cacheKey, mockFactory1);
     verify(mockFactory1, times(1)).get();
 
     // Second call with same key should return cached client and increment ref count again
-    SdkHttpClient client2 = registry.getOrCreateClient(cacheKey, mockFactory1);
+    SdkHttpClient client2 = cache.getOrCreateClient(cacheKey, mockFactory1);
     verify(mockFactory1, times(1)).get(); // Factory should not be called again
 
     assertThat(client1).isSameAs(client2);
 
     // Verify reference count is 2
-    ManagedHttpClientRegistry.ManagedHttpClient managedClient = registry.clientMap().get(cacheKey);
+    HttpClientCache.ManagedHttpClient managedClient = cache.clientMap().get(cacheKey);
     assertThat(managedClient.refCount()).isEqualTo(2);
   }
 
   @Test
   public void testDifferentKeysCreateDifferentClients() {
-    String cacheKey1 = "test-key-1";
-    String cacheKey2 = "test-key-2";
+    final String cacheKey1 = "test-key-1";
+    final String cacheKey2 = "test-key-2";
 
-    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey1, mockFactory1);
-    SdkHttpClient client2 = registry.getOrCreateClient(cacheKey2, mockFactory2);
+    SdkHttpClient client1 = cache.getOrCreateClient(cacheKey1, mockFactory1);
+    SdkHttpClient client2 = cache.getOrCreateClient(cacheKey2, mockFactory2);
 
     verify(mockFactory1, times(1)).get();
     verify(mockFactory2, times(1)).get();
@@ -97,10 +98,10 @@ public class TestManagedHttpClientRegistry {
   @Test
   public void testReferenceCountingAndCleanup() throws Exception {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
-    String cacheKey = "test-key";
+    final String cacheKey = "test-key";
 
-    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
-        new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
+    HttpClientCache.ManagedHttpClient managedClient =
+        new HttpClientCache.ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire twice
     WrappedSdkHttpClient client1 = managedClient.acquire();
@@ -125,10 +126,10 @@ public class TestManagedHttpClientRegistry {
   @Test
   public void testAcquireAfterCloseThrows() {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
-    String cacheKey = "test-key";
+    final String cacheKey = "test-key";
 
-    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
-        new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
+    HttpClientCache.ManagedHttpClient managedClient =
+        new HttpClientCache.ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire and release to close
     managedClient.acquire();
@@ -144,21 +145,20 @@ public class TestManagedHttpClientRegistry {
 
   @Test
   public void testReleaseRemovesFromRegistry() {
-    String cacheKey = "test-key";
+    final String cacheKey = "test-key";
 
     // Create client (refCount = 1)
-    SdkHttpClient client1 = registry.getOrCreateClient(cacheKey, mockFactory1);
+    SdkHttpClient client1 = cache.getOrCreateClient(cacheKey, mockFactory1);
     assertThat(client1).isNotNull();
 
-    ConcurrentMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
-        registry.clientMap();
+    ConcurrentMap<String, HttpClientCache.ManagedHttpClient> clientMap = cache.clientMap();
     assertThat(clientMap).containsKey(cacheKey);
 
     // Verify ref count is 1
     assertThat(clientMap.get(cacheKey).refCount()).isEqualTo(1);
 
     // Release (refCount = 0, should close and remove)
-    registry.releaseClient(cacheKey);
+    cache.releaseClient(cacheKey);
 
     // Client should be removed from map after close
     assertThat(clientMap).doesNotContainKey(cacheKey);
@@ -167,7 +167,7 @@ public class TestManagedHttpClientRegistry {
 
   @Test
   public void testConcurrentAccess() throws InterruptedException {
-    String cacheKey = "concurrent-test-key";
+    final String cacheKey = "concurrent-test-key";
     int threadCount = 10;
     Thread[] threads = new Thread[threadCount];
     SdkHttpClient[] results = new SdkHttpClient[threadCount];
@@ -178,7 +178,7 @@ public class TestManagedHttpClientRegistry {
       threads[i] =
           new Thread(
               () -> {
-                results[index] = registry.getOrCreateClient(cacheKey, mockFactory1);
+                results[index] = cache.getOrCreateClient(cacheKey, mockFactory1);
               });
     }
 
@@ -202,24 +202,23 @@ public class TestManagedHttpClientRegistry {
     }
 
     // Verify reference count equals number of threads
-    ManagedHttpClientRegistry.ManagedHttpClient managedClient = registry.clientMap().get(cacheKey);
+    HttpClientCache.ManagedHttpClient managedClient = cache.clientMap().get(cacheKey);
     assertThat(managedClient.refCount()).isEqualTo(threadCount);
   }
 
   @Test
   public void testRegistryShutdown() {
-    ConcurrentMap<String, ManagedHttpClientRegistry.ManagedHttpClient> clientMap =
-        registry.clientMap();
+    ConcurrentMap<String, HttpClientCache.ManagedHttpClient> clientMap = cache.clientMap();
 
     // Create some clients
-    registry.getOrCreateClient("key1", mockFactory1);
-    registry.getOrCreateClient("key2", mockFactory2);
+    cache.getOrCreateClient("key1", mockFactory1);
+    cache.getOrCreateClient("key2", mockFactory2);
 
     // Verify clients were stored
     assertThat(clientMap.size()).isGreaterThan(0);
 
     // Shutdown should clean up the map
-    registry.shutdown();
+    cache.shutdown();
 
     // Map should be empty after shutdown
     assertThat(clientMap.size()).isEqualTo(0);
@@ -232,10 +231,10 @@ public class TestManagedHttpClientRegistry {
   @Test
   public void testDoubleReleaseDoesNotCauseNegativeRefCount() throws Exception {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
-    String cacheKey = "test-key";
+    final String cacheKey = "test-key";
 
-    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
-        new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
+    HttpClientCache.ManagedHttpClient managedClient =
+        new HttpClientCache.ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire once
     WrappedSdkHttpClient client = managedClient.acquire();
@@ -260,10 +259,10 @@ public class TestManagedHttpClientRegistry {
   @Test
   public void testMultipleReleasesAfterClose() throws Exception {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
-    String cacheKey = "test-key";
+    final String cacheKey = "test-key";
 
-    ManagedHttpClientRegistry.ManagedHttpClient managedClient =
-        new ManagedHttpClientRegistry.ManagedHttpClient(mockClient, cacheKey);
+    HttpClientCache.ManagedHttpClient managedClient =
+        new HttpClientCache.ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire once
     managedClient.acquire();

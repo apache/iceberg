@@ -50,8 +50,12 @@ class PrefixedS3Client implements AutoCloseable {
     this.s3FileIOProperties = new S3FileIOProperties(properties);
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      AwsClientFactory factory = S3FileIOAwsClientFactories.initialize(properties);
-      this.s3 = factory::s3;
+      Object clientFactory = S3FileIOAwsClientFactories.initialize(properties);
+      if (clientFactory instanceof S3FileIOAwsClientFactory) {
+        this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
+      } else if (clientFactory instanceof AwsClientFactory) {
+        this.s3 = ((AwsClientFactory) clientFactory)::s3;
+      }
       if (s3FileIOProperties.isPreloadClientEnabled()) {
         s3();
       }
@@ -59,8 +63,12 @@ class PrefixedS3Client implements AutoCloseable {
 
     // Do not override s3Async client if it was provided
     if (s3Async == null) {
-      AwsClientFactory asyncFactory = S3FileIOAwsClientFactories.initialize(properties);
-      this.s3Async = asyncFactory::s3Async;
+      Object clientFactory = S3FileIOAwsClientFactories.initialize(properties);
+      if (clientFactory instanceof S3FileIOAwsClientFactory) {
+        this.s3Async = ((S3FileIOAwsClientFactory) clientFactory)::s3Async;
+      } else if (clientFactory instanceof AwsClientFactory) {
+        this.s3Async = ((AwsClientFactory) clientFactory)::s3Async;
+      }
     }
   }
 

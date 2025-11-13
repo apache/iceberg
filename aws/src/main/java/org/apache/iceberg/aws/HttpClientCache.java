@@ -19,37 +19,40 @@
 package org.apache.iceberg.aws;
 
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.http.ExecutableHttpRequest;
+import software.amazon.awssdk.http.HttpExecuteRequest;
 import software.amazon.awssdk.http.SdkHttpClient;
 
 /**
- * A registry that manages the lifecycle of shared HTTP clients for AWS SDK v2 using reference
- * counting.
+ * A cache that manages the lifecycle of shared HTTP clients for AWS SDK v2 using reference
+ * counting. Package-private - only accessed via {@link BaseHttpClientConfigurations}.
  */
-public final class ManagedHttpClientRegistry {
-  private static final Logger LOG = LoggerFactory.getLogger(ManagedHttpClientRegistry.class);
+final class HttpClientCache {
+  private static final Logger LOG = LoggerFactory.getLogger(HttpClientCache.class);
 
   private final ConcurrentMap<String, ManagedHttpClient> clientMap;
 
-  private static volatile ManagedHttpClientRegistry instance;
+  private static volatile HttpClientCache instance;
 
-  public static ManagedHttpClientRegistry getInstance() {
+  static HttpClientCache getInstance() {
     if (instance == null) {
-      synchronized (ManagedHttpClientRegistry.class) {
+      synchronized (HttpClientCache.class) {
         if (instance == null) {
-          instance = new ManagedHttpClientRegistry();
+          instance = new HttpClientCache();
         }
       }
     }
     return instance;
   }
 
-  private ManagedHttpClientRegistry() {
+  private HttpClientCache() {
     this.clientMap = Maps.newConcurrentMap();
   }
 
@@ -61,7 +64,7 @@ public final class ManagedHttpClientRegistry {
    * @param clientFactory factory to create the HTTP client if not cached
    * @return a ref-counted HTTP client wrapper
    */
-  public SdkHttpClient getOrCreateClient(String clientKey, Supplier<SdkHttpClient> clientFactory) {
+  SdkHttpClient getOrCreateClient(String clientKey, Supplier<SdkHttpClient> clientFactory) {
     ManagedHttpClient managedClient =
         clientMap.computeIfAbsent(
             clientKey,
@@ -76,11 +79,11 @@ public final class ManagedHttpClientRegistry {
 
   /**
    * Release a reference to the HTTP client. When the reference count reaches zero, the client is
-   * closed and removed from the registry.
+   * closed and removed from the cache.
    *
    * @param clientKey the key identifying the client to release
    */
-  public void releaseClient(String clientKey) {
+  void releaseClient(String clientKey) {
     ManagedHttpClient managedClient = clientMap.get(clientKey);
     if (managedClient != null) {
       if (managedClient.release()) {
@@ -97,7 +100,7 @@ public final class ManagedHttpClientRegistry {
 
   @VisibleForTesting
   void shutdown() {
-    clientMap.values().forEach(ManagedHttpClient::forceClose);
+    clientMap.values().forEach(ManagedHttpClient::close);
     clientMap.clear();
   }
 
@@ -109,8 +112,8 @@ public final class ManagedHttpClientRegistry {
     private final SdkHttpClient httpClient;
     private final String clientKey;
     private final AtomicInteger refCount = new AtomicInteger(0);
-    private volatile boolean closed = false;
-    private volatile WrappedSdkHttpClient wrapper;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final WrappedSdkHttpClient wrapper;
 
     ManagedHttpClient(SdkHttpClient httpClient, String clientKey) {
       this.httpClient = httpClient;
@@ -126,10 +129,12 @@ public final class ManagedHttpClientRegistry {
      * @throws IllegalStateException if the client has already been closed
      */
     WrappedSdkHttpClient acquire() {
-      if (closed) {
+
+      int count = refCount.incrementAndGet();
+      if (closed.get()) {
+        refCount.decrementAndGet();
         throw new IllegalStateException("Cannot acquire closed HTTP client: " + clientKey);
       }
-      int count = refCount.incrementAndGet();
       LOG.debug("Acquired HTTP client: key={}, refCount={}", clientKey, count);
       return wrapper;
     }
@@ -141,7 +146,7 @@ public final class ManagedHttpClientRegistry {
      * @return true if the client was closed, false otherwise
      */
     boolean release() {
-      if (closed) {
+      if (closed.get()) {
         LOG.warn("Attempted to release already closed HTTP client: key={}", clientKey);
         return false;
       }
@@ -151,10 +156,7 @@ public final class ManagedHttpClientRegistry {
       if (count == 0) {
         return close();
       } else if (count < 0) {
-        LOG.error(
-            "HTTP client reference count went negative despite closed check: key={}, refCount={}",
-            clientKey,
-            count);
+        LOG.warn("HTTP client reference count went negative key={}, refCount={}", clientKey, count);
         refCount.set(0); // Reset to prevent further corruption
       }
       return false;
@@ -163,29 +165,22 @@ public final class ManagedHttpClientRegistry {
     /**
      * Close the HTTP client if not already closed.
      *
-     * @return true if the client was closed by this call, false if already closed
+     * @return true if the client was closed by this call, false if already closed or if an error
+     *     occurred
      */
-    private boolean close() {
-      if (!closed) {
-        synchronized (this) {
-          if (!closed) {
-            closed = true;
-            LOG.debug("Closing HTTP client: key={}", clientKey);
-            try {
-              httpClient.close();
-              return true;
-            } catch (Exception e) {
-              LOG.warn("Error closing HTTP client: key={}", clientKey, e);
-            }
-          }
+    @VisibleForTesting
+    boolean close() {
+      if (closed.compareAndSet(false, true)) {
+        LOG.debug("Closing HTTP client: key={}", clientKey);
+        try {
+          httpClient.close();
+          return true;
+        } catch (Exception e) {
+          LOG.error("Failed to close HTTP client: key={}", clientKey, e);
+          return false;
         }
       }
       return false;
-    }
-
-    /** Force close the HTTP client regardless of reference count (for testing/shutdown). */
-    void forceClose() {
-      close();
     }
 
     @VisibleForTesting
@@ -195,7 +190,51 @@ public final class ManagedHttpClientRegistry {
 
     @VisibleForTesting
     boolean isClosed() {
-      return closed;
+      return closed.get();
+    }
+  }
+
+  /**
+   * A delegating wrapper around {@link SdkHttpClient} that handles reference counting for lifecycle
+   * management.
+   *
+   * <p><strong>Lifecycle Contract:</strong>
+   *
+   * <ul>
+   *   <li>Calling {@link #close()} decrements the reference count in the registry
+   *   <li>The underlying HTTP client is only closed when the reference count reaches zero
+   *   <li>Multiple wrappers for the same client configuration share the same lifecycle
+   *   <li>After the underlying client is closed, operations on this wrapper may fail
+   * </ul>
+   */
+  static class WrappedSdkHttpClient implements SdkHttpClient {
+    private final SdkHttpClient delegate;
+    private final String clientKey;
+
+    WrappedSdkHttpClient(SdkHttpClient delegate, String clientKey) {
+      this.delegate = delegate;
+      this.clientKey = clientKey;
+    }
+
+    @Override
+    public ExecutableHttpRequest prepareRequest(HttpExecuteRequest request) {
+      return delegate.prepareRequest(request);
+    }
+
+    @Override
+    public void close() {
+      // Delegate close to the cache which manages ref counting
+      HttpClientCache.getInstance().releaseClient(clientKey);
+    }
+
+    @Override
+    public String clientName() {
+      return delegate.clientName();
+    }
+
+    @VisibleForTesting
+    SdkHttpClient delegate() {
+      return delegate;
     }
   }
 }

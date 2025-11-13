@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
 import java.util.Map;
+import org.apache.iceberg.aws.HttpClientCache.WrappedSdkHttpClient;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -54,7 +55,7 @@ public class TestHttpClientProperties {
 
     // Verify the underlying delegate is UrlConnectionHttpClient
     WrappedSdkHttpClient wrappedClient = (WrappedSdkHttpClient) capturedHttpClient;
-    assertThat(wrappedClient.getDelegate())
+    assertThat(wrappedClient.delegate())
         .as("Underlying client should be UrlConnectionHttpClient")
         .isInstanceOf(UrlConnectionHttpClient.class);
   }
@@ -77,7 +78,7 @@ public class TestHttpClientProperties {
 
     // Verify the underlying delegate is ApacheHttpClient
     WrappedSdkHttpClient wrappedClient = (WrappedSdkHttpClient) capturedHttpClient;
-    assertThat(wrappedClient.getDelegate())
+    assertThat(wrappedClient.delegate())
         .as("Underlying client should be ApacheHttpClient")
         .isInstanceOf(ApacheHttpClient.class);
   }
