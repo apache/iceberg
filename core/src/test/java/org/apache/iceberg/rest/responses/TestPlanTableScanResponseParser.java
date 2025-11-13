@@ -307,41 +307,93 @@ public class TestPlanTableScanResponseParser {
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
-    String json = PlanTableScanResponseParser.toJson(response);
-
-    // Verify each task only references its own delete file
-    // Task A should reference index 0 (fileADeletes)
-    // Task B should reference index 1 (fileBDeletes)
-    // Task C should reference index 2 (fileCDeletes)
-    assertThat(json).contains("\"delete-file-references\":[0]");
-    assertThat(json).contains("\"delete-file-references\":[1]");
-    assertThat(json).contains("\"delete-file-references\":[2]");
-
-    // Verify that no task has accumulated references (e.g., [0,1] or [0,1,2])
-    assertThat(json).doesNotContain("\"delete-file-references\":[0,1]");
-    assertThat(json).doesNotContain("\"delete-file-references\":[0,1,2]");
-
-    // Round-trip test: deserialize and verify each task has the correct delete files
-    PlanTableScanResponse deserialized =
-        PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
-
-    List<FileScanTask> deserializedFSTasks = deserialized.fileScanTasks();
-    assertThat(deserializedFSTasks).hasSize(3);
-
-    // Task A should only have FILE_A_DELETES
-    assertThat(deserializedFSTasks.get(0).deletes()).hasSize(1);
-    assertThat(deserializedFSTasks.get(0).deletes().get(0).location())
-        .isEqualTo(FILE_A_DELETES.location());
-
-    // Task B should only have FILE_B_DELETES
-    assertThat(deserializedFSTasks.get(1).deletes()).hasSize(1);
-    assertThat(deserializedFSTasks.get(1).deletes().get(0).location())
-        .isEqualTo(FILE_B_DELETES.location());
-
-    // Task C should only have FILE_C2_DELETES
-    assertThat(deserializedFSTasks.get(2).deletes()).hasSize(1);
-    assertThat(deserializedFSTasks.get(2).deletes().get(0).location())
-        .isEqualTo(FILE_C2_DELETES.location());
+    String expectedJson =
+        "{\n"
+            + "  \"plan-status\" : \"completed\",\n"
+            + "  \"delete-files\" : [ {\n"
+            + "    \"spec-id\" : 0,\n"
+            + "    \"content\" : \"POSITION_DELETES\",\n"
+            + "    \"file-path\" : \"/path/to/data-a-deletes.parquet\",\n"
+            + "    \"file-format\" : \"PARQUET\",\n"
+            + "    \"partition\" : {\n"
+            + "      \"1000\" : 0\n"
+            + "    },\n"
+            + "    \"file-size-in-bytes\" : 10,\n"
+            + "    \"record-count\" : 1\n"
+            + "  }, {\n"
+            + "    \"spec-id\" : 0,\n"
+            + "    \"content\" : \"POSITION_DELETES\",\n"
+            + "    \"file-path\" : \"/path/to/data-b-deletes.parquet\",\n"
+            + "    \"file-format\" : \"PARQUET\",\n"
+            + "    \"partition\" : {\n"
+            + "      \"1000\" : 1\n"
+            + "    },\n"
+            + "    \"file-size-in-bytes\" : 10,\n"
+            + "    \"record-count\" : 1\n"
+            + "  }, {\n"
+            + "    \"spec-id\" : 0,\n"
+            + "    \"content\" : \"EQUALITY_DELETES\",\n"
+            + "    \"file-path\" : \"/path/to/data-c-deletes.parquet\",\n"
+            + "    \"file-format\" : \"PARQUET\",\n"
+            + "    \"partition\" : {\n"
+            + "      \"1000\" : 2\n"
+            + "    },\n"
+            + "    \"file-size-in-bytes\" : 10,\n"
+            + "    \"record-count\" : 1,\n"
+            + "    \"equality-ids\" : [ 1 ],\n"
+            + "    \"sort-order-id\" : 0\n"
+            + "  } ],\n"
+            + "  \"file-scan-tasks\" : [ {\n"
+            + "    \"data-file\" : {\n"
+            + "      \"spec-id\" : 0,\n"
+            + "      \"content\" : \"DATA\",\n"
+            + "      \"file-path\" : \"/path/to/data-a.parquet\",\n"
+            + "      \"file-format\" : \"PARQUET\",\n"
+            + "      \"partition\" : {\n"
+            + "        \"1000\" : 0\n"
+            + "      },\n"
+            + "      \"file-size-in-bytes\" : 10,\n"
+            + "      \"record-count\" : 1,\n"
+            + "      \"sort-order-id\" : 0\n"
+            + "    },\n"
+            + "    \"delete-file-references\" : [ 0 ],\n"
+            + "    \"residual-filter\" : true\n"
+            + "  }, {\n"
+            + "    \"data-file\" : {\n"
+            + "      \"spec-id\" : 0,\n"
+            + "      \"content\" : \"DATA\",\n"
+            + "      \"file-path\" : \"/path/to/data-b.parquet\",\n"
+            + "      \"file-format\" : \"PARQUET\",\n"
+            + "      \"partition\" : {\n"
+            + "        \"1000\" : 1\n"
+            + "      },\n"
+            + "      \"file-size-in-bytes\" : 10,\n"
+            + "      \"record-count\" : 1,\n"
+            + "      \"split-offsets\" : [ 1 ],\n"
+            + "      \"sort-order-id\" : 0\n"
+            + "    },\n"
+            + "    \"delete-file-references\" : [ 1 ],\n"
+            + "    \"residual-filter\" : true\n"
+            + "  }, {\n"
+            + "    \"data-file\" : {\n"
+            + "      \"spec-id\" : 0,\n"
+            + "      \"content\" : \"DATA\",\n"
+            + "      \"file-path\" : \"/path/to/data-c.parquet\",\n"
+            + "      \"file-format\" : \"PARQUET\",\n"
+            + "      \"partition\" : {\n"
+            + "        \"1000\" : 2\n"
+            + "      },\n"
+            + "      \"file-size-in-bytes\" : 10,\n"
+            + "      \"record-count\" : 1,\n"
+            + "      \"split-offsets\" : [ 2, 8 ],\n"
+            + "      \"sort-order-id\" : 0\n"
+            + "    },\n"
+            + "    \"delete-file-references\" : [ 2 ],\n"
+            + "    \"residual-filter\" : true\n"
+            + "  } ]\n"
+            + "}";
+    String json = PlanTableScanResponseParser.toJson(response, true);
+    assertThat(json).isEqualTo(expectedJson);
   }
 
   @Test
