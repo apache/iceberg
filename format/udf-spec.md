@@ -69,6 +69,7 @@ Notes:
    - Engines MUST NOT expose the function definition or its body through any form of metadata inspection (e.g., `SHOW FUNCTIONS`).
    - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
    - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
+2. Entries in `properties` are treated as hints, not strict rules. Engines MAY choose to honor them or ignore them.
 
 ### Definition
 
