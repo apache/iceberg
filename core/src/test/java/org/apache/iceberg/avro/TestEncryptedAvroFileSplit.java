@@ -37,6 +37,7 @@ import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
+import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -72,24 +73,27 @@ public class TestEncryptedAvroFileSplit {
 
     EncryptedOutputFile eOut = ENCRYPTION_MANAGER.encrypt(out);
 
-    try (FileAppender<Object> writer =
+    FileAppender<Object> writer =
         Avro.write(eOut)
             .set(TableProperties.AVRO_COMPRESSION, "uncompressed")
             .createWriterFunc(DataWriter::create)
             .schema(SCHEMA)
             .overwrite()
-            .build()) {
+            .build();
 
-      Record record = GenericRecord.create(SCHEMA);
-      for (long i = 0; i < NUM_RECORDS; i += 1) {
-        Record next = record.copy(ImmutableMap.of("id", i, "data", UUID.randomUUID().toString()));
-        expected.add(next);
-        writer.add(next);
-      }
+    Record record = GenericRecord.create(SCHEMA);
+    for (long i = 0; i < NUM_RECORDS; i += 1) {
+      Record next = record.copy(ImmutableMap.of("id", i, "data", UUID.randomUUID().toString()));
+      expected.add(next);
+      writer.add(next);
     }
 
-    EncryptedInputFile encryptedIn =
-        EncryptedFiles.encryptedInput(out.toInputFile(), eOut.keyMetadata());
+    writer.close();
+
+    NativeEncryptionKeyMetadata kmWithLength =
+        ((NativeEncryptionKeyMetadata) eOut.keyMetadata()).copyWithLength(writer.length());
+
+    EncryptedInputFile encryptedIn = EncryptedFiles.encryptedInput(out.toInputFile(), kmWithLength);
 
     this.file = ENCRYPTION_MANAGER.decrypt(encryptedIn);
   }

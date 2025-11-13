@@ -22,7 +22,10 @@ package org.apache.iceberg.encryption;
  * This interface is applied to OutputFile and InputFile implementations, in order to enable
  * delivery of crypto parameters (such as encryption keys etc) from the Iceberg key management
  * module to the writers/readers of file formats that support encryption natively (Parquet and ORC).
+ *
+ * @deprecated will be removed in 2.0.0
  */
+@Deprecated
 public interface NativelyEncryptedFile {
   NativeFileCryptoParameters nativeCryptoParameters();
 

@@ -25,7 +25,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * Barebone encryption parameters, one object per content file. Carries the file encryption key
  * (later, will be extended with column keys and AAD prefix). Applicable only to formats with native
  * encryption support (Parquet and ORC).
+ *
+ * @deprecated will be removed in 2.0.0
  */
+@Deprecated
 public class NativeFileCryptoParameters {
   private final ByteBuffer fileKey;
   private final EncryptionAlgorithm fileEncryptionAlgorithm;

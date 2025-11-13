@@ -27,6 +27,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileWriter;
@@ -82,7 +83,8 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
               .withFormat(format)
               .withPath(location)
               .withPartition(partition)
-              .withEncryptionKeyMetadata(keyMetadata)
+              .withEncryptionKeyMetadata(
+                  EncryptionUtil.setFileLength(keyMetadata, appender.length()))
               .withFileSizeInBytes(appender.length())
               .withMetrics(appender.metrics())
               .withSplitOffsets(appender.splitOffsets())

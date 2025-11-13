@@ -57,6 +57,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -558,11 +559,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
 
     if (tableKeyId != null && encryptionDekLength <= 0) {
-      String dekLength = tableProperties.get(TableProperties.ENCRYPTION_DEK_LENGTH);
       encryptionDekLength =
-          (dekLength == null)
-              ? TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT
-              : Integer.parseInt(dekLength);
+          PropertyUtil.propertyAsInt(
+              tableProperties,
+              TableProperties.ENCRYPTION_DEK_LENGTH,
+              TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
     }
   }
 

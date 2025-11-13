@@ -107,6 +107,14 @@ public class EncryptionUtil {
     return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
   }
 
+  public static ByteBuffer setFileLength(ByteBuffer keyMetadata, long fileLength) {
+    if (keyMetadata == null) {
+      return null;
+    }
+
+    return StandardKeyMetadata.parse(keyMetadata).copyWithLength(fileLength).buffer();
+  }
+
   /**
    * Decrypt the key metadata for a manifest list.
    *

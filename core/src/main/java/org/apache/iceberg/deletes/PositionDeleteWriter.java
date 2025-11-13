@@ -32,6 +32,7 @@ import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileWriter;
@@ -96,7 +97,8 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
               .withFormat(format)
               .withPath(location)
               .withPartition(partition)
-              .withEncryptionKeyMetadata(keyMetadata)
+              .withEncryptionKeyMetadata(
+                  EncryptionUtil.setFileLength(keyMetadata, appender.length()))
               .withSplitOffsets(appender.splitOffsets())
               .withFileSizeInBytes(appender.length())
               .withMetrics(metrics())
