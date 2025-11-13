@@ -126,6 +126,21 @@ public class RowDataConverter {
               convert(type.asMapType().valueType(), entry.getValue()));
         }
         return new GenericMapData(convertedMap);
+      case VARIANT:
+        org.apache.iceberg.variants.Variant icebergVariant =
+            (org.apache.iceberg.variants.Variant) object;
+
+        byte[] metadataBytes = new byte[icebergVariant.metadata().sizeInBytes()];
+        ByteBuffer metadataBuffer =
+            ByteBuffer.wrap(metadataBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        icebergVariant.metadata().writeTo(metadataBuffer, 0);
+
+        byte[] valueBytes = new byte[icebergVariant.value().sizeInBytes()];
+        ByteBuffer valueBuffer =
+            ByteBuffer.wrap(valueBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        icebergVariant.value().writeTo(valueBuffer, 0);
+
+        return new org.apache.flink.types.variant.BinaryVariant(valueBytes, metadataBytes);
       default:
         throw new UnsupportedOperationException("Not a supported type: " + type);
     }
