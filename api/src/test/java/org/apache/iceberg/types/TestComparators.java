@@ -100,6 +100,35 @@ public class TestComparators {
         Comparators.forType(Types.UUIDType.get()),
         UUID.fromString("81873e7d-1374-4493-8e1d-9095eff7046c"),
         UUID.fromString("fd02441d-1423-4a3f-8785-c7dd5647e26b"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("00000000-0000-0000-0000-000000000000"),
+        UUID.fromString("60000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("60000000-0000-0000-0000-000000000000"),
+        UUID.fromString("70000000-0000-0000-0000-000000000000"));
+    // The following assertion fails prior to the introduction of UUIDComparator.
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("70000000-0000-0000-0000-000000000000"),
+        UUID.fromString("80000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("80000000-0000-0000-0000-000000000000"),
+        UUID.fromString("90000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("90000000-0000-0000-0000-000000000000"),
+        UUID.fromString("a0000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("a0000000-0000-0000-0000-000000000000"),
+        UUID.fromString("f0000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("ffffffff-ffff-ffff-ffff-fffffffffffe"),
+        UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"));
   }
 
   @Test

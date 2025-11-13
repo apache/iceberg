@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -46,7 +47,7 @@ public class Comparators {
           .put(Types.TimestampNanoType.withZone(), Comparator.naturalOrder())
           .put(Types.TimestampNanoType.withoutZone(), Comparator.naturalOrder())
           .put(Types.StringType.get(), Comparators.charSequences())
-          .put(Types.UUIDType.get(), Comparator.naturalOrder())
+          .put(Types.UUIDType.get(), Comparators.uuids())
           .put(Types.BinaryType.get(), Comparators.unsignedBytes())
           .put(Types.UnknownType.get(), Comparator.nullsFirst(Comparator.naturalOrder()))
           .buildOrThrow();
@@ -231,6 +232,10 @@ public class Comparators {
 
   public static Comparator<CharSequence> filePath() {
     return FilePathComparator.INSTANCE;
+  }
+
+  public static Comparator<UUID> uuids() {
+    return UUIDComparator.INSTANCE;
   }
 
   private static class NullsFirst<T> implements Comparator<T> {
@@ -446,6 +451,42 @@ public class Comparators {
         }
       }
       return 0;
+    }
+  }
+
+  /**
+   * Compares UUIDs using unsigned byte-wise comparison using big-endian byte-order compliant with
+   * RFC 4122 and RFC 9562. Java's UUID.compareTo() compares most significant bits first, then least
+   * significant bits using signed value comparisons, which is a <a
+   * href="https://bugs.openjdk.org/browse/JDK-7025832">known bug</a>.
+   */
+  private static class UUIDComparator implements Comparator<UUID> {
+    private static final UUIDComparator INSTANCE = new UUIDComparator();
+
+    private UUIDComparator() {}
+
+    @Override
+    public int compare(UUID uuid1, UUID uuid2) {
+      if (uuid1 == uuid2) {
+        return 0;
+      }
+
+      // Compare most significant bits first (bytes 0-7 in big-endian representation)
+      long msb1 = uuid1.getMostSignificantBits();
+      long msb2 = uuid2.getMostSignificantBits();
+
+      // Use unsigned comparison for the most significant bits
+      int msbCompare = Long.compareUnsigned(msb1, msb2);
+      if (msbCompare != 0) {
+        return msbCompare;
+      }
+
+      // If most significant bits are equal, compare least significant bits (bytes 8-15)
+      long lsb1 = uuid1.getLeastSignificantBits();
+      long lsb2 = uuid2.getLeastSignificantBits();
+
+      // Use unsigned comparison for the least significant bits
+      return Long.compareUnsigned(lsb1, lsb2);
     }
   }
 }
