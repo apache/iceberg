@@ -19,11 +19,16 @@
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.api.gax.rpc.FixedHeaderProvider;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.cloud.NoCredentials;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPAuthUtils;
@@ -41,6 +46,8 @@ class PrefixedStorage implements AutoCloseable {
   private SerializableSupplier<Storage> storage;
   private CloseableGroup closeableGroup;
   private transient volatile Storage storageClient;
+  private static final String CLOUD_PLATFORM_SCOPE =
+      "https://www.googleapis.com/auth/cloud-platform";
 
   PrefixedStorage(
       String storagePrefix, Map<String, String> properties, SerializableSupplier<Storage> storage) {
@@ -67,15 +74,41 @@ class PrefixedStorage implements AutoCloseable {
             // Google Cloud APIs default to automatically detect the credentials to use, which is
             // in most cases the convenient way, especially in GCP.
             // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault()
+
+            // Configure authentication based on available properties
             if (gcpProperties.noAuth()) {
               // Explicitly allow "no credentials" for testing purposes
               builder.setCredentials(NoCredentials.getInstance());
-            }
-
-            if (gcpProperties.oauth2Token().isPresent()) {
+            } else if (gcpProperties.oauth2Token().isPresent()) {
               this.closeableGroup = new CloseableGroup();
               builder.setCredentials(
                   GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup));
+            } else if (gcpProperties.impersonateServiceAccount().isPresent()) {
+              // Use impersonated credentials
+              try {
+                GoogleCredentials sourceCredentials = GoogleCredentials.getApplicationDefault();
+
+                // Parse delegation chain if provided
+                List<String> delegates = null;
+                if (gcpProperties.impersonateDelegates().isPresent()) {
+                  delegates = Arrays.asList(gcpProperties.impersonateDelegates().get().split(","));
+                }
+
+                ImpersonatedCredentials impersonatedCredentials =
+                    ImpersonatedCredentials.create(
+                        sourceCredentials,
+                        gcpProperties.impersonateServiceAccount().get(),
+                        delegates,
+                        Collections.singletonList(CLOUD_PLATFORM_SCOPE),
+                        gcpProperties.impersonateLifetimeSeconds());
+
+                // Refresh to get initial token
+                impersonatedCredentials.refresh();
+                builder.setCredentials(impersonatedCredentials);
+              } catch (IOException e) {
+                throw new UncheckedIOException(
+                    "Failed to create impersonated credentials for GCS", e);
+              }
             }
 
             return builder.build().getService();

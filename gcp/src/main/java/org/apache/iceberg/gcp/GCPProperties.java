@@ -49,6 +49,12 @@ public class GCPProperties implements Serializable {
   public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT =
       "gcs.oauth2.refresh-credentials-endpoint";
 
+  // Impersonation properties
+  public static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcs.impersonate.service-account";
+  public static final String GCS_IMPERSONATE_LIFETIME_SECONDS = "gcs.impersonate.lifetime-seconds";
+  public static final int GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT = 3600;
+  public static final String GCS_IMPERSONATE_DELEGATES = "gcs.impersonate.delegates";
+
   /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
   public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED =
       "gcs.oauth2.refresh-credentials-enabled";
@@ -80,6 +86,11 @@ public class GCPProperties implements Serializable {
   private Date gcsOAuth2TokenExpiresAt;
   private String gcsOauth2RefreshCredentialsEndpoint;
   private boolean gcsOauth2RefreshCredentialsEnabled;
+
+  private String gcsImpersonateServiceAccount;
+  private int gcsImpersonateLifetimeSeconds = GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT;
+
+  private String gcsImpersonateDelegates;
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
 
@@ -128,6 +139,12 @@ public class GCPProperties implements Serializable {
     gcsDeleteBatchSize =
         PropertyUtil.propertyAsInt(
             properties, GCS_DELETE_BATCH_SIZE, GCS_DELETE_BATCH_SIZE_DEFAULT);
+
+    gcsImpersonateServiceAccount = properties.get(GCS_IMPERSONATE_SERVICE_ACCOUNT);
+    gcsImpersonateDelegates = properties.get(GCS_IMPERSONATE_DELEGATES);
+    gcsImpersonateLifetimeSeconds =
+        PropertyUtil.propertyAsInt(
+            properties, GCS_IMPERSONATE_LIFETIME_SECONDS, GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT);
   }
 
   public Optional<Integer> channelReadChunkSize() {
@@ -172,6 +189,18 @@ public class GCPProperties implements Serializable {
 
   public Optional<Date> oauth2TokenExpiresAt() {
     return Optional.ofNullable(gcsOAuth2TokenExpiresAt);
+  }
+
+  public Optional<String> impersonateServiceAccount() {
+    return Optional.ofNullable(gcsImpersonateServiceAccount);
+  }
+
+  public int impersonateLifetimeSeconds() {
+    return gcsImpersonateLifetimeSeconds;
+  }
+
+  public Optional<String> impersonateDelegates() {
+    return Optional.ofNullable(gcsImpersonateDelegates);
   }
 
   public int deleteBatchSize() {
