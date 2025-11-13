@@ -27,6 +27,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
@@ -85,7 +86,8 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
               .withFormat(format)
               .withPath(location)
               .withPartition(partition)
-              .withEncryptionKeyMetadata(keyMetadata)
+              .withEncryptionKeyMetadata(
+                  EncryptionUtil.setKeyMetadataLength(keyMetadata, appender.length()))
               .withFileSizeInBytes(appender.length())
               .withMetrics(appender.metrics())
               .withSplitOffsets(appender.splitOffsets())
