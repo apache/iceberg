@@ -85,7 +85,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-
     Preconditions.checkArgument(
         properties.containsKey(PROJECT_ID),
         "Invalid GCP project: %s must be specified",
