@@ -199,14 +199,14 @@ public class MappingUtil {
       if (fieldResult != null) {
         for (String name : field.names()) {
           for (Map.Entry<String, MappedField> entry : fieldResult.entrySet()) {
-            String fullName = DOT.join(name, entry.getKey());
+            String fullName = DOT.join(name, entry.getKey()).toLowerCase();
             builder.put(fullName, entry.getValue());
           }
         }
       }
 
       for (String name : field.names()) {
-        builder.put(name, field);
+        builder.put(name.toLowerCase(), field);
       }
 
       return builder.build();
