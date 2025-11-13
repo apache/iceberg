@@ -712,6 +712,15 @@ class ListNamespacesResponse(BaseModel):
     namespaces: Optional[List[Namespace]] = Field(None, unique_items=True)
 
 
+class ListFunctionsResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+    names: List[str] = Field(..., unique_items=True)
+
+
+class LoadFunctionResponse(BaseModel):
+    spec: Dict[str, Any] = Field(..., description='Iceberg UDF metadata JSON object')
+
+
 class UpdateNamespacePropertiesResponse(BaseModel):
     updated: List[str] = Field(
         ...,
