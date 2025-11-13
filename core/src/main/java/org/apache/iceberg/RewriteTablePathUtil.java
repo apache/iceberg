@@ -142,7 +142,8 @@ public class RewriteTablePathUtil {
             metadata.partitionStatisticsFiles(), sourcePrefix, targetPrefix),
         metadata.nextRowId(),
         metadata.encryptionKeys(),
-        metadata.changes());
+        metadata.changes(),
+        null);
   }
 
   private static Map<String, String> updateProperties(

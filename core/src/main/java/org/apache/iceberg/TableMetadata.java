@@ -263,6 +263,7 @@ public class TableMetadata implements Serializable {
   private final List<MetadataUpdate> changes;
   private final long nextRowId;
   private final List<EncryptedKey> encryptionKeys;
+  private final transient Function<Snapshot, Snapshot> snapshotTransformer;
   private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
   private volatile List<Snapshot> snapshots;
   private volatile Map<Long, Snapshot> snapshotsById;
@@ -296,7 +297,8 @@ public class TableMetadata implements Serializable {
       List<PartitionStatisticsFile> partitionStatisticsFiles,
       long nextRowId,
       List<EncryptedKey> encryptionKeys,
-      List<MetadataUpdate> changes) {
+      List<MetadataUpdate> changes,
+      Function<Snapshot, Snapshot> snapshotTransformer) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(
@@ -333,7 +335,9 @@ public class TableMetadata implements Serializable {
     this.sortOrders = sortOrders;
     this.properties = properties;
     this.currentSnapshotId = currentSnapshotId;
-    this.snapshots = snapshots;
+    this.snapshotTransformer =
+        snapshotTransformer != null ? snapshotTransformer : Function.identity();
+    this.snapshots = snapshots != null ? applySnapshotTransformer(snapshots) : null;
     this.snapshotsSupplier = snapshotsSupplier;
     this.snapshotsLoaded = snapshotsSupplier == null;
     this.snapshotLog = snapshotLog;
@@ -343,11 +347,15 @@ public class TableMetadata implements Serializable {
     // changes are carried through until metadata is read from a file
     this.changes = changes;
 
-    this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
+    this.snapshotsById =
+        this.snapshots != null
+            ? indexAndValidateSnapshots(this.snapshots, lastSequenceNumber)
+            : ImmutableMap.of();
     this.schemasById = indexSchemas();
     this.specsById = PartitionUtil.indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
-    this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
+    this.refs =
+        this.snapshots != null ? validateRefs(currentSnapshotId, refs, snapshotsById) : refs;
     this.statisticsFiles = ImmutableList.copyOf(statisticsFiles);
     this.partitionStatisticsFiles = ImmutableList.copyOf(partitionStatisticsFiles);
 
@@ -395,7 +403,9 @@ public class TableMetadata implements Serializable {
           previous.timestampMillis);
     }
 
-    validateCurrentSnapshot();
+    if (this.snapshots != null) {
+      validateCurrentSnapshot();
+    }
   }
 
   public int formatVersion() {
@@ -533,7 +543,9 @@ public class TableMetadata implements Serializable {
       List<Snapshot> loadedSnapshots = Lists.newArrayList(snapshotsSupplier.get());
       loadedSnapshots.removeIf(s -> s.sequenceNumber() > lastSequenceNumber);
 
-      this.snapshots = ImmutableList.copyOf(loadedSnapshots);
+      List<Snapshot> transformedSnapshots = applySnapshotTransformer(loadedSnapshots);
+
+      this.snapshots = ImmutableList.copyOf(transformedSnapshots);
       this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
       validateCurrentSnapshot();
 
@@ -607,6 +619,14 @@ public class TableMetadata implements Serializable {
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
     List<Snapshot> toRemove = snapshots().stream().filter(removeIf).collect(Collectors.toList());
     return new Builder(this).removeSnapshots(toRemove).build();
+  }
+
+  public TableMetadata transformSnapshots(Function<Snapshot, Snapshot> transformer) {
+    return new Builder(this).transformSnapshots(transformer).build();
+  }
+
+  private List<Snapshot> applySnapshotTransformer(List<Snapshot> snapshotList) {
+    return snapshotList.stream().map(snapshotTransformer).collect(Collectors.toList());
   }
 
   public TableMetadata replaceProperties(Map<String, String> rawProperties) {
@@ -916,6 +936,7 @@ public class TableMetadata implements Serializable {
     private boolean suppressHistoricalSnapshots = false;
     private long nextRowId;
     private final List<EncryptedKey> encryptionKeys;
+    private Function<Snapshot, Snapshot> snapshotTransformer = Function.identity();
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -1516,6 +1537,12 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder transformSnapshots(Function<Snapshot, Snapshot> transformer) {
+      Preconditions.checkArgument(transformer != null, "Snapshot transformer cannot be null");
+      this.snapshotTransformer = transformer;
+      return this;
+    }
+
     public Builder setPreviousFileLocation(String previousFileLocation) {
       this.previousFileLocation = previousFileLocation;
       return this;
@@ -1526,7 +1553,8 @@ public class TableMetadata implements Serializable {
           || (discardChanges && !changes.isEmpty())
           || metadataLocation != null
           || suppressHistoricalSnapshots
-          || null != snapshotsSupplier;
+          || null != snapshotsSupplier
+          || !snapshotTransformer.equals(Function.identity());
     }
 
     public TableMetadata build() {
@@ -1590,7 +1618,8 @@ public class TableMetadata implements Serializable {
               .collect(Collectors.toList()),
           nextRowId,
           encryptionKeys,
-          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
+          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes),
+          snapshotTransformer);
     }
 
     private int addSchemaInternal(Schema schema, int newLastColumnId) {
