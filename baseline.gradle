@@ -36,7 +36,7 @@ subprojects {
 
   // Thus we concede to applying all of the Baseline plugins individually on all the projects we are
   // ready to enforce linting on.
-  apply plugin: 'org.inferred.processors'
+
   if (!project.hasProperty('quick')) {
     apply plugin: 'com.palantir.baseline-checkstyle'
     apply plugin: 'com.palantir.baseline-error-prone'
@@ -49,7 +49,6 @@ subprojects {
     t.setReproducibleFileOrder(true);
     t.setDuplicatesStrategy(DuplicatesStrategy.WARN);
   });
-  apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.diffplug.spotless'
 
   pluginManager.withPlugin('com.diffplug.spotless') {
