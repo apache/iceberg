@@ -98,7 +98,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
               .withPath(location)
               .withPartition(partition)
               .withEncryptionKeyMetadata(
-                  EncryptionUtil.setKeyMetadataLength(keyMetadata, appender.length()))
+                  EncryptionUtil.setFileLength(keyMetadata, appender.length()))
               .withSplitOffsets(appender.splitOffsets())
               .withFileSizeInBytes(appender.length())
               .withMetrics(metrics())

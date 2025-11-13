@@ -87,7 +87,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
               .withPath(location)
               .withPartition(partition)
               .withEncryptionKeyMetadata(
-                  EncryptionUtil.setKeyMetadataLength(keyMetadata, appender.length()))
+                  EncryptionUtil.setFileLength(keyMetadata, appender.length()))
               .withFileSizeInBytes(appender.length())
               .withMetrics(appender.metrics())
               .withSplitOffsets(appender.splitOffsets())

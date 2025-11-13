@@ -84,7 +84,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
               .withPath(location)
               .withPartition(partition)
               .withEncryptionKeyMetadata(
-                  EncryptionUtil.setKeyMetadataLength(keyMetadata, appender.length()))
+                  EncryptionUtil.setFileLength(keyMetadata, appender.length()))
               .withFileSizeInBytes(appender.length())
               .withMetrics(appender.metrics())
               .withSplitOffsets(appender.splitOffsets())
