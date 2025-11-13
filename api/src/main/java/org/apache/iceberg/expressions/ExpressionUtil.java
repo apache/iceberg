@@ -341,6 +341,8 @@ public class ExpressionUtil {
         case NOT_EQ:
         case STARTS_WITH:
         case NOT_STARTS_WITH:
+        case CONTAINS:
+        case NOT_CONTAINS:
           return new UnboundPredicate<>(
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case IN:
@@ -441,6 +443,10 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
+        case CONTAINS:
+          return term + " CONTAINS " + value((BoundLiteralPredicate<?>) pred);
+        case NOT_CONTAINS:
+          return term + " NOT CONTAINS " + value((BoundLiteralPredicate<?>) pred);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -493,6 +499,10 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
+        case CONTAINS:
+          return term + " CONTAINS " + sanitize(pred.literal(), nowMicros, today);
+        case NOT_CONTAINS:
+          return term + " NOT CONTAINS " + sanitize(pred.literal(), nowMicros, today);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
