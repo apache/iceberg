@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.FS_TRASH_INTERVAL_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -127,6 +128,46 @@ public class TestHadoopFileIO {
   }
 
   @Test
+  public void testDeletePrefixWithTrashEnabled() throws IOException {
+    Configuration conf = new Configuration();
+    conf.set(FS_TRASH_INTERVAL_KEY, "60");
+    fs = FileSystem.getLocal(conf);
+
+    hadoopFileIO = new HadoopFileIO(conf);
+    Path parent = new Path(tempDir.toURI());
+
+    List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
+
+    scaleSizes.parallelStream()
+        .forEach(
+            scale -> {
+              Path scalePath = new Path(parent, Integer.toString(scale));
+
+              List<Path> filesCreated = createRandomFiles(scalePath, scale);
+              hadoopFileIO.deletePrefix(scalePath.toUri().toString());
+
+              // Hadoop filesystem will throw if the path does not exist
+              assertThatThrownBy(
+                      () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()).iterator())
+                  .isInstanceOf(UncheckedIOException.class)
+                  .hasMessageContaining("java.io.FileNotFoundException");
+              filesCreated.forEach(
+                  file -> {
+                    String fileSuffix = Path.getPathWithoutSchemeAndAuthority(file).toString();
+                    String trashPath =
+                        fs.getTrashRoot(scalePath).toString() + "/Current" + fileSuffix;
+                    assertThat(hadoopFileIO.newInputFile(trashPath).exists()).isTrue();
+                  });
+            });
+
+    hadoopFileIO.deletePrefix(parent.toUri().toString());
+    // Hadoop filesystem will throw if the path does not exist
+    assertThatThrownBy(() -> hadoopFileIO.listPrefix(parent.toUri().toString()).iterator())
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("java.io.FileNotFoundException");
+  }
+
+  @Test
   public void testDeleteFiles() {
     Path parent = new Path(tempDir.toURI());
     List<Path> filesCreated = createRandomFiles(parent, 10);
@@ -134,6 +175,27 @@ public class TestHadoopFileIO {
         filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
     filesCreated.forEach(
         file -> assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
+  }
+
+  @Test
+  public void testDeleteFilesWithTrashEnabled() throws IOException {
+    Configuration conf = new Configuration();
+    conf.set(FS_TRASH_INTERVAL_KEY, "60");
+    fs = FileSystem.getLocal(conf);
+
+    hadoopFileIO = new HadoopFileIO(conf);
+    Path parent = new Path(tempDir.toURI());
+    List<Path> filesCreated = createRandomFiles(parent, 10);
+    hadoopFileIO.deleteFiles(
+        filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
+    filesCreated.forEach(
+        file -> assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
+    filesCreated.forEach(
+        file -> {
+          String fileSuffix = Path.getPathWithoutSchemeAndAuthority(file).toString();
+          String trashPath = fs.getTrashRoot(parent).toString() + "/Current" + fileSuffix;
+          assertThat(hadoopFileIO.newInputFile(trashPath).exists()).isTrue();
+        });
   }
 
   @Test

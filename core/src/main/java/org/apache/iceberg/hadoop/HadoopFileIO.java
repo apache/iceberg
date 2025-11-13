@@ -30,6 +30,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.fs.Trash;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
@@ -102,7 +103,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     Path toDelete = new Path(path);
     FileSystem fs = Util.getFs(toDelete, getConf());
     try {
-      fs.delete(toDelete, false /* not recursive */);
+      deletePath(fs, toDelete, false);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", path);
     }
@@ -167,7 +168,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     FileSystem fs = Util.getFs(prefixToDelete, getConf());
 
     try {
-      fs.delete(prefixToDelete, true /* recursive */);
+      deletePath(fs, prefixToDelete, true);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -209,6 +210,15 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     }
 
     return executorService;
+  }
+
+  private void deletePath(FileSystem fs, Path toDelete, boolean recursive) throws IOException {
+    Trash trash = new Trash(fs, getConf());
+    if (!trash.isEnabled()) {
+      fs.delete(toDelete, recursive);
+    } else {
+      trash.moveToTrash(toDelete);
+    }
   }
 
   /**
