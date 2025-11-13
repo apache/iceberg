@@ -2032,9 +2032,7 @@ components:
         - Do not finalize (not stored/replayed): 5xx, 409 (RequestInProgressException)
 
         Key Requirements:
-        - Key format: UUID (V7 preferred) in string format as defined in RFC 9562 Section 4.
-          See https://datatracker.ietf.org/doc/html/rfc9562#sampleStringUUID for the textual
-          representation specification.
+        - Key format: UUIDv7 in string form (RFC 9562).
         - The idempotency key must be globally unique (no reuse across different operations).
         - Catalogs SHOULD NOT expire keys before the end of the advertised token lifetime.
         - If Idempotency-Key is used, clients MUST reuse the same key when retrying the same
