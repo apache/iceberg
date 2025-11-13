@@ -79,7 +79,7 @@ Each `definition` represents one function signature (e.g., `add_one(int)` vs `ad
 | *required*  | `definition-id`      | `string`                                                                                                                                                       | An identifier derived from canonical parameter-type tuple (lowercase, no spaces; e.g., `"(int,int,string)"`). If longer than 128 chars, use hashed form `"sig1-<base32(SHA-256(signature))[:26]>"`. |
 | *required*  | `parameters`         | `list<parameter>`                                                                                                                                              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.                                                                                                       |
 | *required*  | `return-type`        | [JSON representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization) of an Iceberg type (`string` for primitives, `object` for complex types) | Type of value returned                                                                                                                                                                              |
-| *optional*  | `nullable-return`    | `boolean`                                                                                                                                                      | Whether the return value is nullable or not. Default: `true`.                                                                                                                                       |
+| *optional*  | `nullable-return`    | `boolean`                                                                                                                                                      | A hint to indicate whether the return value is nullable or not. Default: `true`.                                                                                                                    |
 | *required*  | `versions`           | `list<definition-version>`                                                                                                                                     | [Versioned implementations](#definition-version) of this definition.                                                                                                                                |
 | *required*  | `current-version-id` | `int`                                                                                                                                                          | Identifier of the current version for this definition.                                                                                                                                              |
 | *optional*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`)                                                                                                                | If `"udtf"`, `return-type` must be a `struct` describing the output schema.                                                                                                                         |
@@ -137,7 +137,6 @@ A representation encodes how the definition version is expressed in a specific S
 |-------------|--------------|-------------------|---------------------------------------------------------------------------------------------|
 | *required*  | `type`       | `string`          | Must be `"sql"`                                                                             |
 | *required*  | `dialect`    | `string`          | SQL dialect identifier (e.g., `"spark"`, `"trino"`).                                        |
-| *optional*  | `parameters` | `list<parameter>` | Ordered list of [function parameters](#parameter). Overrides canonical names in definition. |
 | *required*  | `body`       | `string`          | SQL expression text.                                                                        |
 
 Note: The `body` must be valid SQL in the specified dialect; validation is the responsibility of the consuming engine.
@@ -194,8 +193,8 @@ RETURN x + 1.0;
                "version-id": 2,
                "deterministic": true,
                "representations": [
-                  { "dialect": "trino", "parameters": [{ "name": "val", "type": "int" }], "body": "val + 1" },
-                  { "dialect": "spark", "parameters": [{ "name": "x", "type": "int" }], "body": "x + 1" }
+                  { "dialect": "trino", "body": "x + 1" },
+                  { "dialect": "spark", "body": "x + 1" }
                ],
                "timestamp-ms": 1735507000124
             }
