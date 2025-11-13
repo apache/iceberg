@@ -21,6 +21,10 @@ package org.apache.iceberg.gcp.gcs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.cloud.gcs.analyticscore.client.GcsClientOptions;
+import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
+import com.google.cloud.gcs.analyticscore.client.GcsFileSystemOptions;
+import com.google.cloud.gcs.analyticscore.client.GcsReadOptions;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -68,5 +72,27 @@ public class TestPrefixedStorage {
 
     assertThat(storage.storage().getOptions().getUserAgent())
         .isEqualTo("gcsfileio/" + EnvironmentContext.get());
+  }
+
+  @Test
+  public void createsFileSystem() {
+    Map<String, String> properties =
+        ImmutableMap.of("project-id", "myProject", GCPProperties.GCS_OAUTH2_TOKEN, "token");
+    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+    GcsFileSystemOptions expectedOptions =
+        GcsFileSystemOptions.builder()
+            .setGcsClientOptions(
+                GcsClientOptions.builder()
+                    .setProjectId("myProject")
+                    .setUserAgent("gcsfileio/" + EnvironmentContext.get())
+                    .setGcsReadOptions(GcsReadOptions.builder().setProjectId("myProject").build())
+                    .build())
+            .build();
+
+    GcsFileSystem fileSystem = storage.gcsFileSystem();
+
+    assertThat(fileSystem).isNotNull();
+    assertThat(fileSystem.getGcsClient()).isNotNull();
+    assertThat(fileSystem.getFileSystemOptions()).isEqualTo(expectedOptions);
   }
 }

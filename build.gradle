@@ -717,6 +717,7 @@ project(':iceberg-gcp') {
     compileOnly platform(libs.google.libraries.bom)
     compileOnly "com.google.cloud:google-cloud-storage"
     compileOnly "com.google.cloud:google-cloud-kms"
+    compileOnly "com.google.cloud.gcs.analytics:gcs-analytics-core:1.1.2"
 
     testImplementation "com.google.cloud:google-cloud-nio"
 
@@ -733,6 +734,8 @@ project(':iceberg-gcp') {
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.mockito.junit.jupiter
+    testImplementation libs.testcontainers
+    testImplementation libs.testcontainers.junit.jupiter
   }
 
   sourceSets {
