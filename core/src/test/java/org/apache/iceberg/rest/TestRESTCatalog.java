@@ -415,15 +415,21 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    String catalogCredential = "catalog:secret";
     catalog.initialize(
-        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", "catalog:secret"));
+        "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", catalogCredential));
 
     assertThat(catalog.tableExists(TBL)).isFalse();
 
     // no token or credential for catalog token exchange
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.POST, ResourcePaths.tokens(), emptyHeaders),
+            reqMatcher(
+                HTTPMethod.POST,
+                ResourcePaths.tokens(),
+                emptyHeaders,
+                ImmutableMap.of(),
+                createClientCredentialsRequest(catalogCredential)),
             eq(OAuthTokenResponse.class),
             any(),
             any());
@@ -454,13 +460,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    String catalogCredential = "catalog:secret";
     catalog.initialize(
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
             "ignored",
             "credential",
-            "catalog:secret",
+            catalogCredential,
             OAuth2Properties.OAUTH2_SERVER_URI,
             oauth2ServerUri));
 
@@ -469,7 +476,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // no token or credential for catalog token exchange
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.POST, oauth2ServerUri, emptyHeaders),
+            reqMatcher(
+                HTTPMethod.POST,
+                oauth2ServerUri,
+                emptyHeaders,
+                ImmutableMap.of(),
+                createClientCredentialsRequest(catalogCredential)),
             eq(OAuthTokenResponse.class),
             any(),
             any());
@@ -498,11 +510,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
+    String contextCredential = "user:secret";
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             UUID.randomUUID().toString(),
             "user",
-            ImmutableMap.of("credential", "user:secret"),
+            ImmutableMap.of("credential", contextCredential),
             ImmutableMap.of());
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
@@ -525,10 +538,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(ConfigResponse.class),
             any(),
             any());
-    // use the bearer token to fetch the context token
+    // use the request-body to fetch the context token
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
+            reqMatcher(
+                HTTPMethod.POST,
+                oauth2ServerUri,
+                ImmutableMap.of(),
+                ImmutableMap.of(),
+                createClientCredentialsRequest(contextCredential)),
             eq(OAuthTokenResponse.class),
             any(),
             any());
@@ -552,21 +570,23 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
+    String contextCredential = "user:secret";
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             UUID.randomUUID().toString(),
             "user",
-            ImmutableMap.of("credential", "user:secret"),
+            ImmutableMap.of("credential", contextCredential),
             ImmutableMap.of());
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
+    String catalogCredential = "catalog:secret";
     catalog.initialize(
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
             "ignored",
             "credential",
-            "catalog:secret",
+            catalogCredential,
             OAuth2Properties.OAUTH2_SERVER_URI,
             oauth2ServerUri));
 
@@ -575,7 +595,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // call client credentials with no initial auth
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.POST, oauth2ServerUri, emptyHeaders),
+            reqMatcher(
+                HTTPMethod.POST,
+                oauth2ServerUri,
+                emptyHeaders,
+                ImmutableMap.of(),
+                createClientCredentialsRequest(catalogCredential)),
             eq(OAuthTokenResponse.class),
             any(),
             any());
@@ -589,7 +614,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the client credential to fetch the context token
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
+            reqMatcher(
+                HTTPMethod.POST,
+                oauth2ServerUri,
+                emptyHeaders,
+                ImmutableMap.of(),
+                createClientCredentialsRequest(contextCredential)),
             eq(OAuthTokenResponse.class),
             any(),
             any());
@@ -613,11 +643,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
+    String contextCredential = "user:secret";
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             UUID.randomUUID().toString(),
             "user",
-            ImmutableMap.of("credential", "user:secret"),
+            ImmutableMap.of("credential", contextCredential),
             ImmutableMap.of());
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
@@ -652,7 +683,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the client credential to fetch the context token
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
+            reqMatcher(
+                HTTPMethod.POST,
+                oauth2ServerUri,
+                ImmutableMap.of(),
+                ImmutableMap.of(),
+                createClientCredentialsRequest(contextCredential)),
             eq(OAuthTokenResponse.class),
             any(),
             any());
@@ -828,7 +864,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // token passes a static token. otherwise, validate a client credentials or token exchange
     // request
-    if (!credentials.containsKey("token")) {
+    if (!credentials.containsKey("token") && credentials.containsKey("credential")) {
+      Mockito.verify(adapter)
+          .execute(
+              reqMatcher(
+                  HTTPMethod.POST,
+                  oauth2ServerUri,
+                  ImmutableMap.of(),
+                  ImmutableMap.of(),
+                  createClientCredentialsRequest(credentials.get("credential"))),
+              eq(OAuthTokenResponse.class),
+              any(),
+              any());
+    } else if (!credentials.containsKey("token")) {
       Mockito.verify(adapter)
           .execute(
               reqMatcher(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
@@ -1294,13 +1342,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             UUID.randomUUID().toString(), "user", contextCredentials, ImmutableMap.of());
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
+    String catalogCredential = "catalog:secret";
     catalog.initialize(
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
             "ignored",
             "credential",
-            "catalog:secret",
+            catalogCredential,
             OAuth2Properties.OAUTH2_SERVER_URI,
             oauth2ServerUri));
 
@@ -1311,7 +1360,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               // call client credentials with no initial auth
               Mockito.verify(adapter)
                   .execute(
-                      reqMatcher(HTTPMethod.POST, oauth2ServerUri, emptyHeaders),
+                      reqMatcher(
+                          HTTPMethod.POST,
+                          oauth2ServerUri,
+                          emptyHeaders,
+                          ImmutableMap.of(),
+                          createClientCredentialsRequest(catalogCredential)),
                       eq(OAuthTokenResponse.class),
                       any(),
                       any());
@@ -1400,13 +1454,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             UUID.randomUUID().toString(), "user", contextCredentials, ImmutableMap.of());
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
+    String catalogCredential = "catalog:secret";
     catalog.initialize(
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
             "ignored",
             "credential",
-            "catalog:secret",
+            catalogCredential,
             OAuth2Properties.OAUTH2_SERVER_URI,
             oauth2ServerUri));
 
@@ -1418,12 +1473,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               assertThat(catalog.tableExists(TBL)).isFalse();
 
               // call client credentials with no initial auth
-              Map<String, String> clientCredentialsRequest =
-                  ImmutableMap.of(
-                      "grant_type", "client_credentials",
-                      "client_id", "catalog",
-                      "client_secret", "secret",
-                      "scope", "catalog");
               Mockito.verify(adapter)
                   .execute(
                       reqMatcher(
@@ -1431,7 +1480,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                           oauth2ServerUri,
                           emptyHeaders,
                           Map.of(),
-                          clientCredentialsRequest),
+                          createClientCredentialsRequest(catalogCredential)),
                       eq(OAuthTokenResponse.class),
                       any(),
                       any());
@@ -1516,13 +1565,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             UUID.randomUUID().toString(), "user", contextCredentials, ImmutableMap.of());
 
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
+    String catalogCredential = "catalog:secret";
     catalog.initialize(
         "prod",
         ImmutableMap.of(
             CatalogProperties.URI,
             "ignored",
             OAuth2Properties.CREDENTIAL,
-            "catalog:secret",
+            catalogCredential,
             OAuth2Properties.TOKEN_EXCHANGE_ENABLED,
             "false",
             OAuth2Properties.OAUTH2_SERVER_URI,
@@ -1535,7 +1585,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               // call client credentials with no initial auth
               Mockito.verify(adapter)
                   .execute(
-                      reqMatcher(HTTPMethod.POST, oauth2ServerUri, emptyHeaders),
+                      reqMatcher(
+                          HTTPMethod.POST,
+                          oauth2ServerUri,
+                          emptyHeaders,
+                          ImmutableMap.of(),
+                          createClientCredentialsRequest(catalogCredential)),
                       eq(OAuthTokenResponse.class),
                       any(),
                       any());
@@ -3162,5 +3217,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<HTTPRequest> captor = ArgumentCaptor.forClass(HTTPRequest.class);
     verify(adapter, atLeastOnce()).execute(captor.capture(), any(), any(), any());
     return captor.getAllValues();
+  }
+
+  private static Map<String, String> createClientCredentialsRequest(String credential) {
+    String[] parsed = credential.split(":");
+    assertThat(parsed.length).isEqualTo(2);
+    return ImmutableMap.of(
+        "grant_type",
+        "client_credentials",
+        "client_id",
+        parsed[0],
+        "client_secret",
+        parsed[1],
+        "scope",
+        "catalog");
   }
 }
