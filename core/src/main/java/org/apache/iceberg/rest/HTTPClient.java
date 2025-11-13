@@ -326,6 +326,16 @@ public class HTTPClient extends BaseHTTPClient {
 
       // Skip parsing the response stream for any successful request not expecting a response body
       if (emptyBody(response, responseType)) {
+        if (response.getCode() == HttpStatus.SC_NOT_MODIFIED
+            && !req.headers().contains(HttpHeaders.IF_NONE_MATCH)) {
+          // 304-NOT_MODIFIED is used for freshness-aware loading and requires an ETag sent to the
+          // server via IF_NONE_MATCH header in the request. If no ETag was sent, we shouldn't
+          // receive a 304.
+          throw new RESTException(
+              "Invalid (NOT_MODIFIED) response for request: method=%s, path=%s",
+              req.method(), req.path());
+        }
+
         return null;
       }
 
