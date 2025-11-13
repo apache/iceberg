@@ -107,12 +107,12 @@ public class EncryptionUtil {
     return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
   }
 
-  public static ByteBuffer setKeyMetadataLength(ByteBuffer keyMetadata, long length) {
+  public static ByteBuffer setFileLength(ByteBuffer keyMetadata, long fileLength) {
     if (keyMetadata == null) {
       return null;
     }
 
-    return StandardKeyMetadata.parse(keyMetadata).copyWithLength(length).buffer();
+    return StandardKeyMetadata.parse(keyMetadata).copyWithLength(fileLength).buffer();
   }
 
   /**
