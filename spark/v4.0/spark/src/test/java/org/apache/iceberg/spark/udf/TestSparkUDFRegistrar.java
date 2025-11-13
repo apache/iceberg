@@ -147,25 +147,34 @@ public class TestSparkUDFRegistrar extends TestBase {
 
   @Test
   public void testRegisterScalarUdfFromFile() {
-    java.nio.file.Path path =
-        java.nio.file.Paths.get(
-                "..",
-                "..",
-                "..",
-                "core",
-                "src",
-                "main",
-                "java",
-                "org",
-                "apache",
-                "iceberg",
-                "udf",
-                "examples",
-                "add_one.json")
-            .toAbsolutePath()
-            .normalize();
-
-    SparkUDFRegistrar.registerFromJsonFile(spark, "add_one_file", path);
+    String content =
+        "{"
+            + "\"function-uuid\":\"123\","
+            + "\"format-version\":1,"
+            + "\"definitions\":[{"
+            + "  \"definition-id\":\"(int)\","
+            + "  \"parameters\":[{\"name\":\"x\",\"type\":\"int\"}],"
+            + "  \"return-type\":\"int\","
+            + "  \"versions\":[{"
+            + "    \"version-id\":1,"
+            + "    \"deterministic\":true,"
+            + "    \"representations\":[{"
+            + "      \"dialect\":\"spark\","
+            + "      \"parameters\":[{\"name\":\"x\",\"type\":\"int\"}],"
+            + "      \"body\":\"x + 1\""
+            + "    }]"
+            + "  }],"
+            + "  \"current-version-id\":1"
+            + "}],"
+            + "\"secure\":false"
+            + "}";
+    try {
+      java.nio.file.Path tmp = java.nio.file.Files.createTempFile("udf_add_one", ".json");
+      java.nio.file.Files.writeString(tmp, content, java.nio.charset.StandardCharsets.UTF_8);
+      SparkUDFRegistrar.registerFromJsonFile(spark, "add_one_file", tmp);
+    } catch (java.io.IOException e) {
+      throw new RuntimeException(e);
+    }
     Object result = scalarSql("SELECT add_one_file(41)");
     assertThat(((Number) result).intValue()).isEqualTo(42);
   }

@@ -18,16 +18,16 @@
  */
 package org.apache.iceberg.spark;
 
-import java.util.LinkedHashSet;
 import java.util.Set;
+import org.apache.iceberg.rest.functions.RestFunctionService;
 import org.apache.iceberg.spark.functions.SparkFunctions;
 import org.apache.iceberg.spark.functions.UserSqlFunctions;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
-import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.rest.functions.RestFunctionService;
 import org.apache.iceberg.spark.udf.SparkUDFRegistrar;
+import org.apache.iceberg.util.PropertyUtil;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.ProcedureCatalog;
@@ -36,7 +36,6 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.apache.spark.sql.SparkSession;
 
 abstract class BaseCatalog
     implements StagingTableCatalog,

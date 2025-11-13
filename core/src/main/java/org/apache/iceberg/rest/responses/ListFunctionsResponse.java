@@ -94,5 +94,3 @@ public class ListFunctionsResponse implements RESTResponse {
     }
   }
 }
-
-

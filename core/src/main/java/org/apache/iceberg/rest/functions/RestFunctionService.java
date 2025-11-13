@@ -20,15 +20,19 @@ package org.apache.iceberg.rest.functions;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
-import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.responses.ListFunctionsResponse;
 import org.apache.iceberg.rest.responses.LoadFunctionResponse;
 
-/** Minimal REST client to list and fetch UDF function specs for the POC, using Iceberg HTTPClient. */
+/**
+ * Minimal REST client to list and fetch UDF function specs for the POC, using Iceberg HTTPClient.
+ */
 public class RestFunctionService {
 
   private final String baseUri; // e.g., http://localhost:8181
@@ -37,7 +41,7 @@ public class RestFunctionService {
   public RestFunctionService(String baseUri, String authHeader) {
     this.baseUri = baseUri.endsWith("/") ? baseUri.substring(0, baseUri.length() - 1) : baseUri;
 
-    java.util.Map<String, String> props = new java.util.HashMap<>();
+    Map<String, String> props = Maps.newHashMap();
     HTTPHeaders headers =
         authHeader != null && !authHeader.isEmpty()
             ? HTTPHeaders.of(java.util.Map.of("Authorization", authHeader))
@@ -51,7 +55,7 @@ public class RestFunctionService {
 
   public List<String> listFunctions(String[] namespace) {
     String ns = String.join(".", namespace);
-    java.util.Map<String, String> params = java.util.Map.of("namespace", ns);
+    Map<String, String> params = Map.of("namespace", ns);
     ListFunctionsResponse resp =
         http.get(
             "v1/functions",
@@ -71,10 +75,12 @@ public class RestFunctionService {
     }
     String path = String.format("v1/functions/%s/%s", ns, name);
     LoadFunctionResponse resp =
-        http.get(path, LoadFunctionResponse.class, java.util.Map.of(), ErrorHandlers.defaultErrorHandler());
+        http.get(
+            path,
+            LoadFunctionResponse.class,
+            java.util.Map.of(),
+            ErrorHandlers.defaultErrorHandler());
     ObjectNode spec = resp.spec();
     return spec.toString();
   }
 }
-
-

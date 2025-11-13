@@ -27,8 +27,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
@@ -42,9 +40,64 @@ public class TestRestFunctionCatalog extends TestBaseWithCatalog {
   private HttpServer server;
   private String baseUrl;
 
+  private static final String ADD_ONE_SPEC =
+      "{"
+          + "\"function-uuid\":\"123\","
+          + "\"format-version\":1,"
+          + "\"definitions\":[{"
+          + "  \"definition-id\":\"(int)\","
+          + "  \"parameters\":[{\"name\":\"x\",\"type\":\"int\"}],"
+          + "  \"return-type\":\"int\","
+          + "  \"versions\":[{"
+          + "    \"version-id\":1,"
+          + "    \"deterministic\":true,"
+          + "    \"representations\":[{"
+          + "      \"dialect\":\"spark\","
+          + "      \"parameters\":[{\"name\":\"x\",\"type\":\"int\"}],"
+          + "      \"body\":\"x + 1\""
+          + "    }]"
+          + "  }],"
+          + "  \"current-version-id\":1"
+          + "}],"
+          + "\"secure\":false"
+          + "}";
+
+  private static final String FRUITS_BY_COLOR_SPEC =
+      "{"
+          + "\"function-uuid\":\"456\","
+          + "\"format-version\":1,"
+          + "\"definitions\":[{"
+          + "  \"definition-id\":\"(string)\","
+          + "  \"parameters\":[{\"name\":\"c\",\"type\":\"string\"}],"
+          + "  \"function-type\":\"udtf\","
+          + "  \"return-type\":{"
+          + "    \"type\":\"struct\","
+          + "    \"fields\":["
+          + "      {\"id\":1,\"name\":\"name\",\"type\":\"string\"},"
+          + "      {\"id\":2,\"name\":\"color\",\"type\":\"string\"}"
+          + "    ]"
+          + "  },"
+          + "  \"versions\":[{"
+          + "    \"version-id\":1,"
+          + "    \"deterministic\":true,"
+          + "    \"representations\":[{"
+          + "      \"dialect\":\"spark\","
+          + "      \"parameters\":[{\"name\":\"c\",\"type\":\"string\"}],"
+          + "      \"body\":\"SELECT name, color FROM fruits WHERE color = c\""
+          + "    }]"
+          + "  }],"
+          + "  \"current-version-id\":1"
+          + "}],"
+          + "\"secure\":false"
+          + "}";
+
   @BeforeEach
-  public void setUp() throws Exception {
-    server = HttpServer.create(new InetSocketAddress(0), 0);
+  public void before() {
+    try {
+      server = HttpServer.create(new InetSocketAddress(0), 0);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to start test HTTP server", e);
+    }
     int port = server.getAddress().getPort();
     baseUrl = "http://localhost:" + port;
 
@@ -72,11 +125,10 @@ public class TestRestFunctionCatalog extends TestBaseWithCatalog {
 
     // /v1/functions/{namespace}/{name}
     server.createContext(
-        "/v1/functions/default/add_one_file",
-        ex -> respondWithWrappedFile(ex, pathToExample("add_one.json")));
+        "/v1/functions/default/add_one_file", ex -> respondWithWrappedJson(ex, ADD_ONE_SPEC));
     server.createContext(
         "/v1/functions/default/fruits_by_color",
-        ex -> respondWithWrappedFile(ex, pathToExample("fruits_by_color.json")));
+        ex -> respondWithWrappedJson(ex, FRUITS_BY_COLOR_SPEC));
 
     server.start();
 
@@ -87,7 +139,7 @@ public class TestRestFunctionCatalog extends TestBaseWithCatalog {
   }
 
   @AfterEach
-  public void tearDown() {
+  public void after() {
     if (server != null) {
       server.stop(0);
     }
@@ -114,27 +166,13 @@ public class TestRestFunctionCatalog extends TestBaseWithCatalog {
     assertThat(rows.get(1)[1]).isEqualTo("red");
   }
 
-  private void respondWithFile(HttpExchange exchange, Path path) throws IOException {
+  private void respondWithWrappedJson(HttpExchange exchange, String json) throws IOException {
     if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
       exchange.sendResponseHeaders(405, -1);
       exchange.close();
       return;
     }
-    byte[] bytes = Files.readAllBytes(path);
-    exchange.sendResponseHeaders(200, bytes.length);
-    try (OutputStream os = exchange.getResponseBody()) {
-      os.write(bytes);
-    }
-  }
-
-  private void respondWithWrappedFile(HttpExchange exchange, Path path) throws IOException {
-    if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-      exchange.sendResponseHeaders(405, -1);
-      exchange.close();
-      return;
-    }
-    String content = Files.readString(path, StandardCharsets.UTF_8);
-    String body = "{\"spec\":" + content + "}";
+    String body = "{\"spec\":" + json + "}";
     byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
     exchange.sendResponseHeaders(200, bytes.length);
     try (OutputStream os = exchange.getResponseBody()) {
@@ -142,28 +180,7 @@ public class TestRestFunctionCatalog extends TestBaseWithCatalog {
     }
   }
 
-  private Path pathToExample(String file) {
-    return java.nio.file.Paths.get(
-            "..",
-            "..",
-            "..",
-            "core",
-            "src",
-            "main",
-            "java",
-            "org",
-            "apache",
-            "iceberg",
-            "udf",
-            "examples",
-            file)
-        .toAbsolutePath()
-        .normalize();
-  }
-
   private FunctionCatalog castToFunctionCatalog(String name) {
     return (FunctionCatalog) spark.sessionState().catalogManager().catalog(name);
   }
 }
-
-

@@ -101,8 +101,7 @@ public final class SparkUDFRegistrar {
           try {
             returnType = icebergTypeToSparkSql(parseTypeJson(spec.returnTypeJson()));
           } catch (RuntimeException e) {
-            throw new IllegalArgumentException(
-                "Unsupported scalar return type for Spark", e);
+            throw new IllegalArgumentException("Unsupported scalar return type for Spark", e);
           }
           ddl =
               String.format(
@@ -119,6 +118,7 @@ public final class SparkUDFRegistrar {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static void preValidateAllDefinitionsSupportSpark(String udfMetadataJson) {
     try {
       ObjectNode root = (ObjectNode) MAPPER.readTree(udfMetadataJson);
@@ -135,7 +135,9 @@ public final class SparkUDFRegistrar {
       for (JsonNode defNode : definitions) {
         ObjectNode definition = (ObjectNode) defNode;
         int currentVersionId =
-            definition.has("current-version-id") ? definition.get("current-version-id").asInt() : -1;
+            definition.has("current-version-id")
+                ? definition.get("current-version-id").asInt()
+                : -1;
         ArrayNode versions = (ArrayNode) definition.get("versions");
         if (versions == null || versions.isEmpty()) {
           throw new IllegalArgumentException("UDF definition must contain at least one version");

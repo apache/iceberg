@@ -70,5 +70,3 @@ public class LoadFunctionResponse implements RESTResponse {
     }
   }
 }
-
-
