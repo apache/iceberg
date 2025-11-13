@@ -325,21 +325,22 @@ public class TestPlanTableScanResponseParser {
     PlanTableScanResponse deserialized =
         PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
 
-    assertThat(deserialized.fileScanTasks()).hasSize(3);
+    List<FileScanTask> deserializedFSTasks = deserialized.fileScanTasks();
+    assertThat(deserializedFSTasks).hasSize(3);
 
     // Task A should only have FILE_A_DELETES
-    assertThat(deserialized.fileScanTasks().get(0).deletes()).hasSize(1);
-    assertThat(deserialized.fileScanTasks().get(0).deletes().get(0).path().toString())
+    assertThat(deserializedFSTasks.get(0).deletes()).hasSize(1);
+    assertThat(deserializedFSTasks.get(0).deletes().get(0).location())
         .isEqualTo(FILE_A_DELETES.location());
 
     // Task B should only have FILE_B_DELETES
-    assertThat(deserialized.fileScanTasks().get(1).deletes()).hasSize(1);
-    assertThat(deserialized.fileScanTasks().get(1).deletes().get(0).path().toString())
+    assertThat(deserializedFSTasks.get(1).deletes()).hasSize(1);
+    assertThat(deserializedFSTasks.get(1).deletes().get(0).location())
         .isEqualTo(FILE_B_DELETES.location());
 
     // Task C should only have FILE_C2_DELETES
-    assertThat(deserialized.fileScanTasks().get(2).deletes()).hasSize(1);
-    assertThat(deserialized.fileScanTasks().get(2).deletes().get(0).path().toString())
+    assertThat(deserializedFSTasks.get(2).deletes()).hasSize(1);
+    assertThat(deserializedFSTasks.get(2).deletes().get(0).location())
         .isEqualTo(FILE_C2_DELETES.location());
   }
 
