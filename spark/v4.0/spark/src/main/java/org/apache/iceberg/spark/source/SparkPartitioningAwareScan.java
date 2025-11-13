@@ -179,14 +179,30 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   private Object getPartitionValue(T task, String partitionFieldName) {
     PartitionData partitionData = ((PartitionData) task.partition());
-    int pos = partitionData.getSchema().getField(partitionFieldName).pos();
-    return partitionData.get(pos);
+    org.apache.avro.Schema.Field field = partitionData.getSchema().getField(partitionFieldName);
+    if (field == null) {
+      // Partition field doesn't exist in this task's spec - can happen during partition evolution
+      // Return null so it sorts to the beginning with nullsFirst() comparator
+      return null;
+    }
+    return partitionData.get(field.pos());
   }
 
   private void performSplitOrdering(List<T> plannedTasks, Type partitionType) {
     try {
+      // Validate partition type is primitive (all transforms produce primitive types)
+      if (!partitionType.isPrimitiveType()) {
+        LOG.warn(
+            "Split Ordering on Partition is not applied: partition type {} is not primitive. "
+                + "Only primitive partition types are supported.",
+            partitionType);
+        return;
+      }
+
       // Use Iceberg's built-in type-safe comparator
-      Comparator<Object> comparator = Comparators.forType(partitionType);
+      Comparator<Object> comparator =
+          Comparators.nullsFirst()
+              .thenComparing(Comparators.forType(partitionType.asPrimitiveType()));
 
       plannedTasks.sort(
           (a, b) -> {
@@ -232,16 +248,22 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
             plannedTasks.add(concreteTask);
           }
 
-          if (partitionTypeSet.size() == 1) {
+          if (partitionTypeSet.isEmpty()) {
+            LOG.warn(
+                "Split Ordering on Partition is not applied: partition field '{}' not found in any of the {} scanned tasks",
+                this.splitOrderingPartitionField,
+                plannedTasks.size());
+          } else if (partitionTypeSet.size() == 1) {
             LOG.info(
                 "Split Ordering on Partition is enabled on partition field name: {}",
                 this.splitOrderingPartitionField);
             performSplitOrdering(plannedTasks, partitionTypeSet.iterator().next());
           } else {
             LOG.warn(
-                "Split Ordering on Partition is not applied on partition field name: {} either "
-                    + "due to multiple partition types or no partition type is found",
-                this.splitOrderingPartitionField);
+                "Split Ordering on Partition is not applied on partition field name: {} "
+                    + "due to multiple partition types: {}",
+                this.splitOrderingPartitionField,
+                partitionTypeSet);
           }
         } else {
           for (ScanTask task : taskIterable) {

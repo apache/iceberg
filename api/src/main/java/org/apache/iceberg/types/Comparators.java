@@ -77,11 +77,6 @@ public class Comparators {
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> Comparator<T> forType(Type type) {
-    return internal(type);
-  }
-
-  @SuppressWarnings("unchecked")
   private static <T> Comparator<T> internal(Type type) {
     if (type.isPrimitiveType()) {
       return forType(type.asPrimitiveType());

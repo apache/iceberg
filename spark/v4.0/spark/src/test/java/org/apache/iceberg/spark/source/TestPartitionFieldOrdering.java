@@ -20,14 +20,18 @@ package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
+import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -38,6 +42,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
+
+  private static final java.util.concurrent.ConcurrentHashMap<String, List<Object>> EXECUTION_LOG =
+      new java.util.concurrent.ConcurrentHashMap<>();
 
   @BeforeEach
   public void setupTable() {
@@ -51,13 +58,11 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
   @TestTemplate
   public void testPartitionFieldOrderingWithStringField() throws Exception {
-    // Create table partitioned by category (string) and region (string)
     sql(
         "CREATE TABLE %s (category STRING, region STRING) "
             + "USING iceberg PARTITIONED BY (category, region)",
         tableName);
 
-    // Insert test data with different partition values in non-alphabetical order
     sql(
         "INSERT INTO %s VALUES "
             + "('Z', 'West'), "
@@ -70,24 +75,20 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    // Test ordering by first partition field (category)
-    List<String> categoryOrdered = getPartitionValuesFromScan(table, "category", 0);
-    assertThat(categoryOrdered).containsExactly("A", "A", "B", "M", "Z", "Z");
+    verifyPartitionOrderingPerExecutor(
+        "category", (Function<Row, String> & Serializable) row -> row.getAs("category"), 6);
 
-    // Test ordering by second partition field (region)
-    List<String> regionOrdered = getPartitionValuesFromScan(table, "region", 1);
-    assertThat(regionOrdered).containsExactly("East", "East", "North", "South", "West", "West");
+    verifyPartitionOrderingPerExecutor(
+        "region", (Function<Row, String> & Serializable) row -> row.getAs("region"), 6);
   }
 
   @TestTemplate
   public void testPartitionFieldOrderingWithMixedTypes() throws Exception {
-    // Create table partitioned by id (integer) and category (string)
     sql(
         "CREATE TABLE %s (id INT, category STRING) "
             + "USING iceberg PARTITIONED BY (id, category)",
         tableName);
 
-    // Insert test data with mixed partition types in non-sorted order
     sql(
         "INSERT INTO %s VALUES "
             + "(30, 'Z'), "
@@ -100,23 +101,19 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    // Test ordering by first partition field (id - integer)
-    List<Integer> idOrdered = getPartitionValuesFromScan(table, "id", 0);
-    assertThat(idOrdered).containsExactly(10, 10, 20, 30, 30, 50);
+    verifyPartitionOrderingPerExecutor(
+        "id", (Function<Row, Integer> & Serializable) row -> row.getAs("id"), 6);
 
-    // Test ordering by second partition field (category - string)
-    List<String> categoryOrdered = getPartitionValuesFromScan(table, "category", 1);
-    assertThat(categoryOrdered).containsExactly("A", "A", "B", "M", "Z", "Z");
+    verifyPartitionOrderingPerExecutor(
+        "category", (Function<Row, String> & Serializable) row -> row.getAs("category"), 6);
   }
 
   @TestTemplate
   public void testPartitionFieldOrderingWithIntegerField() throws Exception {
-    // Create table partitioned by id (integer) and priority (integer)
     sql(
         "CREATE TABLE %s (id INT, priority INT) " + "USING iceberg PARTITIONED BY (id, priority)",
         tableName);
 
-    // Insert test data with integer partitions in non-sorted order
     sql(
         "INSERT INTO %s VALUES "
             + "(30, 1), "
@@ -129,24 +126,20 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    // Test ordering by first partition field (id)
-    List<Integer> idOrdered = getPartitionValuesFromScan(table, "id", 0);
-    assertThat(idOrdered).containsExactly(10, 10, 20, 30, 30, 50);
+    verifyPartitionOrderingPerExecutor(
+        "id", (Function<Row, Integer> & Serializable) row -> row.getAs("id"), 6);
 
-    // Test ordering by second partition field (priority)
-    List<Integer> priorityOrdered = getPartitionValuesFromScan(table, "priority", 1);
-    assertThat(priorityOrdered).containsExactly(1, 1, 2, 3, 4, 5);
+    verifyPartitionOrderingPerExecutor(
+        "priority", (Function<Row, Integer> & Serializable) row -> row.getAs("priority"), 6);
   }
 
   @TestTemplate
   public void testPartitionFieldOrderingWithLongField() throws Exception {
-    // Create table partitioned by ts (long) and version (long)
     sql(
         "CREATE TABLE %s (ts BIGINT, version BIGINT) "
             + "USING iceberg PARTITIONED BY (ts, version)",
         tableName);
 
-    // Insert test data with long partitions in non-sorted order
     sql(
         "INSERT INTO %s VALUES "
             + "(3000L, 2L), "
@@ -159,24 +152,20 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    // Test ordering by first partition field (ts)
-    List<Long> tsOrdered = getPartitionValuesFromScan(table, "ts", 0);
-    assertThat(tsOrdered).containsExactly(1000L, 1000L, 2000L, 3000L, 3000L, 5000L);
+    verifyPartitionOrderingPerExecutor(
+        "ts", (Function<Row, Long> & Serializable) row -> row.getAs("ts"), 6);
 
-    // Test ordering by second partition field (version)
-    List<Long> versionOrdered = getPartitionValuesFromScan(table, "version", 1);
-    assertThat(versionOrdered).containsExactly(1L, 1L, 2L, 3L, 4L, 5L);
+    verifyPartitionOrderingPerExecutor(
+        "version", (Function<Row, Long> & Serializable) row -> row.getAs("version"), 6);
   }
 
   @TestTemplate
   public void testPartitionFieldOrderingWithDoubleField() throws Exception {
-    // Create table partitioned by score (double) and rating (double)
     sql(
         "CREATE TABLE %s (score DOUBLE, rating DOUBLE) "
             + "USING iceberg PARTITIONED BY (score, rating)",
         tableName);
 
-    // Insert test data with double partitions in non-sorted order
     sql(
         "INSERT INTO %s VALUES "
             + "(95.5, 4.2), "
@@ -189,24 +178,20 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    // Test ordering by first partition field (score)
-    List<Double> scoreOrdered = getPartitionValuesFromScan(table, "score", 0);
-    assertThat(scoreOrdered).containsExactly(87.2, 87.2, 92.1, 95.5, 95.5, 99.9);
+    verifyPartitionOrderingPerExecutor(
+        "score", (Function<Row, Double> & Serializable) row -> row.getAs("score"), 6);
 
-    // Test ordering by second partition field (rating)
-    List<Double> ratingOrdered = getPartitionValuesFromScan(table, "rating", 1);
-    assertThat(ratingOrdered).containsExactly(3.7, 3.8, 3.9, 4.1, 4.2, 4.5);
+    verifyPartitionOrderingPerExecutor(
+        "rating", (Function<Row, Double> & Serializable) row -> row.getAs("rating"), 6);
   }
 
   @TestTemplate
   public void testPartitionFieldOrderingOnSecondaryField() throws Exception {
-    // Create table partitioned by category (string) and priority (integer)
     sql(
         "CREATE TABLE %s (category STRING, priority INT) "
             + "USING iceberg PARTITIONED BY (category, priority)",
         tableName);
 
-    // Insert test data where we want to test ordering on the SECOND partition field
     sql(
         "INSERT INTO %s VALUES "
             + "('A', 5), "
@@ -219,25 +204,21 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    // Test ordering by SECOND partition field (priority) - this is the key test!
-    List<Integer> priorityOrdered = getPartitionValuesFromScan(table, "priority", 1);
-    assertThat(priorityOrdered).containsExactly(1, 2, 3, 4, 5, 6);
+    verifyPartitionOrderingPerExecutor(
+        "priority", (Function<Row, Integer> & Serializable) row -> row.getAs("priority"), 6);
 
-    // Also verify first partition field ordering still works
-    List<String> categoryOrdered = getPartitionValuesFromScan(table, "category", 0);
-    assertThat(categoryOrdered).containsExactly("A", "A", "A", "B", "B", "C");
+    verifyPartitionOrderingPerExecutor(
+        "category", (Function<Row, String> & Serializable) row -> row.getAs("category"), 6);
   }
 
   @TestTemplate
   public void testPartitionFieldOrderingWithSessionConfig() throws NoSuchTableException {
-    // Create table partitioned by category
     sql(
         "CREATE TABLE %s (category STRING) " + "USING iceberg PARTITIONED BY (category)",
         tableName);
 
     sql("INSERT INTO %s VALUES ('Z'), ('A'), ('M')", tableName);
 
-    // Set session configuration
     spark.conf().set(SparkSQLProperties.SPLIT_ORDERING_BY_PARTITIONED_FIELD, "category");
 
     try {
@@ -245,37 +226,28 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
       List<Row> rows = df.collectAsList();
       assertThat(rows).hasSize(3);
 
-      // Note: Session config ordering verification would require access to scan internals
-      // This test verifies the configuration doesn't break functionality
     } finally {
-      // Clean up session config
       spark.conf().unset(SparkSQLProperties.SPLIT_ORDERING_BY_PARTITIONED_FIELD);
     }
   }
 
   @TestTemplate
   public void testPartitionFieldOrderingMutuallyExclusiveWithSPJ() throws NoSuchTableException {
-    // Create table partitioned by category
     sql(
         "CREATE TABLE %s (category STRING) " + "USING iceberg PARTITIONED BY (category)",
         tableName);
 
     sql("INSERT INTO %s VALUES ('A'), ('B')", tableName);
 
-    // Enable both preserve-data-grouping (SPJ) and partition field ordering
     spark.conf().set(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true");
     spark.conf().set(SparkSQLProperties.SPLIT_ORDERING_BY_PARTITIONED_FIELD, "category");
 
     try {
-      // When SPJ is enabled, partition field ordering should be ignored
       Dataset<Row> df = spark.read().table(tableName);
       List<Row> rows = df.collectAsList();
       assertThat(rows).hasSize(2);
 
-      // Verify that SPJ takes precedence (partition field ordering should be ignored)
-      // This is verified by the fact that no exception is thrown and data is still readable
     } finally {
-      // Clean up session configs
       spark.conf().unset(SparkSQLProperties.PRESERVE_DATA_GROUPING);
       spark.conf().unset(SparkSQLProperties.SPLIT_ORDERING_BY_PARTITIONED_FIELD);
     }
@@ -283,15 +255,12 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
   @TestTemplate
   public void testPartitionFieldOrderingWithNonExistentField() throws NoSuchTableException {
-    // Create table partitioned by category
     sql(
         "CREATE TABLE %s (category STRING) " + "USING iceberg PARTITIONED BY (category)",
         tableName);
 
     sql("INSERT INTO %s VALUES ('A'), ('B')", tableName);
 
-    // Test ordering by non-existent partition field - should not fail but field ordering should be
-    // ignored
     Dataset<Row> df =
         spark
             .read()
@@ -305,7 +274,6 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
   @TestTemplate
   public void testPartitionFieldOrderingReadOptionOverridesSessionConfig()
       throws NoSuchTableException {
-    // Create table partitioned by both category and id
     sql(
         "CREATE TABLE %s (category STRING, id INT) "
             + "USING iceberg PARTITIONED BY (category, id)",
@@ -313,11 +281,9 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
 
     sql("INSERT INTO %s VALUES ('Z', 30), ('A', 10), ('M', 20)", tableName);
 
-    // Set session config to order by category
     spark.conf().set(SparkSQLProperties.SPLIT_ORDERING_BY_PARTITIONED_FIELD, "category");
 
     try {
-      // Read option should override session config (order by id instead of category)
       Dataset<Row> df =
           spark
               .read()
@@ -327,21 +293,18 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
       List<Row> rows = df.collectAsList();
       assertThat(rows).hasSize(3);
     } finally {
-      // Clean up session config
       spark.conf().unset(SparkSQLProperties.SPLIT_ORDERING_BY_PARTITIONED_FIELD);
     }
   }
 
   @TestTemplate
   public void testOrderingIsDisabledByDefaultWithTransforms() throws Exception {
-    // Create table partitioned by id and a transform on category
     sql(
         "CREATE TABLE %s (id INT, category STRING) "
             + "USING iceberg "
             + "PARTITIONED BY (id, truncate(category, 1))",
         tableName);
 
-    // Insert more test data in a specific, non-sorted order
     sql(
         "INSERT INTO %s VALUES "
             + "(3, 'Whale'), "
@@ -353,79 +316,237 @@ public class TestPartitionFieldOrdering extends TestBaseWithCatalog {
             + "(1, 'Cat')",
         tableName);
 
-    // The partition transform on category is truncate(category, 1).
-    // The default name for this partition field is 'category_trunc'.
     Table table = validationCatalog.loadTable(tableIdent);
-    String partitionFieldName = table.spec().fields().get(1).name(); // Get the actual name
+    String partitionFieldName = table.spec().fields().get(1).name();
     assertThat(partitionFieldName).isEqualTo("category_trunc");
 
-    // 1. Read from the table WITH the ordering option for the transformed category
-    Dataset<Row> orderedDf =
-        spark
-            .read()
-            .option(SparkReadOptions.SPLIT_ORDERING_BY_PARTITIONED_FIELD, partitionFieldName)
-            .table(tableName);
+    verifyPartitionOrderingPerExecutor(
+        partitionFieldName,
+        (Function<Row, String> & Serializable) row -> row.getString(1).substring(0, 1),
+        7);
 
-    List<String> orderedCategories =
-        orderedDf.collectAsList().stream()
-            .map(row -> row.getString(1)) // category is the second column (index 1)
-            .collect(Collectors.toList());
-
-    // Assert that the ordered read is actually sorted by the first letter of the category
-    List<String> expectedSortedCategories =
-        Lists.newArrayList("Ape", "Bear", "Cat", "Shark", "Whale", "Yak", "Zebra");
-    assertThat(orderedCategories).isEqualTo(expectedSortedCategories);
-
-    // 2. Read from the table WITHOUT any ordering options (default behavior)
-    Dataset<Row> defaultDf = spark.read().table(tableName);
-
-    List<String> defaultCategories =
-        defaultDf.collectAsList().stream()
-            .map(row -> row.getString(1)) // category is the second column (index 1)
-            .collect(Collectors.toList());
-
-    // 3. Assert that the default order is NOT the same as the sorted order.
-    assertThat(defaultCategories).isNotEqualTo(orderedCategories);
+    verifyPartitionOrderingIsNotApplied(
+        (Function<Row, String> & Serializable) row -> row.getString(1).substring(0, 1), 7);
   }
 
-  /**
-   * Helper method to get partition values from a DataFrameReader with partition field ordering.
-   * This verifies partition ordering by examining the data returned in order.
-   */
+  /** Verifies tasks are processed in partition order within each executor. */
   @SuppressWarnings("unchecked")
-  private <T> List<T> getPartitionValuesFromScan(
-      Table table, String partitionFieldName, int fieldPosition) throws Exception {
-    // Create DataFrameReader with partition field ordering
+  private <T extends Comparable<T>> void verifyPartitionOrderingPerExecutor(
+      String partitionFieldName, Function<Row, T> partitionValueExtractor, int expectedRowCount) {
+
+    // Read with partition field ordering enabled
     Dataset<Row> df =
         spark
             .read()
             .option(SparkReadOptions.SPLIT_ORDERING_BY_PARTITIONED_FIELD, partitionFieldName)
             .table(tableName);
 
-    // Get the actual partition field name from the table spec
-    String actualPartitionFieldName = getPartitionFieldNameFromPosition(table, fieldPosition);
-    if (actualPartitionFieldName == null) {
-      return Lists.newArrayList();
+    Map<String, List<T>> executionLog =
+        captureExecutorPartitionValues(df, partitionValueExtractor, expectedRowCount);
+
+    // Verify ALL executors have sorted values
+    for (Map.Entry<String, List<T>> entry : executionLog.entrySet()) {
+      String executorId = entry.getKey();
+      List<T> executorPartitionValues = entry.getValue();
+
+      assertThat(executorPartitionValues).isNotEmpty();
+
+      // Verify this executor's tasks are in sorted partition order
+      // Use nullsFirst comparator to handle null partition values (from partition evolution)
+      List<T> sortedExecutorValues = new ArrayList<>(executorPartitionValues);
+      sortedExecutorValues.sort(
+          java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()));
+
+      assertThat(executorPartitionValues)
+          .as(
+              "Executor '%s' should process %d tasks in partition order",
+              executorId, executorPartitionValues.size())
+          .isEqualTo(sortedExecutorValues);
     }
-
-    // Get partition values by examining the DataFrame's rows ordered by the partition field
-    List<Row> rows = df.collectAsList();
-    List<T> partitionValues = Lists.newArrayList();
-
-    // Extract partition values from the data rows
-    for (Row row : rows) {
-      T partitionValue = (T) row.getAs(actualPartitionFieldName);
-      partitionValues.add(partitionValue);
-    }
-
-    return partitionValues;
   }
 
-  private String getPartitionFieldNameFromPosition(Table table, int position) {
-    // Get the actual partition field name from the table's partition spec
-    if (table.spec().fields().size() > position) {
-      return table.spec().fields().get(position).name();
+  /** Verifies tasks are NOT processed in partition order when ordering option is disabled. */
+  @SuppressWarnings("unchecked")
+  private <T extends Comparable<T>> void verifyPartitionOrderingIsNotApplied(
+      Function<Row, T> partitionValueExtractor, int expectedRowCount) {
+
+    // Read WITHOUT partition field ordering option
+    Dataset<Row> df = spark.read().table(tableName);
+
+    Map<String, List<T>> executionLog =
+        captureExecutorPartitionValues(df, partitionValueExtractor, expectedRowCount);
+
+    // At least ONE executor should have tasks in NON-sorted order (proves ordering is disabled)
+    boolean foundUnsortedExecutor = false;
+    for (Map.Entry<String, List<T>> entry : executionLog.entrySet()) {
+      List<T> executorPartitionValues = entry.getValue();
+
+      // Only check executors with multiple tasks
+      if (executorPartitionValues.size() > 1) {
+        List<T> sortedExecutorValues = new ArrayList<>(executorPartitionValues);
+        sortedExecutorValues.sort(
+            java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()));
+
+        if (!executorPartitionValues.equals(sortedExecutorValues)) {
+          foundUnsortedExecutor = true;
+          break;
+        }
+      }
     }
-    return null;
+
+    assertThat(foundUnsortedExecutor).isTrue();
+  }
+
+  /** Captures partition values for each row processed by executors. */
+  @SuppressWarnings("unchecked")
+  private <T extends Comparable<T>> Map<String, List<T>> captureExecutorPartitionValues(
+      Dataset<Row> df, Function<Row, T> partitionValueExtractor, int expectedRowCount) {
+
+    // Clear previous execution data
+    EXECUTION_LOG.clear();
+
+    // Capture execution metadata while passing through the data unchanged
+    Dataset<Row> processedDf =
+        df.mapPartitions(
+            (MapPartitionsFunction<Row, Row>)
+                partition -> {
+                  // Get executor ID from SparkEnv
+                  String executorId =
+                      org.apache.spark.SparkEnv.get().executorId()
+                          + "-"
+                          + Thread.currentThread().getId();
+
+                  List<Row> rows = new ArrayList<>();
+
+                  while (partition.hasNext()) {
+                    Row row = partition.next();
+
+                    // Record partition value for each row
+                    T partitionValue = partitionValueExtractor.apply(row);
+                    EXECUTION_LOG
+                        .computeIfAbsent(executorId, k -> new ArrayList<>())
+                        .add(partitionValue);
+
+                    rows.add(row);
+                  }
+
+                  return rows.iterator();
+                },
+            org.apache.spark.sql.Encoders.row(df.schema()));
+
+    // Trigger execution by collecting the data
+    List<Row> allRows = processedDf.collectAsList();
+
+    assertThat(allRows).hasSize(expectedRowCount);
+
+    // Cast static map to typed version for verification
+    Map<String, List<T>> executionLog = (Map<String, List<T>>) (Object) EXECUTION_LOG;
+
+    assertThat(executionLog).isNotEmpty();
+
+    return executionLog;
+  }
+
+  @TestTemplate
+  public void testPartitionEvolutionWithSameFieldName() throws Exception {
+    sql(
+        "CREATE TABLE %s (id INT, event_time TIMESTAMP, data STRING) " + "USING iceberg",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table
+        .updateSpec()
+        .addField("time_partition", org.apache.iceberg.expressions.Expressions.day("event_time"))
+        .commit();
+    table.refresh();
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, TIMESTAMP '2025-12-16 10:30:00', 'data1'), "
+            + "(2, TIMESTAMP '2025-01-15 14:20:00', 'data2'), "
+            + "(3, TIMESTAMP '2025-09-16 09:45:00', 'data3')",
+        tableName);
+
+    table.refresh();
+
+    table
+        .updateSpec()
+        .removeField("time_partition")
+        .addField("time_partition", org.apache.iceberg.expressions.Expressions.hour("event_time"))
+        .commit();
+    table.refresh();
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(4, TIMESTAMP '2025-01-14 08:00:00', 'data4'), "
+            + "(5, TIMESTAMP '2025-01-17 11:00:00', 'data5'), "
+            + "(6, TIMESTAMP '2025-01-14 16:00:00', 'data6')",
+        tableName);
+
+    Dataset<Row> df =
+        spark
+            .read()
+            .option(SparkReadOptions.SPLIT_ORDERING_BY_PARTITIONED_FIELD, "time_partition")
+            .table(tableName);
+
+    List<Row> rows = df.collectAsList();
+    assertThat(rows).hasSize(6);
+
+    List<Integer> ids = rows.stream().map(row -> row.getInt(0)).collect(Collectors.toList());
+    assertThat(ids).containsExactlyInAnyOrder(1, 2, 3, 4, 5, 6);
+  }
+
+  @TestTemplate
+  public void testPartitionEvolutionWithDifferentFieldNames() throws Exception {
+    sql(
+        "CREATE TABLE %s (id INT, event_time TIMESTAMP, data STRING) " + "USING iceberg",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table
+        .updateSpec()
+        .addField("day_partition", org.apache.iceberg.expressions.Expressions.day("event_time"))
+        .commit();
+    table.refresh();
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, TIMESTAMP '2025-12-16 10:30:00', 'data1'), "
+            + "(2, TIMESTAMP '2025-01-15 14:20:00', 'data2'), "
+            + "(3, TIMESTAMP '2025-09-16 09:45:00', 'data3')",
+        tableName);
+
+    table.refresh();
+
+    table
+        .updateSpec()
+        .removeField("day_partition")
+        .addField("hour_partition", org.apache.iceberg.expressions.Expressions.hour("event_time"))
+        .commit();
+    table.refresh();
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(4, TIMESTAMP '2025-01-14 08:00:00', 'data4'), "
+            + "(5, TIMESTAMP '2025-01-17 11:00:00', 'data5'), "
+            + "(6, TIMESTAMP '2025-01-14 16:00:00', 'data6')",
+        tableName);
+
+    verifyPartitionOrderingPerExecutor(
+        "day_partition",
+        (Function<Row, Integer> & Serializable)
+            row -> {
+              int id = row.getInt(0);
+              if (id <= 3) {
+                if (id == 1) return 20708;
+                if (id == 2) return 20099;
+                return 20346;
+              } else {
+                return null;
+              }
+            },
+        6);
   }
 }
