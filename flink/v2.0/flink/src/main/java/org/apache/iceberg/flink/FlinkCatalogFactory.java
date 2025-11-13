@@ -32,6 +32,7 @@ import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogProperties.CacheExpirationPolicy;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -155,6 +156,12 @@ public class FlinkCatalogFactory implements CatalogFactory {
         PropertyUtil.propertyAsBoolean(
             properties, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
 
+    boolean cacheCaseSensitive =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.CACHE_CASE_SENSITIVE,
+            CatalogProperties.CACHE_CASE_SENSITIVE_DEFAULT);
+
     long cacheExpirationIntervalMs =
         PropertyUtil.propertyAsLong(
             properties,
@@ -165,6 +172,13 @@ public class FlinkCatalogFactory implements CatalogFactory {
         "%s is not allowed to be 0.",
         CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
 
+    CacheExpirationPolicy cacheExpirationPolicy =
+        PropertyUtil.propertyAsEnum(
+            properties,
+            CatalogProperties.CACHE_EXPIRATION_POLICY,
+            CacheExpirationPolicy.class,
+            CatalogProperties.CACHE_EXPIRATION_POLICY_DEFAULT);
+
     return new FlinkCatalog(
         name,
         defaultDatabase,
@@ -172,7 +186,9 @@ public class FlinkCatalogFactory implements CatalogFactory {
         catalogLoader,
         properties,
         cacheEnabled,
-        cacheExpirationIntervalMs);
+        cacheExpirationIntervalMs,
+        cacheCaseSensitive,
+        cacheExpirationPolicy);
   }
 
   private static Configuration mergeHiveConf(

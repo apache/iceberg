@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -125,6 +127,21 @@ public class PropertyUtil {
       return value;
     }
     return defaultValue;
+  }
+
+  public static <E extends Enum<E>> E propertyAsEnum(
+      Map<String, String> properties, String property, Class<E> enumClass, E defaultValue) {
+    String value = properties.get(property);
+    if (value == null) {
+      return defaultValue;
+    }
+    try {
+      return Enum.valueOf(enumClass, value.toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException e) {
+      throw new ValidationException(
+          "Invalid value for property %s: %s. Allowed values: %s",
+          property, value, Arrays.toString(enumClass.getEnumConstants()));
+    }
   }
 
   /**

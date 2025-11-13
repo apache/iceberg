@@ -25,8 +25,10 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.SparkSQLProperties.ExecutorCacheExpirationPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,12 +59,15 @@ public class SparkExecutorCache {
   private final Duration timeout;
   private final long maxEntrySize;
   private final long maxTotalSize;
+  private final ExecutorCacheExpirationPolicy expirationPolicy;
+
   private volatile Cache<String, CacheValue> state;
 
   private SparkExecutorCache(Conf conf) {
     this.timeout = conf.timeout();
     this.maxEntrySize = conf.maxEntrySize();
     this.maxTotalSize = conf.maxTotalSize();
+    this.expirationPolicy = conf.executorCacheExpirationPolicy();
   }
 
   /**
@@ -160,13 +165,26 @@ public class SparkExecutorCache {
   }
 
   private Cache<String, CacheValue> initState() {
-    return Caffeine.newBuilder()
-        .expireAfterAccess(timeout)
-        .maximumWeight(maxTotalSize)
-        .weigher((key, value) -> ((CacheValue) value).weight())
-        .recordStats()
-        .removalListener((key, value, cause) -> LOG.debug("Evicted {} ({})", key, cause))
-        .build();
+    Caffeine<Object, Object> cacheBuilder =
+        Caffeine.newBuilder()
+            .maximumWeight(maxTotalSize)
+            .weigher((key, value) -> ((CacheValue) value).weight())
+            .recordStats()
+            .removalListener((key, value, cause) -> LOG.debug("Evicted {} ({})", key, cause));
+
+    switch (expirationPolicy) {
+      case EXPIRE_AFTER_WRITE:
+        cacheBuilder = cacheBuilder.expireAfterWrite(timeout);
+        break;
+      case EXPIRE_AFTER_ACCESS:
+        cacheBuilder = cacheBuilder.expireAfterAccess(timeout);
+        break;
+      default:
+        throw new ValidationException(
+            "Unknown ExecutorCacheExpirationPolicy: %s", expirationPolicy);
+    }
+
+    return cacheBuilder.build();
   }
 
   @VisibleForTesting
@@ -222,6 +240,14 @@ public class SparkExecutorCache {
           .longConf()
           .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_MAX_TOTAL_SIZE)
           .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_MAX_TOTAL_SIZE_DEFAULT)
+          .parse();
+    }
+
+    public ExecutorCacheExpirationPolicy executorCacheExpirationPolicy() {
+      return confParser
+          .enumConf(ExecutorCacheExpirationPolicy::fromName)
+          .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_EXPIRATION_POLICY)
+          .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_EXPIRATION_POLICY_DEFAULT)
           .parse();
     }
   }

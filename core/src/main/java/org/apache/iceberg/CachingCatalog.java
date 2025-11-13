@@ -28,10 +28,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.iceberg.CatalogProperties.CacheExpirationPolicy;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -57,11 +59,25 @@ public class CachingCatalog implements Catalog {
 
   public static Catalog wrap(
       Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
-    return new CachingCatalog(catalog, caseSensitive, expirationIntervalMillis);
+    return wrap(
+        catalog,
+        caseSensitive,
+        expirationIntervalMillis,
+        CatalogProperties.CACHE_EXPIRATION_POLICY_DEFAULT);
+  }
+
+  public static Catalog wrap(
+      Catalog catalog,
+      boolean caseSensitive,
+      long expirationIntervalMillis,
+      CacheExpirationPolicy cacheExpirationPolicy) {
+    return new CachingCatalog(
+        catalog, caseSensitive, expirationIntervalMillis, cacheExpirationPolicy);
   }
 
   private final Catalog catalog;
   private final boolean caseSensitive;
+  private final CacheExpirationPolicy cacheExpirationPolicy;
 
   @SuppressWarnings("checkstyle:VisibilityModifier")
   protected final long expirationIntervalMillis;
@@ -69,20 +85,35 @@ public class CachingCatalog implements Catalog {
   @SuppressWarnings("checkstyle:VisibilityModifier")
   protected final Cache<TableIdentifier, Table> tableCache;
 
-  private CachingCatalog(Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
-    this(catalog, caseSensitive, expirationIntervalMillis, Ticker.systemTicker());
+  private CachingCatalog(
+      Catalog catalog,
+      boolean caseSensitive,
+      long expirationIntervalMillis,
+      CacheExpirationPolicy cacheExpirationPolicy) {
+    this(
+        catalog,
+        caseSensitive,
+        expirationIntervalMillis,
+        Ticker.systemTicker(),
+        cacheExpirationPolicy);
   }
 
   @SuppressWarnings("checkstyle:VisibilityModifier")
   protected CachingCatalog(
-      Catalog catalog, boolean caseSensitive, long expirationIntervalMillis, Ticker ticker) {
+      Catalog catalog,
+      boolean caseSensitive,
+      long expirationIntervalMillis,
+      Ticker ticker,
+      CacheExpirationPolicy cacheExpirationPolicy) {
     Preconditions.checkArgument(
         expirationIntervalMillis != 0,
         "When %s is set to 0, the catalog cache should be disabled. This indicates a bug.",
         CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
+
     this.catalog = catalog;
     this.caseSensitive = caseSensitive;
     this.expirationIntervalMillis = expirationIntervalMillis;
+    this.cacheExpirationPolicy = cacheExpirationPolicy;
     this.tableCache = createTableCache(ticker);
   }
 
@@ -104,15 +135,28 @@ public class CachingCatalog implements Catalog {
   }
 
   private Cache<TableIdentifier, Table> createTableCache(Ticker ticker) {
-    Caffeine<Object, Object> cacheBuilder = Caffeine.newBuilder().softValues();
 
-    if (expirationIntervalMillis > 0) {
-      return cacheBuilder
-          .removalListener(new MetadataTableInvalidatingRemovalListener())
-          .executor(Runnable::run) // Makes the callbacks to removal listener synchronous
-          .expireAfterAccess(Duration.ofMillis(expirationIntervalMillis))
-          .ticker(ticker)
-          .build();
+    if (expirationIntervalMillis <= 0) {
+      return Caffeine.newBuilder().softValues().build();
+    }
+
+    Caffeine<TableIdentifier, Table> cacheBuilder =
+        Caffeine.newBuilder()
+            .softValues()
+            .removalListener(new MetadataTableInvalidatingRemovalListener())
+            .executor(Runnable::run) // Makes the callbacks to removal listener synchronous
+            .ticker(ticker);
+
+    switch (cacheExpirationPolicy) {
+      case EXPIRE_AFTER_WRITE:
+        cacheBuilder = cacheBuilder.expireAfterWrite(Duration.ofMillis(expirationIntervalMillis));
+        break;
+      case EXPIRE_AFTER_ACCESS:
+        cacheBuilder = cacheBuilder.expireAfterAccess(Duration.ofMillis(expirationIntervalMillis));
+        break;
+      default:
+        throw new ValidationException(
+            "Unknown cacheExpirationPolicy policy: %s", cacheExpirationPolicy);
     }
 
     return cacheBuilder.build();
