@@ -20,6 +20,7 @@ package org.apache.iceberg.jdbc;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.sql.DataTruncation;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -28,6 +29,7 @@ import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
+import java.sql.SQLWarning;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
@@ -49,6 +51,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -281,6 +284,36 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   @Override
   protected String defaultWarehouseLocation(TableIdentifier table) {
     return SLASH.join(defaultNamespaceLocation(table.namespace()), table.name());
+  }
+
+  @Override
+  protected void setAsCurrent(TableIdentifier tableIdentifier, String metadataLocation) {
+    try {
+      int updatedRecords =
+          JdbcUtil.setMetadataLocationTable(
+              schemaVersion, connections, catalogName, tableIdentifier, metadataLocation);
+      if (updatedRecords == 1) {
+        LOG.debug(
+            "Successfully committed {} to existing table: {}", metadataLocation, tableIdentifier);
+      } else {
+        throw new CommitFailedException(
+            "Failed to update table %s to %s from catalog %s",
+            tableIdentifier, metadataLocation, catalogName);
+      }
+    } catch (SQLTimeoutException e) {
+      throw new UncheckedSQLException(e, "Database Connection timeout");
+    } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
+      throw new UncheckedSQLException(e, "Database Connection failed");
+    } catch (DataTruncation e) {
+      throw new UncheckedSQLException(e, "Database data truncation error");
+    } catch (SQLWarning e) {
+      throw new UncheckedSQLException(e, "Database warning");
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(e, "Unknown failure");
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new UncheckedInterruptedException(e, "Interrupted during setAsCurrent");
+    }
   }
 
   @Override

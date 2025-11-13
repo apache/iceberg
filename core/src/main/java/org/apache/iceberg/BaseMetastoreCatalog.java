@@ -26,7 +26,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -71,24 +70,43 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
   }
 
   @Override
-  public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+  public Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
     Preconditions.checkArgument(
         identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
     Preconditions.checkArgument(
         metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
 
-    // Throw an exception if this table already exists in the catalog.
-    if (tableExists(identifier)) {
+    TableOperations ops = newTableOps(identifier);
+
+    if (overwrite) {
+      return overwriteTable(identifier, metadataFileLocation, ops);
+    } else if (ops.current() == null) {
+      // create a new table
+      TableMetadata newMetadata =
+          TableMetadataParser.read(ops.io().newInputFile(metadataFileLocation));
+      ops.commit(null, newMetadata);
+      return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+    } else {
       throw new AlreadyExistsException("Table already exists: %s", identifier);
     }
+  }
 
-    TableOperations ops = newTableOps(identifier);
-    InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
-    TableMetadata metadata = TableMetadataParser.read(metadataFile);
-    ops.commit(null, metadata);
+  private Table overwriteTable(
+      TableIdentifier identifier, String metadataFileLocation, TableOperations ops) {
+    TableMetadata currentMetadata = ops.current();
 
-    return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+    if (currentMetadata != null
+        && currentMetadata.metadataFileLocation().equals(metadataFileLocation)) {
+      LOG.info(
+          "The requested metadata matches the existing metadata. No changes will be committed.");
+      return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+    }
+
+    // create or replace table metadata atomically
+    setAsCurrent(identifier, metadataFileLocation);
+    return loadTable(identifier);
   }
 
   @Override
@@ -297,6 +315,13 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
     }
 
     return metricsReporter;
+  }
+
+  // Atomically set the given metadata location as the current table metadata
+  protected void setAsCurrent(TableIdentifier identifier, String metadataLocation) {
+    throw new UnsupportedOperationException(
+        String.format(
+            "Overwrite table metadata on registration is not supported in %s catalog", name()));
   }
 
   @Override
