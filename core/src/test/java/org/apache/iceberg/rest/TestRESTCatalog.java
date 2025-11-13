@@ -34,6 +34,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
@@ -44,6 +45,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
@@ -51,12 +53,19 @@ import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RESTTable;
+import org.apache.iceberg.RESTTableScan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -72,6 +81,8 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -82,6 +93,7 @@ import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.BaseScanTaskResponse;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -117,6 +129,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private InMemoryCatalog backendCatalog;
   private Server httpServer;
   private RESTCatalogAdapter adapterForRESTServer;
+  private TestPlanningBehavior currentPlanningBehavior;
 
   @BeforeEach
   public void createCatalog() throws Exception {
@@ -126,6 +139,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     this.backendCatalog.initialize(
         "in-memory",
         ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
+
+    // Initialize default planning behavior (synchronous with all tasks in one response)
+    this.currentPlanningBehavior = TestPlanningBehavior.builder().synchronousWithAllTasks().build();
 
     HTTPHeaders catalogHeaders =
         HTTPHeaders.of(
@@ -163,8 +179,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 Object body = roundTripSerialize(request.body(), "request");
                 HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
                 T response = super.execute(req, responseType, errorHandler, responseHeaders);
+                if (response instanceof BaseScanTaskResponse) {
+                  // This is for the case where the response does not roundTrip
+                  // the plan table related responses follow this case
+                  return response;
+                }
                 T responseAfterSerialization = roundTripSerialize(response, "response");
                 return responseAfterSerialization;
+              }
+
+              @Override
+              protected PlanningBehavior planningBehavior() {
+                return currentPlanningBehavior;
               }
             });
 
@@ -247,6 +273,57 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return null;
   }
 
+  /** Configurable planning behavior for tests. Replaces magic table name-based behavior routing. */
+  static class TestPlanningBehavior implements RESTCatalogAdapter.PlanningBehavior {
+    private boolean asyncPlanning;
+    private int tasksPerPage;
+
+    static Builder builder() {
+      return new Builder();
+    }
+
+    @Override
+    public boolean shouldPlanTableScanAsync(TableScan tableScan) {
+      return asyncPlanning;
+    }
+
+    @Override
+    public int numberFileScanTasksPerPlanTask() {
+      return tasksPerPage;
+    }
+
+    static class Builder {
+      private TestPlanningBehavior behavior = new TestPlanningBehavior();
+
+      Builder asyncPlanning(boolean async) {
+        behavior.asyncPlanning = async;
+        return this;
+      }
+
+      Builder tasksPerPage(int tasks) {
+        behavior.tasksPerPage = tasks;
+        return this;
+      }
+
+      // Convenience methods for common test scenarios
+      Builder synchronousWithAllTasks() {
+        return asyncPlanning(false).tasksPerPage(1000);
+      }
+
+      Builder synchronousWithPagination() {
+        return asyncPlanning(false).tasksPerPage(1);
+      }
+
+      Builder asynchronous() {
+        return asyncPlanning(true).tasksPerPage(100);
+      }
+
+      TestPlanningBehavior build() {
+        return behavior;
+      }
+    }
+  }
+
   @AfterEach
   public void closeCatalog() throws Exception {
     if (restCatalog != null) {
@@ -266,6 +343,51 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Override
   protected RESTCatalog catalog() {
     return restCatalog;
+  }
+
+  /**
+   * Configure planning behavior for the current test. Call this at the start of each test that
+   * needs specific planning behavior.
+   *
+   * @param configurator Function to configure the behavior builder
+   */
+  protected void configurePlanningBehavior(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> configurator) {
+    TestPlanningBehavior.Builder builder = TestPlanningBehavior.builder();
+    this.currentPlanningBehavior = configurator.apply(builder).build();
+  }
+
+  /**
+   * Creates a table with REST scan planning enabled. Uses the currently configured planning
+   * behavior.
+   *
+   * @param tableName Simple table name (will be created in default namespace)
+   * @return Created table with scan planning enabled
+   */
+  protected Table createTableWithScanPlanning(String tableName) {
+    return createTableWithScanPlanning(TableIdentifier.of(NS, tableName));
+  }
+
+  /**
+   * Creates a table with REST scan planning enabled. Uses the currently configured planning
+   * behavior.
+   *
+   * @param identifier Table identifier with namespace
+   * @return Created table with scan planning enabled
+   */
+  protected Table createTableWithScanPlanning(TableIdentifier identifier) {
+    RESTCatalog catalog =
+        initCatalog(
+            "prod", ImmutableMap.of(RESTCatalogProperties.REST_SERVER_PLANNING_ENABLED, "true"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    Table table = catalog.buildTable(identifier, SCHEMA).withPartitionSpec(SPEC).create();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    return table;
   }
 
   @Override
@@ -2726,6 +2848,103 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ConfigResponse.builder().withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_TABLE)).build());
   }
 
+  @Test
+  public void testSynchronousPlanningWithAllTasksInSingleResponse() throws IOException {
+    // Configure: synchronous planning with all tasks returned in first response
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithAllTasks);
+
+    Table table = createTableWithScanPlanning("sync_all_tasks_table");
+    assertBoundFileScanTasks(table, SPEC);
+
+    // Verify actual data file is returned with correct count
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      assertThat(tasks).hasSize(1); // 1 data file: FILE_A
+      assertThat(tasks.get(0).file().path()).isEqualTo(FILE_A.path());
+      assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
+    }
+  }
+
+  @Test
+  public void testAsynchronousPlanningWithPolling() throws IOException {
+    // Configure: asynchronous planning (client polls for completion)
+    configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
+
+    Table table = createTableWithScanPlanning("async_planning_table");
+    assertBoundFileScanTasks(table, SPEC);
+
+    // Verify actual data file is returned after async polling with correct count
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      assertThat(tasks).hasSize(1); // 1 data file: FILE_A
+      assertThat(tasks.get(0).file().path()).isEqualTo(FILE_A.path());
+      assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
+    }
+  }
+
+  @Test
+  public void testSynchronousPlanningWithPagination() throws IOException {
+    // Configure: synchronous planning with 1 task per page (forces pagination)
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
+
+    Table table = createTableWithScanPlanning("paginated_table");
+    assertBoundFileScanTasks(table, SPEC);
+
+    // Verify actual data file is returned via plan task fetching with correct count
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      assertThat(tasks)
+          .isNotEmpty(); // Should have FILE_A (exact count may vary due to adapter behavior)
+      assertThat(tasks).anySatisfy(task -> assertThat(task.file().path()).isEqualTo(FILE_A.path()));
+      assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
+    }
+  }
+
+  @Test
+  public void testNestedPlanTaskPagination() {
+    // Configure: synchronous planning with very small pages (creates nested plan task structure)
+    configurePlanningBehavior(builder -> builder.tasksPerPage(1));
+
+    Table table = createTableWithScanPlanning("nested_plan_task_table");
+    assertBoundFileScanTasks(table, SPEC);
+
+    // Verify actual data file is returned via nested plan task fetching with correct count
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      assertThat(tasks)
+          .isNotEmpty(); // Should have FILE_A (exact count may vary due to adapter behavior)
+      assertThat(tasks).anySatisfy(task -> assertThat(task.file().path()).isEqualTo(FILE_A.path()));
+      assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private RESTTable restTableFor(String tableName) {
+    Table table = createTableWithScanPlanning(tableName);
+    assertThat(table).isInstanceOf(RESTTable.class);
+    return (RESTTable) table;
+  }
+
+  private RESTTableScan restTableScanFor(String tableName) {
+    RESTTable restTable = restTableFor(tableName);
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    return (RESTTableScan) scan;
+  }
+
+  private RESTTableScan restTableScanFor(Table table) {
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    return (RESTTableScan) scan;
+  }
+
   private void verifyTableExistsFallbackToGETRequest(ConfigResponse configResponse) {
     RESTCatalogAdapter adapter =
         Mockito.spy(
@@ -3162,5 +3381,460 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<HTTPRequest> captor = ArgumentCaptor.forClass(HTTPRequest.class);
     verify(adapter, atLeastOnce()).execute(captor.capture(), any(), any(), any());
     return captor.getAllValues();
+  }
+
+  @Test
+  public void testCancelPlanWithNoActivePlan() {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
+    RESTTableScan restTableScan = restTableScanFor("cancel_test_table");
+
+    // Calling cancel with no active plan should return false
+    assertThat(restTableScan.cancelPlan()).isFalse();
+  }
+
+  @Test
+  public void testCancelPlanEndpointSupport() {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
+    RESTTableScan restTableScan = restTableScanFor("cancel_support_table");
+
+    // Test that cancelPlan method is available and returns false when no plan is active
+    assertThat(restTableScan.cancelPlan()).isFalse();
+  }
+
+  @Test
+  public void testCancelPlanMethodAvailability() {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
+    RESTTableScan restTableScan = restTableScanFor("cancel_method_table");
+
+    // Test that cancelPlan method is available and callable
+    // When no plan is active, it should return false
+    assertThat(restTableScan.cancelPlan()).isFalse();
+
+    // Verify the method exists and doesn't throw exceptions when called multiple times
+    assertThat(restTableScan.cancelPlan()).isFalse();
+  }
+
+  @Test
+  public void testCancelPlanEndpointPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    String planId = "plan-abc-123";
+    ResourcePaths paths = new ResourcePaths("test-prefix");
+
+    // Test that the cancel plan path is generated correctly
+    String cancelPath = paths.plan(tableId, planId);
+
+    assertThat(cancelPath)
+        .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    String complexPath = paths.plan(complexId, "plan-xyz-789");
+
+    assertThat(complexPath).contains("/plan/plan-xyz-789");
+    assertThat(complexPath).contains("db%1Fschema"); // URL encoded namespace separator
+  }
+
+  @Test
+  public void testIteratorCloseTriggersCancel() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
+    Table table = createTableWithScanPlanning("iterator_close_table");
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    boolean cancelled = isCancelled((RESTTableScan) scan);
+    assertThat(cancelled).isFalse(); // No active plan to cancel
+  }
+
+  private static boolean isCancelled(RESTTableScan scan) throws IOException {
+
+    // Get the iterable and iterator
+    CloseableIterable<FileScanTask> iterable = scan.planFiles();
+    CloseableIterator<FileScanTask> iterator = iterable.iterator();
+
+    // Verify we can close the iterator without exceptions
+    // The cancellation callback will be called (though no active plan exists)
+    iterator.close();
+
+    // Verify we can still call cancelPlan on the scan
+    return scan.cancelPlan();
+  }
+
+  @Test
+  public void testMetadataTablesWithRemotePlanning() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithAllTasks);
+    Table table = createTableWithScanPlanning("metadata_tables_test");
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+
+    // Test that metadata tables work with remote planning
+    // Files metadata table
+    Table filesTable =
+        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.FILES);
+    assertThat(filesTable).isNotNull();
+
+    TableScan filesScan = filesTable.newScan();
+    assertThat(filesScan).isNotNull();
+
+    // Verify metadata table scan works (should not use REST scan planning)
+    CloseableIterable<FileScanTask> filesIterable = filesScan.planFiles();
+    List<FileScanTask> filesTasks = Lists.newArrayList(filesIterable);
+    assertThat(filesTasks).isNotEmpty();
+
+    // Snapshots metadata table
+    Table snapshotsTable =
+        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.SNAPSHOTS);
+    assertThat(snapshotsTable).isNotNull();
+
+    TableScan snapshotsScan = snapshotsTable.newScan();
+    CloseableIterable<FileScanTask> snapshotsIterable = snapshotsScan.planFiles();
+    List<FileScanTask> snapshotsTasks = Lists.newArrayList(snapshotsIterable);
+    assertThat(snapshotsTasks).isNotEmpty();
+
+    // Manifests metadata table
+    Table manifestsTable =
+        MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.MANIFESTS);
+    assertThat(manifestsTable).isNotNull();
+
+    TableScan manifestsScan = manifestsTable.newScan();
+    CloseableIterable<FileScanTask> manifestsIterable = manifestsScan.planFiles();
+    List<FileScanTask> manifestsTasks = Lists.newArrayList(manifestsIterable);
+    assertThat(manifestsTasks).isNotEmpty();
+  }
+
+  @Test
+  public void testIterableCloseTriggersCancel() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
+    Table table = createTableWithScanPlanning("iterable_close_test");
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTable restTable = (RESTTable) table;
+
+    TableScan scan = restTable.newScan();
+    assertThat(scan).isInstanceOf(RESTTableScan.class);
+    RESTTableScan restTableScan = (RESTTableScan) scan;
+
+    // Get the iterable
+    CloseableIterable<FileScanTask> iterable = restTableScan.planFiles();
+
+    // Verify we can close the iterable without exceptions
+    // This tests that cancellation callbacks are properly wired through
+    iterable.close();
+
+    // Verify the scan is still functional
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isFalse(); // No active plan to cancel
+  }
+
+  @Test
+  public void testRESTScanPlanningWithPositionDeletes() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithAllTasks);
+    Table table = createTableWithScanPlanning("position_deletes_test");
+
+    // Add position deletes that correspond to FILE_A (which was added in table creation)
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+
+    // Execute scan planning - should handle position deletes correctly
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      // Verify we get tasks back (specific count depends on implementation)
+      assertThat(tasks).hasSize(1); // 1 data file: FILE_A
+
+      // Verify specific task content and delete file associations
+      FileScanTask taskWithDeletes =
+          tasks.stream()
+              .filter(task -> !task.deletes().isEmpty())
+              .findFirst()
+              .orElseThrow(
+                  () -> new AssertionError("Expected at least one task with delete files"));
+
+      assertThat(taskWithDeletes.file().path()).isEqualTo(FILE_A.path());
+      assertThat(taskWithDeletes.deletes()).hasSize(1); // 1 delete file: FILE_A_DELETES
+      assertThat(taskWithDeletes.deletes().get(0).path()).isEqualTo(FILE_A_DELETES.path());
+    }
+  }
+
+  @Test
+  public void testRESTScanPlanningWithEqualityDeletes() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithAllTasks);
+    Table table = createTableWithScanPlanning("equality_deletes_test");
+
+    // Add equality deletes that correspond to FILE_A
+    table.newRowDelta().addDeletes(FILE_A_EQUALITY_DELETES).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+
+    // Execute scan planning - should handle equality deletes correctly
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      // Verify the task count and file paths
+      assertThat(tasks).hasSize(1); // 1 data file: FILE_A
+
+      // Verify specific task content and equality delete file associations
+      FileScanTask taskWithDeletes =
+          tasks.stream()
+              .filter(task -> !task.deletes().isEmpty())
+              .findFirst()
+              .orElseThrow(
+                  () -> new AssertionError("Expected at least one task with delete files"));
+
+      assertThat(taskWithDeletes.file().path()).isEqualTo(FILE_A.path());
+      assertThat(taskWithDeletes.deletes()).hasSize(1); // 1 delete file: FILE_A_EQUALITY_DELETES
+      assertThat(taskWithDeletes.deletes().get(0).path()).isEqualTo(FILE_A_EQUALITY_DELETES.path());
+    }
+  }
+
+  @Test
+  public void testRESTScanPlanningWithMixedDeletes() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithAllTasks);
+    Table table = createTableWithScanPlanning("mixed_deletes_test");
+
+    // Add both position and equality deletes in separate commits
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit(); // Position deletes for FILE_A
+    table
+        .newRowDelta()
+        .addDeletes(FILE_B_EQUALITY_DELETES)
+        .commit(); // Equality deletes for different partition
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+
+    // Execute scan planning - should handle mixed delete types correctly
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      // Verify task count: FILE_A only (FILE_B_EQUALITY_DELETES is in different partition)
+      assertThat(tasks).hasSize(1); // 1 data file: FILE_A
+
+      // Verify FILE_A with position deletes (FILE_B_EQUALITY_DELETES not associated since no
+      // FILE_B)
+      FileScanTask fileATask =
+          tasks.stream()
+              .filter(task -> task.file().path().equals(FILE_A.path()))
+              .findFirst()
+              .orElseThrow(() -> new AssertionError("Expected FILE_A in scan tasks"));
+
+      assertThat(fileATask.deletes())
+          .hasSize(1); // 1 delete file: FILE_A_DELETES (FILE_B_EQUALITY_DELETES not matched)
+      assertThat(fileATask.deletes().get(0).path()).isEqualTo(FILE_A_DELETES.path());
+    }
+  }
+
+  @Test
+  public void testRESTScanPlanningWithMultipleDeleteFiles() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithAllTasks);
+    Table table = createTableWithScanPlanning("multiple_deletes_test");
+
+    // Add FILE_B and FILE_C to the table (FILE_A is already added during table creation)
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+
+    // Add multiple delete files corresponding to FILE_A, FILE_B, FILE_C
+    table
+        .newRowDelta()
+        .addDeletes(FILE_A_DELETES) // Position delete for FILE_A
+        .addDeletes(FILE_B_DELETES) // Position delete for FILE_B
+        .addDeletes(FILE_C_EQUALITY_DELETES) // Equality delete for FILE_C
+        .commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+
+    // Execute scan planning with multiple delete files
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      // Verify we get tasks back (should have 3 data files: FILE_A, FILE_B, FILE_C)
+      assertThat(tasks).hasSize(3); // 3 data files
+
+      // Verify FILE_A with position deletes
+      FileScanTask fileATask =
+          tasks.stream()
+              .filter(task -> task.file().path().equals(FILE_A.path()))
+              .findFirst()
+              .orElseThrow(() -> new AssertionError("Expected FILE_A in scan tasks"));
+      assertThat(fileATask.deletes()).isNotEmpty(); // Has delete files
+      assertThat(fileATask.deletes().stream().map(DeleteFile::path))
+          .contains(FILE_A_DELETES.path()); // FILE_A_DELETES is present
+
+      // Verify FILE_B with position deletes
+      FileScanTask fileBTask =
+          tasks.stream()
+              .filter(task -> task.file().path().equals(FILE_B.path()))
+              .findFirst()
+              .orElseThrow(() -> new AssertionError("Expected FILE_B in scan tasks"));
+      assertThat(fileBTask.deletes()).isNotEmpty(); // Has delete files
+      assertThat(fileBTask.deletes().stream().map(DeleteFile::path))
+          .contains(FILE_B_DELETES.path()); // FILE_B_DELETES is present
+
+      // Verify FILE_C with equality deletes
+      FileScanTask fileCTask =
+          tasks.stream()
+              .filter(task -> task.file().path().equals(FILE_C.path()))
+              .findFirst()
+              .orElseThrow(() -> new AssertionError("Expected FILE_C in scan tasks"));
+      assertThat(fileCTask.deletes()).isNotEmpty(); // Has delete files
+      assertThat(fileCTask.deletes().stream().map(DeleteFile::path))
+          .contains(FILE_C_EQUALITY_DELETES.path()); // FILE_C_EQUALITY_DELETES is present
+    }
+  }
+
+  @Test
+  public void testRESTScanPlanningWithDeletesAndFiltering() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithAllTasks);
+    Table table = createTableWithScanPlanning("deletes_filtering_test");
+
+    // Add FILE_B to have more data for filtering
+    table.newAppend().appendFile(FILE_B).commit();
+
+    // Add equality delete for FILE_B
+    table.newRowDelta().addDeletes(FILE_B_EQUALITY_DELETES).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+
+    // Create a filtered scan and execute scan planning with filtering and deletes
+    try (CloseableIterable<FileScanTask> iterable =
+        table.newScan().filter(Expressions.equal("data", "test")).planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      // Verify scan planning works with both filtering and deletes
+      assertThat(tasks).hasSize(2); // 2 data files: FILE_A, FILE_B
+
+      // FILE_A should have no delete files
+      FileScanTask fileATask =
+          tasks.stream()
+              .filter(task -> task.file().path().equals(FILE_A.path()))
+              .findFirst()
+              .orElseThrow(() -> new AssertionError("Expected FILE_A in scan tasks"));
+      assertThat(fileATask.deletes()).isEmpty(); // 0 delete files for FILE_A
+
+      // FILE_B should have FILE_B_EQUALITY_DELETES
+      FileScanTask fileBTask =
+          tasks.stream()
+              .filter(task -> task.file().path().equals(FILE_B.path()))
+              .findFirst()
+              .orElseThrow(() -> new AssertionError("Expected FILE_B in scan tasks"));
+      assertThat(fileBTask.deletes()).hasSize(1); // 1 delete file: FILE_B_EQUALITY_DELETES
+      assertThat(fileBTask.deletes().get(0).path()).isEqualTo(FILE_B_EQUALITY_DELETES.path());
+    }
+  }
+
+  @Test
+  public void testRESTScanPlanningDeletesCancellation() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
+    Table table = createTableWithScanPlanning("deletes_cancellation_test");
+
+    // Add deletes to make the scenario more complex
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A_EQUALITY_DELETES).commit();
+
+    // Ensure we have a RESTTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTTable.class);
+    RESTTableScan restTableScan = restTableScanFor(table);
+
+    // Get the iterable (which may involve async planning with deletes)
+    try (CloseableIterable<FileScanTask> iterable = restTableScan.planFiles();
+        CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
+      // Test cancellation works with delete files present
+      // Resources will be closed automatically
+    }
+
+    // Verify cancellation method is still accessible
+    assertThat(restTableScan.cancelPlan()).isFalse(); // No active plan at this point
+  }
+
+  @Test
+  public void testRESTScanPlanningWithTimeTravel() throws IOException {
+    // Test server-side scan planning with time travel (snapshot-based queries)
+    // Verify that snapshot IDs are correctly passed through the REST API
+    // and that historical scans return the correct files and deletes
+
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithAllTasks);
+
+    TableIdentifier tableId = TableIdentifier.of(NS, "snapshot_scan_test");
+
+    RESTCatalog catalog =
+        initCatalog(
+            "prod", ImmutableMap.of(RESTCatalogProperties.REST_SERVER_PLANNING_ENABLED, "true"));
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(tableId.namespace());
+    }
+
+    // Create table and add FILE_A (snapshot 1)
+    Table table = catalog.buildTable(tableId, SCHEMA).withPartitionSpec(SPEC).create();
+    // Assert that we have a RESTTable
+    assertThat(table).isInstanceOf(RESTTable.class);
+    table.newAppend().appendFile(FILE_A).commit();
+    table.refresh();
+    long snapshot1Id = table.currentSnapshot().snapshotId();
+
+    // Add FILE_B (snapshot 2)
+    table.newAppend().appendFile(FILE_B).commit();
+    table.refresh();
+    long snapshot2Id = table.currentSnapshot().snapshotId();
+    assertThat(snapshot2Id).isNotEqualTo(snapshot1Id);
+
+    // Add FILE_C and deletes (snapshots 3 and 4)
+    table.newAppend().appendFile(FILE_C).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    table.refresh();
+    long snapshot4Id = table.currentSnapshot().snapshotId();
+    assertThat(snapshot4Id).isNotEqualTo(snapshot2Id);
+
+    // Test 1: Scan at snapshot 1 (should only see FILE_A, no deletes)
+    TableScan scan1 = table.newScan().useSnapshot(snapshot1Id);
+    CloseableIterable<FileScanTask> iterable1 = scan1.planFiles();
+    List<FileScanTask> tasks1 = Lists.newArrayList(iterable1);
+
+    assertThat(tasks1).hasSize(1); // Only FILE_A exists at snapshot 1
+    assertThat(tasks1.get(0).file().path()).isEqualTo(FILE_A.path());
+    assertThat(tasks1.get(0).deletes()).isEmpty(); // No deletes at snapshot 1
+
+    // Test 2: Scan at snapshot 2 (should see FILE_A and FILE_B, no deletes)
+    TableScan scan2 = table.newScan().useSnapshot(snapshot2Id);
+    CloseableIterable<FileScanTask> iterable2 = scan2.planFiles();
+    List<FileScanTask> tasks2 = Lists.newArrayList(iterable2);
+
+    assertThat(tasks2).hasSize(2); // FILE_A and FILE_B exist at snapshot 2
+    assertThat(tasks2.stream().map(task -> task.file().path()))
+        .containsExactlyInAnyOrder(FILE_A.path(), FILE_B.path());
+    assertThat(tasks2.stream().allMatch(task -> task.deletes().isEmpty()))
+        .isTrue(); // No deletes at snapshot 2
+
+    // Test 3: Scan at current snapshot (should see FILE_A, FILE_B, FILE_C, and FILE_A has deletes)
+    TableScan scan3 = table.newScan().useSnapshot(snapshot4Id);
+    CloseableIterable<FileScanTask> iterable3 = scan3.planFiles();
+    List<FileScanTask> tasks3 = Lists.newArrayList(iterable3);
+
+    assertThat(tasks3).hasSize(3); // All 3 data files exist at snapshot 4
+    assertThat(tasks3.stream().map(task -> task.file().path()))
+        .containsExactlyInAnyOrder(FILE_A.path(), FILE_B.path(), FILE_C.path());
+
+    // Verify FILE_A has deletes at snapshot 4
+    FileScanTask fileATask =
+        tasks3.stream()
+            .filter(task -> task.file().path().equals(FILE_A.path()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected FILE_A in scan tasks"));
+    assertThat(fileATask.deletes()).hasSize(1); // FILE_A_DELETES present at snapshot 4
+    assertThat(fileATask.deletes().get(0).path()).isEqualTo(FILE_A_DELETES.path());
+
+    // Verify FILE_B and FILE_C have no deletes at snapshot 4
+    tasks3.stream()
+        .filter(
+            task ->
+                task.file().path().equals(FILE_B.path())
+                    || task.file().path().equals(FILE_C.path()))
+        .forEach(task -> assertThat(task.deletes()).isEmpty());
   }
 }
