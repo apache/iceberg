@@ -66,6 +66,9 @@ import org.apache.iceberg.view.ViewMetadata;
  */
 public interface RESTOperationsFactory {
 
+  /** Default {@link RESTOperationsFactory} instance. */
+  RESTOperationsFactory DEFAULT = new RESTOperationsFactory() {};
+
   /**
    * Create a new {@link RESTTableOperations} instance for simple table operations.
    *
@@ -139,7 +142,4 @@ public interface RESTOperationsFactory {
       Set<Endpoint> endpoints) {
     return new RESTViewOperations(client, path, headers, current, endpoints);
   }
-
-  /** Default {@link RESTOperationsFactory} instance. */
-  RESTOperationsFactory DEFAULT = new RESTOperationsFactory() {};
 }
