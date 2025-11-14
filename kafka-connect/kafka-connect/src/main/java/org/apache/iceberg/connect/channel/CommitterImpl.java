@@ -20,8 +20,6 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SinkWriter;
@@ -42,24 +40,10 @@ public class CommitterImpl implements Committer {
 
   private CoordinatorThread coordinatorThread;
   private Worker worker;
-  private Catalog catalog;
   private IcebergSinkConfig config;
   private SinkTaskContext context;
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
-  private final AtomicBoolean isInitialized = new AtomicBoolean(false);
-
-  private void initialize(
-      Catalog icebergCatalog,
-      IcebergSinkConfig icebergSinkConfig,
-      SinkTaskContext sinkTaskContext) {
-    if (isInitialized.compareAndSet(false, true)) {
-      this.catalog = icebergCatalog;
-      this.config = icebergSinkConfig;
-      this.context = sinkTaskContext;
-      this.clientFactory = new KafkaClientFactory(config.kafkaProps());
-    }
-  }
 
   static class TopicPartitionComparator implements Comparator<TopicPartition> {
 
@@ -105,22 +89,7 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
-  public void start(
-      Catalog icebergCatalog,
-      IcebergSinkConfig icebergSinkConfig,
-      SinkTaskContext sinkTaskContext) {
-    throw new UnsupportedOperationException(
-        "The method start(Catalog, IcebergSinkConfig, SinkTaskContext) is deprecated and will be removed in 2.0.0. "
-            + "Use start(Catalog, IcebergSinkConfig, SinkTaskContext, Collection<TopicPartition>) instead.");
-  }
-
-  @Override
-  public void open(
-      Catalog icebergCatalog,
-      IcebergSinkConfig icebergSinkConfig,
-      SinkTaskContext sinkTaskContext,
-      Collection<TopicPartition> addedPartitions) {
-    initialize(icebergCatalog, icebergSinkConfig, sinkTaskContext);
+  public void open(Collection<TopicPartition> addedPartitions) {
     if (hasLeaderPartition(addedPartitions)) {
       LOG.info("Committer received leader partition. Starting Coordinator.");
       startCoordinator();
@@ -128,27 +97,15 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
-  public void stop() {
-    throw new UnsupportedOperationException(
-        "The method stop() is deprecated and will be removed in 2.0.0. "
-            + "Use stop(Collection<TopicPartition>) instead.");
-  }
-
-  @Override
   public void close(Collection<TopicPartition> closedPartitions) {
     // Always try to stop the worker to avoid duplicates.
     stopWorker();
-
-    // Defensive: close called without prior initialization (should not happen).
-    if (!isInitialized.get()) {
-      LOG.warn("Close unexpectedly called without partition assignment");
-      return;
-    }
 
     // Empty partitions → task was stopped explicitly. Stop coordinator if running.
     if (closedPartitions.isEmpty()) {
       LOG.info("Task stopped. Closing coordinator.");
       stopCoordinator();
+      config.closeCatalog();
       return;
     }
 
@@ -178,6 +135,14 @@ public class CommitterImpl implements Committer {
     processControlEvents();
   }
 
+  @Override
+  public void configure(IcebergSinkConfig icebergSinkConfig) {
+    this.config = icebergSinkConfig;
+    this.context = icebergSinkConfig.context();
+    this.clientFactory = new KafkaClientFactory(icebergSinkConfig.kafkaProps());
+    this.config.loadCatalog();
+  }
+
   private void processControlEvents() {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
       throw new NotRunningException(
@@ -193,8 +158,8 @@ public class CommitterImpl implements Committer {
   private void startWorker() {
     if (null == this.worker) {
       LOG.info("Starting commit worker {}-{}", config.connectorName(), config.taskId());
-      SinkWriter sinkWriter = new SinkWriter(catalog, config);
-      worker = new Worker(config, clientFactory, sinkWriter, context);
+      SinkWriter sinkWriter = new SinkWriter(config);
+      worker = new Worker(config, clientFactory, sinkWriter);
       worker.start();
     }
   }
@@ -206,7 +171,7 @@ public class CommitterImpl implements Committer {
           config.connectorName(),
           config.taskId());
       Coordinator coordinator =
-          new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
+          new Coordinator(config, membersWhenWorkerIsCoordinator, clientFactory);
       coordinatorThread = new CoordinatorThread(coordinator);
       coordinatorThread.start();
     }
