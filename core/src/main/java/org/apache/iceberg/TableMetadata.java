@@ -1321,7 +1321,7 @@ public class TableMetadata implements Serializable {
 
         // rollback to an existing snapshot will use current timestamp as the time of the change
         long timeOfChange =
-            isAddedSnapshot(snapshotId) ? snapshot.timestampMillis() : System.currentTimeMillis();
+            isAddedSnapshot(snapshotId) ? snapshot.timestampMillis() : this.lastUpdatedMillis;
         snapshotLog.add(new SnapshotLogEntry(timeOfChange, ref.snapshotId()));
       }
 

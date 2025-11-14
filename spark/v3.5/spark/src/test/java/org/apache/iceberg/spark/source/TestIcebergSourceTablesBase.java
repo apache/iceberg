@@ -46,6 +46,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -823,6 +824,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     long rollbackTimestamp = Iterables.getLast(table.history()).timestampMillis();
     assertThat(rollbackTimestamp)
         .as("Rollback history timestamp should be greater than first snapshot timestamp")
+        .isEqualTo(((HasTableOperations) table).operations().current().lastUpdatedMillis())
         .isGreaterThan(firstSnapshotTimestamp);
 
     inputDf
