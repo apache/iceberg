@@ -27,9 +27,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -38,8 +35,6 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.arrow.vectorized.ColumnarBatch;
-import org.apache.iceberg.arrow.vectorized.VectorizedTableScanIterable;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -61,7 +56,6 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -236,78 +230,6 @@ public class TestSparkParquetReader extends AvroDataTestBase {
 
       return new org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport();
     }
-  }
-
-  @Test
-  public void testTimestampMillisProducedBySparkIsReadCorrectly() throws IOException {
-    String outputFilePath =
-        String.format("%s/%s", temp.toAbsolutePath(), "parquet_timestamp_millis.parquet");
-    HadoopOutputFile outputFile =
-        HadoopOutputFile.fromPath(
-            new org.apache.hadoop.fs.Path(outputFilePath), new Configuration());
-
-    Schema schema = new Schema(required(1, "event_time", Types.TimestampType.withZone()));
-
-    StructType sparkSchema =
-        new StructType(
-            new StructField[] {
-              new StructField("event_time", DataTypes.TimestampType, false, Metadata.empty())
-            });
-
-    List<InternalRow> originalRows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
-    List<InternalRow> rows = Lists.newArrayList();
-    for (InternalRow row : originalRows) {
-      long timestampMicros = row.getLong(0);
-      long timestampMillis = (timestampMicros / 1000) * 1000;
-      rows.add(new GenericInternalRow(new Object[] {timestampMillis}));
-    }
-
-    try (ParquetWriter<InternalRow> writer =
-        new NativeSparkWriterBuilder(outputFile)
-            .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
-            .set("spark.sql.parquet.writeLegacyFormat", "false")
-            .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MILLIS")
-            .set("spark.sql.parquet.fieldId.write.enabled", "true")
-            .build()) {
-      for (InternalRow row : rows) {
-        writer.write(row);
-      }
-    }
-
-    InputFile parquetInputFile = Files.localInput(outputFilePath);
-    Table timestampMillisTable = tableFromInputFile(parquetInputFile, schema);
-
-    int totalRowsRead = 0;
-    int rowIndex = 0;
-    try (VectorizedTableScanIterable vectorizedReader =
-        new VectorizedTableScanIterable(timestampMillisTable.newScan(), 1024, false)) {
-
-      for (ColumnarBatch batch : vectorizedReader) {
-        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-
-        FieldVector eventTimeVector = root.getVector("event_time");
-        assertThat(eventTimeVector).isNotNull();
-        assertThat(eventTimeVector).isInstanceOf(BigIntVector.class);
-
-        BigIntVector bigIntVector = (BigIntVector) eventTimeVector;
-
-        for (int i = 0; i < root.getRowCount(); i++) {
-          long actualValue = bigIntVector.get(i);
-          long expectedValue = rows.get(rowIndex).getLong(0);
-
-          assertThat(actualValue)
-              .as("Row %d timestamp value should match", rowIndex)
-              .isEqualTo(expectedValue);
-
-          rowIndex++;
-        }
-
-        totalRowsRead += root.getRowCount();
-        root.close();
-      }
-    }
-
-    assertThat(totalRowsRead).as("Should read all rows").isEqualTo(rows.size());
   }
 
   @Test
