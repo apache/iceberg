@@ -4717,7 +4717,6 @@ components:
               }
             }
 
-
     IcebergErrorResponse:
       description: JSON wrapper for all error responses (non-2xx)
       content:
