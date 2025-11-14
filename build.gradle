@@ -358,6 +358,7 @@ project(':iceberg-core') {
     }
 
     implementation libs.aircompressor
+    implementation libs.bettercloud.vault
     implementation libs.httpcomponents.httpclient5
     implementation platform(libs.jackson.bom)
     implementation libs.jackson.core
