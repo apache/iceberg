@@ -76,7 +76,8 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
 
     catalog.dropTable(tableIdentifier);
     catalog.createTable(tableIdentifier, SCHEMA2);
-    tableUpdater.update(tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned());
+    tableUpdater.update(
+        tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
 
     Schema schema2 = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
     assertThat(schema2.sameSchema(SCHEMA2)).isTrue();
