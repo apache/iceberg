@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.flink.maintenance.api.EtcdLockFactory;
 import org.apache.iceberg.flink.maintenance.api.JdbcLockFactory;
 import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
@@ -48,6 +49,9 @@ public class LockFactoryBuilder {
 
       case LockConfig.ZkLockConfig.ZK:
         return createZkLockFactory(lockConfig, tableName);
+
+      case LockConfig.EtcdLockConfig.ETCD:
+        return createEtcdLockFactory(lockConfig, tableName);
 
       default:
         throw new IllegalArgumentException(String.format("Unsupported lock type: %s ", lockType));
@@ -85,5 +89,22 @@ public class LockFactoryBuilder {
         lockConfig.zkMaxRetries(),
         lockConfig.zkRetryPolicy(),
         lockConfig.zkMaxSleepMs());
+  }
+
+  private static TriggerLockFactory createEtcdLockFactory(LockConfig lockConfig, String tableName) {
+    String[] endPoints = lockConfig.etcdEndpoints();
+    String lockId = lockConfig.lockId(tableName);
+    Preconditions.checkArgument(
+        endPoints != null && endPoints.length > 0,
+        "Etcd lock requires at least one %s parameter",
+        LockConfig.EtcdLockConfig.ETCD_ENDPOINTS_OPTION.key());
+
+    return new EtcdLockFactory(
+        endPoints,
+        lockId,
+        lockConfig.etcdConnectionTimeoutMs(),
+        lockConfig.etcdKeepAliveMs(),
+        lockConfig.etcdKeepAliveTimeoutMs(),
+        lockConfig.etcdMaxRetries());
   }
 }
