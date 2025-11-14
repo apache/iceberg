@@ -113,13 +113,13 @@ public class TestSchemaUtils {
     verify(table).refresh();
     verify(table).updateSchema();
 
-    verify(updateSchema).addColumn(isNull(), eq("s"), isA(StringType.class));
+    verify(updateSchema).addColumn(isNull(), eq("s"), isA(StringType.class), isNull(), isNull());
     verify(updateSchema).updateColumn(eq("f"), isA(DoubleType.class));
     verify(updateSchema).makeColumnOptional(eq("i"));
     verify(updateSchema).commit();
 
     // check that there are no unexpected invocations...
-    verify(updateSchema).addColumn(isNull(), anyString(), any());
+    verify(updateSchema).addColumn(isNull(), anyString(), any(), isNull(), any());
     verify(updateSchema).updateColumn(any(), any());
     verify(updateSchema).makeColumnOptional(any());
   }
@@ -143,13 +143,13 @@ public class TestSchemaUtils {
     verify(table).refresh();
     verify(table).updateSchema();
 
-    verify(updateSchema).addColumn(eq("st"), eq("s"), isA(StringType.class));
+    verify(updateSchema).addColumn(eq("st"), eq("s"), isA(StringType.class), isNull(), isNull());
     verify(updateSchema).updateColumn(eq("st.f"), isA(DoubleType.class));
     verify(updateSchema).makeColumnOptional(eq("st.i"));
     verify(updateSchema).commit();
 
     // check that there are no unexpected invocations...
-    verify(updateSchema).addColumn(anyString(), anyString(), any());
+    verify(updateSchema).addColumn(anyString(), anyString(), any(), isNull(), any());
     verify(updateSchema).updateColumn(any(), any());
     verify(updateSchema).makeColumnOptional(any());
   }
@@ -478,26 +478,26 @@ public class TestSchemaUtils {
     StructType structType = (StructType) icebergType;
     assertThat(structType.fields()).hasSize(4);
 
-    // Field without default
-    NestedField idField = structType.field(0);
+    // Fields by name (not index)
+    NestedField idField = structType.field("id");
     assertThat(idField.name()).isEqualTo("id");
     assertThat(idField.initialDefault()).isNull();
     assertThat(idField.writeDefault()).isNull();
 
     // Field with string default
-    NestedField nameField = structType.field(1);
+    NestedField nameField = structType.field("name");
     assertThat(nameField.name()).isEqualTo("name");
     assertThat(nameField.initialDefault()).isEqualTo("unknown");
     assertThat(nameField.writeDefault()).isEqualTo("unknown");
 
     // Field with integer default
-    NestedField ageField = structType.field(2);
+    NestedField ageField = structType.field("age");
     assertThat(ageField.name()).isEqualTo("age");
     assertThat(ageField.initialDefault()).isEqualTo(0);
     assertThat(ageField.writeDefault()).isEqualTo(0);
 
     // Field with boolean default
-    NestedField activeField = structType.field(3);
+    NestedField activeField = structType.field("active");
     assertThat(activeField.name()).isEqualTo("active");
     assertThat(activeField.initialDefault()).isEqualTo(true);
     assertThat(activeField.writeDefault()).isEqualTo(true);

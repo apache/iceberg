@@ -92,7 +92,15 @@ class RecordConverter {
     this.tableSchema = table.schema();
     this.nameMapping = createNameMapping(table);
     this.config = config;
-    this.tableFormatVersion = TableUtil.formatVersion(table);
+
+    int formatVersion;
+    try {
+      formatVersion = TableUtil.formatVersion(table);
+    } catch (Exception ex) {
+      LOG.error("Failed to retrieve format version from table {}", table.name(), ex);
+      formatVersion = -1;
+    }
+    this.tableFormatVersion = formatVersion;
   }
 
   Record convert(Object data) {
