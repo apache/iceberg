@@ -107,6 +107,8 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 
+  public static final int DEFAULT_VALUE_MIN_FORMAT_VERSION = 3;
+
   public static final ConfigDef CONFIG_DEF = newConfigDef();
 
   public static String version() {
