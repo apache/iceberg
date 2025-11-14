@@ -372,10 +372,7 @@ class SchemaUtils {
       return Expressions.micros(((Number) defaultValue).longValue());
     } else if (defaultValue instanceof LocalDateTime) {
       long micros =
-          ((LocalDateTime) defaultValue)
-                  .atZone(java.time.ZoneOffset.UTC)
-                  .toInstant()
-                  .toEpochMilli()
+          ((LocalDateTime) defaultValue).atZone(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
               * 1000;
       return Expressions.micros(micros);
     } else if (defaultValue instanceof OffsetDateTime) {
