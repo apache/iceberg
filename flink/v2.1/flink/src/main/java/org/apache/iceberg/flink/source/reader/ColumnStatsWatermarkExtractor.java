@@ -53,13 +53,25 @@ public class ColumnStatsWatermarkExtractor implements SplitWatermarkExtractor, S
     Types.NestedField field = schema.findField(eventTimeFieldName);
     TypeID typeID = field.type().typeId();
     Preconditions.checkArgument(
-        typeID.equals(TypeID.LONG) || typeID.equals(TypeID.TIMESTAMP),
-        "Found %s, expected a LONG or TIMESTAMP column for watermark generation.",
+        typeID.equals(TypeID.LONG)
+            || typeID.equals(TypeID.TIMESTAMP)
+            || typeID.equals(TypeID.TIMESTAMP_NANO),
+        "Found %s, expected a LONG, TIMESTAMP, or TIMESTAMP_NANO column for watermark generation.",
         typeID);
     this.eventTimeFieldId = field.fieldId();
     this.eventTimeFieldName = eventTimeFieldName;
-    // Use the timeUnit only for Long columns.
-    this.timeUnit = typeID.equals(TypeID.LONG) ? timeUnit : TimeUnit.MICROSECONDS;
+
+    // For timestamp columns, determine the appropriate time unit based on the timestamp precision
+    if (typeID.equals(TypeID.TIMESTAMP) || typeID.equals(TypeID.TIMESTAMP_NANO)) {
+      // For nanosecond precision timestamps, use nanoseconds; otherwise use microseconds
+      this.timeUnit =
+          (field.type() instanceof Types.TimestampNanoType)
+              ? TimeUnit.NANOSECONDS
+              : TimeUnit.MICROSECONDS;
+    } else {
+      // Use the provided timeUnit for Long columns
+      this.timeUnit = timeUnit;
+    }
   }
 
   @VisibleForTesting
