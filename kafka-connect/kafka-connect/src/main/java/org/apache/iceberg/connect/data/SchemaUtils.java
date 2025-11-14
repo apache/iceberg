@@ -243,114 +243,28 @@ class SchemaUtils {
         case BOOLEAN:
           return Expressions.lit((Boolean) defaultValue);
         case INTEGER:
-          if (defaultValue instanceof Number) {
-            return Expressions.lit(((Number) defaultValue).intValue());
-          }
-          break;
+          return convertIntegerDefault(defaultValue);
         case LONG:
-          if (defaultValue instanceof Number) {
-            return Expressions.lit(((Number) defaultValue).longValue());
-          }
-          break;
+          return convertLongDefault(defaultValue);
         case FLOAT:
-          if (defaultValue instanceof Number) {
-            return Expressions.lit(((Number) defaultValue).floatValue());
-          }
-          break;
+          return convertFloatDefault(defaultValue);
         case DOUBLE:
-          if (defaultValue instanceof Number) {
-            return Expressions.lit(((Number) defaultValue).doubleValue());
-          }
-          break;
+          return convertDoubleDefault(defaultValue);
         case STRING:
           return Expressions.lit(defaultValue.toString());
         case DECIMAL:
-          if (defaultValue instanceof BigDecimal) {
-            return Expressions.lit((BigDecimal) defaultValue);
-          } else if (defaultValue instanceof byte[]) {
-            // Kafka Connect Decimal can be byte array
-            DecimalType decimalType = (DecimalType) icebergType;
-            // BigDecimal constructor takes (unscaledValue, scale)
-            // Precision is determined by the number of digits in unscaledValue
-            BigDecimal decimal =
-                new BigDecimal(
-                    new java.math.BigInteger((byte[]) defaultValue), decimalType.scale());
-            return Expressions.lit(decimal);
-          }
-          break;
+          return convertDecimalDefault(defaultValue, (DecimalType) icebergType);
         case DATE:
-          // Iceberg Date is stored as days from epoch (int)
-          if (defaultValue instanceof java.util.Date) {
-            // Convert java.util.Date to days from epoch
-            long epochDay =
-                ((java.util.Date) defaultValue)
-                    .toInstant()
-                    .atZone(java.time.ZoneOffset.UTC)
-                    .toLocalDate()
-                    .toEpochDay();
-            // Create an IntegerLiteral and convert to DateLiteral using .to(Type)
-            return Expressions.lit((int) epochDay).to(icebergType);
-          } else if (defaultValue instanceof Number) {
-            // Already in days from epoch
-            return Expressions.lit(((Number) defaultValue).intValue()).to(icebergType);
-          } else if (defaultValue instanceof LocalDate) {
-            int days = (int) ((LocalDate) defaultValue).toEpochDay();
-            return Expressions.lit(days).to(icebergType);
-          }
-          break;
+          return convertDateDefault(defaultValue, icebergType);
         case TIME:
-          // Iceberg Time is stored as microseconds from midnight (long)
-          if (defaultValue instanceof java.util.Date) {
-            // Kafka Connect Time is milliseconds since midnight
-            long millis = ((java.util.Date) defaultValue).getTime();
-            // Create a LongLiteral and convert to TimeLiteral using .to(Type)
-            return Expressions.lit(millis * 1000).to(icebergType);
-          } else if (defaultValue instanceof Number) {
-            // Assume microseconds from midnight
-            return Expressions.lit(((Number) defaultValue).longValue()).to(icebergType);
-          } else if (defaultValue instanceof LocalTime) {
-            long micros = ((LocalTime) defaultValue).toNanoOfDay() / 1000;
-            return Expressions.lit(micros).to(icebergType);
-          }
-          break;
+          return convertTimeDefault(defaultValue, icebergType);
         case TIMESTAMP:
-          // Iceberg Timestamp is stored as microseconds from epoch (long)
-          if (defaultValue instanceof java.util.Date) {
-            // Kafka Connect Timestamp is milliseconds from epoch
-            long micros = ((java.util.Date) defaultValue).getTime() * 1000;
-            // Create TimestampLiteral directly using micros() which returns the correct type
-            return Expressions.micros(micros);
-          } else if (defaultValue instanceof Number) {
-            // Assume microseconds from epoch
-            return Expressions.micros(((Number) defaultValue).longValue());
-          } else if (defaultValue instanceof LocalDateTime) {
-            long micros =
-                ((LocalDateTime) defaultValue)
-                        .atZone(java.time.ZoneOffset.UTC)
-                        .toInstant()
-                        .toEpochMilli()
-                    * 1000;
-            return Expressions.micros(micros);
-          } else if (defaultValue instanceof OffsetDateTime) {
-            long micros = ((OffsetDateTime) defaultValue).toInstant().toEpochMilli() * 1000;
-            return Expressions.micros(micros);
-          }
-          break;
+          return convertTimestampDefault(defaultValue);
         case BINARY:
         case FIXED:
-          if (defaultValue instanceof byte[]) {
-            return Expressions.lit(ByteBuffer.wrap((byte[]) defaultValue));
-          } else if (defaultValue instanceof ByteBuffer) {
-            return Expressions.lit((ByteBuffer) defaultValue);
-          }
-          break;
+          return convertBinaryDefault(defaultValue);
         case UUID:
-          if (defaultValue instanceof java.util.UUID) {
-            return Expressions.lit((java.util.UUID) defaultValue);
-          } else if (defaultValue instanceof String) {
-            return Expressions.lit(java.util.UUID.fromString((String) defaultValue));
-          }
-          break;
+          return convertUuidDefault(defaultValue);
         default:
           // Nested types (LIST, MAP, STRUCT) cannot have non-null defaults in Iceberg
           LOG.warn(
@@ -363,12 +277,129 @@ class SchemaUtils {
           "Failed to convert default value {} to Iceberg type {}", defaultValue, icebergType, e);
       return null;
     }
+  }
 
-    LOG.warn(
-        "Could not convert default value {} of class {} to Iceberg type {}",
-        defaultValue,
-        defaultValue.getClass().getName(),
-        icebergType);
+  private static Literal<?> convertIntegerDefault(Object defaultValue) {
+    if (defaultValue instanceof Number) {
+      return Expressions.lit(((Number) defaultValue).intValue());
+    }
+    return null;
+  }
+
+  private static Literal<?> convertLongDefault(Object defaultValue) {
+    if (defaultValue instanceof Number) {
+      return Expressions.lit(((Number) defaultValue).longValue());
+    }
+    return null;
+  }
+
+  private static Literal<?> convertFloatDefault(Object defaultValue) {
+    if (defaultValue instanceof Number) {
+      return Expressions.lit(((Number) defaultValue).floatValue());
+    }
+    return null;
+  }
+
+  private static Literal<?> convertDoubleDefault(Object defaultValue) {
+    if (defaultValue instanceof Number) {
+      return Expressions.lit(((Number) defaultValue).doubleValue());
+    }
+    return null;
+  }
+
+  private static Literal<?> convertDecimalDefault(Object defaultValue, DecimalType decimalType) {
+    if (defaultValue instanceof BigDecimal) {
+      return Expressions.lit((BigDecimal) defaultValue);
+    } else if (defaultValue instanceof byte[]) {
+      // Kafka Connect Decimal can be byte array
+      // BigDecimal constructor takes (unscaledValue, scale)
+      // Precision is determined by the number of digits in unscaledValue
+      BigDecimal decimal =
+          new BigDecimal(new java.math.BigInteger((byte[]) defaultValue), decimalType.scale());
+      return Expressions.lit(decimal);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertDateDefault(Object defaultValue, Type icebergType) {
+    // Iceberg Date is stored as days from epoch (int)
+    if (defaultValue instanceof java.util.Date) {
+      // Convert java.util.Date to days from epoch
+      long epochDay =
+          ((java.util.Date) defaultValue)
+              .toInstant()
+              .atZone(java.time.ZoneOffset.UTC)
+              .toLocalDate()
+              .toEpochDay();
+      // Create an IntegerLiteral and convert to DateLiteral using .to(Type)
+      return Expressions.lit((int) epochDay).to(icebergType);
+    } else if (defaultValue instanceof Number) {
+      // Already in days from epoch
+      return Expressions.lit(((Number) defaultValue).intValue()).to(icebergType);
+    } else if (defaultValue instanceof LocalDate) {
+      int days = (int) ((LocalDate) defaultValue).toEpochDay();
+      return Expressions.lit(days).to(icebergType);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertTimeDefault(Object defaultValue, Type icebergType) {
+    // Iceberg Time is stored as microseconds from midnight (long)
+    if (defaultValue instanceof java.util.Date) {
+      // Kafka Connect Time is milliseconds since midnight
+      long millis = ((java.util.Date) defaultValue).getTime();
+      // Create a LongLiteral and convert to TimeLiteral using .to(Type)
+      return Expressions.lit(millis * 1000).to(icebergType);
+    } else if (defaultValue instanceof Number) {
+      // Assume microseconds from midnight
+      return Expressions.lit(((Number) defaultValue).longValue()).to(icebergType);
+    } else if (defaultValue instanceof LocalTime) {
+      long micros = ((LocalTime) defaultValue).toNanoOfDay() / 1000;
+      return Expressions.lit(micros).to(icebergType);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertTimestampDefault(Object defaultValue) {
+    // Iceberg Timestamp is stored as microseconds from epoch (long)
+    if (defaultValue instanceof java.util.Date) {
+      // Kafka Connect Timestamp is milliseconds from epoch
+      long micros = ((java.util.Date) defaultValue).getTime() * 1000;
+      // Create TimestampLiteral directly using micros() which returns the correct type
+      return Expressions.micros(micros);
+    } else if (defaultValue instanceof Number) {
+      // Assume microseconds from epoch
+      return Expressions.micros(((Number) defaultValue).longValue());
+    } else if (defaultValue instanceof LocalDateTime) {
+      long micros =
+          ((LocalDateTime) defaultValue)
+                  .atZone(java.time.ZoneOffset.UTC)
+                  .toInstant()
+                  .toEpochMilli()
+              * 1000;
+      return Expressions.micros(micros);
+    } else if (defaultValue instanceof OffsetDateTime) {
+      long micros = ((OffsetDateTime) defaultValue).toInstant().toEpochMilli() * 1000;
+      return Expressions.micros(micros);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertBinaryDefault(Object defaultValue) {
+    if (defaultValue instanceof byte[]) {
+      return Expressions.lit(ByteBuffer.wrap((byte[]) defaultValue));
+    } else if (defaultValue instanceof ByteBuffer) {
+      return Expressions.lit((ByteBuffer) defaultValue);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertUuidDefault(Object defaultValue) {
+    if (defaultValue instanceof java.util.UUID) {
+      return Expressions.lit((java.util.UUID) defaultValue);
+    } else if (defaultValue instanceof String) {
+      return Expressions.lit(java.util.UUID.fromString((String) defaultValue));
+    }
     return null;
   }
 
