@@ -217,6 +217,11 @@ public class ParquetSchemaUtil {
     public Boolean primitive(PrimitiveType primitive) {
       return primitive.getId() != null;
     }
+
+    @Override
+    public Boolean variant(GroupType variant) {
+      return variant.getId() != null;
+    }
   }
 
   public static Type determineListElementType(GroupType array) {

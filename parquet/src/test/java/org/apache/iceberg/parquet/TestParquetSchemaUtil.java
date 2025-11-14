@@ -112,7 +112,20 @@ public class TestParquetSchemaUtil {
                             27,
                             "m2",
                             Types.MapType.ofOptional(
-                                28, 29, Types.StringType.get(), SUPPORTED_PRIMITIVES))))));
+                                28, 29, Types.StringType.get(), SUPPORTED_PRIMITIVES))))),
+            optional(30, "variant_col", Types.VariantType.get()),
+            required(
+                31, "list_of_variants", Types.ListType.ofOptional(32, Types.VariantType.get())),
+            optional(
+                33,
+                "struct_with_variant",
+                Types.StructType.of(
+                    Types.NestedField.required(34, "id", Types.IntegerType.get()),
+                    Types.NestedField.optional(35, "data", Types.VariantType.get()))),
+            required(
+                36,
+                "map_with_variant_value",
+                Types.MapType.ofOptional(37, 38, Types.StringType.get(), Types.VariantType.get())));
 
     Schema schema =
         new Schema(
@@ -224,7 +237,16 @@ public class TestParquetSchemaUtil {
                 "map_col_5",
                 Repetition.REQUIRED,
                 primitive(28, "k", PrimitiveTypeName.INT32, Repetition.REQUIRED),
-                primitive(29, "v", PrimitiveTypeName.INT32, Repetition.REQUIRED)));
+                primitive(29, "v", PrimitiveTypeName.INT32, Repetition.REQUIRED)),
+            variant(30, "variant_col_1", Repetition.OPTIONAL),
+            variant(null, "variant_col_2", Repetition.REQUIRED),
+            list(31, "list_col_6", Repetition.OPTIONAL, variant(32, "v", Repetition.OPTIONAL)),
+            struct(
+                33,
+                "struct_col_3",
+                Repetition.REQUIRED,
+                primitive(34, "n1", PrimitiveTypeName.INT32, Repetition.REQUIRED),
+                variant(null, "variant_field", Repetition.OPTIONAL)));
 
     Schema expectedSchema =
         new Schema(
@@ -255,8 +277,13 @@ public class TestParquetSchemaUtil {
             required(
                 27,
                 "map_col_5",
-                Types.MapType.ofRequired(
-                    28, 29, Types.IntegerType.get(), Types.IntegerType.get())));
+                Types.MapType.ofRequired(28, 29, Types.IntegerType.get(), Types.IntegerType.get())),
+            optional(30, "variant_col_1", Types.VariantType.get()),
+            optional(31, "list_col_6", Types.ListType.ofOptional(32, Types.VariantType.get())),
+            required(
+                33,
+                "struct_col_3",
+                Types.StructType.of(required(34, "n1", Types.IntegerType.get()))));
 
     Schema actualSchema = ParquetSchemaUtil.convertAndPrune(messageType);
     assertThat(actualSchema.asStruct())
@@ -427,6 +454,17 @@ public class TestParquetSchemaUtil {
         .isEqualTo(expectedSchema.asStruct());
   }
 
+  @Test
+  public void testVariantTypeConversion() {
+    MessageType messageType =
+        new MessageType("test", variant(1, "variant_field", Repetition.OPTIONAL));
+    Schema expectedSchema = new Schema(optional(1, "variant_field", Types.VariantType.get()));
+    Schema actualSchema = ParquetSchemaUtil.convertAndPrune(messageType);
+    assertThat(actualSchema.asStruct())
+        .as("Schema must match")
+        .isEqualTo(expectedSchema.asStruct());
+  }
+
   private Type primitive(
       Integer id, String name, PrimitiveTypeName typeName, Repetition repetition) {
     PrimitiveBuilder<PrimitiveType> builder =
@@ -459,6 +497,20 @@ public class TestParquetSchemaUtil {
     MapBuilder<GroupType> builder = org.apache.parquet.schema.Types.map(repetition);
     builder.key(keyType);
     builder.value(valueType);
+    if (id != null) {
+      builder.id(id);
+    }
+    return builder.named(name);
+  }
+
+  private Type variant(Integer id, String name, Repetition repetition) {
+    GroupBuilder<GroupType> builder =
+        org.apache.parquet.schema.Types.buildGroup(repetition)
+            .as(org.apache.parquet.schema.LogicalTypeAnnotation.variantType((byte) 1))
+            .primitive(PrimitiveTypeName.BINARY, Repetition.REQUIRED)
+            .named("metadata")
+            .primitive(PrimitiveTypeName.BINARY, Repetition.REQUIRED)
+            .named("value");
     if (id != null) {
       builder.id(id);
     }
