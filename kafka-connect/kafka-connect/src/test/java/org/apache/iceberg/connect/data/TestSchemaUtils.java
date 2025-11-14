@@ -232,15 +232,18 @@ public class TestSchemaUtils {
         .isInstanceOf(IntegerType.class);
     assertThat(SchemaUtils.toIcebergType(Schema.INT32_SCHEMA, config, formatVersion))
         .isInstanceOf(IntegerType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.INT64_SCHEMA, config, formatVersion)).isInstanceOf(LongType.class);
+    assertThat(SchemaUtils.toIcebergType(Schema.INT64_SCHEMA, config, formatVersion))
+        .isInstanceOf(LongType.class);
     assertThat(SchemaUtils.toIcebergType(Schema.FLOAT32_SCHEMA, config, formatVersion))
         .isInstanceOf(FloatType.class);
     assertThat(SchemaUtils.toIcebergType(Schema.FLOAT64_SCHEMA, config, formatVersion))
         .isInstanceOf(DoubleType.class);
     assertThat(SchemaUtils.toIcebergType(Schema.STRING_SCHEMA, config, formatVersion))
         .isInstanceOf(StringType.class);
-    assertThat(SchemaUtils.toIcebergType(Date.SCHEMA, config, formatVersion)).isInstanceOf(DateType.class);
-    assertThat(SchemaUtils.toIcebergType(Time.SCHEMA, config, formatVersion)).isInstanceOf(TimeType.class);
+    assertThat(SchemaUtils.toIcebergType(Date.SCHEMA, config, formatVersion))
+        .isInstanceOf(DateType.class);
+    assertThat(SchemaUtils.toIcebergType(Time.SCHEMA, config, formatVersion))
+        .isInstanceOf(TimeType.class);
 
     Type timestampType = SchemaUtils.toIcebergType(Timestamp.SCHEMA, config, formatVersion);
     assertThat(timestampType).isInstanceOf(TimestampType.class);
@@ -251,14 +254,17 @@ public class TestSchemaUtils {
     assertThat(((DecimalType) decimalType).scale()).isEqualTo(4);
 
     Type listType =
-        SchemaUtils.toIcebergType(SchemaBuilder.array(Schema.STRING_SCHEMA).build(), config, formatVersion);
+        SchemaUtils.toIcebergType(
+            SchemaBuilder.array(Schema.STRING_SCHEMA).build(), config, formatVersion);
     assertThat(listType).isInstanceOf(ListType.class);
     assertThat(listType.asListType().elementType()).isInstanceOf(StringType.class);
     assertThat(listType.asListType().isElementOptional()).isEqualTo(forceOptional);
 
     Type mapType =
         SchemaUtils.toIcebergType(
-            SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA).build(), config, formatVersion);
+            SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA).build(),
+            config,
+            formatVersion);
     assertThat(mapType).isInstanceOf(MapType.class);
     assertThat(mapType.asMapType().keyType()).isInstanceOf(StringType.class);
     assertThat(mapType.asMapType().valueType()).isInstanceOf(StringType.class);

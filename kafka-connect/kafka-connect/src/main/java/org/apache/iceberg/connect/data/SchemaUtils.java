@@ -219,7 +219,8 @@ class SchemaUtils {
   }
 
   static Type inferIcebergType(Object value, IcebergSinkConfig config) {
-    return new SchemaGenerator(config, IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION).inferIcebergType(value);
+    return new SchemaGenerator(config, IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION)
+        .inferIcebergType(value);
   }
 
   /**
@@ -231,8 +232,7 @@ class SchemaUtils {
    * @return an Iceberg Literal representing the default value, or null if conversion is not
    *     possible
    */
-  static Literal<?> convertDefaultValue(
-      Object defaultValue, Type icebergType) {
+  static Literal<?> convertDefaultValue(Object defaultValue, Type icebergType) {
     if (defaultValue == null) {
       return null;
     }
@@ -273,7 +273,8 @@ class SchemaUtils {
             // BigDecimal constructor takes (unscaledValue, scale)
             // Precision is determined by the number of digits in unscaledValue
             BigDecimal decimal =
-                new BigDecimal(new java.math.BigInteger((byte[]) defaultValue), decimalType.scale());
+                new BigDecimal(
+                    new java.math.BigInteger((byte[]) defaultValue), decimalType.scale());
             return Expressions.lit(decimal);
           }
           break;
@@ -282,7 +283,9 @@ class SchemaUtils {
           if (defaultValue instanceof java.util.Date) {
             // Convert java.util.Date to days from epoch
             long epochDay =
-                ((java.util.Date) defaultValue).toInstant().atZone(java.time.ZoneOffset.UTC)
+                ((java.util.Date) defaultValue)
+                    .toInstant()
+                    .atZone(java.time.ZoneOffset.UTC)
                     .toLocalDate()
                     .toEpochDay();
             // Create an IntegerLiteral and convert to DateLiteral using .to(Type)
@@ -323,9 +326,9 @@ class SchemaUtils {
           } else if (defaultValue instanceof LocalDateTime) {
             long micros =
                 ((LocalDateTime) defaultValue)
-                    .atZone(java.time.ZoneOffset.UTC)
-                    .toInstant()
-                    .toEpochMilli()
+                        .atZone(java.time.ZoneOffset.UTC)
+                        .toInstant()
+                        .toEpochMilli()
                     * 1000;
             return Expressions.micros(micros);
           } else if (defaultValue instanceof OffsetDateTime) {
@@ -357,10 +360,7 @@ class SchemaUtils {
       }
     } catch (Exception e) {
       LOG.warn(
-          "Failed to convert default value {} to Iceberg type {}",
-          defaultValue,
-          icebergType,
-          e);
+          "Failed to convert default value {} to Iceberg type {}", defaultValue, icebergType, e);
       return null;
     }
 
@@ -442,13 +442,14 @@ class SchemaUtils {
                                 .ofType(fieldType)
                                 .withName(field.name());
 
-                        // Apply default only if the table format version is greater or equal to the minimum format version needed to support default which is 3
+                        // Apply default only if the table format version is greater or equal to the
+                        // minimum format version needed to support default which is 3
                         if (formatVersion >= IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION) {
                           // Extract default value from Kafka Connect schema if present
                           Object defaultValue = field.schema().defaultValue();
                           if (defaultValue != null) {
                             Literal<?> defaultLiteral =
-                                    convertDefaultValue(defaultValue, fieldType);
+                                convertDefaultValue(defaultValue, fieldType);
                             if (defaultLiteral != null) {
                               builder.withInitialDefault(defaultLiteral);
                               builder.withWriteDefault(defaultLiteral);

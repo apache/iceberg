@@ -74,8 +74,9 @@ class IcebergWriterFactory {
   @VisibleForTesting
   Table autoCreateTable(String tableName, SinkRecord sample) {
     // Determine the format version that will be used for the table
-    int formatVersion = Integer.parseInt(
-        config.autoCreateProps().getOrDefault(TableProperties.FORMAT_VERSION, "-1"));
+    int formatVersion =
+        Integer.parseInt(
+            config.autoCreateProps().getOrDefault(TableProperties.FORMAT_VERSION, "-1"));
 
     StructType structType;
     if (sample.valueSchema() == null) {
@@ -85,7 +86,8 @@ class IcebergWriterFactory {
       }
       structType = type.asStructType();
     } else {
-      structType = SchemaUtils.toIcebergType(sample.valueSchema(), config, formatVersion).asStructType();
+      structType =
+          SchemaUtils.toIcebergType(sample.valueSchema(), config, formatVersion).asStructType();
     }
 
     org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(structType.fields());
