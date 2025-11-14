@@ -302,6 +302,11 @@ public class TestArrowReader {
         scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 2, ALL_COLUMNS);
   }
 
+  /**
+   * Tests that VectorizedArrowReader correctly reads Parquet files with TIMESTAMP_MILLIS logical
+   * type. The test writes a Parquet file with millisecond-precision timestamps using the low-level
+   * Parquet API, then reads it via VectorizedArrowReader.
+   */
   @Test
   public void testTimestampMillisAreReadCorrectly() throws Exception {
     tables = new HadoopTables();
