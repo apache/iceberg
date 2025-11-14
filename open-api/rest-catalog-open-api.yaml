@@ -2017,7 +2017,7 @@ components:
         format: uuid
         minLength: 36
         maxLength: 36
-        example: "550e8400-e29b-41d4-a716-446655440000"
+        example: "017F22E2-79B0-7CC3-98C4-DC0C0C07398F"
       description: |
         Optional client-provided idempotency key for safe request retries.
 
