@@ -142,7 +142,7 @@ public class TableMetadata implements Serializable {
 
     return new Builder()
         .setInitialFormatVersion(formatVersion)
-        .setCurrentSchema(freshSchema, lastColumnId.get())
+        .setCurrentSchema(freshSchema)
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(location)
@@ -586,9 +586,7 @@ public class TableMetadata implements Serializable {
 
   /** Updates the schema */
   public TableMetadata updateSchema(Schema newSchema) {
-    return new Builder(this)
-        .setCurrentSchema(newSchema, Math.max(this.lastColumnId, newSchema.highestFieldId()))
-        .build();
+    return new Builder(this).setCurrentSchema(newSchema).build();
   }
 
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
@@ -734,7 +732,7 @@ public class TableMetadata implements Serializable {
     return new Builder(this)
         .upgradeFormatVersion(newFormatVersion)
         .removeRef(SnapshotRef.MAIN_BRANCH)
-        .setCurrentSchema(freshSchema, newLastColumnId.get())
+        .setCurrentSchema(freshSchema)
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(newLocation)
@@ -1075,6 +1073,15 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder setCurrentSchema(Schema newSchema) {
+      setCurrentSchema(addSchemaInternal(newSchema, newSchema.highestFieldId()));
+      return this;
+    }
+
+    /**
+     * @deprecated use {@link #setCurrentSchema(Schema)} instead
+     */
+    @Deprecated
     public Builder setCurrentSchema(Schema newSchema, int newLastColumnId) {
       setCurrentSchema(addSchemaInternal(newSchema, newLastColumnId));
       return this;
@@ -1119,7 +1126,7 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder addSchema(Schema schema) {
-      addSchemaInternal(schema, Math.max(lastColumnId, schema.highestFieldId()));
+      addSchemaInternal(schema, schema.highestFieldId());
       return this;
     }
 
@@ -1593,17 +1600,15 @@ public class TableMetadata implements Serializable {
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 
+    // TODO: remove newLastColumnId in favor of schema.highestFieldId() once
+    //       setCurrentSchema(Schema, int) is removed
     private int addSchemaInternal(Schema schema, int newLastColumnId) {
-      Preconditions.checkArgument(
-          newLastColumnId >= lastColumnId,
-          "Invalid last column ID: %s < %s (previous last column ID)",
-          newLastColumnId,
-          lastColumnId);
-
       Schema.checkCompatibility(schema, formatVersion);
 
+      newLastColumnId = Math.max(newLastColumnId, this.lastColumnId);
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       boolean schemaFound = schemasById.containsKey(newSchemaId);
+
       if (schemaFound && newLastColumnId == lastColumnId) {
         // the new spec and last column id is already current and no change is needed
         // update lastAddedSchemaId if the schema was added in this set of changes (since it is now
