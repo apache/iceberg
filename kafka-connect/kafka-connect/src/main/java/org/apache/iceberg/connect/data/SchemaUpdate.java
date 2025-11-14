@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.data;
 
 import java.util.Collection;
 import java.util.Map;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -48,7 +49,11 @@ class SchemaUpdate {
     }
 
     void addColumn(String parentName, String name, Type type) {
-      AddColumn addCol = new AddColumn(parentName, name, type);
+      addColumn(parentName, name, type, null);
+    }
+
+    void addColumn(String parentName, String name, Type type, Literal<?> defaultValue) {
+      AddColumn addCol = new AddColumn(parentName, name, type, defaultValue);
       addColumns.put(addCol.key(), addCol);
     }
 
@@ -65,11 +70,13 @@ class SchemaUpdate {
     private final String parentName;
     private final String name;
     private final Type type;
+    private final Literal<?> defaultValue;
 
-    AddColumn(String parentName, String name, Type type) {
+    AddColumn(String parentName, String name, Type type, Literal<?> defaultValue) {
       this.parentName = parentName;
       this.name = name;
       this.type = type;
+      this.defaultValue = defaultValue;
     }
 
     String parentName() {
@@ -86,6 +93,10 @@ class SchemaUpdate {
 
     Type type() {
       return type;
+    }
+
+    Literal<?> defaultValue() {
+      return defaultValue;
     }
   }
 

@@ -331,4 +331,166 @@ public class TestSchemaUtils {
     assertThat(SchemaUtils.inferIcebergType(ImmutableMap.of("nested", ImmutableMap.of()), config))
         .isNull();
   }
+
+  @Test
+  public void testConvertDefaultValuePrimitiveTypes() {
+    // Test boolean
+    org.apache.iceberg.expressions.Literal<?> boolLit =
+        SchemaUtils.convertDefaultValue(true, BooleanType.get());
+    assertThat(boolLit).isNotNull();
+    assertThat(boolLit.value()).isEqualTo(true);
+
+    // Test integer
+    org.apache.iceberg.expressions.Literal<?> intLit =
+        SchemaUtils.convertDefaultValue(42, IntegerType.get());
+    assertThat(intLit).isNotNull();
+    assertThat(intLit.value()).isEqualTo(42);
+
+    // Test long
+    org.apache.iceberg.expressions.Literal<?> longLit =
+        SchemaUtils.convertDefaultValue(1234567890L, LongType.get());
+    assertThat(longLit).isNotNull();
+    assertThat(longLit.value()).isEqualTo(1234567890L);
+
+    // Test float
+    org.apache.iceberg.expressions.Literal<?> floatLit =
+        SchemaUtils.convertDefaultValue(3.14f, FloatType.get());
+    assertThat(floatLit).isNotNull();
+    assertThat(floatLit.value()).isEqualTo(3.14f);
+
+    // Test double
+    org.apache.iceberg.expressions.Literal<?> doubleLit =
+        SchemaUtils.convertDefaultValue(2.71828, DoubleType.get());
+    assertThat(doubleLit).isNotNull();
+    assertThat(doubleLit.value()).isEqualTo(2.71828);
+
+    // Test string
+    org.apache.iceberg.expressions.Literal<?> stringLit =
+        SchemaUtils.convertDefaultValue("default_value", StringType.get());
+    assertThat(stringLit).isNotNull();
+    assertThat(stringLit.value()).isEqualTo("default_value");
+  }
+
+  @Test
+  public void testConvertDefaultValueDecimal() {
+    Schema decimalSchema =
+        Decimal.builder(2).parameter(Decimal.SCALE_FIELD, "2").optional().build();
+    BigDecimal value = new BigDecimal("12.34");
+
+    org.apache.iceberg.expressions.Literal<?> decimalLit =
+        SchemaUtils.convertDefaultValue(value, DecimalType.of(10, 2));
+    assertThat(decimalLit).isNotNull();
+    assertThat(decimalLit.value()).isEqualTo(value);
+  }
+
+  @Test
+  public void testConvertDefaultValueNull() {
+    org.apache.iceberg.expressions.Literal<?> nullLit =
+        SchemaUtils.convertDefaultValue(null, StringType.get());
+    assertThat(nullLit).isNull();
+  }
+
+  @Test
+  public void testConvertDefaultValueNestedTypes() {
+    // Nested types (LIST, MAP, STRUCT) should return null for non-null defaults
+    org.apache.iceberg.expressions.Literal<?> listLit =
+        SchemaUtils.convertDefaultValue(
+            ImmutableList.of("value"), ListType.ofOptional(1, StringType.get()));
+    assertThat(listLit).isNull();
+  }
+
+  @Test
+  public void testConvertDefaultValueWithNumberConversion() {
+    // Test that Number can be converted to different types
+    org.apache.iceberg.expressions.Literal<?> intFromLong =
+        SchemaUtils.convertDefaultValue(100L, IntegerType.get());
+    assertThat(intFromLong).isNotNull();
+    assertThat(intFromLong.value()).isEqualTo(100);
+
+    org.apache.iceberg.expressions.Literal<?> longFromInt =
+        SchemaUtils.convertDefaultValue(50, LongType.get());
+    assertThat(longFromInt).isNotNull();
+    assertThat(longFromInt.value()).isEqualTo(50L);
+
+    org.apache.iceberg.expressions.Literal<?> floatFromDouble =
+        SchemaUtils.convertDefaultValue(1.5, FloatType.get());
+    assertThat(floatFromDouble).isNotNull();
+    assertThat(floatFromDouble.value()).isEqualTo(1.5f);
+  }
+
+  @Test
+  public void testConvertDefaultValueTemporalTypes() {
+    // Test DATE - should convert to days from epoch
+    java.util.Date date = new java.util.Date(0); // Epoch
+    org.apache.iceberg.expressions.Literal<?> dateLit =
+        SchemaUtils.convertDefaultValue(date, DateType.get());
+    assertThat(dateLit).isNotNull();
+    assertThat(dateLit.value()).isEqualTo(0); // Day 0 (1970-01-01)
+
+    // Test DATE from LocalDate
+    LocalDate localDate = LocalDate.of(2024, 1, 1);
+    org.apache.iceberg.expressions.Literal<?> localDateLit =
+        SchemaUtils.convertDefaultValue(localDate, DateType.get());
+    assertThat(localDateLit).isNotNull();
+    assertThat(localDateLit.value()).isEqualTo((int) localDate.toEpochDay());
+
+    // Test TIME - should convert to microseconds from midnight
+    java.util.Date time = new java.util.Date(3600000); // 1 hour in millis
+    org.apache.iceberg.expressions.Literal<?> timeLit =
+        SchemaUtils.convertDefaultValue(time, TimeType.get());
+    assertThat(timeLit).isNotNull();
+    assertThat(timeLit.value()).isEqualTo(3600000L * 1000); // Converted to micros
+
+    // Test TIMESTAMP - should use micros() method
+    java.util.Date timestamp = new java.util.Date(1000); // 1 second
+    org.apache.iceberg.expressions.Literal<?> timestampLit =
+        SchemaUtils.convertDefaultValue(timestamp, TimestampType.withZone());
+    assertThat(timestampLit).isNotNull();
+    // The value should be in microseconds (1000 millis = 1000000 micros)
+    assertThat(timestampLit.value()).isEqualTo(1000L * 1000);
+  }
+
+  @Test
+  public void testSchemaGeneratorExtractsDefaults() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.schemaForceOptional()).thenReturn(false);
+
+    Schema kafkaSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("name", SchemaBuilder.string().defaultValue("unknown").build())
+            .field("age", SchemaBuilder.int32().defaultValue(0).build())
+            .field("active", SchemaBuilder.bool().defaultValue(true).build())
+            .build();
+
+    Type icebergType = SchemaUtils.toIcebergType(kafkaSchema, config);
+    assertThat(icebergType).isInstanceOf(StructType.class);
+
+    StructType structType = (StructType) icebergType;
+    assertThat(structType.fields()).hasSize(4);
+
+    // Field without default
+    NestedField idField = structType.field(0);
+    assertThat(idField.name()).isEqualTo("id");
+    assertThat(idField.initialDefault()).isNull();
+    assertThat(idField.writeDefault()).isNull();
+
+    // Field with string default
+    NestedField nameField = structType.field(1);
+    assertThat(nameField.name()).isEqualTo("name");
+    assertThat(nameField.initialDefault()).isEqualTo("unknown");
+    assertThat(nameField.writeDefault()).isEqualTo("unknown");
+
+    // Field with integer default
+    NestedField ageField = structType.field(2);
+    assertThat(ageField.name()).isEqualTo("age");
+    assertThat(ageField.initialDefault()).isEqualTo(0);
+    assertThat(ageField.writeDefault()).isEqualTo(0);
+
+    // Field with boolean default
+    NestedField activeField = structType.field(3);
+    assertThat(activeField.name()).isEqualTo("active");
+    assertThat(activeField.initialDefault()).isEqualTo(true);
+    assertThat(activeField.writeDefault()).isEqualTo(true);
+  }
 }

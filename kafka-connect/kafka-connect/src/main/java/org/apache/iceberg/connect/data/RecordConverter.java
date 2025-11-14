@@ -45,6 +45,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -66,8 +67,12 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.json.JsonConverter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class RecordConverter {
+  private static final Logger LOG = LoggerFactory.getLogger(RecordConverter.class);
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -81,11 +86,13 @@ class RecordConverter {
   private final NameMapping nameMapping;
   private final IcebergSinkConfig config;
   private final Map<Integer, Map<String, NestedField>> structNameMap = Maps.newHashMap();
+  private final int tableFormatVersion;
 
   RecordConverter(Table table, IcebergSinkConfig config) {
     this.tableSchema = table.schema();
     this.nameMapping = createNameMapping(table);
     this.config = config;
+    this.tableFormatVersion = TableUtil.formatVersion(table);
   }
 
   Record convert(Object data) {
@@ -218,7 +225,17 @@ class RecordConverter {
                   String parentFieldName =
                       structFieldId < 0 ? null : tableSchema.findColumnName(structFieldId);
                   Type type = SchemaUtils.toIcebergType(recordField.schema(), config);
-                  schemaUpdateConsumer.addColumn(parentFieldName, recordField.name(), type);
+                  org.apache.iceberg.expressions.Literal<?> defaultLiteral = null;
+                  if (tableFormatVersion >= IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION) {
+                    // Extract default value from Kafka Connect schema if present
+                    Object defaultValue = recordField.schema().defaultValue();
+                    if (defaultValue != null) {
+                      defaultLiteral = SchemaUtils.convertDefaultValue(defaultValue, type);
+                    }
+                  } else {
+                    LOG.info("Format version ({}) < default value min format version ({})", tableFormatVersion, IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION);
+                  }
+                  schemaUpdateConsumer.addColumn(parentFieldName, recordField.name(), type, defaultLiteral);
                 }
               } else {
                 boolean hasSchemaUpdates = false;
@@ -385,7 +402,13 @@ class RecordConverter {
         return MAPPER.writeValueAsString(value);
       } else if (value instanceof Struct) {
         Struct struct = (Struct) value;
-        byte[] data = config.jsonConverter().fromConnectData(null, struct.schema(), struct);
+        byte[] data;
+        try (JsonConverter jsonConverter = config.jsonConverter()) {
+          data = jsonConverter.fromConnectData(null, struct.schema(), struct);
+        } catch (Exception ex) {
+          LOG.error("Error while converting string of type struct", ex);
+          throw ex;
+        }
         return new String(data, StandardCharsets.UTF_8);
       }
     } catch (IOException e) {

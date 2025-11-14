@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect.data;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -31,11 +32,14 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SchemaUpdate.AddColumn;
 import org.apache.iceberg.connect.data.SchemaUpdate.MakeOptional;
 import org.apache.iceberg.connect.data.SchemaUpdate.UpdateType;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -123,7 +127,9 @@ class SchemaUtils {
     // apply the updates
     UpdateSchema updateSchema = table.updateSchema();
     addColumns.forEach(
-        update -> updateSchema.addColumn(update.parentName(), update.name(), update.type()));
+        update ->
+            updateSchema.addColumn(
+                update.parentName(), update.name(), update.type(), null, update.defaultValue()));
     updateTypes.forEach(update -> updateSchema.updateColumn(update.name(), update.type()));
     makeOptionals.forEach(update -> updateSchema.makeColumnOptional(update.name()));
     updateSchema.commit();
@@ -217,6 +223,156 @@ class SchemaUtils {
     return new SchemaGenerator(config).inferIcebergType(value);
   }
 
+  /**
+   * Converts a Kafka Connect default value to an Iceberg Literal based on the provided Iceberg
+   * type.
+   *
+   * @param defaultValue the default value from Kafka Connect schema
+   * @param icebergType the target Iceberg type
+   * @return an Iceberg Literal representing the default value, or null if conversion is not
+   *     possible
+   */
+  static Literal<?> convertDefaultValue(
+      Object defaultValue, Type icebergType) {
+    if (defaultValue == null) {
+      return null;
+    }
+
+    try {
+      TypeID typeId = icebergType.typeId();
+      switch (typeId) {
+        case BOOLEAN:
+          return Expressions.lit((Boolean) defaultValue);
+        case INTEGER:
+          if (defaultValue instanceof Number) {
+            return Expressions.lit(((Number) defaultValue).intValue());
+          }
+          break;
+        case LONG:
+          if (defaultValue instanceof Number) {
+            return Expressions.lit(((Number) defaultValue).longValue());
+          }
+          break;
+        case FLOAT:
+          if (defaultValue instanceof Number) {
+            return Expressions.lit(((Number) defaultValue).floatValue());
+          }
+          break;
+        case DOUBLE:
+          if (defaultValue instanceof Number) {
+            return Expressions.lit(((Number) defaultValue).doubleValue());
+          }
+          break;
+        case STRING:
+          return Expressions.lit(defaultValue.toString());
+        case DECIMAL:
+          if (defaultValue instanceof BigDecimal) {
+            return Expressions.lit((BigDecimal) defaultValue);
+          } else if (defaultValue instanceof byte[]) {
+            // Kafka Connect Decimal can be byte array
+            DecimalType decimalType = (DecimalType) icebergType;
+            // BigDecimal constructor takes (unscaledValue, scale)
+            // Precision is determined by the number of digits in unscaledValue
+            BigDecimal decimal =
+                new BigDecimal(new java.math.BigInteger((byte[]) defaultValue), decimalType.scale());
+            return Expressions.lit(decimal);
+          }
+          break;
+        case DATE:
+          // Iceberg Date is stored as days from epoch (int)
+          if (defaultValue instanceof java.util.Date) {
+            // Convert java.util.Date to days from epoch
+            long epochDay =
+                ((java.util.Date) defaultValue).toInstant().atZone(java.time.ZoneOffset.UTC)
+                    .toLocalDate()
+                    .toEpochDay();
+            // Create an IntegerLiteral and convert to DateLiteral using .to(Type)
+            return Expressions.lit((int) epochDay).to(icebergType);
+          } else if (defaultValue instanceof Number) {
+            // Already in days from epoch
+            return Expressions.lit(((Number) defaultValue).intValue()).to(icebergType);
+          } else if (defaultValue instanceof LocalDate) {
+            int days = (int) ((LocalDate) defaultValue).toEpochDay();
+            return Expressions.lit(days).to(icebergType);
+          }
+          break;
+        case TIME:
+          // Iceberg Time is stored as microseconds from midnight (long)
+          if (defaultValue instanceof java.util.Date) {
+            // Kafka Connect Time is milliseconds since midnight
+            long millis = ((java.util.Date) defaultValue).getTime();
+            // Create a LongLiteral and convert to TimeLiteral using .to(Type)
+            return Expressions.lit(millis * 1000).to(icebergType);
+          } else if (defaultValue instanceof Number) {
+            // Assume microseconds from midnight
+            return Expressions.lit(((Number) defaultValue).longValue()).to(icebergType);
+          } else if (defaultValue instanceof LocalTime) {
+            long micros = ((LocalTime) defaultValue).toNanoOfDay() / 1000;
+            return Expressions.lit(micros).to(icebergType);
+          }
+          break;
+        case TIMESTAMP:
+          // Iceberg Timestamp is stored as microseconds from epoch (long)
+          if (defaultValue instanceof java.util.Date) {
+            // Kafka Connect Timestamp is milliseconds from epoch
+            long micros = ((java.util.Date) defaultValue).getTime() * 1000;
+            // Create TimestampLiteral directly using micros() which returns the correct type
+            return Expressions.micros(micros);
+          } else if (defaultValue instanceof Number) {
+            // Assume microseconds from epoch
+            return Expressions.micros(((Number) defaultValue).longValue());
+          } else if (defaultValue instanceof LocalDateTime) {
+            long micros =
+                ((LocalDateTime) defaultValue)
+                    .atZone(java.time.ZoneOffset.UTC)
+                    .toInstant()
+                    .toEpochMilli()
+                    * 1000;
+            return Expressions.micros(micros);
+          } else if (defaultValue instanceof OffsetDateTime) {
+            long micros = ((OffsetDateTime) defaultValue).toInstant().toEpochMilli() * 1000;
+            return Expressions.micros(micros);
+          }
+          break;
+        case BINARY:
+        case FIXED:
+          if (defaultValue instanceof byte[]) {
+            return Expressions.lit(ByteBuffer.wrap((byte[]) defaultValue));
+          } else if (defaultValue instanceof ByteBuffer) {
+            return Expressions.lit((ByteBuffer) defaultValue);
+          }
+          break;
+        case UUID:
+          if (defaultValue instanceof java.util.UUID) {
+            return Expressions.lit((java.util.UUID) defaultValue);
+          } else if (defaultValue instanceof String) {
+            return Expressions.lit(java.util.UUID.fromString((String) defaultValue));
+          }
+          break;
+        default:
+          // Nested types (LIST, MAP, STRUCT) cannot have non-null defaults in Iceberg
+          LOG.warn(
+              "Default value conversion not supported for type: {}. Nested types can only have null defaults.",
+              typeId);
+          return null;
+      }
+    } catch (Exception e) {
+      LOG.warn(
+          "Failed to convert default value {} to Iceberg type {}",
+          defaultValue,
+          icebergType,
+          e);
+      return null;
+    }
+
+    LOG.warn(
+        "Could not convert default value {} of class {} to Iceberg type {}",
+        defaultValue,
+        defaultValue.getClass().getName(),
+        icebergType);
+    return null;
+  }
+
   static class SchemaGenerator {
 
     private int fieldId = 1;
@@ -275,14 +431,31 @@ class SchemaUtils {
           List<NestedField> structFields =
               valueSchema.fields().stream()
                   .map(
-                      field ->
-                          NestedField.builder()
-                              .isOptional(
-                                  config.schemaForceOptional() || field.schema().isOptional())
-                              .withId(nextId())
-                              .ofType(toIcebergType(field.schema()))
-                              .withName(field.name())
-                              .build())
+                      field -> {
+                        Type fieldType = toIcebergType(field.schema());
+                        NestedField.Builder builder =
+                            NestedField.builder()
+                                .isOptional(
+                                    config.schemaForceOptional() || field.schema().isOptional())
+                                .withId(nextId())
+                                .ofType(fieldType)
+                                .withName(field.name());
+
+                        if (Integer.parseInt(config.autoCreateProps().getOrDefault(TableProperties.FORMAT_VERSION, "-1")) >= IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION) {
+                          // Extract default value from Kafka Connect schema if present
+                          Object defaultValue = field.schema().defaultValue();
+                          if (defaultValue != null) {
+                            Literal<?> defaultLiteral =
+                                    convertDefaultValue(defaultValue, fieldType);
+                            if (defaultLiteral != null) {
+                              builder.withInitialDefault(defaultLiteral);
+                              builder.withWriteDefault(defaultLiteral);
+                            }
+                          }
+                        }
+
+                        return builder.build();
+                      })
                   .collect(Collectors.toList());
           return StructType.of(structFields);
         case STRING:
