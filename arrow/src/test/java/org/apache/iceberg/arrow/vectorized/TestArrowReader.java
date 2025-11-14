@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.parquet.schema.Types.primitive;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
@@ -61,6 +62,7 @@ import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -88,6 +90,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -290,6 +300,87 @@ public class TestArrowReader {
     // Call hasNext() 2 extra times.
     readAndCheckHasNextIsIdempotent(
         scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 2, ALL_COLUMNS);
+  }
+
+  /**
+   * Tests that VectorizedArrowReader correctly reads Parquet files with TIMESTAMP_MILLIS logical
+   * type. The test writes a Parquet file with millisecond-precision timestamps using the low-level
+   * Parquet API, then reads it via VectorizedArrowReader.
+   */
+  @Test
+  public void testTimestampMillisAreReadCorrectly() throws Exception {
+    tables = new HadoopTables();
+    Schema schema =
+        new Schema(Types.NestedField.required(1, "ts_millis", Types.TimestampType.withZone()));
+
+    Table table = tables.create(schema, tableLocation);
+
+    File testFile = new File(tempDir, "timestamp-millis-test.parquet");
+    List<Long> millisValues = Lists.newArrayList(1609459200000L, 1640995200000L, 1672531200000L);
+
+    MessageType parquetSchema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.REQUIRED)
+                .as(
+                    LogicalTypeAnnotation.timestampType(
+                        true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .id(1)
+                .named("ts_millis"));
+
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(new Path(testFile.toURI())).withType(parquetSchema).build()) {
+
+      SimpleGroupFactory factory = new SimpleGroupFactory(parquetSchema);
+
+      for (Long millis : millisValues) {
+        Group group = factory.newGroup();
+        group.add("ts_millis", millis);
+        writer.write(group);
+      }
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(testFile.getAbsolutePath())
+            .withFileSizeInBytes(testFile.length())
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(millisValues.size())
+            .build();
+
+    table.newAppend().appendFile(dataFile).commit();
+
+    int totalRowsRead = 0;
+    int rowIndex = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+
+        FieldVector tsVector = root.getVector("ts_millis");
+        assertThat(tsVector)
+            .as("TIMESTAMP_MILLIS should be read as BigIntVector")
+            .isInstanceOf(BigIntVector.class);
+
+        BigIntVector bigIntVector = (BigIntVector) tsVector;
+
+        for (int i = 0; i < root.getRowCount(); i++) {
+          long actualMicros = bigIntVector.get(i);
+          long expectedMicros = millisValues.get(rowIndex) * 1000L;
+
+          assertThat(actualMicros)
+              .as("Row %d: timestamp should be converted to microseconds", rowIndex)
+              .isEqualTo(expectedMicros);
+
+          rowIndex++;
+        }
+
+        totalRowsRead += root.getRowCount();
+        root.close();
+      }
+    }
+
+    assertThat(totalRowsRead).as("Should read all rows").isEqualTo(millisValues.size());
   }
 
   /**
