@@ -39,6 +39,7 @@ import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -402,6 +403,17 @@ public class TestDynamoDbCatalog {
         .hasMessageContaining("already exists");
     assertThat(catalog.dropTable(identifier, true)).isTrue();
     assertThat(catalog.dropNamespace(namespace)).isTrue();
+  }
+
+  @Test
+  public void testRegisterTableToNonExistingNamespace() {
+    TableIdentifier targetIdentifier = TableIdentifier.of("non-existing", "table");
+    assertThatThrownBy(
+            () ->
+                catalog.registerTable(
+                    targetIdentifier, "table_metadata_loc_from_different_catalogs"))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageStartingWith("Cannot register table");
   }
 
   private static String genRandomName() {
