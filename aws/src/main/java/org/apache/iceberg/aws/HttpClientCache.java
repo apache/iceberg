@@ -108,17 +108,15 @@ final class HttpClientCache {
    * Managed HTTP client wrapper that provides reference counting for lifecycle management. The HTTP
    * client is closed when the reference count reaches zero.
    */
-  static class ManagedHttpClient {
+  static class ManagedHttpClient implements SdkHttpClient {
     private final SdkHttpClient httpClient;
     private final String clientKey;
     private final AtomicInteger refCount = new AtomicInteger(0);
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final WrappedSdkHttpClient wrapper;
 
     ManagedHttpClient(SdkHttpClient httpClient, String clientKey) {
       this.httpClient = httpClient;
       this.clientKey = clientKey;
-      this.wrapper = new WrappedSdkHttpClient(httpClient, clientKey);
       LOG.debug("Created managed HTTP client: key={}", clientKey);
     }
 
@@ -128,15 +126,14 @@ final class HttpClientCache {
      * @return the ref-counted wrapper client
      * @throws IllegalStateException if the client has already been closed
      */
-    WrappedSdkHttpClient acquire() {
-
+    ManagedHttpClient acquire() {
       int count = refCount.incrementAndGet();
       if (closed.get()) {
         refCount.decrementAndGet();
         throw new IllegalStateException("Cannot acquire closed HTTP client: " + clientKey);
       }
       LOG.debug("Acquired HTTP client: key={}, refCount={}", clientKey, count);
-      return wrapper;
+      return this;
     }
 
     /**
@@ -154,12 +151,17 @@ final class HttpClientCache {
       int count = refCount.decrementAndGet();
       LOG.debug("Released HTTP client: key={}, refCount={}", clientKey, count);
       if (count == 0) {
-        return close();
+        return closeHttpClient();
       } else if (count < 0) {
         LOG.warn("HTTP client reference count went negative key={}, refCount={}", clientKey, count);
         refCount.set(0); // Reset to prevent further corruption
       }
       return false;
+    }
+
+    @VisibleForTesting
+    SdkHttpClient httpClient() {
+      return httpClient;
     }
 
     /**
@@ -168,8 +170,7 @@ final class HttpClientCache {
      * @return true if the client was closed by this call, false if already closed or if an error
      *     occurred
      */
-    @VisibleForTesting
-    boolean close() {
+    private boolean closeHttpClient() {
       if (closed.compareAndSet(false, true)) {
         LOG.debug("Closing HTTP client: key={}", clientKey);
         try {
@@ -192,49 +193,20 @@ final class HttpClientCache {
     boolean isClosed() {
       return closed.get();
     }
-  }
-
-  /**
-   * A delegating wrapper around {@link SdkHttpClient} that handles reference counting for lifecycle
-   * management.
-   *
-   * <p><strong>Lifecycle Contract:</strong>
-   *
-   * <ul>
-   *   <li>Calling {@link #close()} decrements the reference count in the registry
-   *   <li>The underlying HTTP client is only closed when the reference count reaches zero
-   *   <li>Multiple wrappers for the same client configuration share the same lifecycle
-   *   <li>After the underlying client is closed, operations on this wrapper may fail
-   * </ul>
-   */
-  static class WrappedSdkHttpClient implements SdkHttpClient {
-    private final SdkHttpClient delegate;
-    private final String clientKey;
-
-    WrappedSdkHttpClient(SdkHttpClient delegate, String clientKey) {
-      this.delegate = delegate;
-      this.clientKey = clientKey;
-    }
 
     @Override
     public ExecutableHttpRequest prepareRequest(HttpExecuteRequest request) {
-      return delegate.prepareRequest(request);
-    }
-
-    @Override
-    public void close() {
-      // Delegate close to the cache which manages ref counting
-      HttpClientCache.getInstance().releaseClient(clientKey);
+      return httpClient.prepareRequest(request);
     }
 
     @Override
     public String clientName() {
-      return delegate.clientName();
+      return httpClient.clientName();
     }
 
-    @VisibleForTesting
-    SdkHttpClient delegate() {
-      return delegate;
+    @Override
+    public void close() {
+      HttpClientCache.getInstance().releaseClient(clientKey);
     }
   }
 }

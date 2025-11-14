@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
-import org.apache.iceberg.aws.HttpClientCache.WrappedSdkHttpClient;
+import org.apache.iceberg.aws.HttpClientCache.ManagedHttpClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -77,7 +77,7 @@ public class TestHttpClientCache {
     assertThat(client1).isSameAs(client2);
 
     // Verify reference count is 2
-    HttpClientCache.ManagedHttpClient managedClient = cache.clientMap().get(cacheKey);
+    ManagedHttpClient managedClient = cache.clientMap().get(cacheKey);
     assertThat(managedClient.refCount()).isEqualTo(2);
   }
 
@@ -100,12 +100,11 @@ public class TestHttpClientCache {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
     final String cacheKey = "test-key";
 
-    HttpClientCache.ManagedHttpClient managedClient =
-        new HttpClientCache.ManagedHttpClient(mockClient, cacheKey);
+    ManagedHttpClient managedClient = new ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire twice
-    WrappedSdkHttpClient client1 = managedClient.acquire();
-    WrappedSdkHttpClient client2 = managedClient.acquire();
+    ManagedHttpClient client1 = managedClient.acquire();
+    ManagedHttpClient client2 = managedClient.acquire();
 
     assertThat(client1).isSameAs(client2);
     assertThat(managedClient.refCount()).isEqualTo(2);
@@ -128,8 +127,7 @@ public class TestHttpClientCache {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
     final String cacheKey = "test-key";
 
-    HttpClientCache.ManagedHttpClient managedClient =
-        new HttpClientCache.ManagedHttpClient(mockClient, cacheKey);
+    ManagedHttpClient managedClient = new ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire and release to close
     managedClient.acquire();
@@ -151,7 +149,7 @@ public class TestHttpClientCache {
     SdkHttpClient client1 = cache.getOrCreateClient(cacheKey, mockFactory1);
     assertThat(client1).isNotNull();
 
-    ConcurrentMap<String, HttpClientCache.ManagedHttpClient> clientMap = cache.clientMap();
+    ConcurrentMap<String, ManagedHttpClient> clientMap = cache.clientMap();
     assertThat(clientMap).containsKey(cacheKey);
 
     // Verify ref count is 1
@@ -202,13 +200,13 @@ public class TestHttpClientCache {
     }
 
     // Verify reference count equals number of threads
-    HttpClientCache.ManagedHttpClient managedClient = cache.clientMap().get(cacheKey);
+    ManagedHttpClient managedClient = cache.clientMap().get(cacheKey);
     assertThat(managedClient.refCount()).isEqualTo(threadCount);
   }
 
   @Test
   public void testRegistryShutdown() {
-    ConcurrentMap<String, HttpClientCache.ManagedHttpClient> clientMap = cache.clientMap();
+    ConcurrentMap<String, ManagedHttpClient> clientMap = cache.clientMap();
 
     // Create some clients
     cache.getOrCreateClient("key1", mockFactory1);
@@ -233,11 +231,10 @@ public class TestHttpClientCache {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
     final String cacheKey = "test-key";
 
-    HttpClientCache.ManagedHttpClient managedClient =
-        new HttpClientCache.ManagedHttpClient(mockClient, cacheKey);
+    ManagedHttpClient managedClient = new ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire once
-    WrappedSdkHttpClient client = managedClient.acquire();
+    ManagedHttpClient client = managedClient.acquire();
     assertThat(managedClient.refCount()).isEqualTo(1);
 
     // First release should close the client (refCount goes to 0)
@@ -261,8 +258,7 @@ public class TestHttpClientCache {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
     final String cacheKey = "test-key";
 
-    HttpClientCache.ManagedHttpClient managedClient =
-        new HttpClientCache.ManagedHttpClient(mockClient, cacheKey);
+    ManagedHttpClient managedClient = new ManagedHttpClient(mockClient, cacheKey);
 
     // Acquire once
     managedClient.acquire();

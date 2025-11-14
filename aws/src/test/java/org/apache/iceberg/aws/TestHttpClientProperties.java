@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
 import java.util.Map;
-import org.apache.iceberg.aws.HttpClientCache.WrappedSdkHttpClient;
+import org.apache.iceberg.aws.HttpClientCache.ManagedHttpClient;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -50,12 +50,12 @@ public class TestHttpClientProperties {
     SdkHttpClient capturedHttpClient = httpClientCaptor.getValue();
 
     assertThat(capturedHttpClient)
-        .as("Should use wrapped SDK http client")
-        .isInstanceOf(WrappedSdkHttpClient.class);
+        .as("Should use managed SDK http client")
+        .isInstanceOf(ManagedHttpClient.class);
 
     // Verify the underlying delegate is UrlConnectionHttpClient
-    WrappedSdkHttpClient wrappedClient = (WrappedSdkHttpClient) capturedHttpClient;
-    assertThat(wrappedClient.delegate())
+    ManagedHttpClient managedClient = (ManagedHttpClient) capturedHttpClient;
+    assertThat(managedClient.httpClient())
         .as("Underlying client should be UrlConnectionHttpClient")
         .isInstanceOf(UrlConnectionHttpClient.class);
   }
@@ -73,12 +73,12 @@ public class TestHttpClientProperties {
     SdkHttpClient capturedHttpClient = httpClientCaptor.getValue();
 
     assertThat(capturedHttpClient)
-        .as("Should use wrapped SDK http client")
-        .isInstanceOf(WrappedSdkHttpClient.class);
+        .as("Should use managed SDK http client")
+        .isInstanceOf(ManagedHttpClient.class);
 
     // Verify the underlying delegate is ApacheHttpClient
-    WrappedSdkHttpClient wrappedClient = (WrappedSdkHttpClient) capturedHttpClient;
-    assertThat(wrappedClient.delegate())
+    ManagedHttpClient managedClient = (ManagedHttpClient) capturedHttpClient;
+    assertThat(managedClient.httpClient())
         .as("Underlying client should be ApacheHttpClient")
         .isInstanceOf(ApacheHttpClient.class);
   }
@@ -103,8 +103,8 @@ public class TestHttpClientProperties {
 
     apacheConfig.configureHttpClientBuilder(mockS3ClientBuilder);
 
-    // Verify that httpClient() is called with a wrapped client (as a shared resource)
-    verify(mockS3ClientBuilder).httpClient(any(WrappedSdkHttpClient.class));
+    // Verify that httpClient() is called with a managed client (as a shared resource)
+    verify(mockS3ClientBuilder).httpClient(any(ManagedHttpClient.class));
   }
 
   @Test
@@ -116,7 +116,7 @@ public class TestHttpClientProperties {
 
     urlConfig.configureHttpClientBuilder(mockS3ClientBuilder);
 
-    // Verify that httpClient() is called with a wrapped client (as a shared resource)
-    verify(mockS3ClientBuilder).httpClient(any(WrappedSdkHttpClient.class));
+    // Verify that httpClient() is called with a managed client (as a shared resource)
+    verify(mockS3ClientBuilder).httpClient(any(ManagedHttpClient.class));
   }
 }
