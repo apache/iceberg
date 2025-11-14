@@ -49,7 +49,7 @@ import org.apache.iceberg.types.Types.StructType;
  * The schema of a data table.
  *
  * <p>Schema ID will only be populated when reading from/writing to table metadata, otherwise it
- * will be default to 0.
+ * will default to 0.
  */
 public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
@@ -601,23 +601,36 @@ public class Schema implements Serializable {
 
     // check each field's type and defaults
     for (NestedField field : schema.lazyIdToField().values()) {
+      List<String> errorMessages = Lists.newArrayList();
       Integer minFormatVersion = MIN_FORMAT_VERSIONS.get(field.type().typeId());
       if (minFormatVersion != null && formatVersion < minFormatVersion) {
-        problems.put(
-            field.fieldId(),
+        errorMessages.add(
             String.format(
                 "Invalid type for %s: %s is not supported until v%s",
                 schema.findColumnName(field.fieldId()), field.type(), minFormatVersion));
       }
 
       if (field.initialDefault() != null && formatVersion < DEFAULT_VALUES_MIN_FORMAT_VERSION) {
-        problems.put(
-            field.fieldId(),
+        errorMessages.add(
             String.format(
                 "Invalid initial default for %s: non-null default (%s) is not supported until v%s",
                 schema.findColumnName(field.fieldId()),
                 field.initialDefault(),
                 DEFAULT_VALUES_MIN_FORMAT_VERSION));
+      }
+
+      // TODO: need to clarify why this wasn't included initially.
+      if (field.writeDefault() != null && formatVersion < DEFAULT_VALUES_MIN_FORMAT_VERSION) {
+        errorMessages.add(
+            String.format(
+                "Invalid write default for %s: non-null default (%s) is not supported until v%s",
+                schema.findColumnName(field.fieldId()),
+                field.writeDefault(),
+                DEFAULT_VALUES_MIN_FORMAT_VERSION));
+      }
+
+      if (!errorMessages.isEmpty()) {
+        problems.put(field.fieldId(), Joiner.on("\n- ").join(errorMessages));
       }
     }
 

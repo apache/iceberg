@@ -96,11 +96,15 @@ public class SchemaParser {
       if (field.initialDefault() != null) {
         generator.writeFieldName(INITIAL_DEFAULT);
         SingleValueParser.toJson(field.type(), field.initialDefault(), generator);
+      } else {
+        generator.writeNullField(INITIAL_DEFAULT);
       }
 
       if (field.writeDefault() != null) {
         generator.writeFieldName(WRITE_DEFAULT);
         SingleValueParser.toJson(field.type(), field.writeDefault(), generator);
+      } else {
+        generator.writeNullField(WRITE_DEFAULT);
       }
 
       generator.writeEndObject();
@@ -196,18 +200,26 @@ public class SchemaParser {
   }
 
   private static Literal<?> defaultFromJson(String defaultField, Type type, JsonNode json) {
-    if (json.has(defaultField)) {
-      Object value = SingleValueParser.fromJson(type, json.get(defaultField));
-      if (type instanceof Types.TimestampNanoType) {
-        // Call Expressions.nanos instead of Expressions.lit to prevent overflow
-        // https://github.com/apache/iceberg/issues/13160
-        return Expressions.nanos((long) value);
-      }
-
-      return Expressions.lit(value);
+    JsonNode defaultValue = json.get(defaultField);
+    if (defaultValue == null || defaultValue.isNull()) {
+      return null;
     }
 
-    return null;
+    // Always parse non-null default values from json to ensure types match up
+    Object javaDefaultValue = SingleValueParser.fromJson(type, defaultValue);
+    if (type instanceof Types.TimestampNanoType) {
+      // Call Expressions.nanos instead of Expressions.lit to prevent overflow
+      // https://github.com/apache/iceberg/issues/13160
+      return Expressions.nanos((long) javaDefaultValue);
+    }
+
+    if (type.isStructType()) {
+      Preconditions.checkArgument(
+          defaultValue.isEmpty(), "Cannot parse non-empty struct default value: %s", defaultValue);
+      return Expressions.lit(EmptyStructLike.get());
+    }
+
+    return Expressions.lit(javaDefaultValue);
   }
 
   private static Types.NestedField.Builder fieldBuilder(boolean isRequired, String name) {

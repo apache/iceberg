@@ -21,10 +21,12 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.data.DataTestBase;
@@ -154,5 +156,85 @@ public class TestSchemaParser extends DataTestBase {
         .isEqualTo(defaultValue.value());
     assertThat(serialized.findField("col_with_default").writeDefault())
         .isEqualTo(defaultValue.value());
+  }
+
+  @Test
+  public void testNullDefaultValueParsing() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.required("col_with_no_default")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .build());
+    String schemaAsJson = SchemaParser.toJson(schema);
+    assertThat(schemaAsJson)
+        .contains("\"initial-default\":null")
+        .contains("\"write-default\":null");
+
+    Schema serialized = SchemaParser.fromJson(schemaAsJson);
+    assertThat(serialized.findField("col_with_no_default").initialDefault()).isNull();
+    assertThat(serialized.findField("col_with_no_default").writeDefault()).isNull();
+  }
+
+  @Test
+  public void testEmptyStructDefaultValueParsing() {
+    Types.NestedField xField =
+        Types.NestedField.optional("x")
+            .ofType(new Types.IntegerType())
+            .withId(3)
+            .withWriteDefault(Literal.of(1))
+            .build();
+
+    Types.NestedField yField =
+        Types.NestedField.optional("y")
+            .ofType(new Types.IntegerType())
+            .withId(2)
+            .withWriteDefault(Literal.of(2))
+            .build();
+
+    Types.NestedField structType =
+        Types.NestedField.optional("point")
+            .ofType(Types.StructType.of(List.of(xField, yField)))
+            .withId(1)
+            .withInitialDefault(Literal.of(EmptyStructLike.get()))
+            .withWriteDefault(Literal.of(EmptyStructLike.get()))
+            .build();
+
+    Schema schema = new Schema(structType);
+    String schemaAsJson = SchemaParser.toJson(schema);
+    assertThat(schemaAsJson).contains("\"initial-default\":{}").contains("\"write-default\":{}");
+
+    Schema serialized = SchemaParser.fromJson(schemaAsJson);
+    assertThat(serialized.findField("point").initialDefault()).isEqualTo(EmptyStructLike.get());
+    assertThat(serialized.findField("point").writeDefault()).isEqualTo(EmptyStructLike.get());
+  }
+
+  @Test
+  public void testNonEmptyStructDefaultValueParsing() {
+    String invalidSchemaAsJson =
+        "{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+            + "{\"id\":1,\"name\":\"partialPoint\",\"required\":false,\"type\":{\"type\":\"struct\",\"fields\":"
+            + "[{\"id\":2,\"name\":\"x\",\"required\":false,\"type\":\"int\"}]},"
+            // invalid nonEmpty struct default set here
+            + "\"initial-default\":{\"2\": 2},\"write-default\":null}]}";
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(invalidSchemaAsJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse non-empty struct default value: {\"2\":2}");
+  }
+
+  @Test
+  public void testInvalidStructDefaultValueParsing() {
+    String invalidSchemaAsJson =
+        "{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+            + "{\"id\":1,\"name\":\"partialPoint\",\"required\":false,\"type\":{\"type\":\"struct\",\"fields\":"
+            + "[{\"id\":2,\"name\":\"x\",\"required\":false,\"type\":\"int\"}]},"
+            // invalid default type (boolean) set here
+            + "\"initial-default\":null,\"write-default\":true}]}";
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(invalidSchemaAsJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse default as a struct<2: x: optional int> value: true");
   }
 }

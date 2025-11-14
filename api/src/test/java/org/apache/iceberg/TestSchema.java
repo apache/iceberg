@@ -185,35 +185,47 @@ public class TestSchema {
         .doesNotThrowAnyException();
   }
 
-  private static int[] unsupportedInitialDefault =
+  private static int[] unsupportedDefault =
       IntStream.range(1, DEFAULT_VALUES_MIN_FORMAT_VERSION).toArray();
 
   @ParameterizedTest
-  @FieldSource("unsupportedInitialDefault")
+  @FieldSource("unsupportedDefault")
   public void testUnsupportedInitialDefault(int formatVersion) {
     assertThatThrownBy(() -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, formatVersion))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
+        .hasMessageContaining(
             "Invalid schema for v%s:\n"
                 + "- Invalid initial default for has_default: "
                 + "non-null default (--) is not supported until v3",
             formatVersion);
   }
 
-  private static int[] supportedInitialDefault =
+  @ParameterizedTest
+  @FieldSource("unsupportedDefault")
+  public void testUnsupportedWriteDefault(int formatVersion) {
+    assertThatThrownBy(() -> Schema.checkCompatibility(WRITE_DEFAULT_SCHEMA, formatVersion))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Invalid schema for v%s:\n"
+                + "- Invalid write default for has_default: "
+                + "non-null default (--) is not supported until v3",
+            formatVersion);
+  }
+
+  private static int[] supportedDefault =
       IntStream.rangeClosed(DEFAULT_VALUES_MIN_FORMAT_VERSION, MAX_FORMAT_VERSION).toArray();
 
   @ParameterizedTest
-  @FieldSource("supportedInitialDefault")
+  @FieldSource("supportedDefault")
   public void testSupportedInitialDefault(int formatVersion) {
     assertThatCode(() -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, formatVersion))
         .doesNotThrowAnyException();
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("supportedDefault")
   public void testSupportedWriteDefault(int formatVersion) {
-    // only the initial default is a forward-incompatible change
+    // TODO: need to clarify if this needs to be updated to block for <v3
     assertThatCode(() -> Schema.checkCompatibility(WRITE_DEFAULT_SCHEMA, formatVersion))
         .doesNotThrowAnyException();
   }
