@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -133,5 +134,15 @@ public class WriteResult implements Serializable {
     public WriteResult build() {
       return new WriteResult(dataFiles, deleteFiles, referencedDataFiles, rewrittenDeleteFiles);
     }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("dataFiles", dataFiles)
+        .add("deleteFiles", deleteFiles)
+        .add("referencedDataFiles", referencedDataFiles)
+        .add("rewrittenDeleteFiles", rewrittenDeleteFiles)
+        .toString();
   }
 }
