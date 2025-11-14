@@ -32,7 +32,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SchemaUpdate.AddColumn;
@@ -215,12 +214,12 @@ class SchemaUtils {
     return Pair.of(parts.get(0).trim(), Integer.parseInt(parts.get(1).trim()));
   }
 
-  static Type toIcebergType(Schema valueSchema, IcebergSinkConfig config) {
-    return new SchemaGenerator(config).toIcebergType(valueSchema);
+  static Type toIcebergType(Schema valueSchema, IcebergSinkConfig config, int formatVersion) {
+    return new SchemaGenerator(config, formatVersion).toIcebergType(valueSchema);
   }
 
   static Type inferIcebergType(Object value, IcebergSinkConfig config) {
-    return new SchemaGenerator(config).inferIcebergType(value);
+    return new SchemaGenerator(config, IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION).inferIcebergType(value);
   }
 
   /**
@@ -377,9 +376,11 @@ class SchemaUtils {
 
     private int fieldId = 1;
     private final IcebergSinkConfig config;
+    private final int formatVersion;
 
-    SchemaGenerator(IcebergSinkConfig config) {
+    SchemaGenerator(IcebergSinkConfig config, int formatVersion) {
       this.config = config;
+      this.formatVersion = formatVersion;
     }
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -441,7 +442,8 @@ class SchemaUtils {
                                 .ofType(fieldType)
                                 .withName(field.name());
 
-                        if (Integer.parseInt(config.autoCreateProps().getOrDefault(TableProperties.FORMAT_VERSION, "-1")) >= IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION) {
+                        // Apply default only if the table format version is greater or equal to the minimum format version needed to support default which is 3
+                        if (formatVersion >= IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION) {
                           // Extract default value from Kafka Connect schema if present
                           Object defaultValue = field.schema().defaultValue();
                           if (defaultValue != null) {

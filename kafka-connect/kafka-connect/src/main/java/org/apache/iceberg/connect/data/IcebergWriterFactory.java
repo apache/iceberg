@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -72,6 +73,10 @@ class IcebergWriterFactory {
 
   @VisibleForTesting
   Table autoCreateTable(String tableName, SinkRecord sample) {
+    // Determine the format version that will be used for the table
+    int formatVersion = Integer.parseInt(
+        config.autoCreateProps().getOrDefault(TableProperties.FORMAT_VERSION, "-1"));
+
     StructType structType;
     if (sample.valueSchema() == null) {
       Type type = SchemaUtils.inferIcebergType(sample.value(), config);
@@ -80,7 +85,7 @@ class IcebergWriterFactory {
       }
       structType = type.asStructType();
     } else {
-      structType = SchemaUtils.toIcebergType(sample.valueSchema(), config).asStructType();
+      structType = SchemaUtils.toIcebergType(sample.valueSchema(), config, formatVersion).asStructType();
     }
 
     org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(structType.fields());

@@ -224,7 +224,7 @@ class RecordConverter {
                 if (schemaUpdateConsumer != null) {
                   String parentFieldName =
                       structFieldId < 0 ? null : tableSchema.findColumnName(structFieldId);
-                  Type type = SchemaUtils.toIcebergType(recordField.schema(), config);
+                  Type type = SchemaUtils.toIcebergType(recordField.schema(), config, tableFormatVersion);
                   org.apache.iceberg.expressions.Literal<?> defaultLiteral = null;
                   if (tableFormatVersion >= IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION) {
                     // Extract default value from Kafka Connect schema if present
@@ -233,7 +233,7 @@ class RecordConverter {
                       defaultLiteral = SchemaUtils.convertDefaultValue(defaultValue, type);
                     }
                   } else {
-                    LOG.info("Format version ({}) < default value min format version ({})", tableFormatVersion, IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION);
+                    LOG.info("Format version ({}) < min format version ({}) required for default value support", tableFormatVersion, IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION);
                   }
                   schemaUpdateConsumer.addColumn(parentFieldName, recordField.name(), type, defaultLiteral);
                 }
