@@ -252,48 +252,44 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
   public void testSetSnapshotPropertyGenerator() throws Exception {
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"));
     DataStream<RowData> dataStream =
-            env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
-                    .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
 
     Configuration flinkConf = new Configuration();
     FlinkSink.forRowData(dataStream)
-            .table(table)
-            .tableLoader(tableLoader)
-            .flinkConf(flinkConf)
-            .writeParallelism(parallelism)
-            .setSnapshotPropertyGenerator(
-                    () -> Collections.singletonMap("test-key", "test-value"))
-            .append();
+        .table(table)
+        .tableLoader(tableLoader)
+        .flinkConf(flinkConf)
+        .writeParallelism(parallelism)
+        .setSnapshotPropertyGenerator(() -> Collections.singletonMap("test-key", "test-value"))
+        .append();
 
     env.execute("Test Iceberg DataStream");
 
     table.refresh();
-    assertThat(table.currentSnapshot().summary())
-            .containsEntry("test-key", "test-value");
+    assertThat(table.currentSnapshot().summary()).containsEntry("test-key", "test-value");
   }
 
   @Test
   public void testSnapshotPropertyGeneratorOverride() throws Exception {
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"));
     DataStream<RowData> dataStream =
-            env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
-                    .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
 
     Configuration flinkConf = new Configuration();
     FlinkSink.forRowData(dataStream)
-            .table(table)
-            .tableLoader(tableLoader)
-            .flinkConf(flinkConf)
-            .writeParallelism(parallelism)
-            .setSnapshotProperty("test-key", "test-value-1")
-            .setSnapshotPropertyGenerator(
-                    () -> Collections.singletonMap("test-key", "test-value-2"))
-            .append();
+        .table(table)
+        .tableLoader(tableLoader)
+        .flinkConf(flinkConf)
+        .writeParallelism(parallelism)
+        .setSnapshotProperty("test-key", "test-value-1")
+        .setSnapshotPropertyGenerator(() -> Collections.singletonMap("test-key", "test-value-2"))
+        .append();
 
     env.execute("Test Iceberg DataStream");
 
     table.refresh();
-    assertThat(table.currentSnapshot().summary())
-            .containsEntry("test-key", "test-value-2");
+    assertThat(table.currentSnapshot().summary()).containsEntry("test-key", "test-value-2");
   }
 }
