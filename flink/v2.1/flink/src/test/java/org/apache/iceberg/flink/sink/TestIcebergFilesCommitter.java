@@ -1222,7 +1222,8 @@ public class TestIcebergFilesCommitter extends TestBase {
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
               ThreadPools.WORKER_THREAD_POOL_SIZE,
               branch,
-              spec);
+              spec,
+              null);
       return (T) committer;
     }
 
