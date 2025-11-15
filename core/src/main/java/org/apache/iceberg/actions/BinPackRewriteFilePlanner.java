@@ -190,7 +190,10 @@ public class BinPackRewriteFilePlanner
     return Iterables.filter(
         tasks,
         task ->
-            outsideDesiredFileSizeRange(task) || tooManyDeletes(task) || tooHighDeleteRatio(task));
+            (task.file() != null && task.file().specId() != outputSpecId())
+                || outsideDesiredFileSizeRange(task)
+                || tooManyDeletes(task)
+                || tooHighDeleteRatio(task));
   }
 
   @Override
@@ -198,7 +201,10 @@ public class BinPackRewriteFilePlanner
     return Iterables.filter(
         groups,
         group ->
-            enoughInputFiles(group)
+            (group.size() >= 1
+                    && group.get(0).file() != null
+                    && group.get(0).file().specId() != outputSpecId())
+                || enoughInputFiles(group)
                 || enoughContent(group)
                 || tooMuchContent(group)
                 || group.stream().anyMatch(this::tooManyDeletes)
