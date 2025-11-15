@@ -1287,9 +1287,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
-              examples:
-                RenameTargetAlreadyExists:
-                  $ref: '#/components/examples/TableAlreadyExistsError'
+              example:
+                $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
