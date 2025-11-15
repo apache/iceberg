@@ -21,6 +21,8 @@ package org.apache.iceberg.spark;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -120,7 +122,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog implements Closeable {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -162,6 +164,13 @@ public class SparkCatalog extends BaseCatalog {
    */
   protected TableIdentifier buildIdentifier(Identifier identifier) {
     return Spark3Util.identifierToTableIdentifier(identifier);
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (icebergCatalog instanceof Closeable) {
+      ((Closeable) icebergCatalog).close();
+    }
   }
 
   @Override
