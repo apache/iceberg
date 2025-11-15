@@ -19,6 +19,7 @@
 package org.apache.iceberg.geospatial;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -106,6 +107,19 @@ public class TestBoundingBox {
     ByteBuffer buffer = box.toByteBuffer();
     assertThat(BoundingBox.fromByteBuffer(buffer)).isEqualTo(box);
     assertThat(buffer.position()).isEqualTo(0);
+  }
+
+  @Test
+  public void testFromByteBufferWithNonZeroPosition() {
+    BoundingBox box =
+        new BoundingBox(GeospatialBound.createXY(1, 2), GeospatialBound.createXY(3, 4));
+    ByteBuffer buffer = box.toByteBuffer();
+    ByteBuffer largerBuffer = ByteBuffer.allocate(buffer.capacity() + 4);
+    largerBuffer.position(4);
+    largerBuffer.put(buffer);
+    largerBuffer.position(4);
+    assertThatThrownBy(() -> BoundingBox.fromByteBuffer(largerBuffer))
+        .hasMessageMatching("Input ByteBuffer must have position 0");
   }
 
   @Test
