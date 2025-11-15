@@ -83,6 +83,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private final TableLoader tableLoader;
   private final boolean replacePartitions;
   private final Map<String, String> snapshotProperties;
+  private SnapshotPropertyGenerator snapshotPropertyGenerator;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not
   // been committed to iceberg table). We need a sorted map here because there's possible that few
@@ -131,7 +132,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       Map<String, String> snapshotProperties,
       Integer workerPoolSize,
       String branch,
-      PartitionSpec spec) {
+      PartitionSpec spec,
+      SnapshotPropertyGenerator snapshotPropertyGenerator) {
     super(parameters);
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
@@ -139,6 +141,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
     this.spec = spec;
+    this.snapshotPropertyGenerator = snapshotPropertyGenerator;
   }
 
   @Override
@@ -384,6 +387,13 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         branch,
         summary);
     snapshotProperties.forEach(operation::set);
+    // dynamic snapshot properties, will override static ones if conflict
+    if (snapshotPropertyGenerator != null) {
+      Map<String, String> dynamicSnapshotProperties = snapshotPropertyGenerator.generate();
+      if (dynamicSnapshotProperties != null) {
+        dynamicSnapshotProperties.forEach(operation::set);
+      }
+    }
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));

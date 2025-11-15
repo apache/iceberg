@@ -247,4 +247,28 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
     // Assert the iceberg table's records.
     SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
   }
+
+  @Test
+  public void testSetSnapshotPropertyGenerator() throws Exception {
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"));
+    DataStream<RowData> dataStream =
+            env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+                    .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    Configuration flinkConf = new Configuration();
+    FlinkSink.forRowData(dataStream)
+            .table(table)
+            .tableLoader(tableLoader)
+            .flinkConf(flinkConf)
+            .writeParallelism(parallelism)
+            .setSnapshotPropertyGenerator(
+                    () -> Collections.singletonMap("test-key", "test-value"))
+            .append();
+
+    env.execute("Test Iceberg DataStream");
+
+    table.refresh();
+    assertThat(table.currentSnapshot().summary())
+            .containsEntry("test-key", "test-value");
+  }
 }

@@ -164,6 +164,7 @@ public class FlinkSink {
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
     private final Map<String, String> snapshotProperties = Maps.newHashMap();
+    private SnapshotPropertyGenerator snapshotPropertyGenerator = null;
     private ReadableConfig readableConfig = new Configuration();
     private final Map<String, String> writeOptions = Maps.newHashMap();
     private FlinkWriteConf flinkWriteConf = null;
@@ -414,6 +415,11 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder setSnapshotPropertyGenerator(SnapshotPropertyGenerator generator) {
+      this.snapshotPropertyGenerator = generator;
+      return this;
+    }
+
     @Override
     public Builder toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
@@ -536,7 +542,8 @@ public class FlinkSink {
               snapshotProperties,
               flinkWriteConf.workerPoolSize(),
               flinkWriteConf.branch(),
-              table.spec());
+              table.spec(),
+              snapshotPropertyGenerator);
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
               .transform(
