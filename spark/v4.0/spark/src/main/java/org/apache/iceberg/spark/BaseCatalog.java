@@ -26,14 +26,17 @@ import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.spark.udf.SparkUDFRegistrar;
+import org.apache.iceberg.spark.udf.SqlUdfCatalogFunction;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.ProcedureCatalog;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
+import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -115,19 +118,15 @@ abstract class BaseCatalog
     if (isFunctionNamespace(namespace)) {
       Set<String> names = new java.util.LinkedHashSet<>();
       names.addAll(SparkFunctions.list());
-      names.addAll(UserSqlFunctions.list());
 
-      // If configured, fetch functions from REST and register them as SQL UDFs
       if (restFunctions != null) {
         if (cachedRestFunctionNames == null) {
           cachedRestFunctionNames = restFunctions.listFunctions(namespace);
         }
+
         for (String fn : cachedRestFunctionNames) {
           try {
-            // Only register if not already present
             if (!names.contains(fn)) {
-              String json = restFunctions.getFunctionSpecJson(namespace, fn);
-              SparkUDFRegistrar.registerFromJson(SparkSession.active(), fn, json);
               names.add(fn);
             }
           } catch (RuntimeException e) {
@@ -141,5 +140,39 @@ abstract class BaseCatalog
       return new Identifier[0];
     }
     throw new NoSuchNamespaceException(namespace);
+  }
+
+  @Override
+  public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
+    String[] namespace = ident.namespace();
+    String name = ident.name();
+
+    if (!isFunctionNamespace(namespace)) {
+      throw new NoSuchFunctionException(ident);
+    }
+
+    // Try built-ins first
+    UnboundFunction builtin = SparkFunctions.load(name);
+    if (builtin != null) {
+      return builtin;
+    }
+
+    // If REST is configured, fetch and register the SQL UDF on-demand, then return a placeholder
+    if (restFunctions != null) {
+      try {
+        String json = restFunctions.getFunctionSpecJson(namespace, name);
+        SparkUDFRegistrar.registerFromJson(SparkSession.active(), name, json);
+        return new SqlUdfCatalogFunction(name);
+      } catch (RuntimeException e) {
+        // ignore and fall through
+      }
+    }
+
+    // If it was already registered in this session through other means, surface it as well
+    if (UserSqlFunctions.list().stream().anyMatch(n -> n.equalsIgnoreCase(name))) {
+      return new SqlUdfCatalogFunction(name);
+    }
+
+    throw new NoSuchFunctionException(ident);
   }
 }

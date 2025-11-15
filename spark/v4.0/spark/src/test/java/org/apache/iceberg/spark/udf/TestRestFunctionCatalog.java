@@ -152,8 +152,20 @@ public class TestRestFunctionCatalog extends TestBaseWithCatalog {
 
     FunctionCatalog functionCatalog = castToFunctionCatalog(catalogName);
     Identifier[] functions = functionCatalog.listFunctions(new String[] {});
+    long userCount =
+        java.util.Arrays.stream(functions)
+            .filter(id -> id.name().equals("add_one_file") || id.name().equals("fruits_by_color"))
+            .count();
+    assertThat(userCount).isEqualTo(2);
     assertThat(functions).anyMatch(id -> id.name().equals("add_one_file"));
     assertThat(functions).anyMatch(id -> id.name().equals("fruits_by_color"));
+
+    // Explicitly load functions to trigger registration through BaseCatalog.loadFunction
+    for (Identifier id : functions) {
+      if (id.name().equals("add_one_file") || id.name().equals("fruits_by_color")) {
+        functionCatalog.loadFunction(Identifier.of(new String[] {}, id.name()));
+      }
+    }
 
     Object result = scalarSql("SELECT add_one_file(41)");
     assertThat(((Number) result).intValue()).isEqualTo(42);

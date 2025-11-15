@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.rest.RESTCatalogServer;
 import org.apache.iceberg.rest.RESTServerExtension;
-import org.apache.iceberg.rest.functions.RestFunctionService;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -52,20 +51,16 @@ public class TestRestFunctionCatalogE2E extends TestBaseWithCatalog {
     // Ensure referenced table exists before function registration runs
     sql("CREATE TABLE fruits(name STRING, color STRING) USING PARQUET");
 
-    // Fetch Json UDF from REST server and register via SparkUDFRegistrar to mirror production flow
-    String port = SERVER.config().get(RESTCatalogServer.REST_PORT);
-    String baseUrl = "http://localhost:" + port;
-    RestFunctionService svc = new RestFunctionService(baseUrl, null);
-    for (String fn : svc.listFunctions(new String[] {})) {
-      String json = svc.getFunctionSpecJson(new String[] {"default"}, fn);
-      SparkUDFRegistrar.registerFromJson(spark, fn, json);
-    }
-
     FunctionCatalog functionCatalog =
         (FunctionCatalog) spark.sessionState().catalogManager().catalog(catalogName);
     Identifier[] functions = functionCatalog.listFunctions(new String[] {});
     assertThat(functions).anyMatch(id -> id.name().equals("add_one_file"));
     assertThat(functions).anyMatch(id -> id.name().equals("fruits_by_color"));
+
+    // Explicitly load functions to trigger registration through BaseCatalog.loadFunction
+    for (Identifier id : functions) {
+      functionCatalog.loadFunction(Identifier.of(new String[] {}, id.name()));
+    }
 
     Object result = scalarSql("SELECT add_one_file(41)");
     assertThat(((Number) result).intValue()).isEqualTo(42);
