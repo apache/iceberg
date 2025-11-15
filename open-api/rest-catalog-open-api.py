@@ -239,7 +239,7 @@ class SnapshotReference(BaseModel):
 
 
 class SnapshotReferences(BaseModel):
-    __root__: Optional[Dict[str, SnapshotReference]] = None
+    __root__: Dict[str, SnapshotReference]
 
 
 class SnapshotLogItem(BaseModel):
@@ -620,7 +620,7 @@ class MetricResult(BaseModel):
 
 
 class Metrics(BaseModel):
-    __root__: Optional[Dict[str, MetricResult]] = None
+    __root__: Dict[str, MetricResult]
 
 
 class CommitReport(BaseModel):
