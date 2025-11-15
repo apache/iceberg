@@ -1796,6 +1796,82 @@ paths:
           $ref: '#/components/responses/ServerErrorResponse'
 
 
+  /v1/functions:
+
+    get:
+      tags:
+        - Functions API
+      summary: List function names in a namespace
+      operationId: listFunctions
+      parameters:
+        - name: namespace
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListFunctionsResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/functions/{namespace}/{name}:
+
+    get:
+      tags:
+        - Functions API
+      summary: Load a function spec
+      operationId: loadFunction
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoadFunctionResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
 components:
   #######################################################
   # Common Parameter Definitions Used In Several Routes #
@@ -3981,6 +4057,28 @@ components:
           items:
             $ref: '#/components/schemas/Namespace'
 
+    ListFunctionsResponse:
+      type: object
+      properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
+        names:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+      required:
+        - names
+
+    LoadFunctionResponse:
+      type: object
+      required:
+        - spec
+      properties:
+        spec:
+          type: object
+          description: Iceberg UDF metadata JSON object
+
     UpdateNamespacePropertiesResponse:
       type: object
       required:
@@ -4633,6 +4731,20 @@ components:
               $ref: '#/components/examples/ListNamespacesNonEmptyExample'
             EmptyResponse:
               $ref: '#/components/examples/ListNamespacesEmptyExample'
+
+    ListFunctionsResponse:
+      description: A list of function names
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ListFunctionsResponse'
+
+    LoadFunctionResponse:
+      description: A function specification payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadFunctionResponse'
 
     AuthenticationTimeoutResponse:
       description:

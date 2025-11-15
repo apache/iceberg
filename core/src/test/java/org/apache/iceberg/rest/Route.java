@@ -38,8 +38,10 @@ import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListFunctionsResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadFunctionResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -94,6 +96,12 @@ enum Route {
       ResourcePaths.V1_TABLE_METRICS,
       ReportMetricsRequest.class,
       null),
+  LIST_FUNCTIONS(HTTPRequest.HTTPMethod.GET, "v1/functions", null, ListFunctionsResponse.class),
+  LOAD_FUNCTION(
+      HTTPRequest.HTTPMethod.GET,
+      "v1/functions/{namespace}/{name}",
+      null,
+      LoadFunctionResponse.class),
   COMMIT_TRANSACTION(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TRANSACTIONS_COMMIT,
