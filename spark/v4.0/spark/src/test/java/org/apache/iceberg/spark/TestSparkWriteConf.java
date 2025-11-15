@@ -428,6 +428,23 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testExtraSnapshotMetadataPersistedOnWrite() {
+    String propertyKey = "test-key";
+    String propertyValue = "session-value";
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
+        () -> {
+          spark.sql(
+              String.format(
+                  "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+                  tableName));
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
+        });
+  }
+
+  @TestTemplate
   public void testDataPropsDefaultsAsDeleteProps() {
     List<List<Map<String, String>>> propertiesSuites =
         Lists.newArrayList(
