@@ -87,7 +87,7 @@ spark34 = "3.4.4"
 spark35 = "3.5.7"
 spark40 = "4.0.1"
 sqlite-jdbc = "3.51.0.0"
-testcontainers = "2.0.1"
+testcontainers = "2.0.2"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
