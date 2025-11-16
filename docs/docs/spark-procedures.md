@@ -59,10 +59,11 @@ To roll back to a specific time, use [`rollback_to_timestamp`](#rollback_to_time
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `snapshot_id` | ✔️  | long   | Snapshot ID to rollback to |
+| Argument Name     | Required? | Type    | Description                               |
+|-------------------|-----------|---------|-------------------------------------------|
+| `table`           | ✔️        | string  | Name of the table to update               |
+| `snapshot_id`     | ✔️        | long    | Snapshot ID to rollback to                |
+| `rollback_schema` | ️         | boolean | When true, roll back the table definition |
 
 #### Output
 
@@ -88,10 +89,11 @@ Roll back a table to the snapshot that was current at some time.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `timestamp`   | ✔️  | timestamp | A timestamp to rollback to |
+| Argument Name     | Required? | Type      | Description                               |
+|-------------------|-----------|-----------|-------------------------------------------|
+| `table`           | ✔️        | string    | Name of the table to update               |
+| `timestamp`       | ✔️        | timestamp | A timestamp to rollback to                |
+| `rollback_schema` | ️         | boolean   | When true, roll back the table definition |
 
 #### Output
 

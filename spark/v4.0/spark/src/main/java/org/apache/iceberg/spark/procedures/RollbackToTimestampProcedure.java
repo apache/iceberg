@@ -48,9 +48,11 @@ class RollbackToTimestampProcedure extends BaseProcedure {
       requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter TIMESTAMP_PARAM =
       requiredInParameter("timestamp", DataTypes.TimestampType);
+  private static final ProcedureParameter ROLLBACK_SCHEMA_PARAM =
+      optionalInParameter("rollback_schema", DataTypes.BooleanType, "false");
 
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {TABLE_PARAM, TIMESTAMP_PARAM};
+      new ProcedureParameter[] {TABLE_PARAM, TIMESTAMP_PARAM, ROLLBACK_SCHEMA_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -88,6 +90,7 @@ class RollbackToTimestampProcedure extends BaseProcedure {
     Identifier tableIdent = input.ident(TABLE_PARAM);
     // timestamps in Spark have microsecond precision so this conversion is lossy
     long timestampMillis = input.asTimestampMillis(TIMESTAMP_PARAM);
+    boolean rollbackSchema = input.asBoolean(ROLLBACK_SCHEMA_PARAM, false);
 
     return modifyIcebergTable(
         tableIdent,
@@ -97,6 +100,10 @@ class RollbackToTimestampProcedure extends BaseProcedure {
           table.manageSnapshots().rollbackToTime(timestampMillis).commit();
 
           Snapshot currentSnapshot = table.currentSnapshot();
+
+          if (rollbackSchema) {
+            table.updateSchema().rollbackTo(currentSnapshot.schemaId()).commit();
+          }
 
           InternalRow outputRow =
               newInternalRow(previousSnapshot.snapshotId(), currentSnapshot.snapshotId());

@@ -659,4 +659,15 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   default UpdateSchema caseSensitive(boolean caseSensitive) {
     throw new UnsupportedOperationException();
   }
+
+  /**
+   * Rollback table's schema to a specific {@link Schema} identified by id.
+   *
+   * @param schemaId schema id to roll back table to.
+   * @return this for method chaining
+   * @throws IllegalArgumentException If the table has no schema with the given id
+   */
+  default UpdateSchema rollbackTo(int schemaId) {
+    throw new UnsupportedOperationException();
+  }
 }

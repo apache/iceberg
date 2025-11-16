@@ -329,11 +329,50 @@ public class TestRollbackToTimestampProcedure extends ExtensionsTestBase {
                     catalogName, timestamp))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "[WRONG_NUM_ARGS.WITHOUT_SUGGESTION] The `rollback_to_timestamp` requires 2 parameters but the actual number is 4.");
+            "[WRONG_NUM_ARGS.WITHOUT_SUGGESTION] The `rollback_to_timestamp` requires [2, 3] parameters but the actual number is 4.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp('t', 2.2)", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] Cannot resolve CALL due to data type mismatch: The second parameter requires the \"TIMESTAMP\" type, however \"2.2\" has the type \"DECIMAL(2,1)\". SQLSTATE: 42K09");
+  }
+
+  @TestTemplate
+  public void testRollbackToTimestampWithSchema() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot firstSnapshot = table.currentSnapshot();
+    String firstSnapshotTimestamp = LocalDateTime.now().toString();
+
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    sql("ALTER TABLE %s DROP COLUMN data", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2)", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L), row(2L)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    table.refresh();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rollback_to_timestamp('%s',TIMESTAMP '%s', true)",
+            catalogName, tableIdent, firstSnapshotTimestamp);
+
+    assertEquals(
+        "Procedure output must match",
+        ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
+        output);
+
+    assertEquals(
+        "Rollback must be successful",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 }

@@ -283,4 +283,40 @@ public class TestRollbackToSnapshotProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
+
+  @TestTemplate
+  public void testRollbackToSnapshotWithSchema() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    sql("ALTER TABLE %s DROP COLUMN data", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2)", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L), row(2L)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    table.refresh();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rollback_to_snapshot('%s', %dL, true)",
+            catalogName, tableIdent, firstSnapshot.snapshotId());
+
+    assertEquals(
+        "Procedure output must match",
+        ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
+        output);
+
+    assertEquals(
+        "Rollback must be successful",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
 }
