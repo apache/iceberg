@@ -150,9 +150,9 @@ public interface RewriteDataFiles
   /**
    * Use Parquet row-group level merging during rewrite operations when applicable.
    *
-   * <p>When enabled, Parquet files will be merged at the row-group level using zero-copy operations
-   * instead of full read-rewrite. This provides significant performance improvements (up to 13x
-   * faster) for compatible Parquet files.
+   * <p>When enabled, Parquet files will be merged at the row-group level by directly copying row
+   * groups without deserialization and re-serialization. This provides significant performance
+   * improvements for compatible Parquet files.
    *
    * <p>Requirements for row-group merging:
    *
@@ -160,6 +160,8 @@ public interface RewriteDataFiles
    *   <li>All files must be in Parquet format
    *   <li>Files must have compatible schemas
    *   <li>Files must not be encrypted
+   *   <li>Files must not have associated delete files or delete vectors
+   *   <li>Table must not have a sort order (including z-ordered tables)
    * </ul>
    *
    * <p>If requirements are not met, the rewrite will automatically fall back to the standard

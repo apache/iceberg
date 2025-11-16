@@ -142,6 +142,29 @@ The `files` metadata table is useful for inspecting data file sizes and determin
 
 See the [`RewriteDataFiles` Javadoc](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/actions/RewriteDataFiles.html) to see more configuration options.
 
+#### Parquet row-group level merging
+
+For Parquet tables, `rewriteDataFiles` can use an optimized row-group level merge strategy that is significantly faster than the standard read-rewrite approach. This optimization directly copies row groups without deserialization and re-serialization.
+
+```java
+Table table = ...
+SparkActions
+    .get()
+    .rewriteDataFiles(table)
+    .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
+    .execute();
+```
+
+This optimization is applied when the following requirements are met:
+
+* All files are in Parquet format
+* Files have compatible schemas
+* Files are not encrypted
+* Files do not have associated delete files or delete vectors
+* Table does not have a sort order (including z-ordered tables)
+
+If the requirements are not met, the rewrite automatically falls back to the standard read-rewrite approach with a warning logged.
+
 ### Rewrite manifests
 
 Iceberg uses metadata in its manifest list and manifest files to speed up query planning and to prune unnecessary data files. The metadata tree functions as an index over a table's data.

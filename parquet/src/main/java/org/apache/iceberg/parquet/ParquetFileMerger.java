@@ -24,8 +24,8 @@ import java.util.Map;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.hadoop.ParquetFileWriter;
-import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.schema.MessageType;
 
 /**
@@ -45,10 +45,19 @@ import org.apache.parquet.schema.MessageType;
  * <p>Key features:
  *
  * <ul>
- *   <li>Zero-copy row group merging using {@link ParquetFileWriter#appendFile}
+ *   <li>Row group merging without deserialization using {@link ParquetFileWriter#appendFile}
  *   <li>Strict schema validation - all files must have identical {@link MessageType}
  *   <li>Metadata merging for Iceberg-specific footer data
  *   <li>Works with any FileIO implementation (local, S3, GCS, Azure, etc.)
+ * </ul>
+ *
+ * <p>Restrictions:
+ *
+ * <ul>
+ *   <li>All files must have compatible schemas (identical {@link MessageType})
+ *   <li>Files must not be encrypted
+ *   <li>Files must not have associated delete files or delete vectors
+ *   <li>Table must not have a sort order (including z-ordered tables)
  * </ul>
  *
  * <p>Typical usage:
@@ -60,7 +69,9 @@ import org.apache.parquet.schema.MessageType;
  *     fileIO.newInputFile("s3://bucket/file2.parquet")
  * );
  * OutputFile outputFile = fileIO.newOutputFile("s3://bucket/merged.parquet");
- * ParquetFileMerger.mergeFiles(inputFiles, outputFile, null);
+ * long rowGroupSize = 128 * 1024 * 1024; // 128 MB
+ * int columnIndexTruncateLength = 64; // Default truncation length
+ * ParquetFileMerger.mergeFiles(inputFiles, outputFile, rowGroupSize, columnIndexTruncateLength, null);
  * </pre>
  */
 public class ParquetFileMerger {
@@ -82,12 +93,18 @@ public class ParquetFileMerger {
    *
    * @param inputFiles List of Iceberg input files to merge
    * @param outputFile Iceberg output file for the merged result
+   * @param rowGroupSize Target row group size in bytes
+   * @param columnIndexTruncateLength Maximum length for min/max values in column index
    * @param extraMetadata Additional metadata to include in the output file footer (can be null)
    * @throws IOException if I/O error occurs during merge operation
    * @throws IllegalArgumentException if no input files provided or schemas don't match
    */
   public static void mergeFiles(
-      List<InputFile> inputFiles, OutputFile outputFile, Map<String, String> extraMetadata)
+      List<InputFile> inputFiles,
+      OutputFile outputFile,
+      long rowGroupSize,
+      int columnIndexTruncateLength,
+      Map<String, String> extraMetadata)
       throws IOException {
     Preconditions.checkArgument(
         inputFiles != null && !inputFiles.isEmpty(), "No input files provided for merging");
@@ -125,8 +142,11 @@ public class ParquetFileMerger {
             parquetOutputFile,
             schema,
             ParquetFileWriter.Mode.CREATE,
-            ParquetWriter.DEFAULT_BLOCK_SIZE,
-            0)) {
+            rowGroupSize,
+            0, // maxPaddingSize - hardcoded to 0 (same as ParquetWriter)
+            columnIndexTruncateLength,
+            ParquetProperties.DEFAULT_STATISTICS_TRUNCATE_LENGTH,
+            ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED)) {
 
       writer.start();
 

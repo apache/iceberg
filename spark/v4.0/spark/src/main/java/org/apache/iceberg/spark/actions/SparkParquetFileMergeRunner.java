@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -38,6 +37,7 @@ import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
+import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
@@ -107,7 +107,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
    *   <li>Table must not have a sort order (no sorting or z-ordering)
    *   <li>Files must not have delete files or delete vectors
    *   <li>Files must have compatible schemas (verified by ParquetFileMerger.canMerge)
-   *   <li>Files must not be encrypted (TODO: add encryption check)
+   *   <li>Files must not be encrypted (detected by ParquetCryptoRuntimeException)
    * </ul>
    *
    * @param group the file group to check
@@ -142,7 +142,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       return false;
     }
 
-    // Validate schema compatibility using Iceberg InputFile API
+    // Validate schema compatibility and check for encryption using Iceberg InputFile API
     try {
       List<org.apache.iceberg.io.InputFile> inputFiles =
           group.rewrittenFiles().stream()
@@ -159,13 +159,13 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
         return false;
       }
 
-      // TODO: Add encryption check here
-      // if (hasEncryptedFiles(group)) {
-      //   LOG.warn("Cannot use row-group merge: encrypted files detected");
-      //   return false;
-      // }
-
       return true;
+    } catch (ParquetCryptoRuntimeException e) {
+      // ParquetFileReader.open() throws this when trying to read an encrypted footer without keys.
+      // This happens in ParquetFileMerger.canMerge() when validating schemas.
+      // Exception message: "Trying to read file with encrypted footer. No keys available"
+      LOG.debug("Cannot use row-group merge: encrypted files detected", e);
+      return false;
     } catch (Exception e) {
       LOG.warn("Cannot use row-group merge: validation failed", e);
       return false;
@@ -173,9 +173,8 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
   }
 
   /**
-   * Merges Parquet files in the group, respecting the target file size and expected output file
-   * count. Files are grouped into batches based on maxOutputFileSize, and each batch is merged into
-   * a separate output file.
+   * Merges Parquet files in the group, respecting the expected output file count determined by the
+   * planner. Files are distributed evenly across the expected number of output files.
    */
   private void mergeParquetFilesDistributed(String groupId, RewriteFileGroup group) {
     PartitionSpec spec = table().specs().get(group.outputSpecId());
@@ -184,14 +183,25 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     int expectedOutputFiles = group.expectedOutputFiles();
 
     LOG.info(
-        "Merging {} Parquet files into {} expected output files (group: {}, max size: {})",
+        "Merging {} Parquet files into {} expected output files (group: {})",
         group.rewrittenFiles().size(),
         expectedOutputFiles,
-        groupId,
-        maxOutputFileSize);
+        groupId);
 
-    // Group files into batches based on target size
-    List<List<DataFile>> fileBatches = groupFilesBySize(group.rewrittenFiles(), maxOutputFileSize);
+    // Distribute files evenly across expected output files (planner already determined the count)
+    List<List<DataFile>> fileBatches =
+        distributeFilesEvenly(group.rewrittenFiles(), expectedOutputFiles);
+
+    // Get row group size from table properties
+    long rowGroupSize =
+        org.apache.iceberg.util.PropertyUtil.propertyAsLong(
+            table().properties(),
+            org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
+            org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+
+    // Get column index truncate length from Hadoop Configuration (same as ParquetWriter)
+    org.apache.hadoop.conf.Configuration hadoopConf = spark().sessionState().newHadoopConf();
+    int columnIndexTruncateLength = hadoopConf.getInt("parquet.columnindex.truncate.length", 64);
 
     // Create merge tasks for each batch
     List<MergeTaskInfo> mergeTasks = Lists.newArrayList();
@@ -200,7 +210,9 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       String taskId = String.format("%s-%d", groupId, batchIndex++);
       List<String> filePaths =
           batch.stream().map(f -> f.path().toString()).collect(Collectors.toList());
-      mergeTasks.add(new MergeTaskInfo(taskId, filePaths, spec, partition));
+      mergeTasks.add(
+          new MergeTaskInfo(
+              taskId, filePaths, spec, partition, rowGroupSize, columnIndexTruncateLength));
     }
 
     // Get FileIO for executors - table().io() is serializable
@@ -242,38 +254,22 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
   }
 
   /**
-   * Groups files into batches based on target size. Uses a bin-packing algorithm to group files
-   * such that each batch doesn't exceed the target size (with a small tolerance).
+   * Distributes files evenly across the expected number of output files. This simple distribution
+   * trusts the planner's calculation of expectedOutputFiles and just divides files evenly.
    */
-  private List<List<DataFile>> groupFilesBySize(Set<DataFile> files, long targetSize) {
+  private List<List<DataFile>> distributeFilesEvenly(Set<DataFile> files, int expectedOutputFiles) {
+    List<DataFile> fileList = Lists.newArrayList(files);
     List<List<DataFile>> groups = Lists.newArrayList();
-    List<DataFile> sortedFiles =
-        files.stream()
-            .sorted(Comparator.comparingLong(DataFile::fileSizeInBytes).reversed())
-            .collect(Collectors.toList());
 
-    List<DataFile> currentGroup = Lists.newArrayList();
-    long currentSize = 0;
-    long tolerance = (long) (targetSize * 1.1); // Allow 10% over target
-
-    for (DataFile file : sortedFiles) {
-      long fileSize = file.fileSizeInBytes();
-
-      // If adding this file would exceed tolerance and we have files in current group, start new
-      // group
-      if (currentSize + fileSize > tolerance && !currentGroup.isEmpty()) {
-        groups.add(currentGroup);
-        currentGroup = Lists.newArrayList();
-        currentSize = 0;
-      }
-
-      currentGroup.add(file);
-      currentSize += fileSize;
+    if (expectedOutputFiles <= 0 || fileList.isEmpty()) {
+      return groups;
     }
 
-    // Add the last group if it has any files
-    if (!currentGroup.isEmpty()) {
-      groups.add(currentGroup);
+    int filesPerGroup = (int) Math.ceil((double) fileList.size() / expectedOutputFiles);
+
+    for (int i = 0; i < fileList.size(); i += filesPerGroup) {
+      int endIndex = Math.min(i + filesPerGroup, fileList.size());
+      groups.add(fileList.subList(i, endIndex));
     }
 
     return groups;
@@ -301,8 +297,9 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     // Create output file using Iceberg FileIO
     org.apache.iceberg.io.OutputFile outputFile = fileIO.newOutputFile(outputPath);
 
-    // Merge files using FileIO-based static method
-    ParquetFileMerger.mergeFiles(inputFiles, outputFile, null);
+    // Merge files using FileIO-based static method with configuration from table/Hadoop properties
+    ParquetFileMerger.mergeFiles(
+        inputFiles, outputFile, task.getRowGroupSize(), task.getColumnIndexTruncateLength(), null);
 
     // Get file size from the output file
     long fileSize = fileIO.newInputFile(outputPath).getLength();
@@ -320,12 +317,22 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     private final List<String> filePaths;
     private final PartitionSpec spec;
     private final StructLike partition;
+    private final long rowGroupSize;
+    private final int columnIndexTruncateLength;
 
-    MergeTaskInfo(String taskId, List<String> filePaths, PartitionSpec spec, StructLike partition) {
+    MergeTaskInfo(
+        String taskId,
+        List<String> filePaths,
+        PartitionSpec spec,
+        StructLike partition,
+        long rowGroupSize,
+        int columnIndexTruncateLength) {
       this.taskId = taskId;
       this.filePaths = filePaths;
       this.spec = spec;
       this.partition = partition;
+      this.rowGroupSize = rowGroupSize;
+      this.columnIndexTruncateLength = columnIndexTruncateLength;
     }
 
     String getTaskId() {
@@ -334,6 +341,14 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
     List<String> getFilePaths() {
       return filePaths;
+    }
+
+    long getRowGroupSize() {
+      return rowGroupSize;
+    }
+
+    int getColumnIndexTruncateLength() {
+      return columnIndexTruncateLength;
     }
 
     PartitionSpec getSpec() {
