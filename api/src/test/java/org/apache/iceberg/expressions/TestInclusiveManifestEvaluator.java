@@ -770,7 +770,6 @@ public class TestInclusiveManifestEvaluator {
     assertThat(shouldRead).as("Should read: notIn on no nulls column").isTrue();
   }
 
-  /** Tests UUID equality filter using byte-order comparison against partition bounds. */
   @Test
   public void testUuidEq() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -782,8 +781,8 @@ public class TestInclusiveManifestEvaluator {
         ManifestEvaluator.forRowFilter(equal("uuid", UUID_MIN_VALUE), SPEC, true).eval(FILE);
     assertThat(shouldRead).as("Should read: uuid equal to lower bound").isTrue();
 
-    UUID middle = UUID.fromString("7fffffff-ffff-ffff-7fff-ffffffffffff");
-    shouldRead = ManifestEvaluator.forRowFilter(equal("uuid", middle), SPEC, true).eval(FILE);
+    UUID between = UUID.fromString("7fffffff-ffff-ffff-7fff-ffffffffffff");
+    shouldRead = ManifestEvaluator.forRowFilter(equal("uuid", between), SPEC, true).eval(FILE);
     assertThat(shouldRead).as("Should read: uuid between lower and upper bounds").isTrue();
 
     shouldRead =
@@ -795,7 +794,6 @@ public class TestInclusiveManifestEvaluator {
     assertThat(shouldRead).as("Should not read: uuid above upper bound").isFalse();
   }
 
-  /** Tests UUID less-than filter using byte-order comparison against partition bounds. */
   @Test
   public void testUuidLt() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -823,7 +821,6 @@ public class TestInclusiveManifestEvaluator {
     assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
   }
 
-  /** Tests UUID less-than-or-equal filter using byte-order comparison against partition bounds. */
   @Test
   public void testUuidLtEq() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -847,7 +844,6 @@ public class TestInclusiveManifestEvaluator {
     assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
   }
 
-  /** Tests UUID greater-than filter using byte-order comparison against partition bounds. */
   @Test
   public void testUuidGt() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -876,9 +872,6 @@ public class TestInclusiveManifestEvaluator {
     assertThat(shouldRead).as("Should not read: uuid range above upper bound").isFalse();
   }
 
-  /**
-   * Tests UUID greater-than-or-equal filter using byte-order comparison against partition bounds.
-   */
   @Test
   public void testUuidGtEq() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -902,7 +895,6 @@ public class TestInclusiveManifestEvaluator {
     assertThat(shouldRead).as("Should not read: uuid range above upper bound").isFalse();
   }
 
-  /** Tests UUID IN filter using byte-order comparison against partition bounds. */
   @Test
   public void testUuidIn() {
     UUID belowMin1 = UUID.fromString("00000000-0000-0000-0000-000000000000");

@@ -989,7 +989,6 @@ public class TestInclusiveMetricsEvaluator {
         .isFalse();
   }
 
-  /** Tests UUID equality filter using byte-order comparison against data file metrics. */
   @Test
   public void testUuidEq() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -999,8 +998,8 @@ public class TestInclusiveMetricsEvaluator {
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", UUID_MIN_VALUE)).eval(FILE);
     assertThat(shouldRead).as("Should read: uuid equal to lower bound").isTrue();
 
-    UUID middle = UUID.fromString("7fffffff-ffff-ffff-7fff-ffffffffffff");
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", middle)).eval(FILE);
+    UUID between = UUID.fromString("7fffffff-ffff-ffff-7fff-ffffffffffff");
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", between)).eval(FILE);
     assertThat(shouldRead).as("Should read: uuid between lower and upper bounds").isTrue();
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", UUID_MAX_VALUE)).eval(FILE);
@@ -1011,7 +1010,6 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead).as("Should not read: uuid above upper bound").isFalse();
   }
 
-  /** Tests UUID less-than filter using byte-order comparison against data file metrics. */
   @Test
   public void testUuidLt() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -1036,7 +1034,6 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
   }
 
-  /** Tests UUID less-than-or-equal filter using byte-order comparison against data file metrics. */
   @Test
   public void testUuidLtEq() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -1058,7 +1055,6 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead).as("Should read: all uuids in range").isTrue();
   }
 
-  /** Tests UUID greater-than filter using byte-order comparison against data file metrics. */
   @Test
   public void testUuidGt() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -1112,7 +1108,6 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead).as("Should not read: uuid range above upper bound").isFalse();
   }
 
-  /** Tests UUID IN filter using byte-order comparison against data file metrics. */
   @Test
   public void testUuidIn() {
     UUID belowMin1 = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -1140,7 +1135,6 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead).as("Should not read: uuids above upper bound").isFalse();
   }
 
-  /** Tests UUID not-equal filter against data file metrics. */
   @Test
   public void testUuidNotEq() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
@@ -1163,7 +1157,6 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead).as("Should read: notEqual always reads").isTrue();
   }
 
-  /** Tests UUID NOT IN filter against data file metrics. */
   @Test
   public void testUuidNotIn() {
     UUID belowMin1 = UUID.fromString("00000000-0000-0000-0000-000000000000");
