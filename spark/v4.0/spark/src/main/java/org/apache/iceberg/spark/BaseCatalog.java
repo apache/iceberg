@@ -118,6 +118,7 @@ abstract class BaseCatalog
     if (isFunctionNamespace(namespace)) {
       Set<String> names = new java.util.LinkedHashSet<>();
       names.addAll(SparkFunctions.list());
+      names.addAll(UserSqlFunctions.list());
 
       if (restFunctions != null) {
         if (cachedRestFunctionNames == null) {
