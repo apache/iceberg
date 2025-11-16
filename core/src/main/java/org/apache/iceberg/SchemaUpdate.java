@@ -23,6 +23,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Literal;
@@ -61,6 +62,7 @@ class SchemaUpdate implements UpdateSchema {
   private final Map<String, Integer> addedNameToId = Maps.newHashMap();
   private final Multimap<Integer, Move> moves =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+  private OptionalInt schemaIdToRollback = OptionalInt.empty();
   private int lastColumnId;
   private boolean allowIncompatibleChanges = false;
   private Set<String> identifierFieldNames;
@@ -454,6 +456,16 @@ class SchemaUpdate implements UpdateSchema {
     }
   }
 
+  @Override
+  public UpdateSchema rollbackTo(int schemaId) {
+    if (!base.schemasById().containsKey(schemaId)) {
+      throw new IllegalArgumentException("Cannot find schema with id: " + schemaId);
+    }
+
+    schemaIdToRollback = OptionalInt.of(schemaId);
+    return this;
+  }
+
   /**
    * Apply the pending changes to the original schema and returns the result.
    *
@@ -463,8 +475,13 @@ class SchemaUpdate implements UpdateSchema {
    */
   @Override
   public Schema apply() {
+    Schema baseSchema = this.schema;
+    if (schemaIdToRollback.isPresent()) {
+      baseSchema = base.schemasById().get(schemaIdToRollback.getAsInt());
+    }
+
     return applyChanges(
-        schema, deletes, updates, parentToAddedIds, moves, identifierFieldNames, caseSensitive);
+        baseSchema, deletes, updates, parentToAddedIds, moves, identifierFieldNames, caseSensitive);
   }
 
   @Override
