@@ -140,21 +140,19 @@ public class TestInclusiveMetricsEvaluator {
               8, 10L,
               9, 0L),
           // lower bounds
-          ImmutableMap.<Integer, java.nio.ByteBuffer>builder()
-              .put(1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE))
-              .put(11, toByteBuffer(Types.FloatType.get(), Float.NaN))
-              .put(12, toByteBuffer(Types.DoubleType.get(), Double.NaN))
-              .put(14, toByteBuffer(Types.StringType.get(), ""))
-              .put(15, toByteBuffer(Types.UUIDType.get(), UUID_MIN_VALUE))
-              .buildOrThrow(),
+          ImmutableMap.of(
+              1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              11, toByteBuffer(Types.FloatType.get(), Float.NaN),
+              12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
+              14, toByteBuffer(Types.StringType.get(), ""),
+              15, toByteBuffer(Types.UUIDType.get(), UUID_MIN_VALUE)),
           // upper bounds
-          ImmutableMap.<Integer, java.nio.ByteBuffer>builder()
-              .put(1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE))
-              .put(11, toByteBuffer(Types.FloatType.get(), Float.NaN))
-              .put(12, toByteBuffer(Types.DoubleType.get(), Double.NaN))
-              .put(14, toByteBuffer(Types.StringType.get(), "房东整租霍营小区二层两居室"))
-              .put(15, toByteBuffer(Types.UUIDType.get(), UUID_MAX_VALUE))
-              .buildOrThrow());
+          ImmutableMap.of(
+              1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
+              11, toByteBuffer(Types.FloatType.get(), Float.NaN),
+              12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
+              14, toByteBuffer(Types.StringType.get(), "房东整租霍营小区二层两居室"),
+              15, toByteBuffer(Types.UUIDType.get(), UUID_MAX_VALUE)));
 
   private static final DataFile FILE_2 =
       new TestDataFile(
@@ -1082,9 +1080,6 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead).as("Should not read: uuid range above upper bound").isFalse();
   }
 
-  /**
-   * Tests UUID greater-than-or-equal filter using byte-order comparison against data file metrics.
-   */
   @Test
   public void testUuidGtEq() {
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
