@@ -217,6 +217,12 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
             "Namespace %s is not empty. Contains %d table(s).", namespace, tableIdentifiers.size());
       }
 
+      List<TableIdentifier> viewIdentifiers = listViews(namespace);
+      if (!viewIdentifiers.isEmpty()) {
+        throw new NamespaceNotEmptyException(
+            "Namespace %s is not empty. Contains %d view(s).", namespace, viewIdentifiers.size());
+      }
+
       return namespaces.remove(namespace) != null;
     }
   }

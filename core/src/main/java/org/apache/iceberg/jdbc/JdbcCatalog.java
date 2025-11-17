@@ -540,7 +540,15 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     List<TableIdentifier> tableIdentifiers = listTables(namespace);
     if (tableIdentifiers != null && !tableIdentifiers.isEmpty()) {
       throw new NamespaceNotEmptyException(
-          "Namespace %s is not empty. %s tables exist.", namespace, tableIdentifiers.size());
+          "Namespace %s is not empty. Contains %d table(s).", namespace, tableIdentifiers.size());
+    }
+
+    if (schemaVersion != JdbcUtil.SchemaVersion.V0) {
+      List<TableIdentifier> viewIdentifiers = listViews(namespace);
+      if (viewIdentifiers != null && !viewIdentifiers.isEmpty()) {
+        throw new NamespaceNotEmptyException(
+            "Namespace %s is not empty. Contains %d view(s).", namespace, viewIdentifiers.size());
+      }
     }
 
     int deletedRows =

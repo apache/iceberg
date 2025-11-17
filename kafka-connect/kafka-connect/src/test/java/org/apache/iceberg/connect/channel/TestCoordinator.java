@@ -229,4 +229,28 @@ public class TestCoordinator extends ChannelTestBase {
     sourceConsumer.rebalance(ImmutableList.of(tp1));
     assertThat(mockIcebergSinkTask.isCoordinatorRunning()).isFalse();
   }
+
+  @Test
+  public void testCoordinatorCommittedOffsetMerging() {
+    // Set the initial offsets based on a message from partition 1
+    table
+        .newAppend()
+        .appendFile(EventTestUtil.createDataFile())
+        .set(OFFSETS_SNAPSHOT_PROP, "{\"1\":7}")
+        .commit();
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"1\":7}");
+
+    // Trigger commit to the table that will include partition 0 offsets
+    coordinatorTest(
+        ImmutableList.of(EventTestUtil.createDataFile()), ImmutableList.of(), EventTestUtil.now());
+
+    // Assert that the table was not updated and both offsets are represented
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3,\"1\":7}");
+  }
 }
