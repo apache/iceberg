@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.time.Clock;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.functions.OpenContext;
@@ -72,7 +73,11 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     Catalog catalog = catalogLoader.loadCatalog();
     this.tableCache =
         new TableMetadataCache(
-            catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize);
+            catalog,
+            cacheMaximumSize,
+            cacheRefreshMs,
+            Clock.systemUTC(),
+            inputSchemasPerTableCacheMaximumSize);
     this.hashKeyGenerator =
         new HashKeyGenerator(
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());

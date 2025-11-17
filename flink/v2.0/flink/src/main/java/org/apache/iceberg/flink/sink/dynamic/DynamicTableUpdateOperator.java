@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.time.Clock;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -62,7 +63,11 @@ class DynamicTableUpdateOperator
     this.updater =
         new TableUpdater(
             new TableMetadataCache(
-                catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize),
+                catalog,
+                cacheMaximumSize,
+                cacheRefreshMs,
+                Clock.systemUTC(),
+                inputSchemasPerTableCacheMaximumSize),
             catalog);
   }
 
