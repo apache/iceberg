@@ -262,11 +262,7 @@ public class SparkWriteConf {
 
     // Add write options, overriding session configuration if necessary
     extraSnapshotMetadata.putAll(
-            PropertyUtil.propertiesWithPrefix(
-                    writeOptions,
-                    SnapshotSummary.EXTRA_METADATA_PREFIX
-            )
-    );
+        PropertyUtil.propertiesWithPrefix(writeOptions, SnapshotSummary.EXTRA_METADATA_PREFIX));
 
     return extraSnapshotMetadata;
   }
