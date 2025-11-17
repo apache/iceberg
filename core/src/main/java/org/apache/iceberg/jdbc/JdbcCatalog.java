@@ -150,7 +150,9 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
     final boolean updateSchemaIfRequired =
         PropertyUtil.propertyAsBoolean(
-            properties, JdbcUtil.UPDATE_CATALOG_SCHEMA_IF_NECESSARY_PROPERTY, initializeCatalogTables);
+            properties,
+            JdbcUtil.UPDATE_CATALOG_SCHEMA_IF_NECESSARY_PROPERTY,
+            initializeCatalogTables);
     if (updateSchemaIfRequired) {
       updateSchemaIfRequired();
     }
