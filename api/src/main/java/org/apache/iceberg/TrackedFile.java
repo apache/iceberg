@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -214,6 +215,17 @@ public interface TrackedFile<F> {
    * <p>Use this method to copy data without stats when collecting files.
    */
   F copyWithoutStats();
+
+  /**
+   * Copies this tracked file with stats only for specific columns.
+   *
+   * <p>Manifest readers can reuse file instances; use this method to copy data with stats only for
+   * specific columns when collecting files.
+   *
+   * @param requestedColumnIds column IDs for which to keep stats
+   * @return a copy of this tracked file, with content stats for only the requested columns
+   */
+  F copyWithStats(Set<Integer> requestedColumnIds);
 
   /**
    * Returns the ordinal position in the manifest.

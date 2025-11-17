@@ -546,6 +546,13 @@ public class GenericTrackedFile extends SupportsIndexProjection
   }
 
   @Override
+  public GenericTrackedFile copyWithStats(java.util.Set<Integer> requestedColumnIds) {
+    // TODO: When ContentStats structure is implemented, filter stats to only requestedColumnIds
+    // For now, return a full copy with all stats since contentStats is just Object
+    return new GenericTrackedFile(this, true);
+  }
+
+  @Override
   public Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema();

@@ -191,6 +191,7 @@ class TrackedDeleteFileAdapter implements DeleteFile {
 
   @Override
   public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-    return copyWithoutStats();
+    return new TrackedDeleteFileAdapter(
+        (TrackedFile<?>) trackedFile.copyWithStats(requestedColumnIds), spec);
   }
 }
