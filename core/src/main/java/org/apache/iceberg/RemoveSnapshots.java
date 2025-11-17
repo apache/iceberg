@@ -69,7 +69,6 @@ class RemoveSnapshots implements ExpireSnapshots {
   private final Set<Long> idsToRemove = Sets.newHashSet();
   private final long now;
   private final long defaultMaxRefAgeMs;
-  private final CleanupLevel defaultCleanupLevel = CleanupLevel.ALL;
   private TableMetadata base;
   private long defaultExpireOlderThan;
   private int defaultMinNumSnapshots;
@@ -79,7 +78,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   private Boolean incrementalCleanup;
   private boolean specifiedSnapshotId = false;
   private boolean cleanExpiredMetadata = false;
-  private CleanupLevel cleanupLevel = defaultCleanupLevel;
+  private boolean cleanExpiredFiles = true;
+  private CleanupLevel cleanupLevel = CleanupLevel.ALL;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -105,9 +105,10 @@ class RemoveSnapshots implements ExpireSnapshots {
   @Override
   public ExpireSnapshots cleanExpiredFiles(boolean clean) {
     Preconditions.checkArgument(
-        cleanupLevel == defaultCleanupLevel,
+        cleanupLevel == CleanupLevel.ALL,
         "Cannot set cleanExpiredFiles when cleanupLevel has already been set to: %s",
         cleanupLevel);
+    this.cleanExpiredFiles = clean;
     this.cleanupLevel = clean ? CleanupLevel.ALL : CleanupLevel.NONE;
     return this;
   }
@@ -176,9 +177,9 @@ class RemoveSnapshots implements ExpireSnapshots {
   public ExpireSnapshots cleanupLevel(CleanupLevel level) {
     Preconditions.checkArgument(null != level, "Invalid cleanup level: null");
     Preconditions.checkArgument(
-        cleanupLevel == defaultCleanupLevel,
-        "Cannot set cleanupLevel when it has already been set to: %s",
-        cleanupLevel);
+        cleanExpiredFiles || level == CleanupLevel.NONE,
+        "Cannot set cleanupLevel to %s when cleanExpiredFiles was explicitly set to false",
+        level);
     this.cleanupLevel = level;
     return this;
   }
@@ -371,7 +372,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         cleanupLevel.name());
 
     if (!base.snapshots().isEmpty()) {
-      cleanExpiredSnapshots(cleanupLevel);
+      cleanExpiredSnapshots();
     }
   }
 
@@ -380,10 +381,10 @@ class RemoveSnapshots implements ExpireSnapshots {
     return this;
   }
 
-  private void cleanExpiredSnapshots(CleanupLevel level) {
+  private void cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
 
-    if (CleanupLevel.NONE == level) {
+    if (CleanupLevel.NONE == cleanupLevel) {
       LOG.info("Skip all file clean up with level=NONE");
       return;
     }
@@ -407,7 +408,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             : new ReachableFileCleanup(
                 ops.io(), deleteExecutorService, planExecutorService(), deleteFunc);
 
-    cleanupStrategy.cleanFiles(base, current, level);
+    cleanupStrategy.cleanFiles(base, current, cleanupLevel);
   }
 
   private void validateCleanupCanBeIncremental(TableMetadata current) {
