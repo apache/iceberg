@@ -220,7 +220,6 @@ public class AwsClientProperties implements Serializable {
   public AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
-      clientCredentialsProviderProperties.putAll(allProperties);
       clientCredentialsProviderProperties.put(
           VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
       return credentialsProvider(VendedCredentialsProvider.class.getName());
