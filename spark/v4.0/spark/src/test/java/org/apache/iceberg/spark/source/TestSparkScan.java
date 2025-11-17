@@ -461,7 +461,6 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    // notEq can't be answered using column bounds because they are not exact
     assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
