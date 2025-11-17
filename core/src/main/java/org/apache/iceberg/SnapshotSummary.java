@@ -66,6 +66,7 @@ public class SnapshotSummary {
   public static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   public static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
   public static final String PROCESSED_MANIFEST_ENTRY_COUNT = "entries-processed";
+  public static final String TARGET_BRANCH_PROP = "target-branch";
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 

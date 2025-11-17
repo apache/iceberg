@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.SnapshotSummary.PUBLISHED_WAP_ID_PROP;
+import static org.apache.iceberg.SnapshotSummary.TARGET_BRANCH_PROP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -157,5 +158,35 @@ public class TestSnapshotProducer extends TestBase {
 
     // Verify the table wasn't updated
     assertThat(table.snapshots()).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testPopulateTargetBranchSnapshotProperty() {
+    // Commit to main branch
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot mainSnapshot = table.currentSnapshot();
+    assertThat(mainSnapshot.summary()).containsEntry(TARGET_BRANCH_PROP, SnapshotRef.MAIN_BRANCH);
+
+    // Create and commit to branch1
+    String branch1 = "branch1";
+    table.manageSnapshots().createBranch(branch1, mainSnapshot.snapshotId()).commit();
+    table.newAppend().appendFile(FILE_B).toBranch(branch1).commit();
+    Snapshot branch1Snapshot = table.snapshot(branch1);
+    assertThat(branch1Snapshot.summary()).containsEntry(TARGET_BRANCH_PROP, branch1);
+
+    // Create and commit to branch2
+    String branch2 = "branch2";
+    table.manageSnapshots().createBranch(branch2, mainSnapshot.snapshotId()).commit();
+    table.newAppend().appendFile(FILE_C).toBranch(branch2).commit();
+    Snapshot branch2Snapshot = table.snapshot(branch2);
+    assertThat(branch2Snapshot.summary()).containsEntry(TARGET_BRANCH_PROP, branch2);
+
+    // Verify all snapshots have correct target branch
+    assertThat(table.snapshot(mainSnapshot.snapshotId()).summary())
+        .containsEntry(TARGET_BRANCH_PROP, SnapshotRef.MAIN_BRANCH);
+    assertThat(table.snapshot(branch1Snapshot.snapshotId()).summary())
+        .containsEntry(TARGET_BRANCH_PROP, branch1);
+    assertThat(table.snapshot(branch2Snapshot.snapshotId()).summary())
+        .containsEntry(TARGET_BRANCH_PROP, branch2);
   }
 }

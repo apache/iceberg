@@ -393,6 +393,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
 
+    builder.put(SnapshotSummary.TARGET_BRANCH_PROP, targetBranch);
+
     // copy all summary properties from the implementation
     builder.putAll(summary);
 
