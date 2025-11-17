@@ -454,7 +454,6 @@ public final class VectorizedParquetDefinitionLevelReader
           if (setArrowValidityVector) {
             BitVectorHelper.setBit(vector.getValidityBuffer(), bufferIdx);
           }
-
         } else {
           setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
         }
