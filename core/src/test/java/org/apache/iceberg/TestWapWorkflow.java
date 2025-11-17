@@ -591,7 +591,6 @@ public class TestWapWorkflow extends TestBase {
             // double cherrypicking of second snapshot
             () -> table.manageSnapshots().cherrypick(firstSnapshotId).commit())
         .isInstanceOf(CherrypickAncestorCommitException.class)
-        .hasMessage(
-            String.format("Cannot cherrypick snapshot %s: already an ancestor", firstSnapshotId));
+        .hasMessage("Cannot cherrypick snapshot %s: already an ancestor", firstSnapshotId);
   }
 }

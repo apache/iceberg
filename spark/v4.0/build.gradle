@@ -21,8 +21,9 @@ String sparkMajorVersion = '4.0'
 String scalaVersion = '2.13'
 
 JavaVersion javaVersion = JavaVersion.current()
-if (javaVersion != JavaVersion.VERSION_17 && javaVersion != JavaVersion.VERSION_21) {
-  throw new GradleException("Spark 4.0 build requires JDK 17 or 21 but was executed with JDK " + javaVersion)
+Boolean javaVersionSupported = javaVersion == JavaVersion.VERSION_17 || javaVersion == JavaVersion.VERSION_21
+if (!javaVersionSupported) {
+  logger.warn("Skip Spark 4.0 build which requires JDK 17 or 21 but was executed with JDK " + javaVersion)
 }
 
 def sparkProjects = [
@@ -32,6 +33,9 @@ def sparkProjects = [
 ]
 
 configure(sparkProjects) {
+  tasks.configureEach {
+    onlyIf { javaVersionSupported }
+  }
   configurations {
     all {
       resolutionStrategy {
