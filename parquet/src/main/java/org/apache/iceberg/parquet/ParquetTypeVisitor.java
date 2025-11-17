@@ -22,6 +22,7 @@ import java.util.Deque;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -46,7 +47,8 @@ public class ParquetTypeVisitor<T> {
         return visitList(group, visitor);
       } else if (LogicalTypeAnnotation.mapType().equals(annotation)) {
         return visitMap(group, visitor);
-      } else if (LogicalTypeAnnotation.variantType((byte) 1).equals(annotation)) {
+      } else if (LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION)
+          .equals(annotation)) {
         return visitVariant(group, visitor);
       }
 
