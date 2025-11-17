@@ -128,6 +128,29 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testAddRowsRemoveDataFile() {
+    table.newRowDelta().addRows(FILE_A).commit();
+    SnapshotUpdate<?> rowDelta = table.newRowDelta().addRows(FILE_B).removeRows(FILE_A);
+
+    commit(table, rowDelta, branch);
+    Snapshot snap = latestSnapshot(table, branch);
+    assertThat(snap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+    assertThat(snap.operation())
+        .as("Delta commit should use operation 'overwrite'")
+        .isEqualTo(DataOperations.OVERWRITE);
+    assertThat(snap.dataManifests(table.io())).hasSize(2);
+
+    validateManifest(
+        snap.dataManifests(table.io()).get(0),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(snap.snapshotId()),
+        files(FILE_B),
+        statuses(Status.ADDED));
+  }
+
+  @TestTemplate
   public void testValidateDataFilesExistDefaults() {
     SnapshotUpdate<?> rowDelta1 = table.newAppend().appendFile(FILE_A).appendFile(FILE_B);
 
