@@ -304,12 +304,12 @@ public class TestParquetSchemaUtil {
             variant(30, "variant_col_1", Repetition.OPTIONAL),
             variant(null, "variant_col_2", Repetition.REQUIRED),
             struct(
-                33,
+                31,
                 "struct_col_3",
                 Repetition.REQUIRED,
-                primitive(34, "n1", PrimitiveTypeName.INT32, Repetition.REQUIRED),
+                primitive(32, "n1", PrimitiveTypeName.INT32, Repetition.REQUIRED),
                 variant(null, "variant_field", Repetition.OPTIONAL)),
-            list(31, "list_col_6", Repetition.OPTIONAL, variant(32, "v", Repetition.OPTIONAL)),
+            list(33, "list_col_6", Repetition.OPTIONAL, variant(34, "v", Repetition.OPTIONAL)),
             map(
                 35,
                 "map_col_6",
@@ -321,10 +321,10 @@ public class TestParquetSchemaUtil {
         new Schema(
             optional(30, "variant_col_1", Types.VariantType.get()),
             required(
-                33,
+                31,
                 "struct_col_3",
-                Types.StructType.of(required(34, "n1", Types.IntegerType.get()))),
-            optional(31, "list_col_6", Types.ListType.ofOptional(32, Types.VariantType.get())),
+                Types.StructType.of(required(32, "n1", Types.IntegerType.get()))),
+            optional(33, "list_col_6", Types.ListType.ofOptional(34, Types.VariantType.get())),
             required(
                 35,
                 "map_col_6",
