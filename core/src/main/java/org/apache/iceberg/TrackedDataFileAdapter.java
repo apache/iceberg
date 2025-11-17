@@ -180,6 +180,7 @@ class TrackedDataFileAdapter implements DataFile {
 
   @Override
   public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
-    return copyWithoutStats();
+    return new TrackedDataFileAdapter(
+        (TrackedFile<?>) trackedFile.copyWithStats(requestedColumnIds), spec);
   }
 }
