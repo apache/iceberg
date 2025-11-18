@@ -30,6 +30,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
@@ -541,9 +542,7 @@ public class TestParquetSchemaUtil {
   private Type variant(Integer id, String name, Repetition repetition) {
     GroupBuilder<GroupType> builder =
         org.apache.parquet.schema.Types.buildGroup(repetition)
-            .as(
-                org.apache.parquet.schema.LogicalTypeAnnotation.variantType(
-                    Variant.VARIANT_SPEC_VERSION))
+            .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
             .primitive(PrimitiveTypeName.BINARY, Repetition.REQUIRED)
             .named("metadata")
             .primitive(PrimitiveTypeName.BINARY, Repetition.REQUIRED)
