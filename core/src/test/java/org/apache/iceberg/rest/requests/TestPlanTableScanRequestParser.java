@@ -82,6 +82,16 @@ public class TestPlanTableScanRequestParser {
   }
 
   @Test
+  public void invalidMinRowsRequested() {
+    assertThatThrownBy(
+            () ->
+                PlanTableScanRequestParser.fromJson(
+                    "{\"snapshot-id\":1,\"case-sensitive\":true,\"use-snapshot-schema\":false,\"min-rows-requested\":\"23\"}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to an integer value: min-rows-requested: \"23\"");
+  }
+
+  @Test
   public void roundTripSerdeWithSelectField() {
     PlanTableScanRequest request =
         PlanTableScanRequest.builder()
@@ -122,6 +132,25 @@ public class TestPlanTableScanRequestParser {
   }
 
   @Test
+  public void roundTripSerdeWithMinRowsRequested() {
+    PlanTableScanRequest request =
+        PlanTableScanRequest.builder().withSnapshotId(1L).withMinRowsRequested(23).build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"snapshot-id\" : 1,\n"
+            + "  \"case-sensitive\" : true,\n"
+            + "  \"use-snapshot-schema\" : false,\n"
+            + "  \"min-rows-requested\" : 23\n"
+            + "}";
+
+    String json = PlanTableScanRequestParser.toJson(request, true);
+    assertThat(json).isEqualTo(expectedJson);
+    assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), true))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
   public void planTableScanRequestWithAllFieldsInvalidRequest() {
     assertThatThrownBy(
             () ->
@@ -151,6 +180,7 @@ public class TestPlanTableScanRequestParser {
             .withCaseSensitive(false)
             .withUseSnapshotSchema(true)
             .withStatsFields(Lists.newArrayList("col1", "col2"))
+            .withMinRowsRequested(23)
             .build();
 
     String expectedJson =
@@ -160,7 +190,8 @@ public class TestPlanTableScanRequestParser {
             + "\"filter\":\"true\","
             + "\"case-sensitive\":false,"
             + "\"use-snapshot-schema\":true,"
-            + "\"stats-fields\":[\"col1\",\"col2\"]}";
+            + "\"stats-fields\":[\"col1\",\"col2\"],"
+            + "\"min-rows-requested\":23}";
 
     String json = PlanTableScanRequestParser.toJson(request, false);
     assertThat(json).isEqualTo(expectedJson);
@@ -178,14 +209,18 @@ public class TestPlanTableScanRequestParser {
             .withCaseSensitive(false)
             .withUseSnapshotSchema(true)
             .withStatsFields(Lists.newArrayList("stat1"))
+            .withMinRowsRequested(23)
             .build();
 
-    String str = request.toString();
-    assertThat(str).contains("snapshotId=123");
-    assertThat(str).contains("select=[colA, colB]");
-    assertThat(str).contains("filter=true");
-    assertThat(str).contains("caseSensitive=false");
-    assertThat(str).contains("useSnapshotSchema=true");
-    assertThat(str).contains("statsFields=[stat1]");
+    assertThat(request)
+        .asString()
+        .contains("snapshotId=123")
+        .contains("select=[colA, colB]")
+        .contains("filter=true")
+        .contains("caseSensitive=false")
+        .contains("useSnapshotSchema=true")
+        .contains("statsFields=[stat1]")
+        .contains("statsFields=[stat1]")
+        .contains("minRowsRequested=23");
   }
 }
