@@ -261,7 +261,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
     this.restServerPlanningEnabled =
         PropertyUtil.propertyAsBoolean(
-            mergedProps, RESTCatalogProperties.REST_SERVER_PLANNING_ENABLED, false);
+            mergedProps, RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, false);
     super.initialize(name, mergedProps);
   }
 

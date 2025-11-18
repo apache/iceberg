@@ -179,4 +179,24 @@ public class TestResourcePaths {
     assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views/view-name");
     assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/n%1Fs/views/view-name");
   }
+
+  @Test
+  public void testCancelPlanEndpointPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    String planId = "plan-abc-123";
+    ResourcePaths paths = new ResourcePaths("test-prefix");
+
+    // Test that the cancel plan path is generated correctly
+    String cancelPath = paths.plan(tableId, planId);
+
+    assertThat(cancelPath)
+        .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    String complexPath = paths.plan(complexId, "plan-xyz-789");
+
+    assertThat(complexPath).contains("/plan/plan-xyz-789");
+    assertThat(complexPath).contains("db%1Fschema"); // URL encoded namespace separator
+  }
 }

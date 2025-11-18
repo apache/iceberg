@@ -36,7 +36,7 @@ public final class RESTCatalogProperties {
   public static final String PAGE_SIZE = "rest-page-size";
 
   // rest scan planning endpoint
-  public static final String REST_SERVER_PLANNING_ENABLED = "rest-server-planning-enabled";
+  public static final String REST_SCAN_PLANNING_ENABLED = "rest-scan-planning-enabled";
 
   public enum SnapshotMode {
     ALL,
