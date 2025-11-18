@@ -99,7 +99,6 @@ public class AwsClientProperties implements Serializable {
   private final String refreshCredentialsEndpoint;
   private final boolean refreshCredentialsEnabled;
   private final boolean legacyMd5pluginEnabled;
-  private final Map<String, String> allProperties;
 
   public AwsClientProperties() {
     this.clientRegion = null;
@@ -108,11 +107,9 @@ public class AwsClientProperties implements Serializable {
     this.refreshCredentialsEndpoint = null;
     this.refreshCredentialsEnabled = true;
     this.legacyMd5pluginEnabled = false;
-    this.allProperties = null;
   }
 
   public AwsClientProperties(Map<String, String> properties) {
-    this.allProperties = SerializableMap.copyOf(properties);
     this.clientRegion = properties.get(CLIENT_REGION);
     this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     // Retain all non-prefixed properties and override with prefixed properties
