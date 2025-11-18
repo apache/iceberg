@@ -980,11 +980,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return String.format("%s.%s", name(), ident);
   }
 
-  protected FileIO newFileIO(SessionContext context, Map<String, String> properties) {
+  private FileIO newFileIO(SessionContext context, Map<String, String> properties) {
     return newFileIO(context, properties, ImmutableList.of());
   }
 
-  protected FileIO newFileIO(
+  private FileIO newFileIO(
       SessionContext context, Map<String, String> properties, List<Credential> storageCredentials) {
     if (null != ioBuilder) {
       return ioBuilder.apply(context, properties);
@@ -1000,7 +1000,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
   }
 
-  protected FileIO tableFileIO(
+  private FileIO tableFileIO(
       SessionContext context, Map<String, String> config, List<Credential> storageCredentials) {
     if (config.isEmpty() && ioBuilder == null && storageCredentials.isEmpty()) {
       return io; // reuse client and io since config/credentials are the same
