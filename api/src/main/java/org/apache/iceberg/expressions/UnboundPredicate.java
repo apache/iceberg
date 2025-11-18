@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -287,17 +288,14 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal() + "\"";
       case ST_INTERSECTS:
-        return "st_intersects("
-            + term()
-            + ", "
-            + BoundingBox.fromByteBuffer((ByteBuffer) literal().value())
-            + ")";
       case ST_DISJOINT:
-        return "st_disjoint("
-            + term()
-            + ", "
-            + BoundingBox.fromByteBuffer((ByteBuffer) literal().value())
-            + ")";
+        {
+          ByteBuffer serializedBoundingBox = (ByteBuffer) literal().value();
+          serializedBoundingBox.order(ByteOrder.LITTLE_ENDIAN);
+          BoundingBox boundingBox = BoundingBox.fromByteBuffer(serializedBoundingBox);
+          String functionName = op() == Operation.ST_INTERSECTS ? "st_intersects" : "st_disjoint";
+          return functionName + "(" + term() + ", " + boundingBox + ")";
+        }
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:
