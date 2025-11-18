@@ -199,6 +199,17 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
   private void testInitializeWithContainer(JdbcDatabaseContainer<?> dbContainer) {
     dbContainer.start();
+    try {
+      if (dbContainer instanceof PostgreSQLContainer) {
+        Class.forName("org.postgresql.Driver");
+      } else if (dbContainer instanceof OracleContainer) {
+        Class.forName("oracle.jdbc.OracleDriver");
+      } else if (dbContainer instanceof Db2Container) {
+        Class.forName("com.ibm.db2.jcc.DB2Driver");
+      }
+    } catch (ClassNotFoundException e) {
+      throw new RuntimeException("JDBC driver not found", e);
+    }
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
     properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
