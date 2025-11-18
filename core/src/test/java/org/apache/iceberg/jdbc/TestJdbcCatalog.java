@@ -81,6 +81,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.sqlite.SQLiteDataSource;
+import org.testcontainers.containers.Db2Container;
+import org.testcontainers.containers.JdbcDatabaseContainer;
+import org.testcontainers.containers.OracleContainer;
+import org.testcontainers.containers.PostgreSQLContainer;
 
 public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
@@ -176,6 +180,36 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     // second initialization should not fail even if tables are already created
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
+  }
+
+  @Test
+  public void testInitializePostgres() {
+    testInitializeWithContainer(new PostgreSQLContainer());
+  }
+
+  @Test
+  public void testInitializeDb2() {
+    testInitializeWithContainer(new Db2Container());
+  }
+
+  @Test
+  public void testInitializeOracle() {
+    testInitializeWithContainer(new OracleContainer());
+  }
+
+  private void testInitializeWithContainer(JdbcDatabaseContainer<?> dbContainer) {
+    dbContainer.start();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
+    properties.put(CatalogProperties.URI, dbContainer.getJdbcUrl());
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + CatalogProperties.USER, dbContainer.getUsername());
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", dbContainer.getPassword());
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize(
+        "test_" + dbContainer.getClass().getSimpleName().toLowerCase() + "_jdbc_catalog",
+        properties);
   }
 
   @Test
