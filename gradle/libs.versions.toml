@@ -88,6 +88,9 @@ spark35 = "3.5.7"
 spark40 = "4.0.1"
 sqlite-jdbc = "3.51.0.0"
 testcontainers = "2.0.2"
+db2-jdbc = "12.1.2.0"
+postgres-jdbc = "42.7.8"
+oracle-jdbc = "23.7.0.25.01"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
@@ -217,7 +220,14 @@ nessie-versioned-storage-inmemory-tests = { module = "org.projectnessie.nessie:n
 nessie-versioned-storage-testextension = { module = "org.projectnessie.nessie:nessie-versioned-storage-testextension", version.ref = "nessie" }
 orc-tools = { module = "org.apache.orc:orc-tools", version.ref = "orc" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
+db2-jdbc = { module = "com.ibm.db2:jcc", version.ref = "db2-jdbc" }
+postgres-jdbc = { module = "org.postgresql:postgresql", version.ref = "postgres-jdbc" }
+oracle-jdbc = { module = "com.oracle.database.jdbc:ojdbc17", version.ref = "oracle-jdbc" }
+
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+testcontainers-db2 = { module = "org.testcontainers:db2", version.ref = "testcontainers" }
+testcontainers-oracle = { module = "org.testcontainers:oracle-xe", version.ref = "testcontainers" }
+testcontainers-postgres = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
 testcontainers-minio = { module = "org.testcontainers:testcontainers-minio", version.ref = "testcontainers" }
 tez08-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez08" }
