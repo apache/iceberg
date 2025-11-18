@@ -973,6 +973,23 @@ public class TestInclusiveMetricsEvaluator {
 
   @Test
   public void testNotEqWithSingleValue() {
+    DataFile rangeOfValues =
+        new TestDataFile(
+            "range_of_values.avro",
+            Row.of(),
+            10,
+            ImmutableMap.of(3, 10L),
+            ImmutableMap.of(3, 0L),
+            ImmutableMap.of(3, 0L),
+            ImmutableMap.of(3, toByteBuffer(StringType.get(), "aaa")),
+            ImmutableMap.of(3, toByteBuffer(StringType.get(), "zzz")));
+
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notEqual("required", "aaa")).eval(rangeOfValues);
+    assertThat(shouldRead)
+        .as("Should read: file has range of values, optimization doesn't apply")
+        .isTrue();
+
     DataFile singleValueFile =
         new TestDataFile(
             "single_value.avro",
@@ -980,11 +997,11 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 0L),
-            null,
+            ImmutableMap.of(3, 0L),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
 
-    boolean shouldRead =
+    shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, notEqual("required", "abc")).eval(singleValueFile);
     assertThat(shouldRead)
         .as("Should prune: file contains single value equal to literal")
@@ -1003,7 +1020,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 2L),
-            null,
+            ImmutableMap.of(3, 0L),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
 
@@ -1011,10 +1028,57 @@ public class TestInclusiveMetricsEvaluator {
         new InclusiveMetricsEvaluator(SCHEMA, notEqual("required", "abc"))
             .eval(singleValueWithNulls);
     assertThat(shouldRead).as("Should read: file has nulls which match != predicate").isTrue();
+
+    DataFile singleValueWithNaN =
+        new TestDataFile(
+            "single_value_nan.avro",
+            Row.of(),
+            10,
+            ImmutableMap.of(9, 10L),
+            ImmutableMap.of(9, 0L),
+            ImmutableMap.of(9, 2L),
+            ImmutableMap.of(9, toByteBuffer(Types.FloatType.get(), 5.0F)),
+            ImmutableMap.of(9, toByteBuffer(Types.FloatType.get(), 5.0F)));
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notEqual("no_nans", 5.0F)).eval(singleValueWithNaN);
+    assertThat(shouldRead).as("Should read: file has NaN values which match != predicate").isTrue();
+
+    DataFile singleValueNaNBounds =
+        new TestDataFile(
+            "single_value_nan_bounds.avro",
+            Row.of(),
+            10,
+            ImmutableMap.of(9, 10L),
+            ImmutableMap.of(9, 0L),
+            ImmutableMap.of(9, 0L),
+            ImmutableMap.of(9, toByteBuffer(Types.FloatType.get(), Float.NaN)),
+            ImmutableMap.of(9, toByteBuffer(Types.FloatType.get(), Float.NaN)));
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notEqual("no_nans", 5.0F)).eval(singleValueNaNBounds);
+    assertThat(shouldRead).as("Should read: bounds are NaN").isTrue();
   }
 
   @Test
   public void testNotInWithSingleValue() {
+    DataFile rangeOfValues =
+        new TestDataFile(
+            "range_of_values.avro",
+            Row.of(),
+            10,
+            ImmutableMap.of(3, 10L),
+            ImmutableMap.of(3, 0L),
+            ImmutableMap.of(3, 0L),
+            ImmutableMap.of(3, toByteBuffer(StringType.get(), "aaa")),
+            ImmutableMap.of(3, toByteBuffer(StringType.get(), "zzz")));
+
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notIn("required", "aaa", "bbb")).eval(rangeOfValues);
+    assertThat(shouldRead)
+        .as("Should read: file has range of values, optimization doesn't apply")
+        .isTrue();
+
     DataFile singleValueFile =
         new TestDataFile(
             "single_value.avro",
@@ -1022,11 +1086,11 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 0L),
-            null,
+            ImmutableMap.of(3, 0L),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
 
-    boolean shouldRead =
+    shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, notIn("required", "abc", "def"))
             .eval(singleValueFile);
     assertThat(shouldRead)
@@ -1047,7 +1111,7 @@ public class TestInclusiveMetricsEvaluator {
             10,
             ImmutableMap.of(3, 10L),
             ImmutableMap.of(3, 2L),
-            null,
+            ImmutableMap.of(3, 0L),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
             ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")));
 
@@ -1055,5 +1119,23 @@ public class TestInclusiveMetricsEvaluator {
         new InclusiveMetricsEvaluator(SCHEMA, notIn("required", "abc", "def"))
             .eval(singleValueWithNulls);
     assertThat(shouldRead).as("Should read: file has nulls which match NOT IN predicate").isTrue();
+
+    DataFile singleValueWithNaN =
+        new TestDataFile(
+            "single_value_nan.avro",
+            Row.of(),
+            10,
+            ImmutableMap.of(9, 10L),
+            ImmutableMap.of(9, 0L),
+            ImmutableMap.of(9, 2L),
+            ImmutableMap.of(9, toByteBuffer(Types.FloatType.get(), 5.0F)),
+            ImmutableMap.of(9, toByteBuffer(Types.FloatType.get(), 5.0F)));
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notIn("no_nans", 5.0F, 10.0F))
+            .eval(singleValueWithNaN);
+    assertThat(shouldRead)
+        .as("Should read: file has NaN values which match NOT IN predicate")
+        .isTrue();
   }
 }

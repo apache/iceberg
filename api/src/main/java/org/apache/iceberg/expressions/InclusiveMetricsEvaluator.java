@@ -330,13 +330,17 @@ public class InclusiveMetricsEvaluator {
       // However, when min == max and the file has no nulls, we can safely prune
       // if that value equals the literal.
       int id = term.ref().fieldId();
-      if (mayContainNull(id)) {
+      if (mayContainNull(id) || mayContainNaN(id)) {
         return ROWS_MIGHT_MATCH;
       }
       T lower = lowerBound(term);
       T upper = upperBound(term);
 
-      if (lower != null && upper != null && lower.equals(upper)) {
+      if (lower == null || upper == null || NaNUtil.isNaN(lower) || NaNUtil.isNaN(upper)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (lower.equals(upper)) {
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp == 0) {
           return ROWS_CANNOT_MATCH;
@@ -399,13 +403,17 @@ public class InclusiveMetricsEvaluator {
       // However, when min == max and the file has no nulls, we can safely prune
       // if that value is in the exclusion set.
       int id = term.ref().fieldId();
-      if (mayContainNull(id)) {
+      if (mayContainNull(id) || mayContainNaN(id)) {
         return ROWS_MIGHT_MATCH;
       }
       T lower = lowerBound(term);
       T upper = upperBound(term);
 
-      if (lower != null && upper != null && lower.equals(upper)) {
+      if (lower == null || upper == null || NaNUtil.isNaN(lower) || NaNUtil.isNaN(upper)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (lower.equals(upper)) {
         if (literalSet.contains(lower)) {
           return ROWS_CANNOT_MATCH;
         }
@@ -502,6 +510,10 @@ public class InclusiveMetricsEvaluator {
 
     private boolean mayContainNull(Integer id) {
       return nullCounts == null || !nullCounts.containsKey(id) || nullCounts.get(id) != 0;
+    }
+
+    private boolean mayContainNaN(Integer id) {
+      return nanCounts == null || !nanCounts.containsKey(id) || nanCounts.get(id) != 0;
     }
 
     private boolean containsNullsOnly(Integer id) {
