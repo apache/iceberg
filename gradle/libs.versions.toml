@@ -87,8 +87,8 @@ spark35 = "3.5.6"
 spark40 = "4.0.0"
 sqlite-jdbc = "3.50.3.0"
 db2-jdbc = "12.1.2.0"
-postgres-jdbc = "42.7.8"
-oracle-jdbc = "23.7.0.25.01"
+postgres-jdbc = "42.2.27"
+oracle-jdbc = "21.7.0.0"
 testcontainers = "1.21.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
@@ -221,7 +221,7 @@ orc-tools = { module = "org.apache.orc:orc-tools", version.ref = "orc" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 db2-jdbc = { module = "com.ibm.db2:jcc", version.ref = "db2-jdbc" }
 postgres-jdbc = { module = "org.postgresql:postgresql", version.ref = "postgres-jdbc" }
-oracle-jdbc = { module = "com.oracle.database.jdbc:ojdbc17", version.ref = "oracle-jdbc" }
+oracle-jdbc = { module = "com.oracle.database.jdbc:ojdbc11", version.ref = "oracle-jdbc" }
 
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-db2 = { module = "org.testcontainers:db2", version.ref = "testcontainers" }
