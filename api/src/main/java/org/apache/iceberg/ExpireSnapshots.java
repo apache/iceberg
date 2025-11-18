@@ -41,21 +41,11 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   /** An enum representing possible clean up levels used in snapshot expiration. */
   enum CleanupLevel {
     /** Skip all file cleanup, only remove snapshot metadata. */
-    NONE(0),
+    NONE,
     /** Clean up only metadata files (manifests, manifest lists, statistics), retain data files. */
-    METADATA_ONLY(1),
+    METADATA_ONLY,
     /** Clean up both metadata and data files (default). */
-    ALL(2);
-
-    CleanupLevel(int id) {
-      this.id = id;
-    }
-
-    private final int id;
-
-    public int id() {
-      return id;
-    }
+    ALL
   }
 
   /**
