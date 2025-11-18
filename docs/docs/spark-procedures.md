@@ -20,7 +20,9 @@ title: "Procedures"
 
 # Spark Procedures
 
-To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md). Stored procedures are only available when using [Iceberg SQL extensions](spark-configuration.md#sql-extensions) in Spark 3.
+To use Iceberg in Spark, first configure [Spark catalogs](spark-configuration.md).  
+For Spark 3.x, stored procedures are only available when using [Iceberg SQL extensions](spark-configuration.md#sql-extensions) in Spark.  
+For Spark 4.0, stored procedures are supported natively without requiring the Iceberg SQL extensions. However, note that they are __case-sensitive__ in Spark 4.0.
 
 ## Usage
 
@@ -309,6 +311,7 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
 | `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
+| `stream_results` |    | boolean       | When true, orphan files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size. When enabled, the output will contain a sample of up to 20,000 file paths |
 | `file_list_view` |    | string | Dataset to look for files in (skipping the directory listing) |
 | `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
 | `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |

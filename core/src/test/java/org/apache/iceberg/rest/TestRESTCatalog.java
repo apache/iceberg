@@ -56,6 +56,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -2237,9 +2238,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "-1")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Invalid value for %s, must be a positive integer",
-                RESTCatalogProperties.PAGE_SIZE));
+            "Invalid value for %s, must be a positive integer", RESTCatalogProperties.PAGE_SIZE);
   }
 
   @ParameterizedTest
@@ -2953,6 +2952,48 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any(),
             any());
+  }
+
+  @Test
+  void testDifferentTableUUID() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+
+    // simulate drop and re-create the table with same name
+    String newUUID = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    Answer<LoadTableResponse> updateTable =
+        invocation -> {
+          LoadTableResponse loadTable = (LoadTableResponse) invocation.callRealMethod();
+          TableMetadata current = loadTable.tableMetadata();
+          assertThat(current.uuid()).isNotEqualTo(newUUID);
+          TableMetadata newMetadata = TableMetadata.buildFrom(current).assignUUID(newUUID).build();
+          return LoadTableResponse.builder()
+              .withTableMetadata(newMetadata)
+              .addAllConfig(loadTable.config())
+              .build();
+        };
+
+    Mockito.doAnswer(updateTable)
+        .when(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(2)
+            .build();
+
+    assertThatThrownBy(() -> catalog.loadTable(TABLE).newFastAppend().appendFile(file).commit())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageMatching("Table UUID does not match: current=.* != refreshed=" + newUUID);
   }
 
   private RESTCatalog catalogWithResponseHeaders(Map<String, String> respHeaders) {
