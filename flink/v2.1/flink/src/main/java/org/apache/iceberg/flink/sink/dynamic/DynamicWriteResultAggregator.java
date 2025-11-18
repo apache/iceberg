@@ -163,12 +163,14 @@ class DynamicWriteResultAggregator
     writeResults.forEach(w -> builder.add(w.writeResult()));
     WriteResult result = builder.build();
 
+    Tuple2<ManifestOutputFileFactory, Integer> outputFileFactoryAndVersion =
+        outputFileFactoryAndFormatVersion(key.tableName());
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result,
-            () -> outputFileFactoryAndFormatVersion(key.tableName()).f0.create(checkpointId),
+            () -> outputFileFactoryAndVersion.f0.create(checkpointId),
             spec(key.tableName(), key.specId()),
-            outputFileFactoryAndFormatVersion(key.tableName()).f1);
+            outputFileFactoryAndVersion.f1);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
