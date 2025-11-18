@@ -19,14 +19,13 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.flink.FlinkConfParser;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class RewriteDataFilesConfig {
   public static final String PREFIX = FlinkMaintenanceConfig.PREFIX + "rewrite.";
@@ -172,13 +171,6 @@ public class RewriteDataFilesConfig {
   }
 
   public Map<String, String> properties() {
-    return writeProperties.entrySet().stream()
-        .filter(entry -> entry.getKey().startsWith(PREFIX))
-        .collect(
-            Collectors.toMap(
-                entry -> entry.getKey().substring(PREFIX.length()),
-                Map.Entry::getValue,
-                (existing, replacement) -> existing,
-                Maps::newHashMap));
+    return PropertyUtil.propertiesWithPrefix(writeProperties, PREFIX);
   }
 }

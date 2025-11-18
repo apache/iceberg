@@ -56,8 +56,12 @@ class TableUpdater {
    *     requested one, and the new {@link PartitionSpec#specId()}.
    */
   Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> update(
-      TableIdentifier tableIdentifier, String branch, Schema schema, PartitionSpec spec) {
-    findOrCreateTable(tableIdentifier, schema, spec);
+      TableIdentifier tableIdentifier,
+      String branch,
+      Schema schema,
+      PartitionSpec spec,
+      TableCreator tableCreator) {
+    findOrCreateTable(tableIdentifier, schema, spec, tableCreator);
     findOrCreateBranch(tableIdentifier, branch);
     TableMetadataCache.ResolvedSchemaInfo newSchemaInfo =
         findOrCreateSchema(tableIdentifier, schema);
@@ -65,7 +69,8 @@ class TableUpdater {
     return Tuple2.of(newSchemaInfo, newSpec);
   }
 
-  private void findOrCreateTable(TableIdentifier identifier, Schema schema, PartitionSpec spec) {
+  private void findOrCreateTable(
+      TableIdentifier identifier, Schema schema, PartitionSpec spec, TableCreator tableCreator) {
     Tuple2<Boolean, Exception> exists = cache.exists(identifier);
     if (Boolean.FALSE.equals(exists.f0)) {
       if (exists.f1 instanceof NoSuchNamespaceException) {
@@ -80,12 +85,12 @@ class TableUpdater {
 
       LOG.info("Table {} not found during table search. Creating table.", identifier);
       try {
-        Table table = catalog.createTable(identifier, schema, spec);
+        Table table = tableCreator.createTable(catalog, identifier, schema, spec);
         cache.update(identifier, table);
       } catch (AlreadyExistsException e) {
         LOG.debug("Table {} created concurrently. Skipping creation.", identifier, e);
         cache.invalidate(identifier);
-        findOrCreateTable(identifier, schema, spec);
+        findOrCreateTable(identifier, schema, spec, tableCreator);
       }
     }
   }

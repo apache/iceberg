@@ -43,6 +43,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
+  private final TableCreator tableCreator;
 
   private transient TableMetadataCache tableCache;
   private transient HashKeyGenerator hashKeyGenerator;
@@ -57,13 +58,15 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       boolean immediateUpdate,
       int cacheMaximumSize,
       long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize) {
+      int inputSchemasPerTableCacheMaximumSize,
+      TableCreator tableCreator) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.immediateUpdate = immediateUpdate;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
+    this.tableCreator = tableCreator;
   }
 
   @Override
@@ -114,7 +117,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
         || foundSchema.compareResult() == CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
       if (immediateUpdate) {
         Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
-            updater.update(data.tableIdentifier(), data.branch(), data.schema(), data.spec());
+            updater.update(
+                data.tableIdentifier(), data.branch(), data.schema(), data.spec(), tableCreator);
         emit(
             collector,
             data,
