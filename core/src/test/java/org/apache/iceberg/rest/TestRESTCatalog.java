@@ -47,13 +47,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.MetadataUpdate;
@@ -3075,83 +3075,88 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testFileIOAndOperationsBuilderInjection() throws IOException {
+  public void testCustomTableOperationsInjection() throws IOException {
     AtomicBoolean customTableOps = new AtomicBoolean();
     AtomicBoolean customTxnOps = new AtomicBoolean();
     AtomicBoolean customViewOps = new AtomicBoolean();
-    AtomicBoolean customFileIO = new AtomicBoolean();
 
-    RESTOperationsFactory operationsFactory =
-        new RESTOperationsFactory() {
-          @Override
-          public RESTTableOperations createTableOperations(
-              RESTClient client,
-              String path,
-              Supplier<Map<String, String>> headers,
-              FileIO io,
-              TableMetadata current,
-              Set<Endpoint> endpoints) {
-            customTableOps.set(true);
-            return RESTOperationsFactory.super.createTableOperations(
-                client, path, headers, io, current, endpoints);
-          }
+    // Custom RESTSessionCatalog that overrides table/view operations creation
+    class CustomRESTSessionCatalog extends RESTSessionCatalog {
+      public CustomRESTSessionCatalog(
+          Function<Map<String, String>, RESTClient> clientBuilder,
+          BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
+        super(clientBuilder, ioBuilder);
+      }
 
-          @Override
-          public RESTTableOperations createTableOperationsForTransaction(
-              RESTClient client,
-              String path,
-              Supplier<Map<String, String>> headers,
-              FileIO io,
-              RESTTableOperations.UpdateType updateType,
-              List<MetadataUpdate> createChanges,
-              TableMetadata current,
-              Set<Endpoint> endpoints) {
-            customTxnOps.set(true);
-            return RESTOperationsFactory.super.createTableOperationsForTransaction(
-                client, path, headers, io, updateType, createChanges, current, endpoints);
-          }
+      @Override
+      protected RESTTableOperations newTableOps(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO io,
+          TableMetadata current,
+          Set<Endpoint> endpoints) {
+        customTableOps.set(true);
+        return super.newTableOps(client, path, headers, io, current, endpoints);
+      }
 
-          @Override
-          public RESTViewOperations createViewOperations(
-              RESTClient client,
-              String path,
-              Supplier<Map<String, String>> headers,
-              ViewMetadata current,
-              Set<Endpoint> endpoints) {
-            customViewOps.set(true);
-            return RESTOperationsFactory.super.createViewOperations(
-                client, path, headers, current, endpoints);
-          }
-        };
+      @Override
+      protected RESTTableOperations newTableOpsForTransaction(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO io,
+          RESTTableOperations.UpdateType updateType,
+          List<MetadataUpdate> createChanges,
+          TableMetadata current,
+          Set<Endpoint> endpoints) {
+        customTxnOps.set(true);
+        return super.newTableOpsForTransaction(
+            client, path, headers, io, updateType, createChanges, current, endpoints);
+      }
 
-    BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder =
-        (context, config) -> {
-          customFileIO.set(true);
-          return CatalogUtil.loadFileIO(
-              config.getOrDefault(
-                  CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"),
-              config,
-              new Configuration());
-        };
+      @Override
+      protected RESTViewOperations newViewOps(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          ViewMetadata current,
+          Set<Endpoint> endpoints) {
+        customViewOps.set(true);
+        return super.newViewOps(client, path, headers, current, endpoints);
+      }
+    }
 
-    try (RESTCatalog catalog =
-        new RESTCatalog(
+    // Custom RESTCatalog that provides the custom session catalog
+    class CustomRESTCatalog extends RESTCatalog {
+      public CustomRESTCatalog(
+          SessionCatalog.SessionContext context,
+          Function<Map<String, String>, RESTClient> clientBuilder) {
+        super(context, clientBuilder);
+      }
+
+      @Override
+      protected RESTSessionCatalog newSessionCatalog(
+          Function<Map<String, String>, RESTClient> clientBuilder) {
+        return new CustomRESTSessionCatalog(clientBuilder, null);
+      }
+    }
+
+    try (CustomRESTCatalog catalog =
+        new CustomRESTCatalog(
             SessionCatalog.SessionContext.createEmpty(),
-            (config) -> new RESTCatalogAdapter(backendCatalog),
-            ioBuilder,
-            operationsFactory)) {
+            (config) -> new RESTCatalogAdapter(backendCatalog))) {
       catalog.setConf(new Configuration());
       catalog.initialize(
           "test",
           ImmutableMap.of(
               CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
 
-      Namespace ns = Namespace.of("test_builder");
+      Namespace ns = Namespace.of("test_custom_ops");
       catalog.createNamespace(ns);
 
       catalog.createTable(TableIdentifier.of(ns, "table1"), SCHEMA);
       assertThat(customTableOps).isTrue();
-      assertThat(customFileIO).isTrue();
 
       catalog
           .buildTable(TableIdentifier.of(ns, "table2"), SCHEMA)

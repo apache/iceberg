@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
@@ -40,7 +39,6 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.view.View;
@@ -71,26 +69,26 @@ public class RESTCatalog
   public RESTCatalog(
       SessionCatalog.SessionContext context,
       Function<Map<String, String>, RESTClient> clientBuilder) {
-    this(context, clientBuilder, null, null);
-  }
-
-  public RESTCatalog(
-      Function<Map<String, String>, RESTClient> clientBuilder,
-      BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder,
-      RESTOperationsFactory operationsFactory) {
-    this(SessionCatalog.SessionContext.createEmpty(), clientBuilder, ioBuilder, operationsFactory);
-  }
-
-  public RESTCatalog(
-      SessionCatalog.SessionContext context,
-      Function<Map<String, String>, RESTClient> clientBuilder,
-      BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder,
-      RESTOperationsFactory operationsFactory) {
-    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, ioBuilder, operationsFactory);
+    this.sessionCatalog = newSessionCatalog(clientBuilder);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
     this.context = context;
     this.viewSessionCatalog = sessionCatalog.asViewCatalog(context);
+  }
+
+  /**
+   * Create a new {@link RESTSessionCatalog} instance.
+   *
+   * <p>This method can be overridden in subclasses to provide custom session catalog
+   * implementations, which in turn can provide custom table and view operations by overriding the
+   * protected methods in {@link RESTSessionCatalog}.
+   *
+   * @param clientBuilder a function to build REST clients
+   * @return a new RESTSessionCatalog instance
+   */
+  protected RESTSessionCatalog newSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder) {
+    return new RESTSessionCatalog(clientBuilder, null);
   }
 
   @Override
