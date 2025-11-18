@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.geospatial.BoundingBox;
@@ -293,7 +294,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
           ByteBuffer serializedBoundingBox = (ByteBuffer) literal().value();
           serializedBoundingBox.order(ByteOrder.LITTLE_ENDIAN);
           BoundingBox boundingBox = BoundingBox.fromByteBuffer(serializedBoundingBox);
-          String functionName = op() == Operation.ST_INTERSECTS ? "st_intersects" : "st_disjoint";
+          String functionName = op().name().toLowerCase(Locale.ROOT);
           return functionName + "(" + term() + ", " + boundingBox + ")";
         }
       case IN:

@@ -202,8 +202,9 @@ public class Conversions {
         return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
       case GEOMETRY:
       case GEOGRAPHY:
-        // GEOMETRY and GEOGRAPHY values are represented as byte buffers. Please refer to the
-        // comment in toByteBuffer for more details.
+        // GEOMETRY and GEOGRAPHY values are represented as byte buffers. They are stored as WKB
+        // (Well-Known Binary) format in Iceberg, and geospatial bounding boxes are stored as
+        // serialized byte buffers. Return the byte buffer as is.
         return tmp;
       case VARIANT:
         return Variant.from(tmp);

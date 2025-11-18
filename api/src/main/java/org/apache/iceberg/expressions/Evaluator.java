@@ -160,14 +160,12 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean stIntersects(Bound<T> valueExpr, Literal<ByteBuffer> literal) {
-      throw new UnsupportedOperationException(
-          "Evaluation of stIntersects against geometry/geography value is not implemented.");
+      throw new UnsupportedOperationException("Evaluation of stIntersects is not implemented.");
     }
 
     @Override
     public <T> Boolean stDisjoint(Bound<T> valueExpr, Literal<ByteBuffer> literal) {
-      throw new UnsupportedOperationException(
-          "Evaluation of stDisjoint against geometry/geography value is not implemented.");
+      throw new UnsupportedOperationException("Evaluation of stDisjoint is not implemented.");
     }
   }
 }
