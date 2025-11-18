@@ -36,8 +36,8 @@ public class TestExpressionSerialization {
         new Schema(
             Types.NestedField.optional(34, "a", Types.IntegerType.get()),
             Types.NestedField.required(35, "s", Types.StringType.get()),
-            Types.NestedField.required(36, "point", Types.GeometryType.crs84()),
-            Types.NestedField.required(37, "geography", Types.GeographyType.crs84()));
+            Types.NestedField.required(36, "geom", Types.GeometryType.crs84()),
+            Types.NestedField.required(37, "geog", Types.GeographyType.crs84()));
 
     Expression[] expressions =
         new Expression[] {
@@ -68,20 +68,20 @@ public class TestExpressionSerialization {
           Expressions.notStartsWith("s", "xyz").bind(schema.asStruct()),
           Expressions.notStartsWith("s", "xyz").bind(schema.asStruct()),
           Expressions.stIntersects(
-              "point",
+              "geom",
               new BoundingBox(
                   GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0))),
           Expressions.stDisjoint(
-              "geography",
+              "geog",
               new BoundingBox(
                   GeospatialBound.createXY(5.0, 6.0), GeospatialBound.createXY(7.0, 8.0))),
           Expressions.stIntersects(
-                  "point",
+                  "geom",
                   new BoundingBox(
                       GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0)))
               .bind(schema.asStruct()),
           Expressions.stDisjoint(
-                  "geography",
+                  "geog",
                   new BoundingBox(
                       GeospatialBound.createXY(5.0, 6.0), GeospatialBound.createXY(7.0, 8.0)))
               .bind(schema.asStruct())

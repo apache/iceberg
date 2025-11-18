@@ -285,11 +285,13 @@ public class ExpressionVisitors {
     }
 
     public <T> R stIntersects(Bound<T> term, Literal<ByteBuffer> literal) {
-      throw new UnsupportedOperationException("ST_INTERSECTS is not supported by the visitor");
+      throw new UnsupportedOperationException(
+          "stIntersects operator is not supported by the visitor");
     }
 
     public <T> R stDisjoint(Bound<T> term, Literal<ByteBuffer> literal) {
-      throw new UnsupportedOperationException("ST_DISJOINT is not supported by the visitor");
+      throw new UnsupportedOperationException(
+          "stDisjoint operator is not supported by the visitor");
     }
 
     @Override

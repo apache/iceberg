@@ -565,7 +565,7 @@ public class ExpressionUtil {
         return sanitizeSimpleString(value.toString());
       case GEOMETRY:
       case GEOGRAPHY:
-        return "(bounding-box)";
+        return "(geospatial)";
     }
     throw new UnsupportedOperationException(
         String.format("Cannot sanitize value for unsupported type %s: %s", type, value));
@@ -594,7 +594,7 @@ public class ExpressionUtil {
     } else if (literal instanceof Literals.VariantLiteral) {
       return sanitizeVariant(((Literals.VariantLiteral) literal).value(), now, today);
     } else if (literal instanceof BoundingBoxLiteral) {
-      return "(bounding-box)";
+      return "(geospatial)";
     } else {
       // for uuid, decimal, fixed and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());
