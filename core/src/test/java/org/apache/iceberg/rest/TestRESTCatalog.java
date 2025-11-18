@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -108,7 +109,6 @@ import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -350,37 +350,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return restCatalog;
   }
 
-  /**
-   * Configure planning behavior for the current test. Call this at the start of each test that
-   * needs specific planning behavior.
-   *
-   * @param configurator Function to configure the behavior builder
-   */
-  protected void configurePlanningBehavior(
+  private void configurePlanningBehavior(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> configurator) {
     TestPlanningBehavior.Builder builder = TestPlanningBehavior.builder();
     this.currentPlanningBehavior = configurator.apply(builder).build();
   }
 
-  /**
-   * Creates a table with REST scan planning enabled. Uses the currently configured planning
-   * behavior.
-   *
-   * @param tableName Simple table name (will be created in default namespace)
-   * @return Created table with scan planning enabled
-   */
-  protected Table createTableWithScanPlanning(String tableName) {
+  private Table createTableWithScanPlanning(String tableName) {
     return createTableWithScanPlanning(TableIdentifier.of(NS, tableName));
   }
 
-  /**
-   * Creates a table with REST scan planning enabled. Uses the currently configured planning
-   * behavior.
-   *
-   * @param identifier Table identifier with namespace
-   * @return Created table with scan planning enabled
-   */
-  protected Table createTableWithScanPlanning(TableIdentifier identifier) {
+  private Table createTableWithScanPlanning(TableIdentifier identifier) {
     RESTCatalog catalog =
         initCatalog(
             "prod", ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"));
@@ -3427,9 +3407,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @ParameterizedTest
   @EnumSource(MetadataTableType.class)
   public void testMetadataTablesWithRemotePlanning(MetadataTableType type) {
-    Assumptions.assumeTrue(
-        !type.equals(MetadataTableType.POSITION_DELETES),
-        String.format("Skipping test for metadata table type %s newScan() not supported", type));
+    assumeThat(type).isNotEqualTo(MetadataTableType.POSITION_DELETES);
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
     RESTTable table = restTableFor("metadata_tables_test");
     table.newAppend().appendFile(FILE_B).commit();
