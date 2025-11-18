@@ -92,7 +92,6 @@ testcontainers-jdbc = "1.21.3"
 db2-jdbc = "12.1.2.0"
 postgres-jdbc = "42.2.27"
 oracle-jdbc = "21.7.0.0"
-testcontainers = "1.21.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
