@@ -737,7 +737,7 @@ class Literals {
 
     @Override
     protected Type.TypeID typeId() {
-      return null;
+      return Type.TypeID.GEOMETRY;
     }
 
     @Override
