@@ -37,11 +37,11 @@ import software.amazon.awssdk.http.SdkHttpClient;
 final class HttpClientCache {
   private static final Logger LOG = LoggerFactory.getLogger(HttpClientCache.class);
 
-  private final ConcurrentMap<String, ManagedHttpClient> clientMap;
+  private final ConcurrentMap<String, ManagedHttpClient> clients;
 
   private static volatile HttpClientCache instance;
 
-  static HttpClientCache getInstance() {
+  static HttpClientCache instance() {
     if (instance == null) {
       synchronized (HttpClientCache.class) {
         if (instance == null) {
@@ -53,7 +53,7 @@ final class HttpClientCache {
   }
 
   private HttpClientCache() {
-    this.clientMap = Maps.newConcurrentMap();
+    this.clients = Maps.newConcurrentMap();
   }
 
   /**
@@ -66,7 +66,7 @@ final class HttpClientCache {
    */
   SdkHttpClient getOrCreateClient(String clientKey, Supplier<SdkHttpClient> clientFactory) {
     ManagedHttpClient managedClient =
-        clientMap.computeIfAbsent(
+        clients.computeIfAbsent(
             clientKey,
             k -> {
               LOG.debug("Creating new managed HTTP client for key: {}", k);
@@ -84,24 +84,24 @@ final class HttpClientCache {
    * @param clientKey the key identifying the client to release
    */
   void releaseClient(String clientKey) {
-    ManagedHttpClient managedClient = clientMap.get(clientKey);
+    ManagedHttpClient managedClient = clients.get(clientKey);
     if (managedClient != null) {
       if (managedClient.release()) {
         // Client was closed, remove from map
-        clientMap.remove(clientKey, managedClient);
+        clients.remove(clientKey, managedClient);
       }
     }
   }
 
   @VisibleForTesting
-  ConcurrentMap<String, ManagedHttpClient> clientMap() {
-    return clientMap;
+  ConcurrentMap<String, ManagedHttpClient> clients() {
+    return clients;
   }
 
   @VisibleForTesting
-  void shutdown() {
-    clientMap.values().forEach(ManagedHttpClient::close);
-    clientMap.clear();
+  void clear() {
+    clients.values().forEach(ManagedHttpClient::close);
+    clients.clear();
   }
 
   /**
@@ -206,7 +206,7 @@ final class HttpClientCache {
 
     @Override
     public void close() {
-      HttpClientCache.getInstance().releaseClient(clientKey);
+      HttpClientCache.instance().releaseClient(clientKey);
     }
   }
 }

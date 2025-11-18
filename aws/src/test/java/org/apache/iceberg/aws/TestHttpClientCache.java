@@ -36,67 +36,64 @@ import software.amazon.awssdk.http.SdkHttpClient;
 
 public class TestHttpClientCache {
 
-  @Mock private SdkHttpClient mockHttpClient1;
-  @Mock private SdkHttpClient mockHttpClient2;
-  @Mock private Supplier<SdkHttpClient> mockFactory1;
-  @Mock private Supplier<SdkHttpClient> mockFactory2;
+  @Mock private SdkHttpClient httpClient1;
+  @Mock private SdkHttpClient httpClient2;
+  @Mock private Supplier<SdkHttpClient> httpClientFactory1;
+  @Mock private Supplier<SdkHttpClient> httpClientFactory2;
 
   private HttpClientCache cache;
 
   @BeforeEach
   public void before() {
     MockitoAnnotations.openMocks(this);
-    cache = HttpClientCache.getInstance();
+    cache = HttpClientCache.instance();
     // Clean up any existing clients from previous tests
-    cache.shutdown();
+    cache.clear();
 
-    when(mockFactory1.get()).thenReturn(mockHttpClient1);
-    when(mockFactory2.get()).thenReturn(mockHttpClient2);
+    when(httpClientFactory1.get()).thenReturn(httpClient1);
+    when(httpClientFactory2.get()).thenReturn(httpClient2);
   }
 
   @Test
-  public void testSingletonPattern() {
-    HttpClientCache instance1 = HttpClientCache.getInstance();
-    HttpClientCache instance2 = HttpClientCache.getInstance();
+  public void singletonPattern() {
+    HttpClientCache instance1 = HttpClientCache.instance();
+    HttpClientCache instance2 = HttpClientCache.instance();
 
     assertThat(instance1).isSameAs(instance2);
   }
 
   @Test
-  public void testClientCaching() {
+  public void clientCaching() {
     final String cacheKey = "test-key";
 
     // First call should create client and increment ref count
-    SdkHttpClient client1 = cache.getOrCreateClient(cacheKey, mockFactory1);
-    verify(mockFactory1, times(1)).get();
+    SdkHttpClient client1 = cache.getOrCreateClient(cacheKey, httpClientFactory1);
+    verify(httpClientFactory1, times(1)).get();
 
     // Second call with same key should return cached client and increment ref count again
-    SdkHttpClient client2 = cache.getOrCreateClient(cacheKey, mockFactory1);
-    verify(mockFactory1, times(1)).get(); // Factory should not be called again
+    SdkHttpClient client2 = cache.getOrCreateClient(cacheKey, httpClientFactory1);
+    verify(httpClientFactory1, times(1)).get(); // Factory should not be called again
 
     assertThat(client1).isSameAs(client2);
 
     // Verify reference count is 2
-    ManagedHttpClient managedClient = cache.clientMap().get(cacheKey);
+    ManagedHttpClient managedClient = cache.clients().get(cacheKey);
     assertThat(managedClient.refCount()).isEqualTo(2);
   }
 
   @Test
-  public void testDifferentKeysCreateDifferentClients() {
-    final String cacheKey1 = "test-key-1";
-    final String cacheKey2 = "test-key-2";
+  public void differentKeysCreateDifferentClients() {
+    SdkHttpClient client1 = cache.getOrCreateClient("test-key-1", httpClientFactory1);
+    SdkHttpClient client2 = cache.getOrCreateClient("test-key-2", httpClientFactory2);
 
-    SdkHttpClient client1 = cache.getOrCreateClient(cacheKey1, mockFactory1);
-    SdkHttpClient client2 = cache.getOrCreateClient(cacheKey2, mockFactory2);
-
-    verify(mockFactory1, times(1)).get();
-    verify(mockFactory2, times(1)).get();
+    verify(httpClientFactory1, times(1)).get();
+    verify(httpClientFactory2, times(1)).get();
 
     assertThat(client1).isNotSameAs(client2);
   }
 
   @Test
-  public void testReferenceCountingAndCleanup() throws Exception {
+  public void referenceCountingAndCleanup() throws Exception {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
     final String cacheKey = "test-key";
 
@@ -123,7 +120,7 @@ public class TestHttpClientCache {
   }
 
   @Test
-  public void testAcquireAfterCloseThrows() {
+  public void acquireAfterCloseThrows() {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
     final String cacheKey = "test-key";
 
@@ -142,29 +139,29 @@ public class TestHttpClientCache {
   }
 
   @Test
-  public void testReleaseRemovesFromRegistry() {
+  public void releaseRemovesFromRegistry() {
     final String cacheKey = "test-key";
 
     // Create client (refCount = 1)
-    SdkHttpClient client1 = cache.getOrCreateClient(cacheKey, mockFactory1);
+    SdkHttpClient client1 = cache.getOrCreateClient(cacheKey, httpClientFactory1);
     assertThat(client1).isNotNull();
 
-    ConcurrentMap<String, ManagedHttpClient> clientMap = cache.clientMap();
-    assertThat(clientMap).containsKey(cacheKey);
+    ConcurrentMap<String, ManagedHttpClient> clients = cache.clients();
+    assertThat(clients).containsKey(cacheKey);
 
     // Verify ref count is 1
-    assertThat(clientMap.get(cacheKey).refCount()).isEqualTo(1);
+    assertThat(clients.get(cacheKey).refCount()).isEqualTo(1);
 
     // Release (refCount = 0, should close and remove)
     cache.releaseClient(cacheKey);
 
     // Client should be removed from map after close
-    assertThat(clientMap).doesNotContainKey(cacheKey);
-    verify(mockHttpClient1, times(1)).close();
+    assertThat(clients).doesNotContainKey(cacheKey);
+    verify(httpClient1, times(1)).close();
   }
 
   @Test
-  public void testConcurrentAccess() throws InterruptedException {
+  public void concurrentAccess() throws InterruptedException {
     final String cacheKey = "concurrent-test-key";
     int threadCount = 10;
     Thread[] threads = new Thread[threadCount];
@@ -174,10 +171,7 @@ public class TestHttpClientCache {
     for (int i = 0; i < threadCount; i++) {
       final int index = i;
       threads[i] =
-          new Thread(
-              () -> {
-                results[index] = cache.getOrCreateClient(cacheKey, mockFactory1);
-              });
+          new Thread(() -> results[index] = cache.getOrCreateClient(cacheKey, httpClientFactory1));
     }
 
     // Start all threads
@@ -191,7 +185,7 @@ public class TestHttpClientCache {
     }
 
     // Verify factory was called only once (proper caching under concurrency)
-    verify(mockFactory1, times(1)).get();
+    verify(httpClientFactory1, times(1)).get();
 
     // Verify all threads got the same client instance
     SdkHttpClient expectedClient = results[0];
@@ -200,34 +194,34 @@ public class TestHttpClientCache {
     }
 
     // Verify reference count equals number of threads
-    ManagedHttpClient managedClient = cache.clientMap().get(cacheKey);
+    ManagedHttpClient managedClient = cache.clients().get(cacheKey);
     assertThat(managedClient.refCount()).isEqualTo(threadCount);
   }
 
   @Test
-  public void testRegistryShutdown() {
-    ConcurrentMap<String, ManagedHttpClient> clientMap = cache.clientMap();
+  public void registryClear() {
+    ConcurrentMap<String, ManagedHttpClient> clients = cache.clients();
 
     // Create some clients
-    cache.getOrCreateClient("key1", mockFactory1);
-    cache.getOrCreateClient("key2", mockFactory2);
+    cache.getOrCreateClient("key1", httpClientFactory1);
+    cache.getOrCreateClient("key2", httpClientFactory2);
 
     // Verify clients were stored
-    assertThat(clientMap.size()).isGreaterThan(0);
+    assertThat(clients).hasSize(2);
 
     // Shutdown should clean up the map
-    cache.shutdown();
+    cache.clear();
 
     // Map should be empty after shutdown
-    assertThat(clientMap.size()).isEqualTo(0);
+    assertThat(clients).isEmpty();
 
     // Both clients should be closed
-    verify(mockHttpClient1, times(1)).close();
-    verify(mockHttpClient2, times(1)).close();
+    verify(httpClient1, times(1)).close();
+    verify(httpClient2, times(1)).close();
   }
 
   @Test
-  public void testDoubleReleaseDoesNotCauseNegativeRefCount() throws Exception {
+  public void doubleReleaseDoesNotCauseNegativeRefCount() throws Exception {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
     final String cacheKey = "test-key";
 
@@ -254,7 +248,7 @@ public class TestHttpClientCache {
   }
 
   @Test
-  public void testMultipleReleasesAfterClose() throws Exception {
+  public void multipleReleasesAfterClose() throws Exception {
     SdkHttpClient mockClient = mock(SdkHttpClient.class);
     final String cacheKey = "test-key";
 

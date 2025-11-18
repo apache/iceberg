@@ -32,7 +32,7 @@ import software.amazon.awssdk.http.SdkHttpClient;
  */
 abstract class BaseHttpClientConfigurations {
 
-  private static final HttpClientCache CACHE = HttpClientCache.getInstance();
+  private static final HttpClientCache CACHE = HttpClientCache.instance();
 
   /**
    * Generate a unique cache key based on the HTTP client configuration. The cache key is used to
