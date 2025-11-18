@@ -479,7 +479,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
   }
 
-  protected MetricsReporter metricsReporter(String metricsEndpoint, RESTClient restClient) {
+  private MetricsReporter metricsReporter(String metricsEndpoint, RESTClient restClient) {
     if (reportingViaRestEnabled && endpoints.contains(Endpoint.V1_REPORT_METRICS)) {
       RESTMetricsReporter restMetricsReporter =
           new RESTMetricsReporter(restClient, metricsEndpoint, Map::of);
