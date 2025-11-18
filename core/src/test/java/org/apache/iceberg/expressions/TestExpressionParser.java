@@ -84,6 +84,8 @@ public class TestExpressionParser {
           Expressions.notNaN("f"),
           Expressions.startsWith("s", "crackle"),
           Expressions.notStartsWith("s", "tackle"),
+          Expressions.contains("crackle", "r"),
+          Expressions.notContains("tackle", "r"),
           Expressions.equal(Expressions.day("date"), "2022-08-14"),
           Expressions.equal(Expressions.bucket("id", 100), 0),
           Expressions.and(
@@ -539,6 +541,22 @@ public class TestExpressionParser {
             + "}";
 
     Expression expression = Expressions.in("column-name", new BigDecimal("3.14E+4"));
+
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void testNotContains() {
+    String expected =
+        "{\n"
+            + "  \"type\" : \"not-contains\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"value\" : \"substr\"\n"
+            + "}";
+
+    Expression expression = Expressions.notContains("column-name", "substr");
 
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
