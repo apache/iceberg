@@ -35,7 +35,7 @@ public class AesGcmInputFile implements InputFile {
    */
   @Deprecated
   public AesGcmInputFile(InputFile sourceFile, byte[] dataKey, byte[] fileAADPrefix) {
-    throw new IllegalArgumentException("Can't create AesGcmInputFile without file length");
+    this(sourceFile, dataKey, fileAADPrefix, null);
   }
 
   public AesGcmInputFile(InputFile sourceFile, byte[] dataKey, byte[] fileAADPrefix, Long length) {
