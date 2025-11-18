@@ -3082,7 +3082,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // Custom RESTSessionCatalog that overrides table/view operations creation
     class CustomRESTSessionCatalog extends RESTSessionCatalog {
-      public CustomRESTSessionCatalog(
+      CustomRESTSessionCatalog(
           Function<Map<String, String>, RESTClient> clientBuilder,
           BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
         super(clientBuilder, ioBuilder);
@@ -3090,46 +3090,53 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
       @Override
       protected RESTTableOperations newTableOps(
-          RESTClient client,
+          RESTClient restClient,
           String path,
           Supplier<Map<String, String>> headers,
-          FileIO io,
+          FileIO fileIO,
           TableMetadata current,
-          Set<Endpoint> endpoints) {
+          Set<Endpoint> supportedEndpoints) {
         customTableOps.set(true);
-        return super.newTableOps(client, path, headers, io, current, endpoints);
+        return super.newTableOps(restClient, path, headers, fileIO, current, supportedEndpoints);
       }
 
       @Override
       protected RESTTableOperations newTableOpsForTransaction(
-          RESTClient client,
+          RESTClient restClient,
           String path,
           Supplier<Map<String, String>> headers,
-          FileIO io,
+          FileIO fileIO,
           RESTTableOperations.UpdateType updateType,
           List<MetadataUpdate> createChanges,
           TableMetadata current,
-          Set<Endpoint> endpoints) {
+          Set<Endpoint> supportedEndpoints) {
         customTxnOps.set(true);
         return super.newTableOpsForTransaction(
-            client, path, headers, io, updateType, createChanges, current, endpoints);
+            restClient,
+            path,
+            headers,
+            fileIO,
+            updateType,
+            createChanges,
+            current,
+            supportedEndpoints);
       }
 
       @Override
       protected RESTViewOperations newViewOps(
-          RESTClient client,
+          RESTClient restClient,
           String path,
           Supplier<Map<String, String>> headers,
           ViewMetadata current,
-          Set<Endpoint> endpoints) {
+          Set<Endpoint> supportedEndpoints) {
         customViewOps.set(true);
-        return super.newViewOps(client, path, headers, current, endpoints);
+        return super.newViewOps(restClient, path, headers, current, supportedEndpoints);
       }
     }
 
     // Custom RESTCatalog that provides the custom session catalog
     class CustomRESTCatalog extends RESTCatalog {
-      public CustomRESTCatalog(
+      CustomRESTCatalog(
           SessionCatalog.SessionContext context,
           Function<Map<String, String>, RESTClient> clientBuilder) {
         super(context, clientBuilder);

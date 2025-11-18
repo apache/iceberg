@@ -1017,22 +1017,22 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * <p>This method can be overridden in subclasses to provide custom table operations
    * implementations.
    *
-   * @param client the REST client to use for communicating with the catalog server
+   * @param restClient the REST client to use for communicating with the catalog server
    * @param path the REST path for the table
    * @param headers a supplier for additional HTTP headers to include in requests
-   * @param io the FileIO implementation for reading and writing table metadata and data files
+   * @param fileIO the FileIO implementation for reading and writing table metadata and data files
    * @param current the current table metadata
-   * @param endpoints the set of supported REST endpoints
+   * @param supportedEndpoints the set of supported REST endpoints
    * @return a new RESTTableOperations instance
    */
   protected RESTTableOperations newTableOps(
-      RESTClient client,
+      RESTClient restClient,
       String path,
       Supplier<Map<String, String>> headers,
-      FileIO io,
+      FileIO fileIO,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
-    return new RESTTableOperations(client, path, headers, io, current, endpoints);
+      Set<Endpoint> supportedEndpoints) {
+    return new RESTTableOperations(restClient, path, headers, fileIO, current, supportedEndpoints);
   }
 
   /**
@@ -1042,27 +1042,27 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * <p>This method can be overridden in subclasses to provide custom table operations
    * implementations for transaction-based operations.
    *
-   * @param client the REST client to use for communicating with the catalog server
+   * @param restClient the REST client to use for communicating with the catalog server
    * @param path the REST path for the table
    * @param headers a supplier for additional HTTP headers to include in requests
-   * @param io the FileIO implementation for reading and writing table metadata and data files
+   * @param fileIO the FileIO implementation for reading and writing table metadata and data files
    * @param updateType the type of update being performed (CREATE, REPLACE, or SIMPLE)
    * @param createChanges the list of metadata updates to apply during table creation or replacement
    * @param current the current table metadata (may be null for CREATE operations)
-   * @param endpoints the set of supported REST endpoints
+   * @param supportedEndpoints the set of supported REST endpoints
    * @return a new RESTTableOperations instance
    */
   protected RESTTableOperations newTableOpsForTransaction(
-      RESTClient client,
+      RESTClient restClient,
       String path,
       Supplier<Map<String, String>> headers,
-      FileIO io,
+      FileIO fileIO,
       RESTTableOperations.UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> supportedEndpoints) {
     return new RESTTableOperations(
-        client, path, headers, io, updateType, createChanges, current, endpoints);
+        restClient, path, headers, fileIO, updateType, createChanges, current, supportedEndpoints);
   }
 
   /**
@@ -1071,20 +1071,20 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * <p>This method can be overridden in subclasses to provide custom view operations
    * implementations.
    *
-   * @param client the REST client to use for communicating with the catalog server
+   * @param restClient the REST client to use for communicating with the catalog server
    * @param path the REST path for the view
    * @param headers a supplier for additional HTTP headers to include in requests
    * @param current the current view metadata
-   * @param endpoints the set of supported REST endpoints
+   * @param supportedEndpoints the set of supported REST endpoints
    * @return a new RESTViewOperations instance
    */
   protected RESTViewOperations newViewOps(
-      RESTClient client,
+      RESTClient restClient,
       String path,
       Supplier<Map<String, String>> headers,
       ViewMetadata current,
-      Set<Endpoint> endpoints) {
-    return new RESTViewOperations(client, path, headers, current, endpoints);
+      Set<Endpoint> supportedEndpoints) {
+    return new RESTViewOperations(restClient, path, headers, current, supportedEndpoints);
   }
 
   private static ConfigResponse fetchConfig(
