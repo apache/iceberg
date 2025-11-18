@@ -147,6 +147,8 @@ final class JdbcUtil {
           + TABLE_NAME
           + ")"
           + ")";
+  static final String V1_UPDATE_CATALOG_ORACLE_SQL =
+      "ALTER TABLE " + CATALOG_TABLE_VIEW_NAME + " ADD (" + RECORD_TYPE + " VARCHAR2(5))";
   static final String V1_UPDATE_CATALOG_SQL =
       "ALTER TABLE " + CATALOG_TABLE_VIEW_NAME + " ADD COLUMN " + RECORD_TYPE + " VARCHAR(5)";
 
@@ -411,7 +413,7 @@ final class JdbcUtil {
           + NAMESPACE_NAME
           + " VARCHAR(255) NOT NULL,"
           + NAMESPACE_PROPERTY_KEY
-          + " VARCHAR(255),"
+          + " VARCHAR(255) NOT NULL,"
           + NAMESPACE_PROPERTY_VALUE
           + " VARCHAR(1000),"
           + "PRIMARY KEY ("
