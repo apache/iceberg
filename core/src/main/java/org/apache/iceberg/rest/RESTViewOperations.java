@@ -36,7 +36,7 @@ public class RESTViewOperations implements ViewOperations {
   private final Set<Endpoint> endpoints;
   private ViewMetadata current;
 
-  public RESTViewOperations(
+  protected RESTViewOperations(
       RESTClient client,
       String path,
       Supplier<Map<String, String>> headers,
@@ -79,7 +79,7 @@ public class RESTViewOperations implements ViewOperations {
     updateCurrentMetadata(response);
   }
 
-  protected ViewMetadata updateCurrentMetadata(LoadViewResponse response) {
+  private ViewMetadata updateCurrentMetadata(LoadViewResponse response) {
     if (!Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
       this.current = response.metadata();
     }

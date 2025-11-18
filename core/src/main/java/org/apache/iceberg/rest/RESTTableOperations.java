@@ -63,7 +63,7 @@ public class RESTTableOperations implements TableOperations {
   private UpdateType updateType;
   private TableMetadata current;
 
-  public RESTTableOperations(
+  protected RESTTableOperations(
       RESTClient client,
       String path,
       Supplier<Map<String, String>> headers,
@@ -73,7 +73,7 @@ public class RESTTableOperations implements TableOperations {
     this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
   }
 
-  public RESTTableOperations(
+  protected RESTTableOperations(
       RESTClient client,
       String path,
       Supplier<Map<String, String>> headers,
@@ -183,7 +183,7 @@ public class RESTTableOperations implements TableOperations {
    * refresh fails. In case of refresh failure, the failure is recorded as suppressed on the
    * provided {@code original} exception to aid diagnostics.
    */
-  protected boolean reconcileOnSimpleUpdate(
+  private boolean reconcileOnSimpleUpdate(
       List<MetadataUpdate> updates, CommitStateUnknownException original) {
     Long expectedSnapshotId = expectedSnapshotIdIfSnapshotAddOnly(updates);
     if (expectedSnapshotId == null) {
@@ -241,7 +241,7 @@ public class RESTTableOperations implements TableOperations {
     return addedSnapshotId;
   }
 
-  protected TableMetadata updateCurrentMetadata(LoadTableResponse response) {
+  private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
     // LoadTableResponse is used to deserialize the response, but config is not allowed by the REST
     // spec so it can be
     // safely ignored. there is no requirement to update config on refresh or commit.
