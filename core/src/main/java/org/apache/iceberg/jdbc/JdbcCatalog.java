@@ -20,6 +20,7 @@ package org.apache.iceberg.jdbc;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -168,29 +169,18 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       throws SQLException, InterruptedException {
     connections.run(
         conn -> {
-          DatabaseMetaData dbMeta = conn.getMetaData();
 
           // check the existence of a table name
           Predicate<String> tableTest =
               name -> {
                 try {
-                  ResultSet result =
-                      dbMeta.getTables(
-                          null /* catalog name */,
-                          null /* schemaPattern */,
-                          name /* tableNamePattern */,
-                          null /* types */);
-                  return result.next();
+                  return tableExists(conn, tableName);
                 } catch (SQLException e) {
                   return false;
                 }
               };
 
-          // some databases force table name to upper case -- check that last.
-          Predicate<String> tableExists =
-              name -> tableTest.test(name) || tableTest.test(name.toUpperCase(Locale.ROOT));
-
-          if (tableExists.test(tableName)) {
+          if (tableTest.test(tableName)) {
             return true;
           }
 
@@ -200,7 +190,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
             return true;
           } catch (SQLException e) {
             // see if table was created by another thread or process.
-            if (tableExists.test(tableName)) {
+            if (tableTest.test(tableName)) {
               return true;
             }
             throw e;
@@ -236,11 +226,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     try {
       connections.run(
           conn -> {
-            DatabaseMetaData dbMeta = conn.getMetaData();
-            ResultSet typeColumn =
-                dbMeta.getColumns(
-                    null, null, JdbcUtil.CATALOG_TABLE_VIEW_NAME, JdbcUtil.RECORD_TYPE);
-            if (typeColumn.next()) {
+            if (columnExists(conn, JdbcUtil.CATALOG_TABLE_VIEW_NAME, JdbcUtil.RECORD_TYPE)) {
               LOG.debug("{} already supports views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
               schemaVersion = JdbcUtil.SchemaVersion.V1;
               return true;
@@ -252,7 +238,11 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                   .equalsIgnoreCase(JdbcUtil.SchemaVersion.V1.name())) {
                 LOG.debug("{} is being updated to support views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
                 schemaVersion = JdbcUtil.SchemaVersion.V1;
-                return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
+                if (isOracle(conn)) {
+                  return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_ORACLE_SQL).execute();
+                } else {
+                  return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
+                }
               } else {
                 LOG.warn(VIEW_WARNING_LOG_MESSAGE);
                 return true;
@@ -269,6 +259,71 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
+  }
+
+  private boolean isOracle(Connection conn) {
+    try {
+      String databaseProductName = conn.getMetaData().getDatabaseProductName();
+      return databaseProductName != null
+          && databaseProductName.toLowerCase(Locale.ROOT).contains("oracle");
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(e, "Cannot determine database product name");
+    }
+  }
+
+  private boolean tableExists(Connection conn, String tableNamePattern) throws SQLException {
+    DatabaseMetaData dbMeta = conn.getMetaData();
+
+    String[] tableVariants =
+        new String[] {
+          tableNamePattern,
+          tableNamePattern == null ? null : tableNamePattern.toUpperCase(Locale.ROOT),
+          tableNamePattern == null ? null : tableNamePattern.toLowerCase(Locale.ROOT)
+        };
+
+    for (String t : tableVariants) {
+      if (t == null) {
+        continue;
+      }
+      try (ResultSet rs = dbMeta.getColumns(null, null, t, null)) {
+        if (rs.next()) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private boolean columnExists(Connection conn, String tableNamePattern, String columnNamePattern)
+      throws SQLException {
+    DatabaseMetaData dbMeta = conn.getMetaData();
+
+    String[] tableVariants =
+        new String[] {
+          tableNamePattern,
+          tableNamePattern == null ? null : tableNamePattern.toUpperCase(Locale.ROOT),
+          tableNamePattern == null ? null : tableNamePattern.toLowerCase(Locale.ROOT)
+        };
+    String[] columnVariants =
+        new String[] {
+          columnNamePattern,
+          columnNamePattern == null ? null : columnNamePattern.toUpperCase(Locale.ROOT),
+          columnNamePattern == null ? null : columnNamePattern.toLowerCase(Locale.ROOT)
+        };
+
+    for (String t : tableVariants) {
+      for (String c : columnVariants) {
+        if (t == null || c == null) {
+          continue;
+        }
+        try (ResultSet rs = dbMeta.getColumns(null, null, t, c)) {
+          if (rs.next()) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   @Override
