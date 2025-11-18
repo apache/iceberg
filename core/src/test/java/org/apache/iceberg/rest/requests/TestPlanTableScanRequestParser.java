@@ -88,7 +88,18 @@ public class TestPlanTableScanRequestParser {
                 PlanTableScanRequestParser.fromJson(
                     "{\"snapshot-id\":1,\"case-sensitive\":true,\"use-snapshot-schema\":false,\"min-rows-requested\":\"23\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to an integer value: min-rows-requested: \"23\"");
+        .hasMessage("Cannot parse to a long value: min-rows-requested: \"23\"");
+
+    assertThatThrownBy(
+            () ->
+                PlanTableScanRequestParser.fromJson(
+                    "{\"snapshot-id\":1,\"case-sensitive\":true,\"use-snapshot-schema\":false,\"min-rows-requested\":-1}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid scan: minRowsRequested is negative");
+
+    assertThatThrownBy(() -> PlanTableScanRequest.builder().withMinRowsRequested(-1L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid scan: minRowsRequested is negative");
   }
 
   @Test
@@ -132,9 +143,28 @@ public class TestPlanTableScanRequestParser {
   }
 
   @Test
+  public void roundTripSerdeWithoutMinRowsRequested() {
+    PlanTableScanRequest request = PlanTableScanRequest.builder().withSnapshotId(1L).build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"snapshot-id\" : 1,\n"
+            + "  \"case-sensitive\" : true,\n"
+            + "  \"use-snapshot-schema\" : false\n"
+            + "}";
+
+    String json = PlanTableScanRequestParser.toJson(request, true);
+    assertThat(json).isEqualTo(expectedJson);
+    PlanTableScanRequest planTableScanRequest = PlanTableScanRequestParser.fromJson(json);
+    assertThat(planTableScanRequest.minRowsRequested()).isNull();
+    assertThat(PlanTableScanRequestParser.toJson(planTableScanRequest, true))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
   public void roundTripSerdeWithMinRowsRequested() {
     PlanTableScanRequest request =
-        PlanTableScanRequest.builder().withSnapshotId(1L).withMinRowsRequested(23).build();
+        PlanTableScanRequest.builder().withSnapshotId(1L).withMinRowsRequested(23L).build();
 
     String expectedJson =
         "{\n"
@@ -146,7 +176,9 @@ public class TestPlanTableScanRequestParser {
 
     String json = PlanTableScanRequestParser.toJson(request, true);
     assertThat(json).isEqualTo(expectedJson);
-    assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), true))
+    PlanTableScanRequest planTableScanRequest = PlanTableScanRequestParser.fromJson(json);
+    assertThat(planTableScanRequest.minRowsRequested()).isEqualTo(23);
+    assertThat(PlanTableScanRequestParser.toJson(planTableScanRequest, true))
         .isEqualTo(expectedJson);
   }
 
@@ -180,7 +212,7 @@ public class TestPlanTableScanRequestParser {
             .withCaseSensitive(false)
             .withUseSnapshotSchema(true)
             .withStatsFields(Lists.newArrayList("col1", "col2"))
-            .withMinRowsRequested(23)
+            .withMinRowsRequested(23L)
             .build();
 
     String expectedJson =
@@ -209,7 +241,7 @@ public class TestPlanTableScanRequestParser {
             .withCaseSensitive(false)
             .withUseSnapshotSchema(true)
             .withStatsFields(Lists.newArrayList("stat1"))
-            .withMinRowsRequested(23)
+            .withMinRowsRequested(23L)
             .build();
 
     assertThat(request)

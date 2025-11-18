@@ -106,8 +106,7 @@ public class PlanTableScanRequestParser {
     Long snapshotId = JsonUtil.getLongOrNull(SNAPSHOT_ID, json);
     Long startSnapshotId = JsonUtil.getLongOrNull(START_SNAPSHOT_ID, json);
     Long endSnapshotId = JsonUtil.getLongOrNull(END_SNAPSHOT_ID, json);
-    Integer minRowsRequested = JsonUtil.getIntOrNull(MIN_ROWS_REQUESTED, json);
-
+    Long minRowsRequested = JsonUtil.getLongOrNull(MIN_ROWS_REQUESTED, json);
     List<String> select = JsonUtil.getStringListOrNull(SELECT, json);
 
     Expression filter = null;
