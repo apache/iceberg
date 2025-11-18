@@ -41,6 +41,8 @@ import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
+import static org.apache.iceberg.expressions.Expressions.stDisjoint;
+import static org.apache.iceberg.expressions.Expressions.stIntersects;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
@@ -150,7 +152,11 @@ public class TestExpressionHelpers {
     StructType struct =
         StructType.of(
             NestedField.optional(1, "a", Types.IntegerType.get()),
-            NestedField.optional(2, "s", Types.StringType.get()));
+            NestedField.optional(2, "s", Types.StringType.get()),
+            NestedField.optional(3, "geom", Types.GeometryType.crs84()),
+            NestedField.optional(4, "geog", Types.GeographyType.crs84()));
+    BoundingBox bbox =
+        new BoundingBox(GeospatialBound.createXY(10, 20), GeospatialBound.createXY(30, 40));
     Expression[][] expressions =
         new Expression[][] {
           // (rewritten pred, original pred) pairs
@@ -180,7 +186,11 @@ public class TestExpressionHelpers {
           {or(equal("a", 5), isNull("a")), not(and(notEqual("a", 5), notNull("a")))},
           {or(equal("a", 5), notNull("a")), or(equal("a", 5), not(isNull("a")))},
           {startsWith("s", "hello"), not(notStartsWith("s", "hello"))},
-          {notStartsWith("s", "world"), not(startsWith("s", "world"))}
+          {notStartsWith("s", "world"), not(startsWith("s", "world"))},
+          {stIntersects("geom", bbox), not(stDisjoint("geom", bbox))},
+          {stDisjoint("geom", bbox), not(stIntersects("geom", bbox))},
+          {stIntersects("geog", bbox), not(stDisjoint("geog", bbox))},
+          {stDisjoint("geog", bbox), not(stIntersects("geog", bbox))},
         };
 
     for (Expression[] pair : expressions) {
@@ -273,73 +283,6 @@ public class TestExpressionHelpers {
     assertInvalidateNaNThrows(() -> notIn(self("a"), 1.0D, 2.0D, Double.NaN));
 
     assertInvalidateNaNThrows(() -> predicate(Expression.Operation.EQ, "a", Double.NaN));
-  }
-
-  @Test
-  public void testRewriteNotForGeospatialPredicates() {
-    // Create a schema with geometry and geography fields
-    StructType struct =
-        StructType.of(
-            NestedField.optional(1, "geom", Types.GeometryType.crs84()),
-            NestedField.optional(2, "geog", Types.GeographyType.crs84()));
-
-    // Create a bounding box for testing
-    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
-    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    BoundingBox bbox = new BoundingBox(min, max);
-
-    // Test pairs of expressions: (rewritten pred, original pred)
-    Expression[][] expressions =
-        new Expression[][] {
-          // ST_INTERSECTS and its negation (ST_DISJOINT)
-          {
-            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox),
-            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox)
-          },
-          {
-            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox),
-            not(Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox))
-          },
-          {
-            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox),
-            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox)
-          },
-          {
-            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox),
-            not(Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox))
-          },
-          // Same tests with geography type
-          {
-            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox),
-            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox)
-          },
-          {
-            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox),
-            not(Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox))
-          },
-          {
-            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox),
-            Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox)
-          },
-          {
-            Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox),
-            not(Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox))
-          }
-        };
-
-    for (Expression[] pair : expressions) {
-      // unbound rewrite
-      assertThat(rewriteNot(pair[1]))
-          .as(String.format("rewriteNot(%s) should be %s", pair[1], pair[0]))
-          .hasToString(pair[0].toString());
-
-      // bound rewrite
-      Expression expectedBound = Binder.bind(struct, pair[0]);
-      Expression toRewriteBound = Binder.bind(struct, pair[1]);
-      assertThat(rewriteNot(toRewriteBound))
-          .as(String.format("rewriteNot(%s) should be %s", toRewriteBound, expectedBound))
-          .hasToString(expectedBound.toString());
-    }
   }
 
   private void assertInvalidateNaNThrows(Callable<UnboundPredicate<Double>> callable) {

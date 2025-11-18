@@ -193,7 +193,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -209,7 +211,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -220,7 +224,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -239,7 +245,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -258,7 +266,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -279,7 +289,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -300,7 +312,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -317,7 +331,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -334,7 +350,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -355,7 +373,9 @@ public class TestMiscLiteralConversions {
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -393,7 +413,9 @@ public class TestMiscLiteralConversions {
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -443,7 +465,7 @@ public class TestMiscLiteralConversions {
   }
 
   @Test
-  public void testInvalidGeospatialBoundingBoxConversions() {
+  public void testInvalidGeospatialConversions() {
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
     Literal<ByteBuffer> geoBoundingBoxLiteral = Literal.of(new BoundingBox(min, max));
