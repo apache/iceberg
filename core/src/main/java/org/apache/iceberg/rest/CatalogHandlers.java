@@ -31,8 +31,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
@@ -101,7 +99,6 @@ public class CatalogHandlers {
   private static final String INITIAL_PAGE_TOKEN = "";
   private static final InMemoryPlanningState IN_MEMORY_PLANNING_STATE =
       InMemoryPlanningState.getInstance();
-  private static final ExecutorService ASYNC_PLANNING_POOL = Executors.newSingleThreadExecutor();
 
   private CatalogHandlers() {}
 
@@ -661,7 +658,7 @@ public class CatalogHandlers {
     tableScan = tableScan.caseSensitive(request.caseSensitive());
 
     if (shouldPlanAsync.test(tableScan)) {
-      String asyncPlanId = UUID.randomUUID().toString();
+      String asyncPlanId = "async-" + UUID.randomUUID();
       asyncPlanFiles(tableScan, asyncPlanId, tasksPerPlanTask.applyAsInt(tableScan));
       return PlanTableScanResponse.builder()
           .withPlanId(asyncPlanId)
@@ -670,11 +667,12 @@ public class CatalogHandlers {
           .build();
     }
 
-    String planId = UUID.randomUUID().toString();
+    String planId = "sync-" + UUID.randomUUID();
     planFilesFor(tableScan, planId, tasksPerPlanTask.applyAsInt(tableScan));
     Pair<List<FileScanTask>, String> initial = IN_MEMORY_PLANNING_STATE.initialScanTasksFor(planId);
     return PlanTableScanResponse.builder()
         .withPlanStatus(PlanStatus.COMPLETED)
+        .withPlanId(planId)
         .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(initial.second()))
         .withFileScanTasks(initial.first())
         .withDeleteFiles(
@@ -748,7 +746,6 @@ public class CatalogHandlers {
 
   static void clearPlanningState() {
     InMemoryPlanningState.getInstance().clear();
-    ASYNC_PLANNING_POOL.shutdown();
   }
 
   /**
@@ -777,6 +774,9 @@ public class CatalogHandlers {
 
   private static void asyncPlanFiles(
       TableScan tableScan, String asyncPlanId, int tasksPerPlanTask) {
-    ASYNC_PLANNING_POOL.execute(() -> planFilesFor(tableScan, asyncPlanId, tasksPerPlanTask));
+    // Its not necessary to run this in a separate thread pool, but doing so
+    // will create a race condition where a client can call fetchPlanningResult
+    // even before the IN_MEMORY_PLANNING_STATE has been populated.
+    planFilesFor(tableScan, asyncPlanId, tasksPerPlanTask);
   }
 }
