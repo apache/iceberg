@@ -1018,7 +1018,7 @@ public class TestMetricsRowGroupFilter {
         ParquetFileReader.open(parquetInputFile(Files.localInput(parquetFile)))) {
       assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
       BlockMetaData rowGroup = reader.getRowGroups().get(0);
-      MessageType parquetSchema = reader.getFileMetaData().getSchema();
+      parquetSchema = reader.getFileMetaData().getSchema();
 
       Schema promotedSchema = new Schema(required(1, "dt", Types.TimestampType.withoutZone()));
       boolean shouldRead =
@@ -1067,7 +1067,7 @@ public class TestMetricsRowGroupFilter {
         ParquetFileReader.open(parquetInputFile(Files.localInput(parquetFile)))) {
       assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
       BlockMetaData rowGroup = reader.getRowGroups().get(0);
-      MessageType parquetSchema = reader.getFileMetaData().getSchema();
+      parquetSchema = reader.getFileMetaData().getSchema();
 
       Schema promotedSchema = new Schema(required(1, "dt", Types.TimestampNanoType.withoutZone()));
       boolean shouldRead =
