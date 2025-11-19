@@ -162,4 +162,6 @@ public class CatalogProperties {
 
   public static final String ENCRYPTION_KMS_TYPE = "encryption.kms-type";
   public static final String ENCRYPTION_KMS_IMPL = "encryption.kms-impl";
+
+  public static final String CATALOG_LOAD_JARS = "catalog-load-jars";
 }

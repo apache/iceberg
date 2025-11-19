@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -41,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.IsolatedClassLoader;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.thrift.TException;
@@ -74,8 +76,10 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   private final int clientPoolSize;
   private final long evictionInterval;
   private final Key key;
+  private IsolatedClassLoader isolatedClassLoader;
 
-  CachedClientPool(Configuration conf, Map<String, String> properties) {
+  CachedClientPool(
+      Configuration conf, Map<String, String> properties, IsolatedClassLoader isolatedClassLoader) {
     this.conf = conf;
     this.clientPoolSize =
         PropertyUtil.propertyAsInt(
@@ -88,12 +92,21 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT);
     this.key = extractKey(properties.get(CatalogProperties.CLIENT_POOL_CACHE_KEYS), conf);
+    this.isolatedClassLoader = isolatedClassLoader;
     init();
+  }
+
+  CachedClientPool(Configuration conf, Map<String, String> properties) {
+    this(conf, properties, null);
   }
 
   @VisibleForTesting
   HiveClientPool clientPool() {
-    return clientPoolCache.get(key, k -> new HiveClientPool(clientPoolSize, conf));
+    return clientPool(Optional.empty());
+  }
+
+  HiveClientPool clientPool(Optional<ClassLoader> classLoader) {
+    return clientPoolCache.get(key, k -> new HiveClientPool(clientPoolSize, conf, classLoader));
   }
 
   private synchronized void init() {
@@ -119,13 +132,43 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   @Override
   public <R> R run(Action<R, IMetaStoreClient, TException> action)
       throws TException, InterruptedException {
-    return clientPool().run(action);
+    if (isolatedClassLoader != null) {
+      try {
+        return isolatedClassLoader.withClassLoader(
+            cl -> {
+              return clientPool(Optional.of(cl)).run(action);
+            },
+            RuntimeException.class);
+      } catch (RuntimeException e) {
+        if (e.getCause() instanceof TException) {
+          throw (TException) e.getCause();
+        }
+        throw e;
+      }
+    } else {
+      return clientPool().run(action);
+    }
   }
 
   @Override
   public <R> R run(Action<R, IMetaStoreClient, TException> action, boolean retry)
       throws TException, InterruptedException {
-    return clientPool().run(action, retry);
+    if (isolatedClassLoader != null) {
+      try {
+        return isolatedClassLoader.withClassLoader(
+            cl -> {
+              return clientPool(Optional.of(cl)).run(action);
+            },
+            RuntimeException.class);
+      } catch (RuntimeException e) {
+        if (e.getCause() instanceof TException) {
+          throw (TException) e.getCause();
+        }
+        throw e;
+      }
+    } else {
+      return clientPool().run(action, retry);
+    }
   }
 
   @VisibleForTesting
