@@ -57,6 +57,7 @@ public class DlqReporter implements AutoCloseable {
     String key = (data.key()==null) ? null : data.key().toString();
     String value = (data.value()==null) ? null : data.value().toString();
     try {
+      LOG.info("Published DLQ record {}", value);
       ProducerRecord<String, String> record = new ProducerRecord<>(dlqTopic, key, value);
       Future<?> result = producer.send(record);
     } catch (Exception ex) {
