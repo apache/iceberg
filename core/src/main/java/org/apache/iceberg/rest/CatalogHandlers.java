@@ -31,6 +31,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
@@ -99,6 +102,7 @@ public class CatalogHandlers {
   private static final String INITIAL_PAGE_TOKEN = "";
   private static final InMemoryPlanningState IN_MEMORY_PLANNING_STATE =
       InMemoryPlanningState.getInstance();
+  private static final ExecutorService ASYNC_PLANNING_POOL = Executors.newSingleThreadExecutor();
 
   private CatalogHandlers() {}
 
@@ -695,6 +699,11 @@ public class CatalogHandlers {
   public static FetchPlanningResultResponse fetchPlanningResult(
       Catalog catalog, TableIdentifier ident, String planId) {
     Table table = catalog.loadTable(ident);
+    PlanStatus status = IN_MEMORY_PLANNING_STATE.asyncPlanStatus(planId);
+    if (status != PlanStatus.COMPLETED) {
+      return FetchPlanningResultResponse.builder().withPlanStatus(status).build();
+    }
+
     Pair<List<FileScanTask>, String> initial = IN_MEMORY_PLANNING_STATE.initialScanTasksFor(planId);
     return FetchPlanningResultResponse.builder()
         .withPlanStatus(PlanStatus.COMPLETED)
@@ -741,7 +750,7 @@ public class CatalogHandlers {
    * @param planId the plan identifier to cancel
    */
   public static void cancelPlanTableScan(String planId) {
-    IN_MEMORY_PLANNING_STATE.removePlan(planId);
+    IN_MEMORY_PLANNING_STATE.cancelPlan(planId);
   }
 
   static void clearPlanningState() {
@@ -772,11 +781,22 @@ public class CatalogHandlers {
     }
   }
 
+  @SuppressWarnings("FutureReturnValueIgnored")
   private static void asyncPlanFiles(
       TableScan tableScan, String asyncPlanId, int tasksPerPlanTask) {
-    // Its not necessary to run this in a separate thread pool, but doing so
-    // will create a race condition where a client can call fetchPlanningResult
-    // even before the IN_MEMORY_PLANNING_STATE has been populated.
-    planFilesFor(tableScan, asyncPlanId, tasksPerPlanTask);
+    IN_MEMORY_PLANNING_STATE.addAsyncPlan(asyncPlanId);
+    CompletableFuture.runAsync(
+            () -> {
+              planFilesFor(tableScan, asyncPlanId, tasksPerPlanTask);
+            },
+            ASYNC_PLANNING_POOL)
+        .whenComplete(
+            (result, exception) -> {
+              if (exception != null) {
+                IN_MEMORY_PLANNING_STATE.markAsyncPlanFailed(asyncPlanId);
+              } else {
+                IN_MEMORY_PLANNING_STATE.markAsyncPlanAsComplete(asyncPlanId);
+              }
+            });
   }
 }
