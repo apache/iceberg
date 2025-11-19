@@ -33,7 +33,6 @@ import java.util.function.Supplier;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
 import org.apache.iceberg.rest.RESTClient;
@@ -257,20 +256,5 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     private boolean isDone() {
       return taskQueue.isEmpty() && planTasks.isEmpty() && activeWorkers.get() == 0;
     }
-  }
-
-  @VisibleForTesting
-  int getActiveWorkers() {
-    return activeWorkers.get();
-  }
-
-  @VisibleForTesting
-  int getQueueSize() {
-    return taskQueue.size();
-  }
-
-  @VisibleForTesting
-  int getPlanTasksSize() {
-    return planTasks.size();
   }
 }

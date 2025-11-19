@@ -3378,36 +3378,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(restTableScan.cancelPlan()).isFalse();
   }
 
-  @Test
-  public void testIteratorCloseTriggersCancel() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
-    RESTTable restTable = restTableFor("iterator_close_table");
-    setParserContext(restTable);
-
-    TableScan scan = restTable.newScan();
-    assertThat(scan).isInstanceOf(RESTTableScan.class);
-    boolean cancelled = isCancelled((RESTTableScan) scan);
-    assertThat(cancelled).isFalse(); // No active plan to cancel
-  }
-
-  private static boolean isCancelled(RESTTableScan scan) throws IOException {
-
-    // Get the iterable and iterator
-    CloseableIterable<FileScanTask> iterable = scan.planFiles();
-    CloseableIterator<FileScanTask> iterator = iterable.iterator();
-
-    // Verify we can close the iterator without exceptions
-    // The cancellation callback will be called (though no active plan exists)
-    iterator.close();
-
-    // Verify we can still call cancelPlan on the scan
-    return scan.cancelPlan();
-  }
-
   @ParameterizedTest
   @EnumSource(MetadataTableType.class)
   public void testMetadataTablesWithRemotePlanning(MetadataTableType type) {
+    // POSITION_DELETES table does not implement newScan() method
     assumeThat(type).isNotEqualTo(MetadataTableType.POSITION_DELETES);
+
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
     RESTTable table = restTableFor("metadata_tables_test");
     table.newAppend().appendFile(FILE_B).commit();
@@ -3435,13 +3411,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // Get the iterable
     CloseableIterable<FileScanTask> iterable = restTableScan.planFiles();
 
+    // call cancelPlan before closing the iterable
+    boolean cancelled = restTableScan.cancelPlan();
+    assertThat(cancelled).isTrue();
+
     // Verify we can close the iterable without exceptions
     // This tests that cancellation callbacks are properly wired through
     iterable.close();
-
-    // Verify the scan is still functional
-    boolean cancelled = restTableScan.cancelPlan();
-    assertThat(cancelled).isFalse(); // No active plan to cancel
   }
 
   @Test

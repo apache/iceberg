@@ -113,7 +113,7 @@ public class RESTTableScan extends DataTableScan {
     }
 
     PlanTableScanRequest.Builder planTableScanRequestBuilder =
-        new PlanTableScanRequest.Builder()
+        PlanTableScanRequest.builder()
             .withSelect(selectedColumns)
             .withFilter(filter())
             .withCaseSensitive(isCaseSensitive())
@@ -153,7 +153,7 @@ public class RESTTableScan extends DataTableScan {
     PlanStatus planStatus = response.planStatus();
     switch (planStatus) {
       case COMPLETED:
-        // No need to clear currentPlanId here since it's only set for SUBMITTED plans
+        currentPlanId = response.planId();
         return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
         return fetchPlanningResult(response.planId());
