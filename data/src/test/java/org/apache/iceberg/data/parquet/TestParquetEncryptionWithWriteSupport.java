@@ -26,12 +26,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -50,6 +50,7 @@ import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.io.LocalOutputFile;
 import org.junit.jupiter.api.Test;
 
 public class TestParquetEncryptionWithWriteSupport extends DataTestBase {
@@ -160,7 +161,8 @@ public class TestParquetEncryptionWithWriteSupport extends DataTestBase {
             .build();
 
     ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
-        AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(new Path(testFile.toURI()))
+        AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(
+                new LocalOutputFile(Path.of(testFile.toURI())))
             .withDataModel(GenericData.get())
             .withSchema(avroSchema)
             .withEncryption(fileEncryptionProperties)
