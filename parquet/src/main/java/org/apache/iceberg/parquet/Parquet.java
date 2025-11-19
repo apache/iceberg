@@ -1279,6 +1279,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public ReadBuilder filter(Expression newFilter) {
       this.filter = newFilter;
       return this;

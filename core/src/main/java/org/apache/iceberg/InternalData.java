@@ -25,6 +25,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.InternalReader;
 import org.apache.iceberg.avro.InternalWriter;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -162,6 +163,11 @@ public class InternalData {
 
     /** Set a custom class for in-memory objects at the given field ID. */
     ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass);
+
+    /** Set a filter to apply on result rows if applicable. */
+    default ReadBuilder filter(Expression newFilter) {
+      return this;
+    }
 
     /** Build the configured reader. */
     <D> CloseableIterable<D> build();

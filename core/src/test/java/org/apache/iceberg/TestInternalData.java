@@ -18,13 +18,16 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
@@ -153,6 +156,49 @@ public class TestInternalData {
         assertThat(customRow.get(1, String.class))
             .isEqualTo(expectedRecord.get(1, String.class)); // inner_name
       }
+    }
+  }
+
+  @TestTemplate
+  public void testFilter() throws IOException {
+    OutputFile outputFile = fileIO.newOutputFile(tempDir.resolve("test." + format).toString());
+
+    int numRecords = 1000;
+    List<Record> testData = Lists.newArrayListWithExpectedSize(numRecords);
+    for (int i = 0; i < numRecords; i += 1) {
+      Record record = GenericRecord.create(SIMPLE_SCHEMA.asStruct());
+      record.set(0, (long) i);
+      record.set(1, "some_str");
+      testData.add(record);
+    }
+
+    int numRowBatch = 8 * 10; // 1 row batch contains 10 longs
+    try (FileAppender<Record> appender =
+        InternalData.write(format, outputFile)
+            .set(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(numRowBatch))
+            .schema(SIMPLE_SCHEMA)
+            .build()) {
+      appender.addAll(testData);
+    }
+
+    InputFile inputFile = fileIO.newInputFile(outputFile.location());
+    List<PartitionData> readRecords = Lists.newArrayList();
+
+    try (CloseableIterable<PartitionData> reader =
+        InternalData.read(format, inputFile)
+            .project(SIMPLE_SCHEMA)
+            .setRootType(PartitionData.class)
+            .filter(Expressions.lessThan("id", 100))
+            .build()) {
+      for (PartitionData record : reader) {
+        readRecords.add(record);
+      }
+    }
+
+    if (format.equals(FileFormat.PARQUET)) {
+      assertThat(readRecords).hasSize(100);
+    } else {
+      assertThat(readRecords).hasSameSizeAs(testData);
     }
   }
 }
