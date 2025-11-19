@@ -78,7 +78,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    * nullability: writing optional (nullable) values to a required field is an error. This method
    * allows configuring whether different orderings between schema is considered an error.
    *
-   * @param readSchema a read schema
+   * @param readSchema a read schema - input schema
    * @param writeSchema a write schema
    * @param checkOrdering If false, allow input schema to have different ordering than table schema
    * @param formatVersion the table format version
