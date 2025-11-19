@@ -3385,6 +3385,8 @@ components:
       allOf:
         - $ref: '#/components/schemas/CompletedPlanningResult'
         - type: object
+          required:
+            - plan-id
           properties:
             plan-id:
               description: ID used to track a planning request
