@@ -51,7 +51,11 @@ public class EncryptionUtil {
     KeyManagementClient kmsClient;
     DynConstructors.Ctor<KeyManagementClient> ctor;
     try {
-      ctor = DynConstructors.builder(KeyManagementClient.class).impl(kmsImpl).buildChecked();
+      ctor =
+          DynConstructors.builder(KeyManagementClient.class)
+              .loader(EncryptionUtil.class.getClassLoader())
+              .impl(kmsImpl)
+              .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
@@ -101,6 +105,14 @@ public class EncryptionUtil {
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
     return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
+  }
+
+  public static ByteBuffer setFileLength(ByteBuffer keyMetadata, long fileLength) {
+    if (keyMetadata == null) {
+      return null;
+    }
+
+    return StandardKeyMetadata.parse(keyMetadata).copyWithLength(fileLength).buffer();
   }
 
   /**

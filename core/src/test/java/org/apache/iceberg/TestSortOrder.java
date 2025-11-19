@@ -394,7 +394,7 @@ public class TestSortOrder {
                     .asc(fieldName)
                     .build())
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining(String.format("Cannot find field '%s' in struct", fieldName));
+        .hasMessageContaining("Cannot find field '%s' in struct", fieldName);
 
     SortOrder ext1 =
         SortOrder.builderFor(SCHEMA).caseSensitive(false).withOrderId(10).asc("ext1").build();

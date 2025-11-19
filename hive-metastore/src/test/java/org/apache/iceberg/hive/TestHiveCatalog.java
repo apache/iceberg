@@ -460,7 +460,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
     assertThatThrownBy(() -> catalog.createNamespace(namespace1))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage(String.format("Namespace already exists: %s", namespace1));
+        .hasMessage("Namespace already exists: %s", namespace1);
     String hiveLocalDir = temp.toFile().toURI().toString();
     // remove the trailing slash of the URI
     hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
@@ -530,9 +530,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Create namespace setting %s without setting %s is not allowed",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Create namespace setting %s without setting %s is not allowed",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -655,9 +654,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Setting %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -671,9 +669,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Setting %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -846,9 +843,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Removing %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -866,9 +862,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Removing %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
   }
 
   private void removeNamespaceOwnershipAndVerify(

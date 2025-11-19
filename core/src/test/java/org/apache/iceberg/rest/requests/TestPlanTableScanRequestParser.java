@@ -26,7 +26,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
-public class TestPlanTableScanRequest {
+public class TestPlanTableScanRequestParser {
 
   @Test
   public void nullAndEmptyCheck() {
@@ -40,9 +40,51 @@ public class TestPlanTableScanRequest {
   }
 
   @Test
+  public void requestWithValidSnapshotIds() {
+    PlanTableScanRequest request = PlanTableScanRequest.builder().build();
+    assertThat(request).isNotNull();
+    assertThat(request.snapshotId()).isNull();
+    assertThat(request.startSnapshotId()).isNull();
+    assertThat(request.endSnapshotId()).isNull();
+
+    request = PlanTableScanRequest.builder().withSnapshotId(1L).build();
+    assertThat(request.snapshotId()).isEqualTo(1L);
+    assertThat(request.startSnapshotId()).isNull();
+    assertThat(request.endSnapshotId()).isNull();
+
+    request = PlanTableScanRequest.builder().withStartSnapshotId(1L).withEndSnapshotId(5L).build();
+    assertThat(request.snapshotId()).isNull();
+    assertThat(request.startSnapshotId()).isEqualTo(1L);
+    assertThat(request.endSnapshotId()).isEqualTo(5);
+  }
+
+  @Test
+  public void requestWithInvalidSnapshotIds() {
+    assertThatThrownBy(
+            () -> PlanTableScanRequest.builder().withSnapshotId(1L).withStartSnapshotId(1L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid scan: cannot provide both snapshotId and startSnapshotId/endSnapshotId");
+
+    assertThatThrownBy(
+            () -> PlanTableScanRequest.builder().withSnapshotId(1L).withEndSnapshotId(5L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid scan: cannot provide both snapshotId and startSnapshotId/endSnapshotId");
+
+    assertThatThrownBy(() -> PlanTableScanRequest.builder().withStartSnapshotId(1L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid incremental scan: startSnapshotId and endSnapshotId is required");
+
+    assertThatThrownBy(() -> PlanTableScanRequest.builder().withEndSnapshotId(5L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid incremental scan: startSnapshotId and endSnapshotId is required");
+  }
+
+  @Test
   public void roundTripSerdeWithSelectField() {
     PlanTableScanRequest request =
-        new PlanTableScanRequest.Builder()
+        PlanTableScanRequest.builder()
             .withSnapshotId(1L)
             .withSelect(Lists.newArrayList("col1", "col2"))
             .build();
@@ -62,7 +104,7 @@ public class TestPlanTableScanRequest {
   @Test
   public void roundTripSerdeWithFilterField() {
     PlanTableScanRequest request =
-        new PlanTableScanRequest.Builder()
+        PlanTableScanRequest.builder()
             .withSnapshotId(1L)
             .withFilter(Expressions.alwaysFalse())
             .build();
@@ -83,7 +125,7 @@ public class TestPlanTableScanRequest {
   public void planTableScanRequestWithAllFieldsInvalidRequest() {
     assertThatThrownBy(
             () ->
-                new PlanTableScanRequest.Builder()
+                PlanTableScanRequest.builder()
                     .withSnapshotId(1L)
                     .withSelect(Lists.newArrayList("col1", "col2"))
                     .withFilter(Expressions.alwaysTrue())
@@ -95,13 +137,13 @@ public class TestPlanTableScanRequest {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
+            "Invalid scan: cannot provide both snapshotId and startSnapshotId/endSnapshotId");
   }
 
   @Test
   public void roundTripSerdeWithAllFieldsExceptSnapShotId() {
     PlanTableScanRequest request =
-        new PlanTableScanRequest.Builder()
+        PlanTableScanRequest.builder()
             .withSelect(Lists.newArrayList("col1", "col2"))
             .withFilter(Expressions.alwaysTrue())
             .withStartSnapshotId(1L)
@@ -129,7 +171,7 @@ public class TestPlanTableScanRequest {
   @Test
   public void testToStringContainsAllFields() {
     PlanTableScanRequest request =
-        new PlanTableScanRequest.Builder()
+        PlanTableScanRequest.builder()
             .withSnapshotId(123L)
             .withSelect(Lists.newArrayList("colA", "colB"))
             .withFilter(Expressions.alwaysTrue())

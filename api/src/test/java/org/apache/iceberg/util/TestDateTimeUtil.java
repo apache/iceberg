@@ -20,6 +20,7 @@ package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -95,5 +96,25 @@ public class TestDateTimeUtil {
     int expectedDays = DateTimeUtil.microsToDays(micros);
     assertThat(DateTimeUtil.hoursToDays(DateTimeUtil.microsToHours(micros)))
         .isEqualTo(expectedDays);
+  }
+
+  @Test
+  public void timestampFromMillis() {
+    assertThat(DateTimeUtil.timestampFromMillis(1510871468000L))
+        .isEqualTo(LocalDateTime.parse("2017-11-16T22:31:08"));
+    assertThat(DateTimeUtil.timestampFromMillis(-1510871468000L))
+        .isEqualTo(LocalDateTime.parse("1922-02-15T01:28:52"));
+    assertThat(DateTimeUtil.timestampFromMillis(0L))
+        .isEqualTo(LocalDateTime.parse("1970-01-01T00:00"));
+  }
+
+  @Test
+  public void millisFromTimestamp() {
+    assertThat(DateTimeUtil.millisFromTimestamp(LocalDateTime.parse("2017-11-16T22:31:08")))
+        .isEqualTo(1510871468000L);
+    assertThat(DateTimeUtil.millisFromTimestamp(LocalDateTime.parse("1922-02-15T01:28:52")))
+        .isEqualTo(-1510871468000L);
+    assertThat(DateTimeUtil.millisFromTimestamp(LocalDateTime.parse("1970-01-01T00:00")))
+        .isEqualTo(0L);
   }
 }

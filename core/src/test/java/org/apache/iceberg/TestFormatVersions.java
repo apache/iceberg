@@ -88,8 +88,7 @@ public class TestFormatVersions extends TestBase {
 
     assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            String.format("Cannot downgrade v%d table to v%d", newFormatVersion, formatVersion));
+        .hasMessage("Cannot downgrade v%d table to v%d", newFormatVersion, formatVersion);
 
     assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
   }
@@ -104,9 +103,8 @@ public class TestFormatVersions extends TestBase {
             () -> ops.commit(base, base.upgradeToFormatVersion(unsupportedFormatVersion)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Cannot upgrade table to unsupported format version: v%d (supported: v%d)",
-                unsupportedFormatVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
+            "Cannot upgrade table to unsupported format version: v%d (supported: v%d)",
+            unsupportedFormatVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
 
     assertThat(ops.current().formatVersion()).isEqualTo(formatVersion);
   }

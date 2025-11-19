@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class RESTUtil {
   private static final char NAMESPACE_SEPARATOR = '\u001f';
@@ -98,15 +98,7 @@ public class RESTUtil {
   public static Map<String, String> extractPrefixMap(
       Map<String, String> properties, String prefix) {
     Preconditions.checkNotNull(properties, "Invalid properties map: null");
-    Map<String, String> result = Maps.newHashMap();
-    properties.forEach(
-        (key, value) -> {
-          if (key != null && key.startsWith(prefix)) {
-            result.put(key.substring(prefix.length()), value);
-          }
-        });
-
-    return result;
+    return PropertyUtil.propertiesWithPrefix(properties, prefix);
   }
 
   private static final Joiner.MapJoiner FORM_JOINER = Joiner.on("&").withKeyValueSeparator("=");
