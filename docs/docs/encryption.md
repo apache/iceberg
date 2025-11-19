@@ -20,7 +20,7 @@ title: "Encryption"
 
 # Encryption
 
-Iceberg table encryption protects confidentiality and integrity of table data in an untrusted storage. The data, delete, manifest and manifest list files are encrypted and tamper-proofed before being sent to the storage backend.
+Iceberg table encryption protects confidentiality and integrity of table data in an untrusted storage. The `data`, `delete`, `manifest` and `manifest list` files are encrypted and tamper-proofed before being sent to the storage backend.
 
 The `metadata.json` file does not contain confidential information, and is therefore not encrypted.
 
@@ -29,7 +29,6 @@ Currently, table encryption is supported with the Hive and REST catalogs.
 Two parameters are required to activate encryption of a table,
 1. Catalog property `encryption.kms-impl`, that specifies the class path for a client of a KMS ("key management service").
 2. Table property `encryption.key-id`, that specifies the ID of a master key used to encrypt and decrypt the table. Master keys are stored and managed in the KMS.
-
 
 ## Example
 
@@ -68,17 +67,16 @@ Queried data will be automatically decrypted,
 SELECT * FROM local.db.table;
 ```
 
-## Security requirements 
-
+## Security requirements
 
 To function properly, Iceberg table encryption places the following requirements on the catalogs:
 
-1. For protection of table data confidentiality, the table encryption properties (`encryption.key-id` and an optional `encryption.data-key-length`) must be kept in a tamper-proof storage or in a trusted independent database. Catalogs must not retrieve these properties directly from the metadata.json, if this file is kept in a storage vulnerable to tampering.
-2. For protection of table integrity, the metadata json must be kept in a tamper-proof storage or in a trusted independent object store. Catalogs must not retrieve the metadata.json file directly, if it is kept in a storage vulnerable to tampering.
+1. For protection of table data confidentiality, the table encryption properties (`encryption.key-id` and an optional `encryption.data-key-length`) must be kept in a tamper-proof storage or in a trusted independent database. Catalogs must not retrieve these properties directly from the metadata.json, if this file is kept unprotected in a storage vulnerable to tampering.
+2. For protection of table integrity, the metadata json must be kept in a tamper-proof storage or in a trusted independent object store. Catalogs must not retrieve the metadata.json file directly, if it is kept unprotected in a storage vulnerable to tampering.
 
 ## Key Management Clients
 
-Currently, Iceberg has clients for the AWS and GCP KMS systems. A custom client can be built for other key management systems by implementing the `org.apache.iceberg.encryption.KeyManagementClient` interface. 
+Currently, Iceberg has clients for the AWS and GCP KMS systems. A custom client can be built for other key management systems by implementing the `org.apache.iceberg.encryption.KeyManagementClient` interface.
 
 This interface has the following main methods,
 
@@ -108,8 +106,7 @@ This interface has the following main methods,
   /**
    * Initialize the KMS client with given properties.
    *
-   * @param properties kms client properties
+   * @param properties kms client properties (taken from catalog properties)
    */
   void initialize(Map<String, String> properties);
 ```
-
