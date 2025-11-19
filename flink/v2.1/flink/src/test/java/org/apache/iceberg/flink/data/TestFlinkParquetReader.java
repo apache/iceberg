@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -189,7 +188,7 @@ public class TestFlinkParquetReader extends DataTestBase {
     assertThat(testFile.delete()).isTrue();
 
     ParquetWriter<GenericRecord> writer =
-        AvroParquetWriter.<GenericRecord>builder(new LocalOutputFile(Path.of(testFile.toURI())))
+        AvroParquetWriter.<GenericRecord>builder(new LocalOutputFile(testFile.toPath()))
             .withDataModel(GenericData.get())
             .withSchema(avroSchema)
             .config("parquet.avro.add-list-element-records", "true")

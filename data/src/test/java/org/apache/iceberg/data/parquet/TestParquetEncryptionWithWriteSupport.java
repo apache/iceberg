@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
@@ -162,7 +161,7 @@ public class TestParquetEncryptionWithWriteSupport extends DataTestBase {
 
     ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
         AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(
-                new LocalOutputFile(Path.of(testFile.toURI())))
+                new LocalOutputFile(testFile.toPath()))
             .withDataModel(GenericData.get())
             .withSchema(avroSchema)
             .withEncryption(fileEncryptionProperties)

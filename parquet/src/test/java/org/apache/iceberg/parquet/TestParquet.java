@@ -194,7 +194,7 @@ public class TestParquet {
     File testFile = new File(temp.toFile(), "test" + System.nanoTime() + ".parquet");
 
     ParquetWriter<GenericRecord> writer =
-        AvroParquetWriter.<GenericRecord>builder(new LocalOutputFile(Path.of(testFile.toURI())))
+        AvroParquetWriter.<GenericRecord>builder(new LocalOutputFile(testFile.toPath()))
             .withDataModel(GenericData.get())
             .withSchema(avroSchema)
             .config("parquet.avro.add-list-element-records", "true")
