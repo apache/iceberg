@@ -71,32 +71,45 @@ class IcebergWriter implements RecordWriter {
     try {
       // ignore tombstones...
       if (record.value() != null) {
-        Record row = convertToRow(record);
+        Record row = null;
+        try {
+          row = convertToRow(record);
+        } catch (Exception e) {
+          String recordData = "";
+          if (this.config.errorLogIncludeMessages()) {
+            recordData = String.format(", record: %s", record.value().toString());
+          }
+          DataException ex =
+            new DataException(
+              String.format(
+                      Locale.ROOT,
+                      "topic: %s, partition, %d, offset: %d %s",
+                      record.topic(),
+                      record.kafkaPartition(),
+                      record.kafkaOffset(),
+                      recordData),
+              e);
+          if (this.config.errorTolerance().equalsIgnoreCase(ErrorTolerance.ALL.toString())) {
+            if (this.dlqReporter != null) {
+              this.dlqReporter.send(record);
+            }
+            LOG.error("An error occurred converting record...", ex);
+          } else {
+            throw ex;
+          }
+        }
         writer.write(row);
       }
     } catch (Exception e) {
-      String recordData = "";
-      if (this.config.errorLogIncludeMessages()) {
-        recordData = String.format(", record: %s", record.value().toString());
-      }
-      DataException ex =
-          new DataException(
+      throw new DataException(
               String.format(
-                  Locale.ROOT,
-                  "topic: %s, partition, %d, offset: %d %s",
-                  record.topic(),
-                  record.kafkaPartition(),
-                  record.kafkaOffset(),
-                  recordData),
+                      Locale.ROOT,
+                      "An error occurred converting record, topic: %s, partition, %d, offset: %d",
+                      record.topic(),
+                      record.kafkaPartition(),
+                      record.kafkaOffset()),
               e);
-      if (this.config.errorTolerance().equalsIgnoreCase(ErrorTolerance.ALL.toString())) {
-        if (this.dlqReporter != null) {
-          this.dlqReporter.send(record);
-        }
-        LOG.error("An error occurred converting record...", ex);
-      } else {
-        throw ex;
-      }
+
     }
   }
 
