@@ -286,17 +286,17 @@ public class TestParquet {
             .optionalString("data")
             .endRecord();
 
-    ParquetWriter<GenericData.Record> writer =
-        AvroParquetWriter.<GenericData.Record>builder(new org.apache.hadoop.fs.Path(file.toURI()))
+    try (ParquetWriter<GenericData.Record> writer =
+        AvroParquetWriter.<GenericData.Record>builder(ParquetIO.file(Files.localOutput(file)))
             .withDataModel(GenericData.get())
             .withSchema(avroSchemaWithoutIds)
-            .build();
+            .build()) {
 
-    GenericData.Record record = new GenericData.Record(avroSchemaWithoutIds);
-    record.put("id", 1L);
-    record.put("data", "a");
-    writer.write(record);
-    writer.close();
+      GenericData.Record record = new GenericData.Record(avroSchemaWithoutIds);
+      record.put("id", 1L);
+      record.put("data", "a");
+      writer.write(record);
+    }
 
     InputFile inputFile = Files.localInput(file);
 
@@ -309,7 +309,7 @@ public class TestParquet {
               reader.getFooter(), Stream.empty(), MetricsConfig.getDefault(), nameMapping);
 
       // The key assertion: column sizes should be keyed by field IDs from NameMapping
-      assertThat(metrics.columnSizes()).containsKeys(1, 2);
+      assertThat(metrics.columnSizes()).containsOnlyKeys(1, 2);
     }
   }
 
