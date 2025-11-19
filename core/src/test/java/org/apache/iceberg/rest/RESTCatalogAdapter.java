@@ -106,7 +106,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private final ViewCatalog asViewCatalog;
 
   private AuthSession authSession = AuthSession.EMPTY;
-  private final PlanningBehavior planningBehavior = planningBehavior();
+  private PlanningBehavior planningBehavior;
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
@@ -595,7 +595,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   protected PlanningBehavior planningBehavior() {
-    return new PlanningBehavior() {};
+    return this.planningBehavior == null ? new PlanningBehavior() {} : planningBehavior;
+  }
+
+  protected void setPlanningBehavior(PlanningBehavior behavior) {
+    this.planningBehavior = behavior;
   }
 
   @Override

@@ -127,6 +127,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @TempDir public Path temp;
 
   private RESTCatalog restCatalog;
+  private RESTCatalog restCatalogWithScanPlanning;
   private InMemoryCatalog backendCatalog;
   private Server httpServer;
   private RESTCatalogAdapter adapterForRESTServer;
@@ -201,6 +202,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     httpServer.start();
 
     this.restCatalog = initCatalog("prod", ImmutableMap.of());
+
+    // Initialize catalog with scan planning enabled for scan planning tests
+    this.restCatalogWithScanPlanning =
+        initCatalog(
+            "prod-with-scan-planning",
+            ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"));
   }
 
   @Override
@@ -335,6 +342,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       restCatalog.close();
     }
 
+    if (restCatalogWithScanPlanning != null) {
+      restCatalogWithScanPlanning.close();
+    }
+
     if (backendCatalog != null) {
       backendCatalog.close();
     }
@@ -350,10 +361,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return restCatalog;
   }
 
+  protected RESTCatalog scanPlanningCatalog() {
+    return restCatalogWithScanPlanning;
+  }
+
   private void configurePlanningBehavior(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> configurator) {
     TestPlanningBehavior.Builder builder = TestPlanningBehavior.builder();
-    this.currentPlanningBehavior = configurator.apply(builder).build();
+    adapterForRESTServer.setPlanningBehavior(configurator.apply(builder).build());
   }
 
   private Table createTableWithScanPlanning(String tableName) {
@@ -361,9 +376,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   private Table createTableWithScanPlanning(TableIdentifier identifier) {
-    RESTCatalog catalog =
-        initCatalog(
-            "prod", ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"));
+    // Use the shared scan planning catalog instead of creating a new one each time
+    RESTCatalog catalog = scanPlanningCatalog();
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(identifier.namespace());
@@ -3400,7 +3414,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testIterableCloseTriggersCancel() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
+    configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
     RESTTable restTable = restTableFor("iterable_close_test");
     setParserContext(restTable);
 

@@ -188,8 +188,6 @@ public class RESTTableScan extends DataTableScan {
         PlanStatus planStatus = response.planStatus();
         switch (planStatus) {
           case COMPLETED:
-            // Clear plan ID since planning completed successfully
-            currentPlanId = null;
             return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
           case SUBMITTED:
             try {
