@@ -987,8 +987,8 @@ class FailedPlanningResult(IcebergErrorResponse):
 
 class AsyncPlanningResult(BaseModel):
     status: Literal['submitted'] = Field(..., const=True)
-    plan_id: Optional[str] = Field(
-        None, alias='plan-id', description='ID used to track a planning request'
+    plan_id: str = Field(
+        ..., alias='plan-id', description='ID used to track a planning request'
     )
 
 

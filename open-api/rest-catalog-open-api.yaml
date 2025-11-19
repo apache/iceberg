@@ -3482,6 +3482,7 @@ components:
       type: object
       required:
         - status
+        - plan-id
       properties:
         status:
           $ref: '#/components/schemas/PlanStatus'
