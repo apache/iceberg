@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<String>> {
+    private static final int DEFAULT_FORMAT_VERSION = 2;
   /**
    * Returns a list of compatibility errors for writing with the given write schema. This includes
    * nullability: writing optional (nullable) values to a required field is an error.
@@ -38,7 +39,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> writeCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return writeCompatibilityErrors(readSchema, writeSchema, true, 2);
+    return writeCompatibilityErrors(readSchema, writeSchema, true, DEFAULT_FORMAT_VERSION);
   }
 
   /**
@@ -52,7 +53,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    */
   public static List<String> writeCompatibilityErrors(
       Schema readSchema, Schema writeSchema, int formatVersion) {
-    return writeCompatibilityErrors(readSchema, writeSchema, true, formatVersion);
+    return writeCompatibilityErrors(readSchema, writeSchema, /*checkOrdering=*/true, formatVersion);
   }
 
   /**
@@ -67,7 +68,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    */
   public static List<String> writeCompatibilityErrors(
       Schema readSchema, Schema writeSchema, boolean checkOrdering) {
-    return writeCompatibilityErrors(readSchema, writeSchema, checkOrdering, 2);
+    return writeCompatibilityErrors(readSchema, writeSchema, checkOrdering, DEFAULT_FORMAT_VERSION);
   }
 
   /**
@@ -121,7 +122,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> typeCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return typeCompatibilityErrors(readSchema, writeSchema, 2);
+    return typeCompatibilityErrors(readSchema, writeSchema, DEFAULT_FORMAT_VERSION);
   }
 
   public static List<String> typeCompatibilityErrors(
@@ -138,7 +139,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> readCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return readCompatibilityErrors(readSchema, writeSchema, 2);
+    return readCompatibilityErrors(readSchema, writeSchema, DEFAULT_FORMAT_VERSION);
   }
 
   public static List<String> readCompatibilityErrors(
