@@ -59,6 +59,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.IcebergGenerics;
@@ -76,6 +77,7 @@ import org.apache.iceberg.flink.sink.dynamic.TestDynamicCommitter.FailBeforeAndA
 import org.apache.iceberg.inmemory.InMemoryInputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -524,6 +526,209 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       assertThat(actual.get(0)).isEqualTo(input.rowProvided.getField(0));
       assertThat(actual.get(1)).isEqualTo(input.rowProvided.getField(1));
       // There is an additional _pos field which gets added
+    }
+  }
+
+  @Test
+  void testUpsertV3() throws Exception {
+    ImmutableMap<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TableIdentifier.of(DATABASE, "t1"),
+            SimpleDataUtil.SCHEMA,
+            PartitionSpec.unpartitioned(),
+            null,
+            properties);
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            // Insert one rows
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                false),
+            // Remaining rows are duplicates
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                true),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                true),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                true));
+
+    executeDynamicSink(rows, env, true, 1, null);
+
+    try (CloseableIterable<Record> iterable =
+        IcebergGenerics.read(
+                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1")))
+            .build()) {
+      List<Record> records = Lists.newArrayList();
+      for (Record record : iterable) {
+        records.add(record);
+      }
+
+      assertThat(records).hasSize(1);
+      Record actual = records.get(0);
+      DynamicIcebergDataImpl input = rows.get(0);
+      assertThat(actual.get(0)).isEqualTo(input.rowProvided.getField(0));
+      assertThat(actual.get(1)).isEqualTo(input.rowProvided.getField(1));
+    }
+  }
+
+  @Test
+  void testMultiFormatVersion() throws Exception {
+    ImmutableMap<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TableIdentifier.of(DATABASE, "t1"),
+            SimpleDataUtil.SCHEMA,
+            PartitionSpec.unpartitioned(),
+            null,
+            properties);
+
+    ImmutableMap<String, String> properties1 = ImmutableMap.of(TableProperties.FORMAT_VERSION, "2");
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TableIdentifier.of(DATABASE, "t2"),
+            SimpleDataUtil.SCHEMA,
+            PartitionSpec.unpartitioned(),
+            null,
+            properties1);
+
+    List<DynamicIcebergDataImpl> rowsForTable1 =
+        Lists.newArrayList(
+            // Insert one rows
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                false),
+            // Remaining rows are duplicates
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                true),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                true),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                true));
+
+    List<DynamicIcebergDataImpl> rowsForTable2 =
+        Lists.newArrayList(
+            // Insert one rows
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t2",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                false),
+            // Remaining rows are duplicates
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t2",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                true),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t2",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                true),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t2",
+                "main",
+                PartitionSpec.unpartitioned(),
+                true,
+                Sets.newHashSet("id"),
+                true));
+
+    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
+    rows.addAll(rowsForTable1);
+    rows.addAll(rowsForTable2);
+
+    executeDynamicSink(rows, env, true, 1, null);
+
+    try (CloseableIterable<Record> iterable =
+        IcebergGenerics.read(
+                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1")))
+            .build()) {
+      List<Record> records = Lists.newArrayList();
+      for (Record record : iterable) {
+        records.add(record);
+      }
+
+      assertThat(records).hasSize(1);
+      Record actual = records.get(0);
+      DynamicIcebergDataImpl input = rowsForTable1.get(0);
+      assertThat(actual.get(0)).isEqualTo(input.rowProvided.getField(0));
+      assertThat(actual.get(1)).isEqualTo(input.rowProvided.getField(1));
+    }
+
+    try (CloseableIterable<Record> iterable =
+        IcebergGenerics.read(
+                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t2")))
+            .build()) {
+      List<Record> records = Lists.newArrayList();
+      for (Record record : iterable) {
+        records.add(record);
+      }
+
+      assertThat(records).hasSize(1);
+      Record actual = records.get(0);
+      DynamicIcebergDataImpl input = rowsForTable2.get(0);
+      assertThat(actual.get(0)).isEqualTo(input.rowProvided.getField(0));
+      assertThat(actual.get(1)).isEqualTo(input.rowProvided.getField(1));
     }
   }
 

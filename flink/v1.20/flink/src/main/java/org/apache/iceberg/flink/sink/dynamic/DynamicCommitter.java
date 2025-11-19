@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
@@ -39,6 +41,7 @@ import org.apache.iceberg.SnapshotAncestryValidator;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -52,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -214,9 +218,23 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           DeltaManifests deltaManifests =
               SimpleVersionedSerialization.readVersionAndDeSerialize(
                   DeltaManifestsSerializer.INSTANCE, committable.getCommittable().manifest());
+
+          WriteResult writeResult =
+              FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
+          if (TableUtil.formatVersion(table) > 2) {
+            for (DeleteFile deleteFile : writeResult.deleteFiles()) {
+              if (deleteFile.content() == FileContent.POSITION_DELETES) {
+                Preconditions.checkArgument(
+                    ContentFileUtil.isDV(deleteFile),
+                    "Can't add position delete file to the %s table. Concurrent table upgrade to V3 is not supported.",
+                    table.name());
+              }
+            }
+          }
+
           pendingResults
               .computeIfAbsent(e.getKey(), unused -> Lists.newArrayList())
-              .add(FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
+              .add(writeResult);
           manifests.addAll(deltaManifests.manifests());
         }
       }
