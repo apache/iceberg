@@ -98,7 +98,9 @@ class IcebergWriter implements RecordWriter {
             throw ex;
           }
         }
-        writer.write(row);
+        if (row != null) {
+          writer.write(row);
+        }
       }
     } catch (Exception e) {
       throw new DataException(
