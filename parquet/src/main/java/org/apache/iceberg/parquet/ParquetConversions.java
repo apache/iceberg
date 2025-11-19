@@ -23,8 +23,8 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.TimeUnit;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UUIDUtil;
@@ -88,17 +88,22 @@ class ParquetConversions {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
       } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP
           && parquetType.getOriginalType() == org.apache.parquet.schema.OriginalType.DATE) {
-          LogicalTypeAnnotation logicalType = parquetType.getLogicalTypeAnnotation();
-          if(logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation && ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType).isAdjustedToUTC()) {
-              return fromParquet;
-          }
+        LogicalTypeAnnotation logicalType = parquetType.getLogicalTypeAnnotation();
+        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
+            && ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType)
+                .isAdjustedToUTC()) {
+          return fromParquet;
+        }
         return value -> (long) ((Integer) fromParquet.apply(value)) * TimeUnit.DAYS.toMicros(1);
-      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO && parquetType.getOriginalType() == org.apache.parquet.schema.OriginalType.DATE) {
-          LogicalTypeAnnotation logicalType = parquetType.getLogicalTypeAnnotation();
-          if(logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation && ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType).isAdjustedToUTC()) {
-              return fromParquet;
-          }
-          return value -> (long) ((Integer) fromParquet.apply(value)) * TimeUnit.DAYS.toNanos(1);
+      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO
+          && parquetType.getOriginalType() == org.apache.parquet.schema.OriginalType.DATE) {
+        LogicalTypeAnnotation logicalType = parquetType.getLogicalTypeAnnotation();
+        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
+            && ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) logicalType)
+                .isAdjustedToUTC()) {
+          return fromParquet;
+        }
+        return value -> (long) ((Integer) fromParquet.apply(value)) * TimeUnit.DAYS.toNanos(1);
       } else if (icebergType.typeId() == Type.TypeID.UUID) {
         return binary -> UUIDUtil.convert(((Binary) binary).toByteBuffer());
       }
