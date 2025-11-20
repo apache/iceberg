@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
@@ -32,6 +33,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
@@ -61,7 +63,8 @@ class DynamicWriteResultAggregator
   private final int cacheMaximumSize;
   private transient Map<WriteTarget, Collection<DynamicWriteResult>> results;
   private transient Map<String, Map<Integer, PartitionSpec>> specs;
-  private transient Map<String, ManifestOutputFileFactory> outputFileFactories;
+  private transient Map<String, Tuple2<ManifestOutputFileFactory, Integer>>
+      outputFileFactoriesAndFormatVersions;
   private transient String flinkJobId;
   private transient String operatorId;
   private transient int subTaskId;
@@ -81,7 +84,7 @@ class DynamicWriteResultAggregator
     this.attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.results = Maps.newHashMap();
     this.specs = new LRUCache<>(cacheMaximumSize);
-    this.outputFileFactories = new LRUCache<>(cacheMaximumSize);
+    this.outputFileFactoriesAndFormatVersions = new LRUCache<>(cacheMaximumSize);
     this.catalog = catalogLoader.loadCatalog();
   }
 
@@ -137,12 +140,14 @@ class DynamicWriteResultAggregator
     writeResults.forEach(w -> builder.add(w.writeResult()));
     WriteResult result = builder.build();
 
+    Tuple2<ManifestOutputFileFactory, Integer> outputFileFactoryAndVersion =
+        outputFileFactoryAndFormatVersion(key.tableName());
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result,
-            () -> outputFileFactory(key.tableName()).create(checkpointId),
+            () -> outputFileFactoryAndVersion.f0.create(checkpointId),
             spec(key.tableName(), key.specId()),
-            2);
+            outputFileFactoryAndVersion.f1);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
@@ -160,8 +165,9 @@ class DynamicWriteResultAggregator
     }
   }
 
-  private ManifestOutputFileFactory outputFileFactory(String tableName) {
-    return outputFileFactories.computeIfAbsent(
+  private Tuple2<ManifestOutputFileFactory, Integer> outputFileFactoryAndFormatVersion(
+      String tableName) {
+    return outputFileFactoriesAndFormatVersions.computeIfAbsent(
         tableName,
         unused -> {
           Table table = catalog.loadTable(TableIdentifier.parse(tableName));
@@ -169,14 +175,16 @@ class DynamicWriteResultAggregator
           // Make sure to append an identifier to avoid file clashes in case the factory was to get
           // re-created during a checkpoint, i.e. due to cache eviction.
           String fileSuffix = UUID.randomUUID().toString();
-          return FlinkManifestUtil.createOutputFileFactory(
-              () -> table,
-              table.properties(),
-              flinkJobId,
-              operatorId,
-              subTaskId,
-              attemptId,
-              fileSuffix);
+          ManifestOutputFileFactory outputFileFactory =
+              FlinkManifestUtil.createOutputFileFactory(
+                  () -> table,
+                  table.properties(),
+                  flinkJobId,
+                  operatorId,
+                  subTaskId,
+                  attemptId,
+                  fileSuffix);
+          return Tuple2.of(outputFileFactory, TableUtil.formatVersion(table));
         });
   }
 
