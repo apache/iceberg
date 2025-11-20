@@ -384,7 +384,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private void cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
 
-    if (cleanupLevel.skipFiles()) {
+    if (cleanupLevel == CleanupLevel.NONE) {
       LOG.info("Nothing to clean.");
       return;
     }

@@ -58,7 +58,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     // 2. Delete any data files that were deleted by those snapshots and are not in the table
     // 3. Delete any manifests that are no longer used by current snapshots
     // 4. Delete the manifest lists
-    if (cleanupLevel.skipFiles()) {
+    if (ExpireSnapshots.CleanupLevel.NONE == cleanupLevel) {
       LOG.info("Nothing to clean.");
       return;
     }
@@ -259,7 +259,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
               }
             });
 
-    if (cleanupLevel.cleanContentFiles()) {
+    if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
       Set<String> filesToDelete =
           findFilesToDelete(
               manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());

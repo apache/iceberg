@@ -54,7 +54,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
       TableMetadata beforeExpiration,
       TableMetadata afterExpiration,
       ExpireSnapshots.CleanupLevel cleanupLevel) {
-    if (cleanupLevel.skipFiles()) {
+    if (ExpireSnapshots.CleanupLevel.NONE == cleanupLevel) {
       LOG.info("Nothing to clean.");
       return;
     }
@@ -81,7 +81,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
               snapshotsAfterExpiration, deletionCandidates, currentManifests::add);
 
       if (!manifestsToDelete.isEmpty()) {
-        if (cleanupLevel.cleanContentFiles()) {
+        if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
           Set<String> dataFilesToDelete = findFilesToDelete(manifestsToDelete, currentManifests);
           LOG.debug("Deleting {} data files", dataFilesToDelete.size());
           deleteFiles(dataFilesToDelete, "data");
