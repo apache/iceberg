@@ -78,7 +78,7 @@ public class TestPlanTableScanResponseParser {
     assertThat(response.planStatus()).isEqualTo(PlanStatus.COMPLETED);
     assertThat(response.planId()).isNull();
     assertThat(PlanTableScanResponseParser.toJson(response))
-        .isEqualTo("{\"plan-status\":\"completed\"}");
+        .isEqualTo("{\"status\":\"completed\"}");
 
     response =
         PlanTableScanResponse.builder()
@@ -90,7 +90,7 @@ public class TestPlanTableScanResponseParser {
     assertThat(response.planId()).isEqualTo("somePlanId");
 
     assertThat(PlanTableScanResponseParser.toJson(response))
-        .isEqualTo("{\"plan-status\":\"completed\",\"plan-id\":\"somePlanId\"}");
+        .isEqualTo("{\"status\":\"completed\",\"plan-id\":\"somePlanId\"}");
   }
 
   @Test
@@ -104,12 +104,12 @@ public class TestPlanTableScanResponseParser {
     assertThat(response.planStatus()).isEqualTo(PlanStatus.SUBMITTED);
     assertThat(response.planId()).isEqualTo("somePlanId");
     assertThat(PlanTableScanResponseParser.toJson(response))
-        .isEqualTo("{\"plan-status\":\"submitted\",\"plan-id\":\"somePlanId\"}");
+        .isEqualTo("{\"status\":\"submitted\",\"plan-id\":\"somePlanId\"}");
   }
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatus() {
-    String invalidStatusJson = "{\"plan-status\": \"someStatus\"}";
+    String invalidStatusJson = "{\"status\": \"someStatus\"}";
     assertThatThrownBy(
             () ->
                 PlanTableScanResponseParser.fromJson(
@@ -125,7 +125,7 @@ public class TestPlanTableScanResponseParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: plan id should be defined when status is 'submitted'");
 
-    String invalidJson = "{\"plan-status\":\"submitted\"}";
+    String invalidJson = "{\"status\":\"submitted\"}";
     assertThatThrownBy(
             () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
@@ -139,7 +139,7 @@ public class TestPlanTableScanResponseParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: 'cancelled' is not a valid status for planTableScan");
 
-    String invalidJson = "{\"plan-status\":\"cancelled\"}";
+    String invalidJson = "{\"status\":\"cancelled\"}";
     assertThatThrownBy(
             () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
@@ -159,7 +159,7 @@ public class TestPlanTableScanResponseParser {
         .hasMessage("Invalid response: tasks can only be defined when status is 'completed'");
 
     String invalidJson =
-        "{\"plan-status\":\"submitted\","
+        "{\"status\":\"submitted\","
             + "\"plan-id\":\"somePlanId\","
             + "\"plan-tasks\":[\"task1\",\"task2\"]}";
 
@@ -181,7 +181,7 @@ public class TestPlanTableScanResponseParser {
         .hasMessage(
             "Invalid response: plan id can only be defined when status is 'submitted' or 'completed'");
 
-    String invalidJson = "{\"plan-status\":\"failed\"," + "\"plan-id\":\"somePlanId\"}";
+    String invalidJson = "{\"status\":\"failed\"," + "\"plan-id\":\"somePlanId\"}";
 
     assertThatThrownBy(
             () -> PlanTableScanResponseParser.fromJson(invalidJson, PARTITION_SPECS_BY_ID, false))
@@ -204,7 +204,7 @@ public class TestPlanTableScanResponseParser {
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
 
     String invalidJson =
-        "{\"plan-status\":\"submitted\","
+        "{\"status\":\"submitted\","
             + "\"plan-id\":\"somePlanId\","
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
@@ -239,7 +239,7 @@ public class TestPlanTableScanResponseParser {
             .build();
 
     String expectedToJson =
-        "{\"plan-status\":\"completed\","
+        "{\"status\":\"completed\","
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
             + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1}],"
@@ -309,7 +309,7 @@ public class TestPlanTableScanResponseParser {
 
     String expectedJson =
         "{\n"
-            + "  \"plan-status\" : \"completed\",\n"
+            + "  \"status\" : \"completed\",\n"
             + "  \"delete-files\" : [ {\n"
             + "    \"spec-id\" : 0,\n"
             + "    \"content\" : \"POSITION_DELETES\",\n"
@@ -415,7 +415,7 @@ public class TestPlanTableScanResponseParser {
             .build();
 
     String expectedJson =
-        "{\"plan-status\":\"completed\","
+        "{\"status\":\"completed\","
             + "\"file-scan-tasks\":["
             + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
             + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"

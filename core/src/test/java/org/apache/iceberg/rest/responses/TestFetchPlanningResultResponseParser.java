@@ -92,7 +92,7 @@ public class TestFetchPlanningResultResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatus() {
-    String invalidStatusJson = "{\"plan-status\": \"someStatus\"}";
+    String invalidStatusJson = "{\"status\": \"someStatus\"}";
     assertThatThrownBy(
             () ->
                 FetchPlanningResultResponseParser.fromJson(
@@ -107,7 +107,7 @@ public class TestFetchPlanningResultResponseParser {
     FetchPlanningResultResponse response =
         FetchPlanningResultResponse.builder().withPlanStatus(planStatus).build();
 
-    String expectedJson = "{\"plan-status\":\"submitted\"}";
+    String expectedJson = "{\"status\":\"submitted\"}";
     String json = FetchPlanningResultResponseParser.toJson(response);
     assertThat(json).isEqualTo(expectedJson);
 
@@ -128,8 +128,7 @@ public class TestFetchPlanningResultResponseParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: tasks can only be returned in a 'completed' status");
 
-    String invalidJson =
-        "{\"plan-status\":\"submitted\"," + "\"plan-tasks\":[\"task1\",\"task2\"]}";
+    String invalidJson = "{\"status\":\"submitted\"," + "\"plan-tasks\":[\"task1\",\"task2\"]}";
 
     assertThatThrownBy(
             () ->
@@ -155,7 +154,7 @@ public class TestFetchPlanningResultResponseParser {
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
 
     String invalidJson =
-        "{\"plan-status\":\"submitted\","
+        "{\"status\":\"submitted\","
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
             + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1}]"
@@ -193,7 +192,7 @@ public class TestFetchPlanningResultResponseParser {
             .build();
 
     String expectedToJson =
-        "{\"plan-status\":\"completed\","
+        "{\"status\":\"completed\","
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
             + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1}],"
