@@ -56,6 +56,14 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
     public int id() {
       return id;
     }
+
+    public boolean skipFiles() {
+      return this.id == 0;
+    }
+
+    public boolean cleanContentFiles() {
+      return this.id == 2;
+    }
   }
 
   /**
