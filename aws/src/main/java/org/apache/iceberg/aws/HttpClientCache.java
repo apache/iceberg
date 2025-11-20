@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aws;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,8 +39,7 @@ import software.amazon.awssdk.http.SdkHttpClient;
 final class HttpClientCache {
   private static final Logger LOG = LoggerFactory.getLogger(HttpClientCache.class);
 
-  private final ConcurrentMap<String, ManagedHttpClient> clients;
-
+  private final ConcurrentMap<String, ManagedHttpClient> clients = Maps.newConcurrentMap();
   private static volatile HttpClientCache instance;
 
   static HttpClientCache instance() {
@@ -50,10 +51,6 @@ final class HttpClientCache {
       }
     }
     return instance;
-  }
-
-  private HttpClientCache() {
-    this.clients = Maps.newConcurrentMap();
   }
 
   /**
@@ -68,10 +65,10 @@ final class HttpClientCache {
     ManagedHttpClient managedClient =
         clients.computeIfAbsent(
             clientKey,
-            k -> {
-              LOG.debug("Creating new managed HTTP client for key: {}", k);
+            key -> {
+              LOG.debug("Creating new managed HTTP client for key: {}", key);
               SdkHttpClient httpClient = clientFactory.get();
-              return new ManagedHttpClient(httpClient, k);
+              return new ManagedHttpClient(httpClient, key);
             });
     // Return the cached ref-counted wrapper
     return managedClient.acquire();
@@ -85,17 +82,14 @@ final class HttpClientCache {
    */
   void releaseClient(String clientKey) {
     ManagedHttpClient managedClient = clients.get(clientKey);
-    if (managedClient != null) {
-      if (managedClient.release()) {
-        // Client was closed, remove from map
-        clients.remove(clientKey, managedClient);
-      }
+    if (null != managedClient && managedClient.release()) {
+      clients.remove(clientKey, managedClient);
     }
   }
 
   @VisibleForTesting
-  ConcurrentMap<String, ManagedHttpClient> clients() {
-    return clients;
+  Map<String, ManagedHttpClient> clients() {
+    return Collections.unmodifiableMap(clients);
   }
 
   @VisibleForTesting

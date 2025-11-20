@@ -25,7 +25,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.concurrent.ConcurrentMap;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.aws.HttpClientCache.ManagedHttpClient;
 import org.junit.jupiter.api.BeforeEach;
@@ -146,7 +146,7 @@ public class TestHttpClientCache {
     SdkHttpClient client1 = cache.getOrCreateClient(cacheKey, httpClientFactory1);
     assertThat(client1).isNotNull();
 
-    ConcurrentMap<String, ManagedHttpClient> clients = cache.clients();
+    Map<String, ManagedHttpClient> clients = cache.clients();
     assertThat(clients).containsKey(cacheKey);
 
     // Verify ref count is 1
@@ -200,7 +200,7 @@ public class TestHttpClientCache {
 
   @Test
   public void registryClear() {
-    ConcurrentMap<String, ManagedHttpClient> clients = cache.clients();
+    Map<String, ManagedHttpClient> clients = cache.clients();
 
     // Create some clients
     cache.getOrCreateClient("key1", httpClientFactory1);
