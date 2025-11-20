@@ -48,7 +48,6 @@ class ReachableFileCleanup extends FileCleanupStrategy {
     super(fileIO, deleteExecutorService, planExecutorService, deleteFunc);
   }
 
-  /** {@inheritDoc} */
   @Override
   public void cleanFiles(
       TableMetadata beforeExpiration,

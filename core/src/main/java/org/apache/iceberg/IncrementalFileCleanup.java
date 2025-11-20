@@ -46,7 +46,6 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     super(fileIO, deleteExecutorService, planExecutorService, deleteFunc);
   }
 
-  /** {@inheritDoc} */
   @Override
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
   public void cleanFiles(
