@@ -20,7 +20,6 @@ package org.apache.iceberg.formats;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
@@ -95,7 +94,7 @@ public final class FormatModelRegistry {
 
     FormatModel<?, ?> existing = MODELS.get(key);
     Preconditions.checkArgument(
-        existing == null || equals(existing, formatModel),
+        existing == null,
         "Cannot register %s: %s is registered for format=%s type=%s schemaType=%s",
         formatModel.getClass(),
         existing == null ? null : existing.getClass(),
@@ -205,14 +204,6 @@ public final class FormatModelRegistry {
     Preconditions.checkArgument(
         model != null, "Format model is not registered for format %s and type %s", format, type);
     return model;
-  }
-
-  private static boolean equals(FormatModel<?, ?> model1, FormatModel<?, ?> model2) {
-    return Objects.equals(model1.getClass().getName(), model2.getClass().getName())
-        && Objects.equals(model1.type().getName(), model2.type().getName())
-        && Objects.equals(
-            model1.schemaType() == null ? null : model1.schemaType().getName(),
-            model2.schemaType() == null ? null : model2.schemaType().getName());
   }
 
   @SuppressWarnings("CatchBlockLogException")

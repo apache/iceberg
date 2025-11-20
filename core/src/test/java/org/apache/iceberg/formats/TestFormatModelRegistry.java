@@ -25,37 +25,38 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.util.Pair;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class TestFormatModelRegistry {
-  /** Tests that registering the same class with the same configuration is successful. */
+
+  @BeforeEach
+  void clearRegistry() {
+    FormatModelRegistry.models().clear();
+  }
+
   @Test
-  void testSuccessfulReRegister() {
+  void testSuccessfulRegister() {
     FormatModel<?, ?> model = new DummyParquetFormatModel(Object.class, Object.class);
     FormatModelRegistry.register(model);
-    assertThat(FormatModelRegistry.models())
-        .containsEntry(Pair.of(FileFormat.PARQUET, Object.class), model);
-    FormatModelRegistry.register(model);
-
-    // It is fine to register the same classes with the same configuration multiple times
     assertThat(FormatModelRegistry.models())
         .containsEntry(Pair.of(FileFormat.PARQUET, Object.class), model);
   }
 
   /** Tests that registering the same class with the same configuration updates the registration. */
   @Test
-  void testUpdatedRegistration() {
+  void testRegistrationForDifferentType() {
     FormatModel<?, ?> model1 = new DummyParquetFormatModel(Object.class, Object.class);
-    FormatModel<?, ?> model2 = new DummyParquetFormatModel(Object.class, Object.class);
+    FormatModel<?, ?> model2 = new DummyParquetFormatModel(Long.class, Object.class);
     FormatModelRegistry.register(model1);
-    assertThat(FormatModelRegistry.models().get(Pair.of(model1.format(), model1.type())))
+    assertThat(FormatModelRegistry.models().get(Pair.of(FileFormat.PARQUET, model1.type())))
         .isSameAs(model1);
 
-    // Registering a new model with the same format and schema type should replace the old one
+    // Registering a new model with the different format will succeed
     FormatModelRegistry.register(model2);
-    assertThat(FormatModelRegistry.models().get(Pair.of(model1.format(), model1.type())))
-        .isNotSameAs(model1);
-    assertThat(FormatModelRegistry.models().get(Pair.of(model1.format(), model1.type())))
+    assertThat(FormatModelRegistry.models().get(Pair.of(FileFormat.PARQUET, model1.type())))
+        .isSameAs(model1);
+    assertThat(FormatModelRegistry.models().get(Pair.of(FileFormat.PARQUET, model2.type())))
         .isSameAs(model2);
   }
 
@@ -65,12 +66,10 @@ class TestFormatModelRegistry {
    */
   @Test
   void testFailingReRegistrations() {
-    FormatModel<?, ?> existing = new OtherDummyParquetFormatModel();
     FormatModel<?, ?> model = new DummyParquetFormatModel(Object.class, Object.class);
-    FormatModelRegistry.register(existing);
     FormatModelRegistry.register(model);
-    assertThat(FormatModelRegistry.models().get(Pair.of(model.format(), model.type())))
-        .isSameAs(model);
+    assertThat(FormatModelRegistry.models())
+        .containsEntry(Pair.of(FileFormat.PARQUET, Object.class), model);
 
     // Registering a new model with different schema type should fail
     assertThatThrownBy(
@@ -83,14 +82,6 @@ class TestFormatModelRegistry {
     // Registering a new model with null schema type should fail
     assertThatThrownBy(
             () -> FormatModelRegistry.register(new DummyParquetFormatModel(Object.class, null)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot register class");
-
-    // Registering a new model with different class should fail
-    assertThatThrownBy(
-            () ->
-                FormatModelRegistry.register(
-                    new DummyParquetFormatModel(existing.type(), existing.schemaType())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot register class");
   }
@@ -129,12 +120,6 @@ class TestFormatModelRegistry {
     @Override
     public ReadBuilder<Object, Object> readBuilder(InputFile inputFile) {
       return null;
-    }
-  }
-
-  private static class OtherDummyParquetFormatModel extends DummyParquetFormatModel {
-    private OtherDummyParquetFormatModel() {
-      super(Long.class, null);
     }
   }
 }
