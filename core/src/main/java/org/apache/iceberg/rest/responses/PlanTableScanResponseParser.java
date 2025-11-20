@@ -33,7 +33,7 @@ import org.apache.iceberg.rest.TableScanResponseParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class PlanTableScanResponseParser {
-  private static final String PLAN_STATUS = "plan-status";
+  private static final String STATUS = "status";
   private static final String PLAN_ID = "plan-id";
   private static final String PLAN_TASKS = "plan-tasks";
 
@@ -55,7 +55,7 @@ public class PlanTableScanResponseParser {
         response.specsById() != null, "Cannot serialize planTableScanResponse without specsById");
 
     gen.writeStartObject();
-    gen.writeStringField(PLAN_STATUS, response.planStatus().status());
+    gen.writeStringField(STATUS, response.planStatus().status());
 
     if (response.planId() != null) {
       gen.writeStringField(PLAN_ID, response.planId());
@@ -85,7 +85,7 @@ public class PlanTableScanResponseParser {
         json != null && !json.isEmpty(),
         "Cannot parse planTableScan response from empty or null object");
 
-    PlanStatus planStatus = PlanStatus.fromName(JsonUtil.getString(PLAN_STATUS, json));
+    PlanStatus planStatus = PlanStatus.fromName(JsonUtil.getString(STATUS, json));
     String planId = JsonUtil.getStringOrNull(PLAN_ID, json);
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
     List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json, specsById);
