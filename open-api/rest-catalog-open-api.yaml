@@ -2186,6 +2186,8 @@ components:
         - "not-eq"
         - "starts-with"
         - "not-starts-with"
+        - "contains"
+        - "not-contains"
         - "is-null"
         - "not-null"
         - "is-nan"
@@ -2260,7 +2262,7 @@ components:
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
-          enum: ["lt", "lt-eq", "gt", "gt-eq", "eq", "not-eq", "starts-with", "not-starts-with"]
+          enum: ["lt", "lt-eq", "gt", "gt-eq", "eq", "not-eq", "starts-with", "not-starts-with", "contains", "not-contains"]
         term:
           $ref: '#/components/schemas/Term'
         value:
