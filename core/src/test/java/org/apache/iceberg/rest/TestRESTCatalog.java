@@ -131,7 +131,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private InMemoryCatalog backendCatalog;
   private Server httpServer;
   private RESTCatalogAdapter adapterForRESTServer;
-  private TestPlanningBehavior currentPlanningBehavior;
   private ParserContext parserContext;
 
   @BeforeEach
@@ -142,9 +141,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     this.backendCatalog.initialize(
         "in-memory",
         ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
-
-    // Initialize default planning behavior (synchronous with all tasks in one response)
-    this.currentPlanningBehavior = TestPlanningBehavior.builder().synchronous().build();
 
     HTTPHeaders catalogHeaders =
         HTTPHeaders.of(
@@ -183,11 +179,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
                 T response = super.execute(req, responseType, errorHandler, responseHeaders);
                 return roundTripSerialize(response, "response");
-              }
-
-              @Override
-              protected PlanningBehavior planningBehavior() {
-                return currentPlanningBehavior;
               }
             });
 
