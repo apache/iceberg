@@ -3439,9 +3439,9 @@ components:
         - $ref: '#/components/schemas/ScanTasks'
         - type: object
           required:
-            - status
+            - plan-status
           properties:
-            status:
+            plan-status:
               $ref: '#/components/schemas/PlanStatus'
               const: "completed"
 
@@ -3462,18 +3462,18 @@ components:
         - $ref: '#/components/schemas/IcebergErrorResponse'
         - type: object
           required:
-            - status
+            - plan-status
           properties:
-            status:
+            plan-status:
               $ref: '#/components/schemas/PlanStatus'
               const: "failed"
 
     AsyncPlanningResult:
       type: object
       required:
-        - status
+        - plan-status
       properties:
-        status:
+        plan-status:
           $ref: '#/components/schemas/PlanStatus'
           const: "submitted"
         plan-id:
@@ -3484,9 +3484,9 @@ components:
       type: object
       description: Empty server-side planning result
       required:
-        - status
+        - plan-status
       properties:
-        status:
+        plan-status:
           $ref: '#/components/schemas/PlanStatus'
           enum: ["submitted", "cancelled"]
 
@@ -3499,7 +3499,7 @@ components:
       type: object
       description: Result of server-side scan planning for fetchPlanningResult
       discriminator:
-        propertyName: status
+        propertyName: plan-status
         mapping:
           completed: '#/components/schemas/CompletedPlanningResult'
           submitted: '#/components/schemas/EmptyPlanningResult'
@@ -3514,7 +3514,7 @@ components:
       type: object
       description: Result of server-side scan planning for planTableScan
       discriminator:
-        propertyName: status
+        propertyName: plan-status
         mapping:
           completed: '#/components/schemas/CompletedPlanningWithIDResult'
           submitted: '#/components/schemas/AsyncPlanningResult'

@@ -982,11 +982,11 @@ class FailedPlanningResult(IcebergErrorResponse):
     Failed server-side planning result
     """
 
-    status: Literal['failed'] = Field(..., const=True)
+    plan_status: Literal['failed'] = Field(..., alias='plan-status', const=True)
 
 
 class AsyncPlanningResult(BaseModel):
-    status: Literal['submitted'] = Field(..., const=True)
+    plan_status: Literal['submitted'] = Field(..., alias='plan-status', const=True)
     plan_id: Optional[str] = Field(
         None, alias='plan-id', description='ID used to track a planning request'
     )
@@ -997,7 +997,7 @@ class EmptyPlanningResult(BaseModel):
     Empty server-side planning result
     """
 
-    status: Literal['cancelled']
+    plan_status: Literal['cancelled'] = Field(..., alias='plan-status')
 
 
 class ReportMetricsRequest2(CommitReport):
@@ -1330,7 +1330,7 @@ class FetchPlanningResult(BaseModel):
     ] = Field(
         ...,
         description='Result of server-side scan planning for fetchPlanningResult',
-        discriminator='status',
+        discriminator='plan_status',
     )
 
 
@@ -1343,7 +1343,7 @@ class PlanTableScanResult(BaseModel):
     ] = Field(
         ...,
         description='Result of server-side scan planning for planTableScan',
-        discriminator='status',
+        discriminator='plan_status',
     )
 
 
@@ -1498,7 +1498,7 @@ class CompletedPlanningResult(ScanTasks):
     Completed server-side planning result
     """
 
-    status: Literal['completed'] = Field(..., const=True)
+    plan_status: Literal['completed'] = Field(..., alias='plan-status', const=True)
 
 
 class FetchScanTasksResult(ScanTasks):
@@ -1515,7 +1515,7 @@ class CompletedPlanningWithIDResult(CompletedPlanningResult):
     plan_id: Optional[str] = Field(
         None, alias='plan-id', description='ID used to track a planning request'
     )
-    status: Literal['completed']
+    plan_status: Literal['completed'] = Field(..., alias='plan-status')
 
 
 StructField.update_forward_refs()
