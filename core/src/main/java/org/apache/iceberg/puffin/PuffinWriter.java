@@ -144,7 +144,7 @@ public class PuffinWriter implements FileAppender<Blob> {
     long footerOffset = outputStream.getPos();
     writeFooter();
     this.footerSize = Optional.of(Math.toIntExact(outputStream.getPos() - footerOffset));
-    this.fileSize = Optional.of(outputStream.getPos());
+    this.fileSize = Optional.of(outputStream.storedLength());
     this.finished = true;
   }
 

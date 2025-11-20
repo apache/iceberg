@@ -25,9 +25,14 @@ import static org.apache.iceberg.puffin.PuffinFormatTestUtil.EMPTY_PUFFIN_UNCOMP
 import static org.apache.iceberg.puffin.PuffinFormatTestUtil.readTestResource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
+import org.apache.iceberg.encryption.AesGcmOutputStream;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -84,6 +89,21 @@ public class TestPuffinWriter {
   @Test
   public void testWriteMetricDataCompressedZstd() throws Exception {
     testWriteMetric(ZSTD, "v1/sample-metric-data-compressed-zstd.bin");
+  }
+
+  @Test
+  public void testEncryptedLength() throws Exception {
+    AesGcmOutputStream outputStream = mock(AesGcmOutputStream.class);
+    // Mocking unencrypted content length = 500, true file size = 600
+    when(outputStream.getPos()).thenReturn(500L);
+    when(outputStream.storedLength()).thenReturn(600L);
+
+    OutputFile outputFile = mock(NativeEncryptionOutputFile.class);
+    when(outputFile.create()).thenReturn(outputStream);
+
+    PuffinWriter writer = Puffin.write(outputFile).build();
+    writer.finish();
+    assertThat(writer.length()).isEqualTo(600);
   }
 
   private void testWriteMetric(PuffinCompressionCodec compression, String expectedResource)
