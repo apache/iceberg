@@ -3444,6 +3444,16 @@ components:
             status:
               $ref: '#/components/schemas/PlanStatus'
               const: "completed"
+            storage-credentials:
+              type: array
+              description:
+                Storage credentials for accessing the files returned in the scan result.
+              
+                If the server returns storage credentials as part of the completed scan
+                planning response, the expectation is for the client to use these credentials
+                to read the files returned in the FileScanTasks as part of the scan result.
+              items:
+                $ref: '#/components/schemas/StorageCredential'
 
     CompletedPlanningWithIDResult:
       type: object

@@ -1499,6 +1499,11 @@ class CompletedPlanningResult(ScanTasks):
     """
 
     status: Literal['completed'] = Field(..., const=True)
+    storage_credentials: Optional[List[StorageCredential]] = Field(
+        None,
+        alias='storage-credentials',
+        description='Storage credentials for accessing the files returned in the scan result.\nIf the server returns storage credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to read the files returned in the FileScanTasks as part of the scan result.',
+    )
 
 
 class FetchScanTasksResult(ScanTasks):
