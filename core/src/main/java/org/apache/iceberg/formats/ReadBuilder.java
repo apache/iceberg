@@ -60,9 +60,9 @@ public interface ReadBuilder<D, S> {
 
   /**
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
-   * records. Some readers might not be able to filter some part of the exception. In this case the
-   * reader might return unfiltered or partially filtered rows. It is the caller's responsibility to
-   * apply the filter again.
+   * records. Some readers may not support filtering, or may only support filtering for certain
+   * expressions. In this case the reader might return unfiltered or partially filtered rows. It is
+   * the caller's responsibility to apply the filter again.
    *
    * @param filter the filter to set
    */
