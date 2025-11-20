@@ -57,7 +57,7 @@ class PrefixedStorage implements AutoCloseable {
     this.storagePrefix = storagePrefix;
     this.storage = storage;
     this.gcpProperties = new GCPProperties(properties);
-
+    this.closeableGroup = new CloseableGroup();
     if (null == storage) {
       this.storage =
           () -> {
@@ -71,25 +71,16 @@ class PrefixedStorage implements AutoCloseable {
             gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
             gcpProperties.serviceHost().ifPresent(builder::setHost);
 
-            // Google Cloud APIs default to automatically detect the credentials to use, which is
-            // in most cases the convenient way, especially in GCP.
-            // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault()
-            if (gcpProperties.noAuth()) {
-              // Explicitly allow "no credentials" for testing purposes
-              builder.setCredentials(NoCredentials.getInstance());
-            }
-
-            if (gcpProperties.oauth2Token().isPresent()) {
-              this.closeableGroup = new CloseableGroup();
-              builder.setCredentials(
-                  GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup));
+            Credentials credentials = credentials(gcpProperties);
+            if (credentials != null) {
+              builder.setCredentials(credentials);
             }
 
             return builder.build().getService();
           };
     }
 
-    this.gcsFileSystemSupplier = getGcsFileSystemSupplier(properties);
+    this.gcsFileSystemSupplier = gcsFileSystemSupplier(properties);
   }
 
   public String storagePrefix() {
@@ -126,54 +117,47 @@ class PrefixedStorage implements AutoCloseable {
       // GCS Storage does not appear to be closable, so release the reference
       storage = null;
     }
-
-    if (null != gcsFileSystem) {
-      gcsFileSystem.close();
-      gcsFileSystem = null;
-    }
   }
 
-  static Credentials getCredentials(Map<String, String> properties, CloseableGroup closeableGroup) {
-    GCPProperties gcpProperties = new GCPProperties(properties);
-    if (gcpProperties.oauth2Token().isPresent()) {
-      return GCPAuthUtils.oauth2CredentialsFromGcpProperties(
-          new GCPProperties(properties), closeableGroup);
-    } else if (gcpProperties.noAuth()) {
-      return NoCredentials.getInstance();
-    } else {
-      return null;
-    }
-  }
-
-  public GcsFileSystem gcsFileSystem() {
+  GcsFileSystem gcsFileSystem() {
     if (gcsFileSystem == null) {
       synchronized (this) {
         if (gcsFileSystem == null) {
           this.gcsFileSystem = gcsFileSystemSupplier.get();
+          this.closeableGroup.addCloseable(gcsFileSystem);
         }
       }
     }
     return this.gcsFileSystem;
   }
 
-  private SerializableSupplier<GcsFileSystem> getGcsFileSystemSupplier(
+  private Credentials credentials(GCPProperties properties) {
+    // Google Cloud APIs default to automatically detect the credentials to use, which is
+    // in most cases the convenient way, especially in GCP.
+    // See javadoc of com.google.auth.oauth2.GoogleCredentials.getApplicationDefault()
+    if (properties.oauth2Token().isPresent()) {
+      return GCPAuthUtils.oauth2CredentialsFromGcpProperties(properties, closeableGroup);
+    } else if (properties.noAuth()) {
+      // Explicitly allow "no credentials" for testing purposes
+      return NoCredentials.getInstance();
+    } else {
+      return null;
+    }
+  }
+
+  private SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier(
       Map<String, String> properties) {
     ImmutableMap.Builder<String, String> propertiesWithUserAgent =
         new ImmutableMap.Builder<String, String>()
             .putAll(properties)
-            .put("user-agent", GCS_FILE_IO_USER_AGENT);
+            .put("gcs.user-agent", GCS_FILE_IO_USER_AGENT);
     GcsAnalyticsCoreOptions gcsAnalyticsCoreOptions =
-        new GcsAnalyticsCoreOptions("", propertiesWithUserAgent.build());
+        new GcsAnalyticsCoreOptions("gcs.", propertiesWithUserAgent.build());
     GcsFileSystemOptions fileSystemOptions = gcsAnalyticsCoreOptions.getGcsFileSystemOptions();
-    if (this.closeableGroup == null) {
-      this.closeableGroup = new CloseableGroup();
-    }
-    Credentials credentials = getCredentials(properties, closeableGroup);
-    SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier =
-        () ->
-            credentials == null
-                ? new GcsFileSystemImpl(fileSystemOptions)
-                : new GcsFileSystemImpl(credentials, fileSystemOptions);
-    return gcsFileSystemSupplier;
+    Credentials credentials = credentials(new GCPProperties(properties));
+    return () ->
+        credentials == null
+            ? new GcsFileSystemImpl(fileSystemOptions)
+            : new GcsFileSystemImpl(credentials, fileSystemOptions);
   }
 }

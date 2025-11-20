@@ -27,7 +27,6 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import java.io.IOException;
 import java.net.URI;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -80,26 +79,38 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
   public SeekableInputStream newStream() {
     if (gcpProperties().isGcsAnalyticsCoreEnabled()) {
       try {
-        GcsFileInfo fileInfo = getGcsFileInfo();
-        return new GoogleCloudStorageInputStreamWrapper(
-            GoogleCloudStorageInputStream.create(gcsFileSystem(), fileInfo));
+        return newGoogleCloudStorageInputStream();
       } catch (IOException e) {
-        LOG.error("Failed to create GCS analytics core  input stream.", e);
-        throw new RuntimeIOException(
-            e, "Failed to create GCS analytics core input stream for: %s", blobId().toGsUtilUri());
+        LOG.error(
+            "Failed to create GCS analytics core input stream for {}, falling back to default.",
+            uri(),
+            e);
       }
     }
-
     return new GCSInputStream(storage(), blobId(), blobSize, gcpProperties(), metrics());
   }
 
-  GcsFileInfo getGcsFileInfo() {
+  private SeekableInputStream newGoogleCloudStorageInputStream() throws IOException {
+    if (null == blobSize) {
+      return new GoogleCloudStorageInputStreamWrapper(
+          GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsItemId()), metrics());
+    }
+    return new GoogleCloudStorageInputStreamWrapper(
+        GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsFileInfo()), metrics());
+  }
+
+  private GcsItemId gcsItemId() {
     BlobId blobId = blobId();
-    GcsItemId itemId =
-        GcsItemId.builder()
-            .setBucketName(blobId.getBucket())
-            .setObjectName(blobId.getName())
-            .build();
+    GcsItemId.Builder builder =
+        GcsItemId.builder().setBucketName(blobId.getBucket()).setObjectName(blobId.getName());
+    if (blobId.getGeneration() != null) {
+      builder.setContentGeneration(blobId.getGeneration());
+    }
+    return builder.build();
+  }
+
+  private GcsFileInfo gcsFileInfo() {
+    GcsItemId itemId = gcsItemId();
     GcsItemInfo itemInfo = GcsItemInfo.builder().setItemId(itemId).setSize(getLength()).build();
     return GcsFileInfo.builder()
         .setItemInfo(itemInfo)

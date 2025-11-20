@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.google.api.client.util.Preconditions;
 import com.google.cloud.gcs.analyticscore.client.GcsObjectRange;
 import com.google.cloud.gcs.analyticscore.core.GoogleCloudStorageInputStream;
 import java.io.IOException;
@@ -25,52 +26,68 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
+import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.FileRange;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
+import org.apache.iceberg.metrics.MetricsContext;
 
-public class GoogleCloudStorageInputStreamWrapper extends SeekableInputStream
-    implements RangeReadable {
-  private GoogleCloudStorageInputStream googleCloudStorageInputStream;
+class GoogleCloudStorageInputStreamWrapper extends SeekableInputStream implements RangeReadable {
+  private final Counter readBytesCounter;
+  private final Counter readOperationsCounter;
+  private final GoogleCloudStorageInputStream stream;
 
-  public GoogleCloudStorageInputStreamWrapper(
-      GoogleCloudStorageInputStream googleCloudStorageInputStream) {
-    this.googleCloudStorageInputStream = googleCloudStorageInputStream;
+  GoogleCloudStorageInputStreamWrapper(
+      GoogleCloudStorageInputStream stream, MetricsContext metrics) {
+    Preconditions.checkArgument(null != stream, "Invalid input stream : null");
+    this.stream = stream;
+    this.readBytesCounter =
+        metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    this.readOperationsCounter = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
   }
 
   @Override
   public long getPos() throws IOException {
-    return googleCloudStorageInputStream.getPos();
+    return stream.getPos();
   }
 
   @Override
   public void seek(long newPos) throws IOException {
-    googleCloudStorageInputStream.seek(newPos);
+    stream.seek(newPos);
   }
 
   @Override
   public int read() throws IOException {
-    return googleCloudStorageInputStream.read();
+    int readByte = stream.read();
+    readBytesCounter.increment();
+    readOperationsCounter.increment();
+    return readByte;
   }
 
   @Override
   public int read(byte[] b) throws IOException {
-    return googleCloudStorageInputStream.read(b, 0, b.length);
+    return read(b, 0, b.length);
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    return googleCloudStorageInputStream.read(b, off, len);
+    int bytesRead = stream.read(b, off, len);
+    if (bytesRead > 0) {
+      readBytesCounter.increment(bytesRead);
+    }
+    readOperationsCounter.increment();
+    return bytesRead;
   }
 
   @Override
   public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
-    googleCloudStorageInputStream.readFully(position, buffer, offset, length);
+    stream.readFully(position, buffer, offset, length);
   }
 
   @Override
   public int readTail(byte[] buffer, int offset, int length) throws IOException {
-    return googleCloudStorageInputStream.readTail(buffer, offset, length);
+    return stream.readTail(buffer, offset, length);
   }
 
   @Override
@@ -87,11 +104,11 @@ public class GoogleCloudStorageInputStreamWrapper extends SeekableInputStream
                         .build())
             .collect(Collectors.toList());
 
-    googleCloudStorageInputStream.readVectored(objectRanges, allocate);
+    stream.readVectored(objectRanges, allocate);
   }
 
   @Override
   public void close() throws IOException {
-    googleCloudStorageInputStream.close();
+    stream.close();
   }
 }

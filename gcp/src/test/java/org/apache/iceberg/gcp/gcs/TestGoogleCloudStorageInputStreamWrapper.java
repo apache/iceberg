@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.IntFunction;
 import org.apache.iceberg.io.FileRange;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,18 +43,20 @@ public class TestGoogleCloudStorageInputStreamWrapper {
 
   @BeforeEach
   public void before() {
-    inputStreamWrapper = new GoogleCloudStorageInputStreamWrapper(googleCloudStorageInputStream);
+    inputStreamWrapper =
+        new GoogleCloudStorageInputStreamWrapper(
+            googleCloudStorageInputStream, MetricsContext.nullMetrics());
   }
 
   @Test
-  public void testGetPos() throws IOException {
+  public void getPos() throws IOException {
     inputStreamWrapper.getPos();
 
     Mockito.verify(googleCloudStorageInputStream).getPos();
   }
 
   @Test
-  public void testSeek() throws IOException {
+  public void seek() throws IOException {
     long newPos = 1234L;
     inputStreamWrapper.seek(newPos);
 
@@ -61,34 +64,34 @@ public class TestGoogleCloudStorageInputStreamWrapper {
   }
 
   @Test
-  public void testRead() throws IOException {
+  public void read() throws IOException {
     inputStreamWrapper.read();
 
     Mockito.verify(googleCloudStorageInputStream).read();
   }
 
   @Test
-  public void testReadByteArray() throws IOException {
-    byte[] b = new byte[1024];
+  public void readByteArray() throws IOException {
+    byte[] buffer = new byte[1024];
 
-    inputStreamWrapper.read(b);
+    inputStreamWrapper.read(buffer);
 
-    Mockito.verify(googleCloudStorageInputStream).read(b, 0, b.length);
+    Mockito.verify(googleCloudStorageInputStream).read(buffer, 0, buffer.length);
   }
 
   @Test
-  public void testReadByteArrayWithOffset() throws IOException {
-    byte[] b = new byte[1024];
+  public void readByteArrayWithOffset() throws IOException {
+    byte[] buffer = new byte[1024];
     int off = 10;
     int len = 100;
 
-    inputStreamWrapper.read(b, off, len);
+    inputStreamWrapper.read(buffer, off, len);
 
-    Mockito.verify(googleCloudStorageInputStream).read(b, off, len);
+    Mockito.verify(googleCloudStorageInputStream).read(buffer, off, len);
   }
 
   @Test
-  public void testReadFully() throws IOException {
+  public void readFully() throws IOException {
     long position = 123L;
     byte[] buffer = new byte[1024];
     int offset = 10;
@@ -100,7 +103,7 @@ public class TestGoogleCloudStorageInputStreamWrapper {
   }
 
   @Test
-  public void testReadTail() throws IOException {
+  public void readTail() throws IOException {
     byte[] buffer = new byte[1024];
     int offset = 10;
     int length = 100;
@@ -111,7 +114,7 @@ public class TestGoogleCloudStorageInputStreamWrapper {
   }
 
   @Test
-  public void test_readVectored() throws IOException {
+  public void readVectored() throws IOException {
     CompletableFuture<ByteBuffer> future1 = new CompletableFuture<>();
     CompletableFuture<ByteBuffer> future2 = new CompletableFuture<>();
     List<FileRange> ranges =
@@ -136,7 +139,7 @@ public class TestGoogleCloudStorageInputStreamWrapper {
   }
 
   @Test
-  public void testClose() throws IOException {
+  public void close() throws IOException {
     inputStreamWrapper.close();
 
     Mockito.verify(googleCloudStorageInputStream).close();

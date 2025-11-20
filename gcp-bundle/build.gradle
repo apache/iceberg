@@ -28,8 +28,8 @@ project(":iceberg-gcp-bundle") {
     implementation "com.google.cloud:google-cloud-storage"
     implementation "com.google.cloud:google-cloud-bigquery"
     implementation "com.google.cloud:google-cloud-core"
-    implementation "com.google.cloud.gcs.analytics:gcs-analytics-core:1.1.2"
     implementation "com.google.cloud:google-cloud-kms"
+    implementation libs.gcs.analytics.core
   }
 
   shadowJar {

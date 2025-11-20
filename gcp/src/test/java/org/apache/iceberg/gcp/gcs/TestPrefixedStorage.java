@@ -75,17 +75,31 @@ public class TestPrefixedStorage {
   }
 
   @Test
-  public void createsFileSystem() {
+  public void gcsFileSystem() {
     Map<String, String> properties =
-        ImmutableMap.of("project-id", "myProject", GCPProperties.GCS_OAUTH2_TOKEN, "token");
+        ImmutableMap.of(
+            GCPProperties.GCS_PROJECT_ID, "myProject",
+            GCPProperties.GCS_USER_PROJECT, "userProject",
+            GCPProperties.GCS_CLIENT_LIB_TOKEN, "gccl",
+            GCPProperties.GCS_SERVICE_HOST, "example.com",
+            GCPProperties.GCS_DECRYPTION_KEY, "decryptionKey",
+            GCPProperties.GCS_ENCRYPTION_KEY, "encryptionKey",
+            GCPProperties.GCS_CHANNEL_READ_CHUNK_SIZE, "1024");
     PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
     GcsFileSystemOptions expectedOptions =
         GcsFileSystemOptions.builder()
             .setGcsClientOptions(
                 GcsClientOptions.builder()
                     .setProjectId("myProject")
+                    .setClientLibToken("gccl")
+                    .setServiceHost("example.com")
                     .setUserAgent("gcsfileio/" + EnvironmentContext.get())
-                    .setGcsReadOptions(GcsReadOptions.builder().setProjectId("myProject").build())
+                    .setGcsReadOptions(
+                        GcsReadOptions.builder()
+                            .setChunkSize(1024)
+                            .setDecryptionKey("decryptionKey")
+                            .setUserProjectId("userProject")
+                            .build())
                     .build())
             .build();
 

@@ -21,12 +21,17 @@ package org.apache.iceberg.gcp.gcs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.HostConfig;
+import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.Ports.Binding;
 import com.google.cloud.NoCredentials;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,6 +39,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
+import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
@@ -50,12 +56,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
-public class IntegrationTestGcsFileIO {
+public class TestGcsFileIO {
 
   private static final String BUCKET = "test-bucket";
   private static final String PROJECT_ID = "test-project";
   private static final int GCS_EMULATOR_PORT = 4443;
-  private final Random random = new Random(1);
+  private static final Random RANDOM = new Random(1);
 
   @Container
   private static final GenericContainer<?> GCS_EMULATOR =
@@ -64,13 +70,11 @@ public class IntegrationTestGcsFileIO {
           .withCreateContainerCmdModifier(
               cmd ->
                   cmd.withHostConfig(
-                      new com.github.dockerjava.api.model.HostConfig()
+                      new HostConfig()
                           .withPortBindings(
-                              new com.github.dockerjava.api.model.PortBinding(
-                                  com.github.dockerjava.api.model.Ports.Binding.bindPort(
-                                      GCS_EMULATOR_PORT),
-                                  new com.github.dockerjava.api.model.ExposedPort(
-                                      GCS_EMULATOR_PORT)))))
+                              new PortBinding(
+                                  Binding.bindPort(GCS_EMULATOR_PORT),
+                                  new ExposedPort(GCS_EMULATOR_PORT)))))
           .withCommand(
               "-scheme",
               "http",
@@ -125,10 +129,10 @@ public class IntegrationTestGcsFileIO {
   }
 
   @Test
-  public void testNewInputFileGcsAnalyticsCoreDisabled() throws IOException {
+  public void newInputFileGcsAnalyticsCoreDisabled() throws IOException {
     String location = String.format("gs://%s/path/to/file.txt", BUCKET);
     byte[] expected = new byte[1024 * 1024];
-    random.nextBytes(expected);
+    RANDOM.nextBytes(expected);
     storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), expected);
     InputFile in = fileIO.newInputFile(location);
     byte[] actual = new byte[1024 * 1024];
@@ -141,16 +145,17 @@ public class IntegrationTestGcsFileIO {
   }
 
   @Test
-  public void testNewInputFileGcsAnalyticsCoreEnabled() throws IOException {
+  public void newInputFileGcsAnalyticsCoreEnabled() throws IOException {
     String location = String.format("gs://%s/path/to/file.txt", BUCKET);
     byte[] expected = new byte[1024 * 1024];
-    random.nextBytes(expected);
+    RANDOM.nextBytes(expected);
     storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), expected);
     fileIO.initialize(
         ImmutableMap.of(
-            "gcs.analytics-core.enabled", "true",
-            "no-auth", "true",
-            "service.host", String.format("http://localhost:%d", GCS_EMULATOR_PORT)));
+            GCPProperties.GCS_ANALYTICS_CORE_ENABLED, "true",
+            GCPProperties.GCS_NO_AUTH, "true",
+            GCPProperties.GCS_SERVICE_HOST,
+                String.format("http://localhost:%d", GCS_EMULATOR_PORT)));
     InputFile in = fileIO.newInputFile(location);
     byte[] actual = new byte[1024 * 1024];
 
@@ -164,7 +169,7 @@ public class IntegrationTestGcsFileIO {
   }
 
   @Test
-  public void testDeleteFiles() {
+  public void deleteFiles() {
     String prefix = "delete-files";
     List<String> locations = Lists.newArrayList();
     for (int i = 0; i < 10; i++) {
@@ -181,7 +186,7 @@ public class IntegrationTestGcsFileIO {
   }
 
   @Test
-  public void testListPrefix() {
+  public void listPrefix() {
     String prefix = "list-prefix";
     String dir1 = String.format("gs://%s/%s/d1", BUCKET, prefix);
     String dir2 = String.format("gs://%s/%s/d2", BUCKET, prefix);
@@ -201,7 +206,7 @@ public class IntegrationTestGcsFileIO {
   }
 
   @Test
-  public void testDeletePrefix() {
+  public void deletePrefix() {
     String prefixToDelete = String.format("gs://%s/delete-prefix/", BUCKET);
     storage.create(
         BlobInfo.newBuilder(BlobId.fromGsUtilUri(prefixToDelete + "f1.txt")).build(),
@@ -219,18 +224,18 @@ public class IntegrationTestGcsFileIO {
   }
 
   @Test
-  public void testReadMissingLocation() {
+  public void readMissingLocation() {
     String location = String.format("gs://%s/path/to/data.parquet", BUCKET);
     InputFile in = fileIO.newInputFile(location);
 
     assertThatThrownBy(() -> in.newStream().read())
         .isInstanceOf(IOException.class)
-        .hasCauseInstanceOf(com.google.cloud.storage.StorageException.class)
+        .hasCauseInstanceOf(StorageException.class)
         .hasMessageContaining("404 Not Found");
   }
 
   @Test
-  public void testDeleteFile() {
+  public void deleteFile() {
     String location = String.format("gs://%s/path/to/file.txt", BUCKET);
     storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), new byte[] {1});
     InputFile in = fileIO.newInputFile(location);
