@@ -31,15 +31,20 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotAncestryValidator;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
@@ -50,7 +55,9 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -137,9 +144,13 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
         commitRequestMap.entrySet()) {
       Table table = catalog.loadTable(TableIdentifier.parse(entry.getKey().tableName()));
       DynamicCommittable last = entry.getValue().lastEntry().getValue().get(0).getCommittable();
+      Snapshot latestSnapshot = table.snapshot(entry.getKey().branch());
+      Iterable<Snapshot> ancestors =
+          latestSnapshot != null
+              ? SnapshotUtil.ancestorsOf(latestSnapshot.snapshotId(), table::snapshot)
+              : List.of();
       long maxCommittedCheckpointId =
-          getMaxCommittedCheckpointId(
-              table, last.jobId(), last.operatorId(), entry.getKey().branch());
+          getMaxCommittedCheckpointId(ancestors, last.jobId(), last.operatorId());
       // Mark the already committed FilesCommittable(s) as finished
       entry
           .getValue()
@@ -156,12 +167,11 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
   }
 
   private static long getMaxCommittedCheckpointId(
-      Table table, String flinkJobId, String operatorId, String branch) {
-    Snapshot snapshot = table.snapshot(branch);
+      Iterable<Snapshot> ancestors, String flinkJobId, String operatorId) {
     long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
-    while (snapshot != null) {
-      Map<String, String> summary = snapshot.summary();
+    for (Snapshot ancestor : ancestors) {
+      Map<String, String> summary = ancestor.summary();
       String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
       String snapshotOperatorId = summary.get(OPERATOR_ID);
       if (flinkJobId.equals(snapshotFlinkJobId)
@@ -172,9 +182,6 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           break;
         }
       }
-
-      Long parentSnapshotId = snapshot.parentId();
-      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
     }
 
     return lastCommittedCheckpointId;
@@ -211,9 +218,23 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           DeltaManifests deltaManifests =
               SimpleVersionedSerialization.readVersionAndDeSerialize(
                   DeltaManifestsSerializer.INSTANCE, committable.getCommittable().manifest());
+
+          WriteResult writeResult =
+              FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
+          if (TableUtil.formatVersion(table) > 2) {
+            for (DeleteFile deleteFile : writeResult.deleteFiles()) {
+              if (deleteFile.content() == FileContent.POSITION_DELETES) {
+                Preconditions.checkArgument(
+                    ContentFileUtil.isDV(deleteFile),
+                    "Can't add position delete file to the %s table. Concurrent table upgrade to V3 is not supported.",
+                    table.name());
+              }
+            }
+          }
+
           pendingResults
               .computeIfAbsent(e.getKey(), unused -> Lists.newArrayList())
-              .add(FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
+              .add(writeResult);
           manifests.addAll(deltaManifests.manifests());
         }
       }
@@ -329,6 +350,36 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     }
   }
 
+  private static class MaxCommittedCheckpointMismatchException extends ValidationException {
+    private MaxCommittedCheckpointMismatchException() {
+      super("Table already contains staged changes.");
+    }
+  }
+
+  private static class MaxCommittedCheckpointIdValidator implements SnapshotAncestryValidator {
+    private final long stagedCheckpointId;
+    private final String flinkJobId;
+    private final String flinkOperatorId;
+
+    private MaxCommittedCheckpointIdValidator(
+        long stagedCheckpointId, String flinkJobId, String flinkOperatorId) {
+      this.stagedCheckpointId = stagedCheckpointId;
+      this.flinkJobId = flinkJobId;
+      this.flinkOperatorId = flinkOperatorId;
+    }
+
+    @Override
+    public Boolean apply(Iterable<Snapshot> baseSnapshots) {
+      long maxCommittedCheckpointId =
+          getMaxCommittedCheckpointId(baseSnapshots, flinkJobId, flinkOperatorId);
+      if (maxCommittedCheckpointId >= stagedCheckpointId) {
+        throw new MaxCommittedCheckpointMismatchException();
+      }
+
+      return true;
+    }
+  }
+
   @VisibleForTesting
   void commitOperation(
       Table table,
@@ -354,9 +405,25 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     operation.set(FLINK_JOB_ID, newFlinkJobId);
     operation.set(OPERATOR_ID, operatorId);
     operation.toBranch(branch);
+    operation.validateWith(
+        new MaxCommittedCheckpointIdValidator(checkpointId, newFlinkJobId, operatorId));
 
     long startNano = System.nanoTime();
-    operation.commit(); // abort is automatically called if this fails.
+    try {
+      operation.commit(); // abort is automatically called if this fails.
+    } catch (MaxCommittedCheckpointMismatchException e) {
+      LOG.info(
+          "Skipping commit operation {} because the {} branch of the {} table already contains changes for checkpoint {}."
+              + " This can occur when a failure prevents the committer from receiving confirmation of a"
+              + " successful commit, causing the Flink job to retry committing the same set of changes.",
+          description,
+          branch,
+          table.name(),
+          checkpointId,
+          e);
+      return;
+    }
+
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     LOG.info(
         "Committed {} to table: {}, branch: {}, checkpointId {} in {} ms",

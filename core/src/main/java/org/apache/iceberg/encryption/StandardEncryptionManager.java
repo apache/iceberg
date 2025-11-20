@@ -224,6 +224,11 @@ public class StandardEncryptionManager implements EncryptionManager {
           "Cannot find manifest list key metadata with id " + manifestListKeyID);
     }
 
+    if (encryptedKeyMetadata.encryptedById().equals(tableKeyId)) {
+      throw new IllegalArgumentException(
+          manifestListKeyID + " is a key encryption key, not manifest list key metadata");
+    }
+
     return transientState.unwrappedKeyCache.get(encryptedKeyMetadata.encryptedById());
   }
 
