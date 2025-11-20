@@ -39,7 +39,7 @@ public class DlqReporter implements AutoCloseable {
     this.dlqTopic = dlqTopic;
   }
 
-  public Properties initiateProperties(IcebergSinkConfig config) {
+  private Properties initiateProperties(IcebergSinkConfig config) {
     Properties producerProps = new Properties();
     producerProps.put(
             ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
