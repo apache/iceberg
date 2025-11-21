@@ -100,7 +100,7 @@ public class TestPuffinWriter {
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  public void testLengthCalculation(boolean isEncrypted) throws Exception {
+  public void testFileSizeCalculation(boolean isEncrypted) throws Exception {
     final OutputFile outputFile;
 
     if (isEncrypted) {
@@ -109,6 +109,7 @@ public class TestPuffinWriter {
       byte[] key = new byte[16];
       random.nextBytes(key);
       byte[] aadPrefix = new byte[16];
+      random.nextBytes(aadPrefix);
       outputFile = new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
     } else {
       outputFile = new InMemoryOutputFile();
@@ -125,7 +126,7 @@ public class TestPuffinWriter {
             null,
             ImmutableMap.of()));
     writer.close();
-    assertThat(writer.length()).isEqualTo(isEncrypted ? 158 : 122);
+    assertThat(writer.length()).isEqualTo(isEncrypted ? 158L : 122L);
   }
 
   private void testWriteMetric(PuffinCompressionCodec compression, String expectedResource)
