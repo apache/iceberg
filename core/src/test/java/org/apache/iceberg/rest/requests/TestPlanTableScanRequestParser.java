@@ -252,7 +252,6 @@ public class TestPlanTableScanRequestParser {
         .contains("caseSensitive=false")
         .contains("useSnapshotSchema=true")
         .contains("statsFields=[stat1]")
-        .contains("statsFields=[stat1]")
         .contains("minRowsRequested=23");
   }
 }
