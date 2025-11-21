@@ -32,6 +32,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
@@ -47,7 +48,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-public abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
+abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final ParquetBatchReadConf parquetConf;
   private final OrcBatchReadConf orcConf;
 
@@ -156,12 +157,13 @@ public abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<Col
         .build();
   }
 
-  public static class BatchDeleteFilter {
+  @VisibleForTesting
+  static class BatchDeleteFilter {
     private final DeleteFilter<InternalRow> deletes;
     private boolean hasIsDeletedColumn;
     private int rowPositionColumnIndex = -1;
 
-    public BatchDeleteFilter(DeleteFilter<InternalRow> deletes) {
+    BatchDeleteFilter(DeleteFilter<InternalRow> deletes) {
       this.deletes = deletes;
 
       Schema schema = deletes.requiredSchema();
@@ -174,7 +176,7 @@ public abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<Col
       }
     }
 
-    public ColumnarBatch filterBatch(ColumnarBatch batch) {
+    ColumnarBatch filterBatch(ColumnarBatch batch) {
       ColumnVector[] vectors = new ColumnVector[batch.numCols()];
       for (int i = 0; i < batch.numCols(); i++) {
         vectors[i] = batch.column(i);

@@ -52,7 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
-import org.apache.iceberg.spark.source.BaseBatchReader;
+import org.apache.iceberg.spark.source.BatchReaderUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -191,9 +191,7 @@ public class TestSparkParquetReadMetadataColumns {
                 PROJECTION_SCHEMA, fileSchema, Maps.newHashMap()));
     builder.recordsPerBatch(RECORDS_PER_BATCH);
 
-    BaseBatchReader.BatchDeleteFilter batchDeleteFilter =
-        new BaseBatchReader.BatchDeleteFilter(deleteFilter);
-    validate(expectedRowsAfterDelete, builder, batchDeleteFilter);
+    validate(expectedRowsAfterDelete, builder, deleteFilter);
   }
 
   private class TestDeleteFilter extends DeleteFilter<InternalRow> {
@@ -314,11 +312,9 @@ public class TestSparkParquetReadMetadataColumns {
   }
 
   private void validate(
-      List<InternalRow> expected,
-      Parquet.ReadBuilder builder,
-      BaseBatchReader.BatchDeleteFilter batchDeleteFilter)
+      List<InternalRow> expected, Parquet.ReadBuilder builder, DeleteFilter<InternalRow> filter)
       throws IOException {
-    try (CloseableIterable<InternalRow> reader = reader(builder, batchDeleteFilter)) {
+    try (CloseableIterable<InternalRow> reader = reader(builder, filter)) {
       final Iterator<InternalRow> actualRows = reader.iterator();
 
       for (InternalRow internalRow : expected) {
@@ -331,15 +327,13 @@ public class TestSparkParquetReadMetadataColumns {
   }
 
   private CloseableIterable<InternalRow> reader(
-      Parquet.ReadBuilder builder, BaseBatchReader.BatchDeleteFilter batchDeleteFilter) {
+      Parquet.ReadBuilder builder, DeleteFilter<InternalRow> filter) {
     if (!vectorized) {
       return builder.build();
     } else {
       CloseableIterable<ColumnarBatch> batches = builder.build();
       return batchesToRows(
-          batchDeleteFilter == null
-              ? batches
-              : CloseableIterable.transform(batches, batchDeleteFilter::filterBatch));
+          filter == null ? batches : BatchReaderUtil.withDeleteFilter(batches, filter));
     }
   }
 
