@@ -26,7 +26,7 @@ import org.apache.iceberg.io.DataWriter;
 /**
  * A specialized builder for creating data content file writers.
  *
- * <p>This builder extends the generic {@link ContentFileWriteBuilder} interface with functionality
+ * <p>This builder extends the generic {@link CommonWriteBuilder} interface with functionality
  * specific to creating {@link DataWriter} instances. Data writers produce table content files
  * containing actual data records stored in an Iceberg table, configured according to the table's
  * schema and partition specification.
@@ -34,7 +34,7 @@ import org.apache.iceberg.io.DataWriter;
  * @param <D> the type of data records the writer will accept
  * @param <S> the type of the schema for the input data
  */
-public interface DataWriteBuilder<D, S> extends ContentFileWriteBuilder<DataWriteBuilder<D, S>> {
+public interface DataWriteBuilder<D, S> extends CommonWriteBuilder<DataWriteBuilder<D, S>> {
 
   /** Set the file schema. */
   DataWriteBuilder<D, S> schema(Schema schema);

@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.formats;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
@@ -105,18 +104,6 @@ public interface ReadBuilder<D, S> {
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
   ReadBuilder<D, S> withNameMapping(NameMapping nameMapping);
-
-  /**
-   * Sets the file encryption key used for reading the file. If the reader does not support
-   * encryption, then an exception should be thrown.
-   */
-  ReadBuilder<D, S> withFileEncryptionKey(ByteBuffer encryptionKey);
-
-  /**
-   * Sets the additional authentication data (AAD) prefix for decryption. If the reader does not
-   * support decryption, then an exception should be thrown.
-   */
-  ReadBuilder<D, S> withAADPrefix(ByteBuffer aadPrefix);
 
   /** Builds the reader. */
   CloseableIterable<D> build();

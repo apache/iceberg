@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -142,9 +141,8 @@ public final class FormatModelRegistry {
   public static <D, S> DataWriteBuilder<D, S> dataWriteBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
     FormatModel<D, S> factory = factoryFor(format, type);
-    WriteBuilder<D, S> writeBuilder = factory.writeBuilder(outputFile).content(FileContent.DATA);
-    return ContentFileWriteBuilderImpl.forDataFile(
-        writeBuilder, outputFile.encryptingOutputFile().location(), format);
+    return CommonWriteBuilderImpl.forDataFile(
+        factory.writeBuilder(outputFile), outputFile.encryptingOutputFile().location(), format);
   }
 
   /**
@@ -165,10 +163,8 @@ public final class FormatModelRegistry {
   public static <D, S> EqualityDeleteWriteBuilder<D, S> equalityDeleteWriteBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
     FormatModel<D, S> factory = factoryFor(format, type);
-    WriteBuilder<D, S> writeBuilder =
-        factory.writeBuilder(outputFile).content(FileContent.EQUALITY_DELETES);
-    return ContentFileWriteBuilderImpl.forEqualityDelete(
-        writeBuilder, outputFile.encryptingOutputFile().location(), format);
+    return CommonWriteBuilderImpl.forEqualityDelete(
+        factory.writeBuilder(outputFile), outputFile.encryptingOutputFile().location(), format);
   }
 
   /**
@@ -187,10 +183,8 @@ public final class FormatModelRegistry {
   public static PositionDeleteWriteBuilder positionDeleteWriteBuilder(
       FileFormat format, EncryptedOutputFile outputFile) {
     FormatModel<PositionDelete, ?> factory = factoryFor(format, PositionDelete.class);
-    WriteBuilder<PositionDelete, ?> writeBuilder =
-        factory.writeBuilder(outputFile).content(FileContent.POSITION_DELETES);
-    return ContentFileWriteBuilderImpl.forPositionDelete(
-        writeBuilder, outputFile.encryptingOutputFile().location(), format);
+    return CommonWriteBuilderImpl.forPositionDelete(
+        factory.writeBuilder(outputFile), outputFile.encryptingOutputFile().location(), format);
   }
 
   @VisibleForTesting

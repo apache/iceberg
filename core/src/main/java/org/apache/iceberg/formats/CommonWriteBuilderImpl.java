@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -40,7 +41,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * An internal implementation that handles all {@link ContentFileWriteBuilder} interface variants.
+ * An internal implementation that handles all {@link CommonWriteBuilder} interface variants.
  *
  * <p>This unified implementation serves as a backend for multiple specialized content writers:
  *
@@ -59,8 +60,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * @param <D> the type of data records the writer will accept
  * @param <S> the type of the schema for the input data
  */
-abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>, D, S>
-    implements ContentFileWriteBuilder<B> {
+abstract class CommonWriteBuilderImpl<B extends CommonWriteBuilder<B>, D, S>
+    implements CommonWriteBuilder<B> {
   private final WriteBuilder<D, S> writeBuilder;
   private final String location;
   private final FileFormat format;
@@ -71,22 +72,25 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
 
   static <D, S> DataWriteBuilder<D, S> forDataFile(
       WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
-    return new DataFileWriteBuilder<>(writeBuilder, location, format);
+    return new DataFileWriteBuilder<>(writeBuilder.content(FileContent.DATA), location, format);
   }
 
   static <D, S> EqualityDeleteWriteBuilder<D, S> forEqualityDelete(
       WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
-    return new EqualityDeleteFileWriteBuilder<>(writeBuilder, location, format);
+    return new EqualityDeleteFileWriteBuilder<>(
+        writeBuilder.content(FileContent.EQUALITY_DELETES), location, format);
   }
 
   @SuppressWarnings({"unchecked", "rawtypes"})
   static PositionDeleteWriteBuilder forPositionDelete(
       WriteBuilder<PositionDelete, ?> writeBuilder, String location, FileFormat format) {
     return new PositionDeleteFileWriteBuilder(
-        (WriteBuilder<PositionDelete, Object>) writeBuilder, location, format);
+        (WriteBuilder<PositionDelete, Object>) writeBuilder.content(FileContent.POSITION_DELETES),
+        location,
+        format);
   }
 
-  private ContentFileWriteBuilderImpl(
+  private CommonWriteBuilderImpl(
       WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
     this.writeBuilder = writeBuilder;
     this.location = location;
@@ -154,7 +158,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
   }
 
   private static class DataFileWriteBuilder<D, S>
-      extends ContentFileWriteBuilderImpl<DataWriteBuilder<D, S>, D, S>
+      extends CommonWriteBuilderImpl<DataWriteBuilder<D, S>, D, S>
       implements DataWriteBuilder<D, S> {
     private DataFileWriteBuilder(
         WriteBuilder<D, S> writeBuilder, String location, FileFormat format) {
@@ -197,7 +201,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
   }
 
   private static class EqualityDeleteFileWriteBuilder<D, S>
-      extends ContentFileWriteBuilderImpl<EqualityDeleteWriteBuilder<D, S>, D, S>
+      extends CommonWriteBuilderImpl<EqualityDeleteWriteBuilder<D, S>, D, S>
       implements EqualityDeleteWriteBuilder<D, S> {
     private Schema rowSchema = null;
     private int[] equalityFieldIds = null;
@@ -264,7 +268,7 @@ abstract class ContentFileWriteBuilderImpl<B extends ContentFileWriteBuilder<B>,
 
   @SuppressWarnings({"rawtypes", "unchecked"})
   private static class PositionDeleteFileWriteBuilder
-      extends ContentFileWriteBuilderImpl<PositionDeleteWriteBuilder, PositionDelete, Object>
+      extends CommonWriteBuilderImpl<PositionDeleteWriteBuilder, PositionDelete, Object>
       implements PositionDeleteWriteBuilder {
 
     private PositionDeleteFileWriteBuilder(

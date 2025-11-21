@@ -26,11 +26,10 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 /**
  * A specialized builder for creating position-based delete file writers.
  *
- * <p>This builder extends the generic {@link ContentFileWriteBuilder} interface with functionality
+ * <p>This builder extends the generic {@link CommonWriteBuilder} interface with functionality
  * specific to creating {@link PositionDeleteWriter} instances.
  */
-public interface PositionDeleteWriteBuilder
-    extends ContentFileWriteBuilder<PositionDeleteWriteBuilder> {
+public interface PositionDeleteWriteBuilder extends CommonWriteBuilder<PositionDeleteWriteBuilder> {
 
   /**
    * Creates a position-based delete file writer configured with the current builder settings.

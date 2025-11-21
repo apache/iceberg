@@ -28,7 +28,7 @@ import org.apache.iceberg.util.ArrayUtil;
 /**
  * A specialized builder for creating equality-based delete file writers.
  *
- * <p>This builder extends the generic {@link ContentFileWriteBuilder} interface with functionality
+ * <p>This builder extends the generic {@link CommonWriteBuilder} interface with functionality
  * specific to creating {@link EqualityDeleteWriter} instances.
  *
  * <p>The builder provides methods to configure which fields should be used for equality comparison
@@ -39,7 +39,7 @@ import org.apache.iceberg.util.ArrayUtil;
  * @param <S> the type of the schema for the input data
  */
 public interface EqualityDeleteWriteBuilder<D, S>
-    extends ContentFileWriteBuilder<EqualityDeleteWriteBuilder<D, S>> {
+    extends CommonWriteBuilder<EqualityDeleteWriteBuilder<D, S>> {
 
   /**
    * Sets the input schema accepted by the writer. If not provided derived from the {@link
