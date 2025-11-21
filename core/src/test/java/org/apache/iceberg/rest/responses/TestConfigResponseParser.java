@@ -214,4 +214,21 @@ public class TestConfigResponseParser {
     assertThat(ConfigResponseParser.toJson(ConfigResponseParser.fromJson(json), true))
         .isEqualTo(expectedJson);
   }
+
+  @Test
+  public void idempotencyLifetimeOnly() {
+    ConfigResponse response = ConfigResponse.builder().withIdempotencyKeyLifetime("PT30M").build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"defaults\" : { },\n"
+            + "  \"overrides\" : { },\n"
+            + "  \"idempotency-key-lifetime\" : \"PT30M\"\n"
+            + "}";
+
+    String json = ConfigResponseParser.toJson(response, true);
+    assertThat(json).isEqualTo(expectedJson);
+    ConfigResponse roundTripped = ConfigResponseParser.fromJson(json);
+    assertThat(roundTripped.idempotencyKeyLifetime()).isEqualTo("PT30M");
+  }
 }
