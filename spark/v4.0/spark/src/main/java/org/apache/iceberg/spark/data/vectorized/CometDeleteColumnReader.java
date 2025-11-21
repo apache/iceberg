@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data.vectorized;
 import org.apache.comet.parquet.MetadataColumnReader;
 import org.apache.comet.parquet.Native;
 import org.apache.comet.parquet.TypeUtil;
+import org.apache.comet.vector.CometVector;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.DataTypes;
@@ -46,30 +47,34 @@ class CometDeleteColumnReader<T> extends CometColumnReader {
   }
 
   private static class DeleteColumnReader extends MetadataColumnReader {
-    private boolean[] isDeleted;
+    private CometDeletedColumnVector deletedVector;
 
     DeleteColumnReader() {
+      this(new boolean[0]);
+    }
+
+    DeleteColumnReader(boolean[] isDeleted) {
       super(
           DataTypes.BooleanType,
           TypeUtil.convertToParquet(
               new StructField("_deleted", DataTypes.BooleanType, false, Metadata.empty())),
           false /* useDecimal128 = false */,
           false /* isConstant = false */);
-      this.isDeleted = new boolean[0];
-    }
-
-    DeleteColumnReader(boolean[] isDeleted) {
-      this();
-      this.isDeleted = isDeleted;
+      this.deletedVector = new CometDeletedColumnVector(isDeleted);
     }
 
     @Override
     public void readBatch(int total) {
       Native.resetBatch(nativeHandle);
       // set isDeleted on the native side to be consumed by native execution
-      Native.setIsDeleted(nativeHandle, isDeleted);
+      Native.setIsDeleted(nativeHandle, deletedVector.isDeleted());
 
       super.readBatch(total);
+    }
+
+    @Override
+    public CometVector currentBatch() {
+      return deletedVector;
     }
   }
 }

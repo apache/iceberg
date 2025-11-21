@@ -18,24 +18,56 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
+import org.apache.comet.shaded.arrow.vector.ValueVector;
+import org.apache.comet.vector.CometVector;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class DeletedColumnVector extends ColumnVector implements UpdatableDeletedColumnVector {
+public class CometDeletedColumnVector extends CometVector implements UpdatableDeletedColumnVector {
   private boolean[] isDeleted;
 
-  public DeletedColumnVector(Type type) {
-    super(SparkSchemaUtil.convert(type));
+  public CometDeletedColumnVector(boolean[] isDeleted) {
+    super(SparkSchemaUtil.convert(Types.BooleanType.get()), false);
+    this.isDeleted = isDeleted;
   }
 
   @Override
   public void setValue(boolean[] deleted) {
     this.isDeleted = deleted;
+  }
+
+  boolean[] isDeleted() {
+    return isDeleted;
+  }
+
+  @Override
+  public void setNumNulls(int numNulls) {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  @Override
+  public void setNumValues(int numValues) {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  @Override
+  public int numValues() {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  @Override
+  public ValueVector getValueVector() {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  @Override
+  public CometVector slice(int offset, int length) {
+    throw new UnsupportedOperationException("Not implemented");
   }
 
   @Override
