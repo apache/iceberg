@@ -56,6 +56,7 @@ public class ConfigResponseParser {
           response.endpoints().stream().map(Endpoint::toString).collect(Collectors.toList()),
           gen);
     }
+
     if (response.idempotencyKeyLifetime() != null) {
       gen.writeStringField(IDEMPOTENCY_KEY_LIFETIME, response.idempotencyKeyLifetime());
     }
@@ -86,6 +87,7 @@ public class ConfigResponseParser {
               .map(Endpoint::fromString)
               .collect(Collectors.toList()));
     }
+
     if (json.hasNonNull(IDEMPOTENCY_KEY_LIFETIME)) {
       builder.withIdempotencyKeyLifetime(JsonUtil.getString(IDEMPOTENCY_KEY_LIFETIME, json));
     }
