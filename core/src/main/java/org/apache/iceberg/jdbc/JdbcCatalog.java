@@ -236,13 +236,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                       JdbcUtil.SCHEMA_VERSION_PROPERTY,
                       JdbcUtil.SchemaVersion.V0.name())
                   .equalsIgnoreCase(JdbcUtil.SchemaVersion.V1.name())) {
-                LOG.debug("{} is being updated to support views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
-                schemaVersion = JdbcUtil.SchemaVersion.V1;
-                if (isOracle(conn)) {
-                  return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_ORACLE_SQL).execute();
-                } else {
-                  return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
-                }
+                return updateSchemaToV1(conn);
               } else {
                 LOG.warn(VIEW_WARNING_LOG_MESSAGE);
                 return true;
@@ -261,7 +255,17 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private boolean isOracle(Connection conn) {
+  private boolean updateSchemaToV1(Connection conn) throws SQLException {
+    LOG.debug("{} is being updated to support views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
+    schemaVersion = JdbcUtil.SchemaVersion.V1;
+    if (isOracle(conn)) {
+      return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_ORACLE_SQL).execute();
+    } else {
+      return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
+    }
+  }
+
+  private static boolean isOracle(Connection conn) {
     try {
       String databaseProductName = conn.getMetaData().getDatabaseProductName();
       return databaseProductName != null
@@ -271,20 +275,19 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private boolean tableExists(Connection conn, String tableNamePattern) throws SQLException {
+  private static boolean tableExists(Connection conn, String tableNamePattern) throws SQLException {
     DatabaseMetaData dbMeta = conn.getMetaData();
+
+    if (tableNamePattern == null) {
+      throw new IllegalArgumentException("tableNamePattern cannot be null");
+    }
 
     String[] tableVariants =
         new String[] {
-          tableNamePattern,
-          tableNamePattern == null ? null : tableNamePattern.toUpperCase(Locale.ROOT),
-          tableNamePattern == null ? null : tableNamePattern.toLowerCase(Locale.ROOT)
+          tableNamePattern.toUpperCase(Locale.ROOT), tableNamePattern.toLowerCase(Locale.ROOT)
         };
 
     for (String t : tableVariants) {
-      if (t == null) {
-        continue;
-      }
       try (ResultSet rs = dbMeta.getColumns(null, null, t, null)) {
         if (rs.next()) {
           return true;
@@ -294,28 +297,26 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     return false;
   }
 
-  private boolean columnExists(Connection conn, String tableNamePattern, String columnNamePattern)
-      throws SQLException {
+  private static boolean columnExists(
+      Connection conn, String tableNamePattern, String columnNamePattern) throws SQLException {
     DatabaseMetaData dbMeta = conn.getMetaData();
+
+    if (tableNamePattern == null || columnNamePattern == null) {
+      throw new IllegalArgumentException(
+          "Neither tableNamePattern nor columnNamePattern can be null");
+    }
 
     String[] tableVariants =
         new String[] {
-          tableNamePattern,
-          tableNamePattern == null ? null : tableNamePattern.toUpperCase(Locale.ROOT),
-          tableNamePattern == null ? null : tableNamePattern.toLowerCase(Locale.ROOT)
+          tableNamePattern.toUpperCase(Locale.ROOT), tableNamePattern.toLowerCase(Locale.ROOT)
         };
     String[] columnVariants =
         new String[] {
-          columnNamePattern,
-          columnNamePattern == null ? null : columnNamePattern.toUpperCase(Locale.ROOT),
-          columnNamePattern == null ? null : columnNamePattern.toLowerCase(Locale.ROOT)
+          columnNamePattern.toUpperCase(Locale.ROOT), columnNamePattern.toLowerCase(Locale.ROOT)
         };
 
     for (String t : tableVariants) {
       for (String c : columnVariants) {
-        if (t == null || c == null) {
-          continue;
-        }
         try (ResultSet rs = dbMeta.getColumns(null, null, t, c)) {
           if (rs.next()) {
             return true;
