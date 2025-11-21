@@ -124,8 +124,6 @@ public class PuffinWriter implements FileAppender<Blob> {
     if (!finished) {
       finish();
     }
-
-    outputStream.close();
   }
 
   private void writeHeaderIfNeeded() throws IOException {
@@ -144,6 +142,7 @@ public class PuffinWriter implements FileAppender<Blob> {
     long footerOffset = outputStream.getPos();
     writeFooter();
     this.footerSize = Optional.of(Math.toIntExact(outputStream.getPos() - footerOffset));
+    outputStream.close();
     this.fileSize = Optional.of(outputStream.storedLength());
     this.finished = true;
   }

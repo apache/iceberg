@@ -25,19 +25,26 @@ import static org.apache.iceberg.puffin.PuffinFormatTestUtil.EMPTY_PUFFIN_UNCOMP
 import static org.apache.iceberg.puffin.PuffinFormatTestUtil.readTestResource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
+import java.io.File;
 import java.nio.ByteBuffer;
-import org.apache.iceberg.encryption.AesGcmOutputStream;
-import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
+import java.nio.file.Path;
+import java.util.Random;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.encryption.AesGcmOutputFile;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestPuffinWriter {
+
+  @TempDir private Path temp;
+
   @Test
   public void testEmptyFooterCompressed() {
     InMemoryOutputFile outputFile = new InMemoryOutputFile();
@@ -91,19 +98,34 @@ public class TestPuffinWriter {
     testWriteMetric(ZSTD, "v1/sample-metric-data-compressed-zstd.bin");
   }
 
-  @Test
-  public void testEncryptedLength() throws Exception {
-    AesGcmOutputStream outputStream = mock(AesGcmOutputStream.class);
-    // Mocking unencrypted content length = 500, true file size = 600
-    when(outputStream.getPos()).thenReturn(500L);
-    when(outputStream.storedLength()).thenReturn(600L);
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testLengthCalculation(boolean isEncrypted) throws Exception {
+    final OutputFile outputFile;
 
-    OutputFile outputFile = mock(NativeEncryptionOutputFile.class);
-    when(outputFile.create()).thenReturn(outputStream);
+    if (isEncrypted) {
+      File testFile = temp.resolve("test" + System.nanoTime()).toFile();
+      Random random = new Random();
+      byte[] key = new byte[16];
+      random.nextBytes(key);
+      byte[] aadPrefix = new byte[16];
+      outputFile = new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
+    } else {
+      outputFile = new InMemoryOutputFile();
+    }
 
     PuffinWriter writer = Puffin.write(outputFile).build();
-    writer.finish();
-    assertThat(writer.length()).isEqualTo(600);
+    writer.write(
+        new Blob(
+            "blob",
+            ImmutableList.of(1),
+            2,
+            1,
+            ByteBuffer.wrap("blob".getBytes()),
+            null,
+            ImmutableMap.of()));
+    writer.close();
+    assertThat(writer.length()).isEqualTo(isEncrypted ? 158 : 122);
   }
 
   private void testWriteMetric(PuffinCompressionCodec compression, String expectedResource)
