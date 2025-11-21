@@ -19,9 +19,11 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.rest.Endpoint;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
 
@@ -32,6 +34,7 @@ public class RESTTable extends BaseTable {
   private final MetricsReporter reporter;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
+  private final Set<Endpoint> supportedEndpoints;
 
   public RESTTable(
       TableOperations ops,
@@ -41,7 +44,8 @@ public class RESTTable extends BaseTable {
       String path,
       Supplier<Map<String, String>> headers,
       TableIdentifier tableIdentifier,
-      ResourcePaths resourcePaths) {
+      ResourcePaths resourcePaths,
+      Set<Endpoint> supportedEndpoints) {
     super(ops, name, reporter);
     this.reporter = reporter;
     this.client = client;
@@ -49,6 +53,7 @@ public class RESTTable extends BaseTable {
     this.path = path;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
+    this.supportedEndpoints = supportedEndpoints;
   }
 
   @Override
@@ -62,6 +67,7 @@ public class RESTTable extends BaseTable {
         headers,
         operations(),
         tableIdentifier,
-        resourcePaths);
+        resourcePaths,
+        supportedEndpoints);
   }
 }

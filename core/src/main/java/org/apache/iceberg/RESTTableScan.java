@@ -21,11 +21,14 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.hadoop.util.Preconditions;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.rest.Endpoint;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
 import org.apache.iceberg.rest.PlanStatus;
@@ -44,6 +47,7 @@ public class RESTTableScan extends DataTableScan {
   private final Table table;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
+  private final Set<Endpoint> supportedEndpoints;
   private final ParserContext parserContext;
 
   // Track the current plan ID for cancellation
@@ -65,7 +69,8 @@ public class RESTTableScan extends DataTableScan {
       Supplier<Map<String, String>> headers,
       TableOperations operations,
       TableIdentifier tableIdentifier,
-      ResourcePaths resourcePaths) {
+      ResourcePaths resourcePaths,
+      Set<Endpoint> supportedEndpoints) {
     super(table, schema, context);
     this.table = table;
     this.client = client;
@@ -74,6 +79,7 @@ public class RESTTableScan extends DataTableScan {
     this.operations = operations;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
+    this.supportedEndpoints = supportedEndpoints;
     this.parserContext =
         ParserContext.builder()
             .add("specsById", table.specs())
@@ -93,7 +99,8 @@ public class RESTTableScan extends DataTableScan {
         headers,
         operations,
         tableIdentifier,
-        resourcePaths);
+        resourcePaths,
+        supportedEndpoints);
   }
 
   @Override
@@ -156,6 +163,9 @@ public class RESTTableScan extends DataTableScan {
         currentPlanId = response.planId();
         return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
+        Preconditions.checkState(
+            supportedEndpoints.contains(Endpoint.V1_FETCH_TABLE_SCAN_PLAN),
+            "The endpoint to fetch table scan plans is not supported by the server.");
         return fetchPlanningResult(response.planId());
       case FAILED:
         throw new IllegalStateException(
@@ -249,14 +259,15 @@ public class RESTTableScan extends DataTableScan {
         planExecutor(),
         table.specs(),
         isCaseSensitive(),
-        this::cancelPlan);
+        this::cancelPlan,
+        supportedEndpoints);
   }
 
   @VisibleForTesting
   @SuppressWarnings("checkstyle:RegexpMultiline")
   public boolean cancelPlan() {
     String planId = currentPlanId;
-    if (planId == null) {
+    if (planId == null || !supportedEndpoints.contains(Endpoint.V1_CANCEL_TABLE_SCAN_PLAN)) {
       return false;
     }
 

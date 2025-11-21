@@ -2836,7 +2836,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testSynchronousPlanningWithAllTasksInSingleResponse() throws IOException {
+  public void synchronousPlanningWithAllTasksInSingleResponse() throws IOException {
     // Configure: synchronous planning with all tasks returned in first response
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
 
@@ -2855,7 +2855,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testAsynchronousPlanningWithPolling() throws IOException {
+  public void asynchronousPlanningWithPolling() throws IOException {
     // Configure: asynchronous planning (client polls for completion)
     configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
 
@@ -2874,39 +2874,26 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testSynchronousPlanningWithPagination() throws IOException {
-    // Configure: synchronous planning with 1 task per page (forces pagination)
+  public void nestedPlanTaskPagination() throws IOException {
+    // Configure: synchronous planning with very small pages (creates nested plan task structure)
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
 
-    Table table = restTableFor("paginated_table");
-    setParserContext(table);
-
-    assertBoundFileScanTasks(table, SPEC);
-
-    // Verify actual data file is returned via plan task fetching with correct count
-    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
-      List<FileScanTask> tasks = Lists.newArrayList(iterable);
-      assertThat(tasks)
-          .anySatisfy(task -> assertThat(task.file().location()).isEqualTo(FILE_A.location()));
-      assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
-    }
-  }
-
-  @Test
-  public void testNestedPlanTaskPagination() throws IOException {
-    // Configure: synchronous planning with very small pages (creates nested plan task structure)
-    configurePlanningBehavior(builder -> builder.tasksPerPage(1));
-
     Table table = restTableFor("nested_plan_task_table");
+    // add one more files for proper pagination
+    table.newFastAppend().appendFile(FILE_B).commit();
     setParserContext(table);
     assertBoundFileScanTasks(table, SPEC);
 
     // Verify actual data file is returned via nested plan task fetching with correct count
     try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
       List<FileScanTask> tasks = Lists.newArrayList(iterable);
+      assertThat(tasks).hasSize(2);
       assertThat(tasks)
           .anySatisfy(task -> assertThat(task.file().location()).isEqualTo(FILE_A.location()));
+      assertThat(tasks)
+          .anySatisfy(task -> assertThat(task.file().location()).isEqualTo(FILE_B.location()));
       assertThat(tasks.get(0).deletes()).isEmpty(); // 0 delete files
+      assertThat(tasks.get(1).deletes()).isEmpty(); // 0 delete files
     }
   }
 
@@ -2915,13 +2902,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     table.newAppend().appendFile(FILE_A).commit();
     assertThat(table).isInstanceOf(RESTTable.class);
     return (RESTTable) table;
-  }
-
-  private RESTTableScan restTableScanFor(String tableName) {
-    RESTTable restTable = restTableFor(tableName);
-    TableScan scan = restTable.newScan();
-    assertThat(scan).isInstanceOf(RESTTableScan.class);
-    return (RESTTableScan) scan;
   }
 
   private RESTTableScan restTableScanFor(Table table) {
@@ -3373,7 +3353,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testCancelPlanMethodAvailability() {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
-    RESTTableScan restTableScan = restTableScanFor("cancel_method_table");
+    RESTTable table = restTableFor("cancel_method_table");
+    RESTTableScan restTableScan = restTableScanFor(table);
 
     // Test that cancelPlan method is available and callable
     // When no plan is active, it should return false
@@ -3426,7 +3407,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testRESTScanPlanningWithPositionDeletes() throws IOException {
+  public void remoteScanPlanningWithPositionDeletes() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
     Table table = restTableFor("position_deletes_test");
     setParserContext(table);
@@ -3459,7 +3440,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testRESTScanPlanningWithEqualityDeletes() throws IOException {
+  public void remoteScanPlanningWithEqualityDeletes() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
     Table table = restTableFor("equality_deletes_test");
     setParserContext(table);
@@ -3490,7 +3471,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testRESTScanPlanningWithMixedDeletes() throws IOException {
+  public void remoteScanPlanningWithMixedDeletes() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
     Table table = restTableFor("mixed_deletes_test");
     setParserContext(table);
@@ -3525,7 +3506,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testRESTScanPlanningWithMultipleDeleteFiles() throws IOException {
+  public void remoteScanPlanningWithMultipleDeleteFiles() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
     Table table = restTableFor("multiple_deletes_test");
     setParserContext(table);
@@ -3582,7 +3563,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testRESTScanPlanningWithDeletesAndFiltering() throws IOException {
+  public void remoteScanPlanningWithDeletesAndFiltering() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
     Table table = restTableFor("deletes_filtering_test");
     setParserContext(table);
@@ -3623,7 +3604,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testRESTScanPlanningDeletesCancellation() throws IOException {
+  public void remoteScanPlanningDeletesCancellation() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
     Table table = restTableFor("deletes_cancellation_test");
     setParserContext(table);
@@ -3645,7 +3626,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testRESTScanPlanningWithTimeTravel() {
+  public void remoteScanPlanningWithTimeTravel() {
     // Test server-side scan planning with time travel (snapshot-based queries)
     // Verify that snapshot IDs are correctly passed through the REST API
     // and that historical scans return the correct files and deletes

@@ -261,7 +261,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
     this.restServerPlanningEnabled =
         PropertyUtil.propertyAsBoolean(
-            mergedProps, RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, false);
+            mergedProps,
+            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
+            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED_DEFAULT);
     super.initialize(name, mergedProps);
   }
 
@@ -485,7 +487,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   private RESTTable restTableForScanPlanning(
       TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
-    // server supports remote planning and the client has it enabled
+    // server supports remote planning endpoint and server / client wants to do server side planning
     if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restServerPlanningEnabled) {
       return new RESTTable(
           ops,
@@ -495,7 +497,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           paths.table(finalIdentifier),
           Map::of,
           finalIdentifier,
-          paths);
+          paths,
+          endpoints);
     }
     return null;
   }

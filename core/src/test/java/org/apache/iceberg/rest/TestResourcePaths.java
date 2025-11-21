@@ -181,7 +181,43 @@ public class TestResourcePaths {
   }
 
   @Test
-  public void testCancelPlanEndpointPath() {
+  public void planEndpointPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    ResourcePaths paths = new ResourcePaths("test-prefix");
+
+    String submitPlanPath = paths.planTableScan(tableId);
+
+    assertThat(submitPlanPath)
+        .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/plan");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    String complexPath = paths.planTableScan(complexId);
+
+    assertThat(complexPath).isEqualTo("v1/test-prefix/namespaces/db%1Fschema/tables/my_table/plan");
+  }
+
+  @Test
+  public void fetchScanTasks() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    ResourcePaths paths = new ResourcePaths("test-prefix");
+
+    // Test that the cancel plan path is generated correctly
+    String cancelPath = paths.fetchScanTasks(tableId);
+
+    assertThat(cancelPath)
+        .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/tasks");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    String complexPath = paths.fetchScanTasks(complexId);
+
+    assertThat(complexPath)
+        .isEqualTo("v1/test-prefix/namespaces/db%1Fschema/tables/my_table/tasks");
+  }
+
+  @Test
+  public void cancelPlanEndpointPath() {
     TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
     String planId = "plan-abc-123";
     ResourcePaths paths = new ResourcePaths("test-prefix");
@@ -196,7 +232,7 @@ public class TestResourcePaths {
     TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
     String complexPath = paths.plan(complexId, "plan-xyz-789");
 
-    assertThat(complexPath).contains("/plan/plan-xyz-789");
-    assertThat(complexPath).contains("db%1Fschema"); // URL encoded namespace separator
+    assertThat(complexPath)
+        .isEqualTo("v1/test-prefix/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
   }
 }

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -30,9 +31,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import org.apache.hadoop.util.Preconditions;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.rest.Endpoint;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
 import org.apache.iceberg.rest.RESTClient;
@@ -66,6 +69,7 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
   private final Map<Integer, PartitionSpec> specsById;
   private final boolean caseSensitive;
   private final Supplier<Boolean> cancellationCallback;
+  private final Set<Endpoint> supportedEndpoints;
 
   ScanTasksIterable(
       List<String> initialPlanTasks,
@@ -77,7 +81,8 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       ExecutorService executorService,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive,
-      Supplier<Boolean> cancellationCallback) {
+      Supplier<Boolean> cancellationCallback,
+      Set<Endpoint> supportedEndpoints) {
 
     this.taskQueue = new LinkedBlockingQueue<>(DEFAULT_TASK_QUEUE_CAPACITY);
     this.planTasks = new ConcurrentLinkedQueue<>();
@@ -90,6 +95,7 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     this.specsById = specsById;
     this.caseSensitive = caseSensitive;
     this.cancellationCallback = cancellationCallback;
+    this.supportedEndpoints = supportedEndpoints;
 
     if (initialFileScanTasks != null && !initialFileScanTasks.isEmpty()) {
       for (FileScanTask task : initialFileScanTasks) {
@@ -146,6 +152,10 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
             return;
           }
 
+          Preconditions.checkState(
+              supportedEndpoints.contains(Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS),
+              "The REST catalog does not support fetching table scan plan tasks: %s",
+              Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
           processPlanTask(planTask);
         }
 
