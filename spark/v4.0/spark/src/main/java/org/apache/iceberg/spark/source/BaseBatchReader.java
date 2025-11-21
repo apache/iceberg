@@ -26,6 +26,7 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -35,12 +36,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.ParquetReaderType;
+import org.apache.iceberg.spark.data.vectorized.ColumnVectorWithFilter;
+import org.apache.iceberg.spark.data.vectorized.ColumnarBatchUtil;
+import org.apache.iceberg.spark.data.vectorized.DeletedColumnVector;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.Pair;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
+public abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final ParquetBatchReadConf parquetConf;
   private final OrcBatchReadConf orcConf;
 
@@ -67,17 +74,29 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Expression residual,
       Map<Integer, ?> idToConstant,
       SparkDeleteFilter deleteFilter) {
+    CloseableIterable<ColumnarBatch> iterable;
     switch (format) {
       case PARQUET:
-        return newParquetIterable(inputFile, start, length, residual, idToConstant, deleteFilter);
-
+        iterable =
+            newParquetIterable(
+                inputFile,
+                start,
+                length,
+                residual,
+                idToConstant,
+                deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema());
+        break;
       case ORC:
-        return newOrcIterable(inputFile, start, length, residual, idToConstant);
-
+        iterable = newOrcIterable(inputFile, start, length, residual, idToConstant);
+        break;
       default:
         throw new UnsupportedOperationException(
             "Format: " + format + " not supported for batched reads");
     }
+
+    return deleteFilter == null
+        ? iterable
+        : CloseableIterable.transform(iterable, new BatchDeleteFilter(deleteFilter)::filterBatch);
   }
 
   private CloseableIterable<ColumnarBatch> newParquetIterable(
@@ -86,10 +105,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       long length,
       Expression residual,
       Map<Integer, ?> idToConstant,
-      SparkDeleteFilter deleteFilter) {
-    // get required schema if there are deletes
-    Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
-
+      Schema requiredSchema) {
     return Parquet.read(inputFile)
         .project(requiredSchema)
         .split(start, length)
@@ -97,10 +113,10 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
             fileSchema -> {
               if (parquetConf.readerType() == ParquetReaderType.COMET) {
                 return VectorizedSparkParquetReaders.buildCometReader(
-                    requiredSchema, fileSchema, idToConstant, deleteFilter);
+                    requiredSchema, fileSchema, idToConstant);
               } else {
                 return VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema, fileSchema, idToConstant, deleteFilter);
+                    requiredSchema, fileSchema, idToConstant);
               }
             })
         .recordsPerBatch(parquetConf.batchSize())
@@ -138,5 +154,63 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
         .build();
+  }
+
+  public static class BatchDeleteFilter {
+    private final DeleteFilter<InternalRow> deletes;
+    private boolean hasIsDeletedColumn;
+    private int rowPositionColumnIndex = -1;
+
+    public BatchDeleteFilter(DeleteFilter<InternalRow> deletes) {
+      this.deletes = deletes;
+
+      Schema schema = deletes.requiredSchema();
+      for (int i = 0; i < schema.columns().size(); i++) {
+        if (schema.columns().get(i).fieldId() == MetadataColumns.ROW_POSITION.fieldId()) {
+          this.rowPositionColumnIndex = i;
+        } else if (schema.columns().get(i).fieldId() == MetadataColumns.IS_DELETED.fieldId()) {
+          this.hasIsDeletedColumn = true;
+        }
+      }
+    }
+
+    public ColumnarBatch filterBatch(ColumnarBatch batch) {
+      ColumnVector[] vectors = new ColumnVector[batch.numCols()];
+      for (int i = 0; i < batch.numCols(); i++) {
+        vectors[i] = batch.column(i);
+      }
+
+      int numLiveRows = batch.numRows();
+      long rowStartPosInBatch =
+          rowPositionColumnIndex == -1 ? -1 : vectors[rowPositionColumnIndex].getLong(0);
+
+      if (hasIsDeletedColumn) {
+        boolean[] isDeleted =
+            ColumnarBatchUtil.buildIsDeleted(vectors, deletes, rowStartPosInBatch, numLiveRows);
+        for (ColumnVector vector : vectors) {
+          if (vector instanceof DeletedColumnVector) {
+            ((DeletedColumnVector) vector).setValue(isDeleted);
+          }
+        }
+      } else {
+        Pair<int[], Integer> pair =
+            ColumnarBatchUtil.buildRowIdMapping(vectors, deletes, rowStartPosInBatch, numLiveRows);
+        if (pair != null) {
+          int[] rowIdMapping = pair.first();
+          numLiveRows = pair.second();
+          for (int i = 0; i < vectors.length; i++) {
+            vectors[i] = new ColumnVectorWithFilter(vectors[i], rowIdMapping);
+          }
+        }
+      }
+
+      if (deletes != null && deletes.hasEqDeletes()) {
+        vectors = ColumnarBatchUtil.removeExtraColumns(deletes, vectors);
+      }
+
+      ColumnarBatch output = new ColumnarBatch(vectors);
+      output.setNumRows(numLiveRows);
+      return output;
+    }
   }
 }

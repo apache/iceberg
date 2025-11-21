@@ -277,7 +277,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                   .createBatchedReaderFunc(
                       type ->
                           VectorizedSparkParquetReaders.buildReader(
-                              schema, type, idToConstant, null, allocator));
+                              schema, type, idToConstant, allocator));
           if (reuseContainers) {
             readBuilder.reuseContainers();
           }
