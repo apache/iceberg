@@ -245,7 +245,6 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
     private final ReaderFunction<D> readerFunction;
     private final BatchReaderFunction<D> batchReaderFunction;
     private final Map<String, String> config = Maps.newHashMap();
-    private Schema icebergSchema;
     private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilderWrapper(
@@ -265,7 +264,6 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
 
     @Override
     public ReadBuilder<D, S> project(Schema schema) {
-      this.icebergSchema = schema;
       internal.project(schema);
       return this;
     }
@@ -318,12 +316,13 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
       if (readerFunction != null) {
         return internal
             .createReaderFunc(
-                messageType -> readerFunction.read(icebergSchema, messageType, idToConstant))
+                (icebergSchema, messageType) ->
+                    readerFunction.read(icebergSchema, messageType, idToConstant))
             .build();
       } else if (batchReaderFunction != null) {
         return internal
             .createBatchedReaderFunc(
-                messageType ->
+                (icebergSchema, messageType) ->
                     batchReaderFunction.read(icebergSchema, messageType, idToConstant, config))
             .build();
       } else {
