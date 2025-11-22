@@ -111,7 +111,7 @@ public class TestPlanTableScanRequestParser {
 
     String expectedJson =
         "{\"snapshot-id\":1,"
-            + "\"filter\":\"false\","
+            + "\"filter\":false,"
             + "\"case-sensitive\":true,"
             + "\"use-snapshot-schema\":false}";
 
@@ -157,7 +157,7 @@ public class TestPlanTableScanRequestParser {
         "{\"start-snapshot-id\":1,"
             + "\"end-snapshot-id\":2,"
             + "\"select\":[\"col1\",\"col2\"],"
-            + "\"filter\":\"true\","
+            + "\"filter\":true,"
             + "\"case-sensitive\":false,"
             + "\"use-snapshot-schema\":true,"
             + "\"stats-fields\":[\"col1\",\"col2\"]}";
@@ -187,5 +187,34 @@ public class TestPlanTableScanRequestParser {
     assertThat(str).contains("caseSensitive=false");
     assertThat(str).contains("useSnapshotSchema=true");
     assertThat(str).contains("statsFields=[stat1]");
+  }
+
+  @Test
+  public void roundTripSerdeWithFilterExpression() {
+    PlanTableScanRequest request =
+        PlanTableScanRequest.builder()
+            .withSnapshotId(1L)
+            .withFilter(Expressions.equal("id", 1))
+            .build();
+
+    String expectedJson =
+        "{\"snapshot-id\":1,"
+            + "\"filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"
+            + "\"case-sensitive\":true,"
+            + "\"use-snapshot-schema\":false}";
+
+    String json = PlanTableScanRequestParser.toJson(request, false);
+    assertThat(json).isEqualTo(expectedJson);
+    assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), false))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void testFilterFieldWithExplicitNullThrowsError() {
+    String json = "{\"snapshot-id\":123,\"filter\":null,\"case-sensitive\":true}";
+
+    assertThatThrownBy(() -> PlanTableScanRequestParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse expression from non-object: null");
   }
 }
