@@ -166,7 +166,7 @@ public class TestTableEncryption extends CatalogTestBase {
   public void testKeyDelete() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s UNSET TBLPROPERTIES (`encryption.key-id`)", tableName))
-        .hasMessageContaining("Cannot remove key in encrypted table");
+        .hasMessageContaining("Cannot remove encryption key ID from an encrypted table");
   }
 
   @TestTemplate
