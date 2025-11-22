@@ -1174,7 +1174,7 @@ public class Parquet {
     private Schema schema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
-    private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
+    private BatchReaderFunction batchedReaderFunc = null;
     private ReaderFunction readerFunction = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
@@ -1235,6 +1235,50 @@ public class Parquet {
 
       @Override
       public ReaderFunction withSchema(Schema expectedSchema) {
+        this.schema = expectedSchema;
+        return this;
+      }
+    }
+
+    public interface BatchReaderFunction {
+      Function<MessageType, VectorizedReader<?>> apply();
+
+      default BatchReaderFunction withSchema(Schema schema) {
+        return this;
+      }
+    }
+
+    private static class UnaryBatchReaderFunction implements BatchReaderFunction {
+      private final Function<MessageType, VectorizedReader<?>> readerFunc;
+
+      UnaryBatchReaderFunction(Function<MessageType, VectorizedReader<?>> readerFunc) {
+        this.readerFunc = readerFunc;
+      }
+
+      @Override
+      public Function<MessageType, VectorizedReader<?>> apply() {
+        return readerFunc;
+      }
+    }
+
+    private static class BinaryBatchReaderFunction implements BatchReaderFunction {
+      private final BiFunction<Schema, MessageType, VectorizedReader<?>> readerFuncWithSchema;
+      private Schema schema;
+
+      BinaryBatchReaderFunction(
+          BiFunction<Schema, MessageType, VectorizedReader<?>> readerFuncWithSchema) {
+        this.readerFuncWithSchema = readerFuncWithSchema;
+      }
+
+      @Override
+      public Function<MessageType, VectorizedReader<?>> apply() {
+        Preconditions.checkArgument(
+            schema != null, "Schema must be set for 2-argument reader function");
+        return messageType -> readerFuncWithSchema.apply(schema, messageType);
+      }
+
+      @Override
+      public BinaryBatchReaderFunction withSchema(Schema expectedSchema) {
         this.schema = expectedSchema;
         return this;
       }
@@ -1314,14 +1358,27 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
+    public ReadBuilder createBatchedReaderFunc(
+        Function<MessageType, VectorizedReader<?>> newReaderFunction) {
       Preconditions.checkArgument(
           this.batchedReaderFunc == null,
           "Cannot set batched reader function: batched reader function already set");
       Preconditions.checkArgument(
           this.readerFunction == null,
           "Cannot set batched reader function: ReaderFunction already set");
-      this.batchedReaderFunc = func;
+      this.batchedReaderFunc = new UnaryBatchReaderFunction(newReaderFunction);
+      return this;
+    }
+
+    public ReadBuilder createBatchedReaderFunc(
+        BiFunction<Schema, MessageType, VectorizedReader<?>> newReaderFunction) {
+      Preconditions.checkArgument(
+          this.batchedReaderFunc == null,
+          "Cannot set batched reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.readerFunction == null,
+          "Cannot set batched reader function: ReaderFunction already set");
+      this.batchedReaderFunc = new BinaryBatchReaderFunction(newReaderFunction);
       return this;
     }
 
@@ -1441,11 +1498,13 @@ public class Parquet {
         }
 
         if (batchedReaderFunc != null) {
+          Function<MessageType, VectorizedReader<?>> readBuilder =
+              batchedReaderFunc.withSchema(schema).apply();
           return new VectorizedParquetReader<>(
               file,
               schema,
               options,
-              batchedReaderFunc,
+              readBuilder,
               mapping,
               filter,
               reuseContainers,
