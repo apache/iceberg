@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
-import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.DeletedVectorReader;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.page.PageReadStore;
@@ -37,12 +36,9 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  * populated via delegated read calls to {@linkplain VectorizedArrowReader VectorReader(s)}.
  */
 public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
-  private final boolean hasIsDeletedColumn;
 
   public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
     super(readers);
-    this.hasIsDeletedColumn =
-        readers.stream().anyMatch(reader -> reader instanceof DeletedVectorReader);
   }
 
   @Override
@@ -71,15 +67,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
     ColumnarBatch loadDataToColumnBatch() {
       ColumnVector[] vectors = readDataToColumnVectors();
-
-      if (hasIsDeletedColumn) {
-        boolean[] isDeleted = new boolean[batchSize];
-        for (ColumnVector vector : vectors) {
-          if (vector instanceof DeletedColumnVector) {
-            ((DeletedColumnVector) vector).setValue(isDeleted);
-          }
-        }
-      }
 
       ColumnarBatch batch = new ColumnarBatch(vectors);
       batch.setNumRows(batchSize);

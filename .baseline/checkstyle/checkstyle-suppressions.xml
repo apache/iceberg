@@ -55,6 +55,8 @@
 
     <!-- Suppress checks for CometColumnReader -->
     <suppress files="org.apache.iceberg.spark.data.vectorized.CometColumnReader" checks="IllegalImport"/>
+    <!-- Suppress checks for CometDeletedColumnVector -->
+    <suppress files="org.apache.iceberg.spark.data.vectorized.CometDeletedColumnVector" checks="IllegalImport"/>
 
     <!-- Suppress TestClassNamingConvention for main source files -->
     <suppress files=".*[/\\]src[/\\]main[/\\].*" id="TestClassNamingConvention" />

@@ -183,7 +183,7 @@ public class TestSparkParquetReadMetadataColumns {
     Parquet.ReadBuilder builder =
         Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
 
-    DeleteFilter<InternalRow> deleteFilter = new TestDeleteFilter();
+    DeleteFilter<InternalRow> deleteFilter = new TestDeleteFilter(true);
 
     builder.createBatchedReaderFunc(
         fileSchema ->
@@ -195,8 +195,11 @@ public class TestSparkParquetReadMetadataColumns {
   }
 
   private class TestDeleteFilter extends DeleteFilter<InternalRow> {
-    protected TestDeleteFilter() {
+    private final boolean hasDeletes;
+
+    protected TestDeleteFilter(boolean hasDeletes) {
       super("", List.of(), DATA_SCHEMA, PROJECTION_SCHEMA, new DeleteCounter(), true);
+      this.hasDeletes = hasDeletes;
     }
 
     @Override
@@ -211,13 +214,16 @@ public class TestSparkParquetReadMetadataColumns {
 
     @Override
     public boolean hasPosDeletes() {
-      return true;
+      return hasDeletes;
     }
 
     @Override
     public PositionDeleteIndex deletedRowPositions() {
       PositionDeleteIndex deletedRowPos = new CustomizedPositionDeleteIndex();
-      deletedRowPos.delete(98, 103);
+      if (hasDeletes) {
+        deletedRowPos.delete(98, 103);
+      }
+
       return deletedRowPos;
     }
   }
@@ -308,7 +314,7 @@ public class TestSparkParquetReadMetadataColumns {
       builder = builder.split(splitStart, splitLength);
     }
 
-    validate(expected, builder, null);
+    validate(expected, builder, new TestDeleteFilter(false));
   }
 
   private void validate(
@@ -331,9 +337,7 @@ public class TestSparkParquetReadMetadataColumns {
     if (!vectorized) {
       return builder.build();
     } else {
-      CloseableIterable<ColumnarBatch> batches = builder.build();
-      return batchesToRows(
-          filter == null ? batches : BatchReaderUtil.withDeleteFilter(batches, filter));
+      return batchesToRows(BatchReaderUtil.withDeleteFilter(builder.build(), filter));
     }
   }
 

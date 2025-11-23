@@ -43,7 +43,6 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
 
   private final CometColumnReader[] readers;
-  private final boolean hasIsDeletedColumn;
 
   // The delegated BatchReader on the Comet side does the real work of loading a batch of rows.
   // The Comet BatchReader contains an array of ColumnReader. There is no need to explicitly call
@@ -57,8 +56,6 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   CometColumnarBatchReader(List<VectorizedReader<?>> readers, Schema schema) {
     this.readers =
         readers.stream().map(CometColumnReader.class::cast).toArray(CometColumnReader[]::new);
-    this.hasIsDeletedColumn =
-        readers.stream().anyMatch(reader -> reader instanceof CometDeleteColumnReader);
 
     AbstractColumnReader[] abstractColumnReaders = new AbstractColumnReader[readers.size()];
     this.delegate = new BatchReader(abstractColumnReaders);
@@ -121,11 +118,6 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     ColumnarBatch loadDataToColumnBatch() {
       ColumnVector[] vectors = readDataToColumnVectors();
 
-      if (hasIsDeletedColumn) {
-        boolean[] isDeleted = new boolean[batchSize];
-        readDeletedColumn(vectors, isDeleted);
-      }
-
       ColumnarBatch batch = new ColumnarBatch(vectors);
       batch.setNumRows(batchSize);
       return batch;
@@ -140,17 +132,6 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
       }
 
       return columnVectors;
-    }
-
-    void readDeletedColumn(ColumnVector[] columnVectors, boolean[] isDeleted) {
-      for (int i = 0; i < readers.length; i++) {
-        if (readers[i] instanceof CometDeleteColumnReader) {
-          CometDeleteColumnReader deleteColumnReader = new CometDeleteColumnReader<>(isDeleted);
-          deleteColumnReader.setBatchSize(batchSize);
-          deleteColumnReader.delegate().readBatch(batchSize);
-          columnVectors[i] = deleteColumnReader.delegate().currentBatch();
-        }
-      }
     }
   }
 }

@@ -39,7 +39,7 @@ import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.data.vectorized.ColumnVectorWithFilter;
 import org.apache.iceberg.spark.data.vectorized.ColumnarBatchUtil;
-import org.apache.iceberg.spark.data.vectorized.DeletedColumnVector;
+import org.apache.iceberg.spark.data.vectorized.UpdatableDeletedColumnVector;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
@@ -95,9 +95,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
             "Format: " + format + " not supported for batched reads");
     }
 
-    return deleteFilter == null
-        ? iterable
-        : CloseableIterable.transform(iterable, new BatchDeleteFilter(deleteFilter)::filterBatch);
+    return CloseableIterable.transform(iterable, new BatchDeleteFilter(deleteFilter)::filterBatch);
   }
 
   private CloseableIterable<ColumnarBatch> newParquetIterable(
@@ -177,6 +175,10 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     }
 
     ColumnarBatch filterBatch(ColumnarBatch batch) {
+      if (!needDeletes()) {
+        return batch;
+      }
+
       ColumnVector[] vectors = new ColumnVector[batch.numCols()];
       for (int i = 0; i < batch.numCols(); i++) {
         vectors[i] = batch.column(i);
@@ -190,8 +192,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         boolean[] isDeleted =
             ColumnarBatchUtil.buildIsDeleted(vectors, deletes, rowStartPosInBatch, numLiveRows);
         for (ColumnVector vector : vectors) {
-          if (vector instanceof DeletedColumnVector) {
-            ((DeletedColumnVector) vector).setValue(isDeleted);
+          if (vector instanceof UpdatableDeletedColumnVector) {
+            ((UpdatableDeletedColumnVector) vector).setValue(isDeleted);
           }
         }
       } else {
@@ -213,6 +215,11 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       ColumnarBatch output = new ColumnarBatch(vectors);
       output.setNumRows(numLiveRows);
       return output;
+    }
+
+    private boolean needDeletes() {
+      return hasIsDeletedColumn
+          || (deletes != null && (deletes.hasEqDeletes() || deletes.hasPosDeletes()));
     }
   }
 }
