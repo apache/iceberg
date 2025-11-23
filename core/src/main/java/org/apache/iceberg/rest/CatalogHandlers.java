@@ -673,7 +673,11 @@ public class CatalogHandlers {
 
     if (shouldPlanAsync.test(configuredScan)) {
       String asyncPlanId = "async-" + UUID.randomUUID();
-      asyncPlanFiles(configuredScan, asyncPlanId, table.uuid().toString(), tasksPerPlanTask.applyAsInt(configuredScan));
+      asyncPlanFiles(
+          configuredScan,
+          asyncPlanId,
+          table.uuid().toString(),
+          tasksPerPlanTask.applyAsInt(configuredScan));
       return PlanTableScanResponse.builder()
           .withPlanId(asyncPlanId)
           .withPlanStatus(PlanStatus.SUBMITTED)
@@ -682,7 +686,11 @@ public class CatalogHandlers {
     }
 
     String planId = "sync-" + UUID.randomUUID();
-    planFilesFor(configuredScan, planId, table.uuid().toString(), tasksPerPlanTask.applyAsInt(configuredScan));
+    planFilesFor(
+        configuredScan,
+        planId,
+        table.uuid().toString(),
+        tasksPerPlanTask.applyAsInt(configuredScan));
     Pair<List<FileScanTask>, String> initial = IN_MEMORY_PLANNING_STATE.initialScanTasksFor(planId);
     return PlanTableScanResponse.builder()
         .withPlanStatus(PlanStatus.COMPLETED)
@@ -801,14 +809,14 @@ public class CatalogHandlers {
    * @param tableId the uuid of the table being scanned
    * @param tasksPerPlanTask number of file scan tasks to group per plan task
    */
-  private static void planFilesFor(Scan<?, FileScanTask, ?> scan, String planId, String tableId, int tasksPerPlanTask) {
+  private static void planFilesFor(
+      Scan<?, FileScanTask, ?> scan, String planId, String tableId, int tasksPerPlanTask) {
     Iterable<List<FileScanTask>> taskGroupings =
         Iterables.partition(scan.planFiles(), tasksPerPlanTask);
     int planTaskSequence = 0;
     String previousPlanTask = null;
     for (List<FileScanTask> taskGrouping : taskGroupings) {
-      String planTaskKey =
-          String.format("%s-%s-%s", planId, tableId, planTaskSequence++);
+      String planTaskKey = String.format("%s-%s-%s", planId, tableId, planTaskSequence++);
       IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, taskGrouping);
       if (previousPlanTask != null) {
         IN_MEMORY_PLANNING_STATE.addNextPlanTask(previousPlanTask, planTaskKey);
