@@ -21,6 +21,7 @@ package org.apache.iceberg.rest.responses;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.Endpoint;
@@ -89,7 +90,16 @@ public class ConfigResponseParser {
     }
 
     if (json.hasNonNull(IDEMPOTENCY_KEY_LIFETIME)) {
-      builder.withIdempotencyKeyLifetime(JsonUtil.getString(IDEMPOTENCY_KEY_LIFETIME, json));
+      String lifetime = JsonUtil.getString(IDEMPOTENCY_KEY_LIFETIME, json);
+      // empty or invalid -> treated as not advertised (skip setting)
+      if (lifetime != null && !lifetime.trim().isEmpty()) {
+        try {
+          Duration.parse(lifetime);
+          builder.withIdempotencyKeyLifetime(lifetime);
+        } catch (RuntimeException e) {
+          // ignore invalid value
+        }
+      }
     }
 
     return builder.build();
