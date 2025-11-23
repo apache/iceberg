@@ -272,6 +272,23 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return null;
   }
 
+  enum PlanningMode
+      implements Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> {
+    SYNCHRONOUS(TestPlanningBehavior.Builder::synchronous),
+    ASYNCHRONOUS(TestPlanningBehavior.Builder::asynchronous);
+
+    private final Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> configurer;
+
+    PlanningMode(Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> configurer) {
+      this.configurer = configurer;
+    }
+
+    @Override
+    public TestPlanningBehavior.Builder apply(TestPlanningBehavior.Builder builder) {
+      return this.configurer.apply(builder);
+    }
+  }
+
   static class TestPlanningBehavior implements RESTCatalogAdapter.PlanningBehavior {
     private final boolean asyncPlanning;
     private final int tasksPerPage;
@@ -3407,10 +3424,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     iterable.close();
   }
 
-  @Test
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
   @Disabled("Pending fix for the RESTCatalogAdapter to support empty tables")
-  public void remoteScanPlanningWithEmptyTable() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+  void remoteScanPlanningWithEmptyTable(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
     Table table = createTableWithScanPlanning("empty_table_test");
     setParserContext(table);
 
@@ -3423,10 +3443,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
   @Disabled("Pruning files based on columns is not yet supported in REST scan planning")
-  public void remoteScanPlanningWithNonExistentColumn() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+  void remoteScanPlanningWithNonExistentColumn(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
     Table table = restTableFor("non-existent_column");
     setParserContext(table);
 
@@ -3437,10 +3460,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
   @Disabled("Pending support for incremental scans in RESTCatalogAdapter")
-  public void incrementalScan() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+  void incrementalScan(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
     Table table = restTableFor("incremental_scan");
     setParserContext(table);
 
@@ -3459,9 +3485,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
-  public void remoteScanPlanningWithPositionDeletes() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void remoteScanPlanningWithPositionDeletes(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
     Table table = restTableFor("position_deletes_test");
     setParserContext(table);
 
@@ -3492,9 +3521,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
-  public void remoteScanPlanningWithEqualityDeletes() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void remoteScanPlanningWithEqualityDeletes(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
     Table table = restTableFor("equality_deletes_test");
     setParserContext(table);
 
@@ -3523,9 +3555,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
-  public void remoteScanPlanningWithMixedDeletes() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void remoteScanPlanningWithMixedDeletes(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
     Table table = restTableFor("mixed_deletes_test");
     setParserContext(table);
 
@@ -3558,9 +3593,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
-  public void remoteScanPlanningWithMultipleDeleteFiles() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void remoteScanPlanningWithMultipleDeleteFiles(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
     Table table = restTableFor("multiple_deletes_test");
     setParserContext(table);
 
@@ -3615,9 +3653,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
-  public void remoteScanPlanningWithDeletesAndFiltering() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void remoteScanPlanningWithDeletesAndFiltering(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
     Table table = restTableFor("deletes_filtering_test");
     setParserContext(table);
 
@@ -3656,9 +3697,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
-  public void remoteScanPlanningDeletesCancellation() throws IOException {
-    configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void remoteScanPlanningDeletesCancellation(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
     Table table = restTableFor("deletes_cancellation_test");
     setParserContext(table);
 
@@ -3678,12 +3722,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(restTableScan.cancelPlan()).isFalse(); // No active plan at this point
   }
 
-  @Test
-  public void remoteScanPlanningWithTimeTravel() {
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void remoteScanPlanningWithTimeTravel(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
     // Test server-side scan planning with time travel (snapshot-based queries)
     // Verify that snapshot IDs are correctly passed through the REST API
     // and that historical scans return the correct files and deletes
-    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+    configurePlanningBehavior(planMode);
 
     // Create table and add FILE_A (snapshot 1)
     Table table = restTableFor("snapshot_scan_test");
