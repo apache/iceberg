@@ -110,6 +110,7 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -3404,6 +3405,58 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // Verify we can close the iterable without exceptions
     // This tests that cancellation callbacks are properly wired through
     iterable.close();
+  }
+
+  @Test
+  @Disabled("Pending fix for the RESTCatalogAdapter to support empty tables")
+  public void remoteScanPlanningWithEmptyTable() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+    Table table = createTableWithScanPlanning("empty_table_test");
+    setParserContext(table);
+
+    // Execute scan planning on empty table
+    try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+
+      // Verify no tasks are returned for empty table
+      assertThat(tasks).isEmpty();
+    }
+  }
+
+  @Test
+  @Disabled("Pruning files based on columns is not yet supported in REST scan planning")
+  public void remoteScanPlanningWithNonExistentColumn() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+    Table table = restTableFor("non-existent_column");
+    setParserContext(table);
+
+    try (CloseableIterable<FileScanTask> iterable =
+        table.newScan().select("non-existent-column").planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+      assertThat(tasks).isEmpty();
+    }
+  }
+
+  @Test
+  @Disabled("Pending support for incremental scans in RESTCatalogAdapter")
+  public void incrementalScan() throws IOException {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
+    Table table = restTableFor("incremental_scan");
+    setParserContext(table);
+
+    // Add second file to the table
+    table.newAppend().appendFile(FILE_B).commit();
+    Long startSnapshotId = table.currentSnapshot().snapshotId();
+    // Add third file to the table
+    table.newAppend().appendFile(FILE_C).commit();
+    Long endSnapshotId = table.currentSnapshot().snapshotId();
+    try (CloseableIterable<FileScanTask> iterable =
+        table.newScan().select("incremental_scan").planFiles()) {
+      List<FileScanTask> tasks = Lists.newArrayList(iterable);
+      assertThat(tasks).hasSize(2); // FILE_B and FILE_C
+      assertThat(tasks.get(0).file().location()).isEqualTo(FILE_B.location());
+      assertThat(tasks.get(0).file().location()).isEqualTo(FILE_C.location());
+    }
   }
 
   @Test

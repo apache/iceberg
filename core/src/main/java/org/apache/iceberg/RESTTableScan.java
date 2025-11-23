@@ -137,9 +137,6 @@ public class RESTTableScan extends DataTableScan {
       planTableScanRequestBuilder
           .withSnapshotId(snapshotId)
           .withUseSnapshotSchema(useSnapShotSchema);
-
-    } else {
-      planTableScanRequestBuilder.withSnapshotId(table().currentSnapshot().snapshotId());
     }
 
     return planTableScan(planTableScanRequestBuilder.build());
