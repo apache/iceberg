@@ -19,9 +19,7 @@
 package org.apache.iceberg.connect;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -34,9 +32,8 @@ public class IcebergSinkTask extends SinkTask {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSinkTask.class);
 
-  private IcebergSinkConfig config;
-  private Catalog catalog;
   private Committer committer;
+  private String identifier;
 
   @Override
   public String version() {
@@ -45,36 +42,26 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void start(Map<String, String> props) {
-    this.config = new IcebergSinkConfig(props);
-    this.catalog = CatalogUtils.loadCatalog(config);
+    IcebergSinkConfig config = new IcebergSinkConfig(props);
     this.committer = CommitterFactory.createCommitter(config);
+    this.committer.onTaskStarted(config, context);
+    this.identifier = config.connectorName() + "-" + config.taskId();
   }
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    committer.open(catalog, config, context, partitions);
+    committer.onPartitionsAdded(partitions);
   }
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    committer.close(partitions);
+    committer.onPartitionsRemoved(partitions);
   }
 
   private void close() {
     if (committer != null) {
-      committer.close(List.of());
+      committer.onTaskStopped();
       committer = null;
-    }
-
-    if (catalog != null) {
-      if (catalog instanceof AutoCloseable) {
-        try {
-          ((AutoCloseable) catalog).close();
-        } catch (Exception e) {
-          LOG.warn("An error occurred closing catalog instance, ignoring...", e);
-        }
-      }
-      catalog = null;
     }
   }
 
@@ -82,7 +69,12 @@ public class IcebergSinkTask extends SinkTask {
   public void put(Collection<SinkRecord> sinkRecords) {
     if (committer != null) {
       committer.save(sinkRecords);
+      return;
     }
+    LOG.info(
+        "Task {} received {} records without committer initialization",
+        identifier,
+        sinkRecords.size());
   }
 
   @Override
