@@ -61,11 +61,11 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
-  public void onTaskStarted(IcebergSinkConfig config, SinkTaskContext context) {
-    this.config = config;
+  public void onTaskStarted(IcebergSinkConfig icebergSinkConfig, SinkTaskContext sinkTaskContext) {
+    this.config = icebergSinkConfig;
     this.catalog = CatalogUtils.loadCatalog(config);
     this.clientFactory = new KafkaClientFactory(config.kafkaProps());
-    this.context = context;
+    this.context = sinkTaskContext;
   }
 
   @Override
