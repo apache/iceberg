@@ -63,19 +63,11 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @TempDir private Path tempDir;
 
-  protected String warehouseLocation() {
-    return tempDir.toFile().toURI().toString();
-  }
-
-  private String locationPath(String... pathSegments) {
-    String base = warehouseLocation();
-    if (pathSegments.length == 0) {
-      return base;
-    }
+  protected String baseViewLocation(TableIdentifier identifier) {
+    String base = tempDir.toFile().toURI().toString();
     String combined = base;
-    for (String segment : pathSegments) {
-      combined = RewriteTablePathUtil.combinePaths(combined, segment);
-    }
+    combined = RewriteTablePathUtil.combinePaths(combined, identifier.namespace().toString());
+    combined = RewriteTablePathUtil.combinePaths(combined, identifier.name());
     return combined;
   }
 
@@ -280,7 +272,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location = locationPath("ns", "view");
+    String location = baseViewLocation(identifier);
     View view =
         catalog()
             .buildView(identifier)
@@ -355,8 +347,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location = warehouseLocation();
-    String customLocation = locationPath("custom-location");
+    String location = tempDir.toFile().toURI().toString();
+    String customLocation =
+        RewriteTablePathUtil.combinePaths(tempDir.toFile().toURI().toString(), "custom-location");
 
     View view =
         catalog()
@@ -1599,7 +1592,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location = locationPath("ns", "view");
+    String location = baseViewLocation(identifier);
     View view =
         catalog()
             .buildView(identifier)
@@ -1617,7 +1610,12 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
       assertThat(view.location()).isNotNull();
     }
 
-    String updatedLocation = locationPath("updated", "ns", "view");
+    String updatedLocation =
+        RewriteTablePathUtil.combinePaths(
+            RewriteTablePathUtil.combinePaths(
+                RewriteTablePathUtil.combinePaths(tempDir.toFile().toURI().toString(), "updated"),
+                "ns"),
+            "view");
     view =
         catalog()
             .buildView(identifier)
@@ -1647,7 +1645,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location = locationPath("ns", "view");
+    String location = baseViewLocation(identifier);
     View view =
         catalog()
             .buildView(identifier)
@@ -1664,7 +1662,12 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
       assertThat(view.location()).isNotNull();
     }
 
-    String updatedLocation = locationPath("updated", "ns", "view");
+    String updatedLocation =
+        RewriteTablePathUtil.combinePaths(
+            RewriteTablePathUtil.combinePaths(
+                RewriteTablePathUtil.combinePaths(tempDir.toFile().toURI().toString(), "updated"),
+                "ns"),
+            "view");
     view.updateLocation().setLocation(updatedLocation).commit();
 
     View updatedView = catalog().loadView(identifier);
