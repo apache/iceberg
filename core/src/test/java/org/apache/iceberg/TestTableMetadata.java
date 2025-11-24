@@ -72,6 +72,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -1092,6 +1093,24 @@ public class TestTableMetadata {
                 ImmutableMap.of(),
                 supportedVersion))
         .isNotNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  void testEncryptionVersionValidation(int formatVersion) {
+    assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    TEST_LOCATION,
+                    ImmutableMap.of("encryption.key-id", "test", "encryption.data-key-length", "5"),
+                    formatVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid properties for v%s: [encryption.key-id, encryption.data-key-length]",
+            formatVersion);
   }
 
   @Test

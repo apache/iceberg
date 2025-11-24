@@ -31,6 +31,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.encryption.EncryptedKey;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -139,6 +140,8 @@ public class TableMetadata implements Serializable {
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
 
     PropertyUtil.validateCommitProperties(properties);
+
+    EncryptionUtil.checkCompatibility(properties, formatVersion);
 
     return new Builder()
         .setInitialFormatVersion(formatVersion)

@@ -78,7 +78,7 @@ public class TestTableEncryption extends CatalogTestBase {
     sql(
         "CREATE TABLE %s (id bigint, data string, float float) USING iceberg "
             + "TBLPROPERTIES ( "
-            + "'encryption.key-id'='%s')",
+            + "'encryption.key-id'='%s', 'format-version'='3')",
         tableName, UnitestKMS.MASTER_KEY_NAME1);
 
     sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
