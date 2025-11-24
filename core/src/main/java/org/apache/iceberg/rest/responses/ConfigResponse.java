@@ -200,7 +200,7 @@ public class ConfigResponse implements RESTResponse {
     }
 
     /** Sets the optional idempotency key lifetime advertised by the server. */
-    public Builder withIdempotencyKeyLifetime(@Nullable String lifetime) {
+    public Builder withIdempotencyKeyLifetime(String lifetime) {
       this.idempotencyKeyLifetime = lifetime;
       return this;
     }
