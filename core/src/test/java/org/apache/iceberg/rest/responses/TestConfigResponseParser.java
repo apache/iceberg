@@ -240,14 +240,11 @@ public class TestConfigResponseParser {
                     "{\n"
                         + "  \"defaults\" : { },\n"
                         + "  \"overrides\" : { },\n"
-                        + "  \"idempotency-key-lifetime\" :  \"not-a-duration\"\n"
+                        + "  \"idempotency-key-lifetime\" : \"not-a-duration\"\n"
                         + "}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot parse to a duration string value: idempotency-key-lifetime");
-  }
+        .hasMessageContaining("idempotency-key-lifetime: not-a-duration");
 
-  @Test
-  public void emptyIdempotencyLifetime() {
     assertThatThrownBy(
             () ->
                 ConfigResponseParser.fromJson(
@@ -257,6 +254,6 @@ public class TestConfigResponseParser {
                         + "  \"idempotency-key-lifetime\" : \"\"\n"
                         + "}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot parse to a duration string value: idempotency-key-lifetime");
+        .hasMessageContaining("idempotency-key-lifetime: ");
   }
 }
