@@ -36,6 +36,7 @@ public class PlanTableScanRequestParser {
   private static final String START_SNAPSHOT_ID = "start-snapshot-id";
   private static final String END_SNAPSHOT_ID = "end-snapshot-id";
   private static final String STATS_FIELDS = "stats-fields";
+  private static final String MIN_ROWS_REQUESTED = "min-rows-requested";
 
   private PlanTableScanRequestParser() {}
 
@@ -78,7 +79,8 @@ public class PlanTableScanRequestParser {
     }
 
     if (request.filter() != null) {
-      gen.writeStringField(FILTER, ExpressionParser.toJson(request.filter()));
+      gen.writeFieldName(FILTER);
+      ExpressionParser.toJson(request.filter(), gen);
     }
 
     gen.writeBooleanField(CASE_SENSITIVE, request.caseSensitive());
@@ -86,6 +88,10 @@ public class PlanTableScanRequestParser {
 
     if (request.statsFields() != null && !request.statsFields().isEmpty()) {
       JsonUtil.writeStringArray(STATS_FIELDS, request.statsFields(), gen);
+    }
+
+    if (null != request.minRowsRequested()) {
+      gen.writeNumberField(MIN_ROWS_REQUESTED, request.minRowsRequested());
     }
 
     gen.writeEndObject();
@@ -101,12 +107,12 @@ public class PlanTableScanRequestParser {
     Long snapshotId = JsonUtil.getLongOrNull(SNAPSHOT_ID, json);
     Long startSnapshotId = JsonUtil.getLongOrNull(START_SNAPSHOT_ID, json);
     Long endSnapshotId = JsonUtil.getLongOrNull(END_SNAPSHOT_ID, json);
-
+    Long minRowsRequested = JsonUtil.getLongOrNull(MIN_ROWS_REQUESTED, json);
     List<String> select = JsonUtil.getStringListOrNull(SELECT, json);
 
     Expression filter = null;
     if (json.has(FILTER)) {
-      filter = ExpressionParser.fromJson(json.get(FILTER).textValue());
+      filter = ExpressionParser.fromJson(json.get(FILTER));
     }
 
     boolean caseSensitive = true;
@@ -130,6 +136,7 @@ public class PlanTableScanRequestParser {
         .withStartSnapshotId(startSnapshotId)
         .withEndSnapshotId(endSnapshotId)
         .withStatsFields(statsFields)
+        .withMinRowsRequested(minRowsRequested)
         .build();
   }
 }

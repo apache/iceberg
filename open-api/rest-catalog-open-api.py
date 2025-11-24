@@ -987,8 +987,8 @@ class FailedPlanningResult(IcebergErrorResponse):
 
 class AsyncPlanningResult(BaseModel):
     status: Literal['submitted'] = Field(..., const=True)
-    plan_id: Optional[str] = Field(
-        None, alias='plan-id', description='ID used to track a planning request'
+    plan_id: str = Field(
+        ..., alias='plan-id', description='ID used to track a planning request'
     )
 
 
@@ -1445,6 +1445,11 @@ class PlanTableScanRequest(BaseModel):
     filter: Optional[Expression] = Field(
         None, description='Expression used to filter the table data'
     )
+    min_rows_requested: Optional[int] = Field(
+        None,
+        alias='min-rows-requested',
+        description='The minimum number of rows requested for the scan. This is used as a hint to the server to not have to return more rows than necessary. It is not required for the server to return that many rows since the scan may not produce that many rows. The server can also return more rows than requested.',
+    )
     case_sensitive: Optional[bool] = Field(
         True,
         alias='case-sensitive',
@@ -1499,6 +1504,11 @@ class CompletedPlanningResult(ScanTasks):
     """
 
     status: Literal['completed'] = Field(..., const=True)
+    storage_credentials: Optional[List[StorageCredential]] = Field(
+        None,
+        alias='storage-credentials',
+        description='Storage credentials for accessing the files returned in the scan result.\nIf the server returns storage credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to read the files returned in the FileScanTasks as part of the scan result.',
+    )
 
 
 class FetchScanTasksResult(ScanTasks):
@@ -1512,8 +1522,8 @@ class ReportMetricsRequest1(ScanReport):
 
 
 class CompletedPlanningWithIDResult(CompletedPlanningResult):
-    plan_id: Optional[str] = Field(
-        None, alias='plan-id', description='ID used to track a planning request'
+    plan_id: str = Field(
+        ..., alias='plan-id', description='ID used to track a planning request'
     )
     status: Literal['completed']
 
