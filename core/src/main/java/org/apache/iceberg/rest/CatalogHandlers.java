@@ -658,7 +658,6 @@ public class CatalogHandlers {
               .toSnapshot(request.endSnapshotId());
 
       configuredScan = configureScan(incrementalScan, request);
-
     } else {
       // Regular table scan at a specific snapshot
       TableScan tableScan = table.newScan();
