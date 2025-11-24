@@ -180,7 +180,7 @@ public class TestAwsClientProperties {
     Map<String, String> properties =
         ImmutableMap.of(
             CatalogProperties.URI,
-            "http://localhost:1234/v1",
+            "http://localhost:1234/v1/catalog",
             AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
             "http://localhost:1234/v1/credentials",
             OAuth2Properties.TOKEN,
@@ -189,17 +189,22 @@ public class TestAwsClientProperties {
             "specific-token");
     AwsClientProperties awsClientProperties = new AwsClientProperties(properties);
 
-    Map<String, String> expectedProperties =
-        ImmutableMap.<String, String>builder()
-            .putAll(properties)
-            .put("credentials.uri", "http://localhost:1234/v1/credentials")
-            .build();
-
     AwsCredentialsProvider provider =
         awsClientProperties.credentialsProvider("key", "secret", "token");
     assertThat(provider).isInstanceOf(VendedCredentialsProvider.class);
     VendedCredentialsProvider vendedCredentialsProvider = (VendedCredentialsProvider) provider;
-    assertThat(vendedCredentialsProvider).extracting("properties").isEqualTo(expectedProperties);
+    assertThat(vendedCredentialsProvider)
+        .extracting("properties")
+        .isEqualTo(
+            ImmutableMap.of(
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "http://localhost:1234/v1/credentials",
+                "credentials.uri",
+                "http://localhost:1234/v1/credentials",
+                CatalogProperties.URI,
+                "http://localhost:1234/v1/catalog",
+                OAuth2Properties.TOKEN,
+                "specific-token"));
   }
 
   @Test
