@@ -23,8 +23,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
@@ -43,11 +47,12 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespaces> {
+  private static final String TEMP_DIR_PREFIX = "iceberg-view-catalog-tests-";
+
   protected static final Schema SCHEMA =
       new Schema(
           5,
@@ -61,7 +66,18 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   protected abstract Catalog tableCatalog();
 
-  @TempDir private Path tempDir;
+  protected String getLocation(String... dirs) {
+    try {
+      Path tempDir = Files.createTempDirectory(TEMP_DIR_PREFIX);
+      if (dirs.length == 0) {
+        return tempDir.toString();
+      }
+      Path subDir = Paths.get(dirs[0], Arrays.copyOfRange(dirs, 1, dirs.length));
+      return Paths.get(tempDir.toUri().toString(), subDir.toString()).toString();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
 
   protected boolean requiresNamespaceCreate() {
     return false;
@@ -264,8 +280,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location =
-        Paths.get(tempDir.toUri().toString(), Paths.get("ns", "view").toString()).toString();
+    String location = getLocation("ns", "view");
     View view =
         catalog()
             .buildView(identifier)
@@ -340,8 +355,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location = Paths.get(tempDir.toUri().toString()).toString();
-    String customLocation = Paths.get(tempDir.toUri().toString(), "custom-location").toString();
+    String location = getLocation();
+    String customLocation = getLocation("custom-location");
 
     View view =
         catalog()
@@ -1584,8 +1599,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location =
-        Paths.get(tempDir.toUri().toString(), Paths.get("ns", "view").toString()).toString();
+    String location = getLocation("ns", "view");
     View view =
         catalog()
             .buildView(identifier)
@@ -1603,9 +1617,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
       assertThat(view.location()).isNotNull();
     }
 
-    String updatedLocation =
-        Paths.get(tempDir.toUri().toString(), Paths.get("updated", "ns", "view").toString())
-            .toString();
+    String updatedLocation = getLocation("updated", "ns", "view");
     view =
         catalog()
             .buildView(identifier)
@@ -1635,8 +1647,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location =
-        Paths.get(tempDir.toUri().toString(), Paths.get("ns", "view").toString()).toString();
+    String location = getLocation("ns", "view");
     View view =
         catalog()
             .buildView(identifier)
@@ -1653,9 +1664,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
       assertThat(view.location()).isNotNull();
     }
 
-    String updatedLocation =
-        Paths.get(tempDir.toUri().toString(), Paths.get("updated", "ns", "view").toString())
-            .toString();
+    String updatedLocation = getLocation("updated", "ns", "view");
     view.updateLocation().setLocation(updatedLocation).commit();
 
     View updatedView = catalog().loadView(identifier);
