@@ -234,27 +234,29 @@ public class TestConfigResponseParser {
 
   @Test
   public void invalidIdempotencyLifetime() {
-    ConfigResponse parsed =
-        ConfigResponseParser.fromJson(
-            "{\n"
-                + "  \"defaults\" : { },\n"
-                + "  \"overrides\" : { },\n"
-                + "  \"idempotency-key-lifetime\" : \"not-a-duration\"\n"
-                + "}");
-    // invalid value is treated as "not advertised"
-    assertThat(parsed.idempotencyKeyLifetime()).isNull();
+    assertThatThrownBy(
+            () ->
+                ConfigResponseParser.fromJson(
+                    "{\n"
+                        + "  \"defaults\" : { },\n"
+                        + "  \"overrides\" : { },\n"
+                        + "  \"idempotency-key-lifetime\" :  \"not-a-duration\"\n"
+                        + "}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse to a duration string value: idempotency-key-lifetime");
   }
 
   @Test
   public void emptyIdempotencyLifetime() {
-    ConfigResponse parsed =
-        ConfigResponseParser.fromJson(
-            "{\n"
-                + "  \"defaults\" : { },\n"
-                + "  \"overrides\" : { },\n"
-                + "  \"idempotency-key-lifetime\" : \"\"\n"
-                + "}");
-    // empty value is treated as "not advertised"
-    assertThat(parsed.idempotencyKeyLifetime()).isNull();
+    assertThatThrownBy(
+            () ->
+                ConfigResponseParser.fromJson(
+                    "{\n"
+                        + "  \"defaults\" : { },\n"
+                        + "  \"overrides\" : { },\n"
+                        + "  \"idempotency-key-lifetime\" : \"\"\n"
+                        + "}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse to a duration string value: idempotency-key-lifetime");
   }
 }
