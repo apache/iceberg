@@ -39,7 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestPuffinWriter {
 
@@ -99,8 +99,8 @@ public class TestPuffinWriter {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  public void testFileSizeCalculation(boolean isEncrypted) throws Exception {
+  @CsvSource({"true, 158", "false, 122"})
+  public void testFileSizeCalculation(boolean isEncrypted, long expectedSize) throws Exception {
     final OutputFile outputFile;
 
     if (isEncrypted) {
@@ -126,7 +126,7 @@ public class TestPuffinWriter {
             null,
             ImmutableMap.of()));
     writer.close();
-    assertThat(writer.length()).isEqualTo(isEncrypted ? 158L : 122L);
+    assertThat(writer.length()).isEqualTo(expectedSize);
   }
 
   private void testWriteMetric(PuffinCompressionCodec compression, String expectedResource)
