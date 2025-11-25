@@ -199,7 +199,9 @@ public class JsonUtil {
       java.time.Duration.parse(value);
     } catch (RuntimeException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot parse to a duration string value: %s: %s", property, value), e);
+          String.format(
+              "Cannot parse to a duration string value: %s: %s", property, node.get(property)),
+          e);
     }
 
     return value;

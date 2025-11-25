@@ -89,10 +89,8 @@ public class ConfigResponseParser {
     }
 
     if (json.hasNonNull(IDEMPOTENCY_KEY_LIFETIME)) {
-      String lifetime = JsonUtil.getDurationStringOrNull(IDEMPOTENCY_KEY_LIFETIME, json);
-      if (lifetime != null) {
-        builder.withIdempotencyKeyLifetime(lifetime);
-      }
+      builder.withIdempotencyKeyLifetime(
+          JsonUtil.getDurationStringOrNull(IDEMPOTENCY_KEY_LIFETIME, json));
     }
 
     return builder.build();

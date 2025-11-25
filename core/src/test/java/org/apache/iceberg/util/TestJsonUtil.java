@@ -170,13 +170,13 @@ public class TestJsonUtil {
                 JsonUtil.getDurationStringOrNull(
                     "x", JsonUtil.mapper().readTree("{\"x\": \"30M\"}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("x: 30M");
+        .hasMessage("Cannot parse to a duration string value: x: \"30M\"");
 
     assertThatThrownBy(
             () ->
                 JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"\"}")))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("x: ");
+        .hasMessage("Cannot parse to a duration string value: x: \"\"");
   }
 
   @Test

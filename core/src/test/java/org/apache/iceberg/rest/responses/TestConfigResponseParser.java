@@ -243,7 +243,8 @@ public class TestConfigResponseParser {
                         + "  \"idempotency-key-lifetime\" : \"not-a-duration\"\n"
                         + "}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("idempotency-key-lifetime: not-a-duration");
+        .hasMessage(
+            "Cannot parse to a duration string value: idempotency-key-lifetime: \"not-a-duration\"");
 
     assertThatThrownBy(
             () ->
@@ -254,6 +255,6 @@ public class TestConfigResponseParser {
                         + "  \"idempotency-key-lifetime\" : \"\"\n"
                         + "}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("idempotency-key-lifetime: ");
+        .hasMessage("Cannot parse to a duration string value: idempotency-key-lifetime: \"\"");
   }
 }
