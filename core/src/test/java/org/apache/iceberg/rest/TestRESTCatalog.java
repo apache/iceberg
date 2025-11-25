@@ -96,7 +96,6 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.view.ViewMetadata;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
@@ -3076,11 +3075,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCustomTableOperationsInjection() throws IOException {
-    AtomicBoolean customTableOps = new AtomicBoolean();
-    AtomicBoolean customTxnOps = new AtomicBoolean();
-    AtomicBoolean customViewOps = new AtomicBoolean();
+    AtomicBoolean customTableOpsCalled = new AtomicBoolean();
 
-    // Custom RESTSessionCatalog that overrides table/view operations creation
+    // Custom RESTSessionCatalog that overrides table operations creation
     class CustomRESTSessionCatalog extends RESTSessionCatalog {
       CustomRESTSessionCatalog(
           Function<Map<String, String>, RESTClient> clientBuilder,
@@ -3096,12 +3093,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           FileIO fileIO,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        customTableOps.set(true);
+        customTableOpsCalled.set(true);
         return super.newTableOps(restClient, path, headers, fileIO, current, supportedEndpoints);
       }
 
       @Override
-      protected RESTTableOperations newTableOpsForTransaction(
+      protected RESTTableOperations newTableOps(
           RESTClient restClient,
           String path,
           Supplier<Map<String, String>> headers,
@@ -3110,8 +3107,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           List<MetadataUpdate> createChanges,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        customTxnOps.set(true);
-        return super.newTableOpsForTransaction(
+        customTableOpsCalled.set(true);
+        return super.newTableOps(
             restClient,
             path,
             headers,
@@ -3120,17 +3117,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             createChanges,
             current,
             supportedEndpoints);
-      }
-
-      @Override
-      protected RESTViewOperations newViewOps(
-          RESTClient restClient,
-          String path,
-          Supplier<Map<String, String>> headers,
-          ViewMetadata current,
-          Set<Endpoint> supportedEndpoints) {
-        customViewOps.set(true);
-        return super.newViewOps(restClient, path, headers, current, supportedEndpoints);
       }
     }
 
@@ -3159,25 +3145,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           ImmutableMap.of(
               CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
 
-      Namespace ns = Namespace.of("test_custom_ops");
-      catalog.createNamespace(ns);
+      catalog.createNamespace(NS);
 
-      catalog.createTable(TableIdentifier.of(ns, "table1"), SCHEMA);
-      assertThat(customTableOps).isTrue();
+      // Test simple table operations
+      assertThat(customTableOpsCalled).isFalse();
+      catalog.createTable(TABLE, SCHEMA);
+      assertThat(customTableOpsCalled).isTrue();
 
-      catalog
-          .buildTable(TableIdentifier.of(ns, "table2"), SCHEMA)
-          .createTransaction()
-          .commitTransaction();
-      assertThat(customTxnOps).isTrue();
-
-      catalog
-          .buildView(TableIdentifier.of(ns, "view1"))
-          .withSchema(SCHEMA)
-          .withDefaultNamespace(ns)
-          .withQuery("spark", "select * from ns.table")
-          .create();
-      assertThat(customViewOps).isTrue();
+      // Test transaction-based table operations
+      customTableOpsCalled.set(false);
+      TableIdentifier table2 = TableIdentifier.of(NS, "table2");
+      catalog.buildTable(table2, SCHEMA).createTransaction().commitTransaction();
+      assertThat(customTableOpsCalled).isTrue();
     }
   }
 

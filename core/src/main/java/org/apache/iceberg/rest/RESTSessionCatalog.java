@@ -816,7 +816,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          newTableOpsForTransaction(
+          newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
@@ -879,7 +879,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          newTableOpsForTransaction(
+          newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
@@ -1046,13 +1046,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * @param path the REST path for the table
    * @param headers a supplier for additional HTTP headers to include in requests
    * @param fileIO the FileIO implementation for reading and writing table metadata and data files
-   * @param updateType the type of update being performed (CREATE, REPLACE, or SIMPLE)
+   * @param updateType the {@link RESTTableOperations.UpdateType} being performed
    * @param createChanges the list of metadata updates to apply during table creation or replacement
    * @param current the current table metadata (may be null for CREATE operations)
    * @param supportedEndpoints the set of supported REST endpoints
    * @return a new RESTTableOperations instance
    */
-  protected RESTTableOperations newTableOpsForTransaction(
+  protected RESTTableOperations newTableOps(
       RESTClient restClient,
       String path,
       Supplier<Map<String, String>> headers,

@@ -32,14 +32,20 @@ import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
@@ -48,6 +54,7 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.view.ViewCatalogTests;
+import org.apache.iceberg.view.ViewMetadata;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -306,6 +313,70 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     verifyViewExistsFallbackToGETRequest(
         ConfigResponse.builder().build(),
         ImmutableMap.of(RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED, "true"));
+  }
+
+  @Test
+  public void testCustomViewOperationsInjection() throws Exception {
+    AtomicBoolean customViewOpsCalled = new AtomicBoolean();
+
+    // Custom RESTSessionCatalog that overrides view operations creation
+    class CustomRESTSessionCatalog extends RESTSessionCatalog {
+      CustomRESTSessionCatalog(
+          Function<Map<String, String>, RESTClient> clientBuilder,
+          BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
+        super(clientBuilder, ioBuilder);
+      }
+
+      @Override
+      protected RESTViewOperations newViewOps(
+          RESTClient restClient,
+          String path,
+          Supplier<Map<String, String>> headers,
+          ViewMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        customViewOpsCalled.set(true);
+        return super.newViewOps(restClient, path, headers, current, supportedEndpoints);
+      }
+    }
+
+    // Custom RESTCatalog that provides the custom session catalog
+    class CustomRESTCatalog extends RESTCatalog {
+      CustomRESTCatalog(
+          SessionCatalog.SessionContext context,
+          Function<Map<String, String>, RESTClient> clientBuilder) {
+        super(context, clientBuilder);
+      }
+
+      @Override
+      protected RESTSessionCatalog newSessionCatalog(
+          Function<Map<String, String>, RESTClient> clientBuilder) {
+        return new CustomRESTSessionCatalog(clientBuilder, null);
+      }
+    }
+
+    try (CustomRESTCatalog catalog =
+        new CustomRESTCatalog(
+            SessionCatalog.SessionContext.createEmpty(),
+            (config) -> new RESTCatalogAdapter(backendCatalog))) {
+      catalog.initialize(
+          "test",
+          ImmutableMap.of(
+              CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+      Namespace namespace = Namespace.of("ns");
+      catalog.createNamespace(namespace);
+
+      // Test view operations
+      assertThat(customViewOpsCalled).isFalse();
+      TableIdentifier viewIdentifier = TableIdentifier.of(namespace, "view1");
+      catalog
+          .buildView(viewIdentifier)
+          .withSchema(SCHEMA)
+          .withDefaultNamespace(namespace)
+          .withQuery("spark", "select * from ns.table")
+          .create();
+      assertThat(customViewOpsCalled).isTrue();
+    }
   }
 
   @Override
