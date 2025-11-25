@@ -66,13 +66,17 @@ class RewriteUtil {
   }
 
   static List<DataFileRewriteRunner.ExecutedGroup> executeRewrite(
-      List<DataFileRewritePlanner.PlannedGroup> elements) throws Exception {
+      List<DataFileRewritePlanner.PlannedGroup> elements, boolean openParquetMerge)
+      throws Exception {
     try (OneInputStreamOperatorTestHarness<
             DataFileRewritePlanner.PlannedGroup, DataFileRewriteRunner.ExecutedGroup>
         testHarness =
             ProcessFunctionTestHarnesses.forProcessFunction(
                 new DataFileRewriteRunner(
-                    OperatorTestBase.DUMMY_TABLE_NAME, OperatorTestBase.DUMMY_TABLE_NAME, 0))) {
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    OperatorTestBase.DUMMY_TABLE_NAME,
+                    0,
+                    openParquetMerge))) {
       testHarness.open();
 
       for (DataFileRewritePlanner.PlannedGroup element : elements) {
