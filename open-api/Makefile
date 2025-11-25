@@ -16,13 +16,14 @@
 # under the License.
 
 install:
-	pip install -r requirements.txt
+	uv venv --allow-existing
+	uv pip install -r requirements.txt
 
 lint:
-	openapi-spec-validator --errors all rest-catalog-open-api.yaml
+	uv run openapi-spec-validator --errors all rest-catalog-open-api.yaml
 
 generate:
-	datamodel-codegen \
+	uv run datamodel-codegen \
                 --enum-field-as-literal all \
 	        --target-python-version 3.9 \
 	        --use-schema-description \
