@@ -31,6 +31,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteCommitter;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewritePlanner;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteRunner;
+import org.apache.iceberg.flink.maintenance.operator.ParquetMergeDataFileRewriteRunner;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -59,6 +60,8 @@ public class RewriteDataFiles {
     private final Map<String, String> rewriteOptions = Maps.newHashMapWithExpectedSize(6);
     private long maxRewriteBytes = Long.MAX_VALUE;
     private Expression filter = Expressions.alwaysTrue();
+    private boolean openParquetMerge = false;
+    private long parquetMergeThresholdByteSize = 128 * 1024 * 1024;
 
     @Override
     String maintenanceTaskName() {
@@ -95,6 +98,17 @@ public class RewriteDataFiles {
      */
     public Builder maxRewriteBytes(long newMaxRewriteBytes) {
       this.maxRewriteBytes = newMaxRewriteBytes;
+      return this;
+    }
+
+    /**
+     * Configures the threshold byte size of the rewrites for using parquet merge. This could be
+     * used to make the new data file read more efficient.
+     *
+     * @param newParquetMergeThresholdByteSize the threshold byte size of using parquet merge
+     */
+    public Builder parquetMergeThresholdByteSize(long newParquetMergeThresholdByteSize) {
+      this.parquetMergeThresholdByteSize = newParquetMergeThresholdByteSize;
       return this;
     }
 
@@ -219,6 +233,16 @@ public class RewriteDataFiles {
     }
 
     /**
+     * Configures whether to open parquet merge.
+     *
+     * @param newOpenParquetMerge whether to open parquet merge
+     */
+    public Builder openParquetMerge(boolean newOpenParquetMerge) {
+      this.openParquetMerge = newOpenParquetMerge;
+      return this;
+    }
+
+    /**
      * Configures the properties for the rewriter.
      *
      * @param rewriteDataFilesConfig properties for the rewriter
@@ -271,7 +295,11 @@ public class RewriteDataFiles {
       SingleOutputStreamOperator<DataFileRewriteRunner.ExecutedGroup> rewritten =
           planned
               .rebalance()
-              .process(new DataFileRewriteRunner(tableName(), taskName(), index()))
+              .process(
+                  openParquetMerge
+                      ? new ParquetMergeDataFileRewriteRunner(
+                          tableName(), taskName(), index(), parquetMergeThresholdByteSize)
+                      : new DataFileRewriteRunner(tableName(), taskName(), index()))
               .name(operatorName(REWRITE_TASK_NAME))
               .uid(REWRITE_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())

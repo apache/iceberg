@@ -31,13 +31,28 @@ import java.util.stream.Collectors;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 class TestDataFileRewriteCommitter extends OperatorTestBase {
-  @Test
+  @Parameter(index = 0)
+  private boolean openParquetMerge;
+
+  @Parameters(name = "openParquetMerge = {0}")
+  private static Object[][] parameters() {
+    return new Object[][] {{false}, {true}};
+  }
+
+  private static final long PARQUET_MERGE_THRESHOLD_BYTE_SIZE = 0L;
+
+  @TestTemplate
   void testUnpartitioned() throws Exception {
     Table table = createTable();
     insert(table, 1, "p1");
@@ -46,7 +61,8 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(1);
-    List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten =
+        executeRewrite(planned, openParquetMerge, PARQUET_MERGE_THRESHOLD_BYTE_SIZE);
     assertThat(rewritten).hasSize(1);
 
     try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
@@ -64,7 +80,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
         table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles(), 1);
   }
 
-  @Test
+  @TestTemplate
   void testPartitioned() throws Exception {
     Table table = createPartitionedTable();
     insertPartitioned(table, 1, "p1");
@@ -74,7 +90,8 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(2);
-    List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten =
+        executeRewrite(planned, openParquetMerge, PARQUET_MERGE_THRESHOLD_BYTE_SIZE);
     assertThat(rewritten).hasSize(2);
     assertThat(rewritten.get(0).groupsPerCommit()).isEqualTo(1);
     assertThat(rewritten.get(1).groupsPerCommit()).isEqualTo(1);
@@ -105,7 +122,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   void testNewTable() throws Exception {
     Table table = createTable();
     List<DataFileRewriteRunner.ExecutedGroup> rewritten;
@@ -120,7 +137,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
       List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
       assertThat(planned).hasSize(1);
-      rewritten = executeRewrite(planned);
+      rewritten = executeRewrite(planned, openParquetMerge, PARQUET_MERGE_THRESHOLD_BYTE_SIZE);
       assertThat(rewritten).hasSize(1);
 
       testHarness.processElement(rewritten.get(0), EVENT_TIME);
@@ -134,7 +151,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
         table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles(), 1);
   }
 
-  @Test
+  @TestTemplate
   void testBatchSize() throws Exception {
     Table table = createPartitionedTable();
     insertPartitioned(table, 1, "p1");
@@ -146,7 +163,8 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(3);
-    List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten =
+        executeRewrite(planned, openParquetMerge, PARQUET_MERGE_THRESHOLD_BYTE_SIZE);
     assertThat(rewritten).hasSize(3);
     ensureDifferentGroups(rewritten);
 
@@ -178,7 +196,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
         table, rewritten.get(2).group().addedFiles(), rewritten.get(2).group().rewrittenFiles(), 3);
   }
 
-  @Test
+  @TestTemplate
   void testError() throws Exception {
     Table table = createPartitionedTable();
     insertPartitioned(table, 1, "p1");
@@ -192,7 +210,8 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(4);
-    List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten =
+        executeRewrite(planned, openParquetMerge, PARQUET_MERGE_THRESHOLD_BYTE_SIZE);
     assertThat(rewritten).hasSize(4);
 
     try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
