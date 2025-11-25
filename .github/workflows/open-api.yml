@@ -42,10 +42,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.9
-      - name: Install
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Install dependencies
         working-directory: ./open-api
         run: make install
       - name: Validate REST catalog spec
@@ -58,5 +57,5 @@ jobs:
         working-directory: ./open-api
         run: git diff --exit-code
       - name: Validate S3 REST Signer spec
-        working-directory: ./aws/src/main/resources
-        run: openapi-spec-validator s3-signer-open-api.yaml
+        working-directory: ./open-api
+        run: uv run openapi-spec-validator --errors all ../aws/src/main/resources/s3-signer-open-api.yaml
