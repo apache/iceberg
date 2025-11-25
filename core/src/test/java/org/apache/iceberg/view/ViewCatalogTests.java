@@ -41,6 +41,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.LocationUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -63,12 +64,12 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   @TempDir private Path tempDir;
 
   protected String viewLocation(String... paths) {
-    String location = tempDir.toFile().toURI().toString();
-    location = location.substring(0, location.length() - 1);
+    StringBuilder location =
+        new StringBuilder(LocationUtil.stripTrailingSlash(tempDir.toFile().toURI().toString()));
     for (String path : paths) {
-      location = location + "/" + path;
+      location.append("/").append(path);
     }
-    return location;
+    return location.toString();
   }
 
   protected boolean requiresNamespaceCreate() {
