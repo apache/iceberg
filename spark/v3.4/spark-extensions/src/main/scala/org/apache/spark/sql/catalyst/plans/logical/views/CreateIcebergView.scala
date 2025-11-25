@@ -35,6 +35,8 @@ case class CreateIcebergView(
   allowExisting: Boolean,
   replace: Boolean,
   rewritten: Boolean = false,
+  // Align Iceberg CreateIcebergView with Spark’s CreateViewCommand by extending AnalysisOnlyCommand.
+  // The command’s children are analyzed then hidden, so the optimizer/planner won’t traverse the view body.
   isAnalyzed: Boolean = false) extends AnalysisOnlyCommand {
 
   override def childrenToAnalyze: Seq[LogicalPlan] = child :: query :: Nil
