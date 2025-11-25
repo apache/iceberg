@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -68,6 +69,7 @@ import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
+import org.apache.spark.sql.sources.StringEndsWith;
 import org.apache.spark.sql.sources.StringStartsWith;
 
 public class SparkFilters {
@@ -95,6 +97,7 @@ public class SparkFilters {
           .put(Or.class, Operation.OR)
           .put(Not.class, Operation.NOT)
           .put(StringStartsWith.class, Operation.STARTS_WITH)
+          .put(StringEndsWith.class, Operation.ENDS_WITH)
           .buildOrThrow();
 
   public static Expression convert(Filter[] filters) {
@@ -219,6 +222,12 @@ public class SparkFilters {
           {
             StringStartsWith stringStartsWith = (StringStartsWith) filter;
             return startsWith(unquote(stringStartsWith.attribute()), stringStartsWith.value());
+          }
+
+        case ENDS_WITH:
+          {
+            StringEndsWith stringEndsWith = (StringEndsWith) filter;
+            return endsWith(unquote(stringEndsWith.attribute()), stringEndsWith.value());
           }
       }
     }

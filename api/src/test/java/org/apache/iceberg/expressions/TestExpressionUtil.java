@@ -343,6 +343,45 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testSanitizeEndsWith() {
+    assertEquals(
+        Expressions.endsWith("test", "(hash-34d05fb7)"),
+        ExpressionUtil.sanitize(Expressions.endsWith("test", "aaa")));
+
+    assertEquals(
+        Expressions.endsWith("data", "(hash-34d05fb7)"),
+        ExpressionUtil.sanitize(STRUCT, Expressions.endsWith("data", "aaa"), true));
+
+    assertThat(ExpressionUtil.toSanitizedString(Expressions.endsWith("test", "aaa")))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("test ENDS WITH (hash-34d05fb7)");
+
+    assertThat(ExpressionUtil.toSanitizedString(STRUCT, Expressions.endsWith("data", "aaa"), true))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("data ENDS WITH (hash-34d05fb7)");
+  }
+
+  @Test
+  public void testSanitizeNotEndsWith() {
+    assertEquals(
+        Expressions.notEndsWith("test", "(hash-34d05fb7)"),
+        ExpressionUtil.sanitize(Expressions.notEndsWith("test", "aaa")));
+
+    assertEquals(
+        Expressions.notEndsWith("data", "(hash-34d05fb7)"),
+        ExpressionUtil.sanitize(STRUCT, Expressions.notEndsWith("data", "aaa"), true));
+
+    assertThat(ExpressionUtil.toSanitizedString(Expressions.notEndsWith("test", "aaa")))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("test NOT ENDS WITH (hash-34d05fb7)");
+
+    assertThat(
+            ExpressionUtil.toSanitizedString(STRUCT, Expressions.notEndsWith("data", "aaa"), true))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("data NOT ENDS WITH (hash-34d05fb7)");
+  }
+
+  @Test
   public void testSanitizeTransformedTerm() {
     assertEquals(
         Expressions.equal(Expressions.truncate("test", 2), "(2-digit-int)"),
@@ -830,6 +869,8 @@ public class TestExpressionUtil {
           Expressions.notIn("id", 5, 6),
           Expressions.startsWith("data", "aaa"),
           Expressions.notStartsWith("data", "aaa"),
+          Expressions.endsWith("data", "aaa"),
+          Expressions.notEndsWith("data", "aaa"),
           Expressions.alwaysTrue(),
           Expressions.alwaysFalse(),
           Expressions.and(Expressions.lessThan("id", 5), Expressions.notNull("data")),

@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -30,6 +31,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEndsWith;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -345,6 +347,54 @@ public class TestEvaluator {
         .isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of("Abcde")))
         .as("Abcde notStartsWith abc should be true")
+        .isTrue();
+  }
+
+  @Test
+  public void testEndsWith() {
+    StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
+    Evaluator evaluator = new Evaluator(struct, endsWith("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
+        .as("abc endsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcx")))
+        .as("abcx endsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("Abc")))
+        .as("Abc endsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("c")))
+        .as("c endsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("xyzabc")))
+        .as("xyzabc endsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of((String) null)))
+        .as("null endsWith abc should be false")
+        .isFalse();
+  }
+
+  @Test
+  public void testNotEndsWith() {
+    StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
+    Evaluator evaluator = new Evaluator(struct, notEndsWith("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
+        .as("abc notEndsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcx")))
+        .as("abcx notEndsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("Abc")))
+        .as("Abc notEndsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("c")))
+        .as("c notEndsWith abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("xyzabc")))
+        .as("xyzabc notEndsWith abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("XyzAbc")))
+        .as("XyzAbc notEndsWith abc should be true")
         .isTrue();
   }
 

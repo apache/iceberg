@@ -22,12 +22,14 @@ import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.extract;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEndsWith;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
@@ -177,6 +179,34 @@ public class TestExpressionBinding {
     assertThat(pred.op())
         .as("Should be right operation")
         .isEqualTo(Expression.Operation.NOT_STARTS_WITH);
+    assertThat(pred.term().ref().fieldId())
+        .as("Should bind term to correct field id")
+        .isEqualTo(21);
+  }
+
+  @Test
+  public void testEndsWith() {
+    StructType struct = StructType.of(required(0, "s", Types.StringType.get()));
+    Expression expr = endsWith("s", "abc");
+    Expression boundExpr = Binder.bind(struct, expr);
+    TestHelpers.assertAllReferencesBound("EndsWith", boundExpr);
+    // make sure the expression is an EndsWith
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
+    assertThat(pred.op()).as("Should be right operation").isEqualTo(Expression.Operation.ENDS_WITH);
+    assertThat(pred.term().ref().fieldId()).as("Should bind s correctly").isZero();
+  }
+
+  @Test
+  public void testNotEndsWith() {
+    StructType struct = StructType.of(required(21, "s", Types.StringType.get()));
+    Expression expr = notEndsWith("s", "abc");
+    Expression boundExpr = Binder.bind(struct, expr);
+    TestHelpers.assertAllReferencesBound("NotEndsWith", boundExpr);
+    // Make sure the expression is a NotEndsWith
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
+    assertThat(pred.op())
+        .as("Should be right operation")
+        .isEqualTo(Expression.Operation.NOT_ENDS_WITH);
     assertThat(pred.term().ref().fieldId())
         .as("Should bind term to correct field id")
         .isEqualTo(21);

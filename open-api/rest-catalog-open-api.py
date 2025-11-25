@@ -123,6 +123,8 @@ class ExpressionType(BaseModel):
             'not-eq',
             'starts-with',
             'not-starts-with',
+            'ends-with',
+            'not-ends-with',
             'is-null',
             'not-null',
             'is-nan',

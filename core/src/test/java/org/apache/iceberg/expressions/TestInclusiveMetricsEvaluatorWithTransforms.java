@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.day;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -29,6 +30,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEndsWith;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
@@ -258,6 +260,14 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
 
     assertThat(shouldRead(notStartsWith(truncate("all_nulls_str", 10), "a")))
         .as("Should read: notStartsWith on all null column")
+        .isTrue();
+
+    assertThat(shouldRead(endsWith(truncate("all_nulls_str", 10), "a")))
+        .as("Should skip: endsWith on all null column")
+        .isFalse();
+
+    assertThat(shouldRead(notEndsWith(truncate("all_nulls_str", 10), "a")))
+        .as("Should read: notEndsWith on all null column")
         .isTrue();
   }
 
@@ -577,15 +587,45 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
 
   @Test
   public void testStringNotStartsWith() {
-    assertThat(shouldRead(startsWith(truncate("str", 10), "a")))
+    assertThat(shouldRead(notStartsWith(truncate("str", 10), "a")))
         .as("Should read: not rewritten")
         .isTrue();
 
-    assertThat(shouldRead(startsWith(truncate("str", 10), "ab")))
+    assertThat(shouldRead(notStartsWith(truncate("str", 10), "ab")))
         .as("Should read: not rewritten")
         .isTrue();
 
-    assertThat(shouldRead(startsWith(truncate("str", 10), "b")))
+    assertThat(shouldRead(notStartsWith(truncate("str", 10), "b")))
+        .as("Should read: not rewritten")
+        .isTrue();
+  }
+
+  @Test
+  public void testStringEndsWith() {
+    assertThat(shouldRead(endsWith(truncate("str", 10), "a")))
+        .as("Should read: not rewritten")
+        .isTrue();
+
+    assertThat(shouldRead(endsWith(truncate("str", 10), "ab")))
+        .as("Should read: not rewritten")
+        .isTrue();
+
+    assertThat(shouldRead(endsWith(truncate("str", 10), "b")))
+        .as("Should read: not rewritten")
+        .isTrue();
+  }
+
+  @Test
+  public void testStringNotEndsWith() {
+    assertThat(shouldRead(notEndsWith(truncate("str", 10), "a")))
+        .as("Should read: not rewritten")
+        .isTrue();
+
+    assertThat(shouldRead(notEndsWith(truncate("str", 10), "ab")))
+        .as("Should read: not rewritten")
+        .isTrue();
+
+    assertThat(shouldRead(notEndsWith(truncate("str", 10), "b")))
         .as("Should read: not rewritten")
         .isTrue();
   }

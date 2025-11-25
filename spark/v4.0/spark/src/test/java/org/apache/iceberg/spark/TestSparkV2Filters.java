@@ -226,6 +226,14 @@ public class TestSparkV2Filters {
               .as("StartsWith must match")
               .isEqualTo(expectedStartsWith.toString());
 
+          Predicate endsWith = new Predicate("ENDS_WITH", attrAndStr);
+          Expression expectedEndsWith = Expressions.endsWith(unquoted, "iceberg");
+          Expression actualEndsWith = SparkV2Filters.convert(endsWith);
+          assertThat(actualEndsWith)
+              .asString()
+              .as("EndsWith must match")
+              .isEqualTo(expectedEndsWith.toString());
+
           Predicate in = new Predicate("IN", attrAndValue);
           Expression expectedIn = Expressions.in(unquoted, 1);
           Expression actualIn = SparkV2Filters.convert(in);

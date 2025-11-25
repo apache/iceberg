@@ -42,6 +42,8 @@ import org.apache.spark.sql.sources.IsNull;
 import org.apache.spark.sql.sources.LessThan;
 import org.apache.spark.sql.sources.LessThanOrEqual;
 import org.apache.spark.sql.sources.Not;
+import org.apache.spark.sql.sources.StringEndsWith;
+import org.apache.spark.sql.sources.StringStartsWith;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkFilters {
@@ -122,6 +124,22 @@ public class TestSparkFilters {
           Expression expectedIn = Expressions.in(unquoted, 1);
           Expression actualIn = SparkFilters.convert(in);
           assertThat(actualIn).asString().as("In must match").isEqualTo(expectedIn.toString());
+
+          StringStartsWith startsWith = StringStartsWith.apply(quoted, "a");
+          Expression expectedStartsWith = Expressions.startsWith(unquoted, "a");
+          Expression actualStartsWith = SparkFilters.convert(startsWith);
+          assertThat(actualStartsWith)
+              .asString()
+              .as("StringStartsWith must match")
+              .isEqualTo(expectedStartsWith.toString());
+
+          StringEndsWith endsWith = StringEndsWith.apply(quoted, "a");
+          Expression expectedEndsWith = Expressions.endsWith(unquoted, "a");
+          Expression actualEndsWith = SparkFilters.convert(endsWith);
+          assertThat(actualEndsWith)
+              .asString()
+              .as("StringEndsWith must match")
+              .isEqualTo(expectedEndsWith.toString());
         });
   }
 

@@ -35,7 +35,6 @@ import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -49,8 +48,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
@@ -58,6 +59,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -79,6 +81,9 @@ import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestBloomRowGroupFilter {
 
@@ -374,40 +379,41 @@ public class TestBloomRowGroupFilter {
     assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
-  @Test
-  public void testStartsWith() {
+  @ParameterizedTest
+  @MethodSource("stringPredicateFactory")
+  public void testStringPredicates(BiFunction<String, String, Expression> predicateFactory) {
     boolean shouldRead =
-        new ParquetBloomRowGroupFilter(SCHEMA, startsWith("non_bloom", "re"))
+        new ParquetBloomRowGroupFilter(SCHEMA, predicateFactory.apply("non_bloom", "re"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should read: no bloom").isTrue();
 
     shouldRead =
-        new ParquetBloomRowGroupFilter(SCHEMA, startsWith("required", "re"))
+        new ParquetBloomRowGroupFilter(SCHEMA, predicateFactory.apply("required", "re"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
-        new ParquetBloomRowGroupFilter(SCHEMA, startsWith("required", "req"))
+        new ParquetBloomRowGroupFilter(SCHEMA, predicateFactory.apply("required", "req"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
-        new ParquetBloomRowGroupFilter(SCHEMA, startsWith("some_nulls", "so"))
+        new ParquetBloomRowGroupFilter(SCHEMA, predicateFactory.apply("some_nulls", "so"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
-        new ParquetBloomRowGroupFilter(SCHEMA, startsWith("required", "reqs"))
+        new ParquetBloomRowGroupFilter(SCHEMA, predicateFactory.apply("required", "reqs"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
-        new ParquetBloomRowGroupFilter(SCHEMA, startsWith("some_nulls", "somex"))
+        new ParquetBloomRowGroupFilter(SCHEMA, predicateFactory.apply("some_nulls", "somex"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
 
     shouldRead =
-        new ParquetBloomRowGroupFilter(SCHEMA, startsWith("no_nulls", "xxx"))
+        new ParquetBloomRowGroupFilter(SCHEMA, predicateFactory.apply("no_nulls", "xxx"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
@@ -1206,5 +1212,14 @@ public class TestBloomRowGroupFilter {
                 SCHEMA, equal("incompatible-name", new BigDecimal("1234.56")))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should not read: decimal outside range").isFalse();
+  }
+
+  static Stream<Arguments> stringPredicateFactory() {
+    return Stream.<BiFunction<String, String, Expression>>of(
+            Expressions::startsWith,
+            Expressions::notStartsWith,
+            Expressions::endsWith,
+            Expressions::notEndsWith)
+        .map(Arguments::of);
   }
 }

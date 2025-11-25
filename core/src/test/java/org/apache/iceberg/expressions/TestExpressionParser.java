@@ -84,6 +84,8 @@ public class TestExpressionParser {
           Expressions.notNaN("f"),
           Expressions.startsWith("s", "crackle"),
           Expressions.notStartsWith("s", "tackle"),
+          Expressions.endsWith("s", "crackle"),
+          Expressions.notEndsWith("s", "tackle"),
           Expressions.equal(Expressions.day("date"), "2022-08-14"),
           Expressions.equal(Expressions.bucket("id", 100), 0),
           Expressions.and(
@@ -539,6 +541,38 @@ public class TestExpressionParser {
             + "}";
 
     Expression expression = Expressions.in("column-name", new BigDecimal("3.14E+4"));
+
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void testEndsWithExpression() {
+    String expected =
+        "{\n"
+            + "  \"type\" : \"ends-with\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"value\" : \"suffix\"\n"
+            + "}";
+
+    Expression expression = Expressions.endsWith("column-name", "suffix");
+
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void testNotEndsWithExpression() {
+    String expected =
+        "{\n"
+            + "  \"type\" : \"not-ends-with\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"value\" : \"suffix\"\n"
+            + "}";
+
+    Expression expression = Expressions.notEndsWith("column-name", "suffix");
 
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))

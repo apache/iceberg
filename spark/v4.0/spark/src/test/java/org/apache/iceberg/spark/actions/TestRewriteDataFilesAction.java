@@ -262,6 +262,39 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testBinPackWithEndsWithFilter() {
+    // Identity partition on c2 so that endsWith filter can prune at partition level
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c2").build();
+    Table table =
+        createTablePartitioned(
+            10,
+            2,
+            100,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            spec);
+
+    shouldHaveFiles(table, 20);
+    List<Object[]> expectedRecords = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    // Table has "c2" values like "foo0", "foo1", etc. (one per partition with identity
+    // partitioning)
+    // Filter for endsWith "o1" which should match only partition "foo1"
+    Result result = basicRewrite(table).filter(Expressions.endsWith("c2", "o1")).execute();
+
+    assertThat(result.rewrittenDataFilesCount())
+        .as("Action should rewrite 2 data files for partition foo1")
+        .isEqualTo(2);
+    assertThat(result.addedDataFilesCount()).as("Action should add 1 data file").isOne();
+    assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
+
+    shouldHaveFiles(table, 19);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
   public void testBinPackWithFilterOnBucketExpression() {
     Table table = createTablePartitioned(4, 2);
 
@@ -2346,13 +2379,18 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   protected Table createTablePartitioned(
-      int partitions, int files, int numRecords, Map<String, String> options) {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
+      int partitions, int files, int numRecords, Map<String, String> options, PartitionSpec spec) {
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
 
     writeRecords(files, numRecords, partitions);
     return table;
+  }
+
+  protected Table createTablePartitioned(
+      int partitions, int files, int numRecords, Map<String, String> options) {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
+    return createTablePartitioned(partitions, files, numRecords, options, spec);
   }
 
   protected Table createTablePartitioned(int partitions, int files) {
