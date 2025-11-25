@@ -202,8 +202,7 @@ public class TestTableMetadata {
             partitionStatisticsFiles,
             40,
             ImmutableList.of(),
-            ImmutableList.of(),
-            null);
+            ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
@@ -308,8 +307,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0,
             ImmutableList.of(),
-            ImmutableList.of(),
-            null);
+            ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
@@ -433,8 +431,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    null))
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
   }
@@ -482,8 +479,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    null))
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
   }
@@ -525,8 +521,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    null))
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
   }
@@ -645,8 +640,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0L,
             ImmutableList.of(),
-            ImmutableList.of(),
-            null);
+            ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(asJson);
@@ -737,8 +731,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0L,
             ImmutableList.of(),
-            ImmutableList.of(),
-            null);
+            ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -844,8 +837,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0L,
             ImmutableList.of(),
-            ImmutableList.of(),
-            null);
+            ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -955,8 +947,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             0L,
             ImmutableList.of(),
-            ImmutableList.of(),
-            null);
+            ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -1004,8 +995,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    null))
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("UUID is required in format v2");
   }
@@ -1042,8 +1032,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     0L,
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    null))
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Unsupported format version: v%s (supported: v%s)",
@@ -1091,8 +1080,7 @@ public class TestTableMetadata {
                 ImmutableList.of(),
                 0L,
                 ImmutableList.of(),
-                ImmutableList.of(),
-                null))
+                ImmutableList.of()))
         .isNotNull();
 
     assertThat(
@@ -1978,219 +1966,5 @@ public class TestTableMetadata {
     meta = TableMetadata.buildFrom(meta).removeSchemas(Sets.newHashSet(1, 2)).build();
 
     assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
-  }
-
-  @Test
-  public void testTransformSnapshotsWithoutLazyLoading() {
-    long snapshotId1 = System.currentTimeMillis();
-    Map<String, String> summary1 =
-        ImmutableMap.of(
-            "total-records", "100",
-            "total-files", "10",
-            "operation", "append");
-
-    Snapshot snapshot1 =
-        new BaseSnapshot(
-            0,
-            snapshotId1,
-            null,
-            snapshotId1,
-            "append",
-            summary1,
-            TEST_SCHEMA.schemaId(),
-            "file:/tmp/manifest1.avro",
-            null,
-            null,
-            null);
-
-    long snapshotId2 = snapshotId1 + 1;
-    Map<String, String> summary2 =
-        ImmutableMap.of(
-            "total-records", "200",
-            "total-files", "20",
-            "operation", "overwrite");
-
-    Snapshot snapshot2 =
-        new BaseSnapshot(
-            1,
-            snapshotId2,
-            snapshotId1,
-            snapshotId2,
-            "overwrite",
-            summary2,
-            TEST_SCHEMA.schemaId(),
-            "file:/tmp/manifest2.avro",
-            null,
-            null,
-            null);
-
-    TableMetadata base =
-        new TableMetadata(
-            null,
-            2,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            1,
-            System.currentTimeMillis(),
-            LAST_ASSIGNED_COLUMN_ID,
-            TEST_SCHEMA.schemaId(),
-            ImmutableList.of(TEST_SCHEMA),
-            SPEC_5.specId(),
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            SORT_ORDER_3.orderId(),
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of(),
-            snapshotId2,
-            ImmutableList.of(snapshot1, snapshot2),
-            null,
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableMap.of(
-                SnapshotRef.MAIN_BRANCH, SnapshotRef.branchBuilder(snapshotId2).build()),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            0L,
-            ImmutableList.of(),
-            ImmutableList.of(),
-            null);
-
-    assertThat(base.snapshots()).hasSize(2);
-    assertThat(base.snapshots().get(0).summary()).isEqualTo(summary1);
-    assertThat(base.snapshots().get(1).summary()).isEqualTo(summary2);
-
-    TableMetadata transformed =
-        base.transformSnapshots(
-            snapshot -> {
-              if (snapshot instanceof BaseSnapshot) {
-                BaseSnapshot tSnapshot = (BaseSnapshot) snapshot;
-                return new BaseSnapshot(
-                    tSnapshot.sequenceNumber(),
-                    tSnapshot.snapshotId(),
-                    tSnapshot.parentId(),
-                    tSnapshot.timestampMillis(),
-                    tSnapshot.operation(),
-                    ImmutableMap.of(),
-                    tSnapshot.schemaId(),
-                    tSnapshot.manifestListLocation(),
-                    tSnapshot.firstRowId(),
-                    tSnapshot.addedRows(),
-                    tSnapshot.keyId());
-              }
-              return snapshot;
-            });
-
-    assertThat(transformed.snapshots()).hasSize(2);
-    assertThat(transformed.snapshots().get(0).summary()).isEmpty();
-    assertThat(transformed.snapshots().get(1).summary()).isEmpty();
-    assertThat(transformed.snapshots().get(0).snapshotId()).isEqualTo(snapshotId1);
-    assertThat(transformed.snapshots().get(1).snapshotId()).isEqualTo(snapshotId2);
-    assertThat(transformed.snapshots().get(0).operation()).isEqualTo("append");
-    assertThat(transformed.snapshots().get(1).operation()).isEqualTo("overwrite");
-  }
-
-  @Test
-  public void testTransformSnapshotsWithLazyLoading() {
-    long snapshotId1 = System.currentTimeMillis();
-    Map<String, String> summary1 =
-        ImmutableMap.of(
-            "total-records", "100",
-            "total-files", "10",
-            "operation", "append");
-
-    Snapshot snapshot1 =
-        new BaseSnapshot(
-            0,
-            snapshotId1,
-            null,
-            snapshotId1,
-            "append",
-            summary1,
-            TEST_SCHEMA.schemaId(),
-            "file:/tmp/manifest1.avro",
-            null,
-            null,
-            null);
-
-    long snapshotId2 = snapshotId1 + 1;
-    Map<String, String> summary2 =
-        ImmutableMap.of(
-            "total-records", "200",
-            "total-files", "20",
-            "operation", "overwrite");
-
-    Snapshot snapshot2 =
-        new BaseSnapshot(
-            1,
-            snapshotId2,
-            snapshotId1,
-            snapshotId2,
-            "overwrite",
-            summary2,
-            TEST_SCHEMA.schemaId(),
-            "file:/tmp/manifest2.avro",
-            null,
-            null,
-            null);
-
-    TableMetadata base =
-        new TableMetadata(
-            null,
-            2,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            1,
-            System.currentTimeMillis(),
-            LAST_ASSIGNED_COLUMN_ID,
-            TEST_SCHEMA.schemaId(),
-            ImmutableList.of(TEST_SCHEMA),
-            SPEC_5.specId(),
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            SORT_ORDER_3.orderId(),
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of(),
-            snapshotId2,
-            null,
-            () -> ImmutableList.of(snapshot1, snapshot2),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableMap.of(
-                SnapshotRef.MAIN_BRANCH, SnapshotRef.branchBuilder(snapshotId2).build()),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            0L,
-            ImmutableList.of(),
-            ImmutableList.of(),
-            null);
-
-    TableMetadata transformed =
-        base.transformSnapshots(
-            snapshot -> {
-              if (snapshot instanceof BaseSnapshot) {
-                BaseSnapshot tSnapshot = (BaseSnapshot) snapshot;
-                return new BaseSnapshot(
-                    tSnapshot.sequenceNumber(),
-                    tSnapshot.snapshotId(),
-                    tSnapshot.parentId(),
-                    tSnapshot.timestampMillis(),
-                    tSnapshot.operation(),
-                    ImmutableMap.of(),
-                    tSnapshot.schemaId(),
-                    tSnapshot.manifestListLocation(),
-                    tSnapshot.firstRowId(),
-                    tSnapshot.addedRows(),
-                    tSnapshot.keyId());
-              }
-              return snapshot;
-            });
-
-    assertThat(transformed.snapshots()).hasSize(2);
-    assertThat(transformed.snapshots().get(0).summary()).isEmpty();
-    assertThat(transformed.snapshots().get(1).summary()).isEmpty();
-    assertThat(transformed.snapshots().get(0).snapshotId()).isEqualTo(snapshotId1);
-    assertThat(transformed.snapshots().get(1).snapshotId()).isEqualTo(snapshotId2);
-    assertThat(transformed.snapshots().get(0).operation()).isEqualTo("append");
-    assertThat(transformed.snapshots().get(1).operation()).isEqualTo("overwrite");
   }
 }

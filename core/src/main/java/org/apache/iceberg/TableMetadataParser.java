@@ -580,8 +580,7 @@ public class TableMetadataParser {
         partitionStatisticsFiles,
         lastRowId,
         keys,
-        ImmutableList.of() /* no changes from the file */,
-        null /* no snapshot transformer */);
+        ImmutableList.of() /* no changes from the file */);
   }
 
   private static Map<String, SnapshotRef> refsFromJson(JsonNode refMap) {
