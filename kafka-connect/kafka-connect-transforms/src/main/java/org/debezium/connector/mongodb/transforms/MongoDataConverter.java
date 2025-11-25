@@ -72,7 +72,7 @@ public class MongoDataConverter {
         break;
 
       case STRING:
-        colValue = keyValueForStruct.getValue().asString().getValue().toString();
+        colValue = keyValueForStruct.getValue().asString().getValue();
         break;
 
       case OBJECT_ID:
@@ -491,7 +491,7 @@ public class MongoDataConverter {
 
   private void testArrayElementType(
       SchemaBuilder builder, Entry<String, BsonValue> arrayDoc, Map<String, BsonType> union) {
-    final String docKey = (String) arrayDoc.getKey();
+    final String docKey = arrayDoc.getKey();
     final BsonType currentType = arrayDoc.getValue().getBsonType();
     final BsonType prevType = union.putIfAbsent(docKey, currentType);
 

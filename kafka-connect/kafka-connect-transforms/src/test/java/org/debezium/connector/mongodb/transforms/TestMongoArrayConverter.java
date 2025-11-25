@@ -44,13 +44,13 @@ public class TestMongoArrayConverter {
     return sb.toString();
   }
 
-  private static final String HETEROGENOUS_ARRAY =
+  private static final String HETEROGENEOUS_ARRAY =
       lines(
           "{", "    \"_id\": 1,", "    \"a2\": [", "        11,", "        \"abc\"", "    ]", "}");
 
   private static final String EMPTY_ARRAY = lines("{", "    \"_id\": 1,", "    \"f\": []", "}");
 
-  private static final String HETEROGENOUS_DOCUMENT_IN_ARRAY =
+  private static final String HETEROGENEOUS_DOCUMENT_IN_ARRAY =
       lines(
           "{",
           "    \"_id\": 1,",
@@ -98,14 +98,14 @@ public class TestMongoArrayConverter {
   private SchemaBuilder builder;
 
   @BeforeEach
-  public void setUpBeforeEach() throws Exception {
+  public void setUpBeforeEach() {
     builder = SchemaBuilder.struct().name("array");
   }
 
   @Test
-  public void shouldDetectHeterogenousArray() {
+  public void shouldDetectHeterogeneousArray() {
     final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
-    final BsonDocument val = BsonDocument.parse(HETEROGENOUS_ARRAY);
+    final BsonDocument val = BsonDocument.parse(HETEROGENEOUS_ARRAY);
 
     assertThatThrownBy(
             () -> {
@@ -118,9 +118,9 @@ public class TestMongoArrayConverter {
   }
 
   @Test
-  public void shouldDetectHeterogenousDocumentInArray() {
+  public void shouldDetectHeterogeneousDocumentInArray() {
     final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
-    final BsonDocument val = BsonDocument.parse(HETEROGENOUS_DOCUMENT_IN_ARRAY);
+    final BsonDocument val = BsonDocument.parse(HETEROGENEOUS_DOCUMENT_IN_ARRAY);
 
     assertThatThrownBy(
             () -> {
@@ -211,7 +211,7 @@ public class TestMongoArrayConverter {
   }
 
   @Test
-  public void shouldCreateSchemaForEmptyArrayEncodingArray() throws Exception {
+  public void shouldCreateSchemaForEmptyArrayEncodingArray() {
     final BsonDocument val = BsonDocument.parse(EMPTY_ARRAY);
 
     final MongoDataConverter arrayConverter = new MongoDataConverter(ArrayEncoding.ARRAY);
@@ -230,7 +230,7 @@ public class TestMongoArrayConverter {
   }
 
   @Test
-  public void shouldCreateStructForEmptyArrayEncodingArray() throws Exception {
+  public void shouldCreateStructForEmptyArrayEncodingArray() {
     final BsonDocument val = BsonDocument.parse(EMPTY_ARRAY);
 
     final MongoDataConverter arrayConverter = new MongoDataConverter(ArrayEncoding.ARRAY);
@@ -251,7 +251,7 @@ public class TestMongoArrayConverter {
   }
 
   @Test
-  public void shouldCreateSchemaForEmptyArrayEncodingDocument() throws Exception {
+  public void shouldCreateSchemaForEmptyArrayEncodingDocument() {
     final BsonDocument val = BsonDocument.parse(EMPTY_ARRAY);
 
     final MongoDataConverter documentConverter = new MongoDataConverter(ArrayEncoding.DOCUMENT);
@@ -270,7 +270,7 @@ public class TestMongoArrayConverter {
   }
 
   @Test
-  public void shouldCreateStructForEmptyArrayEncodingDocument() throws Exception {
+  public void shouldCreateStructForEmptyArrayEncodingDocument() {
     final BsonDocument val = BsonDocument.parse(EMPTY_ARRAY);
 
     final MongoDataConverter documentConverter = new MongoDataConverter(ArrayEncoding.DOCUMENT);
@@ -289,9 +289,9 @@ public class TestMongoArrayConverter {
   }
 
   @Test
-  public void shouldCreateSchemaForHeterogenousArray() throws Exception {
+  public void shouldCreateSchemaForHeterogeneousArray() {
     final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.DOCUMENT);
-    final BsonDocument val = BsonDocument.parse(HETEROGENOUS_ARRAY);
+    final BsonDocument val = BsonDocument.parse(HETEROGENEOUS_ARRAY);
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
@@ -314,9 +314,9 @@ public class TestMongoArrayConverter {
   }
 
   @Test
-  public void shouldCreateStructForHeterogenousArray() throws Exception {
+  public void shouldCreateStructForHeterogeneousArray() {
     final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.DOCUMENT);
-    final BsonDocument val = BsonDocument.parse(HETEROGENOUS_ARRAY);
+    final BsonDocument val = BsonDocument.parse(HETEROGENEOUS_ARRAY);
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
@@ -332,9 +332,9 @@ public class TestMongoArrayConverter {
   }
 
   @Test
-  public void shouldCreateSchemaForHeterogenousDocumentInArray() throws Exception {
+  public void shouldCreateSchemaForHeterogeneousDocumentInArray() {
     final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.DOCUMENT);
-    final BsonDocument val = BsonDocument.parse(HETEROGENOUS_DOCUMENT_IN_ARRAY);
+    final BsonDocument val = BsonDocument.parse(HETEROGENEOUS_DOCUMENT_IN_ARRAY);
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
@@ -369,9 +369,9 @@ public class TestMongoArrayConverter {
   }
 
   @Test
-  public void shouldCreateStructForHeterogenousDocumentInArray() throws Exception {
+  public void shouldCreateStructForHeterogeneousDocumentInArray() {
     final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.DOCUMENT);
-    final BsonDocument val = BsonDocument.parse(HETEROGENOUS_DOCUMENT_IN_ARRAY);
+    final BsonDocument val = BsonDocument.parse(HETEROGENEOUS_DOCUMENT_IN_ARRAY);
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }

@@ -60,11 +60,6 @@ class JsonToMapUtils {
           .optional()
           .build();
 
-  public static final Schema ARRAY_ARRAY_OPTIONAL_STRING =
-      SchemaBuilder.array(SchemaBuilder.array(Schema.OPTIONAL_STRING_SCHEMA).optional().build())
-          .optional()
-          .build();
-
   private static SchemaBuilder decimalBuilder(int scale) {
     return SchemaBuilder.bytes()
         .name(DECIMAL_LOGICAL_NAME)

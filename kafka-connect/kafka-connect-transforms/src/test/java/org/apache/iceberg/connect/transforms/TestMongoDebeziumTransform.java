@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -58,7 +57,7 @@ public class TestMongoDebeziumTransform {
 
   private String getFile(String fileName) throws IOException, URISyntaxException {
     URL jsonResource = getClass().getClassLoader().getResource(fileName);
-    return new String(Files.readAllBytes(Paths.get(jsonResource.toURI())), StandardCharsets.UTF_8);
+    return Files.readString(Paths.get(jsonResource.toURI()));
   }
 
   private MongoDebeziumTransform getTransformer(String mode) {
@@ -507,7 +506,7 @@ public class TestMongoDebeziumTransform {
   @Test
   @DisplayName(
       "partial updates without before/after values should include updateFields and id column for SinkRecord after struct")
-  public void shouldConvertPartiaulUpdateBeforeAfterMissing() throws Exception {
+  public void shouldConvertPartialUpdateBeforeAfterMissing() throws Exception {
     Struct valueStruct = new Struct(DEFAULT_VALUE_SCHEMA);
     valueStruct.put(
         "updateDescription",

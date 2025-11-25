@@ -94,7 +94,7 @@ public class TestKafkaMetadataTransform {
 
   @Test
   @DisplayName("should append kafka metadata to structs")
-  public void testAppendsToStucts() {
+  public void testAppendsToStructs() {
     SinkRecord record =
         new SinkRecord(
             TOPIC,
@@ -155,7 +155,7 @@ public class TestKafkaMetadataTransform {
 
   @Test
   @DisplayName("should append external fields to struct")
-  public void testAppendsToStuctsExternal() {
+  public void testAppendsToStructsExternal() {
     SinkRecord record =
         new SinkRecord(
             TOPIC,
@@ -183,7 +183,7 @@ public class TestKafkaMetadataTransform {
 
   @Test
   @DisplayName("throw if external field cannot be parsed")
-  public void testAppendsToStuctsExternalShouldThrowIfInvalid() {
+  public void testAppendsToStructsExternalShouldThrowIfInvalid() {
     try (KafkaMetadataTransform smt = new KafkaMetadataTransform()) {
 
       assertThatThrownBy(

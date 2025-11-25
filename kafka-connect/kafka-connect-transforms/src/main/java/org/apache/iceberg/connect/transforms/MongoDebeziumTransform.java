@@ -182,7 +182,7 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
 
     if (removed != null) {
       for (String field : removed) {
-        initialDocument.keySet().remove(field);
+        initialDocument.remove(field);
       }
     }
     // in a partial update it's possible the updated fields do not include the primary key
