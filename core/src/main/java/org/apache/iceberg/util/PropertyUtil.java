@@ -21,12 +21,14 @@ package org.apache.iceberg.util;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -189,6 +191,21 @@ public class PropertyUtil {
     return properties.entrySet().stream()
         .filter(e -> keyPredicate.test(e.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
+  public static Map<String, String> mergeProperties(
+      Map<String, String> properties, Map<String, String> overrides) {
+    if (overrides == null || overrides.isEmpty()) {
+      return properties;
+    }
+
+    if (properties == null || properties.isEmpty()) {
+      return overrides;
+    }
+
+    Map<String, String> merged = Maps.newHashMap(properties);
+    merged.putAll(overrides);
+    return ImmutableMap.copyOf(Maps.filterValues(merged, Objects::nonNull));
   }
 
   public static Map<String, String> applySchemaChanges(
