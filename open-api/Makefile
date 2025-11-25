@@ -24,8 +24,8 @@ lint:
 
 generate:
 	uv run datamodel-codegen \
-                --enum-field-as-literal all \
-	        --target-python-version 3.9 \
+			--enum-field-as-literal all \
+	        --target-python-version 3.12 \
 	        --use-schema-description \
 	        --field-constraints \
 	        --input rest-catalog-open-api.yaml \
