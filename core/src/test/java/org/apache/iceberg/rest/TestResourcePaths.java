@@ -183,56 +183,52 @@ public class TestResourcePaths {
   @Test
   public void planEndpointPath() {
     TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
-    ResourcePaths paths = new ResourcePaths("test-prefix");
 
-    String submitPlanPath = paths.planTableScan(tableId);
-
-    assertThat(submitPlanPath)
-        .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/plan");
+    assertThat(withPrefix.planTableScan(tableId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan");
+    assertThat(withoutPrefix.planTableScan(tableId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan");
 
     // Test with different identifiers
     TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
-    String complexPath = paths.planTableScan(complexId);
-
-    assertThat(complexPath).isEqualTo("v1/test-prefix/namespaces/db%1Fschema/tables/my_table/plan");
+    assertThat(withPrefix.planTableScan(complexId))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/plan");
+    assertThat(withoutPrefix.planTableScan(complexId))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/plan");
   }
 
   @Test
-  public void fetchScanTasks() {
+  public void fetchScanTasksPath() {
     TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
-    ResourcePaths paths = new ResourcePaths("test-prefix");
 
-    // Test that the cancel plan path is generated correctly
-    String cancelPath = paths.fetchScanTasks(tableId);
-
-    assertThat(cancelPath)
-        .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/tasks");
+    assertThat(withPrefix.fetchScanTasks(tableId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/tasks");
+    assertThat(withoutPrefix.fetchScanTasks(tableId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/tasks");
 
     // Test with different identifiers
     TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
-    String complexPath = paths.fetchScanTasks(complexId);
-
-    assertThat(complexPath)
-        .isEqualTo("v1/test-prefix/namespaces/db%1Fschema/tables/my_table/tasks");
+    assertThat(withPrefix.fetchScanTasks(complexId))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/tasks");
+    assertThat(withoutPrefix.fetchScanTasks(complexId))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/tasks");
   }
 
   @Test
   public void cancelPlanEndpointPath() {
     TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
     String planId = "plan-abc-123";
-    ResourcePaths paths = new ResourcePaths("test-prefix");
 
-    // Test that the cancel plan path is generated correctly
-    String cancelPath = paths.plan(tableId, planId);
-
-    assertThat(cancelPath)
-        .isEqualTo("v1/test-prefix/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+    assertThat(withPrefix.plan(tableId, planId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+    assertThat(withoutPrefix.plan(tableId, planId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
 
     // Test with different identifiers
     TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
-    String complexPath = paths.plan(complexId, "plan-xyz-789");
-
-    assertThat(complexPath)
-        .isEqualTo("v1/test-prefix/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
+    assertThat(withPrefix.plan(complexId, "plan-xyz-789"))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
+    assertThat(withoutPrefix.plan(complexId, planId))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/plan/plan-abc-123");
   }
 }

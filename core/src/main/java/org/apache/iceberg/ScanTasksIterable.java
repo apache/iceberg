@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -34,8 +33,6 @@ import java.util.function.Supplier;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.rest.Endpoint;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
 import org.apache.iceberg.rest.RESTClient;
@@ -47,29 +44,19 @@ import org.apache.iceberg.util.ThreadPools;
 class ScanTasksIterable implements CloseableIterable<FileScanTask> {
 
   private static final int DEFAULT_TASK_QUEUE_CAPACITY = 1000;
-
   private static final long QUEUE_POLL_TIMEOUT_MS = 100;
-
   private static final int WORKER_POOL_SIZE = Math.max(1, ThreadPools.WORKER_THREAD_POOL_SIZE / 4);
-
   private final BlockingQueue<FileScanTask> taskQueue;
-
   private final ConcurrentLinkedQueue<String> planTasks;
-
   private final AtomicInteger activeWorkers = new AtomicInteger(0);
-
   private final AtomicBoolean shutdown = new AtomicBoolean(false);
-
   private final ExecutorService executorService;
-
   private final RESTClient client;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
-  private final Supplier<Map<String, String>> headers;
-  private final Map<Integer, PartitionSpec> specsById;
-  private final boolean caseSensitive;
+  private final Map<String, String> headers;
+  private final ParserContext parserContext;
   private final Supplier<Boolean> cancellationCallback;
-  private final Set<Endpoint> supportedEndpoints;
 
   ScanTasksIterable(
       List<String> initialPlanTasks,
@@ -77,12 +64,11 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       RESTClient client,
       ResourcePaths resourcePaths,
       TableIdentifier tableIdentifier,
-      Supplier<Map<String, String>> headers,
+      Map<String, String> headers,
       ExecutorService executorService,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive,
-      Supplier<Boolean> cancellationCallback,
-      Set<Endpoint> supportedEndpoints) {
+      Supplier<Boolean> cancellationCallback) {
 
     this.taskQueue = new LinkedBlockingQueue<>(DEFAULT_TASK_QUEUE_CAPACITY);
     this.planTasks = new ConcurrentLinkedQueue<>();
@@ -92,10 +78,12 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     this.tableIdentifier = tableIdentifier;
     this.headers = headers;
     this.executorService = executorService;
-    this.specsById = specsById;
-    this.caseSensitive = caseSensitive;
     this.cancellationCallback = cancellationCallback;
-    this.supportedEndpoints = supportedEndpoints;
+    this.parserContext =
+        ParserContext.builder()
+            .add("specsById", specsById)
+            .add("caseSensitive", caseSensitive)
+            .build();
 
     if (initialFileScanTasks != null && !initialFileScanTasks.isEmpty()) {
       for (FileScanTask task : initialFileScanTasks) {
@@ -152,10 +140,6 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
             return;
           }
 
-          Preconditions.checkState(
-              supportedEndpoints.contains(Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS),
-              "The REST catalog does not support fetching table scan plan tasks: %s",
-              Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
           processPlanTask(planTask);
         }
 
@@ -191,17 +175,12 @@ class ScanTasksIterable implements CloseableIterable<FileScanTask> {
 
     private FetchScanTasksResponse fetchScanTasks(String planTask) {
       FetchScanTasksRequest request = new FetchScanTasksRequest(planTask);
-      ParserContext parserContext =
-          ParserContext.builder()
-              .add("specsById", specsById)
-              .add("caseSensitive", caseSensitive)
-              .build();
 
       return client.post(
           resourcePaths.fetchScanTasks(tableIdentifier),
           request,
           FetchScanTasksResponse.class,
-          headers.get(),
+          headers,
           ErrorHandlers.defaultErrorHandler(),
           stringStringMap -> {},
           parserContext);

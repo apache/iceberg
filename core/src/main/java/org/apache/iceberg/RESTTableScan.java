@@ -22,12 +22,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.Endpoint;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.ParserContext;
@@ -41,8 +39,7 @@ import org.apache.iceberg.types.Types;
 
 public class RESTTableScan extends DataTableScan {
   private final RESTClient client;
-  private final String path;
-  private final Supplier<Map<String, String>> headers;
+  private final Map<String, String> headers;
   private final TableOperations operations;
   private final Table table;
   private final ResourcePaths resourcePaths;
@@ -50,8 +47,7 @@ public class RESTTableScan extends DataTableScan {
   private final Set<Endpoint> supportedEndpoints;
   private final ParserContext parserContext;
 
-  // Track the current plan ID for cancellation
-  private volatile String currentPlanId = null;
+  private String currentPlanId = null;
 
   // TODO revisit if this property should be configurable
   // Sleep duration between polling attempts for plan completion
@@ -65,8 +61,7 @@ public class RESTTableScan extends DataTableScan {
       Schema schema,
       TableScanContext context,
       RESTClient client,
-      String path,
-      Supplier<Map<String, String>> headers,
+      Map<String, String> headers,
       TableOperations operations,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
@@ -75,7 +70,6 @@ public class RESTTableScan extends DataTableScan {
     this.table = table;
     this.client = client;
     this.headers = headers;
-    this.path = path;
     this.operations = operations;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
@@ -95,7 +89,6 @@ public class RESTTableScan extends DataTableScan {
         refinedSchema,
         refinedContext,
         client,
-        path,
         headers,
         operations,
         tableIdentifier,
@@ -143,13 +136,12 @@ public class RESTTableScan extends DataTableScan {
   }
 
   private CloseableIterable<FileScanTask> planTableScan(PlanTableScanRequest planTableScanRequest) {
-
     PlanTableScanResponse response =
         client.post(
             resourcePaths.planTableScan(tableIdentifier),
             planTableScanRequest,
             PlanTableScanResponse.class,
-            headers.get(),
+            headers,
             ErrorHandlers.defaultErrorHandler(),
             stringStringMap -> {},
             parserContext);
@@ -158,28 +150,20 @@ public class RESTTableScan extends DataTableScan {
     switch (planStatus) {
       case COMPLETED:
         currentPlanId = response.planId();
-        return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
+        return scanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
-        Preconditions.checkState(
-            supportedEndpoints.contains(Endpoint.V1_FETCH_TABLE_SCAN_PLAN),
-            "The endpoint to fetch table scan plans is not supported by the server.");
+        Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
         return fetchPlanningResult(response.planId());
-      case FAILED:
-        throw new IllegalStateException(
-            "Received \"failed\" status from service when planning a table scan");
-      case CANCELLED:
-        throw new IllegalStateException(
-            "Received \"cancelled\" status from service when planning a table scan");
+
       default:
-        throw new RuntimeException(
-            String.format("Invalid planStatus during planTableScan: %s", planStatus));
+        handleNonSuccessfulTerminalState(planStatus, response.planId());
+        throw new IllegalStateException("Handler should have thrown an exception.");
     }
   }
 
   private CloseableIterable<FileScanTask> fetchPlanningResult(String planId) {
     // Set the current plan ID for potential cancellation
     currentPlanId = planId;
-
     try {
       long startTime = System.currentTimeMillis();
       while (System.currentTimeMillis() - startTime <= MAX_WAIT_TIME_MS) {
@@ -188,14 +172,14 @@ public class RESTTableScan extends DataTableScan {
                 resourcePaths.plan(tableIdentifier, planId),
                 Map.of(),
                 FetchPlanningResultResponse.class,
-                headers.get(),
+                headers,
                 ErrorHandlers.defaultErrorHandler(),
                 parserContext);
 
         PlanStatus planStatus = response.planStatus();
         switch (planStatus) {
           case COMPLETED:
-            return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
+            return scanTasksIterable(response.planTasks(), response.fileScanTasks());
           case SUBMITTED:
             try {
               // TODO: if we want to add some jitter here to avoid thundering herd.
@@ -207,19 +191,6 @@ public class RESTTableScan extends DataTableScan {
               throw new RuntimeException("Interrupted while fetching plan status", e);
             }
             break;
-          case FAILED:
-            throw new IllegalStateException(
-                "Received \"failed\" status from service when fetching a table scan");
-          case CANCELLED:
-            throw new IllegalStateException(
-                String.format(
-                    Locale.ROOT,
-                    "Received \"cancelled\" status from service when fetching a table scan, planId: %s is invalid",
-                    planId));
-          default:
-            throw new IllegalStateException(
-                String.format(
-                    Locale.ROOT, "Invalid planStatus during fetchPlanningResult: %s", planStatus));
         }
       }
       // If we reach here, we've exceeded the max wait time
@@ -244,8 +215,12 @@ public class RESTTableScan extends DataTableScan {
     }
   }
 
-  private CloseableIterable<FileScanTask> getScanTasksIterable(
+  private CloseableIterable<FileScanTask> scanTasksIterable(
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
+    if (!planTasks.isEmpty()) {
+      Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+    }
+
     return new ScanTasksIterable(
         planTasks,
         fileScanTasks,
@@ -256,8 +231,7 @@ public class RESTTableScan extends DataTableScan {
         planExecutor(),
         table.specs(),
         isCaseSensitive(),
-        this::cancelPlan,
-        supportedEndpoints);
+        this::cancelPlan);
   }
 
   @VisibleForTesting
@@ -273,13 +247,27 @@ public class RESTTableScan extends DataTableScan {
           resourcePaths.plan(tableIdentifier, planId),
           Map.of(),
           null,
-          headers.get(),
+          headers,
           ErrorHandlers.defaultErrorHandler());
       currentPlanId = null;
       return true;
     } catch (Exception e) {
       // Plan might have already completed or failed, which is acceptable
       return false;
+    }
+  }
+
+  private void handleNonSuccessfulTerminalState(PlanStatus status, String planId) {
+    switch (status) {
+      case FAILED:
+        throw new IllegalStateException(
+            String.format("Received status: %s for planId: %s", PlanStatus.FAILED, planId));
+      case CANCELLED:
+        throw new IllegalStateException(
+            String.format("Received status: %s for planId: %s", PlanStatus.CANCELLED, planId));
+      default:
+        throw new IllegalStateException(
+            String.format("Invalid planStatus during fetchPlanningResult: %s", status));
     }
   }
 }

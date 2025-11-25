@@ -159,7 +159,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
-  private boolean restServerPlanningEnabled;
+  private boolean restScanPlanningEnabled;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
 
@@ -259,7 +259,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
-    this.restServerPlanningEnabled =
+    this.restScanPlanningEnabled =
         PropertyUtil.propertyAsBoolean(
             mergedProps,
             RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
@@ -488,13 +488,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private RESTTable restTableForScanPlanning(
       TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
     // server supports remote planning endpoint and server / client wants to do server side planning
-    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restServerPlanningEnabled) {
+    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restScanPlanningEnabled) {
       return new RESTTable(
           ops,
           fullTableName(finalIdentifier),
           metricsReporter(paths.metrics(finalIdentifier), restClient),
           restClient,
-          paths.table(finalIdentifier),
           Map::of,
           finalIdentifier,
           paths,

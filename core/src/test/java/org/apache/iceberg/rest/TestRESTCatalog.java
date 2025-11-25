@@ -62,6 +62,7 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RESTTable;
 import org.apache.iceberg.RESTTableScan;
+import org.apache.iceberg.Scan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -303,7 +304,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
 
     @Override
-    public boolean shouldPlanTableScanAsync(TableScan tableScan) {
+    public boolean shouldPlanTableScanAsync(Scan<?, FileScanTask, ?> scan) {
       return asyncPlanning;
     }
 
@@ -3462,7 +3463,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @ParameterizedTest
   @EnumSource(PlanningMode.class)
-  @Disabled("Pending support for incremental scans in RESTCatalogAdapter")
   void incrementalScan(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
@@ -3472,16 +3472,21 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // Add second file to the table
     table.newAppend().appendFile(FILE_B).commit();
-    Long startSnapshotId = table.currentSnapshot().snapshotId();
+    long startSnapshotId = table.currentSnapshot().snapshotId();
     // Add third file to the table
     table.newAppend().appendFile(FILE_C).commit();
-    Long endSnapshotId = table.currentSnapshot().snapshotId();
+    long endSnapshotId = table.currentSnapshot().snapshotId();
     try (CloseableIterable<FileScanTask> iterable =
-        table.newScan().select("incremental_scan").planFiles()) {
+        table
+            .newIncrementalAppendScan()
+            .fromSnapshotInclusive(startSnapshotId)
+            .toSnapshot(endSnapshotId)
+            .planFiles()) {
       List<FileScanTask> tasks = Lists.newArrayList(iterable);
       assertThat(tasks).hasSize(2); // FILE_B and FILE_C
-      assertThat(tasks.get(0).file().location()).isEqualTo(FILE_B.location());
-      assertThat(tasks.get(0).file().location()).isEqualTo(FILE_C.location());
+      assertThat(tasks)
+          .extracting(task -> task.file().location())
+          .contains(FILE_C.location(), FILE_B.location());
     }
   }
 

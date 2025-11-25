@@ -29,7 +29,6 @@ import org.apache.iceberg.rest.ResourcePaths;
 
 public class RESTTable extends BaseTable {
   private final RESTClient client;
-  private final String path;
   private final Supplier<Map<String, String>> headers;
   private final MetricsReporter reporter;
   private final ResourcePaths resourcePaths;
@@ -41,7 +40,6 @@ public class RESTTable extends BaseTable {
       String name,
       MetricsReporter reporter,
       RESTClient client,
-      String path,
       Supplier<Map<String, String>> headers,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
@@ -50,7 +48,6 @@ public class RESTTable extends BaseTable {
     this.reporter = reporter;
     this.client = client;
     this.headers = headers;
-    this.path = path;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
     this.supportedEndpoints = supportedEndpoints;
@@ -63,8 +60,7 @@ public class RESTTable extends BaseTable {
         schema(),
         ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
         client,
-        path,
-        headers,
+        headers.get(),
         operations(),
         tableIdentifier,
         resourcePaths,
