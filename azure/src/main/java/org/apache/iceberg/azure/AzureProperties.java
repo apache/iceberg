@@ -49,7 +49,7 @@ public class AzureProperties implements Serializable {
   public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
   public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
   public static final String ADLS_TOKEN = "adls.token";
-  public static final String KEYVAULT_URI = "keyvault.uri";
+  public static final String KEYVAULT_URI = "azure.keyvault.uri";
   public static final String KEYVAULT_KEY_WRAPPING_ALGORITHM = "keyvault.key-wrapping-algorithm";
 
   /**
@@ -132,6 +132,7 @@ public class AzureProperties implements Serializable {
     if (properties.containsKey(KEYVAULT_URI)) {
       this.keyVaultUri = properties.get(KEYVAULT_URI);
     }
+
     this.keyWrapAlgorithm =
         properties.getOrDefault(
             AzureProperties.KEYVAULT_KEY_WRAPPING_ALGORITHM,
