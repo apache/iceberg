@@ -16,15 +16,27 @@
 # under the License.
 
 install:
-	pip install -r requirements.txt
+	uv venv --python 3.12 --allow-existing  # Match --target-python-version in the `generate` target
+	uv pip install -r requirements.txt
 
-lint:
-	openapi-spec-validator --errors all rest-catalog-open-api.yaml
+lint-format:
+	@uv run yamlfix --check rest-catalog-open-api.yaml || (echo "ERROR: YAML formatting issues found in rest-catalog-open-api.yaml. Run 'make lint-fix' to automatically fix them." && exit 1)
+	@uv run yamlfix --check ../aws/src/main/resources/s3-signer-open-api.yaml || (echo "ERROR: YAML formatting issues found in s3-signer-open-api.yaml. Run 'make lint-fix' to automatically fix them." && exit 1)
+
+lint-spec:
+	uv run openapi-spec-validator --errors all rest-catalog-open-api.yaml
+	uv run openapi-spec-validator --errors all ../aws/src/main/resources/s3-signer-open-api.yaml
+
+lint: lint-spec lint-format
+
+lint-fix:
+	uv run yamlfix rest-catalog-open-api.yaml
+	uv run yamlfix ../aws/src/main/resources/s3-signer-open-api.yaml
 
 generate:
-	datamodel-codegen \
-                --enum-field-as-literal all \
-	        --target-python-version 3.9 \
+	uv run datamodel-codegen \
+			--enum-field-as-literal all \
+	        --target-python-version 3.12 \
 	        --use-schema-description \
 	        --field-constraints \
 	        --input rest-catalog-open-api.yaml \
