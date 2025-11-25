@@ -39,7 +39,7 @@ object CheckViews extends (LogicalPlan => Unit) {
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
       case CreateIcebergView(resolvedIdent@ResolvedIdentifier(_: ViewCatalog, _), _, query, columnAliases, _,
-      _, _, _, _, replace, _) =>
+      _, _, _, _, replace, _, _) =>
         verifyColumnCount(resolvedIdent, columnAliases, query)
         SchemaUtils.checkColumnNameDuplication(query.schema.fieldNames, SQLConf.get.resolver)
         if (replace) {

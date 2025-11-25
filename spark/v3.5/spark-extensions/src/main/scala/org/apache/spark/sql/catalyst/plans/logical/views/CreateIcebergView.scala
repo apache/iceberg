@@ -19,7 +19,8 @@
 
 package org.apache.spark.sql.catalyst.plans.logical.views
 
-import org.apache.spark.sql.catalyst.plans.logical.BinaryCommand
+import org.apache.spark.sql.catalyst.analysis.AnalysisContext
+import org.apache.spark.sql.catalyst.plans.logical.AnalysisOnlyCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
 case class CreateIcebergView(
@@ -33,12 +34,18 @@ case class CreateIcebergView(
   properties: Map[String, String],
   allowExisting: Boolean,
   replace: Boolean,
-  rewritten: Boolean = false) extends BinaryCommand {
-  override def left: LogicalPlan = child
+  rewritten: Boolean = false,
+  isAnalyzed: Boolean = false) extends AnalysisOnlyCommand {
 
-  override def right: LogicalPlan = query
+  override def childrenToAnalyze: Seq[LogicalPlan] = child :: query :: Nil
 
-  override protected def withNewChildrenInternal(
-    newLeft: LogicalPlan, newRight: LogicalPlan): LogicalPlan =
-    copy(child = newLeft, query = newRight)
+  def markAsAnalyzed(analysisContext: AnalysisContext): LogicalPlan = {
+    copy(
+      isAnalyzed = true)
+  }
+
+  override protected def withNewChildrenInternal(newChildren: IndexedSeq[LogicalPlan]): LogicalPlan = {
+    assert(!isAnalyzed)
+    copy(child = newChildren.head, query = newChildren.last)
+  }
 }
