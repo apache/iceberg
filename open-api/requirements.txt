@@ -17,3 +17,4 @@
 
 openapi-spec-validator==0.7.2
 datamodel-code-generator==0.35.0
+yamlfix==1.17.0
