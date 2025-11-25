@@ -182,7 +182,9 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   private SparkWriteRequirements writeRequirements() {
-    if (overwriteFiles) {
+    if (rewrittenFileSetId != null) {
+      return writeConf.rewriteFilesWriteRequirements();
+    } else if (overwriteFiles) {
       return writeConf.copyOnWriteRequirements(copyOnWriteCommand);
     } else {
       return writeConf.writeRequirements();

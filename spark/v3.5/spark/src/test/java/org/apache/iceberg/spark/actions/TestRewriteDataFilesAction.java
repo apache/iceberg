@@ -1584,6 +1584,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
@@ -1620,6 +1621,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
@@ -1651,6 +1653,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    // Since the SortOrder isn't in the table spec, these data files should report having the
+    // default table sort order e.g. unsorted
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
@@ -1691,6 +1696,58 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveLastCommitSorted(table, "c3");
+    // Since the table ordering is on C2, but we rewrote explicitly with C3 which isn't a sort order
+    // spec, the table files should report unsorted
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
+  }
+
+  @TestTemplate
+  public void testSortPastTableSortOrderGetsAppliedToFiles() {
+    int partitions = 4;
+    Table table = createTable();
+    writeRecords(20, SCALE, partitions);
+    shouldHaveLastCommitUnsorted(table, "c3");
+
+    // Add a partition column so this requires repartitioning
+    table.updateSpec().addField("c1").commit();
+
+    // Add the sort order we want to use during the rewrite job
+    table.replaceSortOrder().asc("c3").commit();
+    SortOrder c3SortOrder = table.sortOrder();
+
+    // Replace that sort order with a newer one that we aren't going to use, but is the current
+    // table ordering
+    table.replaceSortOrder().asc("c2").commit();
+    shouldHaveFiles(table, 20);
+
+    List<Object[]> originalData = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(
+                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table) / partitions))
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+    shouldHaveMultipleFiles(table);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveLastCommitSorted(table, "c3");
+    // Since the table ordering is on C2, but we rewrote explicitly with C3 which is in the table
+    // sort order spec, the table files should report C3 sort order
+    dataFilesShouldHaveSortOrderIdMatching(table, c3SortOrder);
   }
 
   @TestTemplate
@@ -1731,6 +1788,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    // Since the sort order being applied here isn't anywhere on the table spec, all files despite
+    // being physically sorted should report unsorted in the manifest entry
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
@@ -2632,6 +2692,20 @@ public class TestRewriteDataFilesAction extends TestBase {
     @Override
     public boolean matches(RewriteFileGroup argument) {
       return groupIDs.contains(argument.info().globalIndex());
+    }
+  }
+
+  private void dataFilesSortOrderShouldMatchTableSortOrder(Table table) {
+    dataFilesShouldHaveSortOrderIdMatching(table, table.sortOrder());
+  }
+
+  private void dataFilesShouldHaveSortOrderIdMatching(Table table, SortOrder sortOrder) {
+    try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
+      assertThat(files)
+          .extracting(fileScanTask -> fileScanTask.file().sortOrderId())
+          .containsOnly(sortOrder.orderId());
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to close file scan tasks", e);
     }
   }
 }
