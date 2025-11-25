@@ -57,6 +57,24 @@ public class Days<T> extends TimeTransform<T> {
     return "day";
   }
 
+  @Override
+  @SuppressWarnings("unchecked")
+  public T toSourceTypeValue(Type sourceType, Integer days) {
+    if (days == null) {
+      return null;
+    }
+    // For DATE type, return the days value as-is
+    if (sourceType.typeId() == Type.TypeID.DATE) {
+      return (T) days;
+    }
+    // Convert days since epoch to micros/nanos since epoch (start of the day)
+    long micros = days * 24L * 3600L * 1_000_000L;
+    if (sourceType.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+      return (T) (Long) (micros * 1000L);
+    }
+    return (T) (Long) micros;
+  }
+
   Object writeReplace() throws ObjectStreamException {
     return SerializationProxies.DaysTransformProxy.get();
   }

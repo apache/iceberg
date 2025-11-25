@@ -220,4 +220,30 @@ enum Dates implements Transform<Integer, Integer> {
   public String dedupName() {
     return "time";
   }
+
+  @Override
+  public Integer toSourceTypeValue(Type sourceType, Integer transformedValue) {
+    if (transformedValue == null) {
+      return null;
+    }
+
+    // Convert the transformed value back to days (start of the period)
+    switch (granularity) {
+      case YEARS:
+        // Convert years since epoch to days since epoch (start of the year)
+        return (int)
+            ChronoUnit.DAYS.between(
+                DateTimeUtil.EPOCH_DAY, DateTimeUtil.EPOCH_DAY.plusYears(transformedValue));
+      case MONTHS:
+        // Convert months since epoch to days since epoch (start of the month)
+        return (int)
+            ChronoUnit.DAYS.between(
+                DateTimeUtil.EPOCH_DAY, DateTimeUtil.EPOCH_DAY.plusMonths(transformedValue));
+      case DAYS:
+        // Already in days
+        return transformedValue;
+      default:
+        throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+    }
+  }
 }

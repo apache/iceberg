@@ -239,4 +239,40 @@ enum Timestamps implements Transform<Long, Integer> {
   public String dedupName() {
     return "time";
   }
+
+  @Override
+  public Long toSourceTypeValue(Type sourceType, Integer transformedValue) {
+    if (transformedValue == null) {
+      return null;
+    }
+
+    // Convert the transformed value back to timestamp (start of the period)
+    long micros;
+    switch (granularity) {
+      case YEARS:
+        micros =
+            ChronoUnit.MICROS.between(
+                DateTimeUtil.EPOCH, DateTimeUtil.EPOCH.plusYears(transformedValue));
+        break;
+      case MONTHS:
+        micros =
+            ChronoUnit.MICROS.between(
+                DateTimeUtil.EPOCH, DateTimeUtil.EPOCH.plusMonths(transformedValue));
+        break;
+      case DAYS:
+        micros = transformedValue * 24L * 3600L * 1_000_000L;
+        break;
+      case HOURS:
+        micros = transformedValue * 3600L * 1_000_000L;
+        break;
+      default:
+        throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+    }
+
+    // Convert to nanos if needed
+    if (sourceType.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+      return micros * 1000L;
+    }
+    return micros;
+  }
 }

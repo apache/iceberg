@@ -102,6 +102,29 @@ public interface Transform<S, T> extends Serializable {
   }
 
   /**
+   * Converts a transformed partition value back to a representative source type value.
+   *
+   * <p>This method returns a source value that would produce the given transformed value when this
+   * transform is applied. For temporal transforms, this returns the start of the period (e.g.,
+   * start of hour, day, month, or year). For truncate transforms, this returns the truncated value
+   * as-is since it preserves the source type.
+   *
+   * <p>This is useful for chaining transforms when {@link #satisfiesOrderOf(Transform)} is true,
+   * allowing conversion from a finer granularity to a coarser one by converting back to source type
+   * and reapplying the coarser transform.
+   *
+   * @param sourceType the source type for this transform
+   * @param transformedValue the transformed partition value
+   * @return a source value that would produce this transformed value, or null if the input is null
+   * @throws UnsupportedOperationException if this transform does not support conversion back to
+   *     source type
+   */
+  default S toSourceTypeValue(Type sourceType, T transformedValue) {
+    throw new UnsupportedOperationException(
+        "toSourceTypeValue is not supported for " + this.getClass().getSimpleName());
+  }
+
+  /**
    * Transforms a {@link BoundPredicate predicate} to an inclusive predicate on the partition values
    * produced by the transform.
    *
