@@ -56,6 +56,3 @@ jobs:
       - name: Check if code is up to date
         working-directory: ./open-api
         run: git diff --exit-code
-      - name: Validate S3 REST Signer spec
-        working-directory: ./open-api
-        run: uv run openapi-spec-validator --errors all ../aws/src/main/resources/s3-signer-open-api.yaml

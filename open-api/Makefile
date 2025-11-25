@@ -21,6 +21,7 @@ install:
 
 lint:
 	uv run openapi-spec-validator --errors all rest-catalog-open-api.yaml
+	uv run openapi-spec-validator --errors all ../aws/src/main/resources/s3-signer-open-api.yaml
 
 generate:
 	uv run datamodel-codegen \
