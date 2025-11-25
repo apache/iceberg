@@ -73,7 +73,7 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
     Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
@@ -111,11 +111,11 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     cache.update(tableIdentifier, table);
 
     // Cache schema
-    Schema schema = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
+    Schema schema = cache.schema(tableIdentifier, SCHEMA2, false).resolvedTableSchema();
     assertThat(schema.sameSchema(SCHEMA2)).isTrue();
 
     // Cache schema with fewer fields
-    TableMetadataCache.ResolvedSchemaInfo schemaInfo = cache.schema(tableIdentifier, SCHEMA);
+    TableMetadataCache.ResolvedSchemaInfo schemaInfo = cache.schema(tableIdentifier, SCHEMA, false);
     assertThat(schemaInfo.resolvedTableSchema().sameSchema(SCHEMA2)).isTrue();
     assertThat(schemaInfo.compareResult())
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);

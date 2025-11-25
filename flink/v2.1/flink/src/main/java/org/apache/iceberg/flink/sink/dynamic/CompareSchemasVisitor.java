@@ -43,20 +43,23 @@ public class CompareSchemasVisitor
     extends SchemaWithPartnerVisitor<Integer, CompareSchemasVisitor.Result> {
 
   private final Schema tableSchema;
+  private final boolean dropUnusedColumns;
 
-  private CompareSchemasVisitor(Schema tableSchema) {
+  private CompareSchemasVisitor(Schema tableSchema, boolean dropUnusedColumns) {
     this.tableSchema = tableSchema;
+    this.dropUnusedColumns = dropUnusedColumns;
   }
 
   public static Result visit(Schema dataSchema, Schema tableSchema) {
-    return visit(dataSchema, tableSchema, true);
+    return visit(dataSchema, tableSchema, true, false);
   }
 
-  public static Result visit(Schema dataSchema, Schema tableSchema, boolean caseSensitive) {
+  public static Result visit(
+      Schema dataSchema, Schema tableSchema, boolean caseSensitive, boolean dropUnusedColumns) {
     return visit(
         dataSchema,
         -1,
-        new CompareSchemasVisitor(tableSchema),
+        new CompareSchemasVisitor(tableSchema, dropUnusedColumns),
         new PartnerIdByNameAccessors(tableSchema, caseSensitive));
   }
 
@@ -70,6 +73,7 @@ public class CompareSchemasVisitor
   }
 
   @Override
+  @SuppressWarnings("CyclomaticComplexity")
   public Result struct(Types.StructType struct, Integer tableSchemaId, List<Result> fields) {
     if (tableSchemaId == null) {
       return Result.SCHEMA_UPDATE_NEEDED;
@@ -97,6 +101,11 @@ public class CompareSchemasVisitor
     }
 
     if (struct.fields().size() != tableSchemaType.asStructType().fields().size()) {
+      if (dropUnusedColumns
+          && struct.fields().size() < tableSchemaType.asStructType().fields().size()) {
+        // We need to drop fields
+        return Result.SCHEMA_UPDATE_NEEDED;
+      }
       return Result.DATA_CONVERSION_NEEDED;
     }
 

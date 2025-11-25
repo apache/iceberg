@@ -187,6 +187,7 @@ public class DynamicIcebergSink
     private ReadableConfig readableConfig = new Configuration();
     private TableCreator tableCreator = TableCreator.DEFAULT;
     private boolean immediateUpdate = false;
+    private boolean dropUnusedColumns = false;
     private int cacheMaximumSize = 100;
     private long cacheRefreshMs = 1_000;
     private int inputSchemasPerTableCacheMaximumSize = 10;
@@ -314,6 +315,11 @@ public class DynamicIcebergSink
       return this;
     }
 
+    public Builder<T> dropUnusedColumns(boolean newDropUnusedColumns) {
+      this.dropUnusedColumns = newDropUnusedColumns;
+      return this;
+    }
+
     /** Maximum size of the caches used in Dynamic Sink for table data and serializers. */
     public Builder<T> cacheMaxSize(int maxSize) {
       this.cacheMaximumSize = maxSize;
@@ -382,6 +388,7 @@ public class DynamicIcebergSink
                       generator,
                       catalogLoader,
                       immediateUpdate,
+                      dropUnusedColumns,
                       cacheMaximumSize,
                       cacheRefreshMs,
                       inputSchemasPerTableCacheMaximumSize,
@@ -400,6 +407,7 @@ public class DynamicIcebergSink
               .map(
                   new DynamicTableUpdateOperator(
                       catalogLoader,
+                      dropUnusedColumns,
                       cacheMaximumSize,
                       cacheRefreshMs,
                       inputSchemasPerTableCacheMaximumSize,

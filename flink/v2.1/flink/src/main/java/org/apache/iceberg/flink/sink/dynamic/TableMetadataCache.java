@@ -90,7 +90,11 @@ class TableMetadataCache {
   }
 
   ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input) {
-    return schema(identifier, input, true);
+    return schema(identifier, input, true, false);
+  }
+
+  ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input, boolean dropUnusedColumns) {
+    return schema(identifier, input, true, dropUnusedColumns);
   }
 
   PartitionSpec spec(TableIdentifier identifier, PartitionSpec spec) {
@@ -124,7 +128,7 @@ class TableMetadataCache {
   }
 
   private ResolvedSchemaInfo schema(
-      TableIdentifier identifier, Schema input, boolean allowRefresh) {
+      TableIdentifier identifier, Schema input, boolean allowRefresh, boolean dropUnusedColumns) {
     CacheItem cached = tableCache.get(identifier);
     Schema compatible = null;
     if (cached != null && cached.tableExists) {
@@ -139,7 +143,7 @@ class TableMetadataCache {
 
       for (Map.Entry<Integer, Schema> tableSchema : cached.tableSchemas.entrySet()) {
         CompareSchemasVisitor.Result result =
-            CompareSchemasVisitor.visit(input, tableSchema.getValue(), true);
+            CompareSchemasVisitor.visit(input, tableSchema.getValue(), true, dropUnusedColumns);
         if (result == CompareSchemasVisitor.Result.SAME) {
           ResolvedSchemaInfo newResult =
               new ResolvedSchemaInfo(
@@ -157,7 +161,7 @@ class TableMetadataCache {
 
     if (needsRefresh(cached, allowRefresh)) {
       refreshTable(identifier);
-      return schema(identifier, input, false);
+      return schema(identifier, input, false, dropUnusedColumns);
     } else if (compatible != null) {
       ResolvedSchemaInfo newResult =
           new ResolvedSchemaInfo(

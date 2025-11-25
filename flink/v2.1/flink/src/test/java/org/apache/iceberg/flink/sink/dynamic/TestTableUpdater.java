@@ -56,7 +56,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     catalog.createNamespace(Namespace.of("myNamespace"));
     TableIdentifier tableIdentifier = TableIdentifier.parse("myNamespace.myTable");
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
     String locationOverride = tempDir.toString() + "/custom-path";
     Map<String, String> tableProperties = Map.of("key", "value");
@@ -78,7 +78,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
     // Make the table non-existent in cache
     cache.exists(tableIdentifier);
@@ -98,7 +98,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
     catalog.createTable(tableIdentifier, SCHEMA);
     tableUpdater.update(
@@ -116,7 +116,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 10).build();
     tableUpdater.update(tableIdentifier, "main", SCHEMA, spec, TableCreator.DEFAULT);
@@ -133,7 +133,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     catalog.createTable(tableIdentifier, SCHEMA);
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
     cache.schema(tableIdentifier, SCHEMA);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
     Schema updated =
         tableUpdater
@@ -156,7 +156,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
     // Initialize cache
     tableUpdater.update(
