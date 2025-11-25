@@ -16,7 +16,7 @@
 # under the License.
 
 install:
-	uv venv --allow-existing
+	uv venv --python 3.12 --allow-existing  # Match --target-python-version in the `generate` target
 	uv pip install -r requirements.txt
 
 lint:
