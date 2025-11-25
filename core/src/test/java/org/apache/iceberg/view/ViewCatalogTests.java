@@ -64,11 +64,11 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   @TempDir private Path tempDir;
 
   protected String baseViewLocation(TableIdentifier identifier) {
-    String base = tempDir.toFile().toURI().toString();
-    String combined = base;
-    combined = RewriteTablePathUtil.combinePaths(combined, identifier.namespace().toString());
-    combined = RewriteTablePathUtil.combinePaths(combined, identifier.name());
-    return combined;
+    String combinedPath = tempDir.toUri().toString();
+    combinedPath =
+        RewriteTablePathUtil.combinePaths(combinedPath, identifier.namespace().toString());
+    combinedPath = RewriteTablePathUtil.combinePaths(combinedPath, identifier.name());
+    return combinedPath;
   }
 
   protected boolean requiresNamespaceCreate() {
