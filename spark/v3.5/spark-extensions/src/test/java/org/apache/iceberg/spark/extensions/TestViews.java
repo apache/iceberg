@@ -1068,7 +1068,7 @@ public class TestViews extends ExtensionsTestBase {
             String.format(
                 "Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewReferencingTempView))
         .hasMessageContaining("that references temporary view:")
-        .hasMessageContaining(String.format("%s.%s", "global_temp", globalTempView));
+        .hasMessageContaining("%s.%s", "global_temp", globalTempView);
   }
 
   @TestTemplate
@@ -1118,7 +1118,7 @@ public class TestViews extends ExtensionsTestBase {
                     viewName, NAMESPACE, functionName, tableName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Cannot resolve function")
-        .hasMessageContaining(String.format("`%s`.`%s`", NAMESPACE, functionName));
+        .hasMessageContaining("`%s`.`%s`", NAMESPACE, functionName);
   }
 
   @TestTemplate
@@ -1340,7 +1340,7 @@ public class TestViews extends ExtensionsTestBase {
         .hasMessageContaining(
             String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasMessageContaining("that references temporary view:")
-        .hasMessageContaining(String.format("%s.%s", "global_temp", globalTempView));
+        .hasMessageContaining("%s.%s", "global_temp", globalTempView);
   }
 
   @TestTemplate
@@ -1382,7 +1382,7 @@ public class TestViews extends ExtensionsTestBase {
 
       assertThatThrownBy(() -> sql(sql))
           .isInstanceOf(AnalysisException.class)
-          .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+          .hasMessageContaining("The table or view `%s` cannot be found", tableName);
     }
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
@@ -1409,7 +1409,7 @@ public class TestViews extends ExtensionsTestBase {
 
       assertThatThrownBy(() -> sql(sql))
           .isInstanceOf(AnalysisException.class)
-          .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+          .hasMessageContaining("The table or view `%s` cannot be found", tableName);
     }
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
@@ -2112,6 +2112,22 @@ public class TestViews extends ExtensionsTestBase {
                     "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg', 'write.metadata.path' = '%s']",
                     location, customMetadataLocation),
                 ""));
+  }
+
+  @TestTemplate
+  public void createViewWithCustomMetadataLocationWithLocation() {
+    String viewName = viewName("v");
+    String customMetadataLocation =
+        Paths.get(temp.toUri().toString(), "custom-metadata-location").toString();
+    sql(
+        "CREATE VIEW %s TBLPROPERTIES ('location'='%s') AS SELECT * FROM %s",
+        viewName, customMetadataLocation, tableName);
+
+    assertThat(sql("SHOW TBLPROPERTIES %s", viewName))
+        .contains(row("location", customMetadataLocation));
+
+    String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
+    assertThat(location).isEqualTo(customMetadataLocation);
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

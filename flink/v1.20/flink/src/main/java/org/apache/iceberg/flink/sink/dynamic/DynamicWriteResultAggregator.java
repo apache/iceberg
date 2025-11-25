@@ -18,13 +18,12 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
@@ -34,6 +33,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
@@ -58,20 +58,22 @@ class DynamicWriteResultAggregator
         CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>> {
   private static final Logger LOG = LoggerFactory.getLogger(DynamicWriteResultAggregator.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
-  private static final Duration CACHE_EXPIRATION_DURATION = Duration.ofMinutes(1);
 
   private final CatalogLoader catalogLoader;
+  private final int cacheMaximumSize;
   private transient Map<WriteTarget, Collection<DynamicWriteResult>> results;
-  private transient Cache<String, Map<Integer, PartitionSpec>> specs;
-  private transient Cache<String, ManifestOutputFileFactory> outputFileFactories;
+  private transient Map<String, Map<Integer, PartitionSpec>> specs;
+  private transient Map<String, Tuple2<ManifestOutputFileFactory, Integer>>
+      outputFileFactoriesAndFormatVersions;
   private transient String flinkJobId;
   private transient String operatorId;
   private transient int subTaskId;
   private transient int attemptId;
   private transient Catalog catalog;
 
-  DynamicWriteResultAggregator(CatalogLoader catalogLoader) {
+  DynamicWriteResultAggregator(CatalogLoader catalogLoader, int cacheMaximumSize) {
     this.catalogLoader = catalogLoader;
+    this.cacheMaximumSize = cacheMaximumSize;
   }
 
   @Override
@@ -81,10 +83,8 @@ class DynamicWriteResultAggregator
     this.subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.results = Maps.newHashMap();
-    this.specs =
-        Caffeine.newBuilder().expireAfterWrite(CACHE_EXPIRATION_DURATION).softValues().build();
-    this.outputFileFactories =
-        Caffeine.newBuilder().expireAfterWrite(CACHE_EXPIRATION_DURATION).softValues().build();
+    this.specs = new LRUCache<>(cacheMaximumSize);
+    this.outputFileFactoriesAndFormatVersions = new LRUCache<>(cacheMaximumSize);
     this.catalog = catalogLoader.loadCatalog();
   }
 
@@ -140,11 +140,14 @@ class DynamicWriteResultAggregator
     writeResults.forEach(w -> builder.add(w.writeResult()));
     WriteResult result = builder.build();
 
+    Tuple2<ManifestOutputFileFactory, Integer> outputFileFactoryAndVersion =
+        outputFileFactoryAndFormatVersion(key.tableName());
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result,
-            () -> outputFileFactory(key.tableName()).create(checkpointId),
-            spec(key.tableName(), key.specId()));
+            () -> outputFileFactoryAndVersion.f0.create(checkpointId),
+            spec(key.tableName(), key.specId()),
+            outputFileFactoryAndVersion.f1);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
@@ -162,19 +165,31 @@ class DynamicWriteResultAggregator
     }
   }
 
-  private ManifestOutputFileFactory outputFileFactory(String tableName) {
-    return outputFileFactories.get(
+  private Tuple2<ManifestOutputFileFactory, Integer> outputFileFactoryAndFormatVersion(
+      String tableName) {
+    return outputFileFactoriesAndFormatVersions.computeIfAbsent(
         tableName,
         unused -> {
           Table table = catalog.loadTable(TableIdentifier.parse(tableName));
           specs.put(tableName, table.specs());
-          return FlinkManifestUtil.createOutputFileFactory(
-              () -> table, table.properties(), flinkJobId, operatorId, subTaskId, attemptId);
+          // Make sure to append an identifier to avoid file clashes in case the factory was to get
+          // re-created during a checkpoint, i.e. due to cache eviction.
+          String fileSuffix = UUID.randomUUID().toString();
+          ManifestOutputFileFactory outputFileFactory =
+              FlinkManifestUtil.createOutputFileFactory(
+                  () -> table,
+                  table.properties(),
+                  flinkJobId,
+                  operatorId,
+                  subTaskId,
+                  attemptId,
+                  fileSuffix);
+          return Tuple2.of(outputFileFactory, TableUtil.formatVersion(table));
         });
   }
 
   private PartitionSpec spec(String tableName, int specId) {
-    Map<Integer, PartitionSpec> knownSpecs = specs.getIfPresent(tableName);
+    Map<Integer, PartitionSpec> knownSpecs = specs.get(tableName);
     if (knownSpecs != null) {
       PartitionSpec spec = knownSpecs.get(specId);
       if (spec != null) {

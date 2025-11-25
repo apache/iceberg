@@ -20,7 +20,7 @@ title: "Flink DDL"
 
 ## DDL commands
 
-###  `CREATE Catalog`
+### `CREATE Catalog`
 
 #### Hive catalog
 
@@ -208,7 +208,6 @@ CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`defaul
 ```
 
 For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/table/sql/create/).
-
 
 ### `ALTER TABLE`
 

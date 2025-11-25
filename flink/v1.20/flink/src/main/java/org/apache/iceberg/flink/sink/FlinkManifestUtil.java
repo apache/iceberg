@@ -41,15 +41,15 @@ import org.slf4j.LoggerFactory;
 public class FlinkManifestUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(FlinkManifestUtil.class);
-  private static final int FORMAT_V2 = 2;
   private static final Long DUMMY_SNAPSHOT_ID = 0L;
 
   private FlinkManifestUtil() {}
 
   static ManifestFile writeDataFiles(
-      OutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles) throws IOException {
+      OutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles, int formatVersion)
+      throws IOException {
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID);
+        ManifestFiles.write(formatVersion, spec, outputFile, DUMMY_SNAPSHOT_ID);
 
     try (ManifestWriter<DataFile> closeableWriter = writer) {
       closeableWriter.addAll(dataFiles);
@@ -74,7 +74,19 @@ public class FlinkManifestUtil {
       int subTaskId,
       long attemptNumber) {
     return new ManifestOutputFileFactory(
-        tableSupplier, tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber);
+        tableSupplier, tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber, null);
+  }
+
+  public static ManifestOutputFileFactory createOutputFileFactory(
+      Supplier<Table> tableSupplier,
+      Map<String, String> tableProps,
+      String flinkJobId,
+      String operatorUniqueId,
+      int subTaskId,
+      long attemptNumber,
+      String suffix) {
+    return new ManifestOutputFileFactory(
+        tableSupplier, tableProps, flinkJobId, operatorUniqueId, subTaskId, attemptNumber, suffix);
   }
 
   /**
@@ -84,7 +96,10 @@ public class FlinkManifestUtil {
    *     partition spec
    */
   public static DeltaManifests writeCompletedFiles(
-      WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
+      WriteResult result,
+      Supplier<OutputFile> outputFileSupplier,
+      PartitionSpec spec,
+      int formatVersion)
       throws IOException {
 
     ManifestFile dataManifest = null;
@@ -93,7 +108,11 @@ public class FlinkManifestUtil {
     // Write the completed data files into a newly created data manifest file.
     if (result.dataFiles() != null && result.dataFiles().length > 0) {
       dataManifest =
-          writeDataFiles(outputFileSupplier.get(), spec, Lists.newArrayList(result.dataFiles()));
+          writeDataFiles(
+              outputFileSupplier.get(),
+              spec,
+              Lists.newArrayList(result.dataFiles()),
+              formatVersion);
     }
 
     // Write the completed delete files into a newly created delete manifest file.
@@ -101,7 +120,8 @@ public class FlinkManifestUtil {
       OutputFile deleteManifestFile = outputFileSupplier.get();
 
       ManifestWriter<DeleteFile> deleteManifestWriter =
-          ManifestFiles.writeDeleteManifest(FORMAT_V2, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID);
+          ManifestFiles.writeDeleteManifest(
+              formatVersion, spec, deleteManifestFile, DUMMY_SNAPSHOT_ID);
       try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
         for (DeleteFile deleteFile : result.deleteFiles()) {
           writer.add(deleteFile);

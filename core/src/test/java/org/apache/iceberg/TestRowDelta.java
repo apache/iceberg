@@ -77,6 +77,25 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void addOnlyDataFilesProducesAppendOperation() {
+    SnapshotUpdate<?> rowDelta = table.newRowDelta().addRows(FILE_A).addRows(FILE_B);
+
+    commit(table, rowDelta, branch);
+    Snapshot snap = latestSnapshot(table, branch);
+    assertThat(snap.sequenceNumber()).isEqualTo(1);
+    assertThat(snap.operation()).isEqualTo(DataOperations.APPEND);
+    assertThat(snap.dataManifests(table.io())).hasSize(1);
+
+    validateManifest(
+        snap.dataManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(snap.snapshotId(), snap.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @TestTemplate
   public void testAddRemoveRows() {
     SnapshotUpdate<?> rowDelta =
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes());
@@ -106,6 +125,29 @@ public class TestRowDelta extends TestBase {
         ids(snap.snapshotId(), snap.snapshotId()),
         files(fileADeletes(), fileBDeletes()),
         statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @TestTemplate
+  public void testAddRowsRemoveDataFile() {
+    table.newRowDelta().addRows(FILE_A).commit();
+    SnapshotUpdate<?> rowDelta = table.newRowDelta().addRows(FILE_B).removeRows(FILE_A);
+
+    commit(table, rowDelta, branch);
+    Snapshot snap = latestSnapshot(table, branch);
+    assertThat(snap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+    assertThat(snap.operation())
+        .as("Delta commit should use operation 'overwrite'")
+        .isEqualTo(DataOperations.OVERWRITE);
+    assertThat(snap.dataManifests(table.io())).hasSize(2);
+
+    validateManifest(
+        snap.dataManifests(table.io()).get(0),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(snap.snapshotId()),
+        files(FILE_B),
+        statuses(Status.ADDED));
   }
 
   @TestTemplate
@@ -599,6 +641,7 @@ public class TestRowDelta extends TestBase {
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
 
     // overwriting by a filter will also remove delete files that match because all matching data
@@ -642,6 +685,7 @@ public class TestRowDelta extends TestBase {
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
 
     // overwriting the partition will also remove delete files that match because all matching data
@@ -688,6 +732,7 @@ public class TestRowDelta extends TestBase {
         branch);
 
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
 
     // deleting with a filter will also remove delete files that match because all matching data
@@ -726,6 +771,7 @@ public class TestRowDelta extends TestBase {
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
 
     // deleting a specific data file will not affect a delete file in v2 or less
@@ -786,6 +832,7 @@ public class TestRowDelta extends TestBase {
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
+    assertThat(latestSnapshot(table, branch).operation()).isEqualTo(DataOperations.OVERWRITE);
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
 
     // deleting a specific data file will not affect a delete file

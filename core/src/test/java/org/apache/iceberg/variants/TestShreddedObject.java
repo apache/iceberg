@@ -30,6 +30,8 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
@@ -58,6 +60,26 @@ public class TestShreddedObject {
     assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
     assertThat(object.get("c")).isInstanceOf(VariantPrimitive.class);
     assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+  }
+
+  @Test
+  public void testByteBufferConversion() {
+    Map<String, VariantValue> pathNormalizedFields =
+        ImmutableMap.of(
+            "$['a']",
+            Variants.of(34),
+            "$['b']",
+            Variants.of("iceberg"),
+            "$['c']",
+            Variants.of(new BigDecimal("12.21")));
+    ShreddedObject object = createShreddedObject(pathNormalizedFields);
+    VariantMetadata metadata = Variants.metadata("$['a']", "$['b']", "$['c']");
+    Variant expectedVariant = Variant.of(metadata, object);
+    ByteBuffer convertedValue = Conversions.toByteBuffer(Types.VariantType.get(), expectedVariant);
+    Variant readValue = Conversions.fromByteBuffer(Types.VariantType.get(), convertedValue);
+
+    VariantTestUtil.assertEqual(expectedVariant.metadata(), readValue.metadata());
+    VariantTestUtil.assertEqual(expectedVariant.value(), readValue.value());
   }
 
   @Test

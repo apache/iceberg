@@ -39,10 +39,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -57,7 +56,7 @@ public class TestFlinkManifest {
   @TempDir protected Path temporaryFolder;
 
   private Table table;
-  private FileAppenderFactory<RowData> appenderFactory;
+  private FlinkFileWriterFactory fileWriterFactory;
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
   @BeforeEach
@@ -75,16 +74,15 @@ public class TestFlinkManifest {
         new int[] {
           table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()
         };
-    this.appenderFactory =
-        new FlinkAppenderFactory(
-            table,
-            table.schema(),
-            FlinkSchemaUtil.convert(table.schema()),
-            table.properties(),
-            table.spec(),
-            equalityFieldIds,
-            table.schema(),
-            null);
+    this.fileWriterFactory =
+        new FlinkFileWriterFactory.Builder(table)
+            .dataFileFormat(FileFormat.PARQUET)
+            .dataSchema(table.schema())
+            .deleteFileFormat(FileFormat.PARQUET)
+            .equalityFieldIds(equalityFieldIds)
+            .equalityDeleteRowSchema(table.schema())
+            .writerProperties(table.properties())
+            .build();
   }
 
   @Test
@@ -108,7 +106,8 @@ public class TestFlinkManifest {
                   .addDeleteFiles(posDeleteFiles)
                   .build(),
               () -> factory.create(curCkpId),
-              table.spec());
+              table.spec(),
+              TableUtil.formatVersion(table));
 
       WriteResult result =
           FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
@@ -137,14 +136,15 @@ public class TestFlinkManifest {
             ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION,
             userProvidedFolder.getAbsolutePath() + "///");
     ManifestOutputFileFactory factory =
-        new ManifestOutputFileFactory(() -> table, props, flinkJobId, operatorId, 1, 1);
+        new ManifestOutputFileFactory(() -> table, props, flinkJobId, operatorId, 1, 1, null);
 
     List<DataFile> dataFiles = generateDataFiles(5);
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             WriteResult.builder().addDataFiles(dataFiles).build(),
             () -> factory.create(checkpointId),
-            table.spec());
+            table.spec(),
+            TableUtil.formatVersion(table));
 
     assertThat(deltaManifests.dataManifest()).isNotNull();
     assertThat(deltaManifests.deleteManifest()).isNull();
@@ -183,7 +183,8 @@ public class TestFlinkManifest {
                 .addDeleteFiles(posDeleteFiles)
                 .build(),
             () -> factory.create(checkpointId),
-            table.spec());
+            table.spec(),
+            TableUtil.formatVersion(table));
 
     byte[] versionedSerializeData =
         SimpleVersionedSerialization.writeVersionAndSerialize(
@@ -212,7 +213,8 @@ public class TestFlinkManifest {
 
     List<DataFile> dataFiles = generateDataFiles(10);
     ManifestFile manifest =
-        FlinkManifestUtil.writeDataFiles(factory.create(checkpointId), table.spec(), dataFiles);
+        FlinkManifestUtil.writeDataFiles(
+            factory.create(checkpointId), table.spec(), dataFiles, TableUtil.formatVersion(table));
     byte[] dataV1 =
         SimpleVersionedSerialization.writeVersionAndSerialize(new V1Serializer(), manifest);
 
@@ -262,13 +264,13 @@ public class TestFlinkManifest {
 
   private DeleteFile writeEqDeleteFile(String filename, List<RowData> deletes) throws IOException {
     return SimpleDataUtil.writeEqDeleteFile(
-        table, FileFormat.PARQUET, filename, appenderFactory, deletes);
+        table, table.spec(), filename, fileWriterFactory, deletes);
   }
 
   private DeleteFile writePosDeleteFile(String filename, List<Pair<CharSequence, Long>> positions)
       throws IOException {
     return SimpleDataUtil.writePosDeleteFile(
-        table, FileFormat.PARQUET, filename, appenderFactory, positions);
+        table, table.spec(), filename, fileWriterFactory, positions);
   }
 
   private List<DataFile> generateDataFiles(int fileNum) throws IOException {

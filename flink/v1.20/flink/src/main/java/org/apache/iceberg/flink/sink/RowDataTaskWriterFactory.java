@@ -29,9 +29,10 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.io.TaskWriter;
@@ -51,7 +52,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final FileFormat format;
   private final Set<Integer> equalityFieldIds;
   private final boolean upsert;
-  private final FileAppenderFactory<RowData> appenderFactory;
+  private final FileWriterFactory<RowData> fileWriterFactory;
+  private boolean useDv;
 
   private transient OutputFileFactory outputFileFactory;
 
@@ -122,36 +124,40 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.upsert = upsert;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
-      this.appenderFactory =
-          new FlinkAppenderFactory(
-              table, schema, flinkSchema, writeProperties, spec, null, null, null);
+      this.fileWriterFactory =
+          new FlinkFileWriterFactory.Builder(table)
+              .dataFileFormat(format)
+              .dataSchema(schema)
+              .dataFlinkType(flinkSchema)
+              .writerProperties(writeProperties)
+              .build();
     } else if (upsert) {
       // In upsert mode, only the new row is emitted using INSERT row kind. Therefore, any column of
       // the inserted row
       // may differ from the deleted row other than the primary key fields, and the delete file must
       // contain values
       // that are correct for the deleted row. Therefore, only write the equality delete fields.
-      this.appenderFactory =
-          new FlinkAppenderFactory(
-              table,
-              schema,
-              flinkSchema,
-              writeProperties,
-              spec,
-              ArrayUtil.toPrimitive(equalityFieldIds.toArray(new Integer[0])),
-              TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)),
-              null);
+      this.fileWriterFactory =
+          new FlinkFileWriterFactory.Builder(table)
+              .dataFileFormat(format)
+              .dataSchema(schema)
+              .dataFlinkType(flinkSchema)
+              .deleteFileFormat(format)
+              .equalityFieldIds(ArrayUtil.toPrimitive(equalityFieldIds.toArray(new Integer[0])))
+              .equalityDeleteRowSchema(TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)))
+              .writerProperties(writeProperties)
+              .build();
     } else {
-      this.appenderFactory =
-          new FlinkAppenderFactory(
-              table,
-              schema,
-              flinkSchema,
-              writeProperties,
-              spec,
-              ArrayUtil.toPrimitive(equalityFieldIds.toArray(new Integer[0])),
-              schema,
-              null);
+      this.fileWriterFactory =
+          new FlinkFileWriterFactory.Builder(table)
+              .dataFileFormat(format)
+              .dataSchema(schema)
+              .dataFlinkType(flinkSchema)
+              .deleteFileFormat(format)
+              .equalityFieldIds(ArrayUtil.toPrimitive(equalityFieldIds.toArray(new Integer[0])))
+              .equalityDeleteRowSchema(schema)
+              .writerProperties(writeProperties)
+              .build();
     }
   }
 
@@ -166,6 +172,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
 
     refreshTable();
+    this.useDv = TableUtil.formatVersion(table) > 2;
 
     this.outputFileFactory =
         OutputFileFactory.builderFor(table, taskId, attemptId)
@@ -189,7 +196,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         return new UnpartitionedWriter<>(
             spec,
             format,
-            appenderFactory,
+            fileWriterFactory,
             outputFileFactory,
             tableSupplier.get().io(),
             targetFileSizeBytes);
@@ -197,7 +204,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         return new RowDataPartitionedFanoutWriter(
             spec,
             format,
-            appenderFactory,
+            fileWriterFactory,
             outputFileFactory,
             tableSupplier.get().io(),
             targetFileSizeBytes,
@@ -210,26 +217,28 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         return new UnpartitionedDeltaWriter(
             spec,
             format,
-            appenderFactory,
+            fileWriterFactory,
             outputFileFactory,
             tableSupplier.get().io(),
             targetFileSizeBytes,
             schema,
             flinkSchema,
             equalityFieldIds,
-            upsert);
+            upsert,
+            useDv);
       } else {
         return new PartitionedDeltaWriter(
             spec,
             format,
-            appenderFactory,
+            fileWriterFactory,
             outputFileFactory,
             tableSupplier.get().io(),
             targetFileSizeBytes,
             schema,
             flinkSchema,
             equalityFieldIds,
-            upsert);
+            upsert,
+            useDv);
       }
     }
   }
@@ -248,13 +257,13 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     RowDataPartitionedFanoutWriter(
         PartitionSpec spec,
         FileFormat format,
-        FileAppenderFactory<RowData> appenderFactory,
+        FileWriterFactory<RowData> fileWriterFactory,
         OutputFileFactory fileFactory,
         FileIO io,
         long targetFileSize,
         Schema schema,
         RowType flinkSchema) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+      super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
       this.partitionKey = new PartitionKey(spec, schema);
       this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     }

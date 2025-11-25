@@ -34,9 +34,9 @@ buildscript {
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
-    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.2'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.4'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.4.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.15.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.17.0'
   }
 }
 
@@ -164,6 +164,19 @@ subprojects {
     }
   }
 
+  def testParallelism = System.getProperty('testParallelism')
+  if (testParallelism != null) {
+    def numTestWorkers
+    if (testParallelism.equalsIgnoreCase('auto')) {
+      numTestWorkers = Math.ceil(Runtime.getRuntime().availableProcessors() / 2.0) as int
+    } else {
+      numTestWorkers = testParallelism as int
+    }
+    tasks.withType(Test).configureEach {
+      maxParallelForks = numTestWorkers
+    }
+  }
+
   configurations {
     testImplementation.extendsFrom compileOnly
 
@@ -182,6 +195,7 @@ subprojects {
       exclude group: 'com.sun.jersey'
       exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
+      exclude group: 'org.jetbrains', module: 'annotations'
     }
 
     testArtifacts
@@ -348,6 +362,7 @@ project(':iceberg-core') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    testRuntimeOnly project(':iceberg-parquet')
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
 
@@ -1039,6 +1054,7 @@ project(':iceberg-open-api') {
     testFixturesImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testFixturesImplementation project(':iceberg-aws')
     testFixturesImplementation project(':iceberg-gcp')
+    testFixturesImplementation project(':iceberg-bigquery')
     testFixturesImplementation project(':iceberg-azure')
     testFixturesImplementation(libs.hadoop3.common) {
       exclude group: 'org.slf4j'

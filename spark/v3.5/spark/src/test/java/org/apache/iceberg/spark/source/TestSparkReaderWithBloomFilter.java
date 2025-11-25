@@ -24,9 +24,9 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -38,7 +38,6 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Parameter;
@@ -53,16 +52,17 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
@@ -248,47 +248,47 @@ public class TestSparkReaderWithBloomFilter {
   private DataFile writeDataFile(OutputFile out, StructLike partition, List<Record> rows)
       throws IOException {
     FileFormat format = defaultFormat(table.properties());
-    GenericAppenderFactory factory = new GenericAppenderFactory(table.schema(), table.spec());
+    Map<String, String> writeProperties = Maps.newHashMap();
 
     boolean useBloomFilterCol1 =
         PropertyUtil.propertyAsBoolean(
             table.properties(), PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", Boolean.toString(useBloomFilterCol1));
     boolean useBloomFilterCol2 =
         PropertyUtil.propertyAsBoolean(
             table.properties(), PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long", false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long",
         Boolean.toString(useBloomFilterCol2));
     boolean useBloomFilterCol3 =
         PropertyUtil.propertyAsBoolean(
             table.properties(), PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_double", false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_double",
         Boolean.toString(useBloomFilterCol3));
     boolean useBloomFilterCol4 =
         PropertyUtil.propertyAsBoolean(
             table.properties(), PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_float", false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_float",
         Boolean.toString(useBloomFilterCol4));
     boolean useBloomFilterCol5 =
         PropertyUtil.propertyAsBoolean(
             table.properties(), PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_string", false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_string",
         Boolean.toString(useBloomFilterCol5));
     boolean useBloomFilterCol6 =
         PropertyUtil.propertyAsBoolean(
             table.properties(), PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_boolean", false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_boolean",
         Boolean.toString(useBloomFilterCol6));
     boolean useBloomFilterCol7 =
         PropertyUtil.propertyAsBoolean(
             table.properties(), PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_date", false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_date",
         Boolean.toString(useBloomFilterCol7));
     boolean useBloomFilterCol8 =
@@ -296,7 +296,7 @@ public class TestSparkReaderWithBloomFilter {
             table.properties(),
             PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_int_decimal",
             false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_int_decimal",
         Boolean.toString(useBloomFilterCol8));
     boolean useBloomFilterCol9 =
@@ -304,7 +304,7 @@ public class TestSparkReaderWithBloomFilter {
             table.properties(),
             PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long_decimal",
             false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long_decimal",
         Boolean.toString(useBloomFilterCol9));
     boolean useBloomFilterCol10 =
@@ -312,27 +312,26 @@ public class TestSparkReaderWithBloomFilter {
             table.properties(),
             PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_fixed_decimal",
             false);
-    factory.set(
+    writeProperties.put(
         PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_fixed_decimal",
         Boolean.toString(useBloomFilterCol10));
     int blockSize =
         PropertyUtil.propertyAsInt(
             table.properties(), PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
-    factory.set(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(blockSize));
+    writeProperties.put(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(blockSize));
 
-    FileAppender<Record> writer = factory.newAppender(out, format);
-    try (Closeable toClose = writer) {
-      writer.addAll(rows);
+    DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder()
+            .dataSchema(table.schema())
+            .dataFileFormat(format)
+            .writerProperties(writeProperties)
+            .build()
+            .newDataWriter(encrypt(out), table.spec(), partition);
+    try (writer) {
+      writer.write(rows);
     }
 
-    return DataFiles.builder(table.spec())
-        .withFormat(format)
-        .withPath(out.location())
-        .withPartition(partition)
-        .withFileSizeInBytes(writer.length())
-        .withSplitOffsets(writer.splitOffsets())
-        .withMetrics(writer.metrics())
-        .build();
+    return writer.toDataFile();
   }
 
   private FileFormat defaultFormat(Map<String, String> properties) {

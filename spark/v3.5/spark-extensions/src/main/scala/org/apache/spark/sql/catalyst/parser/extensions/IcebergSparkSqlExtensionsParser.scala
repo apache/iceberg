@@ -28,30 +28,23 @@ import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.ExtendedParser
 import org.apache.iceberg.spark.ExtendedParser.RawOrderField
-import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.procedures.SparkProcedures
-import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.catalyst.analysis.EliminateSubqueryAliases
 import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
-import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.connector.catalog.Table
-import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
 import scala.jdk.CollectionConverters._
-import scala.util.Try
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface with ExtendedParser {
 
@@ -329,7 +322,7 @@ class IcebergParseException(
     builder ++= "\n" ++= message
     start match {
       case Origin(
-          Some(l), Some(p), Some(startIndex), Some(stopIndex), Some(sqlText), Some(objectType), Some(objectName)) =>
+          Some(l), Some(p), Some(_), Some(_), Some(_), Some(_), Some(_)) =>
         builder ++= s"(line $l, pos $p)\n"
         command.foreach { cmd =>
           val (above, below) = cmd.split("\n").splitAt(l)

@@ -41,10 +41,10 @@ import org.apache.iceberg.util.SerializableSupplier;
  * table metadata, it directly persists the current schema, spec, sort order, table properties to
  * avoid reading the metadata file from other nodes for frequently needed metadata.
  *
- * <p>The implementation assumes the passed instances of {@link FileIO}, {@link EncryptionManager}
- * are serializable. If you are serializing the table using a custom serialization framework like
- * Kryo, those instances of {@link FileIO}, {@link EncryptionManager} must be supported by that
- * particular serialization framework.
+ * <p>The implementation assumes the passed instances of {@link FileIO}, {@link EncryptionManager},
+ * {@link LocationProvider} are serializable. If you are serializing the table using a custom
+ * serialization framework like Kryo, those instances of {@link FileIO}, {@link EncryptionManager},
+ * {@link LocationProvider} must be supported by that particular serialization framework.
  *
  * <p><em>Note:</em> loading the complete metadata from a large number of nodes can overwhelm the
  * storage.
@@ -65,8 +65,8 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private final Map<String, SnapshotRef> refs;
   private final UUID uuid;
   private final int formatVersion;
+  private final Try<LocationProvider> locationProviderTry;
 
-  private transient volatile LocationProvider lazyLocationProvider = null;
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
@@ -85,6 +85,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
     this.io = fileIO(table);
     this.encryption = table.encryption();
+    this.locationProviderTry = Try.of(table::locationProvider);
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
     this.formatVersion = formatVersion(table);
@@ -265,14 +266,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
   @Override
   public LocationProvider locationProvider() {
-    if (lazyLocationProvider == null) {
-      synchronized (this) {
-        if (lazyLocationProvider == null) {
-          this.lazyLocationProvider = LocationProviders.locationsFor(location, properties);
-        }
-      }
-    }
-    return lazyLocationProvider;
+    return this.locationProviderTry.getOrThrow();
   }
 
   @Override

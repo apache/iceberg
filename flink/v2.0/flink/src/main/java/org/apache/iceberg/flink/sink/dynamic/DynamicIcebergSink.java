@@ -168,7 +168,7 @@ public class DynamicIcebergSink
         .transform(
             prefixIfNotNull(uidPrefix, sinkId + " Pre Commit"),
             typeInformation,
-            new DynamicWriteResultAggregator(catalogLoader))
+            new DynamicWriteResultAggregator(catalogLoader, cacheMaximumSize))
         .uid(prefixIfNotNull(uidPrefix, sinkId + "-pre-commit-topology"));
   }
 
@@ -185,6 +185,7 @@ public class DynamicIcebergSink
     private final Map<String, String> writeOptions = Maps.newHashMap();
     private final Map<String, String> snapshotSummary = Maps.newHashMap();
     private ReadableConfig readableConfig = new Configuration();
+    private TableCreator tableCreator = TableCreator.DEFAULT;
     private boolean immediateUpdate = false;
     private int cacheMaximumSize = 100;
     private long cacheRefreshMs = 1_000;
@@ -240,6 +241,15 @@ public class DynamicIcebergSink
 
     public Builder<T> flinkConf(ReadableConfig config) {
       this.readableConfig = config;
+      return this;
+    }
+
+    /**
+     * Logic to create a table. Allows setting custom table properties/location on a per-table
+     * basis.
+     */
+    public Builder<T> tableCreator(TableCreator tableCreationFunction) {
+      this.tableCreator = tableCreationFunction;
       return this;
     }
 
@@ -374,7 +384,8 @@ public class DynamicIcebergSink
                       immediateUpdate,
                       cacheMaximumSize,
                       cacheRefreshMs,
-                      inputSchemasPerTableCacheMaximumSize))
+                      inputSchemasPerTableCacheMaximumSize,
+                      tableCreator))
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
               .returns(type);
@@ -391,7 +402,8 @@ public class DynamicIcebergSink
                       catalogLoader,
                       cacheMaximumSize,
                       cacheRefreshMs,
-                      inputSchemasPerTableCacheMaximumSize))
+                      inputSchemasPerTableCacheMaximumSize,
+                      tableCreator))
               .uid(prefixIfNotNull(uidPrefix, "-updater"))
               .name(operatorName("Updater"))
               .returns(type)

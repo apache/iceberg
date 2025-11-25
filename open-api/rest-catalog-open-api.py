@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, List, Literal, Optional, Union
 from uuid import UUID
 
@@ -64,6 +64,12 @@ class CatalogConfig(BaseModel):
             'GET /v1/{prefix}/namespaces/{namespace}/tables/{table}',
             'GET /v1/{prefix}/namespaces/{namespace}/views/{view}',
         ],
+    )
+    idempotency_key_lifetime: Optional[timedelta] = Field(
+        None,
+        alias='idempotency-key-lifetime',
+        description='Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H). Interpreted as the maximum time from the first submission using a key to the last retry during which a client may reuse that key. Servers SHOULD accept retries for at least this duration and MAY include a grace period to account for delays/clock skew. Clients SHOULD NOT reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any subsequent attempt. Presence of this field indicates the server supports Idempotency-Key semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.',
+        example='PT30M',
     )
 
 
@@ -220,6 +226,11 @@ class Snapshot(BaseModel):
         alias='first-row-id',
         description='The first _row_id assigned to the first row in the first data file in the first manifest',
     )
+    added_rows: Optional[int] = Field(
+        None,
+        alias='added-rows',
+        description='The upper bound of the number of rows with assigned row IDs',
+    )
     summary: Summary
     schema_id: Optional[int] = Field(None, alias='schema-id')
 
@@ -233,7 +244,7 @@ class SnapshotReference(BaseModel):
 
 
 class SnapshotReferences(BaseModel):
-    __root__: Optional[Dict[str, SnapshotReference]] = None
+    __root__: Dict[str, SnapshotReference]
 
 
 class SnapshotLogItem(BaseModel):
@@ -614,7 +625,7 @@ class MetricResult(BaseModel):
 
 
 class Metrics(BaseModel):
-    __root__: Optional[Dict[str, MetricResult]] = None
+    __root__: Dict[str, MetricResult]
 
 
 class CommitReport(BaseModel):
@@ -976,8 +987,8 @@ class FailedPlanningResult(IcebergErrorResponse):
 
 class AsyncPlanningResult(BaseModel):
     status: Literal['submitted'] = Field(..., const=True)
-    plan_id: Optional[str] = Field(
-        None, alias='plan-id', description='ID used to track a planning request'
+    plan_id: str = Field(
+        ..., alias='plan-id', description='ID used to track a planning request'
     )
 
 
@@ -1433,6 +1444,11 @@ class PlanTableScanRequest(BaseModel):
     filter: Optional[Expression] = Field(
         None, description='Expression used to filter the table data'
     )
+    min_rows_requested: Optional[int] = Field(
+        None,
+        alias='min-rows-requested',
+        description='The minimum number of rows requested for the scan. This is used as a hint to the server to not have to return more rows than necessary. It is not required for the server to return that many rows since the scan may not produce that many rows. The server can also return more rows than requested.',
+    )
     case_sensitive: Optional[bool] = Field(
         True,
         alias='case-sensitive',
@@ -1487,6 +1503,11 @@ class CompletedPlanningResult(ScanTasks):
     """
 
     status: Literal['completed'] = Field(..., const=True)
+    storage_credentials: Optional[List[StorageCredential]] = Field(
+        None,
+        alias='storage-credentials',
+        description='Storage credentials for accessing the files returned in the scan result.\nIf the server returns storage credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to read the files returned in the FileScanTasks as part of the scan result.',
+    )
 
 
 class FetchScanTasksResult(ScanTasks):
@@ -1500,8 +1521,8 @@ class ReportMetricsRequest1(ScanReport):
 
 
 class CompletedPlanningWithIDResult(CompletedPlanningResult):
-    plan_id: Optional[str] = Field(
-        None, alias='plan-id', description='ID used to track a planning request'
+    plan_id: str = Field(
+        ..., alias='plan-id', description='ID used to track a planning request'
     )
     status: Literal['completed']
 

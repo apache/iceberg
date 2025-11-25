@@ -82,6 +82,8 @@ public class LockFactoryBuilder {
         lockConfig.zkSessionTimeoutMs(),
         lockConfig.zkConnectionTimeoutMs(),
         lockConfig.zkBaseSleepMs(),
-        lockConfig.zkMaxRetries());
+        lockConfig.zkMaxRetries(),
+        lockConfig.zkRetryPolicy(),
+        lockConfig.zkMaxSleepMs());
   }
 }
