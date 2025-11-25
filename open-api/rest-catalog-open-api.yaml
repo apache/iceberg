@@ -2313,7 +2313,6 @@ components:
       required:
         - type
         - term
-        - value
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
