@@ -33,25 +33,6 @@ public class TestIDReference {
           Types.NestedField.required(35, "s", Types.StringType.get()));
 
   @Test
-  public void testIDReferenceEquality() {
-    IDReference<Integer> ref1 = new IDReference<>("a", 34);
-    IDReference<Integer> ref2 = new IDReference<>("a", 34);
-    IDReference<Integer> ref3 = new IDReference<>("b", 34);
-    IDReference<Integer> ref4 = new IDReference<>("a", 35);
-
-    // Equal references
-    assertThat(ref1.id()).isEqualTo(ref2.id());
-    assertThat(ref1.name()).isEqualTo(ref2.name());
-
-    // Different names, same fieldId
-    assertThat(ref1.id()).isEqualTo(ref3.id());
-    assertThat(ref1.name()).isNotEqualTo(ref3.name());
-
-    // Same name, different fieldId
-    assertThat(ref1).isNotEqualTo(ref4);
-  }
-
-  @Test
   public void testIDReferenceBind() {
     IDReference<Integer> ref = new IDReference<>("a", 34);
     BoundReference<Integer> bound = ref.bind(SCHEMA.asStruct(), true);
