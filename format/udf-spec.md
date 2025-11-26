@@ -77,12 +77,12 @@ Notes:
    - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
    - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
 2. Entries in `properties` are treated as hints, not strict rules. Engines MAY choose to honor them or ignore them.
-3. `parameter-names` is the single global source of truth for parameter naming across all overloads:
-   - Each overload MUST use a prefix of this list, in order. 
+3. `parameter-names` is the single source of truth for parameter naming across all overload definitions:
+   - Each overload MUST use a prefix of this list, in order, e.g., `foo(a => 1)` are not allowed if the `parameter-names` are `[{"name": "x"}, {"name":"y"}]`.
    - Names and relative ordering are immutable. 
    - Only appending new names is allowed.
    - Only the doc field may be updated in place.
-   - Type-only overloads (e.g., `foo(int x)` and `foo(float x)`) are valid as long as the names match the prefix.
+   - Type-only overloads (e.g., `foo(int)` and `foo(float)`) are valid as long as the names match the prefix.
 
 ### Definition
 
@@ -106,10 +106,10 @@ and prefixing with `sig1-`. This yields a 31-character deterministic ID, easy to
 version prefix.
 
 ### Parameter
-| Requirement | Field           | Type                                                                                                                                                                                                                                                                    | Description         |
-|-------------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------|
-| *required*  | `type`          | [JSON representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization) of an Iceberg type where primitive types are encoded as JSON strings (e.g., `"int"`, `"string"`), and complex types are encoded as JSON objects (e.g., `{"type": "struct", ...}`) | Parameter data type. |
-| *optional*  | `default-value` | `string`                                                                                                                                                                                                                                                                | Default value.      |
+| Requirement | Field     | Type                                                                                                                                                                                                                                                                    | Description          |
+|-------------|-----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------|
+| *required*  | `type`    | [JSON representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization) of an Iceberg type where primitive types are encoded as JSON strings (e.g., `"int"`, `"string"`), and complex types are encoded as JSON objects (e.g., `{"type": "struct", ...}`) | Parameter data type. |
+| *optional*  | `default` | `string`                                                                                                                                                                                                                                                                | Default value.       |
 
 Notes:
 1. Function definitions are identified by the tuple of `type`s and there can be only one definition for a given tuple.
@@ -171,12 +171,12 @@ Resolution rule is decided by engines, but engines SHOULD:
 SQL statement:
 ```sql
 CREATE FUNCTION add_one(x INT COMMENT 'Input integer')
-COMMENT 'Add one to the input value'
+COMMENT 'Add one to the input integer'
 RETURNS INT
 RETURN x + 1;
 
 CREATE FUNCTION add_one(x FLOAT COMMENT 'Input float')
-COMMENT 'Add one to the input value'
+COMMENT 'Add one to the input float'
 RETURNS FLOAT
 RETURN x + 1.0;
 ```
@@ -185,11 +185,14 @@ RETURN x + 1.0;
 {
    "function-uuid": "42fd3f91-bc10-41c1-8a52-92b57dd0a9b2",
    "format-version": 1,
+   "parameter-names": [
+      { "name": "x", "doc": "The first input" }
+   ],
    "definitions": [
       {
          "definition-id": "(int)",
          "parameters": [
-            { "name": "x", "type": "int", "doc": "Input integer" }
+            { "type": "int" }
          ],
          "return-type": "int",
          "doc": "Add one to the input integer",
@@ -217,7 +220,7 @@ RETURN x + 1.0;
       {
          "definition-id": "(float)",
          "parameters": [
-            { "name": "x", "type": "float", "doc": "Input float" }
+            { "type": "float", "default": 1.0 }
          ],
          "return-type": "float",
          "doc": "Add one to the input float",
@@ -269,12 +272,13 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
 {
    "function-uuid": "8a7fa39a-6d8f-4a2f-9d8d-3f3a8f3c2a10",
    "format-version": 1,
+   "parameter-names": [
+     { "name": "c", "doc": "Color of fruits" }
+   ],
    "definitions": [
       {
          "definition-id": "(string)",
-         "parameters": [
-            { "name": "c", "type": "string", "doc": "Color of fruits" }
-         ],
+         "parameters": [{ "type": "string" }],
          "return-type": {
             "type": "struct",
             "fields": [
