@@ -69,6 +69,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     for (String path : paths) {
       location.append("/").append(path);
     }
+
     return location.toString();
   }
 
