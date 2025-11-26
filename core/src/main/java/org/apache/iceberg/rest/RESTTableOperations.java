@@ -44,10 +44,10 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.util.LocationUtil;
 
-public class RESTTableOperations implements TableOperations {
+class RESTTableOperations implements TableOperations {
   private static final String METADATA_FOLDER_NAME = "metadata";
 
-  public enum UpdateType {
+  enum UpdateType {
     CREATE,
     REPLACE,
     SIMPLE
@@ -63,7 +63,7 @@ public class RESTTableOperations implements TableOperations {
   private UpdateType updateType;
   private TableMetadata current;
 
-  protected RESTTableOperations(
+  RESTTableOperations(
       RESTClient client,
       String path,
       Supplier<Map<String, String>> headers,
@@ -73,7 +73,7 @@ public class RESTTableOperations implements TableOperations {
     this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
   }
 
-  protected RESTTableOperations(
+  RESTTableOperations(
       RESTClient client,
       String path,
       Supplier<Map<String, String>> headers,
