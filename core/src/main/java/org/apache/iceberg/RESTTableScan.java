@@ -217,7 +217,7 @@ public class RESTTableScan extends DataTableScan {
 
   private CloseableIterable<FileScanTask> scanTasksIterable(
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
-    if (!planTasks.isEmpty()) {
+    if (planTasks != null && !planTasks.isEmpty()) {
       Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
     }
 

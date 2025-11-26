@@ -45,7 +45,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.HistoryEntry;
-import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.ReplaceSortOrder;
@@ -3373,25 +3372,5 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     namespaces.addAll(starting);
     namespaces.addAll(Arrays.asList(additional));
     return namespaces;
-  }
-
-  protected void assertBoundFileScanTasks(Table table, PartitionSpec partitionSpec) {
-    PartitionData partitionData = new PartitionData(partitionSpec.partitionType());
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      Streams.stream(tasks)
-          .forEach(
-              task -> {
-                // assert file scan task spec being bound
-                assertThat(task.spec().equals(partitionSpec));
-                // assert data file spec being bound
-                assertThat(task.file().partition().equals(partitionData));
-                // assert all delete files in task are bound
-                task.deletes()
-                    .forEach(
-                        deleteFile -> assertThat(deleteFile.partition().equals(partitionData)));
-              });
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
   }
 }

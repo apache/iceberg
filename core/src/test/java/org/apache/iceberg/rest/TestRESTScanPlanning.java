@@ -28,7 +28,6 @@ import static org.apache.iceberg.catalog.CatalogTests.FILE_C;
 import static org.apache.iceberg.catalog.CatalogTests.FILE_C_EQUALITY_DELETES;
 import static org.apache.iceberg.catalog.CatalogTests.SCHEMA;
 import static org.apache.iceberg.catalog.CatalogTests.SPEC;
-import static org.apache.iceberg.catalog.CatalogTests.TABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -90,8 +89,6 @@ public class TestRESTScanPlanning {
   @BeforeEach
   public void setupCatalogs() throws Exception {
     infrastructure.before(temp);
-    // Update references for backward compatibility
-    this.restCatalog = infrastructure.catalog();
     this.backendCatalog = infrastructure.backendCatalog();
     this.httpServer = infrastructure.httpServer();
     this.adapterForRESTServer = infrastructure.adapter();
@@ -113,45 +110,34 @@ public class TestRESTScanPlanning {
 
   // ==================== Helper Methods ====================
 
-  protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+  private RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
     return infrastructure.initCatalog(catalogName, additionalProperties);
   }
 
-  protected RESTCatalog catalog() {
-    return infrastructure.catalog();
-  }
-
-  protected boolean requiresNamespaceCreate() {
+  private boolean requiresNamespaceCreate() {
     return true;
   }
 
-  @SuppressWarnings("unchecked")
-  protected <T> T roundTripSerialize(T payload, String description) {
-    return infrastructure.roundTripSerialize(payload, description);
-  }
-
-  protected void setParserContext(org.apache.iceberg.Table table) {
+  private void setParserContext(org.apache.iceberg.Table table) {
     infrastructure.setParserContext(table);
     this.parserContext = infrastructure.parserContext();
   }
 
-  protected RESTCatalog scanPlanningCatalog() {
+  private RESTCatalog scanPlanningCatalog() {
     return restCatalogWithScanPlanning;
   }
 
-  protected void configurePlanningBehavior(
+  private void configurePlanningBehavior(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> configurator) {
     TestPlanningBehavior.Builder builder = TestPlanningBehavior.builder();
     adapterForRESTServer.setPlanningBehavior(configurator.apply(builder).build());
   }
 
-  protected Table createTableWithScanPlanning(String tableName) {
-    return createTableWithScanPlanning(TableIdentifier.of(NS, tableName));
+  private Table createTableWithScanPlanning(RESTCatalog catalog, String tableName) {
+    return createTableWithScanPlanning(catalog, TableIdentifier.of(NS, tableName));
   }
 
-  protected Table createTableWithScanPlanning(TableIdentifier identifier) {
-    RESTCatalog catalog = scanPlanningCatalog();
-
+  private Table createTableWithScanPlanning(RESTCatalog catalog, TableIdentifier identifier) {
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(identifier.namespace());
     }
@@ -159,14 +145,14 @@ public class TestRESTScanPlanning {
     return catalog.buildTable(identifier, SCHEMA).withPartitionSpec(SPEC).create();
   }
 
-  protected RESTTable restTableFor(String tableName) {
-    Table table = createTableWithScanPlanning(tableName);
+  private RESTTable restTableFor(RESTCatalog catalog, String tableName) {
+    Table table = createTableWithScanPlanning(catalog, tableName);
     table.newAppend().appendFile(FILE_A).commit();
     assertThat(table).isInstanceOf(RESTTable.class);
     return (RESTTable) table;
   }
 
-  protected RESTTableScan restTableScanFor(Table table) {
+  private RESTTableScan restTableScanFor(Table table) {
     assertThat(table).isInstanceOf(RESTTable.class);
     RESTTable restTable = (RESTTable) table;
     TableScan scan = restTable.newScan();
@@ -194,7 +180,7 @@ public class TestRESTScanPlanning {
     }
   }
 
-  protected static class TestPlanningBehavior implements RESTCatalogAdapter.PlanningBehavior {
+  private static class TestPlanningBehavior implements RESTCatalogAdapter.PlanningBehavior {
     private final boolean asyncPlanning;
     private final int tasksPerPage;
 
@@ -255,7 +241,7 @@ public class TestRESTScanPlanning {
   public void scanPlanningWithAllTasksInSingleResponse() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
 
-    Table table = restTableFor("all_tasks_table");
+    Table table = restTableFor(scanPlanningCatalog(), "all_tasks_table");
     setParserContext(table);
 
     // Verify actual data file is returned with correct count
@@ -273,7 +259,7 @@ public class TestRESTScanPlanning {
     // Configure: synchronous planning with very small pages (creates nested plan task structure)
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
 
-    Table table = restTableFor("nested_plan_task_table");
+    Table table = restTableFor(scanPlanningCatalog(), "nested_plan_task_table");
     // add one more files for proper pagination
     table.newFastAppend().appendFile(FILE_B).commit();
     setParserContext(table);
@@ -294,7 +280,7 @@ public class TestRESTScanPlanning {
   @Test
   public void testCancelPlanMethodAvailability() {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
-    RESTTable table = restTableFor("cancel_method_table");
+    RESTTable table = restTableFor(scanPlanningCatalog(), "cancel_method_table");
     RESTTableScan restTableScan = restTableScanFor(table);
 
     // Test that cancelPlan method is available and callable
@@ -308,7 +294,7 @@ public class TestRESTScanPlanning {
   @Test
   public void testIterableCloseTriggersCancel() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
-    RESTTable restTable = restTableFor("iterable_close_test");
+    RESTTable restTable = restTableFor(scanPlanningCatalog(), "iterable_close_test");
     setParserContext(restTable);
 
     TableScan scan = restTable.newScan();
@@ -334,7 +320,7 @@ public class TestRESTScanPlanning {
     assumeThat(type).isNotEqualTo(MetadataTableType.POSITION_DELETES);
 
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
-    RESTTable table = restTableFor("metadata_tables_test");
+    RESTTable table = restTableFor(scanPlanningCatalog(), "metadata_tables_test");
     table.newAppend().appendFile(FILE_B).commit();
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_EQUALITY_DELETES).commit();
     setParserContext(table);
@@ -349,12 +335,11 @@ public class TestRESTScanPlanning {
 
   @ParameterizedTest
   @EnumSource(PlanningMode.class)
-  @Disabled("Pending fix for the RESTCatalogAdapter to support empty tables")
   void remoteScanPlanningWithEmptyTable(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = createTableWithScanPlanning("empty_table_test");
+    Table table = createTableWithScanPlanning(scanPlanningCatalog(), "empty_table_test");
     setParserContext(table);
 
     // Execute scan planning on empty table
@@ -373,7 +358,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor("non-existent_column");
+    Table table = restTableFor(scanPlanningCatalog(), "non-existent_column");
     setParserContext(table);
 
     try (CloseableIterable<FileScanTask> iterable =
@@ -389,7 +374,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor("incremental_scan");
+    Table table = restTableFor(scanPlanningCatalog(), "incremental_scan");
     setParserContext(table);
 
     // Add second file to the table
@@ -418,7 +403,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor("position_deletes_test");
+    Table table = restTableFor(scanPlanningCatalog(), "position_deletes_test");
     setParserContext(table);
 
     // Add position deletes that correspond to FILE_A (which was added in table creation)
@@ -454,7 +439,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor("equality_deletes_test");
+    Table table = restTableFor(scanPlanningCatalog(), "equality_deletes_test");
     setParserContext(table);
 
     // Add equality deletes that correspond to FILE_A
@@ -488,7 +473,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor("mixed_deletes_test");
+    Table table = restTableFor(scanPlanningCatalog(), "mixed_deletes_test");
     setParserContext(table);
 
     // Add both position and equality deletes in separate commits
@@ -526,7 +511,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor("multiple_deletes_test");
+    Table table = restTableFor(scanPlanningCatalog(), "multiple_deletes_test");
     setParserContext(table);
 
     // Add FILE_B and FILE_C to the table (FILE_A is already added during table creation)
@@ -586,7 +571,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor("deletes_filtering_test");
+    Table table = restTableFor(scanPlanningCatalog(), "deletes_filtering_test");
     setParserContext(table);
 
     // Add FILE_B to have more data for filtering
@@ -630,7 +615,7 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor("deletes_cancellation_test");
+    Table table = restTableFor(scanPlanningCatalog(), "deletes_cancellation_test");
     setParserContext(table);
 
     // Add deletes to make the scenario more complex
@@ -659,7 +644,7 @@ public class TestRESTScanPlanning {
     configurePlanningBehavior(planMode);
 
     // Create table and add FILE_A (snapshot 1)
-    Table table = restTableFor("snapshot_scan_test");
+    Table table = restTableFor(scanPlanningCatalog(), "snapshot_scan_test");
     setParserContext(table);
     table.refresh();
     long snapshot1Id = table.currentSnapshot().snapshotId();
@@ -802,12 +787,8 @@ public class TestRESTScanPlanning {
     // Server doesn't support scan planning at all - should fall back to client-side planning
     CatalogWithAdapter catalogWithAdapter = catalogWithEndpoints(baseCatalogEndpoints(), null);
     RESTCatalog catalog = catalogWithAdapter.catalog;
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    Table table = catalog.createTable(TABLE, SCHEMA);
+    Table table = createTableWithScanPlanning(catalog, "no_planning_support");
+    assertThat(table).isNotInstanceOf(RESTTable.class);
     table.newAppend().appendFile(FILE_A).commit();
 
     // Should fall back to client-side planning when endpoint is not supported
@@ -829,18 +810,12 @@ public class TestRESTScanPlanning {
             TestPlanningBehavior.builder().asynchronous().build());
 
     RESTCatalog catalog = catalogWithAdapter.catalog;
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    Table table = catalog.createTable(TABLE, SCHEMA);
-    table.newAppend().appendFile(FILE_A).commit();
+    RESTTable table = restTableFor(catalog, "async_not_supported");
     setParserContext(table);
 
     // Should fail with UnsupportedOperationException when trying to fetch async plan result
     // because V1_FETCH_TABLE_SCAN_PLAN endpoint is not supported
-    assertThatThrownBy(() -> table.newScan().planFiles().iterator().hasNext())
+    assertThatThrownBy(() -> restTableScanFor(table).planFiles().iterator().hasNext())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("Server does not support endpoint")
         .hasMessageContaining(Endpoint.V1_FETCH_TABLE_SCAN_PLAN.toString());
@@ -860,18 +835,14 @@ public class TestRESTScanPlanning {
             TestPlanningBehavior.builder().synchronousWithPagination().build());
 
     RESTCatalog catalog = catalogWithAdapter.catalog;
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    Table table = catalog.createTable(TABLE, SCHEMA);
-    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    RESTTable table = restTableFor(catalog, "pagination_not_supported");
+    table.newAppend().appendFile(FILE_B).commit();
     setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
 
     // Should fail with UnsupportedOperationException when trying to fetch paginated tasks
     // because V1_FETCH_TABLE_SCAN_PLAN_TASKS endpoint is not supported
-    assertThatThrownBy(() -> table.newScan().planFiles().iterator().hasNext())
+    assertThatThrownBy(() -> scan.planFiles().iterator().hasNext())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("Server does not support endpoint")
         .hasMessageContaining(Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS.toString());
@@ -889,18 +860,9 @@ public class TestRESTScanPlanning {
             TestPlanningBehavior.builder().asynchronous().build());
 
     RESTCatalog catalog = catalogWithAdapter.catalog;
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    Table table = catalog.createTable(TABLE, SCHEMA);
-    table.newAppend().appendFile(FILE_A).commit();
+    RESTTable table = restTableFor(catalog, "cancellation_not_supported");
     setParserContext(table);
-
-    assertThat(table).isInstanceOf(RESTTable.class);
-    RESTTable restTable = (RESTTable) table;
-    RESTTableScan scan = (RESTTableScan) restTable.newScan();
+    RESTTableScan scan = restTableScanFor(table);
 
     // Get the iterable - this starts async planning
     CloseableIterable<FileScanTask> iterable = scan.planFiles();

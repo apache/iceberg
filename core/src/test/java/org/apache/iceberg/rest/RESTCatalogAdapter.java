@@ -313,8 +313,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                   catalog,
                   ident,
                   request,
-                  planningBehavior::shouldPlanTableScanAsync,
-                  scan -> planningBehavior.numberFileScanTasksPerPlanTask()));
+                  planningBehavior()::shouldPlanTableScanAsync,
+                  scan -> planningBehavior().numberFileScanTasksPerPlanTask()));
         }
 
       case FETCH_PLANNING_RESULT:

@@ -83,6 +83,8 @@ public class RESTCatalogTestInfrastructure {
                   Class<T> responseType,
                   Consumer<ErrorResponse> errorHandler,
                   Consumer<Map<String, String>> responseHeaders) {
+                // this doesn't use a Mockito spy because this is used for catalog tests, which have
+                // different method calls
                 if (!ResourcePaths.tokens().equals(request.path())) {
                   if (ResourcePaths.config().equals(request.path())) {
                     assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
@@ -203,7 +205,8 @@ public class RESTCatalogTestInfrastructure {
         }
         return (T) reader.readValue(MAPPER.writeValueAsString(message));
       } else {
-        return payload;
+        // use Map so that Jackson doesn't try to instantiate ImmutableMap from payload.getClass()
+        return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), Map.class);
       }
     } catch (JsonProcessingException e) {
       throw new RuntimeException(

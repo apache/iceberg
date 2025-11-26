@@ -30,7 +30,6 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -100,15 +99,11 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
-
-  private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
   private static final ResourcePaths RESOURCE_PATHS =
       ResourcePaths.forCatalogProperties(Maps.newHashMap());
 
   @TempDir protected Path temp;
-
   protected RESTCatalogTestInfrastructure infrastructure = new RESTCatalogTestInfrastructure();
-
   // Expose infrastructure components as protected fields for backward compatibility with tests
   protected RESTCatalog restCatalog;
   protected InMemoryCatalog backendCatalog;
