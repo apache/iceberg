@@ -1850,4 +1850,3 @@ The version of the OGC standard first used here is 1.2.1, but future versions ma
 ## Appendix H: Materialized Views
 
 Iceberg tables can be used as storage tables for [Iceberg Materialized Views](view-spec.md#materialized-views). The Materialized View specification is an extension of the [View Spec](view-spec.md) that defines how precomputed query results are stored and maintained using Iceberg tables as the underlying storage layer.
-
