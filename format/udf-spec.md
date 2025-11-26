@@ -53,16 +53,23 @@ properties, and engine-specific representations.
 ### UDF Metadata
 The UDF metadata file has the following fields:
 
-| Requirement | Field name       | Type                   | Description                                                      |
-|-------------|------------------|------------------------|------------------------------------------------------------------|
-| *required*  | `function-uuid`  | `string`               | A UUID that identifies the function, generated once at creation. |
-| *required*  | `format-version` | `int`                  | Metadata format version (must be `1`).                           |
-| *required*  | `definitions`    | `list<definition>`     | List of function [definition](#definition) entities.             |
-| *required*  | `definition-log` | `list<definition-log>` | History of [definitions snapshots](#definitions-log).            |
-| *optional*  | `location`       | `string`               | Storage location of metadata files.                              |
-| *optional*  | `properties`     | `map`                  | A string to string map of properties.                            |
-| *optional*  | `secure`         | `boolean`              | Whether it is a secure function. Default: `false`.               |
-| *optional*  | `doc`            | `string`               | Documentation string.                                            |
+| Requirement | Field name        | Type                   | Description                                                                                                     |
+|-------------|-------------------|------------------------|-----------------------------------------------------------------------------------------------------------------|
+| *required*  | `function-uuid`   | `string`               | A UUID that identifies the function, generated once at creation.                                                |
+| *required*  | `format-version`  | `int`                  | Metadata format version (must be `1`).                                                                          |
+| *required*  | `definitions`     | `list<definition>`     | List of function [definition](#definition) entities.                                                            |
+| *required*  | `definition-log`  | `list<definition-log>` | History of [definitions snapshots](#definitions-log).                                                           |
+| *required*  | `parameter-names` | `list<parameter-name>` | Global ordered parameter names shared across all overloads. Overloads must use a prefix of this list, in order. |
+| *optional*  | `location`        | `string`               | Storage location of metadata files.                                                                             |
+| *optional*  | `properties`      | `map`                  | A string to string map of properties.                                                                           |
+| *optional*  | `secure`          | `boolean`              | Whether it is a secure function. Default: `false`.                                                              |
+| *optional*  | `doc`             | `string`               | Documentation string.                                                                                           |
+
+### Parameter-Name
+| Requirement | Field  | Type     | Description              |
+|-------------|--------|----------|--------------------------|
+| *required*  | `name` | `string` | Parameter name.          |
+| *optional*  | `doc`  | `string` | Parameter documentation. |
 
 Notes:
 1. When `secure` is `true`:
@@ -70,6 +77,28 @@ Notes:
    - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
    - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
 2. Entries in `properties` are treated as hints, not strict rules. Engines MAY choose to honor them or ignore them.
+3. The `parameter-names` list is the source of truth for parameter naming across all overload definitions. Each overload
+   MUST use a prefix of this list in order. The names and orders are immutable, only appending new is allowed, while the
+   `doc` of each `name` can be updated in place.
+
+#### Global Overload Parameter Consistency
+
+To ensure a consistent user experience and to simplify overload selection across engines, all overloads of a function MUST share a globally consistent parameter name scheme:
+
+1. All overloads MUST draw their parameter names from the top-level `parameter-names` list.
+2. Each overload uses a prefix of this list, in order, with no renaming allowed.
+3. Engines MUST reject definitions that introduce inconsistent names or reorder names relative to the global list.
+
+Overloads that differ only in parameter types (e.g., `foo(int x)` and `foo(float x)`) are valid as long as they reuse the same global parameter names in the same order.
+
+Example:
+- Valid:
+    - `foo(int x)`
+    - `foo(int x, int y)`
+    - `foo(float x)`
+- Invalid:
+    - `foo(int y)`
+    - `foo(int y, int x)`
 
 ### Definition
 
@@ -93,23 +122,20 @@ and prefixing with `sig1-`. This yields a 31-character deterministic ID, easy to
 version prefix.
 
 ### Parameter
-| Requirement | Field  | Type                                                                                                                                                                                                                                                                    | Description              |
-|-------------|--------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|
-| *required*  | `name` | `string`                                                                                                                                                                                                                                                                | Parameter name.          |
-| *required*  | `type` | [JSON representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization) of an Iceberg type where primitive types are encoded as JSON strings (e.g., `"int"`, `"string"`), and complex types are encoded as JSON objects (e.g., `{"type": "struct", ...}`) | Parameter data type.     |
-| *optional*  | `doc`  | `string`                                                                                                                                                                                                                                                                | Parameter documentation. |
+| Requirement | Field           | Type                                                                                                                                                                                                                                                                    | Description         |
+|-------------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------|
+| *required*  | `type`          | [JSON representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization) of an Iceberg type where primitive types are encoded as JSON strings (e.g., `"int"`, `"string"`), and complex types are encoded as JSON objects (e.g., `{"type": "struct", ...}`) | Parameter data type. |
+| *optional*  | `default-value` | `string`                                                                                                                                                                                                                                                                | Default value.      |
 
 Notes:
 1. Function definitions are identified by the tuple of `type`s and there can be only one definition for a given tuple.
    The type tuple is immutable across versions.
-2. Parameter `name`s are immutable across versions since named argument invocation is supported (e.g., `foo(a => 1, b => 2)`).
-   Only `doc` can be updated in place. 
-3. Variadic (vararg) parameters are not supported. Each definition must declare a fixed number of parameters.
-4. Each parameter input MUST be assignable to its declared Iceberg type. For complex types, the value’s
+2. Variadic (vararg) parameters are not supported. Each definition must declare a fixed number of parameters.
+3. Each parameter input MUST be assignable to its declared Iceberg type. For complex types, the value’s
    structure must match (correct field names, element/key/value types, and nesting). If a parameter—or any nested
    field/element—is marked required, engines MUST reject null at that position (including inside structs, lists, and maps).
-5. The `return-type` is immutable across versions. To change it, users must create a new definition and remove the old one.
-6. The function MUST return a value assignable to the declared `return-type`, meaning the returned value’s type and
+4. The `return-type` is immutable across versions. To change it, users must create a new definition and remove the old one.
+5. The function MUST return a value assignable to the declared `return-type`, meaning the returned value’s type and
    structure must match the declared Iceberg type (including field names, element types, and nesting for complex types),
    and any field or element marked as required MUST NOT be null. Engines MUST reject results that violate these rules.
 
