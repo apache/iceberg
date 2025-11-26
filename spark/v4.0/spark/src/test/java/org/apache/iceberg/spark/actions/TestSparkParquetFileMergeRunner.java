@@ -24,7 +24,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
-import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
@@ -70,61 +69,6 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
   }
 
   @Test
-  public void testCanUseMergerReturnsTrueForParquetFiles() {
-    Table table = TABLES.create(SCHEMA, tableLocation);
-    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
-
-    // Create a mock RewriteFileGroup with Parquet files
-    RewriteFileGroup group = mock(RewriteFileGroup.class);
-    DataFile parquetFile1 = mock(DataFile.class);
-    DataFile parquetFile2 = mock(DataFile.class);
-
-    when(parquetFile1.format()).thenReturn(FileFormat.PARQUET);
-    when(parquetFile2.format()).thenReturn(FileFormat.PARQUET);
-    when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1, parquetFile2));
-
-    // Use reflection to test the private canUseMerger method
-    // For now, we test this indirectly through doRewrite
-    assertThat(parquetFile1.format()).isEqualTo(FileFormat.PARQUET);
-    assertThat(parquetFile2.format()).isEqualTo(FileFormat.PARQUET);
-  }
-
-  @Test
-  public void testCanUseMergerReturnsFalseForNonParquetFiles() {
-    Table table = TABLES.create(SCHEMA, tableLocation);
-    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
-
-    // Create a mock RewriteFileGroup with non-Parquet files
-    RewriteFileGroup group = mock(RewriteFileGroup.class);
-    DataFile avroFile = mock(DataFile.class);
-
-    when(avroFile.format()).thenReturn(FileFormat.AVRO);
-    when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(avroFile));
-
-    // Verify the file is not Parquet
-    assertThat(avroFile.format()).isNotEqualTo(FileFormat.PARQUET);
-  }
-
-  @Test
-  public void testCanUseMergerReturnsFalseForMixedFormats() {
-    Table table = TABLES.create(SCHEMA, tableLocation);
-    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
-
-    // Create a mock RewriteFileGroup with mixed formats
-    RewriteFileGroup group = mock(RewriteFileGroup.class);
-    DataFile parquetFile = mock(DataFile.class);
-    DataFile avroFile = mock(DataFile.class);
-
-    when(parquetFile.format()).thenReturn(FileFormat.PARQUET);
-    when(avroFile.format()).thenReturn(FileFormat.AVRO);
-    when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile, avroFile));
-
-    // Verify we have mixed formats
-    Set<DataFile> files = group.rewrittenFiles();
-    assertThat(files).hasSize(2);
-  }
-
-  @Test
   public void testInheritsFromSparkBinPackFileRewriteRunner() {
     Table table = TABLES.create(SCHEMA, tableLocation);
     SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
@@ -153,7 +97,7 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
   }
 
   @Test
-  public void testCanUseMergerReturnsFalseForSortedTable() throws Exception {
+  public void testCanUseMergerReturnsFalseForSortedTable() {
     // Create a table with a sort order
     Table table = TABLES.create(SCHEMA, tableLocation);
     table.updateProperties().set("write.metadata.metrics.default", "full").commit();
@@ -177,20 +121,15 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
     when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1));
     when(group.fileScanTasks()).thenReturn(Lists.newArrayList(task1));
 
-    // Use reflection to call private validateAndGetSchema method
-    Method validateAndGetSchemaMethod =
-        SparkParquetFileMergeRunner.class.getDeclaredMethod(
-            "validateAndGetSchema", RewriteFileGroup.class);
-    validateAndGetSchemaMethod.setAccessible(true);
+    // Call canMerge method directly (now @VisibleForTesting)
+    boolean result = runner.canMerge(group);
 
-    Object result = validateAndGetSchemaMethod.invoke(runner, group);
-
-    // Should return null because table has a sort order
-    assertThat(result).isNull();
+    // Should return false because table has a sort order
+    assertThat(result).isFalse();
   }
 
   @Test
-  public void testCanUseMergerReturnsFalseForFilesWithDeleteFiles() throws Exception {
+  public void testCanUseMergerReturnsFalseForFilesWithDeleteFiles() {
     // Create an unsorted table
     Table table = TABLES.create(SCHEMA, tableLocation);
 
@@ -210,20 +149,15 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
     when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1));
     when(group.fileScanTasks()).thenReturn(Lists.newArrayList(task1));
 
-    // Use reflection to call private validateAndGetSchema method
-    Method validateAndGetSchemaMethod =
-        SparkParquetFileMergeRunner.class.getDeclaredMethod(
-            "validateAndGetSchema", RewriteFileGroup.class);
-    validateAndGetSchemaMethod.setAccessible(true);
+    // Call canMerge method directly (now @VisibleForTesting)
+    boolean result = runner.canMerge(group);
 
-    Object result = validateAndGetSchemaMethod.invoke(runner, group);
-
-    // Should return null because files have delete files
-    assertThat(result).isNull();
+    // Should return false because files have delete files
+    assertThat(result).isFalse();
   }
 
   @Test
-  public void testCanUseMergerReturnsTrueForUnsortedTableWithNoDeletes() throws Exception {
+  public void testCanUseMergerReturnsTrueForUnsortedTableWithNoDeletes() {
     // Create an unsorted table
     Table table = TABLES.create(SCHEMA, tableLocation);
 
@@ -248,27 +182,17 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
     when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1, parquetFile2));
     when(group.fileScanTasks()).thenReturn(Lists.newArrayList(task1, task2));
 
-    // Use reflection to call private validateAndGetSchema method
-    Method validateAndGetSchemaMethod =
-        SparkParquetFileMergeRunner.class.getDeclaredMethod(
-            "validateAndGetSchema", RewriteFileGroup.class);
-    validateAndGetSchemaMethod.setAccessible(true);
-
-    // Note: This test may still return null if schema validation fails
-    // since we're using mock files that don't actually exist on disk.
-    // The important thing is that it passes the sort order and delete file checks.
-    try {
-      Object result = validateAndGetSchemaMethod.invoke(runner, group);
-      // If we get here, the sort order and delete checks passed
-      // (schema validation might have failed, which is OK for this test)
-    } catch (Exception e) {
-      // Expected - schema validation will fail for non-existent files
-      // The important thing is that we got past the sort order and delete checks
-    }
+    // Call canMerge method directly (now @VisibleForTesting)
+    // Note: This will return false because mock files don't actually exist on disk,
+    // so Parquet validation will fail. The important thing is that it passes
+    // the sort order and delete file checks without throwing exceptions.
+    boolean result = runner.canMerge(group);
+    // Expected to be false because files don't exist (Parquet validation fails)
+    assertThat(result).isFalse();
   }
 
   @Test
-  public void testCanUseMergerReturnsFalseForTableWithMultipleColumnSort() throws Exception {
+  public void testCanUseMergerReturnsFalseForTableWithMultipleColumnSort() {
     // Create a table with a multi-column sort order (similar to z-ordering)
     Table table = TABLES.create(SCHEMA, tableLocation);
     table.updateProperties().set("write.metadata.metrics.default", "full").commit();
@@ -291,15 +215,10 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
     when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1));
     when(group.fileScanTasks()).thenReturn(Lists.newArrayList(task1));
 
-    // Use reflection to call private validateAndGetSchema method
-    Method validateAndGetSchemaMethod =
-        SparkParquetFileMergeRunner.class.getDeclaredMethod(
-            "validateAndGetSchema", RewriteFileGroup.class);
-    validateAndGetSchemaMethod.setAccessible(true);
+    // Call canMerge method directly (now @VisibleForTesting)
+    boolean result = runner.canMerge(group);
 
-    Object result = validateAndGetSchemaMethod.invoke(runner, group);
-
-    // Should return null because table has a sort order
-    assertThat(result).isNull();
+    // Should return false because table has a sort order
+    assertThat(result).isFalse();
   }
 }

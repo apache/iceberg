@@ -68,9 +68,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private ParquetFileWriter writer;
   private int rowGroupOrdinal;
 
-  private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
-  private static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
-
   @SuppressWarnings("unchecked")
   ParquetWriter(
       Configuration conf,
@@ -95,7 +92,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(schema, parquetSchema);
     this.metricsConfig = metricsConfig;
     this.columnIndexTruncateLength =
-        conf.getInt(COLUMN_INDEX_TRUNCATE_LENGTH, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
+        conf.getInt(
+            ParquetUtil.COLUMN_INDEX_TRUNCATE_LENGTH,
+            ParquetUtil.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
     this.writeMode = writeMode;
     this.output = output;
     this.conf = conf;

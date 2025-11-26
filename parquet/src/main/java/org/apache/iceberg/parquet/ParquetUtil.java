@@ -55,6 +55,10 @@ public class ParquetUtil {
 
   private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
+  // Column index configuration constants (shared with ParquetWriter)
+  public static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
+  public static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
+
   public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig) {
     return fileMetrics(file, metricsConfig, null);
   }
