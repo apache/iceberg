@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ExpireSnapshots.CleanupLevel;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -169,7 +170,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         expireSnapshots.cleanExpiredMetadata(cleanExpiredMetadata);
       }
 
-      expireSnapshots.cleanExpiredFiles(false).commit();
+      expireSnapshots.cleanupLevel(CleanupLevel.NONE).commit();
 
       // fetch valid files after expiration
       TableMetadata updatedMetadata = ops.refresh();
