@@ -61,9 +61,10 @@ public class TypeWithSchemaVisitor<T> {
         return visitList(iType, group, visitor);
       } else if (annotation instanceof MapLogicalTypeAnnotation) {
         return visitMap(iType, group, visitor);
-      } else if (iType != null && iType.isVariantType()) {
+      } else if (annotation instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation
+          || (iType != null && iType.isVariantType())) {
         // when Parquet has a VARIANT logical type, use it here
-        return visitVariant(iType.asVariantType(), group, visitor);
+        return visitVariant(iType != null ? iType.asVariantType() : null, group, visitor);
       }
 
       Types.StructType struct = iType != null ? iType.asStructType() : null;

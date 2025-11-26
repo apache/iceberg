@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -105,7 +104,7 @@ public abstract class TestMergingMetrics<T> {
           MAP_FIELD_2,
           STRUCT_FIELD);
 
-  protected abstract FileAppender<T> writeAndGetAppender(List<Record> records) throws Exception;
+  protected abstract DataFile writeAndGetDataFile(List<Record> records) throws Exception;
 
   @Parameters(name = "fileFormat = {0}")
   public static List<Object> parameters() {
@@ -131,11 +130,10 @@ public abstract class TestMergingMetrics<T> {
         ImmutableMap.of(
             0, 0D, 1, Double.NaN, 2, 2D, 3, Double.NaN, 4, Double.NaN)); // MAP_FIELD_2 - 3
 
-    FileAppender<T> appender = writeAndGetAppender(ImmutableList.of(record));
-    Metrics metrics = appender.metrics();
-    Map<Integer, Long> nanValueCount = metrics.nanValueCounts();
-    Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
-    Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
+    DataFile dataFile = writeAndGetDataFile(ImmutableList.of(record));
+    Map<Integer, Long> nanValueCount = dataFile.nanValueCounts();
+    Map<Integer, ByteBuffer> upperBounds = dataFile.upperBounds();
+    Map<Integer, ByteBuffer> lowerBounds = dataFile.lowerBounds();
 
     assertThat(nanValueCount).hasSize(2);
     assertNaNCountMatch(1L, nanValueCount, FLOAT_FIELD);
@@ -153,7 +151,7 @@ public abstract class TestMergingMetrics<T> {
     // too big of the record count will more likely to make all upper/lower bounds +/-infinity,
     // which makes the tests easier to pass
     List<Record> recordList = RandomGenericData.generate(SCHEMA, 5, 250L);
-    FileAppender<T> appender = writeAndGetAppender(recordList);
+    DataFile dataFile = writeAndGetDataFile(recordList);
 
     Map<Types.NestedField, AtomicReference<Number>> expectedUpperBounds = Maps.newHashMap();
     Map<Types.NestedField, AtomicReference<Number>> expectedLowerBounds = Maps.newHashMap();
@@ -161,20 +159,19 @@ public abstract class TestMergingMetrics<T> {
 
     populateExpectedValues(recordList, expectedUpperBounds, expectedLowerBounds, expectedNaNCount);
 
-    Metrics metrics = appender.metrics();
     expectedUpperBounds.forEach(
-        (key, value) -> assertBoundValueMatch(value.get(), metrics.upperBounds(), key));
+        (key, value) -> assertBoundValueMatch(value.get(), dataFile.upperBounds(), key));
     expectedLowerBounds.forEach(
-        (key, value) -> assertBoundValueMatch(value.get(), metrics.lowerBounds(), key));
+        (key, value) -> assertBoundValueMatch(value.get(), dataFile.lowerBounds(), key));
     expectedNaNCount.forEach(
-        (key, value) -> assertNaNCountMatch(value.get(), metrics.nanValueCounts(), key));
+        (key, value) -> assertNaNCountMatch(value.get(), dataFile.nanValueCounts(), key));
 
     SCHEMA.columns().stream()
         .filter(column -> !FIELDS_WITH_NAN_COUNT_TO_ID.containsKey(column))
         .map(Types.NestedField::fieldId)
         .forEach(
             id ->
-                assertThat(metrics.nanValueCounts().get(id))
+                assertThat(dataFile.nanValueCounts().get(id))
                     .as("NaN count for field %s should be null")
                     .isNull());
   }

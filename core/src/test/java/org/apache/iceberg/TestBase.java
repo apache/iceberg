@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -110,7 +111,7 @@ public class TestBase {
           .withPartitionPath("data_bucket=0")
           .withRecordCount(1)
           .build();
-  static final DataFile FILE_B =
+  public static final DataFile FILE_B =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
@@ -118,7 +119,7 @@ public class TestBase {
           .withRecordCount(1)
           .withSplitOffsets(ImmutableList.of(1L))
           .build();
-  static final DeleteFile FILE_B_DELETES =
+  public static final DeleteFile FILE_B_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
           .withPath("/path/to/data-b-deletes.parquet")
@@ -137,7 +138,7 @@ public class TestBase {
           .withContentOffset(4)
           .withContentSizeInBytes(6)
           .build();
-  static final DataFile FILE_C =
+  public static final DataFile FILE_C =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
@@ -145,7 +146,7 @@ public class TestBase {
           .withRecordCount(1)
           .withSplitOffsets(ImmutableList.of(2L, 8L))
           .build();
-  static final DeleteFile FILE_C2_DELETES =
+  public static final DeleteFile FILE_C2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes(1)
           .withPath("/path/to/data-c-deletes.parquet")
@@ -784,16 +785,32 @@ public class TestBase {
     return Iterators.forArray(statuses);
   }
 
+  static Iterator<ManifestEntry.Status> statusesRepeat(ManifestEntry.Status status, int count) {
+    return Iterators.limit(Iterators.cycle(Collections.singletonList(status)), count);
+  }
+
   static Iterator<Long> dataSeqs(Long... seqs) {
     return Iterators.forArray(seqs);
+  }
+
+  static Iterator<Long> dataSeqsRepeat(Long value, int count) {
+    return Iterators.limit(Iterators.cycle(Collections.singletonList(value)), count);
   }
 
   static Iterator<Long> fileSeqs(Long... seqs) {
     return Iterators.forArray(seqs);
   }
 
+  static Iterator<Long> fileSeqsRepeat(Long value, int count) {
+    return Iterators.limit(Iterators.cycle(Collections.singletonList(value)), count);
+  }
+
   static Iterator<Long> ids(Long... ids) {
     return Iterators.forArray(ids);
+  }
+
+  static Iterator<Long> idsRepeat(Long value, int count) {
+    return Iterators.limit(Iterators.cycle(Collections.singletonList(value)), count);
   }
 
   static Iterator<DataFile> files(DataFile... files) {

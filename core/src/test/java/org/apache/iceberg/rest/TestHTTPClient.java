@@ -70,7 +70,7 @@ import org.mockserver.verify.VerificationTimes;
 
 /**
  * * Exercises the RESTClient interface, specifically over a mocked-server using the actual
- * HttpRESTClient code.
+ * HTTPClient code.
  */
 public class TestHTTPClient {
 
@@ -300,9 +300,8 @@ public class TestHTTPClient {
               () -> clientWithProxy.get("v1/config", Item.class, ImmutableMap.of(), onError))
           .isInstanceOf(RuntimeException.class)
           .hasMessage(
-              String.format(
-                  "%s - %s",
-                  "Proxy Authentication Required", HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED));
+              "%s - %s",
+              "Proxy Authentication Required", HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED);
     }
   }
 
@@ -435,7 +434,7 @@ public class TestHTTPClient {
                     .uri(URI)
                     .build())
         .isInstanceOf(NumberFormatException.class)
-        .hasMessage(String.format("For input string: \"%s\"", invalidTimeoutMs));
+        .hasMessage("For input string: \"%s\"", invalidTimeoutMs);
 
     String invalidNegativeTimeoutMs = "-1";
     assertThatThrownBy(
@@ -444,7 +443,7 @@ public class TestHTTPClient {
                     .uri(URI)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(String.format("duration must not be negative: %s", invalidNegativeTimeoutMs));
+        .hasMessage("duration must not be negative: %s", invalidNegativeTimeoutMs);
   }
 
   @Test
@@ -520,8 +519,7 @@ public class TestHTTPClient {
     assertThatThrownBy(() -> doExecuteRequest(method, path, body, onError, h -> {}))
         .isInstanceOf(RuntimeException.class)
         .hasMessage(
-            String.format(
-                "Called error handler for method %s due to status code: %d", method, statusCode));
+            "Called error handler for method %s due to status code: %d", method, statusCode);
 
     verify(onError).accept(any());
   }
@@ -602,7 +600,8 @@ public class TestHTTPClient {
       case POST:
         return restClient.post(path, body, Item.class, headers, onError, responseHeaders);
       case GET:
-        return restClient.get(path, Item.class, headers, onError);
+        return restClient.get(
+            path, ImmutableMap.of(), Item.class, headers, onError, responseHeaders);
       case HEAD:
         restClient.head(path, headers, onError);
         return null;

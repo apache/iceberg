@@ -19,8 +19,10 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
@@ -39,7 +41,6 @@ import static org.mockito.Mockito.spy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -51,6 +52,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
@@ -82,7 +84,7 @@ import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
@@ -90,9 +92,7 @@ import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expression;
@@ -111,6 +111,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
@@ -127,6 +128,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -153,8 +155,8 @@ public class TestRewriteDataFilesAction extends TestBase {
   @Parameter private int formatVersion;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> parameters() {
+    return org.apache.iceberg.TestHelpers.V2_AND_ABOVE;
   }
 
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
@@ -305,7 +307,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(
                 RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
                 // Increase max file size for V3 to account for additional row lineage fields
-                Integer.toString(averageFileSize(table) + (formatVersion >= 3 ? 11000 : 1001)))
+                Integer.toString(averageFileSize(table) + (formatVersion >= 3 ? 12000 : 1100)))
             .execute();
 
     assertThat(result.rewriteResults())
@@ -1833,7 +1835,15 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveFiles(table, 10);
 
     List<Row> originalRaw =
-        spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
+            .load(tableLocation)
+            .coalesce(1)
+            .sort("longCol")
+            .collectAsList();
     List<Object[]> originalData = rowsToJava(originalRaw);
     long dataSizeBefore = testDataSize(table);
 
@@ -1863,7 +1873,15 @@ public class TestRewriteDataFilesAction extends TestBase {
     table.refresh();
 
     List<Row> postRaw =
-        spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
+            .load(tableLocation)
+            .coalesce(1)
+            .sort("longCol")
+            .collectAsList();
     List<Object[]> postRewriteData = rowsToJava(postRaw);
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
@@ -2093,6 +2111,23 @@ public class TestRewriteDataFilesAction extends TestBase {
         .isFalse();
   }
 
+  @TestTemplate
+  public void testZOrderUDFWithDateType() {
+    SparkZOrderUDF zorderUDF = new SparkZOrderUDF(1, 16, 1024);
+    Dataset<Row> result =
+        spark
+            .sql("SELECT DATE '2025-01-01' as test_col")
+            .withColumn(
+                "zorder_result",
+                zorderUDF.sortedLexicographically(col("test_col"), DataTypes.DateType));
+
+    assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
+    List<Row> rows = result.collectAsList();
+    Row row = rows.get(0);
+    byte[] zorderBytes = row.getAs("zorder_result");
+    assertThat(zorderBytes).isNotNull().isNotEmpty();
+  }
+
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
     assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
@@ -2112,7 +2147,15 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected List<Object[]> currentData() {
     return rowsToJava(
-        spark.read().format("iceberg").load(tableLocation).sort("c1", "c2", "c3").collectAsList());
+        spark
+            .read()
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
+            .format("iceberg")
+            .load(tableLocation)
+            .coalesce(1)
+            .sort("c1", "c2", "c3")
+            .collectAsList());
   }
 
   protected List<Object[]> currentDataWithLineage() {
@@ -2120,7 +2163,10 @@ public class TestRewriteDataFilesAction extends TestBase {
         spark
             .read()
             .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
             .load(tableLocation)
+            .coalesce(1)
             .sort("_row_id")
             .selectExpr("_row_id", "_last_updated_sequence_number", "*")
             .collectAsList());
@@ -2140,8 +2186,10 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected void shouldHaveFiles(Table table, int numExpected) {
     table.refresh();
-    int numFiles = Iterables.size(table.newScan().planFiles());
-    assertThat(numFiles).as("Did not have the expected number of files").isEqualTo(numExpected);
+    List<FileScanTask> files =
+        StreamSupport.stream(table.newScan().planFiles().spliterator(), false)
+            .collect(Collectors.toList());
+    assertThat(files.size()).as("Did not have the expected number of files").isEqualTo(numExpected);
   }
 
   protected long shouldHaveMinSequenceNumberInPartition(
@@ -2429,15 +2477,13 @@ public class TestRewriteDataFilesAction extends TestBase {
                       .locationProvider()
                       .newDataLocation(
                           FileFormat.PARQUET.addExtension(UUID.randomUUID().toString())));
-      EncryptedOutputFile encryptedOutputFile =
-          EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY);
 
-      GenericAppenderFactory appenderFactory =
-          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
       PositionDeleteWriter<Record> posDeleteWriter =
-          appenderFactory
-              .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
-              .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
+          new GenericFileWriterFactory.Builder(table)
+              .deleteFileFormat(FileFormat.PARQUET)
+              .writerProperties(ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full"))
+              .build()
+              .newPositionDeleteWriter(encrypt(outputFile), table.spec(), partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
       posDeleteWriter.write(posDelete.set(path, rowPosition, null));
@@ -2470,15 +2516,13 @@ public class TestRewriteDataFilesAction extends TestBase {
                       .locationProvider()
                       .newDataLocation(
                           FileFormat.PARQUET.addExtension(UUID.randomUUID().toString())));
-      EncryptedOutputFile encryptedOutputFile =
-          EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY);
 
-      GenericAppenderFactory appenderFactory =
-          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
       PositionDeleteWriter<Record> posDeleteWriter =
-          appenderFactory
-              .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
-              .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
+          new GenericFileWriterFactory.Builder(table)
+              .deleteFileFormat(FileFormat.PARQUET)
+              .writerProperties(ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full"))
+              .build()
+              .newPositionDeleteWriter(encrypt(outputFile), table.spec(), partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
       int positionsPerDeleteFile = totalPositionsToDelete / outputDeleteFiles;
@@ -2534,20 +2578,18 @@ public class TestRewriteDataFilesAction extends TestBase {
       Record deleteRecord) {
     OutputFileFactory fileFactory =
         OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PARQUET).build();
-    GenericAppenderFactory appenderFactory =
-        new GenericAppenderFactory(
-            table.schema(),
-            table.spec(),
-            ArrayUtil.toIntArray(equalityFieldIds),
-            eqDeleteRowSchema,
-            null);
 
     EncryptedOutputFile file =
         createEncryptedOutputFile(createPartitionKey(table, partitionRecord), fileFactory);
 
     EqualityDeleteWriter<Record> eqDeleteWriter =
-        appenderFactory.newEqDeleteWriter(
-            file, FileFormat.PARQUET, createPartitionKey(table, partitionRecord));
+        new GenericFileWriterFactory.Builder(table)
+            .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+            .equalityDeleteRowSchema(eqDeleteRowSchema)
+            .deleteFileFormat(FileFormat.PARQUET)
+            .build()
+            .newEqualityDeleteWriter(
+                file, table.spec(), createPartitionKey(table, partitionRecord));
 
     try (EqualityDeleteWriter<Record> clsEqDeleteWriter = eqDeleteWriter) {
       clsEqDeleteWriter.write(deleteRecord);

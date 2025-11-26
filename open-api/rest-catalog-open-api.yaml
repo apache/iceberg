@@ -147,6 +147,7 @@ paths:
                   "defaults": {
                     "clients": "4"
                   },
+                  "idempotency-key-lifetime": "PT30M",
                   "endpoints": [
                     "GET /v1/{prefix}/namespaces/{namespace}",
                     "GET /v1/{prefix}/namespaces",
@@ -260,10 +261,10 @@ paths:
           in: query
           description:
             An optional namespace, underneath which to list namespaces.
-            If not provided or empty, all top-level namespaces should be listed.
+            If not provided, all top-level namespaces should be listed.
+            For backward compatibility, empty string is treated as absent for now.
             If parent is a multipart namespace, the parts must be separated by the unit separator (`0x1F`) byte.
           required: false
-          allowEmptyValue: true
           schema:
             type: string
           example: "accounting%1Ftax"
@@ -296,6 +297,8 @@ paths:
       tags:
         - Catalog API
       summary: Create a namespace
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Create a namespace, with an optional set of properties.
         The server might also add properties, such as `last_modified_time` etc.
@@ -406,6 +409,8 @@ paths:
         - Catalog API
       summary: Drop a namespace from the catalog. Namespace must be empty.
       operationId: dropNamespace
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       responses:
         204:
           description: Success, no content
@@ -450,6 +455,8 @@ paths:
         - Catalog API
       summary: Set or remove properties on a namespace
       operationId: updateProperties
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Set and/or remove properties on a namespace.
         The request body specifies a list of properties to remove and a map
@@ -562,6 +569,7 @@ paths:
       operationId: createTable
       parameters:
         - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         required: true
         content:
@@ -593,7 +601,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
-                NamespaceAlreadyExists:
+                TableAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
@@ -866,6 +874,8 @@ paths:
       tags:
         - Catalog API
       summary: Register a table in the given namespace using given metadata file location
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Register a table using given metadata file location.
 
@@ -901,7 +911,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
-                NamespaceAlreadyExists:
+                TableAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
@@ -995,6 +1005,8 @@ paths:
         - Catalog API
       summary: Commit updates to a table
       operationId: updateTable
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Commit updates to a table.
 
@@ -1115,6 +1127,7 @@ paths:
       operationId: dropTable
       description: Remove a table from the catalog
       parameters:
+        - $ref: '#/components/parameters/idempotency-key'
         - name: purgeRequested
           in: query
           required: false
@@ -1192,6 +1205,13 @@ paths:
         - Catalog API
       summary: Load vended credentials for a table from the catalog
       operationId: loadCredentials
+      parameters:
+        - name: planId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The plan ID that has been used for server-side scan planning
       description: Load vended credentials for a table from the catalog.
       responses:
         200:
@@ -1227,6 +1247,8 @@ paths:
       tags:
         - Catalog API
       summary: Rename a table from its current name to a new name
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Rename a table from one identifier to another. It's valid to move a table
         across namespaces, but the server implementation is not required to support it.
@@ -1334,6 +1356,8 @@ paths:
         - Catalog API
       summary: Commit updates to multiple tables in an atomic operation
       operationId: commitTransaction
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         description:
           Commit updates to multiple tables in an atomic operation
@@ -1517,7 +1541,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               examples:
-                NamespaceAlreadyExists:
+                ViewAlreadyExists:
                   $ref: '#/components/examples/ViewAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
@@ -1583,6 +1607,8 @@ paths:
         - Catalog API
       summary: Replace a view
       operationId: replaceView
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description:
         Commit updates to a view.
       requestBody:
@@ -1684,6 +1710,8 @@ paths:
       summary: Drop a view from the catalog
       operationId: dropView
       description: Remove a view from the catalog
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       responses:
         204:
           description: Success, no content
@@ -1745,6 +1773,8 @@ paths:
         Rename a view from one identifier to another. It's valid to move a view
         across namespaces, but the server implementation is not required to support it.
       operationId: renameView
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         description: Current view identifier to rename and new view identifier to rename to
         content:
@@ -1880,7 +1910,6 @@ components:
       name: pageToken
       in: query
       required: false
-      allowEmptyValue: true
       schema:
         $ref: '#/components/schemas/PageToken'
 
@@ -1902,6 +1931,36 @@ components:
       required: false
       schema:
         type: string
+
+    idempotency-key:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+        example: "017F22E2-79B0-7CC3-98C4-DC0C0C07398F"
+      description: |
+        Optional client-provided idempotency key for safe request retries.
+
+        When present, the server ensures no additional effects for requests that carry the same
+        Idempotency-Key. If a prior request with this key has been finalized, the server returns
+        an equivalent final response without re-running the operation. The response body may
+        reflect a newer state of the catalog than existed at the time of the commit.
+
+        Finalization rules:
+        - Finalize & replay: 200, 201, 204, and deterministic terminal 4xx (including 409
+          such as AlreadyExists, NamespaceNotEmpty, etc.)
+        - Do not finalize (not stored/replayed): 5xx
+
+        Key Requirements:
+        - Key format: UUIDv7 in string form (RFC 9562).
+        - The idempotency key must be globally unique (no reuse across different operations).
+        - Catalogs SHOULD NOT expire keys before the end of the advertised token lifetime.
+        - If Idempotency-Key is used, clients MUST reuse the same key when retrying the same
+          logical operation and MUST generate a new key for a different operation.
 
   ##############################
   # Application Schema Objects #
@@ -1966,6 +2025,18 @@ components:
               "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
               "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
             ]
+        idempotency-key-lifetime:
+          type: string
+          format: duration
+          description:
+            Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H).
+            Interpreted as the maximum time from the first submission using a key to the last retry
+            during which a client may reuse that key. Servers SHOULD accept retries for at least this
+            duration and MAY include a grace period to account for delays/clock skew. Clients SHOULD NOT
+            reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any
+            subsequent attempt. Presence of this field indicates the server supports Idempotency-Key
+            semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.
+          example: PT30M
 
     CreateNamespaceRequest:
       type: object
@@ -2434,6 +2505,10 @@ components:
           type: integer
           format: int64
           description: The first _row_id assigned to the first row in the first data file in the first manifest
+        added-rows:
+          type: integer
+          format: int64
+          description: The upper bound of the number of rows with assigned row IDs
         summary:
           type: object
           required:
@@ -2511,7 +2586,7 @@ components:
         format-version:
           type: integer
           minimum: 1
-          maximum: 2
+          maximum: 3
         table-uuid:
           type: string
         location:
@@ -3369,12 +3444,24 @@ components:
             status:
               $ref: '#/components/schemas/PlanStatus'
               const: "completed"
+            storage-credentials:
+              type: array
+              description:
+                Storage credentials for accessing the files returned in the scan result.
+              
+                If the server returns storage credentials as part of the completed scan
+                planning response, the expectation is for the client to use these credentials
+                to read the files returned in the FileScanTasks as part of the scan result.
+              items:
+                $ref: '#/components/schemas/StorageCredential'
 
     CompletedPlanningWithIDResult:
       type: object
       allOf:
         - $ref: '#/components/schemas/CompletedPlanningResult'
         - type: object
+          required:
+            - plan-id
           properties:
             plan-id:
               description: ID used to track a planning request
@@ -3397,6 +3484,7 @@ components:
       type: object
       required:
         - status
+        - plan-id
       properties:
         status:
           $ref: '#/components/schemas/PlanStatus'
@@ -4399,6 +4487,14 @@ components:
           description:
             Expression used to filter the table data
           $ref: '#/components/schemas/Expression'
+        min-rows-requested:
+          description:
+            The minimum number of rows requested for the scan. This is used as a hint 
+            to the server to not have to return more rows than necessary. It is not required 
+            for the server to return that many rows since the scan may not produce that 
+            many rows. The server can also return more rows than requested.
+          type: integer
+          format: int64
         case-sensitive:
           description: Enables case sensitive field matching for filter and select
           type: boolean

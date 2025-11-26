@@ -37,7 +37,7 @@ Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStr
 | [DataStream append](flink-writes.md#appending-data)                    | ✔️ ️  |                                                                                        |
 | [DataStream overwrite](flink-writes.md#overwrite-data)                 | ✔️ ️  |                                                                                        |
 | [Metadata tables](flink-queries.md#inspecting-tables)                    | ✔️    |                                                                                        |
-| [Rewrite files action](flink-actions.md#rewrite-files-action)           | ✔️ ️  |                                                                                        |
+| [Rewrite files action](flink-maintenance.md#rewrite-files-action)           | ✔️ ️  |                                                                                        |
 
 ## Preparation when using Flink SQL Client
 
@@ -111,7 +111,6 @@ wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_V
 
 !!! info
     PyFlink 1.6.1 [does not work on OSX with a M1 cpu](https://issues.apache.org/jira/browse/FLINK-28786)
-
 
 Install the Apache Flink dependency using `pip`:
 
@@ -227,7 +226,7 @@ CREATE CATALOG rest_catalog WITH (
 );
 ```
 
-##  Creating a table
+## Creating a table
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
@@ -326,9 +325,6 @@ DataStream<RowData> batch = FlinkSource.forRowData()
      .streaming(false)
      .build();
 ```
-
-
-
 
 ## Type conversion
 

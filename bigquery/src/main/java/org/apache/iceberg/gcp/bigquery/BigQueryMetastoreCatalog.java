@@ -281,6 +281,16 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   }
 
   @Override
+  protected boolean isValidIdentifier(TableIdentifier identifier) {
+    try {
+      validateNamespace(identifier.namespace());
+    } catch (IllegalArgumentException e) {
+      return false;
+    }
+    return true;
+  }
+
+  @Override
   public String name() {
     return catalogName;
   }

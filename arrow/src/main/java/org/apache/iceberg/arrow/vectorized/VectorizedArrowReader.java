@@ -142,6 +142,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     if (reuse == null
         || (!dictEncoded && readType == ReadType.DICTIONARY)
         || (dictEncoded && readType != ReadType.DICTIONARY)) {
+      // The vector may already exist but be of a different type, clear it
+      if (vec != null) {
+        vec.close();
+        vec = null;
+      }
+
       allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
     } else {
@@ -212,6 +218,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
+    // Allocate-only: caller must ensure there is no active vector in use.
+    Preconditions.checkState(
+        vec == null,
+        "Allocation must be called only when the previous vector instance was released");
     if (dictionaryEncodedVector) {
       allocateDictEncodedVector();
     } else {
@@ -531,31 +541,41 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
-      FieldVector vector = arrowField.createVector(rootAlloc);
       switch (timestampLogicalType.getUnit()) {
         case MILLIS:
-          ((BigIntVector) vector).allocateNew(batchSize);
+          Field bigIntField =
+              new Field(
+                  icebergField.name(),
+                  new FieldType(
+                      icebergField.isOptional(), new ArrowType.Int(Long.SIZE, true), null, null),
+                  null);
+          FieldVector millisVector = bigIntField.createVector(rootAlloc);
+          ((BigIntVector) millisVector).allocateNew(batchSize);
           return Optional.of(
               new LogicalTypeVisitorResult(
-                  vector, ReadType.TIMESTAMP_MILLIS, (int) BigIntVector.TYPE_WIDTH));
+                  millisVector, ReadType.TIMESTAMP_MILLIS, (int) BigIntVector.TYPE_WIDTH));
         case MICROS:
+          FieldVector microsVector = arrowField.createVector(rootAlloc);
           if (((Types.TimestampType) icebergField.type()).shouldAdjustToUTC()) {
-            ((TimeStampMicroTZVector) vector).allocateNew(batchSize);
+            ((TimeStampMicroTZVector) microsVector).allocateNew(batchSize);
           } else {
-            ((TimeStampMicroVector) vector).allocateNew(batchSize);
+            ((TimeStampMicroVector) microsVector).allocateNew(batchSize);
           }
 
           return Optional.of(
-              new LogicalTypeVisitorResult(vector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));
+              new LogicalTypeVisitorResult(
+                  microsVector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));
         case NANOS:
+          FieldVector nanosVector = arrowField.createVector(rootAlloc);
           if (((Types.TimestampNanoType) icebergField.type()).shouldAdjustToUTC()) {
-            ((TimeStampNanoTZVector) vector).allocateNew(batchSize);
+            ((TimeStampNanoTZVector) nanosVector).allocateNew(batchSize);
           } else {
-            ((TimeStampNanoVector) vector).allocateNew(batchSize);
+            ((TimeStampNanoVector) nanosVector).allocateNew(batchSize);
           }
 
           return Optional.of(
-              new LogicalTypeVisitorResult(vector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));
+              new LogicalTypeVisitorResult(
+                  nanosVector, ReadType.LONG, (int) BigIntVector.TYPE_WIDTH));
       }
 
       return Optional.empty();

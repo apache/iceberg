@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
@@ -31,7 +32,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -39,11 +39,11 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.TestBase;
@@ -121,17 +121,16 @@ public class TestTimestampWithoutZone extends TestBase {
     // create records using the table's schema
     this.records = testRecords(tableSchema);
 
-    try (FileAppender<Record> writer =
-        new GenericAppenderFactory(tableSchema).newAppender(localOutput(testFile), fileFormat)) {
-      writer.addAll(records);
+    DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder(table)
+            .dataFileFormat(fileFormat)
+            .build()
+            .newDataWriter(encrypt(localOutput(testFile)), PartitionSpec.unpartitioned(), null);
+    try (writer) {
+      writer.write(records);
     }
 
-    DataFile file =
-        DataFiles.builder(PartitionSpec.unpartitioned())
-            .withRecordCount(records.size())
-            .withFileSizeInBytes(testFile.length())
-            .withPath(testFile.toString())
-            .build();
+    DataFile file = writer.toDataFile();
 
     table.newAppend().appendFile(file).commit();
   }

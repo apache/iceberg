@@ -27,6 +27,7 @@ import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -34,12 +35,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotAncestryValidator;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -51,9 +54,10 @@ import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -66,6 +70,7 @@ class Coordinator extends Channel {
   private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
+  private static final String TASK_ID_SNAPSHOT_PROP = "kafka.connect.task-id";
   private static final String VALID_THROUGH_TS_SNAPSHOT_PROP = "kafka.connect.valid-through-ts";
   private static final Duration POLL_DURATION = Duration.ofSeconds(1);
 
@@ -75,6 +80,7 @@ class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
+  private volatile boolean terminated;
 
   Coordinator(
       Catalog catalog,
@@ -151,8 +157,6 @@ class Coordinator extends Channel {
 
   private void doCommit(boolean partialCommit) {
     Map<TableReference, List<Envelope>> commitMap = commitState.tableCommitMap();
-
-    String offsetsJson = offsetsJson();
     OffsetDateTime validThroughTs = commitState.validThroughTs(partialCommit);
 
     Tasks.foreach(commitMap.entrySet())
@@ -160,7 +164,8 @@ class Coordinator extends Channel {
         .stopOnFailure()
         .run(
             entry -> {
-              commitToTable(entry.getKey(), entry.getValue(), offsetsJson, validThroughTs);
+              commitToTable(
+                  entry.getKey(), entry.getValue(), controlTopicOffsets(), validThroughTs);
             });
 
     // we should only get here if all tables committed successfully...
@@ -180,9 +185,9 @@ class Coordinator extends Channel {
         validThroughTs);
   }
 
-  private String offsetsJson() {
+  private String offsetsToJson(Map<Integer, Long> offsets) {
     try {
-      return MAPPER.writeValueAsString(controlTopicOffsets());
+      return MAPPER.writeValueAsString(offsets);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -191,7 +196,7 @@ class Coordinator extends Channel {
   private void commitToTable(
       TableReference tableReference,
       List<Envelope> envelopeList,
-      String offsetsJson,
+      Map<Integer, Long> controlTopicOffsets,
       OffsetDateTime validThroughTs) {
     TableIdentifier tableIdentifier = tableReference.identifier();
     Table table;
@@ -204,7 +209,15 @@ class Coordinator extends Channel {
 
     String branch = config.tableConfig(tableIdentifier.toString()).commitBranch();
 
+    // Control topic partition offsets may include a subset of partition ids if there were no
+    // records for other partitions.  Merge the updated topic partitions with the last committed
+    // offsets.
     Map<Integer, Long> committedOffsets = lastCommittedOffsetsForTable(table, branch);
+    Map<Integer, Long> mergedOffsets =
+        Stream.of(committedOffsets, controlTopicOffsets)
+            .flatMap(map -> map.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Long::max));
+    String offsetsJson = offsetsToJson(mergedOffsets);
 
     List<DataWritten> payloads =
         envelopeList.stream()
@@ -232,28 +245,37 @@ class Coordinator extends Channel {
             .filter(distinctByKey(ContentFile::location))
             .collect(Collectors.toList());
 
+    if (terminated) {
+      throw new ConnectException("Coordinator is terminated, commit aborted");
+    }
+
     if (dataFiles.isEmpty() && deleteFiles.isEmpty()) {
       LOG.info("Nothing to commit to table {}, skipping", tableIdentifier);
     } else {
+      String taskId = String.format("%s-%s", config.connectorName(), config.taskId());
       if (deleteFiles.isEmpty()) {
-        AppendFiles appendOp = table.newAppend();
+        AppendFiles appendOp =
+            table.newAppend().validateWith(offsetValidator(tableIdentifier, committedOffsets));
         if (branch != null) {
           appendOp.toBranch(branch);
         }
         appendOp.set(snapshotOffsetsProp, offsetsJson);
         appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
+        appendOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
         if (validThroughTs != null) {
           appendOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
         dataFiles.forEach(appendOp::appendFile);
         appendOp.commit();
       } else {
-        RowDelta deltaOp = table.newRowDelta();
+        RowDelta deltaOp =
+            table.newRowDelta().validateWith(offsetValidator(tableIdentifier, committedOffsets));
         if (branch != null) {
           deltaOp.toBranch(branch);
         }
         deltaOp.set(snapshotOffsetsProp, offsetsJson);
         deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
+        deltaOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
         if (validThroughTs != null) {
           deltaOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
@@ -279,6 +301,28 @@ class Coordinator extends Channel {
     }
   }
 
+  private SnapshotAncestryValidator offsetValidator(
+      TableIdentifier tableIdentifier, Map<Integer, Long> expectedOffsets) {
+
+    return new SnapshotAncestryValidator() {
+      private Map<Integer, Long> lastCommittedOffsets;
+
+      @Override
+      public Boolean apply(Iterable<Snapshot> baseSnapshots) {
+        lastCommittedOffsets = lastCommittedOffsets(baseSnapshots);
+
+        return expectedOffsets.equals(lastCommittedOffsets);
+      }
+
+      @Override
+      public String errorMessage() {
+        return String.format(
+            "Cannot commit to %s, stale offsets: Expected: %s Committed: %s",
+            tableIdentifier, expectedOffsets, lastCommittedOffsets);
+      }
+    };
+  }
+
   private <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
     Map<Object, Boolean> seen = Maps.newConcurrentMap();
     return t -> seen.putIfAbsent(keyExtractor.apply(t), Boolean.TRUE) == null;
@@ -293,25 +337,44 @@ class Coordinator extends Channel {
 
   private Map<Integer, Long> lastCommittedOffsetsForTable(Table table, String branch) {
     Snapshot snapshot = latestSnapshot(table, branch);
-    while (snapshot != null) {
-      Map<String, String> summary = snapshot.summary();
-      String value = summary.get(snapshotOffsetsProp);
-      if (value != null) {
-        TypeReference<Map<Integer, Long>> typeRef = new TypeReference<Map<Integer, Long>>() {};
-        try {
-          return MAPPER.readValue(value, typeRef);
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
-        }
-      }
-      Long parentSnapshotId = snapshot.parentId();
-      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
+
+    if (snapshot == null) {
+      return Map.of();
     }
-    return ImmutableMap.of();
+
+    Iterable<Snapshot> branchAncestry =
+        SnapshotUtil.ancestorsOf(snapshot.snapshotId(), table::snapshot);
+    return lastCommittedOffsets(branchAncestry);
+  }
+
+  private Map<Integer, Long> lastCommittedOffsets(Iterable<Snapshot> snapshots) {
+    return Streams.stream(snapshots)
+        .filter(Objects::nonNull)
+        .filter(snapshot -> snapshot.summary().containsKey(snapshotOffsetsProp))
+        .map(snapshot -> snapshot.summary().get(snapshotOffsetsProp))
+        .map(this::parseOffsets)
+        .findFirst()
+        .orElseGet(Map::of);
+  }
+
+  private Map<Integer, Long> parseOffsets(String value) {
+    if (value == null) {
+      return Map.of();
+    }
+
+    TypeReference<Map<Integer, Long>> typeRef = new TypeReference<Map<Integer, Long>>() {};
+    try {
+      return MAPPER.readValue(value, typeRef);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   void terminate() {
+    this.terminated = true;
+
     exec.shutdownNow();
+
     // wait for coordinator termination, else cause the sink task to fail
     try {
       if (!exec.awaitTermination(1, TimeUnit.MINUTES)) {
@@ -320,11 +383,5 @@ class Coordinator extends Channel {
     } catch (InterruptedException e) {
       throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
     }
-  }
-
-  @Override
-  public void stop() {
-    terminate();
-    super.stop();
   }
 }

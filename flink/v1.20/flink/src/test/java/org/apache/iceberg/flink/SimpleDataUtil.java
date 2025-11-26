@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,7 +39,6 @@ import org.apache.flink.types.RowKind;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -57,15 +57,14 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
-import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.flink.sink.FlinkFileWriterFactory;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -90,6 +89,13 @@ public class SimpleDataUtil {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "extra", Types.StringType.get()));
 
+  public static final Schema SCHEMA3 =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()),
+          Types.NestedField.optional(3, "_row_id", Types.LongType.get()),
+          Types.NestedField.optional(4, "_last_updated_sequence_number", Types.LongType.get()));
+
   public static final ResolvedSchema FLINK_SCHEMA =
       ResolvedSchema.of(
           Column.physical("id", DataTypes.INT()), Column.physical("data", DataTypes.STRING()));
@@ -101,6 +107,7 @@ public class SimpleDataUtil {
 
   public static final Record RECORD = GenericRecord.create(SCHEMA);
   public static final Record RECORD2 = GenericRecord.create(SCHEMA2);
+  public static final Record RECORD3 = GenericRecord.create(SCHEMA3);
 
   public static Table createTable(
       String path, Map<String, String> properties, boolean partitioned) {
@@ -125,6 +132,16 @@ public class SimpleDataUtil {
     record.setField("id", id);
     record.setField("data", data);
     record.setField("extra", extra);
+    return record;
+  }
+
+  public static Record createRecordWithRowId(
+      Integer id, String data, Long rowId, Long lastUpdatedSequenceNumber) {
+    Record record = RECORD3.copy();
+    record.setField("id", id);
+    record.setField("data", data);
+    record.setField("_row_id", rowId);
+    record.setField("_last_updated_sequence_number", lastUpdatedSequenceNumber);
     return record;
   }
 
@@ -175,26 +192,19 @@ public class SimpleDataUtil {
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
 
-    RowType flinkSchema = FlinkSchemaUtil.convert(schema);
-    FileAppenderFactory<RowData> appenderFactory =
-        new FlinkAppenderFactory(
-            table, schema, flinkSchema, ImmutableMap.of(), spec, null, null, null);
+    FileWriterFactory<RowData> writerFactory =
+        new FlinkFileWriterFactory.Builder(table)
+            .dataFileFormat(fileFormat)
+            .dataSchema(schema)
+            .build();
 
-    FileAppender<RowData> appender = appenderFactory.newAppender(fromPath(path, conf), fileFormat);
-    try (FileAppender<RowData> closeableAppender = appender) {
-      closeableAppender.addAll(rows);
-    }
+    DataWriter<RowData> writer =
+        writerFactory.newDataWriter(encrypt(fromPath(path, conf)), spec, partition);
 
-    DataFiles.Builder builder =
-        DataFiles.builder(spec)
-            .withInputFile(HadoopInputFile.fromPath(path, conf))
-            .withMetrics(appender.metrics());
+    writer.write(rows);
+    writer.close();
 
-    if (partition != null) {
-      builder = builder.withPartition(partition);
-    }
-
-    return builder.build();
+    return writer.toDataFile();
   }
 
   public static DeleteFile writeEqDeleteFile(
@@ -205,15 +215,32 @@ public class SimpleDataUtil {
       List<RowData> deletes)
       throws IOException {
     EncryptedOutputFile outputFile =
-        table
-            .encryption()
-            .encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
+        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
 
     EqualityDeleteWriter<RowData> eqWriter =
         appenderFactory.newEqDeleteWriter(outputFile, format, null);
     try (EqualityDeleteWriter<RowData> writer = eqWriter) {
       writer.write(deletes);
     }
+    return eqWriter.toDeleteFile();
+  }
+
+  public static DeleteFile writeEqDeleteFile(
+      Table table,
+      PartitionSpec spec,
+      String filename,
+      FileWriterFactory<RowData> writerFactory,
+      List<RowData> deletes)
+      throws IOException {
+    EncryptedOutputFile outputFile =
+        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
+
+    EqualityDeleteWriter<RowData> eqWriter =
+        writerFactory.newEqualityDeleteWriter(outputFile, spec, null);
+    try (EqualityDeleteWriter<RowData> writer = eqWriter) {
+      writer.write(deletes);
+    }
+
     return eqWriter.toDeleteFile();
   }
 
@@ -225,9 +252,7 @@ public class SimpleDataUtil {
       List<Pair<CharSequence, Long>> positions)
       throws IOException {
     EncryptedOutputFile outputFile =
-        table
-            .encryption()
-            .encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
+        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
 
     PositionDeleteWriter<RowData> posWriter =
         appenderFactory.newPosDeleteWriter(outputFile, format, null);
@@ -237,6 +262,28 @@ public class SimpleDataUtil {
         writer.write(posDelete.set(p.first(), p.second(), null));
       }
     }
+    return posWriter.toDeleteFile();
+  }
+
+  public static DeleteFile writePosDeleteFile(
+      Table table,
+      PartitionSpec spec,
+      String filename,
+      FileWriterFactory<RowData> writerFactory,
+      List<Pair<CharSequence, Long>> positions)
+      throws IOException {
+    EncryptedOutputFile outputFile =
+        encrypt(fromPath(new Path(table.location(), filename), new Configuration()));
+
+    PositionDeleteWriter<RowData> posWriter =
+        writerFactory.newPositionDeleteWriter(outputFile, spec, null);
+    PositionDelete<RowData> posDelete = PositionDelete.create();
+    try (PositionDeleteWriter<RowData> writer = posWriter) {
+      for (Pair<CharSequence, Long> p : positions) {
+        writer.write(posDelete.set(p.first(), p.second(), null));
+      }
+    }
+
     return posWriter.toDeleteFile();
   }
 
@@ -319,20 +366,32 @@ public class SimpleDataUtil {
 
   public static void assertTableRecords(Table table, List<Record> expected, String branch)
       throws IOException {
+    assertTableRecords(table, expected, branch, table.schema());
+  }
+
+  public static void assertTableRecords(
+      Table table, List<Record> expected, String branch, Schema projectSchema) throws IOException {
     table.refresh();
     Snapshot snapshot = latestSnapshot(table, branch);
 
     if (snapshot == null) {
-      assertThat(expected).isEmpty();
+      assertThat(expected)
+          .as(
+              "No snapshot for table '%s', assuming expected data is empty. If that's not the case, the Flink job most likely did not checkpoint.",
+              table.name())
+          .isEmpty();
       return;
     }
 
-    Types.StructType type = table.schema().asStruct();
+    Types.StructType type = projectSchema.asStruct();
     StructLikeSet expectedSet = StructLikeSet.create(type);
     expectedSet.addAll(expected);
 
     try (CloseableIterable<Record> iterable =
-        IcebergGenerics.read(table).useSnapshot(snapshot.snapshotId()).build()) {
+        IcebergGenerics.read(table)
+            .useSnapshot(snapshot.snapshotId())
+            .project(projectSchema)
+            .build()) {
       StructLikeSet actualSet = StructLikeSet.create(type);
 
       for (Record record : iterable) {

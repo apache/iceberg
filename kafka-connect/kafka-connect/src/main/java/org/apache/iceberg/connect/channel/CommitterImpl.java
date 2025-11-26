@@ -29,7 +29,6 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
-import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -74,18 +73,19 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  private boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
+  @VisibleForTesting
+  boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
     }
-    if (groupDesc.state() == ConsumerGroupState.STABLE) {
-      Collection<MemberDescription> members = groupDesc.members();
-      if (containsFirstPartition(members, currentAssignedPartitions)) {
-        membersWhenWorkerIsCoordinator = members;
-        return true;
-      }
+
+    Collection<MemberDescription> members = groupDesc.members();
+    if (containsFirstPartition(members, currentAssignedPartitions)) {
+      membersWhenWorkerIsCoordinator = members;
+      return true;
     }
+
     return false;
   }
 
@@ -136,19 +136,32 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
+    // Always try to stop the worker to avoid duplicates.
+    stopWorker();
+
+    // Defensive: close called without prior initialization (should not happen).
     if (!isInitialized.get()) {
-      LOG.warn("Unexpected close() call without resource initialization");
+      LOG.warn("Close unexpectedly called without partition assignment");
       return;
     }
+
+    // Empty partitions → task was stopped explicitly. Stop coordinator if running.
+    if (closedPartitions.isEmpty()) {
+      LOG.info("Task stopped. Closing coordinator.");
+      stopCoordinator();
+      return;
+    }
+
+    // Normal close: if leader partition is lost, stop coordinator.
     if (hasLeaderPartition(closedPartitions)) {
       LOG.info(
-          "Committer {}-{} lost leader partition. Stopping Coordinator.",
+          "Committer {}-{} lost leader partition. Stopping coordinator.",
           config.connectorName(),
           config.taskId());
       stopCoordinator();
     }
-    LOG.info("Stopping worker {}-{}.", config.connectorName(), config.taskId());
-    stopWorker();
+
+    // Reset offsets to last committed to avoid data loss.
     LOG.info(
         "Seeking to last committed offsets for worker {}-{}.",
         config.connectorName(),
@@ -167,7 +180,10 @@ public class CommitterImpl implements Committer {
 
   private void processControlEvents() {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
-      throw new NotRunningException("Coordinator unexpectedly terminated");
+      throw new NotRunningException(
+          String.format(
+              "Coordinator unexpectedly terminated on committer %s-%s",
+              config.connectorName(), config.taskId()));
     }
     if (worker != null) {
       worker.process();
@@ -176,7 +192,7 @@ public class CommitterImpl implements Committer {
 
   private void startWorker() {
     if (null == this.worker) {
-      LOG.info("Starting commit worker");
+      LOG.info("Starting commit worker {}-{}", config.connectorName(), config.taskId());
       SinkWriter sinkWriter = new SinkWriter(catalog, config);
       worker = new Worker(config, clientFactory, sinkWriter, context);
       worker.start();
@@ -185,7 +201,10 @@ public class CommitterImpl implements Committer {
 
   private void startCoordinator() {
     if (null == this.coordinatorThread) {
-      LOG.info("Task elected leader, starting commit coordinator");
+      LOG.info(
+          "Task {}-{} elected leader, starting commit coordinator",
+          config.connectorName(),
+          config.taskId());
       Coordinator coordinator =
           new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
       coordinatorThread = new CoordinatorThread(coordinator);

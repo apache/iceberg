@@ -48,12 +48,19 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
   @Override
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
-  public void cleanFiles(TableMetadata beforeExpiration, TableMetadata afterExpiration) {
-    // clean up the expired snapshots:
+  public void cleanFiles(
+      TableMetadata beforeExpiration,
+      TableMetadata afterExpiration,
+      ExpireSnapshots.CleanupLevel cleanupLevel) {
+    // clean up required underlying files based on the expired snapshots
     // 1. Get a list of the snapshots that were removed
     // 2. Delete any data files that were deleted by those snapshots and are not in the table
     // 3. Delete any manifests that are no longer used by current snapshots
     // 4. Delete the manifest lists
+    if (ExpireSnapshots.CleanupLevel.NONE == cleanupLevel) {
+      LOG.info("Nothing to clean.");
+      return;
+    }
 
     Set<Long> validIds = Sets.newHashSet();
     for (Snapshot snapshot : afterExpiration.snapshots()) {
@@ -103,14 +110,15 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
     // find manifests to clean up that are still referenced by a valid snapshot, but written by an
     // expired snapshot
-    Set<String> validManifests = Sets.newHashSet();
-    Set<ManifestFile> manifestsToScan = Sets.newHashSet();
+    Set<String> validManifests = ConcurrentHashMap.newKeySet();
+    Set<ManifestFile> manifestsToScan = ConcurrentHashMap.newKeySet();
 
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
     Tasks.foreach(snapshots)
         .retry(3)
         .suppressFailureWhenFinished()
+        .executeWith(planExecutorService)
         .onFailure(
             (snapshot, exc) ->
                 LOG.warn(
@@ -152,12 +160,13 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     // find manifests to clean up that were only referenced by snapshots that have expired
-    Set<String> manifestListsToDelete = Sets.newHashSet();
-    Set<String> manifestsToDelete = Sets.newHashSet();
-    Set<ManifestFile> manifestsToRevert = Sets.newHashSet();
+    Set<String> manifestListsToDelete = ConcurrentHashMap.newKeySet();
+    Set<String> manifestsToDelete = ConcurrentHashMap.newKeySet();
+    Set<ManifestFile> manifestsToRevert = ConcurrentHashMap.newKeySet();
     Tasks.foreach(beforeExpiration.snapshots())
         .retry(3)
         .suppressFailureWhenFinished()
+        .executeWith(planExecutorService)
         .onFailure(
             (snapshot, exc) ->
                 LOG.warn(
@@ -249,17 +258,23 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
               }
             });
 
-    Set<String> filesToDelete =
-        findFilesToDelete(
-            manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());
+    if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
+      Set<String> filesToDelete =
+          findFilesToDelete(
+              manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());
+      LOG.debug("Deleting {} data files", filesToDelete.size());
+      deleteFiles(filesToDelete, "data");
+    }
 
-    deleteFiles(filesToDelete, "data");
+    LOG.debug("Deleting {} manifest files", manifestsToDelete.size());
     deleteFiles(manifestsToDelete, "manifest");
+    LOG.debug("Deleting {} manifest-list files", manifestListsToDelete.size());
     deleteFiles(manifestListsToDelete, "manifest list");
 
     if (hasAnyStatisticsFiles(beforeExpiration)) {
       Set<String> expiredStatisticsFilesLocations =
           expiredStatisticsFilesLocations(beforeExpiration, afterExpiration);
+      LOG.debug("Deleting {} statistics files", expiredStatisticsFilesLocations.size());
       deleteFiles(expiredStatisticsFilesLocations, "statistics files");
     }
   }

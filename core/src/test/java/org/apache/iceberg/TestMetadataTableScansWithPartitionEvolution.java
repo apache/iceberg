@@ -214,6 +214,22 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
+  public void testPartitionSpecEvolutionSourceFieldMissing() throws IOException {
+    // Drop partition field
+    table.updateSpec().removeField("id").commit();
+
+    // Drop the source field
+    table.updateSchema().deleteColumn("id").commit();
+
+    BaseFilesTable filesTable = new AllFilesTable(table);
+    TableScan scan = filesTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      assertThat(tasks).hasSize(2);
+    }
+  }
+
+  @TestTemplate
   public void testPartitionSpecEvolutionToUnpartitioned() throws IOException {
     // Remove all the partition fields
     table.updateSpec().removeField("id").removeField("nested.id").commit();

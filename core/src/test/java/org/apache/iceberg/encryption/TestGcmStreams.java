@@ -56,7 +56,9 @@ public class TestGcmStreams {
     PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite();
     encryptedStream.close();
 
-    AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
+    AesGcmInputFile decryptedFile =
+        new AesGcmInputFile(
+            Files.localInput(testFile), key, aadPrefix, encryptedStream.storedLength());
     assertThat(decryptedFile.getLength()).isEqualTo(0);
 
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
@@ -66,7 +68,9 @@ public class TestGcmStreams {
     // check that the AAD is still verified, even for an empty file
     byte[] badAAD = Arrays.copyOf(aadPrefix, aadPrefix.length);
     badAAD[1] -= 1; // modify the AAD slightly
-    AesGcmInputFile badAADFile = new AesGcmInputFile(Files.localInput(testFile), key, badAAD);
+    AesGcmInputFile badAADFile =
+        new AesGcmInputFile(
+            Files.localInput(testFile), key, badAAD, encryptedStream.storedLength());
     assertThat(badAADFile.getLength()).isEqualTo(0);
 
     try (SeekableInputStream decryptedStream = badAADFile.newStream()) {
@@ -91,12 +95,14 @@ public class TestGcmStreams {
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
-    try (PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite()) {
-      encryptedStream.write(content);
-    }
+    PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite();
+    encryptedStream.write(content);
+    encryptedStream.close();
 
     // verify the data can be read correctly with the right AAD
-    AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
+    AesGcmInputFile decryptedFile =
+        new AesGcmInputFile(
+            Files.localInput(testFile), key, aadPrefix, encryptedStream.storedLength());
     assertThat(decryptedFile.getLength()).isEqualTo(content.length);
 
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
@@ -109,7 +115,9 @@ public class TestGcmStreams {
     // test with the wrong AAD
     byte[] badAAD = Arrays.copyOf(aadPrefix, aadPrefix.length);
     badAAD[1] -= 1; // modify the AAD slightly
-    AesGcmInputFile badAADFile = new AesGcmInputFile(Files.localInput(testFile), key, badAAD);
+    AesGcmInputFile badAADFile =
+        new AesGcmInputFile(
+            Files.localInput(testFile), key, badAAD, encryptedStream.storedLength());
     assertThat(badAADFile.getLength()).isEqualTo(content.length);
 
     try (SeekableInputStream decryptedStream = badAADFile.newStream()) {
@@ -151,12 +159,14 @@ public class TestGcmStreams {
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
-    try (PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite()) {
-      encryptedStream.write(content);
-    }
+    PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite();
+    encryptedStream.write(content);
+    encryptedStream.close();
 
     // verify the data can be read correctly with the right AAD
-    AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
+    AesGcmInputFile decryptedFile =
+        new AesGcmInputFile(
+            Files.localInput(testFile), key, aadPrefix, encryptedStream.storedLength());
     assertThat(decryptedFile.getLength()).isEqualTo(content.length);
 
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
@@ -197,12 +207,14 @@ public class TestGcmStreams {
 
     AesGcmOutputFile encryptedFile =
         new AesGcmOutputFile(Files.localOutput(testFile), key, aadPrefix);
-    try (PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite()) {
-      encryptedStream.write(content);
-    }
+    PositionOutputStream encryptedStream = encryptedFile.createOrOverwrite();
+    encryptedStream.write(content);
+    encryptedStream.close();
 
     // verify the data can be read correctly with the right AAD
-    AesGcmInputFile decryptedFile = new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
+    AesGcmInputFile decryptedFile =
+        new AesGcmInputFile(
+            Files.localInput(testFile), key, aadPrefix, encryptedStream.storedLength());
     assertThat(decryptedFile.getLength()).isEqualTo(content.length);
 
     try (SeekableInputStream decryptedStream = decryptedFile.newStream()) {
@@ -279,7 +291,8 @@ public class TestGcmStreams {
             .isEqualTo(offset);
 
         AesGcmInputFile decryptedFile =
-            new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
+            new AesGcmInputFile(
+                Files.localInput(testFile), key, aadPrefix, encryptedStream.storedLength());
         SeekableInputStream decryptedStream = decryptedFile.newStream();
         assertThat(decryptedFile.getLength()).isEqualTo(testFileSize);
 
@@ -376,7 +389,8 @@ public class TestGcmStreams {
       assertThat(encryptedStream.getPos()).as("Final position in closed stream").isEqualTo(offset);
 
       AesGcmInputFile decryptedFile =
-          new AesGcmInputFile(Files.localInput(testFile), key, aadPrefix);
+          new AesGcmInputFile(
+              Files.localInput(testFile), key, aadPrefix, encryptedStream.storedLength());
       SeekableInputStream decryptedStream = decryptedFile.newStream();
       assertThat(decryptedFile.getLength()).isEqualTo(testFileSize);
 

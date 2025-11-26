@@ -79,10 +79,10 @@ public class ParquetUtil {
       MetricsConfig metricsConfig,
       NameMapping nameMapping) {
     Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
-    MessageType messageType = metadata.getFileMetaData().getSchema();
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
-    return ParquetMetrics.metrics(fileSchema, messageType, metricsConfig, metadata, fieldMetrics);
+    return ParquetMetrics.metrics(
+        fileSchema, parquetTypeWithIds, metricsConfig, metadata, fieldMetrics);
   }
 
   private static MessageType getParquetTypeWithIds(

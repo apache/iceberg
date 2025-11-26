@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.spark.actions.RewriteTablePathSparkAction.NOT_APPLICABLE;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,14 +40,15 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
-import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.ActionsProvider;
@@ -60,6 +63,7 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -81,16 +85,25 @@ import org.apache.spark.storage.BlockManager;
 import org.apache.spark.storage.BroadcastBlockId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import scala.Tuple2;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestRewriteTablePathsAction extends TestBase {
 
   @TempDir private Path staging;
   @TempDir private Path tableDir;
   @TempDir private Path newTableDir;
   @TempDir private Path targetTableDir;
+
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Integer> formatVersions() {
+    return TestHelpers.V2_AND_ABOVE;
+  }
+
+  @Parameter private int formatVersion;
 
   protected ActionsProvider actions() {
     return SparkActions.get();
@@ -136,7 +149,15 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   private Table createTableWithSnapshots(
       String location, int snapshotNumber, Map<String, String> properties, String mode) {
-    Table newTable = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, location);
+    Table newTable =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.<String, String>builder()
+                .put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+                .putAll(properties)
+                .build(),
+            location);
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -160,7 +181,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     sql("DROP DATABASE IF EXISTS %s CASCADE", backupNs);
   }
 
-  @Test
+  @TestTemplate
   public void testRewritePath() throws Exception {
     String targetTableLocation = targetTableLocation();
 
@@ -208,7 +229,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertEquals("Rows should match after copy", expected, actual);
   }
 
-  @Test
+  @TestTemplate
   public void testSameLocations() {
     assertThatThrownBy(
             () ->
@@ -221,7 +242,7 @@ public class TestRewriteTablePathsAction extends TestBase {
         .hasMessageContaining("Source prefix cannot be the same as target prefix");
   }
 
-  @Test
+  @TestTemplate
   public void testStartVersion() throws Exception {
     RewriteTablePath.Result result =
         actions()
@@ -245,7 +266,7 @@ public class TestRewriteTablePathsAction extends TestBase {
         .isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testIncrementalRewrite() throws Exception {
     String location = newTableLocation();
     Table sourceTable =
@@ -292,7 +313,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertEquals("Rows should match after copy", expected, actual);
   }
 
-  @Test
+  @TestTemplate
   public void testTableWith3Snapshots(@TempDir Path location1, @TempDir Path location2)
       throws Exception {
     String location = newTableLocation();
@@ -317,7 +338,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(3, 3, 3, 12, result1);
   }
 
-  @Test
+  @TestTemplate
   public void testFullTableRewritePath() throws Exception {
     RewriteTablePath.Result result =
         actions()
@@ -328,7 +349,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(3, 2, 2, 9, result);
   }
 
-  @Test
+  @TestTemplate
   public void testManifestRewriteAndIncrementalCopy() throws Exception {
     RewriteTablePath.Result initialResult =
         actions()
@@ -355,7 +376,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(1, 1, addedManifest, 3, postReweiteResult);
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteDataFile() throws Exception {
     List<String> validDataFiles =
         spark
@@ -387,29 +408,61 @@ public class TestRewriteTablePathsAction extends TestBase {
         .hasSize(1);
   }
 
-  @Test
-  public void testPositionDeletes() throws Exception {
+  @TestTemplate
+  public void testPositionDeletesParquet() throws Exception {
+    runPositionDeletesTest("parquet");
+  }
+
+  @TestTemplate
+  public void testPositionDeletesAvro() throws Exception {
+    runPositionDeletesTest("avro");
+  }
+
+  @TestTemplate
+  public void testPositionDeletesOrc() throws Exception {
+    runPositionDeletesTest("orc");
+  }
+
+  private void runPositionDeletesTest(String fileFormat) throws Exception {
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithPosDeletes").concat(fileFormat),
+            2,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, fileFormat));
+
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
             Pair.of(
-                table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
+                tableWithPosDeletes
+                    .currentSnapshot()
+                    .addedDataFiles(tableWithPosDeletes.io())
+                    .iterator()
+                    .next()
+                    .location(),
                 0L));
 
-    File file = new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"));
+    File file =
+        new File(
+            removePrefix(
+                tableWithPosDeletes.location() + "/data/deeply/nested/deletes." + fileFormat));
     DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(
-                table, table.io().newOutputFile(file.toURI().toString()), deletes)
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(file.toURI().toString()),
+                deletes,
+                formatVersion)
             .first();
 
-    table.newRowDelta().addDeletes(positionDeletes).commit();
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
 
-    assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).hasSize(1);
+    assertThat(spark.read().format("iceberg").load(tableWithPosDeletes.location()).collectAsList())
+        .hasSize(1);
 
     RewriteTablePath.Result result =
         actions()
-            .rewriteTablePath(table)
+            .rewriteTablePath(tableWithPosDeletes)
             .stagingLocation(stagingLocation())
-            .rewriteLocationPrefix(table.location(), targetTableLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
             .execute();
 
     // We have one more snapshot, an additional manifest list, and a new (delete) manifest,
@@ -424,7 +477,7 @@ public class TestRewriteTablePathsAction extends TestBase {
         .hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeleteWithRow() throws Exception {
     String dataFileLocation =
         table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location();
@@ -437,7 +490,8 @@ public class TestRewriteTablePathsAction extends TestBase {
                     .toURI()
                     .toString());
     deletes.add(positionDelete(SCHEMA, dataFileLocation, 0L, 1, "AAAAAAAAAA", "AAAA"));
-    DeleteFile positionDeletes = FileHelpers.writePosDeleteFile(table, deleteFile, null, deletes);
+    DeleteFile positionDeletes =
+        FileHelpers.writePosDeleteFile(table, deleteFile, null, deletes, formatVersion);
     table.newRowDelta().addDeletes(positionDeletes).commit();
 
     assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).hasSize(1);
@@ -456,18 +510,24 @@ public class TestRewriteTablePathsAction extends TestBase {
     // copy the metadata files and data files
     copyTableFiles(result);
 
-    // check copied position delete row
-    Object[] deletedRow = (Object[]) rows(targetTableLocation() + "#position_deletes").get(0)[2];
-    assertEquals(
-        "Position deletes should be equal", new Object[] {1, "AAAAAAAAAA", "AAAA"}, deletedRow);
+    // check copied position delete row - only v2 stores row data with position deletes
+    // v3+ uses Deletion Vectors (DV) which only store position information
+    if (formatVersion == 2) {
+      Object[] deletedRow = (Object[]) rows(targetTableLocation() + "#position_deletes").get(0)[2];
+      assertEquals(
+          "Position deletes should be equal", new Object[] {1, "AAAAAAAAAA", "AAAA"}, deletedRow);
+    }
 
     // Positional delete affects a single row, so only one row must remain
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
         .hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeletesAcrossFiles() throws Exception {
+    assumeThat(formatVersion)
+        .as("Can't write multiple deletes into a single v3 delete file")
+        .isEqualTo(2);
     Stream<DataFile> allFiles =
         StreamSupport.stream(table.snapshots().spliterator(), false)
             .flatMap(s -> StreamSupport.stream(s.addedDataFiles(table.io()).spliterator(), false));
@@ -480,7 +540,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     File file = new File(removePrefix(table.location() + "/data/deeply/nested/file.parquet"));
     DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(
-                table, table.io().newOutputFile(file.toURI().toString()), deletes)
+                table, table.io().newOutputFile(file.toURI().toString()), deletes, formatVersion)
             .first();
 
     table.newRowDelta().addDeletes(positionDeletes).commit();
@@ -505,7 +565,7 @@ public class TestRewriteTablePathsAction extends TestBase {
         .isEmpty();
   }
 
-  @Test
+  @TestTemplate
   public void testEqualityDeletes() throws Exception {
     Table sourceTable = createTableWithSnapshots(newTableLocation(), 1);
 
@@ -560,7 +620,7 @@ public class TestRewriteTablePathsAction extends TestBase {
         .hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testFullTableRewritePathWithDeletedVersionFiles() throws Exception {
     String location = newTableLocation();
     Table sourceTable = createTableWithSnapshots(location, 2);
@@ -606,7 +666,7 @@ public class TestRewriteTablePathsAction extends TestBase {
         result);
   }
 
-  @Test
+  @TestTemplate
   public void testRewritePathWithoutSnapshot() throws Exception {
     RewriteTablePath.Result result =
         actions()
@@ -619,7 +679,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(1, 0, 0, 1, result);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireSnapshotBeforeRewrite() throws Exception {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
@@ -634,7 +694,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(4, 1, 2, 9, result);
   }
 
-  @Test
+  @TestTemplate
   public void testRewritePathWithNonLiveEntry() throws Exception {
     String location = newTableLocation();
     // first overwrite generate 1 manifest and 1 data file
@@ -699,7 +759,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(copiedEntries).contains(deletedDataFilePathInTargetLocation);
   }
 
-  @Test
+  @TestTemplate
   public void testStartSnapshotWithoutValidSnapshot() throws Exception {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
@@ -718,7 +778,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(2, 1, 1, 5, result);
   }
 
-  @Test
+  @TestTemplate
   public void testMoveTheVersionExpireSnapshot() throws Exception {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
@@ -736,7 +796,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(1, 0, 0, 1, result);
   }
 
-  @Test
+  @TestTemplate
   public void testMoveVersionWithInvalidSnapshots() {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
@@ -755,7 +815,7 @@ public class TestRewriteTablePathsAction extends TestBase {
                 + "Please choose an earlier version without invalid snapshots.");
   }
 
-  @Test
+  @TestTemplate
   public void testRollBack() throws Exception {
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
@@ -782,7 +842,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(6, 3, 3, 15, result);
   }
 
-  @Test
+  @TestTemplate
   public void testWriteAuditPublish() throws Exception {
     // enable WAP
     table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
@@ -807,7 +867,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(5, 3, 3, 14, result);
   }
 
-  @Test
+  @TestTemplate
   public void testSchemaChange() throws Exception {
     // change the schema
     table.updateSchema().addColumn("c4", Types.StringType.get()).commit();
@@ -824,7 +884,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(4, 2, 2, 10, result);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotIdInheritanceEnabled() throws Exception {
     String sourceTableLocation = newTableLocation();
     Map<String, String> properties = Maps.newHashMap();
@@ -842,7 +902,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(3, 2, 2, 9, result);
   }
 
-  @Test
+  @TestTemplate
   public void testMetadataCompression() throws Exception {
     String sourceTableLocation = newTableLocation();
     Map<String, String> properties = Maps.newHashMap();
@@ -868,7 +928,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(2, 2, 2, 8, result);
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidArgs() {
     RewriteTablePath actions = actions().rewriteTablePath(table);
 
@@ -901,45 +961,44 @@ public class TestRewriteTablePathsAction extends TestBase {
         .hasMessageContaining("End version('null') cannot be empty");
   }
 
-  @Test
-  public void testPartitionStatisticFile() throws IOException {
+  @TestTemplate
+  public void testTableWithManyPartitionStatisticFile() throws IOException {
     String sourceTableLocation = newTableLocation();
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("format-version", "2");
-    String tableName = "v2tblwithPartStats";
+    Map<String, String> properties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    String tableName = String.format("v%stblwithPartStats", formatVersion);
     Table sourceTable =
-        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0, "c1");
 
-    TableMetadata metadata = currentMetadata(sourceTable);
-    TableMetadata withPartStatistics =
-        TableMetadata.buildFrom(metadata)
-            .setPartitionStatistics(
-                ImmutableGenericPartitionStatisticsFile.builder()
-                    .snapshotId(11L)
-                    .path("/some/partition/stats/file.parquet")
-                    .fileSizeInBytes(42L)
-                    .build())
-            .build();
+    int iterations = 10;
+    for (int i = 0; i < iterations; i++) {
+      sql("insert into hive.default.%s values (%s, 'AAAAAAAAAA', 'AAAA')", tableName, i);
+      sourceTable.refresh();
+      actions().computePartitionStats(sourceTable).execute();
+    }
 
-    OutputFile file = sourceTable.io().newOutputFile(metadata.metadataFileLocation());
-    TableMetadataParser.overwrite(withPartStatistics, file);
+    sourceTable.refresh();
+    assertThat(sourceTable.partitionStatisticsFiles()).hasSize(iterations);
 
-    assertThatThrownBy(
-            () ->
-                actions()
-                    .rewriteTablePath(sourceTable)
-                    .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
-                    .execute())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Partition statistics files are not supported yet");
+    String targetTableLocation = targetTableLocation();
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation)
+            .execute();
+    checkFileNum(
+        iterations * 2 + 1, iterations, iterations, 0, iterations, iterations * 6 + 1, result);
+
+    findAndAssertFileInFileList(
+        result, "partition-stats", sourceTableLocation, targetTableLocation);
   }
 
-  @Test
+  @TestTemplate
   public void testTableWithManyStatisticFiles() throws IOException {
     String sourceTableLocation = newTableLocation();
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("format-version", "2");
-    String tableName = "v2tblwithmanystats";
+    Map<String, String> properties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    String tableName = String.format("v%stblwithmanystats", formatVersion);
     Table sourceTable =
         createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
 
@@ -963,12 +1022,12 @@ public class TestRewriteTablePathsAction extends TestBase {
         iterations * 2 + 1, iterations, iterations, iterations, iterations * 6 + 1, result);
   }
 
-  @Test
+  @TestTemplate
   public void testStatisticsFileSourcePath() throws IOException {
     String sourceTableLocation = newTableLocation();
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("format-version", "2");
-    String tableName = "v2tblwithstats";
+    Map<String, String> properties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    String tableName = String.format("v%stblwithstats", formatVersion);
     Table sourceTable =
         createMetastoreTable(sourceTableLocation, properties, "default", tableName, 1);
 
@@ -988,38 +1047,20 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     checkFileNum(3, 1, 1, 1, 7, result);
 
-    // Read the file list to verify statistics file paths
-    List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
-
-    // Find the statistics file entry in the file list using stream
-    Tuple2<String, String> statsFilePathPair =
-        filesToMove.stream()
-            .filter(pathPair -> pathPair._1().endsWith(".stats"))
-            .findFirst()
-            .orElse(null);
-
-    assertThat(statsFilePathPair).as("Should find statistics file in file list").isNotNull();
-
-    // Verify the source path points to the actual source location, not staging
-    assertThat(statsFilePathPair._1())
-        .as("Statistics file source should point to source table location and NOT staging")
-        .startsWith(sourceTableLocation)
-        .contains("/metadata/")
-        .doesNotContain("staging");
-
-    // Verify the target path is correctly rewritten
-    assertThat(statsFilePathPair._2())
-        .as("Statistics file target should point to target table location")
-        .startsWith(targetTableLocation);
+    findAndAssertFileInFileList(result, ".stats", sourceTableLocation, targetTableLocation);
   }
 
-  @Test
+  @TestTemplate
   public void testMetadataCompressionWithMetastoreTable() throws Exception {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, "gzip");
     Table sourceTable =
         createMetastoreTable(
-            newTableLocation(), properties, "default", "testMetadataCompression", 2);
+            newTableLocation(),
+            properties,
+            "default",
+            String.format("v%sMetadataCompression", formatVersion),
+            2);
 
     TableMetadata currentMetadata = currentMetadata(sourceTable);
 
@@ -1047,10 +1088,11 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   // Metastore table tests
-  @Test
+  @TestTemplate
   public void testMetadataLocationChange() throws Exception {
+    String tableName = String.format("v%stblWithLocation", formatVersion);
     Table sourceTable =
-        createMetastoreTable(newTableLocation(), Maps.newHashMap(), "default", "tbl", 1);
+        createMetastoreTable(newTableLocation(), Maps.newHashMap(), "default", tableName, 1);
     String metadataFilePath = currentMetadata(sourceTable).metadataFileLocation();
 
     String newMetadataDir = "new-metadata-dir";
@@ -1059,7 +1101,7 @@ public class TestRewriteTablePathsAction extends TestBase {
         .set(TableProperties.WRITE_METADATA_LOCATION, newTableLocation() + newMetadataDir)
         .commit();
 
-    spark.sql("insert into hive.default.tbl values (1, 'AAAAAAAAAA', 'AAAA')");
+    sql("insert into hive.default.%s values (1, 'AAAAAAAAAA', 'AAAA')", tableName);
     sourceTable.refresh();
 
     // copy table
@@ -1092,12 +1134,15 @@ public class TestRewriteTablePathsAction extends TestBase {
     checkFileNum(2, 1, 1, 5, result2);
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFrom() throws Exception {
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("format-version", "2");
-    properties.put("write.delete.mode", "merge-on-read");
-    String tableName = "v2tbl";
+    Map<String, String> properties =
+        ImmutableMap.of(
+            TableProperties.FORMAT_VERSION,
+            String.valueOf(formatVersion),
+            "write.delete.mode",
+            "merge-on-read");
+    String tableName = String.format("v%stbl", formatVersion);
     Table sourceTable =
         createMetastoreTable(newTableLocation(), properties, "default", tableName, 0);
     // ingest data
@@ -1145,7 +1190,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     // register table
     String metadataLocation = currentMetadata(sourceTable).metadataFileLocation();
     String versionFile = fileName(metadataLocation);
-    String targetTableName = "copiedV2Table";
+    String targetTableName = String.format("copiedV%sTable", formatVersion);
     TableIdentifier tableIdentifier = TableIdentifier.of("default", targetTableName);
     catalog.registerTable(tableIdentifier, targetTableLocation() + "/metadata/" + versionFile);
 
@@ -1161,7 +1206,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertEquals("Rows must match", originalData, copiedData);
   }
 
-  @Test
+  @TestTemplate
   public void testKryoDeserializeBroadcastValues() {
     sparkContext.getConf().set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
     RewriteTablePathSparkAction action =
@@ -1172,8 +1217,11 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(tableBroadcast.getValue().uuid()).isEqualTo(table.uuid());
   }
 
-  @Test
+  @TestTemplate
   public void testNestedDirectoryStructurePreservation() throws Exception {
+    assumeThat(formatVersion)
+        .as("Can't add multiple DVs for the same data file in v3")
+        .isEqualTo(2);
     String sourceTableLocation = newTableLocation();
     Table sourceTable = createTableWithSnapshots(sourceTableLocation, 1);
 
@@ -1210,12 +1258,18 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     DeleteFile positionDeletes1 =
         FileHelpers.writeDeleteFile(
-                sourceTable, sourceTable.io().newOutputFile(file1.toURI().toString()), deletes1)
+                sourceTable,
+                sourceTable.io().newOutputFile(file1.toURI().toString()),
+                deletes1,
+                formatVersion)
             .first();
 
     DeleteFile positionDeletes2 =
         FileHelpers.writeDeleteFile(
-                sourceTable, sourceTable.io().newOutputFile(file2.toURI().toString()), deletes2)
+                sourceTable,
+                sourceTable.io().newOutputFile(file2.toURI().toString()),
+                deletes2,
+                formatVersion)
             .first();
 
     sourceTable.newRowDelta().addDeletes(positionDeletes1).commit();
@@ -1259,13 +1313,31 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(targetPath2).startsWith(targetTableLocation());
   }
 
+  @TestTemplate
+  public void testRewritePathWithoutCreateFileList() throws Exception {
+    String targetTableLocation = targetTableLocation();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(table)
+            .rewriteLocationPrefix(tableLocation, targetTableLocation)
+            .createFileList(false) // Disable file list creation
+            .execute();
+
+    assertThat(result.latestVersion()).isEqualTo("v3.metadata.json");
+
+    assertThat(result.fileListLocation())
+        .as("File list location should not be set when createFileList is false")
+        .isEqualTo(NOT_APPLICABLE);
+  }
+
   protected void checkFileNum(
       int versionFileCount,
       int manifestListCount,
       int manifestFileCount,
       int totalCount,
       RewriteTablePath.Result result) {
-    checkFileNum(versionFileCount, manifestListCount, manifestFileCount, 0, totalCount, result);
+    checkFileNum(versionFileCount, manifestListCount, manifestFileCount, 0, 0, totalCount, result);
   }
 
   protected void checkFileNum(
@@ -1273,6 +1345,24 @@ public class TestRewriteTablePathsAction extends TestBase {
       int manifestListCount,
       int manifestFileCount,
       int statisticsFileCount,
+      int totalCount,
+      RewriteTablePath.Result result) {
+    checkFileNum(
+        versionFileCount,
+        manifestListCount,
+        manifestFileCount,
+        statisticsFileCount,
+        0,
+        totalCount,
+        result);
+  }
+
+  protected void checkFileNum(
+      int versionFileCount,
+      int manifestListCount,
+      int manifestFileCount,
+      int statisticsFileCount,
+      int partitionFileCount,
       int totalCount,
       RewriteTablePath.Result result) {
     List<String> filesToMove =
@@ -1302,6 +1392,9 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(filesToMove.stream().filter(f -> f.endsWith(".stats")))
         .as("Wrong rebuilt Statistic file count")
         .hasSize(statisticsFileCount);
+    assertThat(filesToMove.stream().filter(f -> f.contains("partition-stats")))
+        .as("Wrong rebuilt Partition Statistic file count")
+        .hasSize(partitionFileCount);
     assertThat(filesToMove).as("Wrong total file count").hasSize(totalCount);
   }
 
@@ -1355,41 +1448,79 @@ public class TestRewriteTablePathsAction extends TestBase {
       String namespace,
       String tableName,
       int snapshotNumber) {
+    return createMetastoreTable(location, properties, namespace, tableName, snapshotNumber, null);
+  }
+
+  private Table createMetastoreTable(
+      String location,
+      Map<String, String> properties,
+      String namespace,
+      String tableName,
+      int snapshotNumber,
+      String partitionColumn) {
     spark.conf().set("spark.sql.catalog.hive", SparkCatalog.class.getName());
     spark.conf().set("spark.sql.catalog.hive.type", "hive");
     spark.conf().set("spark.sql.catalog.hive.default-namespace", "default");
     spark.conf().set("spark.sql.catalog.hive.cache-enabled", "false");
 
+    // Generate and execute CREATE TABLE SQL
+    String createTableSQL =
+        generateCreateTableSQL(location, properties, namespace, tableName, partitionColumn);
+    sql(createTableSQL);
+
+    for (int i = 0; i < snapshotNumber; i++) {
+      sql("insert into hive.%s.%s values (%s, 'AAAAAAAAAA', 'AAAA')", namespace, tableName, i);
+    }
+    return catalog.loadTable(TableIdentifier.of(namespace, tableName));
+  }
+
+  /**
+   * Generates SQL statement for creating an Iceberg table
+   *
+   * @param location location the storage location path for the table, can be empty
+   * @param properties key-value pairs of table properties for setting table metadata
+   * @param namespace the namespace (database name)
+   * @param tableName the name of the table to be created
+   * @param partitionColumn the partition column name, must be one of c1, c2, or c3; can be null or
+   *     empty string for non-partitioned table
+   * @return CREATE TABLE SQL statement string
+   */
+  private String generateCreateTableSQL(
+      String location,
+      Map<String, String> properties,
+      String namespace,
+      String tableName,
+      String partitionColumn) {
     StringBuilder propertiesStr = new StringBuilder();
     properties.forEach((k, v) -> propertiesStr.append("'" + k + "'='" + v + "',"));
     String tblProperties =
         propertiesStr.substring(0, propertiesStr.length() > 0 ? propertiesStr.length() - 1 : 0);
 
     sql("DROP TABLE IF EXISTS hive.%s.%s", namespace, tableName);
-    if (tblProperties.isEmpty()) {
-      String sqlStr =
-          String.format(
-              "CREATE TABLE hive.%s.%s (c1 bigint, c2 string, c3 string)", namespace, tableName);
-      if (!location.isEmpty()) {
-        sqlStr = String.format("%s USING iceberg LOCATION '%s'", sqlStr, location);
-      }
-      sql(sqlStr);
+
+    StringBuilder createTableSql = new StringBuilder();
+    createTableSql
+        .append("CREATE TABLE hive.")
+        .append(namespace)
+        .append(".")
+        .append(tableName)
+        .append(" (c1 bigint, c2 string, c3 string)");
+
+    if (partitionColumn != null && !partitionColumn.isEmpty()) {
+      createTableSql.append(" USING iceberg PARTITIONED BY (").append(partitionColumn).append(")");
     } else {
-      String sqlStr =
-          String.format(
-              "CREATE TABLE hive.%s.%s (c1 bigint, c2 string, c3 string)", namespace, tableName);
-      if (!location.isEmpty()) {
-        sqlStr = String.format("%s USING iceberg LOCATION '%s'", sqlStr, location);
-      }
-
-      sqlStr = String.format("%s TBLPROPERTIES (%s)", sqlStr, tblProperties);
-      sql(sqlStr);
+      createTableSql.append(" USING iceberg");
     }
 
-    for (int i = 0; i < snapshotNumber; i++) {
-      sql("insert into hive.%s.%s values (%s, 'AAAAAAAAAA', 'AAAA')", namespace, tableName, i);
+    if (!location.isEmpty()) {
+      createTableSql.append(" LOCATION '").append(location).append("'");
     }
-    return catalog.loadTable(TableIdentifier.of(namespace, tableName));
+
+    if (!tblProperties.isEmpty()) {
+      createTableSql.append(" TBLPROPERTIES (").append(tblProperties).append(")");
+    }
+
+    return createTableSql.toString();
   }
 
   private static String fileName(String path) {
@@ -1433,5 +1564,37 @@ public class TestRewriteTablePathsAction extends TestBase {
     blockInfoManager.lockForWriting(blockId, true);
     blockInfoManager.removeBlock(blockId);
     blockManager.memoryStore().remove(blockId);
+  }
+
+  private void findAndAssertFileInFileList(
+      RewriteTablePath.Result result,
+      String fileIdentifier,
+      String sourceTableLocation,
+      String targetTableLocation) {
+
+    List<Tuple2<String, String>> filesToMove = readPathPairList(result.fileListLocation());
+
+    // Find the file path pair that contains the specified file identifier
+    Tuple2<String, String> filePathPair =
+        filesToMove.stream()
+            .filter(pair -> pair._1().contains(fileIdentifier))
+            .findFirst()
+            .orElse(null);
+
+    // Assert that the file was found in the list
+    assertThat(filePathPair).as("Should find " + fileIdentifier + " file in file list").isNotNull();
+
+    // Validate source path: should point to source table location, contain metadata, and not
+    // staging
+    assertThat(filePathPair._1())
+        .as(fileIdentifier + " source should point to source table location and NOT staging")
+        .startsWith(sourceTableLocation)
+        .contains("/metadata/")
+        .doesNotContain("staging");
+
+    // Validate target path: should point to target table location
+    assertThat(filePathPair._2())
+        .as(fileIdentifier + " target should point to target table location")
+        .startsWith(targetTableLocation);
   }
 }
