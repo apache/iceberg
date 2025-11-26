@@ -85,7 +85,7 @@ Notes:
 
 1. The number of versions to retain is controlled by the view property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
-3. The `max-staleness-ms` field only applies to materialized views and must be set to `null` for common views. If `max-staleness-ms` is not `null` and the time elapsed since the last refresh operation is less than `max-staleness-ms`, the query engine may return data directly from the `storage-table` without evaluating freshness based on the source tables and views.
+3. The `max-staleness-ms` field only applies to materialized views and must be set to `null` for common views. If `max-staleness-ms` is not `null` and the time elapsed since the last refresh operation is less than `max-staleness-ms`, the query engine may return data directly from the `storage-table` without evaluating freshness based on the source tables and views. If `max-staleness-ms` is `null` for a materialized view, the data in the `storage-table` is always considered fresh.
 
 #### Versions
 
