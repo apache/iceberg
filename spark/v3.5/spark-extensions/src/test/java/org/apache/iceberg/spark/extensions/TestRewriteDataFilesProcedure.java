@@ -987,11 +987,13 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void testRewriteDataFilesWithRewriteAllAndWhereClause() {
     createTable();
     // Create a single file with 4 rows
-    sql("INSERT INTO %s VALUES (1, 'a', null), (2, 'b', null), (3, 'c', null), (4, 'd', null)", tableName);
-    
+    sql(
+        "INSERT INTO %s VALUES (1, 'a', null), (2, 'b', null), (3, 'c', null), (4, 'd', null)",
+        tableName);
+
     List<Object[]> expectedRecords = currentData();
-    assertEquals("Should have 4 rows initially", 4, expectedRecords.size());
-    
+    assertThat(expectedRecords).as("Should have 4 rows initially").hasSize(4);
+
     // Use rewrite-all=true with a where clause
     // This should NOT create duplicates - it should only rewrite files that match the filter
     // and only if they meet the minimum criteria (e.g., enough files in the group)
@@ -1004,16 +1006,17 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                 + "where => 'c1 IN (1,2)', "
                 + "options => map('rewrite-all', 'true'))",
             catalogName, tableIdent);
-    
+
     // With only 1 file, it should not be rewritten (doesn't meet min-input-files criteria)
     assertEquals(
         "Should not rewrite single file even with rewrite-all=true",
         row(0, 0),
         Arrays.copyOf(output.get(0), 2));
-    
+
     List<Object[]> actualRecords = currentData();
-    assertEquals("Data should not change and should not have duplicates", expectedRecords, actualRecords);
-    assertEquals("Should still have exactly 4 rows (no duplicates)", 4, actualRecords.size());
+    assertEquals(
+        "Data should not change and should not have duplicates", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Should still have exactly 4 rows (no duplicates)").hasSize(4);
   }
 
   @TestTemplate
@@ -1021,12 +1024,14 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     createTable();
     // Create multiple small files
     for (int i = 1; i <= 4; i++) {
-      sql("INSERT INTO %s VALUES (%d, '%s', null)", tableName, i, String.valueOf((char)('a' + i - 1)));
+      sql(
+          "INSERT INTO %s VALUES (%d, '%s', null)",
+          tableName, i, String.valueOf((char) ('a' + i - 1)));
     }
-    
+
     List<Object[]> expectedRecords = currentData();
-    assertEquals("Should have 4 rows initially", 4, expectedRecords.size());
-    
+    assertThat(expectedRecords).as("Should have 4 rows initially").hasSize(4);
+
     // Use rewrite-all=true with a where clause that matches only some rows
     // With multiple files matching the filter, they should be rewritten
     List<Object[]> output =
@@ -1038,16 +1043,15 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                 + "where => 'c1 IN (1,2)', "
                 + "options => map('rewrite-all', 'true', 'min-input-files', '2'))",
             catalogName, tableIdent);
-    
+
     // Should rewrite 2 files (those containing rows with c1 IN (1,2))
     assertEquals(
-        "Should rewrite 2 files that match the filter",
-        row(2, 1),
-        Arrays.copyOf(output.get(0), 2));
-    
+        "Should rewrite 2 files that match the filter", row(2, 1), Arrays.copyOf(output.get(0), 2));
+
     List<Object[]> actualRecords = currentData();
-    assertEquals("Data should not change and should not have duplicates", expectedRecords, actualRecords);
-    assertEquals("Should still have exactly 4 rows (no duplicates)", 4, actualRecords.size());
+    assertEquals(
+        "Data should not change and should not have duplicates", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Should still have exactly 4 rows (no duplicates)").hasSize(4);
   }
 
   @TestTemplate
