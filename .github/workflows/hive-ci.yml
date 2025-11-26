@@ -90,7 +90,7 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true :iceberg-mr:check -x javadoc
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       if: failure()
       with:
         name: test logs
