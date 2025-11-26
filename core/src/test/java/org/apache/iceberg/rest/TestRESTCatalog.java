@@ -3076,6 +3076,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testCustomTableOperationsInjection() throws IOException {
     AtomicBoolean customTableOpsCalled = new AtomicBoolean();
+    AtomicBoolean customTransactionTableOpsCalled = new AtomicBoolean();
 
     // Custom RESTSessionCatalog that overrides table operations creation
     class CustomRESTSessionCatalog extends RESTSessionCatalog {
@@ -3107,7 +3108,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           List<MetadataUpdate> createChanges,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        customTableOpsCalled.set(true);
+        customTransactionTableOpsCalled.set(true);
         return super.newTableOps(
             restClient,
             path,
@@ -3147,16 +3148,23 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
       catalog.createNamespace(NS);
 
-      // Test simple table operations
+      // Test table operations without UpdateType
       assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isFalse();
+
       catalog.createTable(TABLE, SCHEMA);
       assertThat(customTableOpsCalled).isTrue();
+      assertThat(customTransactionTableOpsCalled).isFalse();
 
-      // Test transaction-based table operations
+      // Test table operations with UpdateType and createChanges
       customTableOpsCalled.set(false);
+      assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isFalse();
+
       TableIdentifier table2 = TableIdentifier.of(NS, "table2");
       catalog.buildTable(table2, SCHEMA).createTransaction().commitTransaction();
-      assertThat(customTableOpsCalled).isTrue();
+      assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isTrue();
     }
   }
 
