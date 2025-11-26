@@ -39,6 +39,7 @@ import org.apache.parquet.crypto.InternalFileEncryptor;
 import org.apache.parquet.hadoop.CodecFactory;
 import org.apache.parquet.hadoop.ColumnChunkPageWriteStore;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 
@@ -93,8 +94,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.metricsConfig = metricsConfig;
     this.columnIndexTruncateLength =
         conf.getInt(
-            ParquetUtil.COLUMN_INDEX_TRUNCATE_LENGTH,
-            ParquetUtil.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
+            ParquetOutputFormat.COLUMN_INDEX_TRUNCATE_LENGTH,
+            ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
     this.writeMode = writeMode;
     this.output = output;
     this.conf = conf;

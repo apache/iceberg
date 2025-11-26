@@ -101,7 +101,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
           groupId);
       mergeParquetFilesDistributed(groupId, group);
     } catch (Exception e) {
-      LOG.warn(
+      LOG.info(
           "Row-group merge failed for group {}, falling back to standard Spark rewrite: {}",
           groupId,
           e.getMessage(),
@@ -119,6 +119,9 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
    * <ul>
    *   <li>Table must not have a sort order (no sorting or z-ordering)
    *   <li>Files must not have delete files or delete vectors
+   *   <li>Partition spec must not be changing (row-group merge cannot repartition data)
+   *   <li>Must not be splitting large files (row-group merge is optimized for merging, not
+   *       splitting)
    * </ul>
    *
    * <p>Additional requirements checked by ParquetFileMerger.canMerge:
@@ -154,6 +157,32 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       return false;
     }
 
+    // Check if partition spec is being changed - row-group merge cannot repartition data
+    int outputSpecId = group.outputSpecId();
+    boolean hasPartitionSpecChange =
+        group.rewrittenFiles().stream().anyMatch(file -> file.specId() != outputSpecId);
+
+    if (hasPartitionSpecChange) {
+      LOG.debug(
+          "Cannot use row-group merge: partition spec is changing. "
+              + "Row-group merging cannot change data partitioning.");
+      return false;
+    }
+
+    // Check if we're splitting large files - row-group merge is designed for file merging, not
+    // splitting
+    long maxOutputFileSize = group.maxOutputFileSize();
+    boolean isSplittingFiles =
+        group.rewrittenFiles().stream()
+            .anyMatch(file -> file.fileSizeInBytes() > maxOutputFileSize);
+
+    if (isSplittingFiles) {
+      LOG.debug(
+          "Cannot use row-group merge: compaction is splitting large files. "
+              + "Row-group merging is optimized for merging files, not splitting them.");
+      return false;
+    }
+
     // Validate schema compatibility and other Parquet-specific requirements
     try {
       List<InputFile> inputFiles =
@@ -165,7 +194,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       boolean canMerge = ParquetFileMerger.canMerge(inputFiles);
 
       if (!canMerge) {
-        LOG.warn(
+        LOG.info(
             "Cannot use row-group merge for {} files. Falling back to standard rewrite. "
                 + "Reason: Parquet validation failed",
             group.rewrittenFiles().size());
@@ -173,7 +202,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
       return canMerge;
     } catch (Exception e) {
-      LOG.warn("Cannot use row-group merge: validation failed", e);
+      LOG.info("Cannot use row-group merge: validation failed", e);
       return false;
     }
   }
@@ -211,8 +240,8 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     Configuration hadoopConf = spark().sessionState().newHadoopConf();
     int columnIndexTruncateLength =
         hadoopConf.getInt(
-            ParquetUtil.COLUMN_INDEX_TRUNCATE_LENGTH,
-            ParquetUtil.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
+            org.apache.parquet.hadoop.ParquetOutputFormat.COLUMN_INDEX_TRUNCATE_LENGTH,
+            org.apache.parquet.column.ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     // Create merge tasks for each batch
     List<MergeTaskInfo> mergeTasks = Lists.newArrayList();
@@ -222,7 +251,8 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
       // Create unique OutputFileFactory for each task to avoid filename collisions
       OutputFileFactory fileFactory =
-          OutputFileFactory.builderFor(table(), spec.specId(), batchIndex)
+          OutputFileFactory.builderFor(table(), batchIndex, 0)
+              .defaultSpec(spec)
               .format(FileFormat.PARQUET)
               .build();
 
@@ -231,14 +261,19 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       List<String> filePaths =
           batch.stream().map(f -> f.path().toString()).collect(Collectors.toList());
 
-      // Extract firstRowIds for row lineage preservation
+      // Extract firstRowIds and dataSequenceNumbers for row lineage preservation
       List<Long> firstRowIds = null;
+      List<Long> dataSequenceNumbers = null;
       if (preserveRowLineage) {
         firstRowIds = batch.stream().map(DataFile::firstRowId).collect(Collectors.toList());
+        dataSequenceNumbers =
+            batch.stream().map(DataFile::dataSequenceNumber).collect(Collectors.toList());
         LOG.debug(
-            "Task {} will preserve row lineage with firstRowIds: {} (group: {})",
+            "Task {} will preserve row lineage with firstRowIds: {} and dataSequenceNumbers: {} "
+                + "(group: {})",
             taskId,
             firstRowIds,
+            dataSequenceNumbers,
             groupId);
       }
 
@@ -248,6 +283,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
               rowGroupSize,
               columnIndexTruncateLength,
               firstRowIds,
+              dataSequenceNumbers,
               fileFactory,
               partition));
     }
@@ -371,6 +407,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
         encryptedOutputFile,
         schema,
         task.firstRowIds(),
+        task.dataSequenceNumbers(),
         task.rowGroupSize(),
         task.columnIndexTruncateLength(),
         metadata);
@@ -393,6 +430,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     private final long rowGroupSize;
     private final int columnIndexTruncateLength;
     private final List<Long> firstRowIds;
+    private final List<Long> dataSequenceNumbers;
     private final OutputFileFactory fileFactory;
     private final StructLike partition;
 
@@ -401,12 +439,14 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
         long rowGroupSize,
         int columnIndexTruncateLength,
         List<Long> firstRowIds,
+        List<Long> dataSequenceNumbers,
         OutputFileFactory fileFactory,
         StructLike partition) {
       this.filePaths = filePaths;
       this.rowGroupSize = rowGroupSize;
       this.columnIndexTruncateLength = columnIndexTruncateLength;
       this.firstRowIds = firstRowIds;
+      this.dataSequenceNumbers = dataSequenceNumbers;
       this.fileFactory = fileFactory;
       this.partition = partition;
     }
@@ -429,6 +469,10 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
     List<Long> firstRowIds() {
       return firstRowIds;
+    }
+
+    List<Long> dataSequenceNumbers() {
+      return dataSequenceNumbers;
     }
 
     OutputFileFactory fileFactory() {
