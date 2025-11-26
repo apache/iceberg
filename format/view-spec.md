@@ -53,7 +53,7 @@ Refresh metadata contains information about the "source tables" and/or "source v
 During read time, a materialized view (storage table) can be interpreted as "fresh", "stale" or "invalid", depending on the following situations:
 * **fresh** -- The `snapshot_id`s of the last refresh operation match the current `snapshot_id`s of all the source tables.
 * **stale** -- The `snapshot_id`s do not match for at-least one source table, indicating that a refresh operation needs to be performed to capture the latest source table changes.
-* **invalid** -- The current `version_id` of the materialized view does not match the `view-version-id` of the refresh state. 
+* **invalid** -- The current `version_id` of the materialized view does not match the `view-version-id` of the refresh state.
 
 ## Specification
 
@@ -104,7 +104,7 @@ Each version in `versions` is a struct with the following fields:
 
 When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
 
-When 'storage-table' is `null` or not set, the entity is a common view, otherwise it is a materialized view. 
+When 'storage-table' is `null` or not set, the entity is a common view, otherwise it is a materialized view.
 
 #### Summary
 
@@ -197,7 +197,7 @@ The property "refresh-state" is set on the [snapshot summary](https://iceberg.ap
 
 | Requirement | Field name      | Description |
 |-------------|-----------------|-------------|
-| _required_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string | 
+| _required_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string |
 
 #### Refresh state
 
@@ -206,7 +206,7 @@ For source materialized views, both the source view and its storage table are in
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `view-version-id`         | The `version-id` of the materialized view when the refresh operation was performed  | 
+| _required_  | `view-version-id`         | The `version-id` of the materialized view when the refresh operation was performed  |
 | _required_  | `source-table-states`        | A list of [source table](#source-table) records for all tables that are directly or indirectly referenced in the materialized view query |
 | _required_  | `source-view-states`         | A list of [source view](#source-view) records for all views that are directly or indirectly referenced in the materialized view query |
 | _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
@@ -217,7 +217,7 @@ A source table record captures the state of a source table at the time of the la
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `uuid`         | The uuid of the source table | 
+| _required_  | `uuid`         | The uuid of the source table |
 | _required_  | `snapshot-id`  | Snapshot-id of when the last refresh operation was performed |
 | _optional_  | `ref`          | Branch name of the source table being referenced in the view query |
 
@@ -229,7 +229,7 @@ A source view record captures the state of a source view at the time of the last
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `uuid`         | The uuid of the source view | 
+| _required_  | `uuid`         | The uuid of the source view |
 | _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
 
 ## Appendix A: An Example
