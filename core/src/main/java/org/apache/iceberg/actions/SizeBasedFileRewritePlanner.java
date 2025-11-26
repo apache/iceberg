@@ -170,7 +170,15 @@ public abstract class SizeBasedFileRewritePlanner<
     Iterable<T> filteredTasks = rewriteAll ? tasks : filterFiles(tasks);
     BinPacking.ListPacker<T> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
     List<List<T>> groups = packer.pack(filteredTasks, ContentScanTask::length);
-    return rewriteAll ? groups : filterFileGroups(groups);
+    
+    // When rewrite-all is true, we still need to apply filterFileGroups to ensure
+    // that we only rewrite file groups that meet the minimum criteria (e.g., enough files,
+    // enough content). This is especially important when using a where clause filter,
+    // as it ensures we don't create unnecessary file groups with single files that would
+    // lead to duplicate data without any benefit.
+    // The rewrite-all option bypasses size-based file filtering but should still respect
+    // the file group filtering logic to avoid inefficient or problematic rewrites.
+    return filterFileGroups(groups);
   }
 
   protected boolean enoughInputFiles(List<T> group) {
