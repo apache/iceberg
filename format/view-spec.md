@@ -79,11 +79,13 @@ The view version metadata file has the following fields:
 | _required_  | `versions`           | A list of known [versions](#versions) of the view [1] |
 | _required_  | `version-log`        | A list of [version log](#version-log) entries with the timestamp and `version-id` for every change to `current-version-id` |
 | _optional_  | `properties`         | A string to string map of view properties [2] |
+| _optional_  | `max-staleness-ms`   | The maximum time interval in milliseconds after a refresh operation during which the materialized view's data is considered fresh [3] |
 
 Notes:
 
 1. The number of versions to retain is controlled by the view property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
+3. The `max-staleness-ms` field only applies to materialized views and must be set to `null` for common views. If `max-staleness-ms` is not `null` and the time elapsed since the last refresh operation is less than `max-staleness-ms`, the query engine may return data directly from the `storage-table` without evaluating freshness based on the source tables and views.
 
 #### Versions
 
