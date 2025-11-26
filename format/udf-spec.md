@@ -77,28 +77,12 @@ Notes:
    - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
    - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
 2. Entries in `properties` are treated as hints, not strict rules. Engines MAY choose to honor them or ignore them.
-3. The `parameter-names` list is the source of truth for parameter naming across all overload definitions. Each overload
-   MUST use a prefix of this list in order. The names and orders are immutable, only appending new is allowed, while the
-   `doc` of each `name` can be updated in place.
-
-#### Global Overload Parameter Consistency
-
-To ensure a consistent user experience and to simplify overload selection across engines, all overloads of a function MUST share a globally consistent parameter name scheme:
-
-1. All overloads MUST draw their parameter names from the top-level `parameter-names` list.
-2. Each overload uses a prefix of this list, in order, with no renaming allowed.
-3. Engines MUST reject definitions that introduce inconsistent names or reorder names relative to the global list.
-
-Overloads that differ only in parameter types (e.g., `foo(int x)` and `foo(float x)`) are valid as long as they reuse the same global parameter names in the same order.
-
-Example:
-- Valid:
-    - `foo(int x)`
-    - `foo(int x, int y)`
-    - `foo(float x)`
-- Invalid:
-    - `foo(int y)`
-    - `foo(int y, int x)`
+3. `parameter-names` is the single global source of truth for parameter naming across all overloads:
+   - Each overload MUST use a prefix of this list, in order. 
+   - Names and relative ordering are immutable. 
+   - Only appending new names is allowed.
+   - Only the doc field may be updated in place.
+   - Type-only overloads (e.g., `foo(int x)` and `foo(float x)`) are valid as long as the names match the prefix.
 
 ### Definition
 
