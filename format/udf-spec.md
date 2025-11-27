@@ -58,10 +58,10 @@ The UDF metadata file has the following fields:
 | *required*  | `function-uuid`   | `string`               | A UUID that identifies the function, generated once at creation.                                                |
 | *required*  | `format-version`  | `int`                  | Metadata format version (must be `1`).                                                                          |
 | *required*  | `definitions`     | `list<definition>`     | List of function [definition](#definition) entities.                                                            |
-| *required*  | `definition-log`  | `list<definition-log>` | History of [definitions snapshots](#definitions-log).                                                           |
+| *required*  | `definition-log`  | `list<definition-log>` | History of [definition snapshots](#definition-log).                                                             |
 | *required*  | `parameter-names` | `list<parameter-name>` | Global ordered parameter names shared across all overloads. Overloads must use a prefix of this list, in order. |
 | *optional*  | `location`        | `string`               | Storage location of metadata files.                                                                             |
-| *optional*  | `properties`      | `map`                  | A string to string map of properties.                                                                           |
+| *optional*  | `properties`      | `map<string,string>`   | A string-to-string map of properties.                                                                           |
 | *optional*  | `secure`          | `boolean`              | Whether it is a secure function. Default: `false`.                                                              |
 | *optional*  | `doc`             | `string`               | Documentation string.                                                                                           |
 
@@ -78,11 +78,11 @@ Notes:
    - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
 2. Entries in `properties` are treated as hints, not strict rules. Engines MAY choose to honor them or ignore them.
 3. `parameter-names` is the single source of truth for parameter naming across all overload definitions:
-   - Each overload MUST use a prefix of this list, in order, e.g., `foo(a => 1)` are not allowed if the `parameter-names` are `[{"name": "x"}, {"name":"y"}]`.
-   - Names and relative ordering are immutable. 
-   - Only appending new names is allowed.
-   - Only the doc field may be updated in place.
-   - Type-only overloads (e.g., `foo(int)` and `foo(float)`) are valid as long as the names match the prefix.
+   - Each overload uses the first N entries of this list for its arity, in order.
+   - Names and their relative ordering are immutable. Only appending new names is allowed.
+   - Only the `doc` field may be updated in place.
+   - Overloads that differ only by parameter types are allowed (e.g., `foo(int)`, `foo(float)`, `foo(string, string)`), and
+     they all derive their parameter names positionally from the same `parameter-names` prefix.
 
 ### Definition
 
@@ -154,7 +154,7 @@ A representation encodes how the definition version is expressed in a specific S
 
 Note: The `body` must be valid SQL in the specified dialect; validation is the responsibility of the consuming engine.
 
-### Definition log
+### Definition-Log
 | Requirement | Field name            | Type                                               | Description                                                      |
 |-------------|-----------------------|----------------------------------------------------|------------------------------------------------------------------|
 | *required*  | `timestamp-ms`        | `long` (epoch millis)                              | When the definition snapshot was created or updated.             |
@@ -183,78 +183,78 @@ RETURN x + 1.0;
 
 ```json
 {
-   "function-uuid": "42fd3f91-bc10-41c1-8a52-92b57dd0a9b2",
-   "format-version": 1,
-   "parameter-names": [
-      { "name": "x", "doc": "The first input" }
-   ],
-   "definitions": [
-      {
-         "definition-id": "(int)",
-         "parameters": [
-            { "type": "int" }
-         ],
-         "return-type": "int",
-         "doc": "Add one to the input integer",
-         "versions": [
-            {
-               "version-id": 1,
-               "deterministic": true,
-               "representations": [
-                  { "dialect": "trino", "body": "x + 2" }
-               ],
-               "timestamp-ms": 1734507000123
-            },
-            {
-               "version-id": 2,
-               "deterministic": true,
-               "representations": [
-                  { "dialect": "trino", "body": "x + 1" },
-                  { "dialect": "spark", "body": "x + 1" }
-               ],
-               "timestamp-ms": 1735507000124
-            }
-         ],
-         "current-version-id": 2
-      },
-      {
-         "definition-id": "(float)",
-         "parameters": [
-            { "type": "float", "default": 1.0 }
-         ],
-         "return-type": "float",
-         "doc": "Add one to the input float",
-         "versions": [
-            {
-               "version-id": 1,
-               "deterministic": true,
-               "representations": [
-                  { "dialect": "trino", "body": "x + 1.0" }
-               ],
-               "timestamp-ms": 1734507001123
-            }
-         ],
-         "current-version-id": 1
-      }
-   ],
-   "definition-log": [
-      {
-         "timestamp-ms": 1734507001123,
-         "definition-versions": [
-            { "definition-id": "(int)", "version-id": 1 },
-            { "definition-id": "(float)", "version-id": 1 }
-         ]
-      },
-      {
-         "timestamp-ms": 1735507000124,
-         "definition-versions": [
-            { "definition-id": "(int)", "version-id": 2 },
-            { "definition-id": "(float)", "version-id": 1 }
-         ]
-      }
-   ],
-   "doc": "Overloaded scalar UDF for integer and float inputs",
-   "secure": false
+  "function-uuid": "42fd3f91-bc10-41c1-8a52-92b57dd0a9b2",
+  "format-version": 1,
+  "parameter-names": [
+    { "name": "x", "doc": "The first input" }
+  ],
+  "definitions": [
+    {
+      "definition-id": "(int)",
+      "parameters": [
+        { "type": "int" }
+      ],
+      "return-type": "int",
+      "doc": "Add one to the input integer",
+      "versions": [
+        {
+          "version-id": 1,
+          "deterministic": true,
+          "representations": [
+            { "type": "sql", "dialect": "trino", "body": "x + 2" }
+          ],
+          "timestamp-ms": 1734507000123
+        },
+        {
+          "version-id": 2,
+          "deterministic": true,
+          "representations": [
+            { "type": "sql", "dialect": "trino", "body": "x + 1" },
+            { "type": "sql", "dialect": "spark", "body": "x + 1" }
+          ],
+          "timestamp-ms": 1735507000124
+        }
+      ],
+      "current-version-id": 2
+    },
+    {
+      "definition-id": "(float)",
+      "parameters": [
+        { "type": "float", "default": "1.0" }
+      ],
+      "return-type": "float",
+      "doc": "Add one to the input float",
+      "versions": [
+        {
+          "version-id": 1,
+          "deterministic": true,
+          "representations": [
+            { "type": "sql", "dialect": "trino", "body": "x + 1.0" }
+          ],
+          "timestamp-ms": 1734507001123
+        }
+      ],
+      "current-version-id": 1
+    }
+  ],
+  "definition-log": [
+    {
+      "timestamp-ms": 1734507001123,
+      "definition-versions": [
+        { "definition-id": "(int)", "version-id": 1 },
+        { "definition-id": "(float)", "version-id": 1 }
+      ]
+    },
+    {
+      "timestamp-ms": 1735507000124,
+      "definition-versions": [
+        { "definition-id": "(int)", "version-id": 2 },
+        { "definition-id": "(float)", "version-id": 1 }
+      ]
+    }
+  ],
+  "doc": "Overloaded scalar UDF for integer and float inputs",
+  "secure": false
 }
 ```
 
@@ -270,47 +270,49 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
 
 ```json
 {
-   "function-uuid": "8a7fa39a-6d8f-4a2f-9d8d-3f3a8f3c2a10",
-   "format-version": 1,
-   "parameter-names": [
-     { "name": "c", "doc": "Color of fruits" }
-   ],
-   "definitions": [
-      {
-         "definition-id": "(string)",
-         "parameters": [{ "type": "string" }],
-         "return-type": {
-            "type": "struct",
-            "fields": [
-               { "id": 1, "name": "name", "type": "string" },
-               { "id": 2, "name": "color", "type": "string" }
-            ]
-         },
-         "function-type": "udtf",
-         "doc": "Return fruits of a specific color from the fruits table",
-         "versions": [
-            {
-               "version-id": 1,
-               "deterministic": true,
-               "representations": [
-                  { "dialect": "trino", "body": "SELECT name, color FROM fruits WHERE color = c" },
-                  { "dialect": "spark", "body": "SELECT name, color FROM fruits WHERE color = c" }
-               ],
-               "timestamp-ms": 1734508000123
-            }
-         ],
-         "current-version-id": 1
-      }
-   ],
-   "definition-log": [
-      {
-         "timestamp-ms": 1734508000123,
-         "definition-versions": [
-            { "definition-id": "(string)", "version-id": 1 }
-         ]
-      }
-   ],
-   "doc": "UDTF returning (name, color) rows filtered by the given color",
-   "secure": false
+  "function-uuid": "8a7fa39a-6d8f-4a2f-9d8d-3f3a8f3c2a10",
+  "format-version": 1,
+  "parameter-names": [
+    { "name": "c", "doc": "Color of fruits" }
+  ],
+  "definitions": [
+    {
+      "definition-id": "(string)",
+      "parameters": [
+        { "type": "string" }
+      ],
+      "return-type": {
+        "type": "struct",
+        "fields": [
+          { "id": 1, "name": "name", "type": "string" },
+          { "id": 2, "name": "color", "type": "string" }
+        ]
+      },
+      "function-type": "udtf",
+      "doc": "Return fruits of a specific color from the fruits table",
+      "versions": [
+        {
+          "version-id": 1,
+          "deterministic": true,
+          "representations": [
+            { "type": "sql", "dialect": "trino", "body": "SELECT name, color FROM fruits WHERE color = c" },
+            { "type": "sql", "dialect": "spark", "body": "SELECT name, color FROM fruits WHERE color = c" }
+          ],
+          "timestamp-ms": 1734508000123
+        }
+      ],
+      "current-version-id": 1
+    }
+  ],
+  "definition-log": [
+    {
+      "timestamp-ms": 1734508000123,
+      "definition-versions": [
+        { "definition-id": "(string)", "version-id": 1 }
+      ]
+    }
+  ],
+  "doc": "UDTF returning (name, color) rows filtered by the given color",
+  "secure": false
 }
 ```
