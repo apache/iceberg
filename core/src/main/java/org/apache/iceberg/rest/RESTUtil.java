@@ -22,6 +22,8 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -270,5 +272,26 @@ public class RESTUtil {
 
   public static Map<String, String> configHeaders(Map<String, String> properties) {
     return RESTUtil.extractPrefixMap(properties, "header.");
+  }
+
+  /**
+   * Generate a RFC 9562 UUIDv7 string.
+   *
+   * <p>Layout: - 48-bit Unix epoch milliseconds - 4-bit version (0b0111) - 12-bit random (rand_a) -
+   * 2-bit variant (RFC 4122, 0b10) - 62-bit random (rand_b)
+   */
+  public static String generateUuidV7() {
+    long epochMs = System.currentTimeMillis() & 0xFFFFFFFFFFFFL; // 48 bits
+    long randA = ThreadLocalRandom.current().nextLong() & 0xFFFL; // 12 bits
+    long randB = ThreadLocalRandom.current().nextLong() & 0x3FFFFFFFFFFFFFFFL; // 62 bits
+
+    long msb = (epochMs << 16); // place timestamp in the top 48 bits
+    msb |= 0x7000L; // version 7 (UUID bits 48..51)
+    msb |= randA; // low 12 bits of MSB
+
+    long lsb = 0x8000000000000000L; // RFC 4122 variant '10'
+    lsb |= randB;
+
+    return new UUID(msb, lsb).toString();
   }
 }

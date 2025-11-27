@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -211,5 +212,13 @@ public class TestRESTUtil {
         .isEqualTo(Namespace.of("one%1Ftwo%1Fns"));
     assertThat(RESTUtil.namespaceFromQueryParam("one%1Ftwo\u001fns"))
         .isEqualTo(Namespace.of("one%1Ftwo", "ns"));
+  }
+
+  @Test
+  public void generateUuidV7_hasVersionAndVariant() {
+    String id = RESTUtil.generateUuidV7();
+    UUID uuid = UUID.fromString(id);
+    assertThat(uuid.version()).isEqualTo(7);
+    assertThat(uuid.variant()).isEqualTo(2);
   }
 }
