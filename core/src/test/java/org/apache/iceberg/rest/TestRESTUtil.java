@@ -215,7 +215,7 @@ public class TestRESTUtil {
   }
 
   @Test
-  public void generateUuidV7_hasVersionAndVariant() {
+  public void uuidV7HasVersionAndVariant() {
     String id = RESTUtil.generateUuidV7();
     UUID uuid = UUID.fromString(id);
     assertThat(uuid.version()).isEqualTo(7);
