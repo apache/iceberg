@@ -146,7 +146,7 @@ public class TestDataTaskParser {
             + "\"value\":\"string\",\"value-required\":true}}]},"
             + "\"metadata-file\":{\"spec-id\":0,\"content\":\"DATA\","
             + "\"file-path\":\"/tmp/metadata2.json\","
-            + "\"file-format\":\"METADATA\",\"partition\":{},"
+            + "\"file-format\":\"METADATA\",\"partition\":[],"
             + "\"file-size-in-bytes\":0,\"record-count\":2,\"sort-order-id\":0}"
             + "}";
     JsonNode missingTableRowsNode = mapper.reader().readTree(missingTableRowsStr);
@@ -248,7 +248,7 @@ public class TestDataTaskParser {
         + "\"value\":\"string\",\"value-required\":true}}]},"
         + "\"metadata-file\":{\"spec-id\":0,\"content\":\"DATA\","
         + "\"file-path\":\"/tmp/metadata2.json\","
-        + "\"file-format\":\"METADATA\",\"partition\":{},"
+        + "\"file-format\":\"METADATA\",\"partition\":[],"
         + "\"file-size-in-bytes\":0,\"record-count\":2,\"sort-order-id\":0},"
         + "\"rows\":[{\"1\":\"2009-02-13T23:31:30+00:00\",\"2\":1,\"4\":\"append\","
         + "\"5\":\"file:/tmp/manifest1.avro\","
