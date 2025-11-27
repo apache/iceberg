@@ -25,7 +25,7 @@ import org.apache.spark.sql.catalyst.util.escapeSingleQuotedString
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.execution.LeafExecNode
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 case class DescribeV2ViewExec(
   output: Seq[Attribute],
@@ -55,7 +55,7 @@ case class DescribeV2ViewExec(
   private def describeExtended: Seq[InternalRow] = {
     val outputColumns = view.queryColumnNames.mkString("[", ", ", "]")
     val properties: Map[String, String] = view.properties.asScala.toMap -- ViewCatalog.RESERVED_PROPERTIES.asScala
-    val viewCatalogAndNamespace: Seq[String] = view.name.split("\\.").take(2)
+    val viewCatalogAndNamespace: Seq[String] = view.name.split("\\.").take(2).toIndexedSeq
     val viewProperties = properties.toSeq.sortBy(_._1).map {
       case (key, value) =>
         s"'${escapeSingleQuotedString(key)}' = '${escapeSingleQuotedString(value)}'"

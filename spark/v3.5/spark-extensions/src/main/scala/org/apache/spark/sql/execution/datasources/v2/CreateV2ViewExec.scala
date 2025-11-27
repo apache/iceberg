@@ -27,7 +27,7 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.types.StructType
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 
 case class CreateV2ViewExec(
@@ -52,8 +52,8 @@ case class CreateV2ViewExec(
 
     val engineVersion = "Spark " + org.apache.spark.SPARK_VERSION
     val newProperties = properties ++
-      comment.map(ViewCatalog.PROP_COMMENT -> _) +
-      (ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
+      comment.map(ViewCatalog.PROP_COMMENT -> _) ++
+      Map(ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
         ViewCatalog.PROP_ENGINE_VERSION -> engineVersion)
 
     if (replace) {
