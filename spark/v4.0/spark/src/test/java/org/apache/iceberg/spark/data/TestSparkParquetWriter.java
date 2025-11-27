@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.OptionalLong;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
@@ -149,6 +151,32 @@ public class TestSparkParquetWriter {
       ColumnDescriptor descriptor = parquetSchema.getColumnDescription(new String[] {"id"});
       double fpp = props.getBloomFilterFPP(descriptor).getAsDouble();
       assertThat(fpp).isEqualTo(0.05);
+    }
+  }
+
+  @Test
+  public void testNdv() throws IOException, NoSuchFieldException, IllegalAccessException {
+    final long expectedNdv = 1000;
+    final String col = "id";
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    try (FileAppender<InternalRow> writer =
+        Parquet.write(Files.localOutput(testFile))
+            .schema(SCHEMA)
+            .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + col, "true")
+            .set(PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX + col, Long.toString(expectedNdv))
+            .createWriterFunc(
+                msgType ->
+                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
+            .build()) {
+      // Using reflection to access the private 'props' field in ParquetWriter
+      Field propsField = writer.getClass().getDeclaredField("props");
+      propsField.setAccessible(true);
+      ParquetProperties props = (ParquetProperties) propsField.get(writer);
+      MessageType parquetSchema = ParquetSchemaUtil.convert(SCHEMA, "test");
+      ColumnDescriptor descriptor = parquetSchema.getColumnDescription(new String[] {col});
+      OptionalLong bloomFilterNDV = props.getBloomFilterNDV(descriptor);
+      assertThat(bloomFilterNDV).isPresent();
+      assertThat(bloomFilterNDV.getAsLong()).isEqualTo(expectedNdv);
     }
   }
 }

@@ -116,6 +116,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                           Preconditions.checkState(
                               !equalityFieldIds.isEmpty(),
                               "Equality field columns shouldn't be empty when configuring to use UPSERT data.");
+
                           if (!table.spec().isUnpartitioned()) {
                             for (PartitionField partitionField : table.spec().fields()) {
                               Preconditions.checkState(
@@ -209,5 +210,10 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
   @VisibleForTesting
   DynamicWriterMetrics getMetrics() {
     return metrics;
+  }
+
+  @VisibleForTesting
+  Map<WriteTarget, RowDataTaskWriterFactory> getTaskWriterFactories() {
+    return taskWriterFactories;
   }
 }

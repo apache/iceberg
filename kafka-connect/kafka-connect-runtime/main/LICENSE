@@ -1169,12 +1169,6 @@ License (from POM): Apache 2 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: org.jetbrains  Name: annotations  Version: 17.0.0
-Project URL (from POM): https://github.com/JetBrains/java-annotations
-License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
-
---------------------------------------------------------------------------------
-
 Group: org.ow2.asm  Name: asm  Version: 9.7.1
 Project URL (from manifest): http://asm.ow2.org
 Manifest License: BSD-3-Clause;link=https://asm.ow2.io/LICENSE.txt (Not packaged)

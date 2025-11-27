@@ -386,7 +386,7 @@ class IcebergParseException(
     builder ++= "\n" ++= message
     start match {
       case Origin(
-          Some(l), Some(p), Some(startIndex), Some(stopIndex), Some(sqlText), Some(objectType), Some(objectName)) =>
+          Some(l), Some(p), Some(_), Some(_), Some(_), Some(_), Some(_)) =>
         builder ++= s"(line $l, pos $p)\n"
         command.foreach { cmd =>
           val (above, below) = cmd.split("\n").splitAt(l)

@@ -111,7 +111,7 @@ public class TestBase {
           .withPartitionPath("data_bucket=0")
           .withRecordCount(1)
           .build();
-  static final DataFile FILE_B =
+  public static final DataFile FILE_B =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
@@ -119,7 +119,7 @@ public class TestBase {
           .withRecordCount(1)
           .withSplitOffsets(ImmutableList.of(1L))
           .build();
-  static final DeleteFile FILE_B_DELETES =
+  public static final DeleteFile FILE_B_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
           .withPath("/path/to/data-b-deletes.parquet")
@@ -138,7 +138,7 @@ public class TestBase {
           .withContentOffset(4)
           .withContentSizeInBytes(6)
           .build();
-  static final DataFile FILE_C =
+  public static final DataFile FILE_C =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
@@ -146,7 +146,7 @@ public class TestBase {
           .withRecordCount(1)
           .withSplitOffsets(ImmutableList.of(2L, 8L))
           .build();
-  static final DeleteFile FILE_C2_DELETES =
+  public static final DeleteFile FILE_C2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes(1)
           .withPath("/path/to/data-c-deletes.parquet")

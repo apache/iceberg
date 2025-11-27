@@ -26,7 +26,6 @@ import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
@@ -53,12 +52,11 @@ public class TestLimitableDataIterator {
 
   @BeforeAll
   public static void beforeClass() throws Exception {
-    GenericAppenderFactory appenderFactory = new GenericAppenderFactory(TestFixtures.SCHEMA);
     List<List<Record>> recordBatchList =
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, temporaryFolder, FileFormat.PARQUET, appenderFactory);
+            recordBatchList, temporaryFolder, FileFormat.PARQUET, TestFixtures.SCHEMA);
     totalRecords = 3 * 2;
   }
 
