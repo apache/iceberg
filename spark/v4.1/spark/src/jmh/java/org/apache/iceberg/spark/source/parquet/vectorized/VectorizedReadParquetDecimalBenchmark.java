@@ -48,8 +48,8 @@ import org.openjdk.jmh.annotations.Threads;
  * Benchmark to compare performance of reading Parquet decimal data using vectorized Iceberg read
  * path and the built-in file source in Spark.
  *
- * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.13:jmh \
+ * <p>To run this benchmark for spark-4.1: <code>
+ *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
  *       -PjmhIncludeRegex=VectorizedReadParquetDecimalBenchmark \
  *       -PjmhOutputPath=benchmark/results.txt
  * </code>

@@ -62,6 +62,8 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.unsafe.types.CalendarInterval;
+import org.apache.spark.unsafe.types.GeographyVal;
+import org.apache.spark.unsafe.types.GeometryVal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -245,6 +247,16 @@ class StructInternalRow extends InternalRow {
   private VariantVal getVariantInternal(int ordinal) {
     Object value = struct.get(ordinal, Object.class);
     return toVariantVal(value);
+  }
+
+  @Override
+  public GeographyVal getGeography(int ordinal) {
+    return isNullAt(ordinal) ? null : GeographyVal.fromBytes(getBinaryInternal(ordinal));
+  }
+
+  @Override
+  public GeometryVal getGeometry(int ordinal) {
+    return isNullAt(ordinal) ? null : GeometryVal.fromBytes(getBinaryInternal(ordinal));
   }
 
   @Override

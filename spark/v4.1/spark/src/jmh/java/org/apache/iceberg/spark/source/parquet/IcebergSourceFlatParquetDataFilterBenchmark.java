@@ -43,8 +43,8 @@ import org.openjdk.jmh.annotations.Threads;
  *
  * <p>The performance is compared to the built-in file source in Spark.
  *
- * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.13:jmh
+ * <p>To run this benchmark for spark-4.1: <code>
+ *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-4.1_2.13:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataFilterBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-filter-benchmark-result.txt
  * </code>
