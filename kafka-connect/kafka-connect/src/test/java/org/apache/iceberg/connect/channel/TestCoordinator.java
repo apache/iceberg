@@ -199,7 +199,7 @@ public class TestCoordinator extends ChannelTestBase {
         new Event(
             config.connectGroupId(),
             new DataComplete(
-                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
+                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 0L, 1L, ts))));
     bytes = AvroUtil.encode(commitReady);
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
 

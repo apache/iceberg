@@ -30,25 +30,30 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.DateTimeUtil;
 
-/** Element representing an offset, with topic name, partition number, and offset. */
+/**
+ * Element representing an offset range, with topic name, partition number, start and end offsets.
+ */
 public class TopicPartitionOffset implements IndexedRecord {
 
   private String topic;
   private Integer partition;
-  private Long offset;
+  private Long startOffset;
+  private Long endOffset;
   private OffsetDateTime timestamp;
   private final Schema avroSchema;
 
   static final int TOPIC = 10_700;
   static final int PARTITION = 10_701;
-  static final int OFFSET = 10_702;
-  static final int TIMESTAMP = 10_703;
+  static final int START_OFFSET = 10_702;
+  static final int END_OFFSET = 10_703;
+  static final int TIMESTAMP = 10_704;
 
   public static final StructType ICEBERG_SCHEMA =
       StructType.of(
           NestedField.required(TOPIC, "topic", StringType.get()),
           NestedField.required(PARTITION, "partition", IntegerType.get()),
-          NestedField.optional(OFFSET, "offset", LongType.get()),
+          NestedField.optional(START_OFFSET, "start_offset", LongType.get()),
+          NestedField.optional(END_OFFSET, "end_offset", LongType.get()),
           NestedField.optional(TIMESTAMP, "timestamp", TimestampType.withZone()));
   private static final Schema AVRO_SCHEMA =
       AvroUtil.convert(ICEBERG_SCHEMA, TopicPartitionOffset.class);
@@ -58,11 +63,13 @@ public class TopicPartitionOffset implements IndexedRecord {
     this.avroSchema = avroSchema;
   }
 
-  public TopicPartitionOffset(String topic, int partition, Long offset, OffsetDateTime timestamp) {
+  public TopicPartitionOffset(
+      String topic, int partition, Long startOffset, Long endOffset, OffsetDateTime timestamp) {
     Preconditions.checkNotNull(topic, "Topic cannot be null");
     this.topic = topic;
     this.partition = partition;
-    this.offset = offset;
+    this.startOffset = startOffset;
+    this.endOffset = endOffset;
     this.timestamp = timestamp;
     this.avroSchema = AVRO_SCHEMA;
   }
@@ -75,8 +82,12 @@ public class TopicPartitionOffset implements IndexedRecord {
     return partition;
   }
 
-  public Long offset() {
-    return offset;
+  public Long startOffset() {
+    return startOffset;
+  }
+
+  public Long endOffset() {
+    return endOffset;
   }
 
   public OffsetDateTime timestamp() {
@@ -97,8 +108,11 @@ public class TopicPartitionOffset implements IndexedRecord {
       case PARTITION:
         this.partition = (Integer) v;
         return;
-      case OFFSET:
-        this.offset = (Long) v;
+      case START_OFFSET:
+        this.startOffset = (Long) v;
+        return;
+      case END_OFFSET:
+        this.endOffset = (Long) v;
         return;
       case TIMESTAMP:
         this.timestamp = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);
@@ -115,8 +129,10 @@ public class TopicPartitionOffset implements IndexedRecord {
         return topic;
       case PARTITION:
         return partition;
-      case OFFSET:
-        return offset;
+      case START_OFFSET:
+        return startOffset;
+      case END_OFFSET:
+        return endOffset;
       case TIMESTAMP:
         return timestamp == null ? null : DateTimeUtil.microsFromTimestamptz(timestamp);
       default:

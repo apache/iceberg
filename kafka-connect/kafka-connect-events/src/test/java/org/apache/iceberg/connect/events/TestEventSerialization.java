@@ -77,8 +77,8 @@ public class TestEventSerialization {
             new DataComplete(
                 commitId,
                 Arrays.asList(
-                    new TopicPartitionOffset("topic", 1, 1L, EventTestUtil.now()),
-                    new TopicPartitionOffset("topic", 2, null, null))));
+                    new TopicPartitionOffset("topic", 1, 0L, 1L, EventTestUtil.now()),
+                    new TopicPartitionOffset("topic", 2, null, null, null))));
 
     byte[] data = AvroUtil.encode(event);
     Event result = AvroUtil.decode(data);

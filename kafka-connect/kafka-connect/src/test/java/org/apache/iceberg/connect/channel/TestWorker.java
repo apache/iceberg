@@ -73,7 +73,7 @@ public class TestWorker extends ChannelTestBase {
               StructType.of());
 
       Map<TopicPartition, Offset> offsets =
-          ImmutableMap.of(topicPartition, new Offset(1L, EventTestUtil.now()));
+          ImmutableMap.of(topicPartition, new Offset(0L, 1L, EventTestUtil.now()));
 
       SinkWriterResult sinkWriterResult =
           new SinkWriterResult(ImmutableList.of(writeResult), offsets);
@@ -110,7 +110,7 @@ public class TestWorker extends ChannelTestBase {
       DataComplete dataComplete = (DataComplete) event.payload();
       assertThat(dataComplete.commitId()).isEqualTo(commitId);
       assertThat(dataComplete.assignments()).hasSize(1);
-      assertThat(dataComplete.assignments().get(0).offset()).isEqualTo(1L);
+      assertThat(dataComplete.assignments().get(0).endOffset()).isEqualTo(1L);
     }
   }
 }
