@@ -24,10 +24,14 @@ import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Class that publishes the rejected records to the configured dead letter queue.
+ */
 public class DlqReporter implements AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(DlqReporter.class);
 
@@ -41,15 +45,9 @@ public class DlqReporter implements AutoCloseable {
 
   private Properties initiateProperties(IcebergSinkConfig config) {
     Properties producerProps = new Properties();
-    producerProps.put(
-            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-            config.kafkaProps().get("bootstrap.servers"));
-    producerProps.put(
-            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-            "org.apache.kafka.common.serialization.StringSerializer");
-    producerProps.put(
-            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-            "org.apache.kafka.common.serialization.StringSerializer");
+    producerProps.putAll(config.kafkaProps());
+    producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, new StringSerializer());
+    producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, new StringSerializer());
     return producerProps;
   }
 
@@ -57,7 +55,6 @@ public class DlqReporter implements AutoCloseable {
     String key = (data.key()==null) ? null : data.key().toString();
     String value = (data.value()==null) ? null : data.value().toString();
     try {
-      LOG.info("Published DLQ record {}", value);
       ProducerRecord<String, String> record = new ProducerRecord<>(dlqTopic, key, value);
       Future<?> result = producer.send(record);
     } catch (Exception ex) {
