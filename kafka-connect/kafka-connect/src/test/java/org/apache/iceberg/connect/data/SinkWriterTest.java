@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -44,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -206,5 +208,32 @@ public class SinkWriterTest {
     assertThat(offset.timestamp()).isEqualTo(now.atOffset(ZoneOffset.UTC));
 
     return result.writerResults();
+  }
+
+  @Test
+  public void testErrorToleranceAll() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.errorTolerance()).thenReturn(ErrorTolerance.ALL.toString());
+    when(config.errorLogIncludeMessages()).thenReturn(true);
+
+    Map<String, Object> badValue = ImmutableMap.of("id", "abc");
+    List<IcebergWriterResult> writerResults1 = sinkWriterTest(badValue, config);
+    assertThat(writerResults1.size()).isEqualTo(1);
+  }
+
+  @Test
+  public void testErrorToleranceNone() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.errorTolerance()).thenReturn(ErrorTolerance.NONE.toString());
+    when(config.errorLogIncludeMessages()).thenReturn(true);
+
+    Map<String, Object> badValue = ImmutableMap.of("id", "abc");
+    assertThatThrownBy(() -> sinkWriterTest(badValue, config))
+        .isInstanceOf(DataException.class)
+        .hasMessage("An error occurred converting record, topic: topic, partition, 1, offset: 100");
   }
 }
