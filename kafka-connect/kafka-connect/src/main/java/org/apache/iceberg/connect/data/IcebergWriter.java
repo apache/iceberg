@@ -55,7 +55,7 @@ class IcebergWriter implements RecordWriter {
     this.config = config;
     this.writerResults = Lists.newArrayList();
 
-    if (!config.errorDeadLetterQueueTopicNameConfig().isEmpty()) {
+    if (config.errorDeadLetterQueueTopicNameConfig() != null) {
       this.dlqReporter = new DlqReporter(config, config.errorDeadLetterQueueTopicNameConfig());
     }
     initNewWriter();
@@ -80,15 +80,15 @@ class IcebergWriter implements RecordWriter {
             recordData = String.format(", record: %s", record.value().toString());
           }
           DataException ex =
-            new DataException(
-              String.format(
-                  Locale.ROOT,
-                  "topic: %s, partition, %d, offset: %d %s",
-                  record.topic(),
-                  record.kafkaPartition(),
-                  record.kafkaOffset(),
-                  recordData),
-              e);
+              new DataException(
+                  String.format(
+                      Locale.ROOT,
+                      "topic: %s, partition, %d, offset: %d %s",
+                      record.topic(),
+                      record.kafkaPartition(),
+                      record.kafkaOffset(),
+                      recordData),
+                  e);
           if (this.config.errorTolerance().equalsIgnoreCase(ErrorTolerance.ALL.toString())) {
             if (this.dlqReporter != null) {
               this.dlqReporter.send(record);
