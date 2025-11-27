@@ -522,6 +522,91 @@ public class TestParquetFileMerger {
         .isFalse();
   }
 
+  @Test
+  public void testMergeFilesVerifiesExactRowIdValues() throws IOException {
+    // Test that verifies exact row ID and sequence number values in merged output
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    // Create file 1 with 3 records, firstRowId=100, dataSequenceNumber=5
+    File file1 = new File(tempDir, "file1.parquet");
+    createParquetFileWithData(
+        Files.localOutput(file1),
+        schema,
+        Arrays.asList(
+            createRecord(schema, 1, "a"),
+            createRecord(schema, 2, "b"),
+            createRecord(schema, 3, "c")));
+
+    // Create file 2 with 2 records, firstRowId=200, dataSequenceNumber=7
+    File file2 = new File(tempDir, "file2.parquet");
+    createParquetFileWithData(
+        Files.localOutput(file2),
+        schema,
+        Arrays.asList(createRecord(schema, 4, "d"), createRecord(schema, 5, "e")));
+
+    // Create file 3 with 4 records, firstRowId=300, dataSequenceNumber=10
+    File file3 = new File(tempDir, "file3.parquet");
+    createParquetFileWithData(
+        Files.localOutput(file3),
+        schema,
+        Arrays.asList(
+            createRecord(schema, 6, "f"),
+            createRecord(schema, 7, "g"),
+            createRecord(schema, 8, "h"),
+            createRecord(schema, 9, "i")));
+
+    List<InputFile> inputFiles =
+        Arrays.asList(Files.localInput(file1), Files.localInput(file2), Files.localInput(file3));
+
+    // Merge files with row lineage preservation
+    File outputFile = new File(tempDir, "merged.parquet");
+    MessageType parquetSchema = ParquetFileMerger.readSchema(inputFiles.get(0));
+    Map<String, String> metadata = ParquetFileMerger.readMetadata(inputFiles.get(0));
+
+    ParquetFileMerger.mergeFiles(
+        inputFiles,
+        EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(outputFile)),
+        parquetSchema,
+        Arrays.asList(100L, 200L, 300L), // firstRowIds for each file
+        Arrays.asList(5L, 7L, 10L), // dataSequenceNumbers for each file
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH,
+        metadata);
+
+    // Read back the merged data and verify exact row ID values
+    List<RowLineageRecord> records = readRowLineageData(Files.localInput(outputFile), schema);
+
+    // Verify we have all 9 records (3 + 2 + 4)
+    assertThat(records).hasSize(9);
+
+    // Verify exact row ID and sequence number values for file 1 (3 records)
+    assertThat(records.get(0).rowId).isEqualTo(100L); // firstRowId=100, offset=0
+    assertThat(records.get(0).seqNum).isEqualTo(5L);
+    assertThat(records.get(1).rowId).isEqualTo(101L); // firstRowId=100, offset=1
+    assertThat(records.get(1).seqNum).isEqualTo(5L);
+    assertThat(records.get(2).rowId).isEqualTo(102L); // firstRowId=100, offset=2
+    assertThat(records.get(2).seqNum).isEqualTo(5L);
+
+    // Verify exact row ID and sequence number values for file 2 (2 records)
+    assertThat(records.get(3).rowId).isEqualTo(200L); // firstRowId=200, offset=0
+    assertThat(records.get(3).seqNum).isEqualTo(7L);
+    assertThat(records.get(4).rowId).isEqualTo(201L); // firstRowId=200, offset=1
+    assertThat(records.get(4).seqNum).isEqualTo(7L);
+
+    // Verify exact row ID and sequence number values for file 3 (4 records)
+    assertThat(records.get(5).rowId).isEqualTo(300L); // firstRowId=300, offset=0
+    assertThat(records.get(5).seqNum).isEqualTo(10L);
+    assertThat(records.get(6).rowId).isEqualTo(301L); // firstRowId=300, offset=1
+    assertThat(records.get(6).seqNum).isEqualTo(10L);
+    assertThat(records.get(7).rowId).isEqualTo(302L); // firstRowId=300, offset=2
+    assertThat(records.get(7).seqNum).isEqualTo(10L);
+    assertThat(records.get(8).rowId).isEqualTo(303L); // firstRowId=300, offset=3
+    assertThat(records.get(8).seqNum).isEqualTo(10L);
+  }
+
   /** Helper to create a GenericRecord */
   private Record createRecord(Schema schema, int id, String data) {
     Record record = GenericRecord.create(schema);

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TestHelpers.V2_AND_ABOVE;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.current_date;
@@ -155,11 +156,22 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
 
-  @Parameter private int formatVersion;
+  @Parameter(index = 0)
+  private int formatVersion;
 
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Integer> parameters() {
-    return org.apache.iceberg.TestHelpers.V2_AND_ABOVE;
+  @Parameter(index = 1)
+  private boolean useParquetFileMerger;
+
+  @Parameters(name = "formatVersion = {0}, useParquetFileMerger = {1}")
+  protected static List<Object[]> parameters() {
+    List<Object[]> params = Lists.newArrayList();
+    for (int version : V2_AND_ABOVE) {
+      // Test with ParquetFileMerger disabled (standard binpack)
+      params.add(new Object[] {version, false});
+      // Test with ParquetFileMerger enabled
+      params.add(new Object[] {version, true});
+    }
+    return params;
   }
 
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
@@ -180,9 +192,17 @@ public class TestRewriteDataFilesAction extends TestBase {
   private RewriteDataFilesSparkAction basicRewrite(Table table) {
     // Always compact regardless of input files
     table.refresh();
-    return actions()
-        .rewriteDataFiles(table)
-        .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1");
+    RewriteDataFilesSparkAction action =
+        actions().rewriteDataFiles(table).option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1");
+
+    // Apply the parameterized merger configuration
+    if (useParquetFileMerger) {
+      action = action.option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true");
+    } else {
+      action = action.option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "false");
+    }
+
+    return action;
   }
 
   @TestTemplate
@@ -2651,118 +2671,6 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testParquetFileMergerEnabledByDefault() {
-    Table table = createTable(4);
-    shouldHaveFiles(table, 4);
-
-    // Default behavior should use ParquetFileMerger (disabled by default in this config)
-    RewriteDataFiles.Result result = basicRewrite(table).binPack().execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(4);
-    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
-  }
-
-  @TestTemplate
-  public void testParquetFileMergerExplicitlyEnabled() {
-    Table table = createTable(4);
-    shouldHaveFiles(table, 4);
-
-    long dataSizeBefore = testDataSize(table);
-    long countBefore = currentData().size();
-
-    // Explicitly enable ParquetFileMerger
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
-            .binPack()
-            .execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(4);
-    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
-    assertThat(currentData()).hasSize((int) countBefore);
-  }
-
-  @TestTemplate
-  public void testParquetFileMergerExplicitlyDisabled() {
-    Table table = createTable(4);
-    shouldHaveFiles(table, 4);
-
-    long dataSizeBefore = testDataSize(table);
-    long countBefore = currentData().size();
-
-    // Explicitly disable ParquetFileMerger - should use standard Spark rewrite
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "false")
-            .binPack()
-            .execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(4);
-    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
-    assertThat(currentData()).hasSize((int) countBefore);
-  }
-
-  @TestTemplate
-  public void testParquetFileMergerWithPartitionedTable() {
-    Table table = createTablePartitioned(4, 2);
-    shouldHaveFiles(table, 8);
-
-    long countBefore = currentData().size();
-
-    // Test with partitioned table
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
-            .binPack()
-            .execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(8);
-    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
-    assertThat(currentData()).hasSize((int) countBefore);
-  }
-
-  @TestTemplate
-  public void testParquetFileMergerWithFilter() {
-    Table table = createTablePartitioned(4, 2);
-    shouldHaveFiles(table, 8);
-
-    long countBefore = currentData().size();
-
-    // Test with filter - should only rewrite filtered partitions
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .filter(Expressions.equal("c1", 1))
-            .filter(Expressions.startsWith("c2", "foo"))
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
-            .binPack()
-            .execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
-    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
-    assertThat(currentData()).hasSize((int) countBefore);
-  }
-
-  @TestTemplate
-  public void testParquetFileMergerWithTargetFileSize() {
-    Table table = createTable(10);
-    shouldHaveFiles(table, 10);
-
-    long countBefore = currentData().size();
-
-    // Test with custom target file size
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, String.valueOf(1024L * 1024L))
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
-            .binPack()
-            .execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(10);
-    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
-    assertThat(currentData()).hasSize((int) countBefore);
-  }
-
-  @TestTemplate
   public void testBinPackUsesCorrectRunnerBasedOnOption() {
     Table table = createTable(4);
     shouldHaveFiles(table, 4);
@@ -2790,95 +2698,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     // Should rewrite the newly added files
     assertThat(resultWithoutMerger.rewrittenDataFilesCount()).isGreaterThan(0);
-  }
-
-  @TestTemplate
-  public void testParquetFileMergerCreatesMultipleOutputFiles() {
-    // Create table with many small files
-    Table table = createTable(20);
-    shouldHaveFiles(table, 20);
-
-    long countBefore = currentData().size();
-
-    // Get total size of all input files
-    long totalInputSize =
-        StreamSupport.stream(
-                table.currentSnapshot().addedDataFiles(table.io()).spliterator(), false)
-            .mapToLong(DataFile::fileSizeInBytes)
-            .sum();
-
-    // Set target file size to be less than half of total size to force at least 2 groups
-    // This ensures we get multiple output files
-    long targetFileSize = Math.max(1024L, totalInputSize / 3);
-
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, String.valueOf(targetFileSize))
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
-            .binPack()
-            .execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(20);
-    // Should create multiple output files based on target size
-    assertThat(result.addedDataFilesCount()).isGreaterThan(1);
-    assertThat(currentData()).hasSize((int) countBefore);
-
-    // Verify all output files exist and are readable
-    shouldHaveFiles(table, result.addedDataFilesCount());
-  }
-
-  @TestTemplate
-  public void testParquetFileMergerDistributedExecution() {
-    // Create a partitioned table to ensure distributed execution across partitions
-    Table table = createTablePartitioned(10, 3); // 10 files per partition, 3 partitions
-    shouldHaveFiles(table, 30);
-
-    long countBefore = currentData().size();
-
-    // Use ParquetFileMerger with target file size
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, String.valueOf(10L * 1024 * 1024))
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
-            .binPack()
-            .execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(30);
-    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
-    // Data should be preserved
-    assertThat(currentData()).hasSize((int) countBefore);
-
-    // Verify files are distributed across partitions
-    shouldHaveFiles(table, result.addedDataFilesCount());
-  }
-
-  @TestTemplate
-  public void testParquetFileMergerWithSmallRowGroups() {
-    // Create table with small row groups to test merging behavior
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Map<String, String> options =
-        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
-    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
-    table
-        .updateProperties()
-        .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(20 * 1024))
-        .commit();
-
-    writeRecords(4, SCALE);
-    shouldHaveFiles(table, 4);
-
-    long countBefore = currentData().size();
-
-    // Use ParquetFileMerger via action option
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
-            .binPack()
-            .execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(4);
-    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
-    assertThat(currentData()).hasSize((int) countBefore);
   }
 
   @TestTemplate

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.LongUnaryOperator;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -38,8 +39,10 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.statistics.LongStatistics;
+import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.column.values.ValuesWriter;
 import org.apache.parquet.column.values.delta.DeltaBinaryPackingValuesWriterForLong;
+import org.apache.parquet.crypto.InternalFileEncryptor;
 import org.apache.parquet.hadoop.CodecFactory;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
@@ -212,8 +215,7 @@ public class ParquetFileMerger {
 
             // Check if this is the _row_id column
             if (columnPath.equals(MetadataColumns.ROW_ID.name())) {
-              org.apache.parquet.column.statistics.Statistics<?> stats =
-                  columnChunk.getStatistics();
+              Statistics<?> stats = columnChunk.getStatistics();
               if (stats != null && stats.getNumNulls() > 0) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -227,8 +229,7 @@ public class ParquetFileMerger {
 
             // Check if this is the _last_updated_sequence_number column
             if (columnPath.equals(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())) {
-              org.apache.parquet.column.statistics.Statistics<?> stats =
-                  columnChunk.getStatistics();
+              Statistics<?> stats = columnChunk.getStatistics();
               if (stats != null && stats.getNumNulls() > 0) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -264,7 +265,8 @@ public class ParquetFileMerger {
             0, // maxPaddingSize - hardcoded to 0 (same as ParquetWriter)
             columnIndexTruncateLength,
             ParquetProperties.DEFAULT_STATISTICS_TRUNCATE_LENGTH,
-            ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED)) {
+            ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED,
+            (InternalFileEncryptor) null)) {
 
       writer.start();
       for (InputFile inputFile : inputFiles) {
@@ -306,7 +308,8 @@ public class ParquetFileMerger {
             0, // maxPaddingSize - hardcoded to 0 (same as ParquetWriter)
             columnIndexTruncateLength,
             ParquetProperties.DEFAULT_STATISTICS_TRUNCATE_LENGTH,
-            ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED)) {
+            ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED,
+            (InternalFileEncryptor) null)) {
 
       writer.start();
 
@@ -550,7 +553,7 @@ public class ParquetFileMerger {
       CompressionCodecName codec,
       long minValue,
       long maxValue,
-      java.util.function.LongUnaryOperator valueGenerator)
+      LongUnaryOperator valueGenerator)
       throws IOException {
 
     // Start the column chunk with the specified compression codec

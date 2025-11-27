@@ -51,6 +51,8 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -240,23 +242,19 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     Configuration hadoopConf = spark().sessionState().newHadoopConf();
     int columnIndexTruncateLength =
         hadoopConf.getInt(
-            org.apache.parquet.hadoop.ParquetOutputFormat.COLUMN_INDEX_TRUNCATE_LENGTH,
-            org.apache.parquet.column.ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
+            ParquetOutputFormat.COLUMN_INDEX_TRUNCATE_LENGTH,
+            ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     // Create merge tasks for each batch
     List<MergeTaskInfo> mergeTasks = Lists.newArrayList();
     int batchIndex = 0;
     for (List<DataFile> batch : fileBatches) {
-      String taskId = String.format("%s-%d", groupId, batchIndex);
-
       // Create unique OutputFileFactory for each task to avoid filename collisions
       OutputFileFactory fileFactory =
           OutputFileFactory.builderFor(table(), batchIndex, 0)
               .defaultSpec(spec)
               .format(FileFormat.PARQUET)
               .build();
-
-      batchIndex++;
 
       List<String> filePaths =
           batch.stream().map(f -> f.path().toString()).collect(Collectors.toList());
@@ -269,13 +267,15 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
         dataSequenceNumbers =
             batch.stream().map(DataFile::dataSequenceNumber).collect(Collectors.toList());
         LOG.debug(
-            "Task {} will preserve row lineage with firstRowIds: {} and dataSequenceNumbers: {} "
+            "Batch {} will preserve row lineage with firstRowIds: {} and dataSequenceNumbers: {} "
                 + "(group: {})",
-            taskId,
+            batchIndex,
             firstRowIds,
             dataSequenceNumbers,
             groupId);
       }
+
+      batchIndex++;
 
       mergeTasks.add(
           new MergeTaskInfo(
