@@ -96,7 +96,7 @@ jobs:
           :iceberg-kafka-connect:iceberg-kafka-connect:check \
           :iceberg-kafka-connect:iceberg-kafka-connect-runtime:check \
           -Pquick=true -x javadoc
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       if: failure()
       with:
         name: test logs

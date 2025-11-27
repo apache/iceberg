@@ -21,6 +21,7 @@ package org.apache.iceberg.rest.responses;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -51,16 +52,22 @@ public class ConfigResponse implements RESTResponse {
   private Map<String, String> defaults;
   private Map<String, String> overrides;
   private List<Endpoint> endpoints;
+  // Optional ISO-8601 duration string indicating server support for idempotency keys
+  private String idempotencyKeyLifetime;
 
   public ConfigResponse() {
     // Required for Jackson deserialization
   }
 
   private ConfigResponse(
-      Map<String, String> defaults, Map<String, String> overrides, List<Endpoint> endpoints) {
+      Map<String, String> defaults,
+      Map<String, String> overrides,
+      List<Endpoint> endpoints,
+      String idempotencyKeyLifetime) {
     this.defaults = defaults;
     this.overrides = overrides;
     this.endpoints = endpoints;
+    this.idempotencyKeyLifetime = idempotencyKeyLifetime;
     validate();
   }
 
@@ -98,6 +105,17 @@ public class ConfigResponse implements RESTResponse {
   }
 
   /**
+   * Optional server-advertised reuse window for idempotency keys. Presence indicates that the
+   * server supports Idempotency-Key semantics on mutation endpoints.
+   *
+   * @return ISO-8601 duration string (e.g., PT30M) or null if not supported/advertised
+   */
+  @Nullable
+  public String idempotencyKeyLifetime() {
+    return idempotencyKeyLifetime;
+  }
+
+  /**
    * Merge client-provided config with server side provided configuration to return a single
    * properties map which will be used for instantiating and configuring the REST catalog.
    *
@@ -125,6 +143,7 @@ public class ConfigResponse implements RESTResponse {
         .add("defaults", defaults)
         .add("overrides", overrides)
         .add("endpoints", endpoints)
+        .add("idempotencyKeyLifetime", idempotencyKeyLifetime)
         .toString();
   }
 
@@ -136,11 +155,13 @@ public class ConfigResponse implements RESTResponse {
     private final Map<String, String> defaults;
     private final Map<String, String> overrides;
     private final List<Endpoint> endpoints;
+    private String idempotencyKeyLifetime;
 
     private Builder() {
       this.defaults = Maps.newHashMap();
       this.overrides = Maps.newHashMap();
       this.endpoints = Lists.newArrayList();
+      this.idempotencyKeyLifetime = null;
     }
 
     public Builder withDefault(String key, String value) {
@@ -178,8 +199,14 @@ public class ConfigResponse implements RESTResponse {
       return this;
     }
 
+    /** Sets the optional idempotency key lifetime advertised by the server. */
+    public Builder withIdempotencyKeyLifetime(String lifetime) {
+      this.idempotencyKeyLifetime = lifetime;
+      return this;
+    }
+
     public ConfigResponse build() {
-      return new ConfigResponse(defaults, overrides, endpoints);
+      return new ConfigResponse(defaults, overrides, endpoints, idempotencyKeyLifetime);
     }
   }
 }
