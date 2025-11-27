@@ -130,13 +130,12 @@ and new overloads MUST NOT introduce ambiguity. For example, an existing definit
 `foo(int, float default 1.0, string default "a")` has valid invocation arities, 1, 2, and 3.
 Therefore, the following overloads are not allowed, because they overlap with the arity space created by default values:
 ```
-foo(int)             -- conflicts with arity=1
-foo(int, float)      -- conflicts with arity=2
-foo(int, long)       -- arity=2, ambiguous with (int, float)
-foo(int, string)     -- arity=2, ambiguous with (int, float)
-foo(int, float, date) -- arity=3, ambiguous with (int, float, string)
+foo(int)                                   -- conflicts with arity=1
+foo(int, float)                            -- conflicts with arity=2
+foo(int, string default "a")               -- arity=1 or 2, ambiguous with (int)
+foo(int, float, date default "2023-11-26") -- arity=2, ambiguous with (int, float)
 ```
-However, unrelated type-prefix overloads such as `foo(float)` are allowed, since they do not conflict with the
+However, unrelated type-prefix overloads such as `foo(float), foo(int, long)` are allowed, since they do not conflict with the
 optional-argument arities of the existing definition.
 
 ### Definition-Version
