@@ -59,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,6 +87,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
   private FileIO fileIO;
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
+  private boolean uniqueTableLocation;
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -101,6 +103,12 @@ public class EcsCatalog extends BaseMetastoreCatalog
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(inputWarehouseLocation),
         "Cannot initialize EcsCatalog because warehousePath must not be null or empty");
+
+    this.uniqueTableLocation =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
 
     this.catalogName = name;
     this.warehouseLocation = new EcsURI(LocationUtil.stripTrailingSlash(inputWarehouseLocation));
@@ -136,8 +144,8 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
-    return String.format(
-        "%s/%s", namespacePrefix(tableIdentifier.namespace()), tableIdentifier.name());
+    String tableLocation = LocationUtil.tableLocation(tableIdentifier, uniqueTableLocation);
+    return String.format("%s/%s", namespacePrefix(tableIdentifier.namespace()), tableLocation);
   }
 
   /** Iterate all table objects with the namespace prefix. */
