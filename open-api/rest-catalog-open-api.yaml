@@ -863,8 +863,6 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-
-
   /v1/{prefix}/namespaces/{namespace}/register:
     parameters:
       - $ref: '#/components/parameters/prefix'
