@@ -54,6 +54,10 @@ public class KafkaConnectUtils {
       return name;
     }
 
+    public Map<String, Object> getConfig() {
+      return config;
+    }
+
     public Config config(String key, Object value) {
       config.put(key, value);
       return this;
