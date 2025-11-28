@@ -91,26 +91,80 @@ public class TestContentFileParser {
   }
 
   @Test
-  public void testPartitionJsonValidation() throws Exception {
+  public void testPartitionJsonArrayWrongSize() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
-    String baseJson =
-        "{\"spec-id\":%s,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":%s,\"file-size-in-bytes\":10,"
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"PARQUET\",\"partition\":[],\"file-size-in-bytes\":10,"
             + "\"record-count\":1}";
 
-    JsonNode nonArrayPartition =
-        JsonUtil.mapper().readTree(String.format(baseJson, spec.specId(), "{\"1000\":1}"));
-    assertThatThrownBy(
-            () -> ContentFileParser.fromJson(nonArrayPartition, Map.of(spec.specId(), spec)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Invalid partition data for content file: non-array");
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
 
-    JsonNode wrongSizePartition =
-        JsonUtil.mapper().readTree(String.format(baseJson, spec.specId(), "[]"));
-    assertThatThrownBy(
-            () -> ContentFileParser.fromJson(wrongSizePartition, Map.of(spec.specId(), spec)))
+    assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), spec)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid partition data size");
+  }
+
+  @Test
+  public void testPartitionJsonInvalidType() throws Exception {
+    PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"PARQUET\",\"partition\":\"invalid\",\"file-size-in-bytes\":10,"
+            + "\"record-count\":1}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+
+    assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), spec)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("expected array or object");
+  }
+
+  @Test
+  public void testParsesFieldIdPartitionMap() throws Exception {
+    PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
+    String legacyJson =
+        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":\"foo\"},\"file-size-in-bytes\":10,"
+            + "\"record-count\":1}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(legacyJson);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), spec));
+
+    assertThat(deserializedContentFile).isInstanceOf(DataFile.class);
+    assertThat(deserializedContentFile.partition().get(0, String.class)).isEqualTo("foo");
+  }
+
+  @Test
+  public void testPartitionArrayRespectsSpecOrder() throws Exception {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(TestBase.SCHEMA).identity("id").identity("data").build();
+
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    partitionData.set(0, 4);
+    partitionData.set(1, "foo");
+
+    DataFile dataFile =
+        DataFiles.builder(spec)
+            .withPath("/path/to/data.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withPartition(partitionData)
+            .build();
+
+    String jsonStr = ContentFileParser.toJson(dataFile, spec);
+
+    // Verify partition values are serialized as array in correct order
+    assertThat(jsonStr).contains("\"partition\":[4,\"foo\"]");
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), spec));
+
+    assertThat(deserializedContentFile).isInstanceOf(DataFile.class);
+    assertThat(deserializedContentFile.partition().get(0, Integer.class)).isEqualTo(4);
+    assertThat(deserializedContentFile.partition().get(1, String.class)).isEqualTo("foo");
   }
 
   private static Stream<Arguments> provideSpecAndDataFile() {

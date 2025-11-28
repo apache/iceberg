@@ -307,23 +307,37 @@ public class ContentFileParser {
 
   private static PartitionData partitionFromJson(
       Types.StructType partitionType, JsonNode partitionNode) {
-    Preconditions.checkArgument(
-        partitionNode.isArray(),
-        "Invalid partition data for content file: non-array (%s)",
-        partitionNode);
-
     List<Types.NestedField> fields = partitionType.fields();
-    Preconditions.checkArgument(
-        partitionNode.size() == fields.size(),
-        "Invalid partition data size: expected = %s, actual = %s",
-        fields.size(),
-        partitionNode.size());
-
     PartitionData partitionData = new PartitionData(partitionType);
-    for (int pos = 0; pos < fields.size(); ++pos) {
-      Types.NestedField field = fields.get(pos);
-      Object partitionValue = SingleValueParser.fromJson(field.type(), partitionNode.get(pos));
-      partitionData.set(pos, partitionValue);
+
+    if (partitionNode.isArray()) {
+      Preconditions.checkArgument(
+          partitionNode.size() == fields.size(),
+          "Invalid partition data size: expected = %s, actual = %s",
+          fields.size(),
+          partitionNode.size());
+
+      for (int pos = 0; pos < fields.size(); ++pos) {
+        Types.NestedField field = fields.get(pos);
+        Object partitionValue = SingleValueParser.fromJson(field.type(), partitionNode.get(pos));
+        partitionData.set(pos, partitionValue);
+      }
+    } else if (partitionNode.isObject()) {
+      // Handle legacy partition object serialization
+      for (int pos = 0; pos < fields.size(); ++pos) {
+        Types.NestedField field = fields.get(pos);
+        String fieldId = String.valueOf(field.fieldId());
+        if (partitionNode.has(fieldId)) {
+          Object partitionValue =
+              SingleValueParser.fromJson(field.type(), partitionNode.get(fieldId));
+          partitionData.set(pos, partitionValue);
+        }
+      }
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "Invalid partition data for content file: expected array or object (%s)",
+              partitionNode));
     }
 
     return partitionData;
