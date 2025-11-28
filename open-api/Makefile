@@ -24,7 +24,7 @@ validate-spec:
 	uv run openapi-spec-validator --errors all ../aws/src/main/resources/s3-signer-open-api.yaml
 
 lint-spec:
-# 	uv run yamllint --strict rest-catalog-open-api.yaml
+	uv run yamllint --strict rest-catalog-open-api.yaml
 	uv run yamllint --strict ../aws/src/main/resources/s3-signer-open-api.yaml
 
 lint: validate-spec lint-spec
