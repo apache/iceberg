@@ -1009,7 +1009,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .as("Only valid for catalogs that support unique table location")
         .isTrue();
 
-    ImmutableMap<String, String> additionalProperties =
+    Map<String, String> additionalProperties =
         ImmutableMap.of(CatalogProperties.UNIQUE_TABLE_LOCATION, "true");
     C catalog = initCatalog("uniq_path_catalog", additionalProperties);
 
