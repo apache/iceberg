@@ -19,9 +19,15 @@ install:
 	uv venv --python 3.12 --allow-existing  # Match --target-python-version in the `generate` target
 	uv pip install -r requirements.txt
 
-lint:
+validate-spec:
 	uv run openapi-spec-validator --errors all rest-catalog-open-api.yaml
 	uv run openapi-spec-validator --errors all ../aws/src/main/resources/s3-signer-open-api.yaml
+
+lint-spec:
+# 	uv run yamllint --strict rest-catalog-open-api.yaml
+	uv run yamllint --strict ../aws/src/main/resources/s3-signer-open-api.yaml
+
+lint: validate-spec lint-spec
 
 generate:
 	uv run datamodel-codegen \
