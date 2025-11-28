@@ -4285,7 +4285,7 @@ components:
       example:
         {
           "keys": [ 1, 2 ],
-          "values": [ 100,200 ]
+          "values": [ 100, 200 ]
         }
 
     ValueMap:
