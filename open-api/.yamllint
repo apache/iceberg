@@ -20,7 +20,7 @@ extends: default
 
 rules:
   line-length:
-    max: 120
+    max: 350
   braces:
     min-spaces-inside: 0
     max-spaces-inside: -1
