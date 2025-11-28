@@ -2469,7 +2469,7 @@ components:
           type: string
         encrypted-key-metadata:
           type: string
-          format: byte # for compatibility
+          format: byte  # for compatibility
           contentEncoding: base64
         encrypted-by-id:
           type: string
