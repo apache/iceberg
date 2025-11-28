@@ -32,19 +32,28 @@ import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SinkWriter {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SinkWriter.class);
+
   private final IcebergSinkConfig config;
   private final IcebergWriterFactory writerFactory;
   private final Map<String, RecordWriter> writers;
   private final Map<TopicPartition, Offset> sourceOffsets;
+  private final ErrantRecordReporter reporter;
 
-  public SinkWriter(Catalog catalog, IcebergSinkConfig config) {
+  public SinkWriter(Catalog catalog, IcebergSinkConfig config, ErrantRecordReporter reporter) {
     this.config = config;
     this.writerFactory = new IcebergWriterFactory(catalog, config);
     this.writers = Maps.newHashMap();
     this.sourceOffsets = Maps.newHashMap();
+    this.reporter = reporter;
   }
 
   public void close() {
@@ -65,7 +74,20 @@ public class SinkWriter {
   }
 
   public void save(Collection<SinkRecord> sinkRecords) {
-    sinkRecords.forEach(this::save);
+    for (SinkRecord record : sinkRecords) {
+      try {
+        this.save(record);
+      } catch (DataException ex) {
+        if (this.reporter != null) {
+          this.reporter.report(record, ex);
+        }
+        if (this.config.errorTolerance().equalsIgnoreCase(ErrorTolerance.ALL.toString())) {
+          LOG.error("An error occurred converting record...", ex);
+        } else {
+          throw ex;
+        }
+      }
+    }
   }
 
   private void save(SinkRecord record) {
