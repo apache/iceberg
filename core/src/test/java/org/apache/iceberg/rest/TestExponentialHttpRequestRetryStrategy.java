@@ -92,11 +92,18 @@ public class TestExponentialHttpRequestRetryStrategy {
   }
 
   @Test
-  public void noRetryOnConnectTimeout() {
+  public void noRetryOnInterruptedIO() {
     HttpGet request = new HttpGet("/");
 
-    assertThat(retryStrategy.retryRequest(request, new SocketTimeoutException(), 1, null))
+    assertThat(retryStrategy.retryRequest(request, new InterruptedIOException(), 1, null))
         .isFalse();
+  }
+
+  @Test
+  public void retryOnSocketTimeout() {
+    HttpGet request = new HttpGet("/");
+
+    assertThat(retryStrategy.retryRequest(request, new SocketTimeoutException(), 1, null)).isTrue();
   }
 
   @Test
