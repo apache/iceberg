@@ -54,6 +54,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.schema.MessageType;
+import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
@@ -249,13 +250,6 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     List<MergeTaskInfo> mergeTasks = Lists.newArrayList();
     int batchIndex = 0;
     for (List<DataFile> batch : fileBatches) {
-      // Create unique OutputFileFactory for each task to avoid filename collisions
-      OutputFileFactory fileFactory =
-          OutputFileFactory.builderFor(table(), batchIndex, 0)
-              .defaultSpec(spec)
-              .format(FileFormat.PARQUET)
-              .build();
-
       List<String> filePaths =
           batch.stream().map(f -> f.path().toString()).collect(Collectors.toList());
 
@@ -275,8 +269,6 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
             groupId);
       }
 
-      batchIndex++;
-
       mergeTasks.add(
           new MergeTaskInfo(
               filePaths,
@@ -284,17 +276,25 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
               columnIndexTruncateLength,
               firstRowIds,
               dataSequenceNumbers,
-              fileFactory,
-              partition));
+              batchIndex,
+              partition,
+              spec,
+              FileFormat.PARQUET));
+
+      batchIndex++;
     }
 
     // Get FileIO for executors - table().io() is serializable
     FileIO fileIO = table().io();
 
+    // Serialize table for executors (needed to create OutputFileFactory)
+    Table serializableTable = table();
+
     // Execute merges on executors in parallel
     JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark().sparkContext());
     JavaRDD<MergeTaskInfo> taskRDD = jsc.parallelize(mergeTasks, mergeTasks.size());
-    List<MergeResult> mergeResults = taskRDD.map(task -> mergeFilesForTask(task, fileIO)).collect();
+    List<MergeResult> mergeResults =
+        taskRDD.map(task -> mergeFilesForTask(task, fileIO, serializableTable)).collect();
 
     // Driver constructs DataFiles from metadata
     MetricsConfig metricsConfig = MetricsConfig.getDefault();
@@ -381,8 +381,11 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
   /**
    * Performs the actual merge operation for a single task on an executor. Returns only metadata
    * (file path and size); DataFile construction happens on the driver.
+   *
+   * <p>IMPORTANT: OutputFileFactory is created here on the executor (not serialized from driver)
+   * using TaskContext.taskAttemptId() to ensure unique filenames across task retry attempts.
    */
-  private static MergeResult mergeFilesForTask(MergeTaskInfo task, FileIO fileIO)
+  private static MergeResult mergeFilesForTask(MergeTaskInfo task, FileIO fileIO, Table table)
       throws IOException {
     // Convert file path strings to Iceberg InputFile objects
     List<InputFile> inputFiles =
@@ -394,12 +397,23 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     MessageType schema = ParquetFileMerger.readSchema(inputFiles.get(0));
     Map<String, String> metadata = ParquetFileMerger.readMetadata(inputFiles.get(0));
 
+    // Create OutputFileFactory on executor using Spark's TaskContext.taskAttemptId()
+    // This ensures unique filenames across retry attempts (taskAttemptId changes on each retry)
+    TaskContext sparkContext = TaskContext.get();
+    long taskAttemptId = sparkContext != null ? sparkContext.taskAttemptId() : 0L;
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, task.batchIndex(), taskAttemptId)
+            .defaultSpec(task.spec())
+            .format(task.format())
+            .build();
+
     // Use OutputFileFactory to generate output file with proper naming and partition handling
     // Encryption is handled internally based on table configuration
     EncryptedOutputFile encryptedOutputFile =
         task.partition() != null
-            ? task.fileFactory().newOutputFile(task.partition())
-            : task.fileFactory().newOutputFile();
+            ? fileFactory.newOutputFile(task.partition())
+            : fileFactory.newOutputFile();
 
     // Merge files using schema and metadata from first input file
     ParquetFileMerger.mergeFiles(
@@ -424,6 +438,10 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
   /**
    * Lightweight serializable task containing only the essential information needed for merging.
    * Uses simple types ({@code String}, {@code List<String>}) that serialize reliably.
+   *
+   * <p>NOTE: OutputFileFactory is NOT serialized to avoid concurrent write issues during Spark task
+   * retries. Instead, it's created on the executor using TaskContext.taskAttemptId() which is
+   * unique across retry attempts.
    */
   private static class MergeTaskInfo implements Serializable {
     private final List<String> filePaths;
@@ -431,8 +449,10 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     private final int columnIndexTruncateLength;
     private final List<Long> firstRowIds;
     private final List<Long> dataSequenceNumbers;
-    private final OutputFileFactory fileFactory;
+    private final int batchIndex;
     private final StructLike partition;
+    private final PartitionSpec spec;
+    private final FileFormat format;
 
     MergeTaskInfo(
         List<String> filePaths,
@@ -440,15 +460,19 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
         int columnIndexTruncateLength,
         List<Long> firstRowIds,
         List<Long> dataSequenceNumbers,
-        OutputFileFactory fileFactory,
-        StructLike partition) {
+        int batchIndex,
+        StructLike partition,
+        PartitionSpec spec,
+        FileFormat format) {
       this.filePaths = filePaths;
       this.rowGroupSize = rowGroupSize;
       this.columnIndexTruncateLength = columnIndexTruncateLength;
       this.firstRowIds = firstRowIds;
       this.dataSequenceNumbers = dataSequenceNumbers;
-      this.fileFactory = fileFactory;
+      this.batchIndex = batchIndex;
       this.partition = partition;
+      this.spec = spec;
+      this.format = format;
     }
 
     List<String> filePaths() {
@@ -475,8 +499,16 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       return dataSequenceNumbers;
     }
 
-    OutputFileFactory fileFactory() {
-      return fileFactory;
+    int batchIndex() {
+      return batchIndex;
+    }
+
+    PartitionSpec spec() {
+      return spec;
+    }
+
+    FileFormat format() {
+      return format;
     }
   }
 

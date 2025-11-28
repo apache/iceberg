@@ -341,12 +341,28 @@ public class ParquetFileMerger {
 
             // Write new _row_id column chunk (DELTA_BINARY_PACKED encoded, then compressed with
             // codec)
-            writeRowIdColumnChunk(writer, rowIdDescriptor, currentRowId, rowCount, codec);
+            // Write sequential values: currentRowId, currentRowId+1, currentRowId+2, ...
+            long startRowId = currentRowId;
+            writeLongColumnChunk(
+                writer,
+                rowIdDescriptor,
+                rowCount,
+                codec,
+                startRowId,
+                startRowId + rowCount - 1,
+                i -> startRowId + i);
             currentRowId += rowCount;
 
             // Write new _last_updated_sequence_number column chunk
-            writeSequenceNumberColumnChunk(
-                writer, seqNumDescriptor, dataSequenceNumber, rowCount, codec);
+            // Write constant value for all rows: dataSequenceNumber, dataSequenceNumber, ...
+            writeLongColumnChunk(
+                writer,
+                seqNumDescriptor,
+                rowCount,
+                codec,
+                dataSequenceNumber,
+                dataSequenceNumber,
+                i -> dataSequenceNumber);
 
             writer.endBlock();
           }
@@ -467,66 +483,6 @@ public class ParquetFileMerger {
     fields.add(seqNumType);
 
     return new MessageType(baseSchema.getName(), fields);
-  }
-
-  /**
-   * Writes a _row_id column chunk with sequential row IDs.
-   *
-   * <p>Uses DELTA_BINARY_PACKED encoding for sequential data, where deltas are all 1.
-   *
-   * @param writer ParquetFileWriter to write to
-   * @param rowIdDescriptor Column descriptor for _row_id
-   * @param startRowId Starting row ID for this row group
-   * @param rowCount Number of rows in this row group
-   * @param codec Compression codec to use (should match the file's codec)
-   * @throws IOException if writing fails
-   */
-  private static void writeRowIdColumnChunk(
-      ParquetFileWriter writer,
-      ColumnDescriptor rowIdDescriptor,
-      long startRowId,
-      long rowCount,
-      CompressionCodecName codec)
-      throws IOException {
-    // Write sequential values: startRowId, startRowId+1, startRowId+2, ...
-    writeLongColumnChunk(
-        writer,
-        rowIdDescriptor,
-        rowCount,
-        codec,
-        startRowId,
-        startRowId + rowCount - 1,
-        i -> startRowId + i);
-  }
-
-  /**
-   * Writes a _last_updated_sequence_number column chunk with constant sequence number.
-   *
-   * <p>Uses DELTA_BINARY_PACKED encoding for constant data, where deltas are all 0.
-   *
-   * @param writer ParquetFileWriter to write to
-   * @param seqNumDescriptor Column descriptor for _last_updated_sequence_number
-   * @param dataSequenceNumber Data sequence number for all rows in this file
-   * @param rowCount Number of rows in this row group
-   * @param codec Compression codec to use (should match the file's codec)
-   * @throws IOException if writing fails
-   */
-  private static void writeSequenceNumberColumnChunk(
-      ParquetFileWriter writer,
-      ColumnDescriptor seqNumDescriptor,
-      long dataSequenceNumber,
-      long rowCount,
-      CompressionCodecName codec)
-      throws IOException {
-    // Write constant value for all rows: dataSequenceNumber, dataSequenceNumber, ...
-    writeLongColumnChunk(
-        writer,
-        seqNumDescriptor,
-        rowCount,
-        codec,
-        dataSequenceNumber,
-        dataSequenceNumber,
-        i -> dataSequenceNumber);
   }
 
   /**
