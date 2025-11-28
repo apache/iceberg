@@ -41,7 +41,7 @@ object CheckViews extends (LogicalPlan => Unit) {
       case CreateIcebergView(resolvedIdent@ResolvedIdentifier(_: ViewCatalog, _), _, query, columnAliases, _,
       _, _, _, _, replace, _) =>
         verifyColumnCount(resolvedIdent, columnAliases, query)
-        SchemaUtils.checkColumnNameDuplication(query.schema.fieldNames, SQLConf.get.resolver)
+        SchemaUtils.checkColumnNameDuplication(query.schema.fieldNames.toIndexedSeq, SQLConf.get.resolver)
         if (replace) {
           val viewIdent: Seq[String] = resolvedIdent.catalog.name() +: resolvedIdent.identifier.asMultipartIdentifier
           checkCyclicViewReference(viewIdent, query, Seq(viewIdent))

@@ -24,7 +24,7 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.execution.LeafExecNode
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 case class ShowV2ViewPropertiesExec(
   output: Seq[Attribute],

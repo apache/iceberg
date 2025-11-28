@@ -64,7 +64,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     case c@CreateIcebergView(ResolvedIdentifier(_, _), _, query, columnAliases, columnComments, _, _, _, _, _, _)
       if query.resolved && !c.rewritten =>
       val aliased = aliasColumns(query, columnAliases, columnComments)
-      c.copy(query = aliased, queryColumnNames = query.schema.fieldNames, rewritten = true)
+      c.copy(query = aliased, queryColumnNames = query.schema.fieldNames.toIndexedSeq, rewritten = true)
   }
 
   private def aliasColumns(
@@ -99,7 +99,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     val aliases = view.schema.fields.zipWithIndex.map { case (expected, pos) =>
       val attr = GetColumnByOrdinal(pos, expected.dataType)
       Alias(UpCast(attr, expected.dataType), expected.name)(explicitMetadata = Some(expected.metadata))
-    }
+    }.toIndexedSeq
 
     SubqueryAlias(nameParts, Project(aliases, rewritten))
   }
