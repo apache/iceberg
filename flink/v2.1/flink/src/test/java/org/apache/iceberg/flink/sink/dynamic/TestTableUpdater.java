@@ -57,8 +57,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     catalog.initialize("catalog", Map.of());
     catalog.createNamespace(Namespace.of("myNamespace"));
     TableIdentifier tableIdentifier = TableIdentifier.parse("myNamespace.myTable");
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, true);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, true, false);
 
     String locationOverride = tempDir.toString() + "/custom-path";
     Map<String, String> tableProperties = Map.of("key", "value");
@@ -84,8 +84,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   void testTableAlreadyExists() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, true);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, true, false);
 
     // Make the table non-existent in cache
     cache.exists(tableIdentifier);
@@ -108,8 +108,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   void testBranchCreationAndCaching() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, true);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, true, false);
 
     catalog.createTable(tableIdentifier, SCHEMA);
     tableUpdater.update(
@@ -126,8 +126,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   void testSpecCreation() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, true);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, true, false);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 10).build();
     tableUpdater.update(
@@ -143,9 +143,9 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, true);
     cache.schema(tableIdentifier, SCHEMA, false);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, true, false);
 
     Schema updated =
         tableUpdater
@@ -168,8 +168,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, true);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, true, false);
 
     // Initialize cache
     tableUpdater.update(
@@ -208,10 +208,10 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   void testDropUnusedColumns() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, true);
 
     final boolean dropUnusedColumns = true;
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, dropUnusedColumns);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, true, dropUnusedColumns);
 
     catalog.createTable(tableIdentifier, SCHEMA2);
 
@@ -236,8 +236,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     SupportsNamespaces namespaceCatalog = (SupportsNamespaces) catalog;
     TableIdentifier tableIdentifier = TableIdentifier.of("new_namespace", "myTable");
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, true);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, true, false);
 
     assertThat(namespaceCatalog.namespaceExists(Namespace.of("new_namespace"))).isFalse();
     assertThat(catalog.tableExists(tableIdentifier)).isFalse();
@@ -265,8 +265,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     namespaceCatalog.createNamespace(namespace);
 
     TableIdentifier tableIdentifier = TableIdentifier.of("existing_namespace", "myTable");
-    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, true);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, true, false);
 
     assertThat(namespaceCatalog.namespaceExists(namespace)).isTrue();
     assertThat(catalog.tableExists(tableIdentifier)).isFalse();

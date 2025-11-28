@@ -55,10 +55,21 @@ class TableMetadataCache {
   private final Clock cacheRefreshClock;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final Map<TableIdentifier, CacheItem> tableCache;
+  private final boolean caseSensitive;
 
   TableMetadataCache(
-      Catalog catalog, int maximumSize, long refreshMs, int inputSchemasPerTableCacheMaximumSize) {
-    this(catalog, maximumSize, refreshMs, inputSchemasPerTableCacheMaximumSize, Clock.systemUTC());
+      Catalog catalog,
+      int maximumSize,
+      long refreshMs,
+      int inputSchemasPerTableCacheMaximumSize,
+      boolean caseSensitive) {
+    this(
+        catalog,
+        maximumSize,
+        refreshMs,
+        inputSchemasPerTableCacheMaximumSize,
+        caseSensitive,
+        Clock.systemUTC());
   }
 
   @VisibleForTesting
@@ -67,12 +78,14 @@ class TableMetadataCache {
       int maximumSize,
       long refreshMs,
       int inputSchemasPerTableCacheMaximumSize,
+      boolean caseSensitive,
       Clock cacheRefreshClock) {
     this.catalog = catalog;
     this.refreshMs = refreshMs;
-    this.cacheRefreshClock = cacheRefreshClock;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCache = new LRUCache<>(maximumSize);
+    this.caseSensitive = caseSensitive;
+    this.cacheRefreshClock = cacheRefreshClock;
   }
 
   Tuple2<Boolean, Exception> exists(TableIdentifier identifier) {
@@ -140,7 +153,8 @@ class TableMetadataCache {
 
       for (Map.Entry<Integer, Schema> tableSchema : cached.tableSchemas.entrySet()) {
         CompareSchemasVisitor.Result result =
-            CompareSchemasVisitor.visit(input, tableSchema.getValue(), true, dropUnusedColumns);
+            CompareSchemasVisitor.visit(
+                input, tableSchema.getValue(), caseSensitive, dropUnusedColumns);
         if (result == CompareSchemasVisitor.Result.SAME) {
           ResolvedSchemaInfo newResult =
               new ResolvedSchemaInfo(
