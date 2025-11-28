@@ -21,9 +21,9 @@ package org.apache.iceberg.rest;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -38,6 +38,7 @@ public class RESTUtil {
   private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
   private static final Splitter NAMESPACE_ESCAPED_SPLITTER =
       Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
+  private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
   /**
    * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
@@ -281,9 +282,13 @@ public class RESTUtil {
    * 2-bit variant (RFC 4122, 0b10) - 62-bit random (rand_b)
    */
   public static String generateUuidV7() {
-    long epochMs = System.currentTimeMillis() & 0xFFFFFFFFFFFFL; // 48 bits
-    long randA = ThreadLocalRandom.current().nextLong() & 0xFFFL; // 12 bits
-    long randB = ThreadLocalRandom.current().nextLong() & 0x3FFFFFFFFFFFFFFFL; // 62 bits
+    long epochMs = System.currentTimeMillis();
+    if ((epochMs >>> 48) != 0) {
+      throw new IllegalArgumentException("timestamp does not fit within 48 bits: " + epochMs);
+    }
+
+    long randA = SECURE_RANDOM.nextLong() & 0xFFFL; // 12 bits
+    long randB = SECURE_RANDOM.nextLong() & 0x3FFFFFFFFFFFFFFFL; // 62 bits
 
     long msb = (epochMs << 16); // place timestamp in the top 48 bits
     msb |= 0x7000L; // version 7 (UUID bits 48..51)
