@@ -88,9 +88,9 @@ paths:
         5XX:
           $ref: '../../../../open-api/rest-catalog-open-api.yaml#/components/responses/ServerErrorResponse'
 
-  ##############################
-  # Application Schema Objects #
-  ##############################
+##############################
+# Application Schema Objects #
+##############################
 components:
   schemas:
 
