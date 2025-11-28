@@ -3577,6 +3577,23 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .hasMessageContaining("No in-memory file found for location: " + metadataFileLocation);
   }
 
+  @Test
+  public void testNumLoadTableCallsForMergeAppend() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+
+    BaseTable table = (BaseTable) catalog.createTable(TABLE, SCHEMA);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // loadTable is executed once
+    Mockito.verify(adapter)
+        .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
