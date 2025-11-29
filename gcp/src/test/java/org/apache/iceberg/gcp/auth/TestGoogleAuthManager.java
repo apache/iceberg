@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.gcp.auth;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,8 +34,10 @@ import com.google.auth.oauth2.GoogleCredentials;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -61,19 +64,23 @@ public class TestGoogleAuthManager {
   @Mock private RESTClient restClient;
   @Mock private GoogleCredentials credentials;
   @Mock private GoogleCredentials credentialsFromFile;
+  @Mock private GoogleCredentials credentialsFromKey;
 
   private GoogleAuthManager authManager;
   private MockedStatic<GoogleCredentials> mockedStaticCredentials;
 
   @TempDir File tempDir;
   private File credentialFile;
+  private String credentialKey;
 
   @BeforeEach
   public void beforeEach() throws IOException {
     authManager = new GoogleAuthManager(MANAGER_NAME);
     mockedStaticCredentials = Mockito.mockStatic(GoogleCredentials.class);
     credentialFile = new File(tempDir, "fake-creds.json");
-    Files.write(credentialFile.toPath(), "{\"type\": \"service_account\"}".getBytes());
+    String credential = "{\"type\": \"service_account\"}";
+    Files.write(credentialFile.toPath(), credential.getBytes());
+    credentialKey = Base64.getEncoder().encodeToString(credential.getBytes(UTF_8));
   }
 
   @AfterEach
@@ -105,6 +112,27 @@ public class TestGoogleAuthManager {
 
     assertThat(session).isInstanceOf(GoogleAuthSession.class);
     verify(credentialsFromFile).createScoped(ImmutableList.of("scope1", "scope2"));
+  }
+
+  @Test
+  public void buildsCatalogSessionFromCredentialsKey() {
+    String customScopes = "scope1,scope2";
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GoogleAuthManager.GCP_CREDENTIALS_KEY_PROPERTY,
+            credentialKey,
+            GoogleAuthManager.GCP_SCOPES_PROPERTY,
+            customScopes);
+
+    mockedStaticCredentials
+        .when(() -> GoogleCredentials.fromStream(any(InputStream.class)))
+        .thenReturn(credentialsFromKey);
+    when(credentialsFromKey.createScoped(anyList())).thenReturn(credentials);
+
+    AuthSession session = authManager.catalogSession(restClient, properties);
+
+    assertThat(session).isInstanceOf(GoogleAuthSession.class);
+    verify(credentialsFromKey).createScoped(ImmutableList.of("scope1", "scope2"));
   }
 
   @Test

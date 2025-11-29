@@ -180,6 +180,7 @@ Required and optional properties to include while using `google` authentication
 | Property                   | Default                                          | Description                                      |
 |----------------------------|--------------------------------------------------|--------------------------------------------------|
 | `gcp.auth.credentials-path`| Application Default Credentials (ADC)            | Path to a service account JSON key file.         |
+| `gcp.auth.credentials-key` | Application Default Credentials (ADC)            | Base64-encoded string of a service account JSON file. |
 | `gcp.auth.scopes`          | `https://www.googleapis.com/auth/cloud-platform` | Comma-separated list of OAuth scopes to request. |
 
 ### Lock catalog properties
