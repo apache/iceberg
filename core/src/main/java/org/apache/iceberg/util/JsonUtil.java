@@ -189,6 +189,24 @@ public class JsonUtil {
     return getString(property, node);
   }
 
+  public static String getDurationStringOrNull(String property, JsonNode node) {
+    String value = getStringOrNull(property, node);
+    if (value == null) {
+      return null;
+    }
+
+    try {
+      java.time.Duration.parse(value);
+    } catch (RuntimeException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot parse to a duration string value: %s: %s", property, node.get(property)),
+          e);
+    }
+
+    return value;
+  }
+
   public static ByteBuffer getByteBufferOrNull(String property, JsonNode node) {
     if (!node.has(property) || node.get(property).isNull()) {
       return null;

@@ -3444,12 +3444,24 @@ components:
             status:
               $ref: '#/components/schemas/PlanStatus'
               const: "completed"
+            storage-credentials:
+              type: array
+              description:
+                Storage credentials for accessing the files returned in the scan result.
+              
+                If the server returns storage credentials as part of the completed scan
+                planning response, the expectation is for the client to use these credentials
+                to read the files returned in the FileScanTasks as part of the scan result.
+              items:
+                $ref: '#/components/schemas/StorageCredential'
 
     CompletedPlanningWithIDResult:
       type: object
       allOf:
         - $ref: '#/components/schemas/CompletedPlanningResult'
         - type: object
+          required:
+            - plan-id
           properties:
             plan-id:
               description: ID used to track a planning request
@@ -3472,6 +3484,7 @@ components:
       type: object
       required:
         - status
+        - plan-id
       properties:
         status:
           $ref: '#/components/schemas/PlanStatus'
@@ -4474,6 +4487,14 @@ components:
           description:
             Expression used to filter the table data
           $ref: '#/components/schemas/Expression'
+        min-rows-requested:
+          description:
+            The minimum number of rows requested for the scan. This is used as a hint 
+            to the server to not have to return more rows than necessary. It is not required 
+            for the server to return that many rows since the scan may not produce that 
+            many rows. The server can also return more rows than requested.
+          type: integer
+          format: int64
         case-sensitive:
           description: Enables case sensitive field matching for filter and select
           type: boolean

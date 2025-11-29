@@ -33,6 +33,7 @@ public class PlanTableScanRequest implements RESTRequest {
   private final Long startSnapshotId;
   private final Long endSnapshotId;
   private final List<String> statsFields;
+  private final Long minRowsRequested;
 
   public Long snapshotId() {
     return snapshotId;
@@ -66,6 +67,10 @@ public class PlanTableScanRequest implements RESTRequest {
     return statsFields;
   }
 
+  public Long minRowsRequested() {
+    return minRowsRequested;
+  }
+
   private PlanTableScanRequest(
       Long snapshotId,
       List<String> select,
@@ -74,7 +79,8 @@ public class PlanTableScanRequest implements RESTRequest {
       boolean useSnapshotSchema,
       Long startSnapshotId,
       Long endSnapshotId,
-      List<String> statsFields) {
+      List<String> statsFields,
+      Long minRowsRequested) {
     this.snapshotId = snapshotId;
     this.select = select;
     this.filter = filter;
@@ -83,6 +89,7 @@ public class PlanTableScanRequest implements RESTRequest {
     this.startSnapshotId = startSnapshotId;
     this.endSnapshotId = endSnapshotId;
     this.statsFields = statsFields;
+    this.minRowsRequested = minRowsRequested;
     validate();
   }
 
@@ -99,6 +106,11 @@ public class PlanTableScanRequest implements RESTRequest {
           null != startSnapshotId && null != endSnapshotId,
           "Invalid incremental scan: startSnapshotId and endSnapshotId is required");
     }
+
+    if (null != minRowsRequested) {
+      Preconditions.checkArgument(
+          minRowsRequested >= 0L, "Invalid scan: minRowsRequested is negative");
+    }
   }
 
   @Override
@@ -112,6 +124,7 @@ public class PlanTableScanRequest implements RESTRequest {
         .add("startSnapshotId", startSnapshotId)
         .add("endSnapshotId", endSnapshotId)
         .add("statsFields", statsFields)
+        .add("minRowsRequested", minRowsRequested)
         .toString();
   }
 
@@ -128,6 +141,7 @@ public class PlanTableScanRequest implements RESTRequest {
     private Long startSnapshotId;
     private Long endSnapshotId;
     private List<String> statsFields;
+    private Long minRowsRequested;
 
     /**
      * @deprecated since 1.11.0, visibility will be reduced in 1.12.0; use {@link
@@ -176,6 +190,11 @@ public class PlanTableScanRequest implements RESTRequest {
       return this;
     }
 
+    public Builder withMinRowsRequested(Long rowsRequested) {
+      this.minRowsRequested = rowsRequested;
+      return this;
+    }
+
     public PlanTableScanRequest build() {
       return new PlanTableScanRequest(
           snapshotId,
@@ -185,7 +204,8 @@ public class PlanTableScanRequest implements RESTRequest {
           useSnapshotSchema,
           startSnapshotId,
           endSnapshotId,
-          statsFields);
+          statsFields,
+          minRowsRequested);
     }
   }
 }

@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
@@ -42,6 +41,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.LocationUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -62,6 +62,16 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   protected abstract Catalog tableCatalog();
 
   @TempDir private Path tempDir;
+
+  protected String viewLocation(String... paths) {
+    StringBuilder location =
+        new StringBuilder(LocationUtil.stripTrailingSlash(tempDir.toFile().toURI().toString()));
+    for (String path : paths) {
+      location.append("/").append(path);
+    }
+
+    return location.toString();
+  }
 
   protected boolean requiresNamespaceCreate() {
     return false;
@@ -264,8 +274,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location =
-        Paths.get(tempDir.toUri().toString(), Paths.get("ns", "view").toString()).toString();
+    String location = viewLocation(identifier.namespace().toString(), identifier.name());
     View view =
         catalog()
             .buildView(identifier)
@@ -340,8 +349,8 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location = Paths.get(tempDir.toUri().toString()).toString();
-    String customLocation = Paths.get(tempDir.toUri().toString(), "custom-location").toString();
+    String location = viewLocation();
+    String customLocation = viewLocation("custom-location");
 
     View view =
         catalog()
@@ -1584,8 +1593,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location =
-        Paths.get(tempDir.toUri().toString(), Paths.get("ns", "view").toString()).toString();
+    String location = viewLocation(identifier.namespace().toString(), identifier.name());
     View view =
         catalog()
             .buildView(identifier)
@@ -1603,9 +1611,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
       assertThat(view.location()).isNotNull();
     }
 
-    String updatedLocation =
-        Paths.get(tempDir.toUri().toString(), Paths.get("updated", "ns", "view").toString())
-            .toString();
+    String updatedLocation = viewLocation("updated", "ns", "view");
     view =
         catalog()
             .buildView(identifier)
@@ -1635,8 +1641,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    String location =
-        Paths.get(tempDir.toUri().toString(), Paths.get("ns", "view").toString()).toString();
+    String location = viewLocation(identifier.namespace().toString(), identifier.name());
     View view =
         catalog()
             .buildView(identifier)
@@ -1653,9 +1658,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
       assertThat(view.location()).isNotNull();
     }
 
-    String updatedLocation =
-        Paths.get(tempDir.toUri().toString(), Paths.get("updated", "ns", "view").toString())
-            .toString();
+    String updatedLocation = viewLocation("updated", "ns", "view");
     view.updateLocation().setLocation(updatedLocation).commit();
 
     View updatedView = catalog().loadView(identifier);
