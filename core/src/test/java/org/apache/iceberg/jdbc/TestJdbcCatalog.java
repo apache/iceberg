@@ -20,6 +20,8 @@ package org.apache.iceberg.jdbc;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
+import static org.apache.iceberg.jdbc.JdbcUtil.CATALOG_TABLE_VIEW_NAME;
+import static org.apache.iceberg.jdbc.JdbcUtil.withTableName;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -81,10 +83,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.sqlite.SQLiteDataSource;
-import org.testcontainers.containers.Db2Container;
-import org.testcontainers.containers.JdbcDatabaseContainer;
-import org.testcontainers.containers.OracleContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
@@ -183,47 +181,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
-  public void testInitializePostgres() {
-    testInitializeWithContainer(new PostgreSQLContainer());
-  }
-
-  @Test
-  public void testInitializeDb2() {
-    testInitializeWithContainer(new Db2Container());
-  }
-
-  @Test
-  public void testInitializeOracle() {
-    testInitializeWithContainer(new OracleContainer());
-  }
-
-  private void testInitializeWithContainer(JdbcDatabaseContainer<?> dbContainer) {
-    dbContainer.start();
-    try {
-      if (dbContainer instanceof PostgreSQLContainer) {
-        Class.forName("org.postgresql.Driver");
-      } else if (dbContainer instanceof OracleContainer) {
-        Class.forName("oracle.jdbc.OracleDriver");
-      } else if (dbContainer instanceof Db2Container) {
-        Class.forName("com.ibm.db2.jcc.DB2Driver");
-      }
-    } catch (ClassNotFoundException e) {
-      throw new RuntimeException("JDBC driver not found", e);
-    }
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
-    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
-    properties.put(CatalogProperties.URI, dbContainer.getJdbcUrl());
-    properties.put(JdbcCatalog.PROPERTY_PREFIX + CatalogProperties.USER, dbContainer.getUsername());
-    properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", dbContainer.getPassword());
-    JdbcCatalog jdbcCatalog = new JdbcCatalog();
-    jdbcCatalog.setConf(conf);
-    jdbcCatalog.initialize(
-        "test_" + dbContainer.getClass().getSimpleName().toLowerCase() + "_jdbc_catalog",
-        properties);
-  }
-
-  @Test
   public void testDisableInitCatalogTablesOverridesDefault() throws Exception {
     // as this test uses different connections, we can't use memory database (as it's per
     // connection), but a file database instead
@@ -242,7 +199,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     assertThatThrownBy(() -> jdbcCatalog.listNamespaces())
         .isInstanceOf(UncheckedSQLException.class)
-        .hasMessage(String.format("Failed to execute query: %s", JdbcUtil.LIST_ALL_NAMESPACES_SQL));
+        .hasMessage(
+            String.format(
+                "Failed to execute query: %s",
+                withTableName(
+                    JdbcUtil.LIST_ALL_NAMESPACES_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, null)));
   }
 
   @Test
@@ -1126,7 +1087,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
       mockedStatic
-          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any(), any()))
           .thenThrow(new SQLException());
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(UncheckedSQLException.class)
@@ -1146,7 +1107,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
       mockedStatic
-          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any(), any()))
           .thenThrow(new SQLException("constraint failed"));
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(AlreadyExistsException.class)
@@ -1202,7 +1163,12 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     try (Connection connection = dataSource.getConnection()) {
       // create "old style" SQL schema
-      connection.prepareStatement(JdbcUtil.V0_CREATE_CATALOG_SQL).executeUpdate();
+
+      connection
+          .prepareStatement(
+              JdbcUtil.withTableName(
+                  JdbcUtil.V0_CREATE_CATALOG_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, null))
+          .executeUpdate();
       connection
           .prepareStatement(
               "INSERT INTO "

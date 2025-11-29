@@ -50,6 +50,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final JdbcClientPool connections;
   private final Map<String, String> catalogProperties;
   private final JdbcUtil.SchemaVersion schemaVersion;
+  private final String schemaName;
 
   protected JdbcTableOperations(
       JdbcClientPool dbConnPool,
@@ -57,12 +58,14 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       String catalogName,
       TableIdentifier tableIdentifier,
       Map<String, String> catalogProperties,
+      String schemaName,
       JdbcUtil.SchemaVersion schemaVersion) {
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
     this.connections = dbConnPool;
     this.catalogProperties = catalogProperties;
+    this.schemaName = schemaName;
     this.schemaVersion = schemaVersion;
   }
 
@@ -71,7 +74,8 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     Map<String, String> table;
 
     try {
-      table = JdbcUtil.loadTable(schemaVersion, connections, catalogName, tableIdentifier);
+      table =
+          JdbcUtil.loadTable(schemaName, schemaVersion, connections, catalogName, tableIdentifier);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted during refresh");
@@ -106,7 +110,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     try {
       Map<String, String> table =
-          JdbcUtil.loadTable(schemaVersion, connections, catalogName, tableIdentifier);
+          JdbcUtil.loadTable(schemaName, schemaVersion, connections, catalogName, tableIdentifier);
 
       if (base != null) {
         validateMetadataLocation(table, base);
@@ -153,6 +157,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       throws SQLException, InterruptedException {
     int updatedRecords =
         JdbcUtil.updateTable(
+            schemaName,
             schemaVersion,
             connections,
             catalogName,
@@ -171,23 +176,25 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private void createTable(String newMetadataLocation) throws SQLException, InterruptedException {
     Namespace namespace = tableIdentifier.namespace();
     if (PropertyUtil.propertyAsBoolean(catalogProperties, JdbcUtil.STRICT_MODE_PROPERTY, false)
-        && !JdbcUtil.namespaceExists(catalogName, connections, namespace)) {
+        && !JdbcUtil.namespaceExists(schemaName, catalogName, connections, namespace)) {
       throw new NoSuchNamespaceException(
           "Cannot create table %s in catalog %s. Namespace %s does not exist",
           tableIdentifier, catalogName, namespace);
     }
 
     if (schemaVersion == JdbcUtil.SchemaVersion.V1
-        && JdbcUtil.viewExists(catalogName, connections, tableIdentifier)) {
+        && JdbcUtil.viewExists(schemaName, catalogName, connections, tableIdentifier)) {
       throw new AlreadyExistsException("View with same name already exists: %s", tableIdentifier);
     }
 
-    if (JdbcUtil.tableExists(schemaVersion, catalogName, connections, tableIdentifier)) {
+    if (JdbcUtil.tableExists(
+        schemaName, schemaVersion, catalogName, connections, tableIdentifier)) {
       throw new AlreadyExistsException("Table already exists: %s", tableIdentifier);
     }
 
     int insertRecord =
         JdbcUtil.doCommitCreateTable(
+            schemaName,
             schemaVersion,
             connections,
             catalogName,

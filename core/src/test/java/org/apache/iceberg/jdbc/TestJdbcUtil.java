@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.jdbc;
 
+import static org.apache.iceberg.jdbc.JdbcUtil.CATALOG_TABLE_VIEW_NAME;
+import static org.apache.iceberg.jdbc.JdbcUtil.withTableName;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
@@ -62,10 +64,16 @@ public class TestJdbcUtil {
 
     try (JdbcClientPool connections = new JdbcClientPool(jdbcUrl, Maps.newHashMap())) {
       // create "old style" SQL schema
-      connections.newClient().prepareStatement(JdbcUtil.V0_CREATE_CATALOG_SQL).executeUpdate();
+      connections
+          .newClient()
+          .prepareStatement(
+              JdbcUtil.withTableName(
+                  JdbcUtil.V0_CREATE_CATALOG_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, null))
+          .executeUpdate();
 
       // inserting tables
       JdbcUtil.doCommitCreateTable(
+          null,
           JdbcUtil.SchemaVersion.V0,
           connections,
           "TEST",
@@ -73,6 +81,7 @@ public class TestJdbcUtil {
           TableIdentifier.of(Namespace.of("namespace1"), "table1"),
           "testLocation");
       JdbcUtil.doCommitCreateTable(
+          null,
           JdbcUtil.SchemaVersion.V0,
           connections,
           "TEST",
@@ -81,7 +90,11 @@ public class TestJdbcUtil {
           "testLocation");
 
       try (PreparedStatement statement =
-          connections.newClient().prepareStatement(JdbcUtil.V0_LIST_TABLE_SQL)) {
+          connections
+              .newClient()
+              .prepareStatement(
+                  withTableName(
+                      JdbcUtil.V0_LIST_TABLE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, null))) {
         statement.setString(1, "TEST");
         statement.setString(2, "namespace1");
         ResultSet tables = statement.executeQuery();
@@ -92,10 +105,15 @@ public class TestJdbcUtil {
       }
 
       // updating the schema from V0 to V1
-      connections.newClient().prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
+      connections
+          .newClient()
+          .prepareStatement(
+              withTableName(JdbcUtil.V1_UPDATE_CATALOG_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, null))
+          .execute();
 
       // trying to add a table on the updated schema
       JdbcUtil.doCommitCreateTable(
+          null,
           JdbcUtil.SchemaVersion.V1,
           connections,
           "TEST",
@@ -105,7 +123,11 @@ public class TestJdbcUtil {
 
       // testing the tables after migration and new table added
       try (PreparedStatement statement =
-          connections.newClient().prepareStatement(JdbcUtil.V0_LIST_TABLE_SQL)) {
+          connections
+              .newClient()
+              .prepareStatement(
+                  withTableName(
+                      JdbcUtil.V0_LIST_TABLE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, null))) {
         statement.setString(1, "TEST");
         statement.setString(2, "namespace1");
         ResultSet tables = statement.executeQuery();
@@ -123,6 +145,7 @@ public class TestJdbcUtil {
       // update a table (commit) created on V1 schema
       int updated =
           JdbcUtil.updateTable(
+              null,
               JdbcUtil.SchemaVersion.V1,
               connections,
               "TEST",
@@ -134,6 +157,7 @@ public class TestJdbcUtil {
       // update a table (commit) migrated from V0 schema
       updated =
           JdbcUtil.updateTable(
+              null,
               JdbcUtil.SchemaVersion.V1,
               connections,
               "TEST",
