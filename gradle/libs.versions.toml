@@ -88,7 +88,6 @@ spark35 = "3.5.7"
 spark40 = "4.0.1"
 sqlite-jdbc = "3.51.0.0"
 testcontainers = "2.0.2"
-testcontainers-jdbc = "1.21.3"
 db2-jdbc = "12.1.2.0"
 postgres-jdbc = "42.2.27"
 oracle-jdbc = "21.7.0.0"
@@ -226,9 +225,9 @@ postgres-jdbc = { module = "org.postgresql:postgresql", version.ref = "postgres-
 oracle-jdbc = { module = "com.oracle.database.jdbc:ojdbc11", version.ref = "oracle-jdbc" }
 
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
-testcontainers-db2 = { module = "org.testcontainers:db2", version.ref = "testcontainers-jdbc" }
-testcontainers-oracle = { module = "org.testcontainers:oracle-xe", version.ref = "testcontainers-jdbc" }
-testcontainers-postgres = { module = "org.testcontainers:postgresql", version.ref = "testcontainers-jdbc" }
+testcontainers-db2 = { module = "org.testcontainers:testcontainers-db2", version.ref = "testcontainers" }
+testcontainers-oracle = { module = "org.testcontainers:testcontainers-oracle-xe", version.ref = "testcontainers" }
+testcontainers-postgres = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
 testcontainers-minio = { module = "org.testcontainers:testcontainers-minio", version.ref = "testcontainers" }
 tez08-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez08" }

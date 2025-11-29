@@ -95,6 +95,9 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private CloseableGroup closeableGroup;
   private JdbcUtil.SchemaVersion schemaVersion = JdbcUtil.SchemaVersion.V0;
 
+  @SuppressWarnings(value = "UnusedVariable")
+  private String schemaName = null;
+
   public JdbcCatalog() {
     this(null, null, true);
   }
@@ -141,6 +144,9 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     } else {
       this.connections = new JdbcClientPool(uri, properties);
     }
+
+    this.schemaName =
+        PropertyUtil.propertyAsString(properties, JdbcUtil.SCHEMA_NAME_PROPERTY, null);
 
     this.initializeCatalogTables =
         PropertyUtil.propertyAsBoolean(
@@ -208,12 +214,18 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
     try {
       atomicCreateTable(
-          JdbcUtil.CATALOG_TABLE_VIEW_NAME,
-          JdbcUtil.V0_CREATE_CATALOG_SQL,
+          JdbcUtil.tableName(JdbcUtil.CATALOG_TABLE_VIEW_NAME, schemaName),
+          JdbcUtil.withTableName(
+              JdbcUtil.V0_CREATE_CATALOG_SQL_TEMPLATE,
+              JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+              schemaName),
           "to store iceberg catalog tables");
       atomicCreateTable(
-          JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME,
-          JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE_SQL,
+          JdbcUtil.tableName(JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME, schemaName),
+          JdbcUtil.withTableName(
+              JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE_SQL_TEMPLATE,
+              JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME,
+              schemaName),
           "to store iceberg catalog namespace properties");
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog: Query timed out");
@@ -231,7 +243,10 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     try {
       connections.run(
           conn -> {
-            if (columnExists(conn, JdbcUtil.CATALOG_TABLE_VIEW_NAME, JdbcUtil.RECORD_TYPE)) {
+            if (columnExists(
+                conn,
+                JdbcUtil.tableName(JdbcUtil.CATALOG_TABLE_VIEW_NAME, schemaName),
+                JdbcUtil.RECORD_TYPE)) {
               LOG.debug("{} already supports views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
               schemaVersion = JdbcUtil.SchemaVersion.V1;
               return true;
@@ -264,9 +279,19 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     LOG.debug("{} is being updated to support views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
     schemaVersion = JdbcUtil.SchemaVersion.V1;
     if (isOracle(conn)) {
-      return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_ORACLE_SQL).execute();
+      return conn.prepareStatement(
+              JdbcUtil.withTableName(
+                  JdbcUtil.V1_UPDATE_CATALOG_ORACLE_SQL_TEMPLATE,
+                  JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+                  schemaName))
+          .execute();
     } else {
-      return conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
+      return conn.prepareStatement(
+              JdbcUtil.withTableName(
+                  JdbcUtil.V1_UPDATE_CATALOG_SQL_TEMPLATE,
+                  JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+                  schemaName))
+          .execute();
     }
   }
 
@@ -335,7 +360,13 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     return new JdbcTableOperations(
-        connections, io, catalogName, tableIdentifier, catalogProperties, schemaVersion);
+        connections,
+        io,
+        catalogName,
+        tableIdentifier,
+        catalogProperties,
+        schemaName,
+        schemaVersion);
   }
 
   @Override
@@ -343,7 +374,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     if (schemaVersion != JdbcUtil.SchemaVersion.V1) {
       throw new UnsupportedOperationException(VIEW_WARNING_LOG_MESSAGE);
     }
-    return new JdbcViewOperations(connections, io, catalogName, viewIdentifier, catalogProperties);
+    return new JdbcViewOperations(
+        connections, io, catalogName, viewIdentifier, catalogProperties, schemaName);
   }
 
   @Override
@@ -369,8 +401,14 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     int deletedRecords =
         execute(
             (schemaVersion == JdbcUtil.SchemaVersion.V1)
-                ? JdbcUtil.V1_DROP_TABLE_SQL
-                : JdbcUtil.V0_DROP_TABLE_SQL,
+                ? JdbcUtil.withTableName(
+                    JdbcUtil.V1_DROP_TABLE_SQL_TEMPLATE,
+                    JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+                    schemaName)
+                : JdbcUtil.withTableName(
+                    JdbcUtil.V0_DROP_TABLE_SQL_TEMPLATE,
+                    JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+                    schemaName),
             catalogName,
             JdbcUtil.namespaceToString(identifier.namespace()),
             identifier.name());
@@ -399,8 +437,10 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
             JdbcUtil.stringToTableIdentifier(
                 row.getString(JdbcUtil.TABLE_NAMESPACE), row.getString(JdbcUtil.TABLE_NAME)),
         (schemaVersion == JdbcUtil.SchemaVersion.V1)
-            ? JdbcUtil.V1_LIST_TABLE_SQL
-            : JdbcUtil.V0_LIST_TABLE_SQL,
+            ? JdbcUtil.withTableName(
+                JdbcUtil.V1_LIST_TABLE_SQL_TEMPLATE, JdbcUtil.CATALOG_TABLE_VIEW_NAME, schemaName)
+            : JdbcUtil.withTableName(
+                JdbcUtil.V0_LIST_TABLE_SQL_TEMPLATE, JdbcUtil.CATALOG_TABLE_VIEW_NAME, schemaName),
         catalogName,
         JdbcUtil.namespaceToString(namespace));
   }
@@ -438,8 +478,14 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
               }
             },
             (schemaVersion == JdbcUtil.SchemaVersion.V1)
-                ? JdbcUtil.V1_RENAME_TABLE_SQL
-                : JdbcUtil.V0_RENAME_TABLE_SQL,
+                ? JdbcUtil.withTableName(
+                    JdbcUtil.V1_RENAME_TABLE_SQL_TEMPLATE,
+                    JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+                    schemaName)
+                : JdbcUtil.withTableName(
+                    JdbcUtil.V0_RENAME_TABLE_SQL_TEMPLATE,
+                    JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+                    schemaName),
             JdbcUtil.namespaceToString(to.namespace()),
             to.name(),
             catalogName,
@@ -493,12 +539,18 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     namespaces.addAll(
         fetch(
             row -> JdbcUtil.stringToNamespace(row.getString(JdbcUtil.TABLE_NAMESPACE)),
-            JdbcUtil.LIST_ALL_NAMESPACES_SQL,
+            JdbcUtil.withTableName(
+                JdbcUtil.LIST_ALL_NAMESPACES_SQL_TEMPLATE,
+                JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+                schemaName),
             catalogName));
     namespaces.addAll(
         fetch(
             row -> JdbcUtil.stringToNamespace(row.getString(JdbcUtil.NAMESPACE_NAME)),
-            JdbcUtil.LIST_ALL_PROPERTY_NAMESPACES_SQL,
+            JdbcUtil.withTableName(
+                JdbcUtil.LIST_ALL_PROPERTY_NAMESPACES_SQL_TEMPLATE,
+                JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME,
+                schemaName),
             catalogName));
 
     namespaces =
@@ -528,13 +580,19 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     namespaces.addAll(
         fetch(
             row -> JdbcUtil.stringToNamespace(row.getString(JdbcUtil.TABLE_NAMESPACE)),
-            JdbcUtil.LIST_NAMESPACES_SQL,
+            JdbcUtil.withTableName(
+                JdbcUtil.LIST_NAMESPACES_SQL_TEMPLATE,
+                JdbcUtil.CATALOG_TABLE_VIEW_NAME,
+                schemaName),
             catalogName,
             JdbcUtil.namespaceToString(namespace) + "%"));
     namespaces.addAll(
         fetch(
             row -> JdbcUtil.stringToNamespace(row.getString(JdbcUtil.NAMESPACE_NAME)),
-            JdbcUtil.LIST_PROPERTY_NAMESPACES_SQL,
+            JdbcUtil.withTableName(
+                JdbcUtil.LIST_PROPERTY_NAMESPACES_SQL_TEMPLATE,
+                JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME,
+                schemaName),
             catalogName,
             JdbcUtil.namespaceToString(namespace) + "%"));
 
@@ -616,7 +674,10 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
     int deletedRows =
         execute(
-            JdbcUtil.DELETE_ALL_NAMESPACE_PROPERTIES_SQL,
+            JdbcUtil.withTableName(
+                JdbcUtil.DELETE_ALL_NAMESPACE_PROPERTIES_SQL_TEMPLATE,
+                JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME,
+                schemaName),
             catalogName,
             JdbcUtil.namespaceToString(namespace));
 
@@ -696,7 +757,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public boolean namespaceExists(Namespace namespace) {
-    return JdbcUtil.namespaceExists(catalogName, connections, namespace);
+    return JdbcUtil.namespaceExists(schemaName, catalogName, connections, namespace);
   }
 
   @Override
@@ -715,7 +776,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
     int deletedRecords =
         execute(
-            JdbcUtil.DROP_VIEW_SQL,
+            JdbcUtil.withTableName(
+                JdbcUtil.DROP_VIEW_SQL_TEMPLATE, JdbcUtil.CATALOG_TABLE_VIEW_NAME, schemaName),
             catalogName,
             JdbcUtil.namespaceToString(identifier.namespace()),
             identifier.name());
@@ -747,7 +809,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
         row ->
             JdbcUtil.stringToTableIdentifier(
                 row.getString(JdbcUtil.TABLE_NAMESPACE), row.getString(JdbcUtil.TABLE_NAME)),
-        JdbcUtil.LIST_VIEW_SQL,
+        JdbcUtil.withTableName(
+            JdbcUtil.LIST_VIEW_SQL_TEMPLATE, JdbcUtil.CATALOG_TABLE_VIEW_NAME, schemaName),
         catalogName,
         JdbcUtil.namespaceToString(namespace));
   }
@@ -788,7 +851,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                     "Cannot rename %s to %s. View already exists", from, to);
               }
             },
-            JdbcUtil.RENAME_VIEW_SQL,
+            JdbcUtil.withTableName(
+                JdbcUtil.RENAME_VIEW_SQL_TEMPLATE, JdbcUtil.CATALOG_TABLE_VIEW_NAME, schemaName),
             JdbcUtil.namespaceToString(to.namespace()),
             to.name(),
             catalogName,
@@ -882,7 +946,10 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                 new AbstractMap.SimpleImmutableEntry<>(
                     row.getString(JdbcUtil.NAMESPACE_PROPERTY_KEY),
                     row.getString(JdbcUtil.NAMESPACE_PROPERTY_VALUE)),
-            JdbcUtil.GET_ALL_NAMESPACE_PROPERTIES_SQL,
+            JdbcUtil.withTableName(
+                JdbcUtil.GET_ALL_NAMESPACE_PROPERTIES_SQL_TEMPLATE,
+                JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME,
+                schemaName),
             catalogName,
             namespaceName);
 
@@ -891,48 +958,100 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
   private boolean insertProperties(Namespace namespace, Map<String, String> properties) {
     String namespaceName = JdbcUtil.namespaceToString(namespace);
-    String[] args =
-        properties.entrySet().stream()
-            .flatMap(
-                entry -> Stream.of(catalogName, namespaceName, entry.getKey(), entry.getValue()))
-            .toArray(String[]::new);
 
-    int insertedRecords = execute(JdbcUtil.insertPropertiesStatement(properties.size()), args);
+    try {
+      int[] insertedRecords =
+          connections.run(
+              conn -> {
+                try (PreparedStatement preparedStatement =
+                    conn.prepareStatement(
+                        JdbcUtil.withTableName(
+                            JdbcUtil.INSERT_NAMESPACE_PROPERTIES_SQL_TEMPLATE,
+                            JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME,
+                            schemaName))) {
+                  for (Map.Entry<String, String> entry : properties.entrySet()) {
+                    preparedStatement.setString(1, catalogName);
+                    preparedStatement.setString(2, namespaceName);
+                    preparedStatement.setString(3, entry.getKey());
+                    preparedStatement.setString(4, entry.getValue());
+                    preparedStatement.addBatch();
+                  }
+                  return preparedStatement.executeBatch();
+                }
+              });
 
-    if (insertedRecords == properties.size()) {
-      return true;
+      int successCount = 0;
+      for (int result : insertedRecords) {
+        if (result >= 0) {
+          successCount++;
+        }
+      }
+
+      if (successCount == properties.size()) {
+        return true;
+      }
+
+      throw new IllegalStateException(
+          String.format(
+              Locale.ROOT,
+              "Failed to insert: %d of %d succeeded",
+              successCount,
+              properties.size()));
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(
+          e, "Failed to insert properties for namespace: %s", namespace);
+    } catch (InterruptedException e) {
+      throw new UncheckedInterruptedException(e, "Interrupted in SQL command");
     }
-
-    throw new IllegalStateException(
-        String.format(
-            Locale.ROOT,
-            "Failed to insert: %d of %d succeeded",
-            insertedRecords,
-            properties.size()));
   }
 
   private boolean updateProperties(Namespace namespace, Map<String, String> properties) {
     String namespaceName = JdbcUtil.namespaceToString(namespace);
-    Stream<String> caseArgs =
-        properties.entrySet().stream()
-            .flatMap(entry -> Stream.of(entry.getKey(), entry.getValue()));
-    Stream<String> whereArgs =
-        Stream.concat(Stream.of(catalogName, namespaceName), properties.keySet().stream());
 
-    String[] args = Stream.concat(caseArgs, whereArgs).toArray(String[]::new);
+    try {
+      int[] updatedRecords =
+          connections.run(
+              conn -> {
+                try (PreparedStatement preparedStatement =
+                    conn.prepareStatement(
+                        JdbcUtil.withTableName(
+                            JdbcUtil.UPDATE_NAMESPACE_PROPERTY_SQL_TEMPLATE,
+                            JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME,
+                            schemaName))) {
+                  for (Map.Entry<String, String> entry : properties.entrySet()) {
+                    preparedStatement.setString(1, entry.getValue());
+                    preparedStatement.setString(2, catalogName);
+                    preparedStatement.setString(3, namespaceName);
+                    preparedStatement.setString(4, entry.getKey());
+                    preparedStatement.addBatch();
+                  }
+                  return preparedStatement.executeBatch();
+                }
+              });
 
-    int updatedRecords = execute(JdbcUtil.updatePropertiesStatement(properties.size()), args);
+      int successCount = 0;
+      for (int result : updatedRecords) {
+        if (result >= 0) {
+          successCount++;
+        }
+      }
 
-    if (updatedRecords == properties.size()) {
-      return true;
+      if (successCount == properties.size()) {
+        return true;
+      }
+
+      throw new IllegalStateException(
+          String.format(
+              Locale.ROOT,
+              "Failed to update: %d of %d succeeded",
+              successCount,
+              properties.size()));
+    } catch (SQLException e) {
+      throw new UncheckedSQLException(
+          e, "Failed to update properties for namespace: %s", namespace);
+    } catch (InterruptedException e) {
+      throw new UncheckedInterruptedException(e, "Interrupted in SQL command");
     }
-
-    throw new IllegalStateException(
-        String.format(
-            Locale.ROOT,
-            "Failed to update: %d of %d succeeded",
-            updatedRecords,
-            properties.size()));
   }
 
   private boolean deleteProperties(Namespace namespace, Set<String> properties) {
@@ -941,7 +1060,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
         Stream.concat(Stream.of(catalogName, namespaceName), properties.stream())
             .toArray(String[]::new);
 
-    return execute(JdbcUtil.deletePropertiesStatement(properties), args) > 0;
+    return execute(JdbcUtil.deletePropertiesStatement(properties, schemaName), args) > 0;
   }
 
   @Override

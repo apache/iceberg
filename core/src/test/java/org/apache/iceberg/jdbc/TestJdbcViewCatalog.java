@@ -110,7 +110,7 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
 
     try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
       mockedStatic
-          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any(), any()))
           .thenThrow(new SQLException());
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(UncheckedSQLException.class)
@@ -137,7 +137,7 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
 
     try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
       mockedStatic
-          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any(), any()))
           .thenThrow(new SQLException("constraint failed"));
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(AlreadyExistsException.class)

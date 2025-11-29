@@ -31,6 +31,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
@@ -38,6 +39,8 @@ import org.apache.iceberg.util.PropertyUtil;
 final class JdbcUtil {
   // property to control strict-mode (aka check if namespace exists when creating a table)
   static final String STRICT_MODE_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "strict-mode";
+  // property to control the schema name used for the catalog tables
+  static final String SCHEMA_NAME_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "schema";
   // property to control if view support is added to the existing database
   static final String SCHEMA_VERSION_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "schema-version";
   // property to control if catalog tables are created during initialization
@@ -54,6 +57,8 @@ final class JdbcUtil {
     V1
   }
 
+  public static final String TABLE_NAME_PLACEHOLDER = "${tableName}";
+
   // Catalog Table & View
   static final String CATALOG_TABLE_VIEW_NAME = "iceberg_tables";
   static final String CATALOG_NAME = "catalog_name";
@@ -63,9 +68,9 @@ final class JdbcUtil {
   static final String TABLE_RECORD_TYPE = "TABLE";
   static final String VIEW_RECORD_TYPE = "VIEW";
 
-  private static final String V1_DO_COMMIT_TABLE_SQL =
+  private static final String V1_DO_COMMIT_TABLE_SQL_TEMPLATE =
       "UPDATE "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " SET "
           + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ? , "
@@ -87,9 +92,9 @@ final class JdbcUtil {
           + " OR "
           + RECORD_TYPE
           + " IS NULL)";
-  private static final String V1_DO_COMMIT_VIEW_SQL =
+  private static final String V1_DO_COMMIT_VIEW_SQL_TEMPLATE =
       "UPDATE "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " SET "
           + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ? , "
@@ -109,9 +114,9 @@ final class JdbcUtil {
           + "'"
           + VIEW_RECORD_TYPE
           + "'";
-  private static final String V0_DO_COMMIT_SQL =
+  private static final String V0_DO_COMMIT_SQL_TEMPLATE =
       "UPDATE "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " SET "
           + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ? , "
@@ -126,9 +131,9 @@ final class JdbcUtil {
           + " = ? AND "
           + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ?";
-  static final String V0_CREATE_CATALOG_SQL =
+  static final String V0_CREATE_CATALOG_SQL_TEMPLATE =
       "CREATE TABLE "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + "("
           + CATALOG_NAME
           + " VARCHAR(255) NOT NULL,"
@@ -148,14 +153,14 @@ final class JdbcUtil {
           + TABLE_NAME
           + ")"
           + ")";
-  static final String V1_UPDATE_CATALOG_ORACLE_SQL =
-      "ALTER TABLE " + CATALOG_TABLE_VIEW_NAME + " ADD (" + RECORD_TYPE + " VARCHAR2(5))";
-  static final String V1_UPDATE_CATALOG_SQL =
-      "ALTER TABLE " + CATALOG_TABLE_VIEW_NAME + " ADD COLUMN " + RECORD_TYPE + " VARCHAR(5)";
+  static final String V1_UPDATE_CATALOG_ORACLE_SQL_TEMPLATE =
+      "ALTER TABLE " + TABLE_NAME_PLACEHOLDER + " ADD (" + RECORD_TYPE + " VARCHAR2(5))";
+  static final String V1_UPDATE_CATALOG_SQL_TEMPLATE =
+      "ALTER TABLE " + TABLE_NAME_PLACEHOLDER + " ADD COLUMN " + RECORD_TYPE + " VARCHAR(5)";
 
-  private static final String GET_VIEW_SQL =
+  private static final String GET_VIEW_SQL_TEMPLATE =
       "SELECT * FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -168,9 +173,9 @@ final class JdbcUtil {
           + "'"
           + VIEW_RECORD_TYPE
           + "'";
-  private static final String V1_GET_TABLE_SQL =
+  private static final String V1_GET_TABLE_SQL_TEMPLATE =
       "SELECT * FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -186,9 +191,9 @@ final class JdbcUtil {
           + " OR "
           + RECORD_TYPE
           + " IS NULL)";
-  private static final String V0_GET_TABLE_SQL =
+  private static final String V0_GET_TABLE_SQL_TEMPLATE =
       "SELECT * FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -196,9 +201,9 @@ final class JdbcUtil {
           + " = ? AND "
           + TABLE_NAME
           + " = ?";
-  static final String LIST_VIEW_SQL =
+  static final String LIST_VIEW_SQL_TEMPLATE =
       "SELECT * FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -209,9 +214,9 @@ final class JdbcUtil {
           + "'"
           + VIEW_RECORD_TYPE
           + "'";
-  static final String V1_LIST_TABLE_SQL =
+  static final String V1_LIST_TABLE_SQL_TEMPLATE =
       "SELECT * FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -225,17 +230,17 @@ final class JdbcUtil {
           + " OR "
           + RECORD_TYPE
           + " IS NULL)";
-  static final String V0_LIST_TABLE_SQL =
+  static final String V0_LIST_TABLE_SQL_TEMPLATE =
       "SELECT * FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
           + TABLE_NAMESPACE
           + " = ?";
-  static final String RENAME_VIEW_SQL =
+  static final String RENAME_VIEW_SQL_TEMPLATE =
       "UPDATE "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " SET "
           + TABLE_NAMESPACE
           + " = ?, "
@@ -253,9 +258,9 @@ final class JdbcUtil {
           + "'"
           + VIEW_RECORD_TYPE
           + "'";
-  static final String V1_RENAME_TABLE_SQL =
+  static final String V1_RENAME_TABLE_SQL_TEMPLATE =
       "UPDATE "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " SET "
           + TABLE_NAMESPACE
           + " = ?, "
@@ -276,9 +281,9 @@ final class JdbcUtil {
           + " OR "
           + RECORD_TYPE
           + " IS NULL)";
-  static final String V0_RENAME_TABLE_SQL =
+  static final String V0_RENAME_TABLE_SQL_TEMPLATE =
       "UPDATE "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " SET "
           + TABLE_NAMESPACE
           + " = ?, "
@@ -291,9 +296,9 @@ final class JdbcUtil {
           + " = ? AND "
           + TABLE_NAME
           + " = ?";
-  static final String DROP_VIEW_SQL =
+  static final String DROP_VIEW_SQL_TEMPLATE =
       "DELETE FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -306,9 +311,9 @@ final class JdbcUtil {
           + "'"
           + VIEW_RECORD_TYPE
           + "'";
-  static final String V1_DROP_TABLE_SQL =
+  static final String V1_DROP_TABLE_SQL_TEMPLATE =
       "DELETE FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -324,9 +329,9 @@ final class JdbcUtil {
           + " OR "
           + RECORD_TYPE
           + " IS NULL)";
-  static final String V0_DROP_TABLE_SQL =
+  static final String V0_DROP_TABLE_SQL_TEMPLATE =
       "DELETE FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -334,11 +339,11 @@ final class JdbcUtil {
           + "  = ? AND "
           + TABLE_NAME
           + " = ?";
-  private static final String GET_NAMESPACE_SQL =
+  private static final String GET_NAMESPACE_SQL_TEMPLATE =
       "SELECT "
           + TABLE_NAMESPACE
           + " FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -346,29 +351,28 @@ final class JdbcUtil {
           + TABLE_NAMESPACE
           + " = ? OR "
           + TABLE_NAMESPACE
-          + " LIKE ? ESCAPE '!')"
-          + " LIMIT 1";
-  static final String LIST_NAMESPACES_SQL =
+          + " LIKE ? ESCAPE '!')";
+  static final String LIST_NAMESPACES_SQL_TEMPLATE =
       "SELECT DISTINCT "
           + TABLE_NAMESPACE
           + " FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
           + TABLE_NAMESPACE
           + " LIKE ?";
-  static final String LIST_ALL_NAMESPACES_SQL =
+  static final String LIST_ALL_NAMESPACES_SQL_TEMPLATE =
       "SELECT DISTINCT "
           + TABLE_NAMESPACE
           + " FROM "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ?";
-  private static final String V1_DO_COMMIT_CREATE_SQL =
+  private static final String V1_DO_COMMIT_CREATE_SQL_TEMPLATE =
       "INSERT INTO "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " ("
           + CATALOG_NAME
           + ", "
@@ -383,9 +387,9 @@ final class JdbcUtil {
           + RECORD_TYPE
           + ") "
           + " VALUES (?,?,?,?,null,?)";
-  private static final String V0_DO_COMMIT_CREATE_SQL =
+  private static final String V0_DO_COMMIT_CREATE_SQL_TEMPLATE =
       "INSERT INTO "
-          + CATALOG_TABLE_VIEW_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " ("
           + CATALOG_NAME
           + ", "
@@ -405,9 +409,9 @@ final class JdbcUtil {
   static final String NAMESPACE_PROPERTY_KEY = "property_key";
   static final String NAMESPACE_PROPERTY_VALUE = "property_value";
 
-  static final String CREATE_NAMESPACE_PROPERTIES_TABLE_SQL =
+  static final String CREATE_NAMESPACE_PROPERTIES_TABLE_SQL_TEMPLATE =
       "CREATE TABLE "
-          + NAMESPACE_PROPERTIES_TABLE_NAME
+          + TABLE_NAME_PLACEHOLDER
           + "("
           + CATALOG_NAME
           + " VARCHAR(255) NOT NULL,"
@@ -425,11 +429,11 @@ final class JdbcUtil {
           + NAMESPACE_PROPERTY_KEY
           + ")"
           + ")";
-  static final String GET_NAMESPACE_PROPERTIES_SQL =
+  static final String GET_NAMESPACE_PROPERTIES_SQL_TEMPLATE =
       "SELECT "
           + NAMESPACE_NAME
           + " FROM "
-          + NAMESPACE_PROPERTIES_TABLE_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -439,9 +443,9 @@ final class JdbcUtil {
           + NAMESPACE_NAME
           + " LIKE ? ESCAPE '!' "
           + " ) ";
-  static final String INSERT_NAMESPACE_PROPERTIES_SQL =
+  static final String INSERT_NAMESPACE_PROPERTIES_SQL_TEMPLATE =
       "INSERT INTO "
-          + NAMESPACE_PROPERTIES_TABLE_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " ("
           + CATALOG_NAME
           + ", "
@@ -450,20 +454,32 @@ final class JdbcUtil {
           + NAMESPACE_PROPERTY_KEY
           + ", "
           + NAMESPACE_PROPERTY_VALUE
-          + ") VALUES ";
-  static final String INSERT_PROPERTIES_VALUES_BASE = "(?,?,?,?)";
-  static final String GET_ALL_NAMESPACE_PROPERTIES_SQL =
+          + ") VALUES (?,?,?,?)";
+
+  static final String UPDATE_NAMESPACE_PROPERTY_SQL_TEMPLATE =
+      "UPDATE "
+          + TABLE_NAME_PLACEHOLDER
+          + " SET "
+          + NAMESPACE_PROPERTY_VALUE
+          + " = ? WHERE "
+          + CATALOG_NAME
+          + " = ? AND "
+          + NAMESPACE_NAME
+          + " = ? AND "
+          + NAMESPACE_PROPERTY_KEY
+          + " = ?";
+  static final String GET_ALL_NAMESPACE_PROPERTIES_SQL_TEMPLATE =
       "SELECT * "
           + " FROM "
-          + NAMESPACE_PROPERTIES_TABLE_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
           + NAMESPACE_NAME
           + " = ? ";
-  static final String DELETE_NAMESPACE_PROPERTIES_SQL =
+  static final String DELETE_NAMESPACE_PROPERTIES_SQL_TEMPLATE =
       "DELETE FROM "
-          + NAMESPACE_PROPERTIES_TABLE_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
@@ -471,29 +487,29 @@ final class JdbcUtil {
           + " = ? AND "
           + NAMESPACE_PROPERTY_KEY
           + " IN ";
-  static final String DELETE_ALL_NAMESPACE_PROPERTIES_SQL =
+  static final String DELETE_ALL_NAMESPACE_PROPERTIES_SQL_TEMPLATE =
       "DELETE FROM "
-          + NAMESPACE_PROPERTIES_TABLE_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
           + NAMESPACE_NAME
           + " = ?";
-  static final String LIST_PROPERTY_NAMESPACES_SQL =
+  static final String LIST_PROPERTY_NAMESPACES_SQL_TEMPLATE =
       "SELECT DISTINCT "
           + NAMESPACE_NAME
           + " FROM "
-          + NAMESPACE_PROPERTIES_TABLE_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ? AND "
           + NAMESPACE_NAME
           + " LIKE ?";
-  static final String LIST_ALL_PROPERTY_NAMESPACES_SQL =
+  static final String LIST_ALL_PROPERTY_NAMESPACES_SQL_TEMPLATE =
       "SELECT DISTINCT "
           + NAMESPACE_NAME
           + " FROM "
-          + NAMESPACE_PROPERTIES_TABLE_NAME
+          + TABLE_NAME_PLACEHOLDER
           + " WHERE "
           + CATALOG_NAME
           + " = ?";
@@ -529,6 +545,7 @@ final class JdbcUtil {
 
   private static int update(
       boolean isTable,
+      String schemaName,
       SchemaVersion schemaVersion,
       JdbcClientPool connections,
       String catalogName,
@@ -541,8 +558,13 @@ final class JdbcUtil {
           try (PreparedStatement sql =
               conn.prepareStatement(
                   (schemaVersion == SchemaVersion.V1)
-                      ? (isTable ? V1_DO_COMMIT_TABLE_SQL : V1_DO_COMMIT_VIEW_SQL)
-                      : V0_DO_COMMIT_SQL)) {
+                      ? (isTable
+                          ? withTableName(
+                              V1_DO_COMMIT_TABLE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName)
+                          : withTableName(
+                              V1_DO_COMMIT_VIEW_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName))
+                      : withTableName(
+                          V0_DO_COMMIT_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName))) {
             // UPDATE
             sql.setString(1, newMetadataLocation);
             sql.setString(2, oldMetadataLocation);
@@ -558,6 +580,7 @@ final class JdbcUtil {
   }
 
   static int updateTable(
+      String schemaName,
       SchemaVersion schemaVersion,
       JdbcClientPool connections,
       String catalogName,
@@ -567,6 +590,7 @@ final class JdbcUtil {
       throws SQLException, InterruptedException {
     return update(
         true,
+        schemaName,
         schemaVersion,
         connections,
         catalogName,
@@ -576,6 +600,7 @@ final class JdbcUtil {
   }
 
   static int updateView(
+      String schemaName,
       JdbcClientPool connections,
       String catalogName,
       TableIdentifier viewIdentifier,
@@ -584,6 +609,7 @@ final class JdbcUtil {
       throws SQLException, InterruptedException {
     return update(
         false,
+        schemaName,
         SchemaVersion.V1,
         connections,
         catalogName,
@@ -594,6 +620,7 @@ final class JdbcUtil {
 
   private static Map<String, String> tableOrView(
       boolean isTable,
+      String schemaName,
       SchemaVersion schemaVersion,
       JdbcClientPool connections,
       String catalogName,
@@ -606,8 +633,13 @@ final class JdbcUtil {
           try (PreparedStatement sql =
               conn.prepareStatement(
                   isTable
-                      ? ((schemaVersion == SchemaVersion.V1) ? V1_GET_TABLE_SQL : V0_GET_TABLE_SQL)
-                      : GET_VIEW_SQL)) {
+                      ? ((schemaVersion == SchemaVersion.V1)
+                          ? withTableName(
+                              V1_GET_TABLE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName)
+                          : withTableName(
+                              V0_GET_TABLE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName))
+                      : withTableName(
+                          GET_VIEW_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName))) {
             sql.setString(1, catalogName);
             sql.setString(2, namespaceToString(identifier.namespace()));
             sql.setString(3, identifier.name());
@@ -633,25 +665,28 @@ final class JdbcUtil {
   }
 
   static Map<String, String> loadTable(
+      String schemaName,
       SchemaVersion schemaVersion,
       JdbcClientPool connections,
       String catalogName,
       TableIdentifier identifier)
       throws SQLException, InterruptedException {
-    return tableOrView(true, schemaVersion, connections, catalogName, identifier);
+    return tableOrView(true, schemaName, schemaVersion, connections, catalogName, identifier);
   }
 
   static Map<String, String> loadView(
+      String schemaName,
       SchemaVersion schemaVersion,
       JdbcClientPool connections,
       String catalogName,
       TableIdentifier identifier)
       throws SQLException, InterruptedException {
-    return tableOrView(false, schemaVersion, connections, catalogName, identifier);
+    return tableOrView(false, schemaName, schemaVersion, connections, catalogName, identifier);
   }
 
   private static int doCommitCreate(
       boolean isTable,
+      String schemaName,
       SchemaVersion schemaVersion,
       JdbcClientPool connections,
       String catalogName,
@@ -664,8 +699,10 @@ final class JdbcUtil {
           try (PreparedStatement sql =
               conn.prepareStatement(
                   (schemaVersion == SchemaVersion.V1)
-                      ? V1_DO_COMMIT_CREATE_SQL
-                      : V0_DO_COMMIT_CREATE_SQL)) {
+                      ? withTableName(
+                          V1_DO_COMMIT_CREATE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName)
+                      : withTableName(
+                          V0_DO_COMMIT_CREATE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName))) {
             sql.setString(1, catalogName);
             sql.setString(2, namespaceToString(namespace));
             sql.setString(3, identifier.name());
@@ -680,6 +717,7 @@ final class JdbcUtil {
   }
 
   static int doCommitCreateTable(
+      String schemaName,
       SchemaVersion schemaVersion,
       JdbcClientPool connections,
       String catalogName,
@@ -689,6 +727,7 @@ final class JdbcUtil {
       throws SQLException, InterruptedException {
     return doCommitCreate(
         true,
+        schemaName,
         schemaVersion,
         connections,
         catalogName,
@@ -698,6 +737,7 @@ final class JdbcUtil {
   }
 
   static int doCommitCreateView(
+      String schemaName,
       JdbcClientPool connections,
       String catalogName,
       Namespace namespace,
@@ -706,6 +746,7 @@ final class JdbcUtil {
       throws SQLException, InterruptedException {
     return doCommitCreate(
         false,
+        schemaName,
         SchemaVersion.V1,
         connections,
         catalogName,
@@ -715,70 +756,41 @@ final class JdbcUtil {
   }
 
   static boolean viewExists(
-      String catalogName, JdbcClientPool connections, TableIdentifier viewIdentifier) {
+      String schemaName,
+      String catalogName,
+      JdbcClientPool connections,
+      TableIdentifier viewIdentifier) {
     return exists(
         connections,
-        GET_VIEW_SQL,
+        withTableName(GET_VIEW_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName),
         catalogName,
         namespaceToString(viewIdentifier.namespace()),
         viewIdentifier.name());
   }
 
   static boolean tableExists(
+      String schemaName,
       SchemaVersion schemaVersion,
       String catalogName,
       JdbcClientPool connections,
       TableIdentifier tableIdentifier) {
     return exists(
         connections,
-        (schemaVersion == SchemaVersion.V1) ? V1_GET_TABLE_SQL : V0_GET_TABLE_SQL,
+        (schemaVersion == SchemaVersion.V1)
+            ? withTableName(V1_GET_TABLE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName)
+            : withTableName(V0_GET_TABLE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName),
         catalogName,
         namespaceToString(tableIdentifier.namespace()),
         tableIdentifier.name());
   }
 
-  static String updatePropertiesStatement(int size) {
+  static String deletePropertiesStatement(Set<String> properties, String schemaName) {
     StringBuilder sqlStatement =
         new StringBuilder(
-            "UPDATE "
-                + NAMESPACE_PROPERTIES_TABLE_NAME
-                + " SET "
-                + NAMESPACE_PROPERTY_VALUE
-                + " = CASE");
-    for (int i = 0; i < size; i += 1) {
-      sqlStatement.append(" WHEN " + NAMESPACE_PROPERTY_KEY + " = ? THEN ?");
-    }
-
-    sqlStatement.append(
-        " END WHERE "
-            + CATALOG_NAME
-            + " = ? AND "
-            + NAMESPACE_NAME
-            + " = ? AND "
-            + NAMESPACE_PROPERTY_KEY
-            + " IN ");
-
-    String values = String.join(",", Collections.nCopies(size, String.valueOf('?')));
-    sqlStatement.append("(").append(values).append(")");
-
-    return sqlStatement.toString();
-  }
-
-  static String insertPropertiesStatement(int size) {
-    StringBuilder sqlStatement = new StringBuilder(JdbcUtil.INSERT_NAMESPACE_PROPERTIES_SQL);
-
-    for (int i = 0; i < size; i++) {
-      if (i != 0) {
-        sqlStatement.append(", ");
-      }
-      sqlStatement.append(JdbcUtil.INSERT_PROPERTIES_VALUES_BASE);
-    }
-
-    return sqlStatement.toString();
-  }
-
-  static String deletePropertiesStatement(Set<String> properties) {
-    StringBuilder sqlStatement = new StringBuilder(JdbcUtil.DELETE_NAMESPACE_PROPERTIES_SQL);
+            withTableName(
+                JdbcUtil.DELETE_NAMESPACE_PROPERTIES_SQL_TEMPLATE,
+                NAMESPACE_PROPERTIES_TABLE_NAME,
+                schemaName));
     String values = String.join(",", Collections.nCopies(properties.size(), String.valueOf('?')));
     sqlStatement.append("(").append(values).append(")");
 
@@ -786,20 +798,28 @@ final class JdbcUtil {
   }
 
   static boolean namespaceExists(
-      String catalogName, JdbcClientPool connections, Namespace namespace) {
+      String schemaName, String catalogName, JdbcClientPool connections, Namespace namespace) {
 
     String namespaceEquals = JdbcUtil.namespaceToString(namespace);
     // when namespace has sub-namespace then additionally checking it with LIKE statement.
     // catalog.db can exists as: catalog.db.ns1 or catalog.db.ns1.ns2
     String namespaceStartsWith =
         namespaceEquals.replace("!", "!!").replace("_", "!_").replace("%", "!%") + ".%";
-    if (exists(connections, GET_NAMESPACE_SQL, catalogName, namespaceEquals, namespaceStartsWith)) {
+    if (exists(
+        connections,
+        withTableName(GET_NAMESPACE_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, schemaName),
+        catalogName,
+        namespaceEquals,
+        namespaceStartsWith)) {
       return true;
     }
 
     return exists(
         connections,
-        JdbcUtil.GET_NAMESPACE_PROPERTIES_SQL,
+        withTableName(
+            JdbcUtil.GET_NAMESPACE_PROPERTIES_SQL_TEMPLATE,
+            NAMESPACE_PROPERTIES_TABLE_NAME,
+            schemaName),
         catalogName,
         namespaceEquals,
         namespaceStartsWith);
@@ -811,6 +831,9 @@ final class JdbcUtil {
       return connections.run(
           conn -> {
             try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+              // Limit result set to 1 row for performance (works with all databases)
+              preparedStatement.setMaxRows(1);
+
               for (int pos = 0; pos < args.length; pos += 1) {
                 preparedStatement.setString(pos + 1, args[pos]);
               }
@@ -830,5 +853,18 @@ final class JdbcUtil {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in SQL query");
     }
+  }
+
+  public static String tableName(String tableName, String schemaName) {
+    if (Strings.isNullOrEmpty(schemaName)) {
+      return tableName;
+    } else {
+      return schemaName + "." + tableName;
+    }
+  }
+
+  public static String withTableName(
+      String sqlTemplate, String catalogTableViewName, String schemaName) {
+    return sqlTemplate.replace(TABLE_NAME_PLACEHOLDER, tableName(catalogTableViewName, schemaName));
   }
 }
