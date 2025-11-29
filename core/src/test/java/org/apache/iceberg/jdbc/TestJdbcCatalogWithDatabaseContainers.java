@@ -75,11 +75,6 @@ public class TestJdbcCatalogWithDatabaseContainers {
     testCatalogOperations(jdbcCatalog);
   }
 
-  @Test
-  void mytest() {
-    testInitializeAndOperationsWithOracle("iceberg_schema");
-  }
-
   @ParameterizedTest(name = "schema {0}")
   @ValueSource(strings = {DEFAULT, ICEBERG_SCHEMA})
   public void testInitializeAndOperationsWithPostgres(String schemaName) {
