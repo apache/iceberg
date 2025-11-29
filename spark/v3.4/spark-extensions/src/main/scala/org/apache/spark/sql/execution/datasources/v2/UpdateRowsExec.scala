@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.rdd.RDD
@@ -33,7 +32,8 @@ case class UpdateRowsExec(
     deleteOutput: Seq[Expression],
     insertOutput: Seq[Expression],
     output: Seq[Attribute],
-    child: SparkPlan) extends UnaryExecNode {
+    child: SparkPlan)
+    extends UnaryExecNode {
 
   @transient override lazy val producedAttributes: AttributeSet = {
     AttributeSet(output.filterNot(attr => inputSet.contains(attr)))
@@ -65,7 +65,7 @@ case class UpdateRowsExec(
       private val inputRows: Iterator[InternalRow],
       private val deleteProj: UnsafeProjection,
       private val insertProj: UnsafeProjection)
-    extends Iterator[InternalRow] {
+      extends Iterator[InternalRow] {
 
     var cachedInsertRow: InternalRow = _
 

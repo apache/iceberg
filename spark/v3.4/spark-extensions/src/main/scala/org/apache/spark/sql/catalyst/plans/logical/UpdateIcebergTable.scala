@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.AssignmentUtils
@@ -26,7 +25,8 @@ case class UpdateIcebergTable(
     table: LogicalPlan,
     assignments: Seq[Assignment],
     condition: Option[Expression],
-    rewritePlan: Option[LogicalPlan] = None) extends RowLevelCommand {
+    rewritePlan: Option[LogicalPlan] = None)
+    extends RowLevelCommand {
 
   lazy val aligned: Boolean = AssignmentUtils.aligned(table, assignments)
 

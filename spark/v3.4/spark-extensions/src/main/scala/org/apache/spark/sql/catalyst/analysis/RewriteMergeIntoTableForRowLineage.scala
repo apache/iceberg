@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.catalyst.expressions.Literal
@@ -32,9 +31,9 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan.resolveOperators {
       case m @ MergeIntoIcebergTable(_, _, _, matchedActions, _, _)
-        if m.resolved && m.aligned &&
-          matchedActions.nonEmpty &&
-          shouldUpdatePlan(m.targetTable) =>
+          if m.resolved && m.aligned &&
+            matchedActions.nonEmpty &&
+            shouldUpdatePlan(m.targetTable) =>
         updateMergeIntoForRowLineage(m)
     }
   }
@@ -48,17 +47,22 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
 
         val matchedAssignmentsForLineage = matchedActions.map {
           case UpdateAction(cond, assignments) =>
-            UpdateAction(cond, assignments ++ Seq(Assignment(rowId, rowId),
-              Assignment(lastUpdatedSequenceNumber, Literal(null))))
+            UpdateAction(
+              cond,
+              assignments ++ Seq(
+                Assignment(rowId, rowId),
+                Assignment(lastUpdatedSequenceNumber, Literal(null))))
 
           case deleteAction => deleteAction
         }
 
         val notMatchedActionsForLineage = notMatchedActions.map {
           case InsertAction(cond, assignments) =>
-            InsertAction(cond, assignments ++ Seq(
-              Assignment(rowId, Literal(null)),
-              Assignment(lastUpdatedSequenceNumber, Literal(null))))
+            InsertAction(
+              cond,
+              assignments ++ Seq(
+                Assignment(rowId, Literal(null)),
+                Assignment(lastUpdatedSequenceNumber, Literal(null))))
         }
 
         val tableWithLineage = r.copy(output = r.output ++ Seq(rowId, lastUpdatedSequenceNumber))

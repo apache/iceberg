@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -53,7 +52,8 @@ case class ResolveMergeIntoTableReferences(spark: SparkSession) extends Rule[Log
         case UpdateAction(cond, assignments) =>
           val resolvedCond = cond.map(resolveCond("UPDATE", _, m))
           // the update action can access columns from both target and source tables
-          val resolvedAssignments = resolveAssignments(assignments, m, resolveValuesWithSourceOnly = false)
+          val resolvedAssignments =
+            resolveAssignments(assignments, m, resolveValuesWithSourceOnly = false)
           UpdateAction(resolvedCond, resolvedAssignments)
 
         case UpdateStarAction(updateCondition) =>
@@ -62,7 +62,8 @@ case class ResolveMergeIntoTableReferences(spark: SparkSession) extends Rule[Log
             Assignment(attr, UnresolvedAttribute(Seq(attr.name)))
           }
           // for UPDATE *, the value must be from the source table
-          val resolvedAssignments = resolveAssignments(assignments, m, resolveValuesWithSourceOnly = true)
+          val resolvedAssignments =
+            resolveAssignments(assignments, m, resolveValuesWithSourceOnly = true)
           UpdateAction(resolvedUpdateCondition, resolvedAssignments)
 
         case _ =>
@@ -74,7 +75,8 @@ case class ResolveMergeIntoTableReferences(spark: SparkSession) extends Rule[Log
           // the insert action is used when not matched, so its condition and value can only
           // access columns from the source table
           val resolvedCond = cond.map(resolveCond("INSERT", _, Project(Nil, m.sourceTable)))
-          val resolvedAssignments = resolveAssignments(assignments, m, resolveValuesWithSourceOnly = true)
+          val resolvedAssignments =
+            resolveAssignments(assignments, m, resolveValuesWithSourceOnly = true)
           InsertAction(resolvedCond, resolvedAssignments)
 
         case InsertStarAction(cond) =>
@@ -84,7 +86,8 @@ case class ResolveMergeIntoTableReferences(spark: SparkSession) extends Rule[Log
           val assignments = targetTable.output.map { attr =>
             Assignment(attr, UnresolvedAttribute(Seq(attr.name)))
           }
-          val resolvedAssignments = resolveAssignments(assignments, m, resolveValuesWithSourceOnly = true)
+          val resolvedAssignments =
+            resolveAssignments(assignments, m, resolveValuesWithSourceOnly = true)
           InsertAction(resolvedCond, resolvedAssignments)
 
         case _ =>
@@ -108,7 +111,7 @@ case class ResolveMergeIntoTableReferences(spark: SparkSession) extends Rule[Log
     if (unresolvedAttrs.nonEmpty) {
       throw new AnalysisException(
         s"Cannot resolve ${unresolvedAttrs.map(_.sql).mkString("[", ",", "]")} in $condName condition " +
-        s"of MERGE operation given input columns: ${plan.inputSet.toSeq.map(_.sql).mkString("[", ",", "]")}")
+          s"of MERGE operation given input columns: ${plan.inputSet.toSeq.map(_.sql).mkString("[", ",", "]")}")
     }
 
     resolvedCond

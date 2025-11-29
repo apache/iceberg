@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.parser.extensions
 
 import java.util.Locale
@@ -63,9 +62,11 @@ import org.apache.spark.sql.connector.expressions.LiteralValue
 import org.apache.spark.sql.connector.expressions.Transform
 import scala.jdk.CollectionConverters._
 
-class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
+class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface)
+    extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
 
-  private def toBuffer[T](list: java.util.List[T]): scala.collection.mutable.Buffer[T] = list.asScala
+  private def toBuffer[T](list: java.util.List[T]): scala.collection.mutable.Buffer[T] =
+    list.asScala
   private def toSeq[T](list: java.util.List[T]): Seq[T] = toBuffer(list).toSeq
 
   /**
@@ -80,52 +81,59 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   /**
    * Create an ADD PARTITION FIELD logical command.
    */
-  override def visitAddPartitionField(ctx: AddPartitionFieldContext): AddPartitionField = withOrigin(ctx) {
-    AddPartitionField(
-      typedVisit[Seq[String]](ctx.multipartIdentifier),
-      typedVisit[Transform](ctx.transform),
-      Option(ctx.name).map(_.getText))
-  }
+  override def visitAddPartitionField(ctx: AddPartitionFieldContext): AddPartitionField =
+    withOrigin(ctx) {
+      AddPartitionField(
+        typedVisit[Seq[String]](ctx.multipartIdentifier),
+        typedVisit[Transform](ctx.transform),
+        Option(ctx.name).map(_.getText))
+    }
 
   /**
    * Create a DROP PARTITION FIELD logical command.
    */
-  override def visitDropPartitionField(ctx: DropPartitionFieldContext): DropPartitionField = withOrigin(ctx) {
-    DropPartitionField(
-      typedVisit[Seq[String]](ctx.multipartIdentifier),
-      typedVisit[Transform](ctx.transform))
-  }
+  override def visitDropPartitionField(ctx: DropPartitionFieldContext): DropPartitionField =
+    withOrigin(ctx) {
+      DropPartitionField(
+        typedVisit[Seq[String]](ctx.multipartIdentifier),
+        typedVisit[Transform](ctx.transform))
+    }
 
   /**
    * Create a CREATE OR REPLACE BRANCH logical command.
    */
-  override def visitCreateOrReplaceBranch(ctx: CreateOrReplaceBranchContext): CreateOrReplaceBranch = withOrigin(ctx) {
+  override def visitCreateOrReplaceBranch(
+      ctx: CreateOrReplaceBranchContext): CreateOrReplaceBranch = withOrigin(ctx) {
     val createOrReplaceBranchClause = ctx.createReplaceBranchClause()
 
     val branchName = createOrReplaceBranchClause.identifier()
     val branchOptionsContext = Option(createOrReplaceBranchClause.branchOptions())
-    val snapshotId = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotId()))
+    val snapshotId = branchOptionsContext
+      .flatMap(branchOptions => Option(branchOptions.snapshotId()))
       .map(_.getText.toLong)
-    val snapshotRetention = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotRetention()))
-    val minSnapshotsToKeep = snapshotRetention.flatMap(retention => Option(retention.minSnapshotsToKeep()))
+    val snapshotRetention =
+      branchOptionsContext.flatMap(branchOptions => Option(branchOptions.snapshotRetention()))
+    val minSnapshotsToKeep = snapshotRetention
+      .flatMap(retention => Option(retention.minSnapshotsToKeep()))
       .map(minSnapshots => minSnapshots.number().getText.toLong)
     val maxSnapshotAgeMs = snapshotRetention
       .flatMap(retention => Option(retention.maxSnapshotAge()))
-      .map(retention => TimeUnit.valueOf(retention.timeUnit().getText.toUpperCase(Locale.ENGLISH))
-        .toMillis(retention.number().getText.toLong))
-    val branchRetention = branchOptionsContext.flatMap(branchOptions => Option(branchOptions.refRetain()))
+      .map(retention =>
+        TimeUnit
+          .valueOf(retention.timeUnit().getText.toUpperCase(Locale.ENGLISH))
+          .toMillis(retention.number().getText.toLong))
+    val branchRetention =
+      branchOptionsContext.flatMap(branchOptions => Option(branchOptions.refRetain()))
     val branchRefAgeMs = branchRetention.map(retain =>
-      TimeUnit.valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH)).toMillis(retain.number().getText.toLong))
+      TimeUnit
+        .valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH))
+        .toMillis(retain.number().getText.toLong))
     val create = createOrReplaceBranchClause.CREATE() != null
     val replace = ctx.createReplaceBranchClause().REPLACE() != null
     val ifNotExists = createOrReplaceBranchClause.EXISTS() != null
 
-    val branchOptions = BranchOptions(
-      snapshotId,
-      minSnapshotsToKeep,
-      maxSnapshotAgeMs,
-      branchRefAgeMs
-    )
+    val branchOptions =
+      BranchOptions(snapshotId, minSnapshotsToKeep, maxSnapshotAgeMs, branchRefAgeMs)
 
     CreateOrReplaceBranch(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
@@ -139,52 +147,61 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   /**
    * Create an CREATE OR REPLACE TAG logical command.
    */
-  override def visitCreateOrReplaceTag(ctx: CreateOrReplaceTagContext): CreateOrReplaceTag = withOrigin(ctx) {
-    val createTagClause = ctx.createReplaceTagClause()
+  override def visitCreateOrReplaceTag(ctx: CreateOrReplaceTagContext): CreateOrReplaceTag =
+    withOrigin(ctx) {
+      val createTagClause = ctx.createReplaceTagClause()
 
-    val tagName = createTagClause.identifier().getText
+      val tagName = createTagClause.identifier().getText
 
-    val tagOptionsContext = Option(createTagClause.tagOptions())
-    val snapshotId = tagOptionsContext.flatMap(tagOptions => Option(tagOptions.snapshotId()))
-      .map(_.getText.toLong)
-    val tagRetain = tagOptionsContext.flatMap(tagOptions => Option(tagOptions.refRetain()))
-    val tagRefAgeMs = tagRetain.map(retain =>
-      TimeUnit.valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH)).toMillis(retain.number().getText.toLong))
-    val tagOptions = TagOptions(
-      snapshotId,
-      tagRefAgeMs
-    )
+      val tagOptionsContext = Option(createTagClause.tagOptions())
+      val snapshotId = tagOptionsContext
+        .flatMap(tagOptions => Option(tagOptions.snapshotId()))
+        .map(_.getText.toLong)
+      val tagRetain = tagOptionsContext.flatMap(tagOptions => Option(tagOptions.refRetain()))
+      val tagRefAgeMs = tagRetain.map(retain =>
+        TimeUnit
+          .valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH))
+          .toMillis(retain.number().getText.toLong))
+      val tagOptions = TagOptions(snapshotId, tagRefAgeMs)
 
-    val create = createTagClause.CREATE() != null
-    val replace = createTagClause.REPLACE() != null
-    val ifNotExists = createTagClause.EXISTS() != null
+      val create = createTagClause.CREATE() != null
+      val replace = createTagClause.REPLACE() != null
+      val ifNotExists = createTagClause.EXISTS() != null
 
-    CreateOrReplaceTag(typedVisit[Seq[String]](ctx.multipartIdentifier),
-      tagName,
-      tagOptions,
-      create,
-      replace,
-      ifNotExists)
-  }
+      CreateOrReplaceTag(
+        typedVisit[Seq[String]](ctx.multipartIdentifier),
+        tagName,
+        tagOptions,
+        create,
+        replace,
+        ifNotExists)
+    }
 
   /**
    * Create an DROP BRANCH logical command.
    */
   override def visitDropBranch(ctx: DropBranchContext): DropBranch = withOrigin(ctx) {
-    DropBranch(typedVisit[Seq[String]](ctx.multipartIdentifier), ctx.identifier().getText, ctx.EXISTS() != null)
+    DropBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      ctx.EXISTS() != null)
   }
 
   /**
    * Create an DROP TAG logical command.
    */
   override def visitDropTag(ctx: DropTagContext): DropTag = withOrigin(ctx) {
-    DropTag(typedVisit[Seq[String]](ctx.multipartIdentifier), ctx.identifier().getText, ctx.EXISTS() != null)
+    DropTag(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      ctx.EXISTS() != null)
   }
 
   /**
    * Create an REPLACE PARTITION FIELD logical command.
    */
-  override def visitReplacePartitionField(ctx: ReplacePartitionFieldContext): ReplacePartitionField = withOrigin(ctx) {
+  override def visitReplacePartitionField(
+      ctx: ReplacePartitionFieldContext): ReplacePartitionField = withOrigin(ctx) {
     ReplacePartitionField(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       typedVisit[Transform](ctx.transform(0)),
@@ -195,20 +212,22 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   /**
    * Create an SET IDENTIFIER FIELDS logical command.
    */
-  override def visitSetIdentifierFields(ctx: SetIdentifierFieldsContext): SetIdentifierFields = withOrigin(ctx) {
-    SetIdentifierFields(
-      typedVisit[Seq[String]](ctx.multipartIdentifier),
-      toSeq(ctx.fieldList.fields).map(_.getText))
-  }
+  override def visitSetIdentifierFields(ctx: SetIdentifierFieldsContext): SetIdentifierFields =
+    withOrigin(ctx) {
+      SetIdentifierFields(
+        typedVisit[Seq[String]](ctx.multipartIdentifier),
+        toSeq(ctx.fieldList.fields).map(_.getText))
+    }
 
   /**
    * Create an DROP IDENTIFIER FIELDS logical command.
    */
-  override def visitDropIdentifierFields(ctx: DropIdentifierFieldsContext): DropIdentifierFields = withOrigin(ctx) {
-    DropIdentifierFields(
-      typedVisit[Seq[String]](ctx.multipartIdentifier),
-      toSeq(ctx.fieldList.fields).map(_.getText))
-  }
+  override def visitDropIdentifierFields(ctx: DropIdentifierFieldsContext): DropIdentifierFields =
+    withOrigin(ctx) {
+      DropIdentifierFields(
+        typedVisit[Seq[String]](ctx.multipartIdentifier),
+        toSeq(ctx.fieldList.fields).map(_.getText))
+    }
 
   /**
    * Create a [[SetWriteDistributionAndOrdering]] for changing the write distribution and ordering.
@@ -266,12 +285,15 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    */
   override def visitOrderField(ctx: OrderFieldContext): (Term, SortDirection, NullOrder) = {
     val term = Spark3Util.toIcebergTerm(typedVisit[Transform](ctx.transform))
-    val direction = Option(ctx.ASC).map(_ => SortDirection.ASC)
-        .orElse(Option(ctx.DESC).map(_ => SortDirection.DESC))
-        .getOrElse(SortDirection.ASC)
-    val nullOrder = Option(ctx.FIRST).map(_ => NullOrder.NULLS_FIRST)
-        .orElse(Option(ctx.LAST).map(_ => NullOrder.NULLS_LAST))
-        .getOrElse(if (direction == SortDirection.ASC) NullOrder.NULLS_FIRST else NullOrder.NULLS_LAST)
+    val direction = Option(ctx.ASC)
+      .map(_ => SortDirection.ASC)
+      .orElse(Option(ctx.DESC).map(_ => SortDirection.DESC))
+      .getOrElse(SortDirection.ASC)
+    val nullOrder = Option(ctx.FIRST)
+      .map(_ => NullOrder.NULLS_FIRST)
+      .orElse(Option(ctx.LAST).map(_ => NullOrder.NULLS_LAST))
+      .getOrElse(
+        if (direction == SortDirection.ASC) NullOrder.NULLS_FIRST else NullOrder.NULLS_LAST)
     (term, direction, nullOrder)
   }
 
@@ -293,35 +315,40 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   /**
    * Create a transform argument from a column reference or a constant.
    */
-  override def visitTransformArgument(ctx: TransformArgumentContext): expressions.Expression = withOrigin(ctx) {
-    val reference = Option(ctx.multipartIdentifier())
+  override def visitTransformArgument(ctx: TransformArgumentContext): expressions.Expression =
+    withOrigin(ctx) {
+      val reference = Option(ctx.multipartIdentifier())
         .map(typedVisit[Seq[String]])
         .map(FieldReference(_))
-    val literal = Option(ctx.constant)
+      val literal = Option(ctx.constant)
         .map(visitConstant)
         .map(lit => LiteralValue(lit.value, lit.dataType))
-    reference.orElse(literal)
+      reference
+        .orElse(literal)
         .getOrElse(throw new IcebergParseException(s"Invalid transform argument", ctx))
-  }
+    }
 
   /**
    * Return a multi-part identifier as Seq[String].
    */
-  override def visitMultipartIdentifier(ctx: MultipartIdentifierContext): Seq[String] = withOrigin(ctx) {
-    toSeq(ctx.parts).map(_.getText)
-  }
+  override def visitMultipartIdentifier(ctx: MultipartIdentifierContext): Seq[String] =
+    withOrigin(ctx) {
+      toSeq(ctx.parts).map(_.getText)
+    }
 
-  override def visitSingleOrder(ctx: SingleOrderContext): Seq[(Term, SortDirection, NullOrder)] = withOrigin(ctx) {
-    toSeq(ctx.order.fields).map(typedVisit[(Term, SortDirection, NullOrder)])
-  }
+  override def visitSingleOrder(ctx: SingleOrderContext): Seq[(Term, SortDirection, NullOrder)] =
+    withOrigin(ctx) {
+      toSeq(ctx.order.fields).map(typedVisit[(Term, SortDirection, NullOrder)])
+    }
 
   /**
    * Create a positional argument in a stored procedure call.
    */
-  override def visitPositionalArgument(ctx: PositionalArgumentContext): CallArgument = withOrigin(ctx) {
-    val expr = typedVisit[Expression](ctx.expression)
-    PositionalArgument(expr)
-  }
+  override def visitPositionalArgument(ctx: PositionalArgumentContext): CallArgument =
+    withOrigin(ctx) {
+      val expr = typedVisit[Expression](ctx.expression)
+      PositionalArgument(expr)
+    }
 
   /**
    * Create a named argument in a stored procedure call.
@@ -350,10 +377,12 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   }
 
   private def reconstructSqlString(ctx: ParserRuleContext): String = {
-    toBuffer(ctx.children).map {
-      case c: ParserRuleContext => reconstructSqlString(c)
-      case t: TerminalNode => t.getText
-    }.mkString(" ")
+    toBuffer(ctx.children)
+      .map {
+        case c: ParserRuleContext => reconstructSqlString(c)
+        case t: TerminalNode => t.getText
+      }
+      .mkString(" ")
   }
 
   private def typedVisit[T](ctx: ParseTree): T = {

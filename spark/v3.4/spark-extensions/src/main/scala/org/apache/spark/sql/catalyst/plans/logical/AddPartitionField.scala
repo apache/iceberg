@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.expressions.Transform
 
-case class AddPartitionField(table: Seq[String], transform: Transform, name: Option[String]) extends LeafCommand {
+case class AddPartitionField(table: Seq[String], transform: Transform, name: Option[String])
+    extends LeafCommand {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
