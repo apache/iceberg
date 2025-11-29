@@ -137,6 +137,34 @@ public class TestContentFileParser {
   }
 
   @Test
+  public void testPartitionStructObjectContainsExtraField() throws Exception {
+    PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":\"foo\",\"9999\":\"bar\"},"
+            + "\"file-size-in-bytes\":10,\"record-count\":1}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    assertThatThrownBy(() -> ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), spec)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Invalid partition data size");
+  }
+
+  @Test
+  public void testPartitionStructObjectEmptyIsNull() throws Exception {
+    PartitionSpec spec = PartitionSpec.builderFor(TestBase.SCHEMA).identity("data").build();
+    String jsonStr =
+        "{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"PARQUET\",\"partition\":{},\"file-size-in-bytes\":10,"
+            + "\"record-count\":1}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> contentFile = ContentFileParser.fromJson(jsonNode, Map.of(spec.specId(), spec));
+    assertThat(contentFile).isInstanceOf(DataFile.class);
+    assertThat(contentFile.partition().get(0, String.class)).isNull();
+  }
+
+  @Test
   public void testPartitionArrayRespectsSpecOrder() throws Exception {
     PartitionSpec spec =
         PartitionSpec.builderFor(TestBase.SCHEMA).identity("id").identity("data").build();

@@ -323,15 +323,18 @@ public class ContentFileParser {
         partitionData.set(pos, partitionValue);
       }
     } else if (partitionNode.isObject()) {
-      // Handle legacy partition object serialization
-      for (int pos = 0; pos < fields.size(); ++pos) {
-        Types.NestedField field = fields.get(pos);
-        String fieldId = String.valueOf(field.fieldId());
-        if (partitionNode.has(fieldId)) {
-          Object partitionValue =
-              SingleValueParser.fromJson(field.type(), partitionNode.get(fieldId));
-          partitionData.set(pos, partitionValue);
-        }
+      // Handle partition struct object format, which serializes by field ID and skips
+      // null partition values
+      Preconditions.checkState(
+          partitionNode.size() <= fields.size(),
+          "Invalid partition data size: expected <= %s, actual = %s",
+          fields.size(),
+          partitionNode.size());
+
+      StructLike structLike = (StructLike) SingleValueParser.fromJson(partitionType, partitionNode);
+      for (int pos = 0; pos < partitionData.size(); ++pos) {
+        Class<?> javaClass = fields.get(pos).type().typeId().javaClass();
+        partitionData.set(pos, structLike.get(pos, javaClass));
       }
     } else {
       throw new IllegalArgumentException(
