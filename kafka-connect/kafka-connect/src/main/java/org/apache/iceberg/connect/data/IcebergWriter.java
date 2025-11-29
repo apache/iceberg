@@ -59,17 +59,16 @@ class IcebergWriter implements RecordWriter {
   @Override
   public void write(SinkRecord record) {
     Record row = null;
-
-    String recordData = "";
     try {
       // ignore tombstones...
       if (record.value() != null) {
         row = convertToRow(record);
-        if (this.config.errorLogIncludeMessages()) {
-          recordData = String.format(", record: %s", record.value().toString());
-        }
       }
     } catch (Exception e) {
+      String recordData = "";
+      if (this.config.errorLogIncludeMessages()) {
+        recordData = String.format(", record: %s", record.value().toString());
+      }
       throw new DataException(
           String.format(
               Locale.ROOT,

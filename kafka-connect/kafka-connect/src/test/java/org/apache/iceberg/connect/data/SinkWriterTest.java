@@ -229,11 +229,24 @@ public class SinkWriterTest {
     when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.errorTolerance()).thenReturn(ErrorTolerance.NONE.toString());
-    when(config.errorLogIncludeMessages()).thenReturn(true);
 
     Map<String, Object> badValue = ImmutableMap.of("id", "abc");
     assertThatThrownBy(() -> sinkWriterTest(badValue, config))
         .isInstanceOf(DataException.class)
         .hasMessage("An error occurred converting record, topic: topic, partition, 1, offset: 100");
+  }
+
+  @Test
+  public void testErrorToleranceNoneErrorLogIncludeMessages() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.errorTolerance()).thenReturn(ErrorTolerance.NONE.toString());
+    when(config.errorLogIncludeMessages()).thenReturn(true);
+
+    Map<String, Object> badValue = ImmutableMap.of("id", "abc");
+    assertThatThrownBy(() -> sinkWriterTest(badValue, config))
+            .isInstanceOf(DataException.class)
+            .hasMessage("An error occurred converting record, topic: topic, partition, 1, offset: 100, record: {id=abc}");
   }
 }
