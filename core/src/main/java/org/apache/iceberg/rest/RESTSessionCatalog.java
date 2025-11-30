@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
@@ -450,7 +451,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     RESTClient tableClient = client.withAuthSession(tableSession);
     RESTTableOperations ops =
-        new RESTTableOperations(
+        newTableOps(
             tableClient,
             paths.table(finalIdentifier),
             Map::of,
@@ -529,7 +530,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
     RESTClient tableClient = client.withAuthSession(tableSession);
     RESTTableOperations ops =
-        new RESTTableOperations(
+        newTableOps(
             tableClient,
             paths.table(ident),
             Map::of,
@@ -788,7 +789,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          new RESTTableOperations(
+          newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
@@ -815,7 +816,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          new RESTTableOperations(
+          newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
@@ -878,7 +879,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          new RESTTableOperations(
+          newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
@@ -1008,6 +1009,82 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
 
     return newFileIO(context, fullConf, storageCredentials);
+  }
+
+  /**
+   * Create a new {@link RESTTableOperations} instance for simple table operations.
+   *
+   * <p>This method can be overridden in subclasses to provide custom table operations
+   * implementations.
+   *
+   * @param restClient the REST client to use for communicating with the catalog server
+   * @param path the REST path for the table
+   * @param headers a supplier for additional HTTP headers to include in requests
+   * @param fileIO the FileIO implementation for reading and writing table metadata and data files
+   * @param current the current table metadata
+   * @param supportedEndpoints the set of supported REST endpoints
+   * @return a new RESTTableOperations instance
+   */
+  protected RESTTableOperations newTableOps(
+      RESTClient restClient,
+      String path,
+      Supplier<Map<String, String>> headers,
+      FileIO fileIO,
+      TableMetadata current,
+      Set<Endpoint> supportedEndpoints) {
+    return new RESTTableOperations(restClient, path, headers, fileIO, current, supportedEndpoints);
+  }
+
+  /**
+   * Create a new {@link RESTTableOperations} instance for transaction-based operations (create or
+   * replace).
+   *
+   * <p>This method can be overridden in subclasses to provide custom table operations
+   * implementations for transaction-based operations.
+   *
+   * @param restClient the REST client to use for communicating with the catalog server
+   * @param path the REST path for the table
+   * @param headers a supplier for additional HTTP headers to include in requests
+   * @param fileIO the FileIO implementation for reading and writing table metadata and data files
+   * @param updateType the {@link RESTTableOperations.UpdateType} being performed
+   * @param createChanges the list of metadata updates to apply during table creation or replacement
+   * @param current the current table metadata (may be null for CREATE operations)
+   * @param supportedEndpoints the set of supported REST endpoints
+   * @return a new RESTTableOperations instance
+   */
+  protected RESTTableOperations newTableOps(
+      RESTClient restClient,
+      String path,
+      Supplier<Map<String, String>> headers,
+      FileIO fileIO,
+      RESTTableOperations.UpdateType updateType,
+      List<MetadataUpdate> createChanges,
+      TableMetadata current,
+      Set<Endpoint> supportedEndpoints) {
+    return new RESTTableOperations(
+        restClient, path, headers, fileIO, updateType, createChanges, current, supportedEndpoints);
+  }
+
+  /**
+   * Create a new {@link RESTViewOperations} instance.
+   *
+   * <p>This method can be overridden in subclasses to provide custom view operations
+   * implementations.
+   *
+   * @param restClient the REST client to use for communicating with the catalog server
+   * @param path the REST path for the view
+   * @param headers a supplier for additional HTTP headers to include in requests
+   * @param current the current view metadata
+   * @param supportedEndpoints the set of supported REST endpoints
+   * @return a new RESTViewOperations instance
+   */
+  protected RESTViewOperations newViewOps(
+      RESTClient restClient,
+      String path,
+      Supplier<Map<String, String>> headers,
+      ViewMetadata current,
+      Set<Endpoint> supportedEndpoints) {
+    return new RESTViewOperations(restClient, path, headers, current, supportedEndpoints);
   }
 
   private static ConfigResponse fetchConfig(
@@ -1154,7 +1231,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     ViewMetadata metadata = response.metadata();
 
     RESTViewOperations ops =
-        new RESTViewOperations(
+        newViewOps(
             client.withAuthSession(tableSession),
             paths.view(identifier),
             Map::of,
@@ -1333,7 +1410,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Map<String, String> tableConf = response.config();
       AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
       RESTViewOperations ops =
-          new RESTViewOperations(
+          newViewOps(
               client.withAuthSession(tableSession),
               paths.view(identifier),
               Map::of,
@@ -1424,7 +1501,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
       RESTViewOperations ops =
-          new RESTViewOperations(
+          newViewOps(
               client.withAuthSession(tableSession),
               paths.view(identifier),
               Map::of,

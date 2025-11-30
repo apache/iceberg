@@ -41,9 +41,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
@@ -72,6 +77,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -3105,6 +3111,101 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageContaining("Cannot determine whether the commit was successful")
         .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
+  }
+
+  @Test
+  public void testCustomTableOperationsInjection() throws IOException {
+    AtomicBoolean customTableOpsCalled = new AtomicBoolean();
+    AtomicBoolean customTransactionTableOpsCalled = new AtomicBoolean();
+
+    // Custom RESTSessionCatalog that overrides table operations creation
+    class CustomRESTSessionCatalog extends RESTSessionCatalog {
+      CustomRESTSessionCatalog(
+          Function<Map<String, String>, RESTClient> clientBuilder,
+          BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
+        super(clientBuilder, ioBuilder);
+      }
+
+      @Override
+      protected RESTTableOperations newTableOps(
+          RESTClient restClient,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        customTableOpsCalled.set(true);
+        return super.newTableOps(restClient, path, headers, fileIO, current, supportedEndpoints);
+      }
+
+      @Override
+      protected RESTTableOperations newTableOps(
+          RESTClient restClient,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          RESTTableOperations.UpdateType updateType,
+          List<MetadataUpdate> createChanges,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        customTransactionTableOpsCalled.set(true);
+        return super.newTableOps(
+            restClient,
+            path,
+            headers,
+            fileIO,
+            updateType,
+            createChanges,
+            current,
+            supportedEndpoints);
+      }
+    }
+
+    // Custom RESTCatalog that provides the custom session catalog
+    class CustomRESTCatalog extends RESTCatalog {
+      CustomRESTCatalog(
+          SessionCatalog.SessionContext context,
+          Function<Map<String, String>, RESTClient> clientBuilder) {
+        super(context, clientBuilder);
+      }
+
+      @Override
+      protected RESTSessionCatalog newSessionCatalog(
+          Function<Map<String, String>, RESTClient> clientBuilder) {
+        return new CustomRESTSessionCatalog(clientBuilder, null);
+      }
+    }
+
+    try (CustomRESTCatalog catalog =
+        new CustomRESTCatalog(
+            SessionCatalog.SessionContext.createEmpty(),
+            (config) -> new RESTCatalogAdapter(backendCatalog))) {
+      catalog.setConf(new Configuration());
+      catalog.initialize(
+          "test",
+          ImmutableMap.of(
+              CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+      catalog.createNamespace(NS);
+
+      // Test table operations without UpdateType
+      assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isFalse();
+
+      catalog.createTable(TABLE, SCHEMA);
+      assertThat(customTableOpsCalled).isTrue();
+      assertThat(customTransactionTableOpsCalled).isFalse();
+
+      // Test table operations with UpdateType and createChanges
+      customTableOpsCalled.set(false);
+      assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isFalse();
+
+      TableIdentifier table2 = TableIdentifier.of(NS, "table2");
+      catalog.buildTable(table2, SCHEMA).createTransaction().commitTransaction();
+      assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isTrue();
+    }
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
