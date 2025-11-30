@@ -26,8 +26,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -67,11 +69,11 @@ import org.apache.iceberg.util.Tasks;
 class DeleteFileIndex {
   private static final DeleteFile[] EMPTY_DELETES = new DeleteFile[0];
 
-  private final EqualityDeletes globalDeletes;
   private final PartitionMap<EqualityDeletes> eqDeletesByPartition;
   private final PartitionMap<PositionDeletes> posDeletesByPartition;
   private final Map<String, PositionDeletes> posDeletesByPath;
   private final Map<String, DeleteFile> dvByPath;
+  private EqualityDeletes globalDeletes;
   private final boolean hasEqDeletes;
   private final boolean hasPosDeletes;
   private final boolean isEmpty;
@@ -135,6 +137,51 @@ class DeleteFileIndex {
     }
 
     return deleteFiles;
+  }
+
+  void removeIndex(int specId, StructLike partition) {
+    if (partition.size() == 0) {
+      this.globalDeletes = null;
+      return;
+    }
+
+    if (eqDeletesByPartition != null) {
+      eqDeletesByPartition.remove(specId, partition);
+    }
+    if (posDeletesByPartition != null) {
+      posDeletesByPartition.remove(specId, partition);
+    }
+
+    if (posDeletesByPath != null) {
+      removeUnreferencedPathPositionDeletes(specId, partition);
+    }
+
+    if (dvByPath != null) {
+      Set<String> toRemove = Sets.newHashSet();
+      for (Map.Entry<String, DeleteFile> deletes : dvByPath.entrySet()) {
+        DeleteFile deleteFile = deletes.getValue();
+        if (specId == deleteFile.specId() && Objects.equals(partition, deleteFile.partition())) {
+          toRemove.add(deletes.getKey());
+          break;
+        }
+      }
+      toRemove.forEach(dvByPath::remove);
+    }
+  }
+
+  private void removeUnreferencedPathPositionDeletes(int specId, StructLike partition) {
+    Set<String> toRemove = Sets.newHashSet();
+    for (Map.Entry<String, PositionDeletes> deletes : posDeletesByPath.entrySet()) {
+      Iterator<DeleteFile> deleteFiles = deletes.getValue().referencedDeleteFiles().iterator();
+      if (deleteFiles.hasNext()) {
+        DeleteFile deleteFile = deleteFiles.next();
+        if (specId == deleteFile.specId() && Objects.equals(partition, deleteFile.partition())) {
+          toRemove.add(deletes.getKey());
+          break;
+        }
+      }
+    }
+    toRemove.forEach(posDeletesByPath::remove);
   }
 
   DeleteFile[] forEntry(ManifestEntry<DataFile> entry) {

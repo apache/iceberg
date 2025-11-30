@@ -134,6 +134,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return context().ignoreResiduals();
   }
 
+  protected boolean shouldRemoveUnusedDeletesWhenPlanning() {
+    return context().removeUnusedDeletesWhenPlanning();
+  }
+
   protected Expression residualFilter() {
     return shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
   }
@@ -148,6 +152,12 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   protected abstract ThisT newRefinedScan(
       Table newTable, Schema newSchema, TableScanContext newContext);
+
+  @Override
+  public ThisT removeUnusedDeletesWhenPlanning() {
+    return newRefinedScan(
+        table, tableSchema(), context.shouldRemoveUnusedDeletesWhenPlanning(true));
+  }
 
   @Override
   public ThisT option(String property, String value) {

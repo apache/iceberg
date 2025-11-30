@@ -79,6 +79,10 @@ public class DataTableScan extends BaseTableScan {
             .ignoreDeleted()
             .columnsToKeepStats(columnsToKeepStats());
 
+    if (shouldRemoveUnusedDeletesWhenPlanning()) {
+      manifestGroup = manifestGroup.planByPartition();
+    }
+
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
