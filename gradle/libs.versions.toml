@@ -43,7 +43,7 @@ delta-standalone = "3.3.2"
 delta-spark = "3.3.2"
 derby = "10.15.2.0"
 esotericsoftware-kryo = "4.0.3"
-errorprone-annotations = "2.44.0"
+errorprone-annotations = "2.45.0"
 failsafe = "3.3.2"
 findbugs-jsr305 = "3.0.2"
 flink120 = { strictly = "1.20.1"}
