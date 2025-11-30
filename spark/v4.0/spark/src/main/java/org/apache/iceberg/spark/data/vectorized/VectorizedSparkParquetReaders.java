@@ -26,12 +26,12 @@ import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
-import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.parquet.schema.MessageType;
-import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +42,8 @@ public class VectorizedSparkParquetReaders {
   private static final String ENABLE_UNSAFE_MEMORY_ACCESS_ENV = "ARROW_ENABLE_UNSAFE_MEMORY_ACCESS";
   private static final String ENABLE_NULL_CHECK_FOR_GET = "arrow.enable_null_check_for_get";
   private static final String ENABLE_NULL_CHECK_FOR_GET_ENV = "ARROW_ENABLE_NULL_CHECK_FOR_GET";
+
+  public static final String PARQUET_READER_TYPE = "parquet.reader.type";
 
   static {
     try {
@@ -54,11 +56,22 @@ public class VectorizedSparkParquetReaders {
 
   private VectorizedSparkParquetReaders() {}
 
+  public static VectorizedReader<ColumnarBatch> buildReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant,
+      Map<String, String> config) {
+    if (ParquetReaderType.COMET.name().equals(config.get(PARQUET_READER_TYPE))) {
+      return buildCometReader(expectedSchema, fileSchema, idToConstant);
+    } else {
+      return buildReader(expectedSchema, fileSchema, idToConstant);
+    }
+  }
+
   public static ColumnarBatchReader buildReader(
       Schema expectedSchema,
       MessageType fileSchema,
       Map<Integer, ?> idToConstant,
-      DeleteFilter<InternalRow> deleteFilter,
       BufferAllocator bufferAllocator) {
     return (ColumnarBatchReader)
         TypeWithSchemaVisitor.visit(
@@ -70,24 +83,16 @@ public class VectorizedSparkParquetReaders {
                 NullCheckingForGet.NULL_CHECKING_ENABLED,
                 idToConstant,
                 ColumnarBatchReader::new,
-                deleteFilter,
                 bufferAllocator));
   }
 
   public static ColumnarBatchReader buildReader(
-      Schema expectedSchema,
-      MessageType fileSchema,
-      Map<Integer, ?> idToConstant,
-      DeleteFilter<InternalRow> deleteFilter) {
-    return buildReader(
-        expectedSchema, fileSchema, idToConstant, deleteFilter, ArrowAllocation.rootAllocator());
+      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
+    return buildReader(expectedSchema, fileSchema, idToConstant, ArrowAllocation.rootAllocator());
   }
 
   public static CometColumnarBatchReader buildCometReader(
-      Schema expectedSchema,
-      MessageType fileSchema,
-      Map<Integer, ?> idToConstant,
-      DeleteFilter<InternalRow> deleteFilter) {
+      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
     return (CometColumnarBatchReader)
         TypeWithSchemaVisitor.visit(
             expectedSchema.asStruct(),
@@ -96,8 +101,7 @@ public class VectorizedSparkParquetReaders {
                 expectedSchema,
                 fileSchema,
                 idToConstant,
-                readers -> new CometColumnarBatchReader(readers, expectedSchema),
-                deleteFilter));
+                readers -> new CometColumnarBatchReader(readers, expectedSchema)));
   }
 
   // enables unsafe memory access to avoid costly checks to see if index is within bounds
@@ -134,7 +138,6 @@ public class VectorizedSparkParquetReaders {
   }
 
   private static class ReaderBuilder extends VectorizedReaderBuilder {
-    private final DeleteFilter<InternalRow> deleteFilter;
 
     ReaderBuilder(
         Schema expectedSchema,
@@ -142,7 +145,6 @@ public class VectorizedSparkParquetReaders {
         boolean setArrowValidityVector,
         Map<Integer, ?> idToConstant,
         Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
-        DeleteFilter<InternalRow> deleteFilter,
         BufferAllocator bufferAllocator) {
       super(
           expectedSchema,
@@ -152,16 +154,6 @@ public class VectorizedSparkParquetReaders {
           readerFactory,
           SparkUtil::internalToSpark,
           bufferAllocator);
-      this.deleteFilter = deleteFilter;
-    }
-
-    @Override
-    protected VectorizedReader<?> vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
-      VectorizedReader<?> reader = super.vectorizedReader(reorderedFields);
-      if (deleteFilter != null) {
-        ((ColumnarBatchReader) reader).setDeleteFilter(deleteFilter);
-      }
-      return reader;
     }
   }
 }

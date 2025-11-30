@@ -179,7 +179,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
                   .createBatchedReaderFunc(
                       type ->
                           VectorizedSparkParquetReaders.buildReader(
-                              schema, type, ImmutableMap.of(), null, allocator));
+                              schema, type, ImmutableMap.of(), allocator));
 
           try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
             Iterator<Row> expectedIter = expected.iterator();
