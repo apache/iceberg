@@ -47,6 +47,8 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -159,6 +161,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
+  private KeyManagementClient kmsClient = null;
 
   public RESTSessionCatalog() {
     this(
@@ -256,6 +259,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    if (mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
+      this.kmsClient = EncryptionUtil.createKmsClient(mergedProps);
+      this.closeables.addCloseable(this.kmsClient);
+    }
+
     super.initialize(name, mergedProps);
   }
 
@@ -455,6 +464,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             paths.table(finalIdentifier),
             Map::of,
             tableFileIO(context, tableConf, response.credentials()),
+            kmsClient,
             tableMetadata,
             endpoints);
 
@@ -534,6 +544,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             paths.table(ident),
             Map::of,
             tableFileIO(context, tableConf, response.credentials()),
+            kmsClient,
             response.tableMetadata(),
             endpoints);
 
@@ -793,6 +804,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               Map::of,
               tableFileIO(context, tableConf, response.credentials()),
+              kmsClient,
               response.tableMetadata(),
               endpoints);
 
@@ -820,6 +832,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               Map::of,
               tableFileIO(context, tableConf, response.credentials()),
+              kmsClient,
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
@@ -883,6 +896,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               Map::of,
               tableFileIO(context, tableConf, response.credentials()),
+              kmsClient,
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,

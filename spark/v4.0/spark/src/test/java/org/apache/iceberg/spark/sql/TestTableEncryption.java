@@ -44,6 +44,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.CatalogTestBase;
@@ -69,6 +70,15 @@ public class TestTableEncryption extends CatalogTestBase {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
         appendCatalogEncryptionProperties(SparkCatalogConfig.HIVE.properties())
+      },
+      {
+        SparkCatalogConfig.REST.catalogName(),
+        SparkCatalogConfig.REST.implementation(),
+        appendCatalogEncryptionProperties(
+            ImmutableMap.<String, String>builder()
+                .putAll(SparkCatalogConfig.REST.properties())
+                .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+                .build())
       }
     };
   }
@@ -105,8 +115,8 @@ public class TestTableEncryption extends CatalogTestBase {
 
   @TestTemplate
   public void testRefresh() {
-    catalog.initialize(catalogName, catalogConfig);
-    Table table = catalog.loadTable(tableIdent);
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
 
     assertThat(currentDataFiles(table)).isNotEmpty();
 
@@ -118,9 +128,8 @@ public class TestTableEncryption extends CatalogTestBase {
 
   @TestTemplate
   public void testTransaction() {
-    catalog.initialize(catalogName, catalogConfig);
-
-    Table table = catalog.loadTable(tableIdent);
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
 
     List<DataFile> dataFiles = currentDataFiles(table);
     Transaction transaction = table.newTransaction();
@@ -132,6 +141,27 @@ public class TestTableEncryption extends CatalogTestBase {
     transaction.commitTransaction();
 
     assertThat(currentDataFiles(table).size()).isEqualTo(dataFiles.size() + 1);
+  }
+
+  @TestTemplate
+  public void testTransactionRetry() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    List<DataFile> dataFiles = currentDataFiles(table);
+    Transaction transaction = table.newTransaction();
+    AppendFiles append = transaction.newAppend();
+
+    // add an arbitrary datafile
+    append.appendFile(dataFiles.get(0));
+
+    // append to the table in the meantime. use a separate load to avoid shared operations
+    validationCatalog.loadTable(tableIdent).newFastAppend().appendFile(dataFiles.get(0)).commit();
+
+    append.commit();
+    transaction.commitTransaction();
+
+    assertThat(currentDataFiles(table).size()).isEqualTo(dataFiles.size() + 2);
   }
 
   @TestTemplate
@@ -166,7 +196,7 @@ public class TestTableEncryption extends CatalogTestBase {
   public void testKeyDelete() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s UNSET TBLPROPERTIES (`encryption.key-id`)", tableName))
-        .hasMessageContaining("Cannot remove key in encrypted table");
+        .hasMessageContaining("Cannot remove encryption key ID from an encrypted table");
   }
 
   @TestTemplate
