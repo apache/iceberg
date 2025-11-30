@@ -932,6 +932,77 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRewriteDataFilesWithRewriteAllAndWhereClause() {
+    createTable();
+    // Create a single file with 4 rows
+    sql(
+        "INSERT INTO %s VALUES (1, 'a', null), (2, 'b', null), (3, 'c', null), (4, 'd', null)",
+        tableName);
+
+    List<Object[]> expectedRecords = currentData();
+    assertThat(expectedRecords).as("Should have 4 rows initially").hasSize(4);
+
+    // Use rewrite-all=true with a where clause
+    // This should NOT create duplicates - it should only rewrite files that match the filter
+    // and only if they meet the minimum criteria (e.g., enough files in the group)
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files("
+                + "table => '%s', "
+                + "strategy => 'sort', "
+                + "sort_order => 'c1 ASC NULLS FIRST', "
+                + "where => 'c1 IN (1,2)', "
+                + "options => map('rewrite-all', 'true'))",
+            catalogName, tableIdent);
+
+    // With only 1 file, it should not be rewritten (doesn't meet min-input-files criteria)
+    assertEquals(
+        "Should not rewrite single file even with rewrite-all=true",
+        row(0, 0),
+        Arrays.copyOf(output.get(0), 2));
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals(
+        "Data should not change and should not have duplicates", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Should still have exactly 4 rows (no duplicates)").hasSize(4);
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesWithRewriteAllAndWhereClauseMultipleFiles() {
+    createTable();
+    // Create multiple small files
+    for (int i = 1; i <= 4; i++) {
+      sql(
+          "INSERT INTO %s VALUES (%d, '%s', null)",
+          tableName, i, String.valueOf((char) ('a' + i - 1)));
+    }
+
+    List<Object[]> expectedRecords = currentData();
+    assertThat(expectedRecords).as("Should have 4 rows initially").hasSize(4);
+
+    // Use rewrite-all=true with a where clause that matches only some rows
+    // With multiple files matching the filter, they should be rewritten
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files("
+                + "table => '%s', "
+                + "strategy => 'sort', "
+                + "sort_order => 'c1 ASC NULLS FIRST', "
+                + "where => 'c1 IN (1,2)', "
+                + "options => map('rewrite-all', 'true', 'min-input-files', '2'))",
+            catalogName, tableIdent);
+
+    // Should rewrite 2 files (those containing rows with c1 IN (1,2))
+    assertEquals(
+        "Should rewrite 2 files that match the filter", row(2, 1), Arrays.copyOf(output.get(0), 2));
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals(
+        "Data should not change and should not have duplicates", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Should still have exactly 4 rows (no duplicates)").hasSize(4);
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg TBLPROPERTIES('format-version' = '3')",
