@@ -94,4 +94,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
   }
+
+  /** Instantiates an action to repair manifests */
+  default RepairManifests repairManifests(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement repairManifests");
+  }
 }
