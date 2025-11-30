@@ -327,6 +327,29 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean notEq(Bound<T> term, Literal<T> lit) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
+      // However, when min == max and the file has no nulls or NaN values, we can safely prune
+      // if that value equals the literal.
+      int id = term.ref().fieldId();
+      if (mayContainNull(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+      T lower = lowerBound(term);
+      T upper = upperBound(term);
+
+      if (lower == null || upper == null || NaNUtil.isNaN(lower) || NaNUtil.isNaN(upper)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) != 0) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (lower.equals(upper)) {
+        int cmp = lit.comparator().compare(lower, lit.value());
+        if (cmp == 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
       return ROWS_MIGHT_MATCH;
     }
 
@@ -381,6 +404,28 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean notIn(Bound<T> term, Set<T> literalSet) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+      // However, when min == max and the file has no nulls or NaN values, we can safely prune
+      // if that value is in the exclusion set.
+      int id = term.ref().fieldId();
+      if (mayContainNull(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+      T lower = lowerBound(term);
+      T upper = upperBound(term);
+
+      if (lower == null || upper == null || NaNUtil.isNaN(lower) || NaNUtil.isNaN(upper)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) != 0) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (lower.equals(upper)) {
+        if (literalSet.contains(lower)) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
       return ROWS_MIGHT_MATCH;
     }
 
