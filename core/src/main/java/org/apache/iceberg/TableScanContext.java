@@ -103,6 +103,9 @@ abstract class TableScanContext {
   @Nullable
   public abstract String branch();
 
+  @Nullable
+  public abstract Long minRowsRequested();
+
   TableScanContext useSnapshotId(Long scanSnapshotId) {
     return ImmutableTableScanContext.builder().from(this).snapshotId(scanSnapshotId).build();
   }
@@ -191,6 +194,10 @@ abstract class TableScanContext {
 
   TableScanContext useBranch(String ref) {
     return ImmutableTableScanContext.builder().from(this).branch(ref).build();
+  }
+
+  TableScanContext minRowsRequested(long numRows) {
+    return ImmutableTableScanContext.builder().from(this).minRowsRequested(numRows).build();
   }
 
   public static TableScanContext empty() {
