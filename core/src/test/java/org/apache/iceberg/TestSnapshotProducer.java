@@ -95,7 +95,7 @@ public class TestSnapshotProducer extends TestBase {
     SnapshotAncestryValidator validator =
         new SnapshotAncestryValidator() {
           @Override
-          public Boolean apply(Iterable<Snapshot> baseSnapshots) {
+          public boolean validate(Iterable<Snapshot> baseSnapshots) {
             return false;
           }
 
