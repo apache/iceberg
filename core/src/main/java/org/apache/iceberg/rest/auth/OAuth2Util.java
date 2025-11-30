@@ -34,6 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -243,7 +244,14 @@ public class OAuth2Util {
             oauth2ServerUri,
             request,
             OAuthTokenResponse.class,
-            headers,
+            // RFC 6749 proposes two ways to send a credential: HTTP Basic authentication or
+            // request-body. Historically, the Iceberg library prefers the latter one for
+            // compatibility while the RFC recommends the former one. As sending both the
+            // Authorization header and the request-body parameters might confuse some authorization
+            // servers, the following line is excluding the Authorization header.
+            headers.entrySet().stream()
+                .filter(entry -> !AUTHORIZATION_HEADER.equals(entry.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
             ErrorHandlers.oauthErrorHandler());
     response.validate();
 

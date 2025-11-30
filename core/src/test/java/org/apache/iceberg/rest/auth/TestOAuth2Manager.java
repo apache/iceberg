@@ -230,7 +230,7 @@ class TestOAuth2Manager {
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             "test", "test", Map.of(OAuth2Properties.CREDENTIAL, "client:secret"), Map.of());
-    Map<String, String> properties = Map.of();
+    Map<String, String> properties = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
     try (OAuth2Manager manager = new OAuth2Manager("test");
         OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties);
         OAuth2Util.AuthSession contextualSession =
@@ -243,7 +243,7 @@ class TestOAuth2Manager {
           .as("should create session cache for context with credentials")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
     }
-    Mockito.verify(client)
+    Mockito.verify(client, times(2))
         .postForm(
             any(),
             eq(
@@ -255,7 +255,7 @@ class TestOAuth2Manager {
             eq(OAuthTokenResponse.class),
             eq(Map.of()),
             any());
-    Mockito.verify(client).withAuthSession(any());
+    Mockito.verify(client, times(2)).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
 
