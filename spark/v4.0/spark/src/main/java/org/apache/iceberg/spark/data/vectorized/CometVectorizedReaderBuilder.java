@@ -142,6 +142,7 @@ class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReade
       return null;
     }
 
-    return new CometColumnReader(SparkSchemaUtil.convert(icebergField.type()), desc);
+    return new CometColumnReader(
+        SparkSchemaUtil.convert(icebergField.type()), desc, parquetFieldId);
   }
 }
