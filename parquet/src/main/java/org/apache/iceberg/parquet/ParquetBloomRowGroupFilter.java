@@ -259,6 +259,18 @@ public class ParquetBloomRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+      // bloom filter is based on hash and cannot eliminate based on contains
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+      // bloom filter is based on hash and cannot eliminate based on contains
+      return ROWS_MIGHT_MATCH;
+    }
+
     private BloomFilter loadBloomFilter(int id) {
       if (bloomCache.containsKey(id)) {
         return bloomCache.get(id);
