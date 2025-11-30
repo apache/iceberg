@@ -18,15 +18,31 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TestMetrics.SIMPLE_SCHEMA;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
+import java.util.Arrays;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestMetricsConfig {
+
+  @TempDir private File tableDir;
+
+  @AfterEach
+  public void cleanupTables() {
+    TestTables.clearTables();
+  }
 
   @Test
   public void testNestedStruct() {
@@ -111,5 +127,101 @@ public class TestMetricsConfig {
     assertThat(MetricsConfig.limitFieldIds(schema, 2)).isEqualTo(Set.of(5, 3));
     assertThat(MetricsConfig.limitFieldIds(schema, 3)).isEqualTo(Set.of(5, 3, 4));
     assertThat(MetricsConfig.limitFieldIds(schema, 4)).isEqualTo(Set.of(5, 3, 4));
+  }
+
+  private static Stream<Arguments> testColumnMetricsParameters() {
+    return Stream.of(
+        Arguments.of(
+            5,
+            5,
+            "none", // Configured metric default explicitly
+            new String[] {"booleanCol", "intCol", "longCol", "decimalCol", "stringCol"},
+            new String[] {"timeCol", "fixedCol"},
+            new String[] {"booleanCol", "intCol", "decimalCol", "longCol", "stringCol"}),
+        Arguments.of(
+            3,
+            3,
+            "none", // Configured metric default explicitly
+            new String[] {"booleanCol", "intCol", "longCol", "decimalCol", "stringCol"},
+            new String[] {"timeCol", "fixedCol"},
+            new String[] {"booleanCol", "intCol", "decimalCol"}),
+        Arguments.of(
+            10,
+            7,
+            "none", // Configured metric default explicitly
+            new String[] {"booleanCol", "intCol", "longCol", "decimalCol", "stringCol"},
+            new String[] {"timeCol", "fixedCol"},
+            new String[] {
+              "booleanCol", "intCol", "decimalCol", "longCol", "stringCol", "timeCol", "fixedCol"
+            }),
+        Arguments.of(
+            10,
+            10,
+            "", // Configured metric not defined explicitly
+            new String[] {"booleanCol", "intCol", "longCol", "decimalCol", "stringCol"},
+            new String[] {"timeCol", "fixedCol"},
+            new String[] {
+              "booleanCol",
+              "intCol",
+              "decimalCol",
+              "longCol",
+              "stringCol",
+              "timeCol",
+              "fixedCol",
+              "floatCol",
+              "doubleCol",
+              "dateCol"
+            }),
+        Arguments.of(
+            20, // Sort order columns (5) + metric columns with prefix (2)  < max inferred columns
+            // (20) => metrics output (7, all columns from schema)
+            7,
+            "", // Configured metric not defined explicitly
+            new String[] {"booleanCol", "intCol", "longCol", "decimalCol", "stringCol"},
+            new String[] {"timeCol", "fixedCol"},
+            new String[] {
+              "booleanCol", "intCol", "decimalCol", "longCol", "stringCol", "timeCol", "fixedCol"
+            }));
+  }
+  ;
+
+  @ParameterizedTest
+  @MethodSource("testColumnMetricsParameters")
+  public void testColumnMetrics(
+      int maxInferredColumns,
+      int expectedCount,
+      String configuredDefault,
+      String[] sortOrders,
+      String[] colPrefix,
+      String[] expectedColumns) {
+    SortOrder.Builder sortBuildOrder = SortOrder.builderFor(SIMPLE_SCHEMA);
+    Arrays.stream(sortOrders).forEach(sortBuildOrder::asc);
+    SortOrder sortOrder = sortBuildOrder.build();
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = TestTables.create(tableDir, "test", SIMPLE_SCHEMA, spec, sortOrder, 1);
+    table
+        .updateProperties()
+        .set(
+            TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
+            String.valueOf(maxInferredColumns))
+        .commit();
+    if (!configuredDefault.isEmpty()) {
+      table
+          .updateProperties()
+          .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, configuredDefault)
+          .commit();
+    }
+    Arrays.stream(colPrefix)
+        .forEach(
+            s ->
+                table
+                    .updateProperties()
+                    .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + s, "full")
+                    .commit());
+
+    MetricsConfig metrics = MetricsConfig.forTable(table);
+    assertThat(metrics.getColumnModes().size()).isEqualTo(expectedCount);
+    Arrays.stream(expectedColumns)
+        .forEach(col -> assertThat(metrics.getColumnModes().containsKey(col)).isTrue());
   }
 }
