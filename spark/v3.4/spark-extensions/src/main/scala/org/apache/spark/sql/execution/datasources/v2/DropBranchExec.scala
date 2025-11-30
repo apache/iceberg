@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.source.SparkTable
@@ -29,7 +28,8 @@ case class DropBranchExec(
     catalog: TableCatalog,
     ident: Identifier,
     branch: String,
-    ifExists: Boolean) extends LeafV2CommandExec {
+    ifExists: Boolean)
+    extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 

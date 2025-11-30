@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
@@ -27,10 +26,9 @@ import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.execution.LeafExecNode
 import scala.jdk.CollectionConverters._
 
-case class DescribeV2ViewExec(
-  output: Seq[Attribute],
-  view: View,
-  isExtended: Boolean) extends V2CommandExec with LeafExecNode {
+case class DescribeV2ViewExec(output: Seq[Attribute], view: View, isExtended: Boolean)
+    extends V2CommandExec
+    with LeafExecNode {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
@@ -44,23 +42,22 @@ case class DescribeV2ViewExec(
 
   private def describeSchema: Seq[InternalRow] =
     view.schema().map { column =>
-      toCatalystRow(
-        column.name,
-        column.dataType.simpleString,
-        column.getComment().getOrElse(""))
+      toCatalystRow(column.name, column.dataType.simpleString, column.getComment().getOrElse(""))
     }
 
   private def emptyRow: InternalRow = toCatalystRow("", "", "")
 
   private def describeExtended: Seq[InternalRow] = {
     val outputColumns = view.queryColumnNames.mkString("[", ", ", "]")
-    val properties: Map[String, String] = view.properties.asScala.toMap -- ViewCatalog.RESERVED_PROPERTIES.asScala
+    val properties: Map[String, String] =
+      view.properties.asScala.toMap -- ViewCatalog.RESERVED_PROPERTIES.asScala
     val viewCatalogAndNamespace: Seq[String] = view.name.split("\\.").take(2)
-    val viewProperties = properties.toSeq.sortBy(_._1).map {
-      case (key, value) =>
+    val viewProperties = properties.toSeq
+      .sortBy(_._1)
+      .map { case (key, value) =>
         s"'${escapeSingleQuotedString(key)}' = '${escapeSingleQuotedString(value)}'"
-    }.mkString("[", ", ", "]")
-
+      }
+      .mkString("[", ", ", "]")
 
     // omitting view text here because it is shown as
     // part of SHOW CREATE TABLE and can result in weird formatting in the DESCRIBE output
@@ -69,7 +66,10 @@ case class DescribeV2ViewExec(
       toCatalystRow("View Catalog and Namespace", viewCatalogAndNamespace.quoted, "") ::
       toCatalystRow("View Query Output Columns", outputColumns, "") ::
       toCatalystRow("View Properties", viewProperties, "") ::
-      toCatalystRow("Created By", view.properties.getOrDefault(ViewCatalog.PROP_CREATE_ENGINE_VERSION, ""), "") ::
+      toCatalystRow(
+        "Created By",
+        view.properties.getOrDefault(ViewCatalog.PROP_CREATE_ENGINE_VERSION, ""),
+        "") ::
       Nil
   }
 

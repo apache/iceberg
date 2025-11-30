@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.AnalysisException
@@ -44,7 +43,8 @@ case class WriteIcebergDelta(
     query: LogicalPlan,
     originalTable: NamedRelation,
     projections: WriteDeltaProjections,
-    write: Option[DeltaWrite] = None) extends V2WriteCommandLike {
+    write: Option[DeltaWrite] = None)
+    extends V2WriteCommandLike {
 
   override protected lazy val stringArgs: Iterator[Any] = Iterator(table, query, write)
 
@@ -71,18 +71,17 @@ case class WriteIcebergDelta(
     table.skipSchemaResolution || (projections.rowProjection match {
       case Some(projection) =>
         table.output.size == projection.schema.size &&
-          projection.schema.zip(table.output).forall { case (field, outAttr) =>
-            isCompatible(field, outAttr)
-          }
+        projection.schema.zip(table.output).forall { case (field, outAttr) =>
+          isCompatible(field, outAttr)
+        }
       case None =>
         true
     })
   }
 
   private def rowIdAttrsResolved: Boolean = {
-    val rowIdAttrs = V2ExpressionUtils.resolveRefs[AttributeReference](
-      operation.rowId.toSeq,
-      originalTable)
+    val rowIdAttrs =
+      V2ExpressionUtils.resolveRefs[AttributeReference](operation.rowId.toSeq, originalTable)
 
     projections.rowIdProjection.schema.forall { field =>
       rowIdAttrs.exists(rowIdAttr => isCompatible(field, rowIdAttr))
@@ -109,12 +108,13 @@ case class WriteIcebergDelta(
     val outType = CharVarcharUtils.getRawType(outAttr.metadata).getOrElse(outAttr.dataType)
     // names and types must match, nullability must be compatible
     projectionField.name == outAttr.name &&
-      DataType.equalsIgnoreCompatibleNullability(inType, outType) &&
-      (outAttr.nullable || !projectionField.nullable)
+    DataType.equalsIgnoreCompatibleNullability(inType, outType) &&
+    (outAttr.nullable || !projectionField.nullable)
   }
 
   override def outputResolved: Boolean = {
-    assert(table.resolved && query.resolved,
+    assert(
+      table.resolved && query.resolved,
       "`outputResolved` can only be called when `table` and `query` are both resolved.")
 
     operationResolved && rowAttrsResolved && rowIdAttrsResolved && metadataAttrsResolved

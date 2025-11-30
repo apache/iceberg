@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
@@ -42,12 +41,12 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
     extensions.injectCheckRule(_ => CheckViews)
-    extensions.injectResolutionRule { _ => RewriteUpdateTableForRowLineage}
-    extensions.injectResolutionRule { _ => RewriteMergeIntoTableForRowLineage}
+    extensions.injectResolutionRule { _ => RewriteUpdateTableForRowLineage }
+    extensions.injectResolutionRule { _ => RewriteMergeIntoTableForRowLineage }
 
     // optimizer extensions
     extensions.injectOptimizerRule { _ => ReplaceStaticInvoke }
-    extensions.injectOptimizerRule { _ => RemoveRowLineageOutputFromOriginalTable}
+    extensions.injectOptimizerRule { _ => RemoveRowLineageOutputFromOriginalTable }
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }
