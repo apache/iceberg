@@ -362,7 +362,7 @@ class Coordinator extends Channel {
       return Map.of();
     }
 
-    TypeReference<Map<Integer, Long>> typeRef = new TypeReference<Map<Integer, Long>>() {};
+    TypeReference<Map<Integer, Long>> typeRef = new TypeReference<>() {};
     try {
       return MAPPER.readValue(value, typeRef);
     } catch (IOException e) {

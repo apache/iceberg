@@ -29,7 +29,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
@@ -136,11 +135,6 @@ public abstract class IntegrationTestBase {
   protected List<DataFile> dataFiles(TableIdentifier tableIdentifier, String branch) {
     Table table = catalog.loadTable(tableIdentifier);
     return Lists.newArrayList(latestSnapshot(table, branch).addedDataFiles(table.io()));
-  }
-
-  protected List<DeleteFile> deleteFiles(TableIdentifier tableIdentifier, String branch) {
-    Table table = catalog.loadTable(tableIdentifier);
-    return Lists.newArrayList(latestSnapshot(table, branch).addedDeleteFiles(table.io()));
   }
 
   private Snapshot latestSnapshot(Table table, String branch) {

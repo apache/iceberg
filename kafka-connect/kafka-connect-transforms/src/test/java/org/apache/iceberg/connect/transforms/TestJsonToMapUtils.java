@@ -64,9 +64,9 @@ class TestJsonToMapUtils extends FileLoads {
   public void addToSchema() {
     SchemaBuilder builder = SchemaBuilder.struct();
     Map.Entry<String, JsonNode> good =
-        new AbstractMap.SimpleEntry<String, JsonNode>("good", TextNode.valueOf("text"));
+        new AbstractMap.SimpleEntry<>("good", TextNode.valueOf("text"));
     Map.Entry<String, JsonNode> missing =
-        new AbstractMap.SimpleEntry<String, JsonNode>("missing", NullNode.getInstance());
+        new AbstractMap.SimpleEntry<>("missing", NullNode.getInstance());
     JsonToMapUtils.addField(good, builder);
     JsonToMapUtils.addField(missing, builder);
     Schema result = builder.build();
@@ -183,7 +183,7 @@ class TestJsonToMapUtils extends FileLoads {
 
   @Test
   @DisplayName("schemaFromNode returns Map<String, String> for ObjectNodes")
-  public void schmefromNodeObjectNodesAsMaps() {
+  public void schemaFromNodeObjectNodesAsMaps() {
     JsonNode node = objNode.get("nested_obj");
     assertThat(node).isInstanceOf(ObjectNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(node))
