@@ -159,6 +159,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
+  private String namespaceSeparator = null;
 
   public RESTSessionCatalog() {
     this(
@@ -256,6 +257,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+    this.namespaceSeparator =
+        PropertyUtil.propertyAsString(
+            mergedProps,
+            RESTCatalogProperties.NAMESPACE_SEPARATOR,
+            RESTUtil.NAMESPACE_SEPARATOR_AS_UTF_8);
+
     super.initialize(name, mergedProps);
   }
 
@@ -570,7 +577,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.namespaceToQueryParam(namespace));
+      queryParams.put("parent", RESTUtil.namespaceToQueryParam(namespace, namespaceSeparator));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
