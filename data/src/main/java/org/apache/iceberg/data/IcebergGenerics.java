@@ -24,6 +24,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.MetricsReporter;
 
 public class IcebergGenerics {
   private IcebergGenerics() {}
@@ -93,6 +94,11 @@ public class IcebergGenerics {
 
     public ScanBuilder appendsAfter(long fromSnapshotId) {
       this.tableScan = tableScan.appendsAfter(fromSnapshotId);
+      return this;
+    }
+
+    public ScanBuilder metricsReporter(MetricsReporter reporter) {
+      this.tableScan = tableScan.metricsReporter(reporter);
       return this;
     }
 
