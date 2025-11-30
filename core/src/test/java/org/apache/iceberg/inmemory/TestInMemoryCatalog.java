@@ -18,11 +18,21 @@
  */
 package org.apache.iceberg.inmemory;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   private InMemoryCatalog catalog;
@@ -70,5 +80,25 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   @Override
   protected boolean supportsEmptyNamespace() {
     return true;
+  }
+
+  @Test
+  @Override
+  public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) throws IOException {
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    catalog.buildTable(TBL, SCHEMA).create();
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
+    Table table = catalog.loadTable(TBL);
+    String metadataFileLocation =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    table.io().deleteFile(metadataFileLocation);
+    assertThatThrownBy(() -> catalog.loadTable(TBL))
+        .isInstanceOf(NotFoundException.class)
+        .hasMessage("No in-memory file found for location: " + metadataFileLocation);
+    table.io().newOutputFile(metadataFileLocation).create();
   }
 }
