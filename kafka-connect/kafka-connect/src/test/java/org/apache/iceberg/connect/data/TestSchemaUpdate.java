@@ -20,6 +20,8 @@ package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +39,51 @@ public class TestSchemaUpdate {
     assertThat(addColumn.parentName()).isEqualTo("parent");
     assertThat(addColumn.name()).isEqualTo("name");
     assertThat(addColumn.type()).isEqualTo(Types.StringType.get());
+    assertThat(addColumn.defaultValue()).isNull();
+  }
+
+  @Test
+  public void testAddColumnWithDefaultValue() {
+    SchemaUpdate.Consumer updateConsumer = new SchemaUpdate.Consumer();
+    Literal<String> defaultValue = Expressions.lit("default_value");
+    updateConsumer.addColumn("parent", "name", Types.StringType.get(), defaultValue);
+    assertThat(updateConsumer.addColumns()).hasSize(1);
+    assertThat(updateConsumer.updateTypes()).isEmpty();
+    assertThat(updateConsumer.makeOptionals()).isEmpty();
+
+    SchemaUpdate.AddColumn addColumn = updateConsumer.addColumns().iterator().next();
+    assertThat(addColumn.parentName()).isEqualTo("parent");
+    assertThat(addColumn.name()).isEqualTo("name");
+    assertThat(addColumn.type()).isEqualTo(Types.StringType.get());
+    assertThat(addColumn.defaultValue()).isEqualTo(defaultValue);
+    assertThat(addColumn.defaultValue().value()).isEqualTo("default_value");
+  }
+
+  @Test
+  public void testAddColumnWithNumericDefaultValue() {
+    SchemaUpdate.Consumer updateConsumer = new SchemaUpdate.Consumer();
+    Literal<Integer> defaultValue = Expressions.lit(42);
+    updateConsumer.addColumn(null, "age", Types.IntegerType.get(), defaultValue);
+
+    SchemaUpdate.AddColumn addColumn = updateConsumer.addColumns().iterator().next();
+    assertThat(addColumn.parentName()).isNull();
+    assertThat(addColumn.name()).isEqualTo("age");
+    assertThat(addColumn.type()).isEqualTo(Types.IntegerType.get());
+    assertThat(addColumn.defaultValue()).isEqualTo(defaultValue);
+    assertThat(addColumn.defaultValue().value()).isEqualTo(42);
+  }
+
+  @Test
+  public void testAddColumnWithBooleanDefaultValue() {
+    SchemaUpdate.Consumer updateConsumer = new SchemaUpdate.Consumer();
+    Literal<Boolean> defaultValue = Expressions.lit(true);
+    updateConsumer.addColumn(null, "active", Types.BooleanType.get(), defaultValue);
+
+    SchemaUpdate.AddColumn addColumn = updateConsumer.addColumns().iterator().next();
+    assertThat(addColumn.name()).isEqualTo("active");
+    assertThat(addColumn.type()).isEqualTo(Types.BooleanType.get());
+    assertThat(addColumn.defaultValue()).isEqualTo(defaultValue);
+    assertThat(addColumn.defaultValue().value()).isEqualTo(true);
   }
 
   @Test
