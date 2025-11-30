@@ -53,6 +53,7 @@ import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
+import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -72,6 +73,8 @@ class Coordinator extends Channel {
   private static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
   private static final String TASK_ID_SNAPSHOT_PROP = "kafka.connect.task-id";
   private static final String VALID_THROUGH_TS_SNAPSHOT_PROP = "kafka.connect.valid-through-ts";
+  private static final String TOPIC_PARTITION_OFFSETS_SNAPSHOT_PROP =
+      "kafka.connect.topic-partition-offsets";
   private static final Duration POLL_DURATION = Duration.ofSeconds(1);
 
   private final Catalog catalog;
@@ -158,6 +161,7 @@ class Coordinator extends Channel {
   private void doCommit(boolean partialCommit) {
     Map<TableReference, List<Envelope>> commitMap = commitState.tableCommitMap();
     OffsetDateTime validThroughTs = commitState.validThroughTs(partialCommit);
+    List<TopicPartitionOffset> topicPartitionOffsets = commitState.topicPartitionOffsets();
 
     Tasks.foreach(commitMap.entrySet())
         .executeWith(exec)
@@ -165,7 +169,11 @@ class Coordinator extends Channel {
         .run(
             entry -> {
               commitToTable(
-                  entry.getKey(), entry.getValue(), controlTopicOffsets(), validThroughTs);
+                  entry.getKey(),
+                  entry.getValue(),
+                  controlTopicOffsets(),
+                  validThroughTs,
+                  topicPartitionOffsets);
             });
 
     // we should only get here if all tables committed successfully...
@@ -193,11 +201,40 @@ class Coordinator extends Channel {
     }
   }
 
+  private String topicPartitionOffsetsToJson(List<TopicPartitionOffset> offsets) {
+    try {
+      // Convert to a more readable structure for JSON
+      List<Map<String, Object>> offsetMaps =
+          offsets.stream()
+              .map(
+                  tpo -> {
+                    Map<String, Object> map = Maps.newHashMap();
+                    map.put("topic", tpo.topic());
+                    map.put("partition", tpo.partition());
+                    if (tpo.startOffset() != null) {
+                      map.put("startOffset", tpo.startOffset());
+                    }
+                    if (tpo.endOffset() != null) {
+                      map.put("endOffset", tpo.endOffset());
+                    }
+                    if (tpo.timestamp() != null) {
+                      map.put("timestamp", tpo.timestamp().toString());
+                    }
+                    return map;
+                  })
+              .collect(Collectors.toList());
+      return MAPPER.writeValueAsString(offsetMaps);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
   private void commitToTable(
       TableReference tableReference,
       List<Envelope> envelopeList,
       Map<Integer, Long> controlTopicOffsets,
-      OffsetDateTime validThroughTs) {
+      OffsetDateTime validThroughTs,
+      List<TopicPartitionOffset> topicPartitionOffsets) {
     TableIdentifier tableIdentifier = tableReference.identifier();
     Table table;
     try {
@@ -253,6 +290,8 @@ class Coordinator extends Channel {
       LOG.info("Nothing to commit to table {}, skipping", tableIdentifier);
     } else {
       String taskId = String.format("%s-%s", config.connectorName(), config.taskId());
+      String topicPartitionOffsetsJson = topicPartitionOffsetsToJson(topicPartitionOffsets);
+
       if (deleteFiles.isEmpty()) {
         AppendFiles appendOp =
             table.newAppend().validateWith(offsetValidator(tableIdentifier, committedOffsets));
@@ -262,6 +301,7 @@ class Coordinator extends Channel {
         appendOp.set(snapshotOffsetsProp, offsetsJson);
         appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
         appendOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
+        appendOp.set(TOPIC_PARTITION_OFFSETS_SNAPSHOT_PROP, topicPartitionOffsetsJson);
         if (validThroughTs != null) {
           appendOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
@@ -276,6 +316,7 @@ class Coordinator extends Channel {
         deltaOp.set(snapshotOffsetsProp, offsetsJson);
         deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
         deltaOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
+        deltaOp.set(TOPIC_PARTITION_OFFSETS_SNAPSHOT_PROP, topicPartitionOffsetsJson);
         if (validThroughTs != null) {
           deltaOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
