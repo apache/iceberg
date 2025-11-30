@@ -102,6 +102,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   @Override
+  public String description() {
+    return toString();
+  }
+
+  @Override
   public NamedReference[] filterAttributes() {
     Set<Integer> partitionFieldSourceIds = Sets.newHashSet();
 
