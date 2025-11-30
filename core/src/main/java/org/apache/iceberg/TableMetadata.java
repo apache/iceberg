@@ -1255,7 +1255,6 @@ public class TableMetadata implements Serializable {
           snapshot.sequenceNumber(),
           lastSequenceNumber);
 
-      this.lastUpdatedMillis = snapshot.timestampMillis();
       this.lastSequenceNumber = snapshot.sequenceNumber();
       snapshots.add(snapshot);
       snapshotsById.put(snapshot.snapshotId(), snapshot);
@@ -1313,9 +1312,6 @@ public class TableMetadata implements Serializable {
       Snapshot snapshot = snapshotsById.get(snapshotId);
       ValidationException.check(
           snapshot != null, "Cannot set %s to unknown snapshot: %s", name, snapshotId);
-      if (isAddedSnapshot(snapshotId)) {
-        this.lastUpdatedMillis = snapshot.timestampMillis();
-      }
 
       if (SnapshotRef.MAIN_BRANCH.equals(name)) {
         this.currentSnapshotId = ref.snapshotId();
@@ -1323,7 +1319,10 @@ public class TableMetadata implements Serializable {
           this.lastUpdatedMillis = System.currentTimeMillis();
         }
 
-        snapshotLog.add(new SnapshotLogEntry(lastUpdatedMillis, ref.snapshotId()));
+        // rollback to an existing snapshot will use current timestamp as the time of the change
+        long timeOfChange =
+            isAddedSnapshot(snapshotId) ? snapshot.timestampMillis() : this.lastUpdatedMillis;
+        snapshotLog.add(new SnapshotLogEntry(timeOfChange, ref.snapshotId()));
       }
 
       refs.put(name, ref);
