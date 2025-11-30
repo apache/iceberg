@@ -114,8 +114,6 @@ class ExpressionType(BaseModel):
     __root__: str = Field(
         ...,
         example=[
-            'true',
-            'false',
             'eq',
             'and',
             'or',
@@ -134,18 +132,6 @@ class ExpressionType(BaseModel):
             'is-nan',
             'not-nan',
         ],
-    )
-
-
-class TrueExpression(BaseModel):
-    type: ExpressionType = Field(
-        default_factory=lambda: ExpressionType.parse_obj('true'), const=True
-    )
-
-
-class FalseExpression(BaseModel):
-    type: ExpressionType = Field(
-        default_factory=lambda: ExpressionType.parse_obj('false'), const=True
     )
 
 
@@ -1137,8 +1123,7 @@ class Type(BaseModel):
 
 class Expression(BaseModel):
     __root__: Union[
-        TrueExpression,
-        FalseExpression,
+        bool,
         AndOrExpression,
         NotExpression,
         SetExpression,

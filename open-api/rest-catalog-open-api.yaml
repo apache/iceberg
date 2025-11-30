@@ -2232,8 +2232,7 @@ components:
 
     Expression:
       oneOf:
-        - $ref: '#/components/schemas/TrueExpression'
-        - $ref: '#/components/schemas/FalseExpression'
+        - type: boolean
         - $ref: '#/components/schemas/AndOrExpression'
         - $ref: '#/components/schemas/NotExpression'
         - $ref: '#/components/schemas/SetExpression'
@@ -2243,8 +2242,6 @@ components:
     ExpressionType:
       type: string
       example:
-        - "true"
-        - "false"
         - "eq"
         - "and"
         - "or"
@@ -2262,24 +2259,6 @@ components:
         - "not-null"
         - "is-nan"
         - "not-nan"
-
-    TrueExpression:
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          $ref: '#/components/schemas/ExpressionType'
-          const: "true"
-
-    FalseExpression:
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          $ref: '#/components/schemas/ExpressionType'
-          const: "false"
 
     AndOrExpression:
       type: object
