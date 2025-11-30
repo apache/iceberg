@@ -223,6 +223,12 @@ public class RESTCatalog
   }
 
   @Override
+  public Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+    return delegate.registerTable(identifier, metadataFileLocation, overwrite);
+  }
+
+  @Override
   public void createNamespace(Namespace ns, Map<String, String> props) {
     nsDelegate.createNamespace(ns, props);
   }

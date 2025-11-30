@@ -46,9 +46,11 @@ class RegisterTableProcedure extends BaseProcedure {
       requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter METADATA_FILE_PARAM =
       requiredInParameter("metadata_file", DataTypes.StringType);
+  private static final ProcedureParameter OVERWRITE_PARAM =
+      optionalInParameter("overwrite", DataTypes.BooleanType, "false");
 
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {TABLE_PARAM, METADATA_FILE_PARAM};
+      new ProcedureParameter[] {TABLE_PARAM, METADATA_FILE_PARAM, OVERWRITE_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -94,9 +96,10 @@ class RegisterTableProcedure extends BaseProcedure {
     Preconditions.checkArgument(
         metadataFile != null && !metadataFile.isEmpty(),
         "Cannot handle an empty argument metadata_file");
+    boolean isOverwrite = input.asBoolean(OVERWRITE_PARAM, false);
 
     Catalog icebergCatalog = ((HasIcebergCatalog) tableCatalog()).icebergCatalog();
-    Table table = icebergCatalog.registerTable(tableName, metadataFile);
+    Table table = icebergCatalog.registerTable(tableName, metadataFile, isOverwrite);
     Long currentSnapshotId = null;
     Long totalDataFiles = null;
     Long totalRecords = null;
