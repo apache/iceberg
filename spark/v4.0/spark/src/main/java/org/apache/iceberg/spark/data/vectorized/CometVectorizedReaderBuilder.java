@@ -24,7 +24,6 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -37,7 +36,6 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import org.apache.spark.sql.catalyst.InternalRow;
 
 class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
 
@@ -45,19 +43,16 @@ class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReade
   private final Schema icebergSchema;
   private final Map<Integer, ?> idToConstant;
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
-  private final DeleteFilter<InternalRow> deleteFilter;
 
   CometVectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
       Map<Integer, ?> idToConstant,
-      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
-      DeleteFilter<InternalRow> deleteFilter) {
+      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory) {
     this.parquetSchema = parquetSchema;
     this.icebergSchema = expectedSchema;
     this.idToConstant = idToConstant;
     this.readerFactory = readerFactory;
-    this.deleteFilter = deleteFilter;
   }
 
   @Override
@@ -107,11 +102,7 @@ class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReade
   }
 
   protected VectorizedReader<?> vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
-    VectorizedReader<?> reader = readerFactory.apply(reorderedFields);
-    if (deleteFilter != null) {
-      ((CometColumnarBatchReader) reader).setDeleteFilter(deleteFilter);
-    }
-    return reader;
+    return readerFactory.apply(reorderedFields);
   }
 
   @Override
