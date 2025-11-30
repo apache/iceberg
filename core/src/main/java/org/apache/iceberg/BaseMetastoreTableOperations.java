@@ -107,7 +107,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
     // if the metadata is already out of date, reject it
-    if (base != current()) {
+    if (!Objects.equal(base, current())) {
       if (base != null) {
         throw new CommitFailedException("Cannot commit: stale table metadata");
       } else {
@@ -117,7 +117,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
       }
     }
     // if the metadata is not changed, return early
-    if (base == metadata) {
+    if (Objects.equal(base, metadata)) {
       LOG.info("Nothing to commit.");
       return;
     }

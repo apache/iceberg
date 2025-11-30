@@ -46,6 +46,7 @@ import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -325,7 +326,7 @@ public class BaseTransaction implements Transaction {
 
                 // because this is a replace table, it will always completely replace the table
                 // metadata. even if it was just updated.
-                if (base != underlyingOps.current()) {
+                if (!Objects.equal(base, underlyingOps.current())) {
                   this.base = underlyingOps.current(); // just refreshed
                 }
 
@@ -353,7 +354,7 @@ public class BaseTransaction implements Transaction {
 
   private void commitSimpleTransaction() {
     // if there were no changes, don't try to commit
-    if (base == current) {
+    if (Objects.equal(base, current)) {
       return;
     }
 
@@ -459,7 +460,7 @@ public class BaseTransaction implements Transaction {
   }
 
   private void applyUpdates(TableOperations underlyingOps) {
-    if (base != underlyingOps.refresh()) {
+    if (!Objects.equal(base, underlyingOps.refresh())) {
       // use refreshed the metadata
       this.base = underlyingOps.current();
       this.current = underlyingOps.current();
@@ -514,7 +515,7 @@ public class BaseTransaction implements Transaction {
     @Override
     @SuppressWarnings("ConsistentOverrides")
     public void commit(TableMetadata underlyingBase, TableMetadata metadata) {
-      if (underlyingBase != current) {
+      if (!Objects.equal(underlyingBase, current)) {
         // trigger a refresh and retry
         throw new CommitFailedException("Table metadata refresh is required");
       }
