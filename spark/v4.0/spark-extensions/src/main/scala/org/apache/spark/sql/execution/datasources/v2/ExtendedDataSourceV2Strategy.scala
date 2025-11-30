@@ -28,6 +28,7 @@ import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
 import org.apache.spark.sql.catalyst.analysis.ResolvedNamespace
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.CreateIcebergTableLike
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DescribeRelation
@@ -60,6 +61,20 @@ import scala.jdk.CollectionConverters._
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy with PredicateHelper {
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
+    case CreateIcebergTableLike(
+      IcebergCatalogAndIdentifier(catalog, ident),
+      IcebergCatalogAndIdentifier(sourceCatalog, sourceTableIdent),
+      tableProps,
+      ignoreIfExists
+    ) =>
+      CreateV2TableLikeExec(
+        catalog,
+        ident,
+        sourceCatalog,
+        sourceTableIdent,
+        tableProps,
+        ignoreIfExists) :: Nil
+
     case AddPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform, name) =>
       AddPartitionFieldExec(catalog, ident, transform, name) :: Nil
 

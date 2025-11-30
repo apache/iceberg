@@ -104,6 +104,17 @@ TBLPROPERTIES ('key'='value')
 AS SELECT ...
 ```
 
+
+## `CREATE TABLE ... LIKE ...`
+
+Iceberg supports `CREATE TABLE ... LIKE ...`.
+This command is available when using Iceberg [SQL extensions](spark-configuration.md#sql-extensions).
+
+```sql
+CREATE TABLE prod.db.new_table
+LIKE prod.db.existing_table
+```
+
 ## `REPLACE TABLE ... AS SELECT`
 
 Iceberg supports RTAS as an atomic operation when using a [`SparkCatalog`](spark-configuration.md#catalog-configuration). RTAS is supported, but is not atomic when using [`SparkSessionCatalog`](spark-configuration.md#replacing-the-session-catalog).
