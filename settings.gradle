@@ -177,21 +177,21 @@ if (sparkVersions.contains("4.0")) {
 
 if (kafkaVersions.contains("3")) {
   include 'kafka-connect'
-  project(':kafka-connect').name = 'iceberg-kafka-connect'
+  project(':kafka-connect').name = 'iceberg-kafka-connect-parent'
 
-  include ":iceberg-kafka-connect:kafka-connect-events"
-  project(":iceberg-kafka-connect:kafka-connect-events").projectDir = file('kafka-connect/kafka-connect-events')
-  project(":iceberg-kafka-connect:kafka-connect-events").name = "iceberg-kafka-connect-events"
+  include ":iceberg-kafka-connect-parent:kafka-connect-events"
+  project(":iceberg-kafka-connect-parent:kafka-connect-events").projectDir = file('kafka-connect/kafka-connect-events')
+  project(":iceberg-kafka-connect-parent:kafka-connect-events").name = "iceberg-kafka-connect-events"
 
-  include ":iceberg-kafka-connect:kafka-connect"
-  project(":iceberg-kafka-connect:kafka-connect").projectDir = file('kafka-connect/kafka-connect')
-  project(":iceberg-kafka-connect:kafka-connect").name = "iceberg-kafka-connect"
+  include ":iceberg-kafka-connect-parent:kafka-connect"
+  project(":iceberg-kafka-connect-parent:kafka-connect").projectDir = file('kafka-connect/kafka-connect')
+  project(":iceberg-kafka-connect-parent:kafka-connect").name = "iceberg-kafka-connect"
 
-  include ":iceberg-kafka-connect:kafka-connect-runtime"
-  project(":iceberg-kafka-connect:kafka-connect-runtime").projectDir = file('kafka-connect/kafka-connect-runtime')
-  project(":iceberg-kafka-connect:kafka-connect-runtime").name = "iceberg-kafka-connect-runtime"
+  include ":iceberg-kafka-connect-parent:kafka-connect-runtime"
+  project(":iceberg-kafka-connect-parent:kafka-connect-runtime").projectDir = file('kafka-connect/kafka-connect-runtime')
+  project(":iceberg-kafka-connect-parent:kafka-connect-runtime").name = "iceberg-kafka-connect-runtime"
 
-  include ":iceberg-kafka-connect:kafka-connect-transforms"
-  project(":iceberg-kafka-connect:kafka-connect-transforms").projectDir = file('kafka-connect/kafka-connect-transforms')
-  project(":iceberg-kafka-connect:kafka-connect-transforms").name = "iceberg-kafka-connect-transforms"
+  include ":iceberg-kafka-connect-parent:kafka-connect-transforms"
+  project(":iceberg-kafka-connect-parent:kafka-connect-transforms").projectDir = file('kafka-connect/kafka-connect-transforms')
+  project(":iceberg-kafka-connect-parent:kafka-connect-transforms").name = "iceberg-kafka-connect-transforms"
 }
