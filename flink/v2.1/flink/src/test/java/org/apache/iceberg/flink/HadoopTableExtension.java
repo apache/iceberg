@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -27,28 +28,60 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 public class HadoopTableExtension extends HadoopCatalogExtension {
   private final Schema schema;
   private final PartitionSpec partitionSpec;
+  private final Map<String, String> properties;
 
   private Table table;
 
   public HadoopTableExtension(String database, String tableName, Schema schema) {
-    this(database, tableName, schema, null);
+    this(database, tableName, schema, null, null);
   }
 
   public HadoopTableExtension(
       String database, String tableName, Schema schema, PartitionSpec partitionSpec) {
+    this(database, tableName, schema, partitionSpec, null);
+  }
+
+  public HadoopTableExtension(
+      String database, String tableName, Schema schema, Map<String, String> properties) {
+    this(database, tableName, schema, null, properties);
+  }
+
+  public HadoopTableExtension(
+      String database,
+      String tableName,
+      Schema schema,
+      PartitionSpec partitionSpec,
+      Map<String, String> properties) {
     super(database, tableName);
     this.schema = schema;
     this.partitionSpec = partitionSpec;
+    this.properties = properties;
   }
 
   @Override
   public void beforeEach(ExtensionContext context) throws Exception {
     super.beforeEach(context);
     if (partitionSpec == null) {
-      this.table = catalog.createTable(TableIdentifier.of(database, tableName), schema);
+      if (properties == null) {
+        this.table = catalog.createTable(TableIdentifier.of(database, tableName), schema);
+      } else {
+        this.table =
+            catalog.createTable(
+                TableIdentifier.of(database, tableName),
+                schema,
+                PartitionSpec.unpartitioned(),
+                null,
+                properties);
+      }
     } else {
-      this.table =
-          catalog.createTable(TableIdentifier.of(database, tableName), schema, partitionSpec);
+      if (properties == null) {
+        this.table =
+            catalog.createTable(TableIdentifier.of(database, tableName), schema, partitionSpec);
+      } else {
+        this.table =
+            catalog.createTable(
+                TableIdentifier.of(database, tableName), schema, partitionSpec, null, properties);
+      }
     }
     tableLoader.open();
   }
