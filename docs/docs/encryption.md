@@ -72,6 +72,7 @@ SELECT * FROM local.db.table;
 ## Catalog security requirements
 
 1. Catalogs must ensure the `encryption.key-id` property is not modified or removed during table lifetime.
+
 2. To function properly, Iceberg table encryption requires the catalog implementations not to retrieve the metadata
 directly from metadata.json files, if these files are kept unprotected in a storage vulnerable to tampering.
 
