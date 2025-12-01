@@ -41,8 +41,8 @@ import org.openjdk.jmh.annotations.Threads;
  * A benchmark that evaluates the performance of reading ORC data with a flat schema using Iceberg
  * and the built-in file source in Spark.
  *
- * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.13:jmh
+ * <p>To run this benchmark for spark-4.1: <code>
+ *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-4.1_2.13:jmh
  *       -PjmhIncludeRegex=IcebergSourceNestedORCDataReadBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-nested-orc-data-read-benchmark-result.txt
  * </code>

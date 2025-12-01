@@ -2573,16 +2573,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           "MERGE INTO %s t USING source s "
                               + "ON t.id == s.c1 "
                               + "WHEN MATCHED THEN "
-                              + "  UPDATE SET t.s = s.c2",
-                          commitTarget()))
-              .isInstanceOf(AnalysisException.class)
-              .hasMessageContaining("Cannot find data for the output column `s`.`n2`");
-          assertThatThrownBy(
-                  () ->
-                      sql(
-                          "MERGE INTO %s t USING source s "
-                              + "ON t.id == s.c1 "
-                              + "WHEN MATCHED THEN "
                               + "  UPDATE SET t.s.n1 = s.c3",
                           commitTarget()))
               .isInstanceOf(AnalysisException.class)
@@ -2634,17 +2624,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           commitTarget()))
               .isInstanceOf(AnalysisException.class)
               .hasMessageContaining("Cannot safely cast `s`.`n1` \"VOID\" to \"INT\"");
-
-          assertThatThrownBy(
-                  () ->
-                      sql(
-                          "MERGE INTO %s t USING source s "
-                              + "ON t.id == s.c1 "
-                              + "WHEN MATCHED THEN "
-                              + "  UPDATE SET t.s = s.c2",
-                          commitTarget()))
-              .isInstanceOf(AnalysisException.class)
-              .hasMessageContaining("Cannot find data for the output column `s`.`n2`");
           assertThatThrownBy(
                   () ->
                       sql(
@@ -2864,7 +2843,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "WHEN MATCHED THEN "
                         + "  UPDATE SET *"))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("MERGE INTO TABLE is not supported temporarily.");
+        .hasMessageContaining("Table `unknown` does not support MERGE INTO TABLE");
   }
 
   /**

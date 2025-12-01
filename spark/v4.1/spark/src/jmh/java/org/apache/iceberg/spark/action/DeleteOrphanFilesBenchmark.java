@@ -59,8 +59,8 @@ import org.openjdk.jmh.infra.Blackhole;
 /**
  * A benchmark that evaluates the performance of remove orphan files action in Spark.
  *
- * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.13:jmh
+ * <p>To run this benchmark for spark-4.1: <code>
+ *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-4.1_2.13:jmh
  *       -PjmhIncludeRegex=DeleteOrphanFilesBenchmark
  *       -PjmhOutputPath=benchmark/delete-orphan-files-benchmark-results.txt
  * </code>
