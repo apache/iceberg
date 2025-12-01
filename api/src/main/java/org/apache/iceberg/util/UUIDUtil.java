@@ -20,10 +20,13 @@ package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.security.SecureRandom;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class UUIDUtil {
+  private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
   private UUIDUtil() {}
 
   public static UUID convert(byte[] buf) {
@@ -77,5 +80,30 @@ public class UUIDUtil {
     buffer.putLong(0, value.getMostSignificantBits());
     buffer.putLong(8, value.getLeastSignificantBits());
     return buffer;
+  }
+
+  /**
+   * Generate a RFC 9562 UUIDv7 string.
+   *
+   * <p>Layout: - 48-bit Unix epoch milliseconds - 4-bit version (0b0111) - 12-bit random (rand_a) -
+   * 2-bit variant (RFC 4122, 0b10) - 62-bit random (rand_b)
+   */
+  public static String generateUuidV7() {
+    long epochMs = System.currentTimeMillis();
+    if ((epochMs >>> 48) != 0) {
+      throw new IllegalArgumentException("timestamp does not fit within 48 bits: " + epochMs);
+    }
+
+    long randA = SECURE_RANDOM.nextLong() & 0xFFFL; // 12 bits
+    long randB = SECURE_RANDOM.nextLong() & 0x3FFFFFFFFFFFFFFFL; // 62 bits
+
+    long msb = (epochMs << 16); // place timestamp in the top 48 bits
+    msb |= 0x7000L; // version 7 (UUID bits 48..51)
+    msb |= randA; // low 12 bits of MSB
+
+    long lsb = 0x8000000000000000L; // RFC 4122 variant '10'
+    lsb |= randB;
+
+    return new UUID(msb, lsb).toString();
   }
 }
