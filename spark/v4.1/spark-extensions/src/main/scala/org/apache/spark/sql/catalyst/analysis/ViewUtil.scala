@@ -44,7 +44,7 @@ object ViewUtil {
       case viewCatalog: ViewCatalog =>
         viewCatalog
       case _ =>
-        throw QueryCompilationErrors.missingCatalogAbilityError(plugin, "views")
+        throw QueryCompilationErrors.missingCatalogViewsAbilityError(plugin)
     }
   }
 }

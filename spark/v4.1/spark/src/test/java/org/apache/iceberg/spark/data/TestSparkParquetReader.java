@@ -171,6 +171,7 @@ public class TestSparkParquetReader extends AvroDataTestBase {
             .set("spark.sql.parquet.writeLegacyFormat", "false")
             .set("spark.sql.parquet.outputTimestampType", "INT96")
             .set("spark.sql.parquet.fieldId.write.enabled", "true")
+            .set("spark.sql.parquet.variant.annotateLogicalType.enabled", "true")
             .build()) {
       for (InternalRow row : rows) {
         writer.write(row);

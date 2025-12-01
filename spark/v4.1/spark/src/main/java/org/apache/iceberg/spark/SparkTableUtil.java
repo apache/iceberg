@@ -1021,7 +1021,8 @@ public class SparkTableUtil {
   private static DataSourceV2Relation createRelation(
       SparkTable sparkTable, Map<String, String> extraOptions) {
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(extraOptions);
-    return DataSourceV2Relation.create(sparkTable, Option.empty(), Option.empty(), options);
+    return DataSourceV2Relation.create(
+        sparkTable, Option.empty(), Option.empty(), options, Option.empty());
   }
 
   /**
