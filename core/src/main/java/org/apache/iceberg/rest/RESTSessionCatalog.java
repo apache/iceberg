@@ -470,6 +470,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     RESTTable restTable = restTableForScanPlanning(ops, finalIdentifier, tableClient);
     if (restTable != null) {
+      if (metadataType != null) {
+        return MetadataTableUtils.createMetadataTableInstance(restTable, metadataType);
+      }
+
       return restTable;
     }
 
@@ -497,7 +501,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           Map::of,
           finalIdentifier,
           paths,
-          endpoints);
+          endpoints,
+          properties(),
+          conf);
     }
     return null;
   }

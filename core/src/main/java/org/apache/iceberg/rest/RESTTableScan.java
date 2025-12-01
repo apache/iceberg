@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -35,7 +36,12 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.TableScanContext;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
@@ -46,6 +52,12 @@ import org.slf4j.LoggerFactory;
 class RESTTableScan extends DataTableScan {
 
   private static final Logger LOG = LoggerFactory.getLogger(RESTTableScan.class);
+  private static final long MIN_SLEEP_MS = 1000; // Initial delay
+  private static final long MAX_SLEEP_MS = 60 * 1000; // Max backoff delay (1 minute)
+  private static final int MAX_ATTEMPTS = 10; // Max number of poll checks
+  private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000; // Total maximum duration (5 minutes)
+  private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
+  private static final String FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   private final RESTClient client;
   private final Map<String, String> headers;
@@ -55,14 +67,11 @@ class RESTTableScan extends DataTableScan {
   private final TableIdentifier tableIdentifier;
   private final Set<Endpoint> supportedEndpoints;
   private final ParserContext parserContext;
-
+  private final Map<String, FileIO> fileIOByPlanId = Maps.newConcurrentMap();
+  private final Map<String, String> catalogProperties;
+  private final Object hadoopConf;
+  private final FileIO tableIo;
   private String currentPlanId = null;
-
-  private static final long MIN_SLEEP_MS = 1000; // Initial delay
-  private static final long MAX_SLEEP_MS = 60 * 1000; // Max backoff delay (1 minute)
-  private static final int MAX_ATTEMPTS = 10; // Max number of poll checks
-  private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000; // Total maximum duration (5 minutes)
-  private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
 
   RESTTableScan(
       Table table,
@@ -73,7 +82,10 @@ class RESTTableScan extends DataTableScan {
       TableOperations operations,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
-      Set<Endpoint> supportedEndpoints) {
+      Set<Endpoint> supportedEndpoints,
+      FileIO tableIo,
+      Map<String, String> catalogProperties,
+      Object hadoopConf) {
     super(table, schema, context);
     this.table = table;
     this.client = client;
@@ -87,6 +99,9 @@ class RESTTableScan extends DataTableScan {
             .add("specsById", table.specs())
             .add("caseSensitive", context().caseSensitive())
             .build();
+    this.tableIo = tableIo;
+    this.catalogProperties = catalogProperties;
+    this.hadoopConf = hadoopConf;
   }
 
   @Override
@@ -101,7 +116,15 @@ class RESTTableScan extends DataTableScan {
         operations,
         tableIdentifier,
         resourcePaths,
-        supportedEndpoints);
+        supportedEndpoints,
+        tableIo,
+        catalogProperties,
+        hadoopConf);
+  }
+
+  @Override
+  protected FileIO io() {
+    return null != currentPlanId ? fileIOByPlanId.getOrDefault(currentPlanId, tableIo) : tableIo;
   }
 
   @Override
@@ -155,6 +178,24 @@ class RESTTableScan extends DataTableScan {
             parserContext);
 
     PlanStatus planStatus = response.planStatus();
+    List<Credential> storageCredentials = response.credentials();
+    if (null != response.planId() && !response.credentials().isEmpty()) {
+      Map<String, String> props =
+          ImmutableMap.<String, String>builder()
+              .putAll(catalogProperties)
+              .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, response.planId())
+              .build();
+      fileIOByPlanId.put(
+          response.planId(),
+          CatalogUtil.loadFileIO(
+              FILE_IO_IMPL,
+              props,
+              hadoopConf,
+              storageCredentials.stream()
+                  .map(c -> StorageCredential.create(c.prefix(), c.config()))
+                  .collect(Collectors.toList())));
+    }
+
     switch (planStatus) {
       case COMPLETED:
         currentPlanId = response.planId();
