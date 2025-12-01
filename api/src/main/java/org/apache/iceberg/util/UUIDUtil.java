@@ -93,16 +93,19 @@ public class UUIDUtil {
     if ((epochMs >>> 48) != 0) {
       throw new IllegalArgumentException("timestamp does not fit within 48 bits: " + epochMs);
     }
-
-    long randA = SECURE_RANDOM.nextLong() & 0xFFFL; // 12 bits
-    long randB = SECURE_RANDOM.nextLong() & 0x3FFFFFFFFFFFFFFFL; // 62 bits
+    // Draw 10 random bytes once: 2 bytes for rand_a (12 bits) and 8 bytes for rand_b (62 bits)
+    byte[] randomBytes = new byte[10];
+    SECURE_RANDOM.nextBytes(randomBytes);
+    ByteBuffer rb = ByteBuffer.wrap(randomBytes).order(ByteOrder.BIG_ENDIAN);
+    long randMSB = ((long) rb.getShort()) & 0x0FFFL; // 12 bits
+    long randLSB = rb.getLong() & 0x3FFFFFFFFFFFFFFFL; // 62 bits
 
     long msb = (epochMs << 16); // place timestamp in the top 48 bits
     msb |= 0x7000L; // version 7 (UUID bits 48..51)
-    msb |= randA; // low 12 bits of MSB
+    msb |= randMSB; // low 12 bits of MSB
 
     long lsb = 0x8000000000000000L; // RFC 4122 variant '10'
-    lsb |= randB;
+    lsb |= randLSB;
 
     return new UUID(msb, lsb).toString();
   }

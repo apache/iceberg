@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-public class TestUUIDUtilV7 {
+public class TestUUIDUtil {
 
   @Test
   public void generateUuidV7_hasVersionAndVariant() {
