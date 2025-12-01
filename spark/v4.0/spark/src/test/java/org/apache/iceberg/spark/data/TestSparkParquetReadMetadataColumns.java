@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
@@ -35,21 +34,16 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.DeleteFilter;
-import org.apache.iceberg.deletes.DeleteCounter;
-import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.spark.source.BatchReaderUtil;
@@ -183,7 +177,8 @@ public class TestSparkParquetReadMetadataColumns {
     Parquet.ReadBuilder builder =
         Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
 
-    DeleteFilter<InternalRow> deleteFilter = new TestDeleteFilter(true);
+    DeleteFilter<InternalRow> deleteFilter =
+        new TestHelpers.CustomizedDeleteFilter(true, DATA_SCHEMA, PROJECTION_SCHEMA);
 
     builder.createBatchedReaderFunc(
         fileSchema ->
@@ -192,70 +187,6 @@ public class TestSparkParquetReadMetadataColumns {
     builder.recordsPerBatch(RECORDS_PER_BATCH);
 
     validate(expectedRowsAfterDelete, builder, deleteFilter);
-  }
-
-  private class TestDeleteFilter extends DeleteFilter<InternalRow> {
-    private final boolean hasDeletes;
-
-    protected TestDeleteFilter(boolean hasDeletes) {
-      super("", List.of(), DATA_SCHEMA, PROJECTION_SCHEMA, new DeleteCounter(), true);
-      this.hasDeletes = hasDeletes;
-    }
-
-    @Override
-    protected StructLike asStructLike(InternalRow record) {
-      return null;
-    }
-
-    @Override
-    protected InputFile getInputFile(String location) {
-      return null;
-    }
-
-    @Override
-    public boolean hasPosDeletes() {
-      return hasDeletes;
-    }
-
-    @Override
-    public PositionDeleteIndex deletedRowPositions() {
-      PositionDeleteIndex deletedRowPos = new CustomizedPositionDeleteIndex();
-      if (hasDeletes) {
-        deletedRowPos.delete(98, 103);
-      }
-
-      return deletedRowPos;
-    }
-  }
-
-  private class CustomizedPositionDeleteIndex implements PositionDeleteIndex {
-    private final Set<Long> deleteIndex;
-
-    private CustomizedPositionDeleteIndex() {
-      deleteIndex = Sets.newHashSet();
-    }
-
-    @Override
-    public void delete(long position) {
-      deleteIndex.add(position);
-    }
-
-    @Override
-    public void delete(long posStart, long posEnd) {
-      for (long l = posStart; l < posEnd; l++) {
-        delete(l);
-      }
-    }
-
-    @Override
-    public boolean isDeleted(long position) {
-      return deleteIndex.contains(position);
-    }
-
-    @Override
-    public boolean isEmpty() {
-      return deleteIndex.isEmpty();
-    }
   }
 
   @TestTemplate
@@ -314,7 +245,10 @@ public class TestSparkParquetReadMetadataColumns {
       builder = builder.split(splitStart, splitLength);
     }
 
-    validate(expected, builder, new TestDeleteFilter(false));
+    validate(
+        expected,
+        builder,
+        new TestHelpers.CustomizedDeleteFilter(false, DATA_SCHEMA, PROJECTION_SCHEMA));
   }
 
   private void validate(
