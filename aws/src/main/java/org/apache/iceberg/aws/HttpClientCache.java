@@ -21,8 +21,6 @@ package org.apache.iceberg.aws;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -105,8 +103,8 @@ final class HttpClientCache {
   static class ManagedHttpClient implements SdkHttpClient {
     private final SdkHttpClient httpClient;
     private final String clientKey;
-    private final AtomicInteger refCount = new AtomicInteger(0);
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private volatile int refCount = 0;
+    private boolean closed = false;
 
     ManagedHttpClient(SdkHttpClient httpClient, String clientKey) {
       this.httpClient = httpClient;
@@ -121,12 +119,11 @@ final class HttpClientCache {
      * @throws IllegalStateException if the client has already been closed
      */
     synchronized ManagedHttpClient acquire() {
-      int count = refCount.incrementAndGet();
-      if (closed.get()) {
-        refCount.decrementAndGet();
+      if (closed) {
         throw new IllegalStateException("Cannot acquire closed HTTP client: " + clientKey);
       }
-      LOG.debug("Acquired HTTP client: key={}, refCount={}", clientKey, count);
+      refCount++;
+      LOG.debug("Acquired HTTP client: key={}, refCount={}", clientKey, refCount);
       return this;
     }
 
@@ -137,18 +134,19 @@ final class HttpClientCache {
      * @return true if the client was closed, false otherwise
      */
     synchronized boolean release() {
-      if (closed.get()) {
+      if (closed) {
         LOG.warn("Attempted to release already closed HTTP client: key={}", clientKey);
         return false;
       }
 
-      int count = refCount.decrementAndGet();
-      LOG.debug("Released HTTP client: key={}, refCount={}", clientKey, count);
-      if (count == 0) {
+      refCount--;
+      LOG.debug("Released HTTP client: key={}, refCount={}", clientKey, refCount);
+      if (refCount == 0) {
         return closeHttpClient();
-      } else if (count < 0) {
-        LOG.warn("HTTP client reference count went negative key={}, refCount={}", clientKey, count);
-        refCount.set(0); // Reset to prevent further corruption
+      } else if (refCount < 0) {
+        LOG.warn(
+            "HTTP client reference count went negative key={}, refCount={}", clientKey, refCount);
+        refCount = 0;
       }
       return false;
     }
@@ -164,7 +162,8 @@ final class HttpClientCache {
      * @return true if the client was closed by this call, false if already closed
      */
     private boolean closeHttpClient() {
-      if (closed.compareAndSet(false, true)) {
+      if (!closed) {
+        closed = true;
         LOG.debug("Closing HTTP client: key={}", clientKey);
         try {
           httpClient.close();
@@ -178,12 +177,12 @@ final class HttpClientCache {
 
     @VisibleForTesting
     int refCount() {
-      return refCount.get();
+      return refCount;
     }
 
     @VisibleForTesting
     boolean isClosed() {
-      return closed.get();
+      return closed;
     }
 
     @Override
