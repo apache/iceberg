@@ -30,8 +30,10 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
@@ -46,7 +48,11 @@ public class EncryptingFileIO implements FileIO, Serializable {
       return combine(encryptingIO.io, em);
     }
 
-    return new EncryptingFileIO(io, em);
+    if (io instanceof SupportsPrefixOperations) {
+      return new WithSupportsPrefixOperations((SupportsPrefixOperations) io, em);
+    } else {
+      return new EncryptingFileIO(io, em);
+    }
   }
 
   private final FileIO io;
@@ -204,6 +210,27 @@ public class EncryptingFileIO implements FileIO, Serializable {
     @Override
     public EncryptionKeyMetadata copy() {
       return new SimpleKeyMetadata(metadataBuffer.duplicate());
+    }
+  }
+
+  static class WithSupportsPrefixOperations extends EncryptingFileIO
+      implements SupportsPrefixOperations {
+
+    private final SupportsPrefixOperations io;
+
+    WithSupportsPrefixOperations(SupportsPrefixOperations io, EncryptionManager em) {
+      super(io, em);
+      this.io = io;
+    }
+
+    @Override
+    public Iterable<FileInfo> listPrefix(String prefix) {
+      return io.listPrefix(prefix);
+    }
+
+    @Override
+    public void deletePrefix(String prefix) {
+      io.deletePrefix(prefix);
     }
   }
 }
