@@ -228,7 +228,7 @@ public class ContentFileParser {
           DataFile.NULL_VALUE_COUNTS.type(), contentFile.nullValueCounts(), generator);
     }
 
-    if (contentFile.nullValueCounts() != null) {
+    if (contentFile.nanValueCounts() != null) {
       generator.writeFieldName(NAN_VALUE_COUNTS);
       SingleValueParser.toJson(
           DataFile.NAN_VALUE_COUNTS.type(), contentFile.nanValueCounts(), generator);
