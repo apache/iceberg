@@ -120,7 +120,7 @@ final class HttpClientCache {
      * @return the ref-counted wrapper client
      * @throws IllegalStateException if the client has already been closed
      */
-    ManagedHttpClient acquire() {
+    synchronized ManagedHttpClient acquire() {
       int count = refCount.incrementAndGet();
       if (closed.get()) {
         refCount.decrementAndGet();
@@ -136,7 +136,7 @@ final class HttpClientCache {
      *
      * @return true if the client was closed, false otherwise
      */
-    boolean release() {
+    synchronized boolean release() {
       if (closed.get()) {
         LOG.warn("Attempted to release already closed HTTP client: key={}", clientKey);
         return false;
@@ -161,19 +161,17 @@ final class HttpClientCache {
     /**
      * Close the HTTP client if not already closed.
      *
-     * @return true if the client was closed by this call, false if already closed or if an error
-     *     occurred
+     * @return true if the client was closed by this call, false if already closed
      */
     private boolean closeHttpClient() {
       if (closed.compareAndSet(false, true)) {
         LOG.debug("Closing HTTP client: key={}", clientKey);
         try {
           httpClient.close();
-          return true;
         } catch (Exception e) {
           LOG.error("Failed to close HTTP client: key={}", clientKey, e);
-          return false;
         }
+        return true;
       }
       return false;
     }
