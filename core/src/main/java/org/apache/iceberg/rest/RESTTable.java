@@ -28,6 +28,7 @@ import org.apache.iceberg.ImmutableTableScanContext;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.MetricsReporter;
 
 class RESTTable extends BaseTable {
@@ -37,6 +38,10 @@ class RESTTable extends BaseTable {
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
   private final Set<Endpoint> supportedEndpoints;
+  private final Map<String, String> catalogProperties;
+  private final Object hadoopConf;
+  private final FileIO io;
+  private RESTTableScan scan;
 
   RESTTable(
       TableOperations ops,
@@ -46,7 +51,9 @@ class RESTTable extends BaseTable {
       Supplier<Map<String, String>> headers,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
-      Set<Endpoint> supportedEndpoints) {
+      Set<Endpoint> supportedEndpoints,
+      Map<String, String> catalogProperties,
+      Object hadoopConf) {
     super(ops, name, reporter);
     this.reporter = reporter;
     this.client = client;
@@ -54,20 +61,37 @@ class RESTTable extends BaseTable {
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
     this.supportedEndpoints = supportedEndpoints;
+    this.catalogProperties = catalogProperties;
+    this.hadoopConf = hadoopConf;
+    this.io = ops.io();
   }
 
   @Override
   public TableScan newScan() {
-    return new RESTTableScan(
-        this,
-        schema(),
-        ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
-        client,
-        headers.get(),
-        operations(),
-        tableIdentifier,
-        resourcePaths,
-        supportedEndpoints);
+    this.scan =
+        new RESTTableScan(
+            this,
+            schema(),
+            ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
+            client,
+            headers.get(),
+            operations(),
+            tableIdentifier,
+            resourcePaths,
+            supportedEndpoints,
+            io,
+            catalogProperties,
+            hadoopConf);
+    return scan;
+  }
+
+  @Override
+  public FileIO io() {
+    if (null != scan) {
+      return scan.io();
+    }
+
+    return io;
   }
 
   @Override
