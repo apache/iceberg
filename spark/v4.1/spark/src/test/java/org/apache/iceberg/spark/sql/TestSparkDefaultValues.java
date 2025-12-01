@@ -38,9 +38,6 @@ import org.junit.jupiter.api.TestTemplate;
  * <p>Note: These tests use {@code validationCatalog.createTable()} to create tables with default
  * values because the Iceberg Spark integration does not yet support default value clauses in Spark
  * DDL.
- *
- * <p>Partial column INSERT statements (e.g., {@code INSERT INTO table (col1) VALUES (val1)}) are
- * not supported for DSV2 in Spark 4.0
  */
 public class TestSparkDefaultValues extends CatalogTestBase {
 
@@ -173,29 +170,6 @@ public class TestSparkDefaultValues extends CatalogTestBase {
             () -> sql("ALTER TABLE %s ADD COLUMN data STRING DEFAULT 'default-value'", tableName))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("default values in Spark is currently unsupported");
-  }
-
-  @TestTemplate
-  public void testPartialInsertUnsupported() {
-    assertThat(validationCatalog.tableExists(tableIdent))
-        .as("Table should not already exist")
-        .isFalse();
-
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withWriteDefault(Literal.of("default-data"))
-                .build());
-
-    validationCatalog.createTable(
-        tableIdent, schema, PartitionSpec.unpartitioned(), ImmutableMap.of("format-version", "3"));
-
-    assertThatThrownBy(() -> sql("INSERT INTO %s (id) VALUES (1)", commitTarget()))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot find data for the output column");
   }
 
   @TestTemplate

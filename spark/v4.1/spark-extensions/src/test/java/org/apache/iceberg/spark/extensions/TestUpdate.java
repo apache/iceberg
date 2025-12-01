@@ -1447,7 +1447,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     assertThatThrownBy(() -> sql("UPDATE %s SET c1 = -1 WHERE c2 = 1", "testtable"))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("UPDATE TABLE is not supported temporarily.");
+        .hasMessageContaining("Table `unknown` does not support UPDATE TABLE.");
   }
 
   @TestTemplate

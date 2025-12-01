@@ -39,9 +39,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.execution.streaming.MemoryStream;
+import org.apache.spark.sql.execution.streaming.runtime.MemoryStream;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
@@ -96,7 +95,7 @@ public class TestStructuredStreaming {
             new SimpleRecord(3, "3"),
             new SimpleRecord(4, "4"));
 
-    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark, Encoders.INT());
     DataStreamWriter<Row> streamWriter =
         inputStream
             .toDF()
@@ -155,7 +154,7 @@ public class TestStructuredStreaming {
         Lists.newArrayList(
             new SimpleRecord(2, "1"), new SimpleRecord(3, "2"), new SimpleRecord(1, "3"));
 
-    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark, Encoders.INT());
     DataStreamWriter<Row> streamWriter =
         inputStream
             .toDF()
@@ -216,7 +215,7 @@ public class TestStructuredStreaming {
         Lists.newArrayList(
             new SimpleRecord(1, null), new SimpleRecord(2, null), new SimpleRecord(3, null));
 
-    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark, Encoders.INT());
     DataStreamWriter<Row> streamWriter =
         inputStream
             .toDF()
@@ -273,7 +272,7 @@ public class TestStructuredStreaming {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     tables.create(SCHEMA, spec, location.toString());
 
-    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark, Encoders.INT());
     DataStreamWriter<Row> streamWriter =
         inputStream
             .toDF()
@@ -299,8 +298,9 @@ public class TestStructuredStreaming {
     }
   }
 
-  private <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder) {
-    return new MemoryStream<>(id, sqlContext, Option.empty(), encoder);
+  private <T> MemoryStream<T> newMemoryStream(
+      int id, SparkSession sparkSession, Encoder<T> encoder) {
+    return new MemoryStream<>(id, sparkSession, Option.empty(), encoder);
   }
 
   private <T> void send(List<T> records, MemoryStream<T> stream) {

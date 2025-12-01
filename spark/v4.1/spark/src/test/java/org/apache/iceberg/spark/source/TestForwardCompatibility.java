@@ -53,9 +53,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.execution.streaming.MemoryStream;
+import org.apache.spark.sql.execution.streaming.runtime.MemoryStream;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.junit.jupiter.api.AfterAll;
@@ -147,7 +146,7 @@ public class TestForwardCompatibility {
     HadoopTables tables = new HadoopTables(CONF);
     tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());
 
-    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark, Encoders.INT());
     StreamingQuery query =
         inputStream
             .toDF()
@@ -219,8 +218,9 @@ public class TestForwardCompatibility {
     }
   }
 
-  private <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder) {
-    return new MemoryStream<>(id, sqlContext, Option.empty(), encoder);
+  private <T> MemoryStream<T> newMemoryStream(
+      int id, SparkSession sparkSession, Encoder<T> encoder) {
+    return new MemoryStream<>(id, sparkSession, Option.empty(), encoder);
   }
 
   private <T> void send(List<T> records, MemoryStream<T> stream) {
