@@ -332,7 +332,7 @@ abstract class BaseDistributedDataScan
       CompletableFuture<DeleteFileIndex> deletesFuture,
       boolean copyDataFiles) {
 
-    String schemaString = SchemaParser.toJson(tableSchema());
+    Map<Integer, String> schemaStringCache = specCache(spec -> SchemaParser.toJson(spec.schema()));
     Map<Integer, String> specStringCache = specCache(PartitionSpecParser::toJson);
     Map<Integer, ResidualEvaluator> residualCache = specCache(this::newResidualEvaluator);
 
@@ -345,7 +345,7 @@ abstract class BaseDistributedDataScan
                 dataFiles,
                 deletesFuture,
                 copyDataFiles,
-                schemaString,
+                schemaStringCache,
                 specStringCache,
                 residualCache));
   }
@@ -354,7 +354,7 @@ abstract class BaseDistributedDataScan
       CloseableIterable<DataFile> dataFiles,
       CompletableFuture<DeleteFileIndex> deletesFuture,
       boolean copyDataFiles,
-      String schemaString,
+      Map<Integer, String> schemaStringCache,
       Map<Integer, String> specStringCache,
       Map<Integer, ResidualEvaluator> residualCache) {
 
@@ -363,6 +363,7 @@ abstract class BaseDistributedDataScan
         dataFile -> {
           DeleteFile[] deleteFiles = deletesFuture.join().forDataFile(dataFile);
 
+          String schemaString = schemaStringCache.get(dataFile.specId());
           String specString = specStringCache.get(dataFile.specId());
           ResidualEvaluator residuals = residualCache.get(dataFile.specId());
 
