@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -35,8 +36,12 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.TableScanContext;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
@@ -51,6 +56,7 @@ class RESTTableScan extends DataTableScan {
   private static final int MAX_ATTEMPTS = 10; // Max number of poll checks
   private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000; // Total maximum duration (5 minutes)
   private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
+  private static final String FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   private final RESTClient client;
   private final Map<String, String> headers;
@@ -60,7 +66,11 @@ class RESTTableScan extends DataTableScan {
   private final TableIdentifier tableIdentifier;
   private final Set<Endpoint> supportedEndpoints;
   private final ParserContext parserContext;
+  private final Map<String, String> catalogProperties;
+  private final Object hadoopConf;
+  private final FileIO tableIo;
   private String planId = null;
+  private FileIO fileIOForPlanId = null;
 
   RESTTableScan(
       Table table,
@@ -71,7 +81,10 @@ class RESTTableScan extends DataTableScan {
       TableOperations operations,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
-      Set<Endpoint> supportedEndpoints) {
+      Set<Endpoint> supportedEndpoints,
+      FileIO tableIo,
+      Map<String, String> catalogProperties,
+      Object hadoopConf) {
     super(table, schema, context);
     this.table = table;
     this.client = client;
@@ -85,6 +98,9 @@ class RESTTableScan extends DataTableScan {
             .add("specsById", table.specs())
             .add("caseSensitive", context().caseSensitive())
             .build();
+    this.tableIo = tableIo;
+    this.catalogProperties = catalogProperties;
+    this.hadoopConf = hadoopConf;
   }
 
   @Override
@@ -99,7 +115,15 @@ class RESTTableScan extends DataTableScan {
         operations,
         tableIdentifier,
         resourcePaths,
-        supportedEndpoints);
+        supportedEndpoints,
+        io(),
+        catalogProperties,
+        hadoopConf);
+  }
+
+  @Override
+  protected FileIO io() {
+    return null != fileIOForPlanId ? fileIOForPlanId : tableIo;
   }
 
   @Override
@@ -151,6 +175,10 @@ class RESTTableScan extends DataTableScan {
 
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
+    if (null != planId && !response.credentials().isEmpty()) {
+      this.fileIOForPlanId = fileIOForPlanId(response.credentials());
+    }
+
     switch (planStatus) {
       case COMPLETED:
         return scanTasksIterable(response.planTasks(), response.fileScanTasks());
@@ -167,6 +195,19 @@ class RESTTableScan extends DataTableScan {
         throw new IllegalStateException(
             String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
     }
+  }
+
+  private FileIO fileIOForPlanId(List<Credential> storageCredentials) {
+    return CatalogUtil.loadFileIO(
+        FILE_IO_IMPL,
+        ImmutableMap.<String, String>builder()
+            .putAll(catalogProperties)
+            .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
+            .buildKeepingLast(),
+        hadoopConf,
+        storageCredentials.stream()
+            .map(c -> StorageCredential.create(c.prefix(), c.config()))
+            .collect(Collectors.toList()));
   }
 
   private CloseableIterable<FileScanTask> fetchPlanningResult() {
@@ -215,6 +256,10 @@ class RESTTableScan extends DataTableScan {
           "Plan finished with unexpected status %s for planId: %s",
           response.planStatus(),
           planId);
+
+      if (null != planId && !response.credentials().isEmpty()) {
+        this.fileIOForPlanId = fileIOForPlanId(response.credentials());
+      }
 
       return scanTasksIterable(response.planTasks(), response.fileScanTasks());
     } catch (FailsafeException e) {
