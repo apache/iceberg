@@ -28,7 +28,7 @@ Currently, encryption is supported in the Hive and REST catalogs for tables with
 
 Two parameters are required to activate encryption of a table
 1. Catalog property `encryption.kms-impl`, that specifies the class path for a client of a KMS ("key management service").
-2. Table property `encryption.key-id`, that specifies the ID of a master key used to encrypt and decrypt the table. Master keys are stored and managed in the KMS. This table property must be set during the table creation, and never modified or removed during the table lifetime.
+2. Table property `encryption.key-id`, that specifies the ID of a master key used to encrypt and decrypt the table. Master keys are stored and managed in the KMS.
 
 For more details on table encryption, see the "Appendix: Internals Overview" [subsection](#appendix-internals-overview).
 
@@ -71,7 +71,8 @@ SELECT * FROM local.db.table;
 
 ## Catalog security requirements
 
-To function properly, Iceberg table encryption requires the catalog implementations not to retrieve the metadata
+1. Catalogs must ensure the `encryption.key-id` property is not modified or removed during table lifetime.
+2. To function properly, Iceberg table encryption requires the catalog implementations not to retrieve the metadata
 directly from metadata.json files, if these files are kept unprotected in a storage vulnerable to tampering.
 
 * Catalogs may keep the metadata in a trusted independent object store.
