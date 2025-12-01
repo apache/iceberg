@@ -53,8 +53,8 @@ import org.openjdk.jmh.annotations.Warmup;
 /**
  * A benchmark that evaluates the performance of the cardinality check in MERGE operations.
  *
- * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-extensions-4.0_2.13:jmh
+ * <p>To run this benchmark for spark-4.1: <code>
+ *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-extensions-4.1_2.13:jmh
  *       -PjmhIncludeRegex=MergeCardinalityCheckBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-merge-cardinality-check-benchmark.txt
  * </code>

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.procedures;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -35,6 +36,10 @@ public class SparkProcedures {
     // procedure resolution is case insensitive to match the existing Spark behavior for functions
     Supplier<ProcedureBuilder> builderSupplier = BUILDERS.get(name.toLowerCase(Locale.ROOT));
     return builderSupplier != null ? builderSupplier.get() : null;
+  }
+
+  public static Set<String> names() {
+    return BUILDERS.keySet();
   }
 
   private static Map<String, Supplier<ProcedureBuilder>> initProcedureBuilders() {
