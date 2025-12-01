@@ -170,6 +170,13 @@ public class TestTableEncryption extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testKeyAlter() {
+    assertThatThrownBy(
+            () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='abcd')", tableName))
+        .hasMessageContaining("Cannot modify key in encrypted table");
+  }
+
+  @TestTemplate
   public void testDirectDataFileRead() {
     List<Object[]> dataFileTable =
         sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
