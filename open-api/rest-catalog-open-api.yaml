@@ -659,6 +659,8 @@ paths:
           needed by calling cancelPlanning. Cancellation is not necessary after
           fetchScanTasks has been used to fetch scan tasks for each plan task.
       operationId: planTableScan
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         content:
           application/json:
@@ -766,6 +768,8 @@ paths:
         - Catalog API
       summary: Cancels scan planning for a plan-id
       operationId: cancelPlanning
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description: >
         Cancels scan planning for a plan-id.
 
@@ -824,6 +828,8 @@ paths:
         - Catalog API
       summary: Fetches result tasks for a plan task
       operationId: fetchScanTasks
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description: Fetches result tasks for a plan task.
       requestBody:
         content:
