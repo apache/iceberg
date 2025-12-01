@@ -23,6 +23,8 @@ import org.apache.spark.sql.catalyst.analysis.AnalysisContext
 import org.apache.spark.sql.catalyst.plans.logical.AnalysisOnlyCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
+// Align Iceberg's CreateIcebergView with Spark’s CreateViewCommand by extending AnalysisOnlyCommand.
+// The command’s children are analyzed then hidden, so the optimizer/planner won’t traverse the view body.
 case class CreateIcebergView(
   child: LogicalPlan,
   queryText: String,
@@ -35,15 +37,12 @@ case class CreateIcebergView(
   allowExisting: Boolean,
   replace: Boolean,
   rewritten: Boolean = false,
-  // Align Iceberg CreateIcebergView with Spark’s CreateViewCommand by extending AnalysisOnlyCommand.
-  // The command’s children are analyzed then hidden, so the optimizer/planner won’t traverse the view body.
   isAnalyzed: Boolean = false) extends AnalysisOnlyCommand {
 
   override def childrenToAnalyze: Seq[LogicalPlan] = child :: query :: Nil
 
   def markAsAnalyzed(analysisContext: AnalysisContext): LogicalPlan = {
-    copy(
-      isAnalyzed = true)
+    copy(isAnalyzed = true)
   }
 
   override protected def withNewChildrenInternal(newChildren: IndexedSeq[LogicalPlan]): LogicalPlan = {
