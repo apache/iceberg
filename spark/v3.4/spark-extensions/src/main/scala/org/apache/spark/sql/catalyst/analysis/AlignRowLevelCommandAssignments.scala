@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -35,8 +34,7 @@ import org.apache.spark.sql.catalyst.rules.Rule
  *
  * Note that this rule must be run before rewriting row-level commands.
  */
-object AlignRowLevelCommandAssignments
-  extends Rule[LogicalPlan] with AssignmentAlignmentSupport {
+object AlignRowLevelCommandAssignments extends Rule[LogicalPlan] with AssignmentAlignmentSupport {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u: UpdateIcebergTable if u.resolved && !u.aligned =>
@@ -60,7 +58,7 @@ object AlignRowLevelCommandAssignments
             if (ref.size > 1) {
               throw new AnalysisException(
                 "Nested fields are not supported inside INSERT clauses of MERGE operations: " +
-                s"${ref.mkString("`", "`.`", "`")}")
+                  s"${ref.mkString("`", "`.`", "`")}")
             }
           }
 
@@ -101,8 +99,8 @@ object AlignRowLevelCommandAssignments
       if (assignment.isEmpty) {
         throw new AnalysisException(
           s"Cannot find column '${targetAttr.name}' of the target table among " +
-          s"the INSERT columns: ${assignmentMap.keys.mkString(", ")}. " +
-          "INSERT clauses must provide values for all columns of the target table.")
+            s"the INSERT columns: ${assignmentMap.keys.mkString(", ")}. " +
+            "INSERT clauses must provide values for all columns of the target table.")
       }
 
       val key = assignment.get.key

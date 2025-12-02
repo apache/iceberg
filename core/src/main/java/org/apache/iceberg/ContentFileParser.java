@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ContentFileParser {
@@ -89,7 +90,7 @@ public class ContentFileParser {
 
     if (contentFile.partition() != null) {
       generator.writeFieldName(PARTITION);
-      SingleValueParser.toJson(spec.partitionType(), contentFile.partition(), generator);
+      partitionToJson(spec.partitionType(), contentFile.partition(), generator);
     }
 
     generator.writeNumberField(FILE_SIZE, contentFile.fileSizeInBytes());
@@ -152,18 +153,7 @@ public class ContentFileParser {
 
     PartitionData partitionData = null;
     if (jsonNode.has(PARTITION)) {
-      partitionData = new PartitionData(spec.partitionType());
-      StructLike structLike =
-          (StructLike) SingleValueParser.fromJson(spec.partitionType(), jsonNode.get(PARTITION));
-      Preconditions.checkState(
-          partitionData.size() == structLike.size(),
-          "Invalid partition data size: expected = %s, actual = %s",
-          partitionData.size(),
-          structLike.size());
-      for (int pos = 0; pos < partitionData.size(); ++pos) {
-        Class<?> javaClass = spec.partitionType().fields().get(pos).type().typeId().javaClass();
-        partitionData.set(pos, structLike.get(pos, javaClass));
-      }
+      partitionData = partitionFromJson(spec.partitionType(), jsonNode.get(PARTITION));
     }
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
@@ -228,7 +218,7 @@ public class ContentFileParser {
           DataFile.NULL_VALUE_COUNTS.type(), contentFile.nullValueCounts(), generator);
     }
 
-    if (contentFile.nullValueCounts() != null) {
+    if (contentFile.nanValueCounts() != null) {
       generator.writeFieldName(NAN_VALUE_COUNTS);
       SingleValueParser.toJson(
           DataFile.NAN_VALUE_COUNTS.type(), contentFile.nanValueCounts(), generator);
@@ -300,5 +290,59 @@ public class ContentFileParser {
         nanValueCounts,
         lowerBounds,
         upperBounds);
+  }
+
+  private static void partitionToJson(
+      Types.StructType partitionType, StructLike partitionData, JsonGenerator generator)
+      throws IOException {
+    generator.writeStartArray();
+    List<Types.NestedField> fields = partitionType.fields();
+    for (int pos = 0; pos < fields.size(); ++pos) {
+      Types.NestedField field = fields.get(pos);
+      Object partitionValue = partitionData.get(pos, Object.class);
+      SingleValueParser.toJson(field.type(), partitionValue, generator);
+    }
+    generator.writeEndArray();
+  }
+
+  private static PartitionData partitionFromJson(
+      Types.StructType partitionType, JsonNode partitionNode) {
+    List<Types.NestedField> fields = partitionType.fields();
+    PartitionData partitionData = new PartitionData(partitionType);
+
+    if (partitionNode.isArray()) {
+      Preconditions.checkArgument(
+          partitionNode.size() == fields.size(),
+          "Invalid partition data size: expected = %s, actual = %s",
+          fields.size(),
+          partitionNode.size());
+
+      for (int pos = 0; pos < fields.size(); ++pos) {
+        Types.NestedField field = fields.get(pos);
+        Object partitionValue = SingleValueParser.fromJson(field.type(), partitionNode.get(pos));
+        partitionData.set(pos, partitionValue);
+      }
+    } else if (partitionNode.isObject()) {
+      // Handle partition struct object format, which serializes by field ID and skips
+      // null partition values
+      Preconditions.checkState(
+          partitionNode.size() <= fields.size(),
+          "Invalid partition data size: expected <= %s, actual = %s",
+          fields.size(),
+          partitionNode.size());
+
+      StructLike structLike = (StructLike) SingleValueParser.fromJson(partitionType, partitionNode);
+      for (int pos = 0; pos < partitionData.size(); ++pos) {
+        Class<?> javaClass = fields.get(pos).type().typeId().javaClass();
+        partitionData.set(pos, structLike.get(pos, javaClass));
+      }
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "Invalid partition data for content file: expected array or object (%s)",
+              partitionNode));
+    }
+
+    return partitionData;
   }
 }

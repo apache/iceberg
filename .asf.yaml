@@ -33,14 +33,16 @@ github:
     squash: true
     rebase: true
 
+  pull_requests:
+    # auto-delete head branches after being merged
+    del_branch_on_merge: true
+
   protected_branches:
     main:
       required_pull_request_reviews:
         required_approving_review_count: 1
 
       required_linear_history: true
-
-  del_branch_on_merge: true
   
   features:
     wiki: true
@@ -64,6 +66,7 @@ notifications:
     commits:      commits@iceberg.apache.org
     issues:       issues@iceberg.apache.org
     pullrequests: issues@iceberg.apache.org
+    jobs:         ci-jobs@iceberg.apache.org
     jira_options: link label link label
 
 publish:

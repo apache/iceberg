@@ -157,6 +157,29 @@ public class TestJsonUtil {
   }
 
   @Test
+  public void getDurationStringOrNull() throws JsonProcessingException {
+    assertThat(JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
+    assertThat(JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+        .isNull();
+    assertThat(
+            JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"PT30M\"}")))
+        .isEqualTo("PT30M");
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getDurationStringOrNull(
+                    "x", JsonUtil.mapper().readTree("{\"x\": \"30M\"}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a duration string value: x: \"30M\"");
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getDurationStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"\"}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a duration string value: x: \"\"");
+  }
+
+  @Test
   public void getByteBufferOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
     assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))

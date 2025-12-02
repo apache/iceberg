@@ -308,7 +308,7 @@ class Coordinator extends Channel {
       private Map<Integer, Long> lastCommittedOffsets;
 
       @Override
-      public Boolean apply(Iterable<Snapshot> baseSnapshots) {
+      public boolean validate(Iterable<Snapshot> baseSnapshots) {
         lastCommittedOffsets = lastCommittedOffsets(baseSnapshots);
 
         return expectedOffsets.equals(lastCommittedOffsets);

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources
 
 import org.apache.iceberg.spark.SparkV2Filters
@@ -32,7 +31,8 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Strategy
 
 object SparkExpressionConverter {
 
-  def convertToIcebergExpression(sparkExpression: Expression): org.apache.iceberg.expressions.Expression = {
+  def convertToIcebergExpression(
+      sparkExpression: Expression): org.apache.iceberg.expressions.Expression = {
     // Currently, it is a double conversion as we are converting Spark expression to Spark predicate
     // and then converting Spark predicate to Iceberg expression.
     // But these two conversions already exist and well tested. So, we are going with this approach.
@@ -40,26 +40,33 @@ object SparkExpressionConverter {
       case Some(filter) =>
         val converted = SparkV2Filters.convert(filter)
         if (converted == null) {
-          throw new IllegalArgumentException(s"Cannot convert Spark filter: $filter to Iceberg expression")
+          throw new IllegalArgumentException(
+            s"Cannot convert Spark filter: $filter to Iceberg expression")
         }
 
         converted
       case _ =>
-        throw new IllegalArgumentException(s"Cannot translate Spark expression: $sparkExpression to data source filter")
+        throw new IllegalArgumentException(
+          s"Cannot translate Spark expression: $sparkExpression to data source filter")
     }
   }
 
   @throws[IcebergAnalysisException]
-  def collectResolvedSparkExpression(session: SparkSession, tableName: String, where: String): Expression = {
+  def collectResolvedSparkExpression(
+      session: SparkSession,
+      tableName: String,
+      where: String): Expression = {
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
     val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
     val filter = Filter(unresolvedExpression, DummyRelation(tableAttrs))
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
-    optimizedLogicalPlan.collectFirst {
-      case filter: Filter => filter.condition
-      case _: DummyRelation => Literal.TrueLiteral
-      case _: LocalRelation => Literal.FalseLiteral
-    }.getOrElse(throw new IcebergAnalysisException("Failed to find filter expression"))
+    optimizedLogicalPlan
+      .collectFirst {
+        case filter: Filter => filter.condition
+        case _: DummyRelation => Literal.TrueLiteral
+        case _: LocalRelation => Literal.FalseLiteral
+      }
+      .getOrElse(throw new IcebergAnalysisException("Failed to find filter expression"))
   }
 
   case class DummyRelation(output: Seq[Attribute]) extends LeafNode
