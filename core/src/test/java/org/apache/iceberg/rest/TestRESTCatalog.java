@@ -3076,21 +3076,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCustomTableOperationsInjection() throws IOException {
-    String customHeaderName = "X-Custom-Table-Header";
-    String customHeaderValue = "custom-table-value-12345";
     AtomicBoolean customTableOpsCalled = new AtomicBoolean();
     AtomicBoolean customTransactionTableOpsCalled = new AtomicBoolean();
     AtomicReference<RESTTableOperations> capturedOps = new AtomicReference<>();
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-
-    // Helper function to add custom header to requests
-    Function<Supplier<Map<String, String>>, Supplier<Map<String, String>>> withCustomHeader =
-        headers ->
-            () -> {
-              Map<String, String> allHeaders = Maps.newHashMap(headers.get());
-              allHeaders.put(customHeaderName, customHeaderValue);
-              return allHeaders;
-            };
+    Map<String, String> customHeaders =
+        ImmutableMap.of("X-Custom-Table-Header", "custom-value-12345");
 
     // Custom RESTTableOperations that adds a custom header
     class CustomRESTTableOperations extends RESTTableOperations {
@@ -3101,7 +3092,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           FileIO fileIO,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        super(client, path, withCustomHeader.apply(headers), fileIO, current, supportedEndpoints);
+        super(client, path, () -> customHeaders, fileIO, current, supportedEndpoints);
         customTableOpsCalled.set(true);
       }
 
@@ -3117,7 +3108,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         super(
             client,
             path,
-            withCustomHeader.apply(headers),
+            () -> customHeaders,
             fileIO,
             updateType,
             createChanges,
@@ -3177,35 +3168,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       }
     }
 
-    // Custom RESTCatalog that provides the custom session catalog
-    class CustomRESTCatalog extends RESTCatalog {
-      CustomRESTCatalog(
-          SessionCatalog.SessionContext context,
-          Function<Map<String, String>, RESTClient> clientBuilder) {
-        super(context, clientBuilder);
-      }
-
-      @Override
-      protected RESTSessionCatalog newSessionCatalog(
-          Function<Map<String, String>, RESTClient> clientBuilder) {
-        return new CustomRESTSessionCatalog(clientBuilder, null);
-      }
-    }
-
-    try (CustomRESTCatalog catalog =
-        new CustomRESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter)) {
-      catalog.setConf(new Configuration());
-      catalog.initialize(
-          "test",
-          ImmutableMap.of(
-              CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
-
+    try (RESTCatalog catalog =
+        catalog(adapter, clientBuilder -> new CustomRESTSessionCatalog(clientBuilder, null))) {
       catalog.createNamespace(NS);
 
       // Test table operations without UpdateType
       assertThat(customTableOpsCalled).isFalse();
       assertThat(customTransactionTableOpsCalled).isFalse();
-
       Table table = catalog.createTable(TABLE, SCHEMA);
       assertThat(customTableOpsCalled).isTrue();
       assertThat(customTransactionTableOpsCalled).isFalse();
@@ -3213,7 +3182,21 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       // Trigger a commit through the custom operations
       table.updateProperties().set("test-key", "test-value").commit();
 
+      // Verify the custom operations object was created and used
+      assertThat(capturedOps.get()).isNotNull();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
+
+      // Verify the custom operations were used with custom headers
+      Mockito.verify(adapter, Mockito.atLeastOnce())
+          .execute(
+              reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE), customHeaders),
+              eq(LoadTableResponse.class),
+              any(),
+              any());
+
       // Test table operations with UpdateType and createChanges
+      capturedOps.set(null);
       customTableOpsCalled.set(false);
       TableIdentifier table2 = TableIdentifier.of(NS, "table2");
       catalog.buildTable(table2, SCHEMA).createTransaction().commitTransaction();
@@ -3221,26 +3204,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       assertThat(customTransactionTableOpsCalled).isTrue();
 
       // Trigger another commit to verify transaction operations also work
-      Table table2Instance = catalog.loadTable(table2);
-      table2Instance.updateProperties().set("test-key-2", "test-value-2").commit();
+      catalog.loadTable(table2).updateProperties().set("test-key-2", "test-value-2").commit();
 
       // Verify the custom operations object was created and used
       assertThat(capturedOps.get()).isNotNull();
       Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
       Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
 
-      // Verify the custom header was included in requests from both operation types
-      Mockito.verify(adapter, Mockito.atLeast(2))
+      // Verify the custom operations were used with custom headers
+      Mockito.verify(adapter, Mockito.atLeastOnce())
           .execute(
-              argThat(
-                  req ->
-                      req.path().contains("tables")
-                          && req.method() == HTTPMethod.POST
-                          && req.headers().entries().stream()
-                              .anyMatch(
-                                  e ->
-                                      e.name().equals(customHeaderName)
-                                          && e.value().equals(customHeaderValue))),
+              reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(table2), customHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
@@ -3250,6 +3224,25 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    return catalog;
+  }
+
+  private RESTCatalog catalog(
+      RESTCatalogAdapter adapter,
+      Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
+          sessionCatalogFactory) {
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return sessionCatalogFactory.apply(clientBuilder);
+          }
+        };
     catalog.initialize(
         "test",
         ImmutableMap.of(

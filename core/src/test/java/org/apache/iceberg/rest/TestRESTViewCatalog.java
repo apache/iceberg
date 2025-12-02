@@ -21,7 +21,6 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.rest.TestRESTCatalog.reqMatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 
@@ -320,20 +319,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
   @Test
   public void testCustomViewOperationsInjection() throws Exception {
-    String customHeaderName = "X-Custom-View-Header";
-    String customHeaderValue = "custom-value-12345";
     AtomicBoolean customViewOpsCalled = new AtomicBoolean();
     AtomicReference<RESTViewOperations> capturedOps = new AtomicReference<>();
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-
-    // Helper function to add custom header to requests
-    Function<Supplier<Map<String, String>>, Supplier<Map<String, String>>> withCustomHeader =
-        headers ->
-            () -> {
-              Map<String, String> allHeaders = Maps.newHashMap(headers.get());
-              allHeaders.put(customHeaderName, customHeaderValue);
-              return allHeaders;
-            };
+    Map<String, String> customHeaders =
+        ImmutableMap.of("X-Custom-View-Header", "custom-value-12345");
 
     // Custom RESTViewOperations that adds a custom header
     class CustomRESTViewOperations extends RESTViewOperations {
@@ -343,7 +333,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> headers,
           ViewMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        super(client, path, withCustomHeader.apply(headers), current, supportedEndpoints);
+        super(client, path, () -> customHeaders, current, supportedEndpoints);
         customViewOpsCalled.set(true);
       }
     }
@@ -371,28 +361,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
       }
     }
 
-    // Custom RESTCatalog that provides the custom session catalog
-    class CustomRESTCatalog extends RESTCatalog {
-      CustomRESTCatalog(
-          SessionCatalog.SessionContext context,
-          Function<Map<String, String>, RESTClient> clientBuilder) {
-        super(context, clientBuilder);
-      }
-
-      @Override
-      protected RESTSessionCatalog newSessionCatalog(
-          Function<Map<String, String>, RESTClient> clientBuilder) {
-        return new CustomRESTSessionCatalog(clientBuilder, null);
-      }
-    }
-
-    try (CustomRESTCatalog catalog =
-        new CustomRESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter)) {
-      catalog.initialize(
-          "test",
-          ImmutableMap.of(
-              CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
-
+    try (RESTCatalog catalog =
+        catalog(adapter, clientBuilder -> new CustomRESTSessionCatalog(clientBuilder, null))) {
       Namespace namespace = Namespace.of("ns");
       catalog.createNamespace(namespace);
 
@@ -418,22 +388,34 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
       Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
       Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
 
-      // Verify the custom header was included in the update request
+      // Verify the custom operations were used with custom headers
+      ResourcePaths resourcePaths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
       Mockito.verify(adapter, Mockito.atLeastOnce())
           .execute(
-              argThat(
-                  req ->
-                      req.path().contains("views")
-                          && req.method() == HTTPMethod.POST
-                          && req.headers().entries().stream()
-                              .anyMatch(
-                                  e ->
-                                      e.name().equals(customHeaderName)
-                                          && e.value().equals(customHeaderValue))),
+              reqMatcher(HTTPMethod.POST, resourcePaths.view(viewIdentifier), customHeaders),
               eq(LoadViewResponse.class),
               any(),
               any());
     }
+  }
+
+  private RESTCatalog catalog(
+      RESTCatalogAdapter adapter,
+      Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
+          sessionCatalogFactory) {
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return sessionCatalogFactory.apply(clientBuilder);
+          }
+        };
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    return catalog;
   }
 
   @Override
