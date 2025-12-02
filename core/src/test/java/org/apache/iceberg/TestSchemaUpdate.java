@@ -2503,4 +2503,80 @@ public class TestSchemaUpdate {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create required field with unknown type: unk");
   }
+
+  @Test
+  public void testCaseInsensitiveAddTopLevelAndMove() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    Schema expected =
+        new Schema(
+            optional(2, "data", Types.StringType.get()), required(1, "id", Types.LongType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .caseSensitive(false)
+            .addColumn("data", Types.StringType.get())
+            .moveFirst("DATA")
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testCaseInsensitiveAddNestedAndMove() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2, "struct", Types.StructType.of(required(3, "field1", Types.StringType.get()))));
+
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2,
+                "struct",
+                Types.StructType.of(
+                    optional(4, "field2", Types.IntegerType.get()),
+                    required(3, "field1", Types.StringType.get()))));
+
+    Schema actual =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .caseSensitive(false)
+            .addColumn("STRUCT", "field2", Types.IntegerType.get())
+            .moveFirst("STRUCT.FIELD2")
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testCaseInsensitiveMoveAfterNewlyAddedField() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2, "struct", Types.StructType.of(required(3, "field1", Types.StringType.get()))));
+
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2,
+                "struct",
+                Types.StructType.of(
+                    required(3, "field1", Types.StringType.get()),
+                    optional(4, "field2", Types.IntegerType.get()),
+                    optional(5, "field3", Types.DoubleType.get()))));
+
+    Schema actual =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .caseSensitive(false)
+            .addColumn("struct", "field2", Types.IntegerType.get())
+            .addColumn("STRUCT", "field3", Types.DoubleType.get())
+            .moveAfter("STRUCT.FIELD3", "struct.FIELD2")
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
 }
