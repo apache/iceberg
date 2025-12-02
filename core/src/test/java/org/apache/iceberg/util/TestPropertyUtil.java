@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 public class TestPropertyUtil {
 
   @Test
-  void testMergeProperties() {
+  void mergeProperties() {
     Map<String, String> properties = Map.of("k1", "v1", "k2", "v2");
     Map<String, String> overrides = Map.of("k1", "v11", "k3", "v3");
 

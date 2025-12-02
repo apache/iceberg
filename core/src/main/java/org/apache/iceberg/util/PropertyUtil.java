@@ -204,7 +204,7 @@ public class PropertyUtil {
 
     Map<String, String> merged = Maps.newHashMap(properties);
     merged.putAll(overrides);
-    return ImmutableMap.copyOf(merged);
+    return merged;
   }
 
   public static Map<String, String> applySchemaChanges(
