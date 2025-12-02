@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.responses;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -28,7 +29,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.Endpoint;
 import org.apache.iceberg.rest.RESTResponse;
-import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * Represents a response to requesting server-side provided configuration for the REST catalog. This
@@ -109,8 +109,14 @@ public class ConfigResponse implements RESTResponse {
     Preconditions.checkNotNull(
         clientProperties,
         "Cannot merge client properties with server-provided properties. Invalid client configuration: null");
-    return PropertyUtil.mergeProperties(
-        PropertyUtil.mergeProperties(defaults, clientProperties), overrides);
+    Map<String, String> merged = defaults != null ? Maps.newHashMap(defaults) : Maps.newHashMap();
+    merged.putAll(clientProperties);
+
+    if (overrides != null) {
+      merged.putAll(overrides);
+    }
+
+    return ImmutableMap.copyOf(Maps.filterValues(merged, Objects::nonNull));
   }
 
   @Override

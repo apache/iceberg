@@ -29,7 +29,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -113,13 +112,11 @@ public class AwsClientProperties implements Serializable {
     this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     // Retain all non-prefixed properties and override with prefixed properties
     this.clientCredentialsProviderProperties =
-        SerializableMap.copyOf(
-            PropertyUtil.mergeProperties(
-                PropertyUtil.filterProperties(
-                    properties,
-                    Predicate.not(
-                        property -> property.startsWith(CLIENT_CREDENTIAL_PROVIDER_PREFIX))),
-                PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX)));
+        PropertyUtil.mergeProperties(
+            PropertyUtil.filterProperties(
+                properties,
+                Predicate.not(property -> property.startsWith(CLIENT_CREDENTIAL_PROVIDER_PREFIX))),
+            PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX));
     this.refreshCredentialsEndpoint =
         RESTUtil.resolveEndpoint(
             properties.get(CatalogProperties.URI), properties.get(REFRESH_CREDENTIALS_ENDPOINT));
