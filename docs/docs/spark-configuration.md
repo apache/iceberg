@@ -197,6 +197,14 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds columns missing columns                                 |
 | spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
 
+### Classpath order and Parquet version compatibility
+
+Spark distributions may bundle a different Parquet version than Iceberg’s Spark runtime. For example, Spark 4.0.x uses Parquet 1.15.2 while Iceberg 1.10.x can use Parquet 1.16.0 for features like Variant/Geometry. With the default classpath order, Spark’s older Parquet may be picked up first and can cause NoSuchMethodError when Iceberg code invokes newer Parquet APIs.
+
+- Recommended workaround when using Iceberg with newer Parquet features on Spark 4.0.x:
+    - Set `spark.executor.userClassPathFirst=true` so Iceberg’s Parquet takes precedence on executors.
+- This setting is safe to remove once Spark aligns to the same Parquet version.
+
 ### Read options
 
 Spark read options are passed when configuring the DataFrameReader, like this:
