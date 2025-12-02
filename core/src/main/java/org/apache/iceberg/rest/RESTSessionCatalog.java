@@ -58,6 +58,7 @@ import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -672,6 +673,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 ErrorHandlers.namespaceErrorHandler());
 
     return !response.updated().isEmpty();
+  }
+
+  @VisibleForTesting
+  FileIOTracker fileIOTracker() {
+    return fileIOTracker;
   }
 
   @Override
