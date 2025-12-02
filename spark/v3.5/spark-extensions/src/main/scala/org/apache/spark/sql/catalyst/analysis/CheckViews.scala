@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -38,23 +37,41 @@ object CheckViews extends (LogicalPlan => Unit) {
 
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
-      case CreateIcebergView(resolvedIdent@ResolvedIdentifier(_: ViewCatalog, _), _, query, columnAliases, _,
-      _, _, _, _, replace, _, _) =>
+      case CreateIcebergView(
+            resolvedIdent @ ResolvedIdentifier(_: ViewCatalog, _),
+            _,
+            query,
+            columnAliases,
+            _,
+            _,
+            _,
+            _,
+            _,
+            replace,
+            _,
+            _) =>
         verifyColumnCount(resolvedIdent, columnAliases, query)
-        SchemaUtils.checkColumnNameDuplication(query.schema.fieldNames, SQLConf.get.resolver)
+        SchemaUtils.checkColumnNameDuplication(
+          query.schema.fieldNames.toIndexedSeq,
+          SQLConf.get.resolver)
         if (replace) {
-          val viewIdent: Seq[String] = resolvedIdent.catalog.name() +: resolvedIdent.identifier.asMultipartIdentifier
+          val viewIdent: Seq[String] =
+            resolvedIdent.catalog.name() +: resolvedIdent.identifier.asMultipartIdentifier
           checkCyclicViewReference(viewIdent, query, Seq(viewIdent))
         }
 
       case AlterViewAs(ResolvedV2View(_, _), _, _) =>
-        throw new AnalysisException("ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead")
+        throw new AnalysisException(
+          "ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead")
 
       case _ => // OK
     }
   }
 
-  private def verifyColumnCount(ident: ResolvedIdentifier, columns: Seq[String], query: LogicalPlan): Unit = {
+  private def verifyColumnCount(
+      ident: ResolvedIdentifier,
+      columns: Seq[String],
+      query: LogicalPlan): Unit = {
     if (columns.nonEmpty) {
       if (columns.length > query.output.length) {
         throw new AnalysisException(
@@ -75,11 +92,11 @@ object CheckViews extends (LogicalPlan => Unit) {
   }
 
   private def checkCyclicViewReference(
-    viewIdent: Seq[String],
-    plan: LogicalPlan,
-    cyclePath: Seq[Seq[String]]): Unit = {
+      viewIdent: Seq[String],
+      plan: LogicalPlan,
+      cyclePath: Seq[Seq[String]]): Unit = {
     plan match {
-      case sub@SubqueryAlias(_, Project(_, _)) =>
+      case sub @ SubqueryAlias(_, Project(_, _)) =>
         val currentViewIdent: Seq[String] = sub.identifier.qualifier :+ sub.identifier.name
         checkIfRecursiveView(viewIdent, currentViewIdent, cyclePath, sub.children)
       case v1View: View =>
@@ -98,15 +115,17 @@ object CheckViews extends (LogicalPlan => Unit) {
   }
 
   private def checkIfRecursiveView(
-    viewIdent: Seq[String],
-    currentViewIdent: Seq[String],
-    cyclePath: Seq[Seq[String]],
-    children: Seq[LogicalPlan]
-  ): Unit = {
+      viewIdent: Seq[String],
+      currentViewIdent: Seq[String],
+      cyclePath: Seq[Seq[String]],
+      children: Seq[LogicalPlan]): Unit = {
     val newCyclePath = cyclePath :+ currentViewIdent
     if (currentViewIdent == viewIdent) {
-      throw new AnalysisException(String.format("Recursive cycle in view detected: %s (cycle: %s)",
-        viewIdent.asIdentifier, newCyclePath.map(p => p.mkString(".")).mkString(" -> ")))
+      throw new AnalysisException(
+        String.format(
+          "Recursive cycle in view detected: %s (cycle: %s)",
+          viewIdent.asIdentifier,
+          newCyclePath.map(p => p.mkString(".")).mkString(" -> ")))
     } else {
       children.foreach { c =>
         checkCyclicViewReference(viewIdent, c, newCyclePath)

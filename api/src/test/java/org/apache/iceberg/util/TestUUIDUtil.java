@@ -16,12 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.spark.sql.catalyst.plans.logical.views
+package org.apache.iceberg.util;
 
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.UnaryCommand
+import static org.assertj.core.api.Assertions.assertThat;
 
-case class DropIcebergView(child: LogicalPlan, ifExists: Boolean) extends UnaryCommand {
-  override protected def withNewChildInternal(newChild: LogicalPlan): DropIcebergView =
-    copy(child = newChild)
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+
+public class TestUUIDUtil {
+
+  @Test
+  public void uuidV7HasVersionAndVariant() {
+    UUID uuid = UUIDUtil.generateUuidV7();
+    assertThat(uuid.version()).isEqualTo(7);
+    assertThat(uuid.variant()).isEqualTo(2);
+  }
 }

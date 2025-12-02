@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical.views
 
 import org.apache.spark.sql.catalyst.analysis.AnalysisContext
@@ -26,18 +25,19 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 // Align Iceberg's CreateIcebergView with Spark’s CreateViewCommand by extending AnalysisOnlyCommand.
 // The command’s children are analyzed then hidden, so the optimizer/planner won’t traverse the view body.
 case class CreateIcebergView(
-  child: LogicalPlan,
-  queryText: String,
-  query: LogicalPlan,
-  columnAliases: Seq[String],
-  columnComments: Seq[Option[String]],
-  queryColumnNames: Seq[String] = Seq.empty,
-  comment: Option[String],
-  properties: Map[String, String],
-  allowExisting: Boolean,
-  replace: Boolean,
-  rewritten: Boolean = false,
-  isAnalyzed: Boolean = false) extends AnalysisOnlyCommand {
+    child: LogicalPlan,
+    queryText: String,
+    query: LogicalPlan,
+    columnAliases: Seq[String],
+    columnComments: Seq[Option[String]],
+    queryColumnNames: Seq[String] = Seq.empty,
+    comment: Option[String],
+    properties: Map[String, String],
+    allowExisting: Boolean,
+    replace: Boolean,
+    rewritten: Boolean = false,
+    isAnalyzed: Boolean = false)
+    extends AnalysisOnlyCommand {
 
   override def childrenToAnalyze: Seq[LogicalPlan] = child :: query :: Nil
 
@@ -45,7 +45,8 @@ case class CreateIcebergView(
     copy(isAnalyzed = true)
   }
 
-  override protected def withNewChildrenInternal(newChildren: IndexedSeq[LogicalPlan]): LogicalPlan = {
+  override protected def withNewChildrenInternal(
+      newChildren: IndexedSeq[LogicalPlan]): LogicalPlan = {
     assert(!isAnalyzed)
     copy(child = newChildren.head, query = newChildren.last)
   }

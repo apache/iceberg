@@ -62,6 +62,21 @@ subprojects {
         removeUnusedImports()
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
+
+      // Configure different scalafmt rules for specific Scala version
+      if (project.name.startsWith("iceberg-spark") && project.name.endsWith("2.13")) {
+        scala {
+          target 'src/**/*.scala'
+          scalafmt("3.9.7").configFile("$rootDir/.baseline/scala/.scala213fmt.conf")
+          licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt", "package"
+        }
+      } else if (project.name.startsWith("iceberg-spark") && project.name.endsWith("2.12")) {
+        scala {
+          target 'src/**/*.scala'
+          scalafmt("3.9.7").configFile("$rootDir/.baseline/scala/.scala212fmt.conf")
+          licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt", "package"
+        }
+      }
     }
   }
 

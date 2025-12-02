@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.utils
 
 import org.apache.iceberg.spark.source.SparkTable
