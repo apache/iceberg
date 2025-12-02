@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -174,7 +175,7 @@ class DeleteFileIndex {
     }
 
     PositionDeletes deletes = posDeletesByPartition.get(dataFile.specId(), dataFile.partition());
-    return deletes == null ? EMPTY_DELETES : deletes.filter(seq);
+    return deletes == null ? EMPTY_DELETES : deletes.filter(seq, dataFile);
   }
 
   private DeleteFile[] findEqPartitionDeletes(long seq, DataFile dataFile) {
@@ -193,7 +194,7 @@ class DeleteFileIndex {
     }
 
     PositionDeletes deletes = posDeletesByPath.get(dataFile.location());
-    return deletes == null ? EMPTY_DELETES : deletes.filter(seq);
+    return deletes == null ? EMPTY_DELETES : deletes.filter(seq, dataFile);
   }
 
   private DeleteFile findDV(long seq, DataFile dataFile) {
@@ -272,6 +273,30 @@ class DeleteFileIndex {
         // no values overlap between the data file and the deletes
         return false;
       }
+    }
+
+    return true;
+  }
+
+  private static boolean canContainPosDeletesForFile(DataFile dataFile, DeleteFile deleteFile) {
+    if (deleteFile.lowerBounds() == null || deleteFile.upperBounds() == null) {
+      return true;
+    }
+
+    int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    Type type = MetadataColumns.DELETE_FILE_PATH.type();
+    Comparator<CharSequence> comparator = Comparators.charSequences();
+
+    ByteBuffer dataLower = deleteFile.lowerBounds().get(pathId);
+    CharBuffer lower = Conversions.fromByteBuffer(type, dataLower);
+    if (lower != null && comparator.compare(dataFile.location(), lower) < 0) {
+      return false;
+    }
+
+    ByteBuffer dataUpper = deleteFile.upperBounds().get(pathId);
+    CharBuffer upper = Conversions.fromByteBuffer(type, dataUpper);
+    if (upper != null && comparator.compare(dataFile.location(), upper) > 0) {
+      return false;
     }
 
     return true;
@@ -662,7 +687,7 @@ class DeleteFileIndex {
       buffer.add(file);
     }
 
-    public DeleteFile[] filter(long seq) {
+    public DeleteFile[] filter(long seq, DataFile dataFile) {
       indexIfNeeded();
 
       int start = findStartIndex(seqs, seq);
@@ -671,14 +696,16 @@ class DeleteFileIndex {
         return EMPTY_DELETES;
       }
 
-      if (start == 0) {
-        return files;
+      List<DeleteFile> matchingFiles = Lists.newArrayList();
+
+      for (int index = start; index < files.length; index++) {
+        DeleteFile file = files[index];
+        if (canContainPosDeletesForFile(dataFile, file)) {
+          matchingFiles.add(file);
+        }
       }
 
-      int matchingFilesCount = files.length - start;
-      DeleteFile[] matchingFiles = new DeleteFile[matchingFilesCount];
-      System.arraycopy(files, start, matchingFiles, 0, matchingFilesCount);
-      return matchingFiles;
+      return matchingFiles.toArray(EMPTY_DELETES);
     }
 
     public Iterable<DeleteFile> referencedDeleteFiles() {

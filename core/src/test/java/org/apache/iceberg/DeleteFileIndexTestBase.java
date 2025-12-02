@@ -697,12 +697,12 @@ public abstract class DeleteFileIndexTestBase<
 
     // position deletes are indexed by their data sequence numbers
     // so that position deletes can apply to data files added in the same snapshot
-    assertThat(group.filter(0)).isEqualTo(new DeleteFile[] {file1, file2, file3, file4});
-    assertThat(group.filter(1)).isEqualTo(new DeleteFile[] {file1, file2, file3, file4});
-    assertThat(group.filter(2)).isEqualTo(new DeleteFile[] {file2, file3, file4});
-    assertThat(group.filter(3)).isEqualTo(new DeleteFile[] {file3, file4});
-    assertThat(group.filter(4)).isEqualTo(new DeleteFile[] {file4});
-    assertThat(group.filter(5)).isEqualTo(new DeleteFile[] {});
+    assertThat(group.filter(0, FILE_A)).isEqualTo(new DeleteFile[] {file1, file2, file3, file4});
+    assertThat(group.filter(1, FILE_A)).isEqualTo(new DeleteFile[] {file1, file2, file3, file4});
+    assertThat(group.filter(2, FILE_A)).isEqualTo(new DeleteFile[] {file2, file3, file4});
+    assertThat(group.filter(3, FILE_A)).isEqualTo(new DeleteFile[] {file3, file4});
+    assertThat(group.filter(4, FILE_A)).isEqualTo(new DeleteFile[] {file4});
+    assertThat(group.filter(5, FILE_A)).isEqualTo(new DeleteFile[] {});
 
     // it should not be possible to add more elements upon indexing
     assertThatThrownBy(() -> group.add(file1))

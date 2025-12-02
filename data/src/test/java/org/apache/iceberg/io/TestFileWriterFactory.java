@@ -374,15 +374,17 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
     // verify the written delete file has NO lower and upper bounds
     assertThat(referencedDataFiles).hasSize(2);
-    assertThat(deleteFile.lowerBounds()).isNull();
-    assertThat(deleteFile.upperBounds()).isNull();
     assertThat(deleteFile.valueCounts()).isNull();
     assertThat(deleteFile.nullValueCounts()).isNull();
     assertThat(deleteFile.nanValueCounts()).isNull();
 
     if (fileFormat == FileFormat.AVRO) {
+      assertThat(deleteFile.lowerBounds()).isNull();
+      assertThat(deleteFile.upperBounds()).isNull();
       assertThat(deleteFile.columnSizes()).isNull();
     } else {
+      assertThat(deleteFile.lowerBounds()).isNotNull();
+      assertThat(deleteFile.upperBounds()).isNotNull();
       assertThat(deleteFile.columnSizes()).hasSize(2);
     }
 

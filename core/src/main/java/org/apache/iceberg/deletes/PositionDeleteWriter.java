@@ -122,10 +122,6 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
 
   private Metrics metrics() {
     Metrics metrics = appender.metrics();
-    if (referencedDataFiles.size() > 1) {
-      return MetricsUtil.copyWithoutFieldCountsAndBounds(metrics, FILE_AND_POS_FIELD_IDS);
-    } else {
-      return MetricsUtil.copyWithoutFieldCounts(metrics, FILE_AND_POS_FIELD_IDS);
-    }
+    return MetricsUtil.copyWithoutFieldCounts(metrics, FILE_AND_POS_FIELD_IDS);
   }
 }
