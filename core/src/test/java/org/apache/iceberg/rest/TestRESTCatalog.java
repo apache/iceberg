@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -3075,8 +3076,56 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCustomTableOperationsInjection() throws IOException {
+    String customHeaderName = "X-Custom-Table-Header";
+    String customHeaderValue = "custom-table-value-12345";
     AtomicBoolean customTableOpsCalled = new AtomicBoolean();
     AtomicBoolean customTransactionTableOpsCalled = new AtomicBoolean();
+    AtomicReference<RESTTableOperations> capturedOps = new AtomicReference<>();
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    // Helper function to add custom header to requests
+    Function<Supplier<Map<String, String>>, Supplier<Map<String, String>>> withCustomHeader =
+        headers ->
+            () -> {
+              Map<String, String> allHeaders = Maps.newHashMap(headers.get());
+              allHeaders.put(customHeaderName, customHeaderValue);
+              return allHeaders;
+            };
+
+    // Custom RESTTableOperations that adds a custom header
+    class CustomRESTTableOperations extends RESTTableOperations {
+      CustomRESTTableOperations(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        super(client, path, withCustomHeader.apply(headers), fileIO, current, supportedEndpoints);
+        customTableOpsCalled.set(true);
+      }
+
+      CustomRESTTableOperations(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          RESTTableOperations.UpdateType updateType,
+          List<MetadataUpdate> createChanges,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        super(
+            client,
+            path,
+            withCustomHeader.apply(headers),
+            fileIO,
+            updateType,
+            createChanges,
+            current,
+            supportedEndpoints);
+        customTransactionTableOpsCalled.set(true);
+      }
+    }
 
     // Custom RESTSessionCatalog that overrides table operations creation
     class CustomRESTSessionCatalog extends RESTSessionCatalog {
@@ -3094,8 +3143,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           FileIO fileIO,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        customTableOpsCalled.set(true);
-        return super.newTableOps(restClient, path, headers, fileIO, current, supportedEndpoints);
+        RESTTableOperations ops =
+            new CustomRESTTableOperations(
+                restClient, path, headers, fileIO, current, supportedEndpoints);
+        RESTTableOperations spy = Mockito.spy(ops);
+        capturedOps.set(spy);
+        return spy;
       }
 
       @Override
@@ -3108,16 +3161,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           List<MetadataUpdate> createChanges,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        customTransactionTableOpsCalled.set(true);
-        return super.newTableOps(
-            restClient,
-            path,
-            headers,
-            fileIO,
-            updateType,
-            createChanges,
-            current,
-            supportedEndpoints);
+        RESTTableOperations ops =
+            new CustomRESTTableOperations(
+                restClient,
+                path,
+                headers,
+                fileIO,
+                updateType,
+                createChanges,
+                current,
+                supportedEndpoints);
+        RESTTableOperations spy = Mockito.spy(ops);
+        capturedOps.set(spy);
+        return spy;
       }
     }
 
@@ -3137,9 +3193,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
 
     try (CustomRESTCatalog catalog =
-        new CustomRESTCatalog(
-            SessionCatalog.SessionContext.createEmpty(),
-            (config) -> new RESTCatalogAdapter(backendCatalog))) {
+        new CustomRESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter)) {
       catalog.setConf(new Configuration());
       catalog.initialize(
           "test",
@@ -3152,19 +3206,44 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       assertThat(customTableOpsCalled).isFalse();
       assertThat(customTransactionTableOpsCalled).isFalse();
 
-      catalog.createTable(TABLE, SCHEMA);
+      Table table = catalog.createTable(TABLE, SCHEMA);
       assertThat(customTableOpsCalled).isTrue();
       assertThat(customTransactionTableOpsCalled).isFalse();
 
+      // Trigger a commit through the custom operations
+      table.updateProperties().set("test-key", "test-value").commit();
+
       // Test table operations with UpdateType and createChanges
       customTableOpsCalled.set(false);
-      assertThat(customTableOpsCalled).isFalse();
-      assertThat(customTransactionTableOpsCalled).isFalse();
-
       TableIdentifier table2 = TableIdentifier.of(NS, "table2");
       catalog.buildTable(table2, SCHEMA).createTransaction().commitTransaction();
       assertThat(customTableOpsCalled).isFalse();
       assertThat(customTransactionTableOpsCalled).isTrue();
+
+      // Trigger another commit to verify transaction operations also work
+      Table table2Instance = catalog.loadTable(table2);
+      table2Instance.updateProperties().set("test-key-2", "test-value-2").commit();
+
+      // Verify the custom operations object was created and used
+      assertThat(capturedOps.get()).isNotNull();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
+
+      // Verify the custom header was included in requests from both operation types
+      Mockito.verify(adapter, Mockito.atLeast(2))
+          .execute(
+              argThat(
+                  req ->
+                      req.path().contains("tables")
+                          && req.method() == HTTPMethod.POST
+                          && req.headers().entries().stream()
+                              .anyMatch(
+                                  e ->
+                                      e.name().equals(customHeaderName)
+                                          && e.value().equals(customHeaderValue))),
+              eq(LoadTableResponse.class),
+              any(),
+              any());
     }
   }
 

@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.rest.TestRESTCatalog.reqMatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -48,6 +50,7 @@ import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -317,7 +320,33 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
   @Test
   public void testCustomViewOperationsInjection() throws Exception {
+    String customHeaderName = "X-Custom-View-Header";
+    String customHeaderValue = "custom-value-12345";
     AtomicBoolean customViewOpsCalled = new AtomicBoolean();
+    AtomicReference<RESTViewOperations> capturedOps = new AtomicReference<>();
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    // Helper function to add custom header to requests
+    Function<Supplier<Map<String, String>>, Supplier<Map<String, String>>> withCustomHeader =
+        headers ->
+            () -> {
+              Map<String, String> allHeaders = Maps.newHashMap(headers.get());
+              allHeaders.put(customHeaderName, customHeaderValue);
+              return allHeaders;
+            };
+
+    // Custom RESTViewOperations that adds a custom header
+    class CustomRESTViewOperations extends RESTViewOperations {
+      CustomRESTViewOperations(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          ViewMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        super(client, path, withCustomHeader.apply(headers), current, supportedEndpoints);
+        customViewOpsCalled.set(true);
+      }
+    }
 
     // Custom RESTSessionCatalog that overrides view operations creation
     class CustomRESTSessionCatalog extends RESTSessionCatalog {
@@ -334,8 +363,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> headers,
           ViewMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        customViewOpsCalled.set(true);
-        return super.newViewOps(restClient, path, headers, current, supportedEndpoints);
+        RESTViewOperations ops =
+            new CustomRESTViewOperations(restClient, path, headers, current, supportedEndpoints);
+        RESTViewOperations spy = Mockito.spy(ops);
+        capturedOps.set(spy);
+        return spy;
       }
     }
 
@@ -355,9 +387,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     }
 
     try (CustomRESTCatalog catalog =
-        new CustomRESTCatalog(
-            SessionCatalog.SessionContext.createEmpty(),
-            (config) -> new RESTCatalogAdapter(backendCatalog))) {
+        new CustomRESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter)) {
       catalog.initialize(
           "test",
           ImmutableMap.of(
@@ -369,13 +399,40 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
       // Test view operations
       assertThat(customViewOpsCalled).isFalse();
       TableIdentifier viewIdentifier = TableIdentifier.of(namespace, "view1");
-      catalog
-          .buildView(viewIdentifier)
-          .withSchema(SCHEMA)
-          .withDefaultNamespace(namespace)
-          .withQuery("spark", "select * from ns.table")
-          .create();
+      org.apache.iceberg.view.View view =
+          catalog
+              .buildView(viewIdentifier)
+              .withSchema(SCHEMA)
+              .withDefaultNamespace(namespace)
+              .withQuery("spark", "select * from ns.table")
+              .create();
+
+      // Verify custom operations was created
       assertThat(customViewOpsCalled).isTrue();
+
+      // Update view properties to trigger a commit through the custom operations
+      view.updateProperties().set("test-key", "test-value").commit();
+
+      // Verify the custom operations object was created and used
+      assertThat(capturedOps.get()).isNotNull();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
+
+      // Verify the custom header was included in the update request
+      Mockito.verify(adapter, Mockito.atLeastOnce())
+          .execute(
+              argThat(
+                  req ->
+                      req.path().contains("views")
+                          && req.method() == HTTPMethod.POST
+                          && req.headers().entries().stream()
+                              .anyMatch(
+                                  e ->
+                                      e.name().equals(customHeaderName)
+                                          && e.value().equals(customHeaderValue))),
+              eq(LoadViewResponse.class),
+              any(),
+              any());
     }
   }
 
