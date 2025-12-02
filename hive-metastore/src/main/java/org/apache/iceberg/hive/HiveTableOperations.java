@@ -321,14 +321,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       }
 
       if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
-        throw new RuntimeException("Cannot remove key in encrypted table");
+        throw new IllegalArgumentException("Cannot remove key in encrypted table");
       }
 
       if (base != null
           && !Objects.equals(
               base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
               metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY))) {
-        throw new RuntimeException("Cannot modify key in encrypted table");
+        throw new IllegalArgumentException("Cannot modify key in encrypted table");
       }
 
       HMSTablePropertyHelper.updateHmsTableForIcebergTable(
