@@ -90,9 +90,9 @@ public class UUIDUtil {
    */
   public static String generateUuidV7() {
     long epochMs = System.currentTimeMillis();
-    if ((epochMs >>> 48) != 0) {
-      throw new IllegalArgumentException("timestamp does not fit within 48 bits: " + epochMs);
-    }
+    Preconditions.checkArgument(
+        (epochMs >>> 48) == 0, "timestamp does not fit within 48 bits: %s", epochMs);
+
     // Draw 10 random bytes once: 2 bytes for rand_a (12 bits) and 8 bytes for rand_b (62 bits)
     byte[] randomBytes = new byte[10];
     SECURE_RANDOM.nextBytes(randomBytes);
