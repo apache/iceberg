@@ -26,10 +26,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -37,6 +42,7 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -57,6 +63,25 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestParquetFileMerger {
 
   @TempDir private File tempDir;
+
+  // Simple FileIO implementation for tests
+  private final FileIO fileIO =
+      new FileIO() {
+        @Override
+        public InputFile newInputFile(String path) {
+          return Files.localInput(path);
+        }
+
+        @Override
+        public OutputFile newOutputFile(String path) {
+          return Files.localOutput(path);
+        }
+
+        @Override
+        public void deleteFile(String path) {
+          new File(path).delete();
+        }
+      };
 
   @Test
   public void testCanMergeReturnsFalseForEmptyList() {
@@ -191,32 +216,29 @@ public class TestParquetFileMerger {
     createParquetFileWithData(
         output2, schema, Arrays.asList(createRecord(schema, 4, "d"), createRecord(schema, 5, "e")));
 
-    // Merge with row lineage metadata
-    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
-    List<Long> firstRowIds = Arrays.asList(100L, 103L); // file1 starts at 100, file2 at 103
-    List<Long> dataSequenceNumbers = Arrays.asList(5L, 5L); // both files from sequence 5
+    // Create DataFiles with row lineage metadata
+    List<DataFile> dataFiles =
+        Arrays.asList(
+            createDataFile(file1.getAbsolutePath(), 100L, 5L),
+            createDataFile(file2.getAbsolutePath(), 103L, 5L));
 
     File mergedFile = new File(tempDir, "merged.parquet");
     OutputFile mergedOutput = Files.localOutput(mergedFile);
 
-    // Read schema and metadata from first file
-    MessageType parquetSchema = ParquetFileMerger.readSchema(inputFiles.get(0));
-    Map<String, String> metadata = ParquetFileMerger.readMetadata(inputFiles.get(0));
-
     // Perform merge
     ParquetFileMerger.mergeFiles(
-        inputFiles,
+        dataFiles,
+        fileIO,
         EncryptedFiles.plainAsEncryptedOutput(mergedOutput),
-        parquetSchema,
-        firstRowIds,
-        dataSequenceNumbers,
         TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
-        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH,
-        metadata);
+        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     // Verify the merged file has both row lineage columns
     InputFile mergedInput = Files.localInput(mergedFile);
-    MessageType mergedSchema = ParquetFileMerger.readSchema(mergedInput);
+    MessageType mergedSchema;
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(mergedInput))) {
+      mergedSchema = reader.getFooter().getFileMetaData().getSchema();
+    }
     assertThat(mergedSchema.containsField(MetadataColumns.ROW_ID.name()))
         .as("Merged file should have _row_id column")
         .isTrue();
@@ -270,25 +292,17 @@ public class TestParquetFileMerger {
     createParquetFileWithData(output1, schema, records, 1024); // Small row group size
 
     // Merge with row lineage
-    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1));
-    List<Long> firstRowIds = Arrays.asList(1000L);
-    List<Long> dataSequenceNumbers = Arrays.asList(7L);
+    List<DataFile> dataFiles = Arrays.asList(createDataFile(file1.getAbsolutePath(), 1000L, 7L));
 
     File mergedFile = new File(tempDir, "merged.parquet");
     OutputFile mergedOutput = Files.localOutput(mergedFile);
 
-    MessageType parquetSchema = ParquetFileMerger.readSchema(inputFiles.get(0));
-    Map<String, String> metadata = ParquetFileMerger.readMetadata(inputFiles.get(0));
-
     ParquetFileMerger.mergeFiles(
-        inputFiles,
+        dataFiles,
+        fileIO,
         EncryptedFiles.plainAsEncryptedOutput(mergedOutput),
-        parquetSchema,
-        firstRowIds,
-        dataSequenceNumbers,
         TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
-        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH,
-        metadata);
+        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     // Verify row IDs are sequential across row groups
     List<RowLineageRecord> mergedRecords = readRowLineageData(Files.localInput(mergedFile), schema);
@@ -329,24 +343,20 @@ public class TestParquetFileMerger {
             createRecord(schema, 6, "f")));
 
     // Merge with different sequence numbers for each file
-    List<InputFile> inputFiles =
-        Arrays.asList(Files.localInput(file1), Files.localInput(file2), Files.localInput(file3));
-    List<Long> firstRowIds = Arrays.asList(0L, 2L, 3L);
-    List<Long> dataSequenceNumbers = Arrays.asList(10L, 20L, 30L); // Different for each file
+    List<DataFile> dataFiles =
+        Arrays.asList(
+            createDataFile(file1.getAbsolutePath(), 0L, 10L),
+            createDataFile(file2.getAbsolutePath(), 2L, 20L),
+            createDataFile(file3.getAbsolutePath(), 3L, 30L));
 
     File mergedFile = new File(tempDir, "merged.parquet");
-    MessageType parquetSchema = ParquetFileMerger.readSchema(inputFiles.get(0));
-    Map<String, String> metadata = ParquetFileMerger.readMetadata(inputFiles.get(0));
 
     ParquetFileMerger.mergeFiles(
-        inputFiles,
+        dataFiles,
+        fileIO,
         EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(mergedFile)),
-        parquetSchema,
-        firstRowIds,
-        dataSequenceNumbers,
         TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
-        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH,
-        metadata);
+        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     // Verify sequence numbers transition correctly between files
     List<RowLineageRecord> records = readRowLineageData(Files.localInput(mergedFile), schema);
@@ -384,24 +394,26 @@ public class TestParquetFileMerger {
         Files.localOutput(file2), schema, Arrays.asList(createRecord(schema, 3, "c")));
 
     // Merge without row lineage (null firstRowIds and dataSequenceNumbers)
-    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
+    List<DataFile> dataFiles =
+        Arrays.asList(
+            createDataFile(file1.getAbsolutePath(), null, null),
+            createDataFile(file2.getAbsolutePath(), null, null));
 
     File mergedFile = new File(tempDir, "merged.parquet");
-    MessageType parquetSchema = ParquetFileMerger.readSchema(inputFiles.get(0));
-    Map<String, String> metadata = ParquetFileMerger.readMetadata(inputFiles.get(0));
 
     ParquetFileMerger.mergeFiles(
-        inputFiles,
+        dataFiles,
+        fileIO,
         EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(mergedFile)),
-        parquetSchema,
-        null, // No firstRowIds
-        null, // No dataSequenceNumbers
         TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
-        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH,
-        metadata);
+        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     // Verify merged file does NOT have row lineage columns
-    MessageType mergedSchema = ParquetFileMerger.readSchema(Files.localInput(mergedFile));
+    MessageType mergedSchema;
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(mergedFile)))) {
+      mergedSchema = reader.getFooter().getFileMetaData().getSchema();
+    }
     assertThat(mergedSchema.containsField(MetadataColumns.ROW_ID.name()))
         .as("Merged file should not have _row_id column when no lineage provided")
         .isFalse();
@@ -456,23 +468,19 @@ public class TestParquetFileMerger {
         Arrays.asList(createRecordWithLineage(schemaWithLineage, 3, "c", 102L, 5L)));
 
     // Merge with firstRowIds/dataSequenceNumbers (should use binary copy path)
-    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
-    List<Long> firstRowIds = Arrays.asList(100L, 102L);
-    List<Long> dataSequenceNumbers = Arrays.asList(5L, 5L);
+    List<DataFile> dataFiles =
+        Arrays.asList(
+            createDataFile(file1.getAbsolutePath(), 100L, 5L),
+            createDataFile(file2.getAbsolutePath(), 102L, 5L));
 
     File mergedFile = new File(tempDir, "merged.parquet");
-    MessageType parquetSchema = ParquetFileMerger.readSchema(inputFiles.get(0));
-    Map<String, String> metadata = ParquetFileMerger.readMetadata(inputFiles.get(0));
 
     ParquetFileMerger.mergeFiles(
-        inputFiles,
+        dataFiles,
+        fileIO,
         EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(mergedFile)),
-        parquetSchema,
-        firstRowIds,
-        dataSequenceNumbers,
         TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
-        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH,
-        metadata);
+        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     // Verify physical columns are preserved
     List<RowLineageRecord> records = readRowLineageData(Files.localInput(mergedFile), baseSchema);
@@ -558,23 +566,21 @@ public class TestParquetFileMerger {
             createRecord(schema, 8, "h"),
             createRecord(schema, 9, "i")));
 
-    List<InputFile> inputFiles =
-        Arrays.asList(Files.localInput(file1), Files.localInput(file2), Files.localInput(file3));
+    List<DataFile> dataFiles =
+        Arrays.asList(
+            createDataFile(file1.getAbsolutePath(), 100L, 5L),
+            createDataFile(file2.getAbsolutePath(), 200L, 7L),
+            createDataFile(file3.getAbsolutePath(), 300L, 10L));
 
     // Merge files with row lineage preservation
     File outputFile = new File(tempDir, "merged.parquet");
-    MessageType parquetSchema = ParquetFileMerger.readSchema(inputFiles.get(0));
-    Map<String, String> metadata = ParquetFileMerger.readMetadata(inputFiles.get(0));
 
     ParquetFileMerger.mergeFiles(
-        inputFiles,
+        dataFiles,
+        fileIO,
         EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(outputFile)),
-        parquetSchema,
-        Arrays.asList(100L, 200L, 300L), // firstRowIds for each file
-        Arrays.asList(5L, 7L, 10L), // dataSequenceNumbers for each file
         TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
-        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH,
-        metadata);
+        ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     // Read back the merged data and verify exact row ID values
     List<RowLineageRecord> records = readRowLineageData(Files.localInput(outputFile), schema);
@@ -624,6 +630,151 @@ public class TestParquetFileMerger {
     record.setField(MetadataColumns.ROW_ID.name(), rowId);
     record.setField(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), seqNum);
     return record;
+  }
+
+  /** Helper to create a DataFile from a file path - wraps it as a GenericDataFile */
+  private DataFile createDataFile(String path, Long firstRowId, Long dataSequenceNumber) {
+    DataFiles.Builder builder =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(path)
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(new File(path).length())
+            .withRecordCount(1); // dummy value
+
+    if (firstRowId != null) {
+      builder.withFirstRowId(firstRowId);
+    }
+
+    DataFile baseFile = builder.build();
+
+    // Wrap the DataFile to add dataSequenceNumber since DataFiles.Builder doesn't support it
+    return new DataFileWrapper(baseFile, dataSequenceNumber);
+  }
+
+  /** Wrapper to add dataSequenceNumber to a DataFile */
+  private static class DataFileWrapper implements DataFile {
+    private final DataFile wrapped;
+    private final Long dataSequenceNumber;
+
+    DataFileWrapper(DataFile wrapped, Long dataSequenceNumber) {
+      this.wrapped = wrapped;
+      this.dataSequenceNumber = dataSequenceNumber;
+    }
+
+    @Override
+    public Long pos() {
+      return wrapped.pos();
+    }
+
+    @Override
+    public int specId() {
+      return wrapped.specId();
+    }
+
+    @Override
+    public FileContent content() {
+      return wrapped.content();
+    }
+
+    @Override
+    public CharSequence path() {
+      return wrapped.path();
+    }
+
+    @Override
+    public FileFormat format() {
+      return wrapped.format();
+    }
+
+    @Override
+    public StructLike partition() {
+      return wrapped.partition();
+    }
+
+    @Override
+    public long recordCount() {
+      return wrapped.recordCount();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return wrapped.fileSizeInBytes();
+    }
+
+    @Override
+    public Map<Integer, Long> columnSizes() {
+      return wrapped.columnSizes();
+    }
+
+    @Override
+    public Map<Integer, Long> valueCounts() {
+      return wrapped.valueCounts();
+    }
+
+    @Override
+    public Map<Integer, Long> nullValueCounts() {
+      return wrapped.nullValueCounts();
+    }
+
+    @Override
+    public Map<Integer, Long> nanValueCounts() {
+      return wrapped.nanValueCounts();
+    }
+
+    @Override
+    public Map<Integer, java.nio.ByteBuffer> lowerBounds() {
+      return wrapped.lowerBounds();
+    }
+
+    @Override
+    public Map<Integer, java.nio.ByteBuffer> upperBounds() {
+      return wrapped.upperBounds();
+    }
+
+    @Override
+    public java.nio.ByteBuffer keyMetadata() {
+      return wrapped.keyMetadata();
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return wrapped.splitOffsets();
+    }
+
+    @Override
+    public List<Integer> equalityFieldIds() {
+      return wrapped.equalityFieldIds();
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return wrapped.sortOrderId();
+    }
+
+    @Override
+    public Long dataSequenceNumber() {
+      return dataSequenceNumber;
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public Long firstRowId() {
+      return wrapped.firstRowId();
+    }
+
+    @Override
+    public DataFile copy() {
+      return new DataFileWrapper(wrapped.copy(), dataSequenceNumber);
+    }
+
+    @Override
+    public DataFile copyWithoutStats() {
+      return new DataFileWrapper(wrapped.copyWithoutStats(), dataSequenceNumber);
+    }
   }
 
   /** Helper to create a Parquet file with data */

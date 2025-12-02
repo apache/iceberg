@@ -26,8 +26,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.LongUnaryOperator;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -171,25 +173,11 @@ public class ParquetFileMerger {
    * @return MessageType schema of the Parquet file
    * @throws IOException if reading fails
    */
-  public static MessageType readSchema(InputFile inputFile) throws IOException {
+  private static MessageType readSchema(InputFile inputFile) throws IOException {
     return ParquetFileReader.open(ParquetIO.file(inputFile))
         .getFooter()
         .getFileMetaData()
         .getSchema();
-  }
-
-  /**
-   * Reads the Parquet metadata (key-value pairs) from an Iceberg InputFile.
-   *
-   * @param inputFile Iceberg input file to read metadata from
-   * @return Map of key-value metadata from the Parquet file
-   * @throws IOException if reading fails
-   */
-  public static Map<String, String> readMetadata(InputFile inputFile) throws IOException {
-    return ParquetFileReader.open(ParquetIO.file(inputFile))
-        .getFooter()
-        .getFileMetaData()
-        .getKeyValueMetaData();
   }
 
   /**
@@ -253,8 +241,7 @@ public class ParquetFileMerger {
       OutputFile outputFile,
       MessageType schema,
       long rowGroupSize,
-      int columnIndexTruncateLength,
-      Map<String, String> extraMetadata)
+      int columnIndexTruncateLength)
       throws IOException {
     try (ParquetFileWriter writer =
         new ParquetFileWriter(
@@ -268,16 +255,19 @@ public class ParquetFileMerger {
             ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED,
             (InternalFileEncryptor) null)) {
 
+      Map<String, String> extraMetadata = null;
       writer.start();
       for (InputFile inputFile : inputFiles) {
-        writer.appendFile(ParquetIO.file(inputFile));
+        try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+          // Read metadata from first file
+          if (extraMetadata == null) {
+            extraMetadata = reader.getFooter().getFileMetaData().getKeyValueMetaData();
+          }
+          reader.appendTo(writer);
+        }
       }
 
-      if (extraMetadata != null && !extraMetadata.isEmpty()) {
-        writer.end(extraMetadata);
-      } else {
-        writer.end(emptyMap());
-      }
+      writer.end(extraMetadata != null ? extraMetadata : emptyMap());
     }
   }
 
@@ -292,8 +282,7 @@ public class ParquetFileMerger {
       List<Long> dataSequenceNumbers,
       MessageType baseSchema,
       long rowGroupSize,
-      int columnIndexTruncateLength,
-      Map<String, String> extraMetadata)
+      int columnIndexTruncateLength)
       throws IOException {
     // Extend schema to include _row_id and _last_updated_sequence_number columns
     MessageType extendedSchema = addRowLineageColumns(baseSchema);
@@ -320,6 +309,8 @@ public class ParquetFileMerger {
           extendedSchema.getColumnDescription(
               new String[] {MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()});
 
+      Map<String, String> extraMetadata = null;
+
       // Process each input file
       for (int fileIdx = 0; fileIdx < inputFiles.size(); fileIdx++) {
         InputFile inputFile = inputFiles.get(fileIdx);
@@ -327,6 +318,11 @@ public class ParquetFileMerger {
         long dataSequenceNumber = dataSequenceNumbers.get(fileIdx);
 
         try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+          // Read metadata from first file
+          if (extraMetadata == null) {
+            extraMetadata = reader.getFooter().getFileMetaData().getKeyValueMetaData();
+          }
+
           List<BlockMetaData> rowGroups = reader.getFooter().getBlocks();
 
           for (BlockMetaData rowGroup : rowGroups) {
@@ -369,23 +365,19 @@ public class ParquetFileMerger {
         }
       }
 
-      if (extraMetadata != null && !extraMetadata.isEmpty()) {
-        writer.end(extraMetadata);
-      } else {
-        writer.end(emptyMap());
-      }
+      writer.end(extraMetadata != null ? extraMetadata : emptyMap());
     }
   }
 
   /**
-   * Merges multiple Parquet files with optional row lineage preservation.
+   * Merges multiple Parquet data files with optional row lineage preservation.
    *
    * <p>This method intelligently handles row lineage based on the input files and metadata:
    *
    * <ul>
-   *   <li>If firstRowIds/dataSequenceNumbers are null/empty: performs simple binary copy merge
+   *   <li>If DataFiles have null firstRowId/dataSequenceNumber: performs simple binary copy merge
    *   <li>If files already have physical row lineage columns: performs simple binary copy merge
-   *   <li>Otherwise: synthesizes physical row lineage columns from virtual metadata
+   *   <li>Otherwise: synthesizes physical row lineage columns from DataFile metadata
    * </ul>
    *
    * <p>Row lineage consists of two columns:
@@ -395,41 +387,52 @@ public class ParquetFileMerger {
    *   <li>_last_updated_sequence_number: data sequence number when row was last updated
    * </ul>
    *
-   * @param inputFiles List of Iceberg input files to merge
+   * <p>The schema and metadata are read from the first input file. All files must have compatible
+   * schemas (as validated by {@link #canMerge}).
+   *
+   * @param dataFiles List of Iceberg DataFiles to merge
+   * @param fileIO FileIO to use for reading input files
    * @param encryptedOutputFile Encrypted output file for the merged result (encryption handled
    *     based on table configuration)
-   * @param schema Parquet schema from the input files (assumed already validated)
-   * @param firstRowIds Optional list of starting row IDs for each input file (null if no lineage
-   *     needed)
-   * @param dataSequenceNumbers Optional list of data sequence numbers for each input file (null if
-   *     no lineage needed)
    * @param rowGroupSize Target row group size in bytes
    * @param columnIndexTruncateLength Maximum length for min/max values in column index
-   * @param extraMetadata Additional metadata to include in the output file footer (can be null)
    * @throws IOException if I/O error occurs during merge operation
    */
   public static void mergeFiles(
-      List<InputFile> inputFiles,
+      List<DataFile> dataFiles,
+      FileIO fileIO,
       EncryptedOutputFile encryptedOutputFile,
-      MessageType schema,
-      List<Long> firstRowIds,
-      List<Long> dataSequenceNumbers,
       long rowGroupSize,
-      int columnIndexTruncateLength,
-      Map<String, String> extraMetadata)
+      int columnIndexTruncateLength)
       throws IOException {
+    // Convert DataFiles to InputFiles and extract row lineage metadata
+    List<InputFile> inputFiles = Lists.newArrayListWithCapacity(dataFiles.size());
+    List<Long> firstRowIds = Lists.newArrayListWithCapacity(dataFiles.size());
+    List<Long> dataSequenceNumbers = Lists.newArrayListWithCapacity(dataFiles.size());
+    boolean hasRowLineage = false;
+
+    for (DataFile dataFile : dataFiles) {
+      inputFiles.add(fileIO.newInputFile(dataFile.path().toString()));
+
+      Long firstRowId = dataFile.firstRowId();
+      Long dataSequenceNumber = dataFile.dataSequenceNumber();
+      firstRowIds.add(firstRowId);
+      dataSequenceNumbers.add(dataSequenceNumber);
+
+      if (firstRowId != null && dataSequenceNumber != null) {
+        hasRowLineage = true;
+      }
+    }
+
+    // Read schema from first file
+    MessageType schema = readSchema(inputFiles.get(0));
+
     // Get the encrypting output file (encryption applied based on table configuration)
     OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
 
     // Check if we need to synthesize physical row lineage columns from virtual metadata
-    boolean needsRowLineageProcessing =
-        firstRowIds != null
-            && !firstRowIds.isEmpty()
-            && dataSequenceNumbers != null
-            && !dataSequenceNumbers.isEmpty();
-
     boolean shouldSynthesizeRowLineage =
-        needsRowLineageProcessing
+        hasRowLineage
             && !schema.containsField(MetadataColumns.ROW_ID.name())
             && !schema.containsField(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name());
 
@@ -442,12 +445,10 @@ public class ParquetFileMerger {
           dataSequenceNumbers,
           schema,
           rowGroupSize,
-          columnIndexTruncateLength,
-          extraMetadata);
+          columnIndexTruncateLength);
     } else {
       // Use simple binary copy (either no row lineage, or files already have physical columns)
-      mergeFilesWithSchema(
-          inputFiles, outputFile, schema, rowGroupSize, columnIndexTruncateLength, extraMetadata);
+      mergeFilesWithSchema(inputFiles, outputFile, schema, rowGroupSize, columnIndexTruncateLength);
     }
   }
 
