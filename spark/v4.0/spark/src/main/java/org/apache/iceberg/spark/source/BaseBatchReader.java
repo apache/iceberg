@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nonnull;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
@@ -74,18 +75,13 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       long length,
       Expression residual,
       Map<Integer, ?> idToConstant,
-      SparkDeleteFilter deleteFilter) {
+      @Nonnull SparkDeleteFilter deleteFilter) {
     CloseableIterable<ColumnarBatch> iterable;
     switch (format) {
       case PARQUET:
         iterable =
             newParquetIterable(
-                inputFile,
-                start,
-                length,
-                residual,
-                idToConstant,
-                deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema());
+                inputFile, start, length, residual, idToConstant, deleteFilter.requiredSchema());
         break;
       case ORC:
         iterable = newOrcIterable(inputFile, start, length, residual, idToConstant);

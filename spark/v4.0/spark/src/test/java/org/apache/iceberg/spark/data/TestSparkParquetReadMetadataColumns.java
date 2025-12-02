@@ -194,7 +194,7 @@ public class TestSparkParquetReadMetadataColumns {
     validate(expectedRowsAfterDelete, builder, deleteFilter);
   }
 
-  private class TestDeleteFilter extends DeleteFilter<InternalRow> {
+  private static class TestDeleteFilter extends DeleteFilter<InternalRow> {
     private final boolean hasDeletes;
 
     protected TestDeleteFilter(boolean hasDeletes) {
@@ -228,7 +228,7 @@ public class TestSparkParquetReadMetadataColumns {
     }
   }
 
-  private class CustomizedPositionDeleteIndex implements PositionDeleteIndex {
+  private static class CustomizedPositionDeleteIndex implements PositionDeleteIndex {
     private final Set<Long> deleteIndex;
 
     private CustomizedPositionDeleteIndex() {

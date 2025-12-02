@@ -22,7 +22,6 @@ import org.apache.comet.parquet.MetadataColumnReader;
 import org.apache.comet.parquet.Native;
 import org.apache.comet.parquet.TypeUtil;
 import org.apache.comet.vector.CometVector;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -34,11 +33,6 @@ class CometDeleteColumnReader<T> extends CometColumnReader {
     setDelegate(new DeleteColumnReader());
   }
 
-  CometDeleteColumnReader(boolean[] isDeleted) {
-    super(MetadataColumns.IS_DELETED);
-    setDelegate(new DeleteColumnReader(isDeleted));
-  }
-
   @Override
   public void setBatchSize(int batchSize) {
     super.setBatchSize(batchSize);
@@ -47,7 +41,7 @@ class CometDeleteColumnReader<T> extends CometColumnReader {
   }
 
   private static class DeleteColumnReader extends MetadataColumnReader {
-    private CometDeletedColumnVector deletedVector;
+    private final CometDeletedColumnVector deletedVector;
 
     DeleteColumnReader() {
       this(new boolean[0]);
