@@ -27,8 +27,7 @@ public class TestUUIDUtil {
 
   @Test
   public void uuidV7HasVersionAndVariant() {
-    String id = UUIDUtil.generateUuidV7();
-    UUID uuid = UUID.fromString(id);
+    UUID uuid = UUIDUtil.generateUuidV7();
     assertThat(uuid.version()).isEqualTo(7);
     assertThat(uuid.variant()).isEqualTo(2);
   }

@@ -88,10 +88,10 @@ public class UUIDUtil {
    * <p>Layout: - 48-bit Unix epoch milliseconds - 4-bit version (0b0111) - 12-bit random (rand_a) -
    * 2-bit variant (RFC 4122, 0b10) - 62-bit random (rand_b)
    */
-  public static String generateUuidV7() {
+  public static UUID generateUuidV7() {
     long epochMs = System.currentTimeMillis();
-    Preconditions.checkArgument(
-        (epochMs >>> 48) == 0, "timestamp does not fit within 48 bits: %s", epochMs);
+    Preconditions.checkState(
+        (epochMs >>> 48) == 0, "Invalid timestamp: does not fit within 48 bits: %s", epochMs);
 
     // Draw 10 random bytes once: 2 bytes for rand_a (12 bits) and 8 bytes for rand_b (62 bits)
     byte[] randomBytes = new byte[10];
@@ -107,6 +107,6 @@ public class UUIDUtil {
     long lsb = 0x8000000000000000L; // RFC 4122 variant '10'
     lsb |= randLSB;
 
-    return new UUID(msb, lsb).toString();
+    return new UUID(msb, lsb);
   }
 }
