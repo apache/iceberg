@@ -361,4 +361,9 @@ public interface SessionCatalog {
       return false;
     }
   }
+
+  default Table loadTableWithContext(
+      SessionContext sessionContext, TableIdentifier ident, Map<String, Object> context) {
+    return loadTable(sessionContext, ident);
+  }
 }
