@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
@@ -28,7 +27,8 @@ import org.apache.spark.sql.execution.LeafExecNode
 import scala.jdk.CollectionConverters._
 
 case class ShowCreateV2ViewExec(output: Seq[Attribute], view: View)
-  extends V2CommandExec with LeafExecNode {
+    extends V2CommandExec
+    with LeafExecNode {
 
   override protected def run(): Seq[InternalRow] = {
     val builder = new StringBuilder
@@ -43,7 +43,9 @@ case class ShowCreateV2ViewExec(output: Seq[Attribute], view: View)
 
   private def showColumns(view: View, builder: StringBuilder): Unit = {
     val columns = concatByMultiLines(
-      view.schema().fields
+      view
+        .schema()
+        .fields
         .map(x => s"${x.name}${x.getComment().map(c => s" COMMENT '$c'").getOrElse("")}"))
     builder ++= columns
   }
@@ -54,14 +56,11 @@ case class ShowCreateV2ViewExec(output: Seq[Attribute], view: View)
       .foreach(builder.append)
   }
 
-  private def showProperties(
-    view: View,
-    builder: StringBuilder): Unit = {
+  private def showProperties(view: View, builder: StringBuilder): Unit = {
     val showProps = view.properties.asScala.toMap -- ViewCatalog.RESERVED_PROPERTIES.asScala
     if (showProps.nonEmpty) {
-      val props = conf.redactOptions(showProps).toSeq.sortBy(_._1).map {
-        case (key, value) =>
-          s"'${escapeSingleQuotedString(key)}' = '${escapeSingleQuotedString(value)}'"
+      val props = conf.redactOptions(showProps).toSeq.sortBy(_._1).map { case (key, value) =>
+        s"'${escapeSingleQuotedString(key)}' = '${escapeSingleQuotedString(value)}'"
       }
 
       builder ++= "TBLPROPERTIES "

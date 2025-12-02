@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
@@ -26,24 +25,21 @@ import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.execution.LeafExecNode
 import scala.jdk.CollectionConverters._
 
-case class ShowV2ViewPropertiesExec(
-  output: Seq[Attribute],
-  view: View,
-  propertyKey: Option[String]) extends V2CommandExec with LeafExecNode {
+case class ShowV2ViewPropertiesExec(output: Seq[Attribute], view: View, propertyKey: Option[String])
+    extends V2CommandExec
+    with LeafExecNode {
 
   override protected def run(): Seq[InternalRow] = {
     propertyKey match {
       case Some(p) =>
-        val propValue = properties.getOrElse(p,
-          s"View ${view.name()} does not have property: $p")
+        val propValue = properties.getOrElse(p, s"View ${view.name()} does not have property: $p")
         Seq(toCatalystRow(p, propValue))
       case None =>
-        properties.map {
-          case (k, v) => toCatalystRow(k, v)
+        properties.map { case (k, v) =>
+          toCatalystRow(k, v)
         }.toSeq
     }
   }
-
 
   private def properties = {
     view.properties.asScala.toMap -- ViewCatalog.RESERVED_PROPERTIES.asScala

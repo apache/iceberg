@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.iceberg.DistributionMode
@@ -29,16 +28,19 @@ import org.apache.spark.sql.connector.catalog.CatalogV2Implicits
 case class SetWriteDistributionAndOrdering(
     table: Seq[String],
     distributionMode: Option[DistributionMode],
-    sortOrder: Seq[(Term, SortDirection, NullOrder)]) extends LeafCommand {
+    sortOrder: Seq[(Term, SortDirection, NullOrder)])
+    extends LeafCommand {
 
   import CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    val order = sortOrder.map {
-      case (term, direction, nullOrder) => s"$term $direction $nullOrder"
-    }.mkString(", ")
+    val order = sortOrder
+      .map { case (term, direction, nullOrder) =>
+        s"$term $direction $nullOrder"
+      }
+      .mkString(", ")
     s"SetWriteDistributionAndOrdering ${table.quoted} $distributionMode $order"
   }
 }
