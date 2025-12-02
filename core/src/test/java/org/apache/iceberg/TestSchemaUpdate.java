@@ -2516,7 +2516,7 @@ public class TestSchemaUpdate {
         new SchemaUpdate(schema, schema.highestFieldId())
             .caseSensitive(false)
             .addColumn("data", Types.StringType.get())
-            .moveFirst("DATA")
+            .moveFirst("dAtA")
             .apply();
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
