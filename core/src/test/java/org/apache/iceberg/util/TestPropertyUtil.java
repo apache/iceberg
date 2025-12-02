@@ -31,11 +31,10 @@ public class TestPropertyUtil {
     Map<String, String> overrides = Map.of("k1", "v11", "k3", "v3");
 
     assertThat(PropertyUtil.mergeProperties(null, null)).isNull();
-
     assertThat(PropertyUtil.mergeProperties(properties, null)).isEqualTo(properties);
-
+    assertThat(PropertyUtil.mergeProperties(properties, Map.of())).isEqualTo(properties);
     assertThat(PropertyUtil.mergeProperties(null, overrides)).isEqualTo(overrides);
-
+    assertThat(PropertyUtil.mergeProperties(Map.of(), overrides)).isEqualTo(overrides);
     assertThat(PropertyUtil.mergeProperties(properties, overrides))
         .containsExactlyInAnyOrderEntriesOf(Map.of("k1", "v11", "k2", "v2", "k3", "v3"));
   }
