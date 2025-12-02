@@ -83,7 +83,7 @@ public class UUIDUtil {
   }
 
   /**
-   * Generate a RFC 9562 UUIDv7 string.
+   * Generate a RFC 9562 UUIDv7.
    *
    * <p>Layout: - 48-bit Unix epoch milliseconds - 4-bit version (0b0111) - 12-bit random (rand_a) -
    * 2-bit variant (RFC 4122, 0b10) - 62-bit random (rand_b)
