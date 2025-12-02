@@ -109,7 +109,7 @@ There are two types of row-level deletes:
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
-A deleted row should not be undeleted by rewriting the position delete file or delete vector and unsetting the position or bit. Rows can only be added to a table via new data files.
+A deleted row must not be restored by rewriting the position delete file or delete vector and clearing the associated position or bit. Rows must only be added to a table by writing new data files.
 
 ### File System Operations
 
@@ -1119,7 +1119,7 @@ Row-level delete files (both equality and position delete files) are valid Icebe
 
 Row-level delete files and deletion vectors are tracked by manifests. A separate set of manifests is used for delete files and DVs, but the same manifest schema is used for both data and delete manifests. Deletion vectors are tracked individually by file location, offset, and length within the containing file. Deletion vector metadata must include the referenced data file.
 
-Equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
+Both position and equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
 
 #### Deletion Vectors
 
