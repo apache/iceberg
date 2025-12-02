@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.SupportsReplaceView
@@ -30,31 +29,33 @@ import org.apache.spark.sql.connector.catalog.ViewInfo
 import org.apache.spark.sql.types.StructType
 import scala.jdk.CollectionConverters._
 
-
 case class CreateV2ViewExec(
-  catalog: ViewCatalog,
-  ident: Identifier,
-  queryText: String,
-  viewSchema: StructType,
-  columnAliases: Seq[String],
-  columnComments: Seq[Option[String]],
-  queryColumnNames: Seq[String],
-  comment: Option[String],
-  properties: Map[String, String],
-  allowExisting: Boolean,
-  replace: Boolean) extends LeafV2CommandExec {
+    catalog: ViewCatalog,
+    ident: Identifier,
+    queryText: String,
+    viewSchema: StructType,
+    columnAliases: Seq[String],
+    columnComments: Seq[Option[String]],
+    queryColumnNames: Seq[String],
+    comment: Option[String],
+    properties: Map[String, String],
+    allowExisting: Boolean,
+    replace: Boolean)
+    extends LeafV2CommandExec {
 
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
     val currentCatalogName = session.sessionState.catalogManager.currentCatalog.name
-    val currentCatalog = if (!catalog.name().equals(currentCatalogName)) currentCatalogName else null
+    val currentCatalog =
+      if (!catalog.name().equals(currentCatalogName)) currentCatalogName else null
     val currentNamespace = session.sessionState.catalogManager.currentNamespace
 
     val engineVersion = "Spark " + org.apache.spark.SPARK_VERSION
     val newProperties = properties ++
       comment.map(ViewCatalog.PROP_COMMENT -> _) ++
-      Map(ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
+      Map(
+        ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
         ViewCatalog.PROP_ENGINE_VERSION -> engineVersion)
 
     if (replace) {
@@ -88,10 +89,10 @@ case class CreateV2ViewExec(
   }
 
   private def replaceView(
-    supportsReplaceView: SupportsReplaceView,
-    currentCatalog: String,
-    currentNamespace: Array[String],
-    newProperties: Map[String, String]) = {
+      supportsReplaceView: SupportsReplaceView,
+      currentCatalog: String,
+      currentNamespace: Array[String],
+      newProperties: Map[String, String]) = {
     supportsReplaceView.replaceView(
       ident,
       queryText,
@@ -105,9 +106,9 @@ case class CreateV2ViewExec(
   }
 
   private def createView(
-    currentCatalog: String,
-    currentNamespace: Array[String],
-    newProperties: Map[String, String]) = {
+      currentCatalog: String,
+      currentNamespace: Array[String],
+      newProperties: Map[String, String]) = {
     val viewInfo: ViewInfo = new ViewInfo(
       ident,
       queryText,

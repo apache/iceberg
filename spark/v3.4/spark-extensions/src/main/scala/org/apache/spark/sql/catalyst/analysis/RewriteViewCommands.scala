@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -52,11 +51,19 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     case DropView(ResolvedIdent(resolved), ifExists) =>
       DropIcebergView(resolved, ifExists)
 
-    case CreateView(ResolvedIdent(resolved), userSpecifiedColumns, comment, properties,
-    Some(queryText), query, allowExisting, replace) =>
+    case CreateView(
+          ResolvedIdent(resolved),
+          userSpecifiedColumns,
+          comment,
+          properties,
+          Some(queryText),
+          query,
+          allowExisting,
+          replace) =>
       val q = CTESubstitution.apply(query)
       verifyTemporaryObjectsDontExist(resolved, q)
-      CreateIcebergView(child = resolved,
+      CreateIcebergView(
+        child = resolved,
         queryText = queryText,
         query = q,
         columnAliases = userSpecifiedColumns.map(_._1),
@@ -68,20 +75,25 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
 
     case view @ ShowViews(UnresolvedNamespace(Seq()), pattern, output) =>
       if (ViewUtil.isViewCatalog(catalogManager.currentCatalog)) {
-        ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, catalogManager.currentNamespace.toIndexedSeq),
-          pattern, output)
+        ShowIcebergViews(
+          ResolvedNamespace(
+            catalogManager.currentCatalog,
+            catalogManager.currentNamespace.toIndexedSeq),
+          pattern,
+          output)
       } else {
         view
       }
 
     case ShowViews(UnresolvedNamespace(CatalogAndNamespace(catalog, ns)), pattern, output)
-      if ViewUtil.isViewCatalog(catalog) =>
+        if ViewUtil.isViewCatalog(catalog) =>
       ShowIcebergViews(ResolvedNamespace(catalog, ns), pattern, output)
 
     // needs to be done here instead of in ResolveViews, so that a V2 view can be resolved before the Analyzer
     // tries to resolve it, which would result in an error, saying that V2 views aren't supported
-    case u@UnresolvedView(ResolvedView(resolved), _, _, _) =>
-      ViewUtil.loadView(resolved.catalog, resolved.identifier)
+    case u @ UnresolvedView(ResolvedView(resolved), _, _, _) =>
+      ViewUtil
+        .loadView(resolved.catalog, resolved.identifier)
         .map(_ => ResolvedV2View(resolved.catalog.asViewCatalog, resolved.identifier))
         .getOrElse(u)
   }
@@ -102,7 +114,8 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
       case UnresolvedIdentifier(nameParts, true) if isTempView(nameParts) =>
         None
 
-      case UnresolvedIdentifier(CatalogAndIdentifier(catalog, ident), _) if ViewUtil.isViewCatalog(catalog) =>
+      case UnresolvedIdentifier(CatalogAndIdentifier(catalog, ident), _)
+          if ViewUtil.isViewCatalog(catalog) =>
         Some(ResolvedIdentifier(catalog, ident))
 
       case _ =>
@@ -114,11 +127,14 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
    * Permanent views are not allowed to reference temp objects
    */
   private def verifyTemporaryObjectsDontExist(
-    identifier: ResolvedIdentifier,
-    child: LogicalPlan): Unit = {
+      identifier: ResolvedIdentifier,
+      child: LogicalPlan): Unit = {
     val tempViews = collectTemporaryViews(child)
     if (tempViews.nonEmpty) {
-      throw invalidRefToTempObject(identifier, tempViews.map(v => v.quoted).mkString("[", ", ", "]"), "view")
+      throw invalidRefToTempObject(
+        identifier,
+        tempViews.map(v => v.quoted).mkString("[", ", ", "]"),
+        "view")
     }
 
     val tempFunctions = collectTemporaryFunctions(child)
@@ -127,9 +143,17 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
     }
   }
 
-  private def invalidRefToTempObject(ident: ResolvedIdentifier, tempObjectNames: String, tempObjectType: String) = {
-    new AnalysisException(String.format("Cannot create view %s.%s that references temporary %s: %s",
-      ident.catalog.name(), ident.identifier, tempObjectType, tempObjectNames))
+  private def invalidRefToTempObject(
+      ident: ResolvedIdentifier,
+      tempObjectNames: String,
+      tempObjectType: String) = {
+    new AnalysisException(
+      String.format(
+        "Cannot create view %s.%s that references temporary %s: %s",
+        ident.catalog.name(),
+        ident.identifier,
+        tempObjectType,
+        tempObjectNames))
   }
 
   /**
@@ -141,10 +165,11 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         case unresolved: UnresolvedRelation if isTempView(unresolved.multipartIdentifier) =>
           Seq(unresolved.multipartIdentifier)
         case view: View if view.isTempView => Seq(view.desc.identifier.nameParts)
-        case plan => plan.expressions.flatMap(_.flatMap {
-          case e: SubqueryExpression => collectTempViews(e.plan)
-          case _ => Seq.empty
-        })
+        case plan =>
+          plan.expressions.flatMap(_.flatMap {
+            case e: SubqueryExpression => collectTempViews(e.plan)
+            case _ => Seq.empty
+          })
       }.distinct
     }
 
@@ -157,7 +182,9 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         None
 
       case CatalogAndIdentifier(catalog, ident) if ViewUtil.isViewCatalog(catalog) =>
-        ViewUtil.loadView(catalog, ident).flatMap(_ => Some(ResolvedV2View(catalog.asViewCatalog, ident)))
+        ViewUtil
+          .loadView(catalog, ident)
+          .flatMap(_ => Some(ResolvedV2View(catalog.asViewCatalog, ident)))
 
       case _ =>
         None

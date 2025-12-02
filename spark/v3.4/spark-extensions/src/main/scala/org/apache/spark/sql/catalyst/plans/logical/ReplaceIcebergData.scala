@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.analysis.NamedRelation
@@ -33,7 +32,8 @@ case class ReplaceIcebergData(
     table: NamedRelation,
     query: LogicalPlan,
     originalTable: NamedRelation,
-    write: Option[Write] = None) extends V2WriteCommandLike {
+    write: Option[Write] = None)
+    extends V2WriteCommandLike {
 
   override lazy val references: AttributeSet = query.outputSet
   override lazy val stringArgs: Iterator[Any] = Iterator(table, query, write)
@@ -45,7 +45,8 @@ case class ReplaceIcebergData(
   }
 
   override def outputResolved: Boolean = {
-    assert(table.resolved && query.resolved,
+    assert(
+      table.resolved && query.resolved,
       "`outputResolved` can only be called when `table` and `query` are both resolved.")
 
     // take into account only incoming data columns and ignore metadata columns in the query
@@ -58,8 +59,8 @@ case class ReplaceIcebergData(
         val outType = CharVarcharUtils.getRawType(outAttr.metadata).getOrElse(outAttr.dataType)
         // names and types must match, nullability must be compatible
         inAttr.name == outAttr.name &&
-          DataType.equalsIgnoreCompatibleNullability(inAttr.dataType, outType) &&
-          (outAttr.nullable || !inAttr.nullable)
+        DataType.equalsIgnoreCompatibleNullability(inAttr.dataType, outType) &&
+        (outAttr.nullable || !inAttr.nullable)
       })
   }
 
