@@ -41,7 +41,7 @@ case class CreateIcebergView(
 
   override def childrenToAnalyze: Seq[LogicalPlan] = child :: query :: Nil
 
-  def markAsAnalyzed(analysisContext: AnalysisContext): LogicalPlan = {
+  override def markAsAnalyzed(analysisContext: AnalysisContext): LogicalPlan = {
     copy(isAnalyzed = true)
   }
 
