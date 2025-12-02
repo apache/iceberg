@@ -79,9 +79,8 @@ public class RESTCatalog
   /**
    * Create a new {@link RESTSessionCatalog} instance.
    *
-   * <p>This method can be overridden in subclasses to provide custom session catalog
-   * implementations, which in turn can provide custom table and view operations by overriding the
-   * protected methods in {@link RESTSessionCatalog}.
+   * <p>This method can be overridden in subclasses to provide custom {@link RESTSessionCatalog}
+   * implementations.
    *
    * @param clientBuilder a function to build REST clients
    * @return a new RESTSessionCatalog instance
