@@ -79,6 +79,14 @@ public class OperatorTestBase {
           ImmutableMap.of(),
           ImmutableSet.of(SimpleDataUtil.SCHEMA.columns().get(0).fieldId()));
 
+  private static final Schema SCHEMA_NULL =
+      new Schema(
+          Lists.newArrayList(
+              Types.NestedField.required(1, "id", Types.IntegerType.get()),
+              Types.NestedField.optional(2, "data", Types.StringType.get()),
+              Types.NestedField.optional(3, "unknown_col", Types.UnknownType.get()),
+              Types.NestedField.optional(4, "data1", Types.StringType.get())));
+
   protected static final String UID_SUFFIX = "UID-Dummy";
   protected static final String SLOT_SHARING_GROUP = "SlotSharingGroup";
   protected static final TriggerLockFactory LOCK_FACTORY = new MemoryLockFactory();
@@ -158,6 +166,17 @@ public class OperatorTestBase {
                 "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
   }
 
+  protected static Table createTableWithNull(FileFormat fileFormat) {
+    return CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            SCHEMA_NULL,
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of("format-version", "3", "write.format.default", fileFormat.name()));
+  }
+
   protected static Table createPartitionedTable(int formatVersion) {
     return CATALOG_EXTENSION
         .catalog()
@@ -183,9 +202,13 @@ public class OperatorTestBase {
     table.refresh();
   }
 
-  protected void insert(Table table, List<Record> records) throws IOException {
-    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir).appendToTable(records);
+  protected void insert(Table table, List<Record> records, FileFormat format) throws IOException {
+    new GenericAppenderHelper(table, format, warehouseDir).appendToTable(records);
     table.refresh();
+  }
+
+  protected void insert(Table table, List<Record> records) throws IOException {
+    insert(table, records, FileFormat.PARQUET);
   }
 
   protected void insert(Table table, Integer id, String data, String extra) throws IOException {
