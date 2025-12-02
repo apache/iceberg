@@ -768,6 +768,8 @@ paths:
         - Catalog API
       summary: Cancels scan planning for a plan-id
       operationId: cancelPlanning
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description: >
         Cancels scan planning for a plan-id.
 
