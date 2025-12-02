@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 public class TestUUIDUtil {
 
   @Test
-  public void generateUuidV7_hasVersionAndVariant() {
+  public void uuidV7HasVersionAndVariant() {
     String id = UUIDUtil.generateUuidV7();
     UUID uuid = UUID.fromString(id);
     assertThat(uuid.version()).isEqualTo(7);
