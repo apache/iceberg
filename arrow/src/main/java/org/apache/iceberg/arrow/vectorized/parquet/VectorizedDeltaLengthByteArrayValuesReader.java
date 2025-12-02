@@ -21,37 +21,38 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.UUID;
 import java.util.function.IntUnaryOperator;
+import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.IntVector;
-import org.apache.iceberg.arrow.ArrowAllocation;
-import org.apache.iceberg.io.CloseableGroup;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
 
-public class VectorizedDeltaLengthByteArrayValuesReader
-    implements VectorizedValuesReader, AutoCloseable {
+/**
+ * A {@link VectorizedValuesReader} implementation for the encoding type DELTA_LENGTH_BYTE_ARRAY. This
+ * is adapted from Spark's VectorizedDeltaLengthByteArrayReader.
+ *
+ * @see <a
+ *     href="https://github.com/apache/parquet-format/blob/master/Encodings.md#delta-length-byte-array-delta_length_byte_array--6">
+ *     Parquet format encodings: DELTA_LENGTH_BYTE_ARRAY</a>
+ */
+public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedValuesReader {
 
   private final VectorizedDeltaEncodedValuesReader lengthReader;
-  private final CloseableGroup closeables;
 
   private ByteBufferInputStream in;
-  private IntVector lengthsVector;
+  private int[] lengths;
   private ByteBuffer byteBuffer;
 
   VectorizedDeltaLengthByteArrayValuesReader() {
     lengthReader = new VectorizedDeltaEncodedValuesReader();
-    closeables = new CloseableGroup();
   }
 
   @Override
   public void initFromPage(int valueCount, ByteBufferInputStream inputStream) throws IOException {
-    lengthsVector = new IntVector("length-" + UUID.randomUUID(), ArrowAllocation.rootAllocator());
-    closeables.addCloseable(lengthsVector);
     lengthReader.initFromPage(valueCount, inputStream);
-    lengthReader.readIntegers(lengthReader.getTotalValueCount(), lengthsVector, 0);
+    lengths = lengthReader.readIntegers(valueCount, 0);
+
     this.in = inputStream.remainingStream();
   }
 
@@ -67,8 +68,11 @@ public class VectorizedDeltaLengthByteArrayValuesReader
         total,
         vec,
         rowId,
-        x -> lengthsVector.get(x),
-        (f, i, v) -> f.getDataBuffer().setBytes(i, v));
+        x -> lengths[x],
+        (f, i, v) ->
+            ((BaseVariableWidthVector) vec)
+                .setSafe(
+                    (int) i, v.array(), v.position() + v.arrayOffset(), v.limit() - v.position()));
   }
 
   @SuppressWarnings("UnusedVariable")
@@ -157,11 +161,6 @@ public class VectorizedDeltaLengthByteArrayValuesReader
   @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readDoubles is not supported");
-  }
-
-  @Override
-  public void close() throws Exception {
-    closeables.close();
   }
 
   /** A functional interface to write binary values into a FieldVector */

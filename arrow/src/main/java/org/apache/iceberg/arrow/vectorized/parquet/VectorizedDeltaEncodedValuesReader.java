@@ -110,13 +110,13 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   @Override
   public int readInteger() {
-    readValues(1, null, 0, INT_SIZE, (f, i, v) -> intVal = (int) v);
+    readValues(1, 0, (i, v) -> intVal = (int) v);
     return intVal;
   }
 
   @Override
   public long readLong() {
-    readValues(1, null, 0, LONG_SIZE, (f, i, v) -> longVal = v);
+    readValues(1, 0, (i, v) -> longVal = v);
     return longVal;
   }
 
@@ -134,12 +134,18 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
 
   @Override
   public void readIntegers(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, INT_SIZE, (f, i, v) -> f.getDataBuffer().setInt(i, (int) v));
+    readValues(total, rowId, (i, v) -> vec.getDataBuffer().setInt(((long) i) * INT_SIZE, (int) v));
+  }
+
+  public int[] readIntegers(int total, int rowId) {
+    int[] outputBuffer = new int[total];
+    readValues(total, rowId, (i, v) -> outputBuffer[i] = (int) v);
+    return outputBuffer;
   }
 
   @Override
   public void readLongs(int total, FieldVector vec, int rowId) {
-    readValues(total, vec, rowId, LONG_SIZE, (f, i, v) -> f.getDataBuffer().setLong(i, v));
+    readValues(total, rowId, (i, v) -> vec.getDataBuffer().setLong(((long) i) * LONG_SIZE, v));
   }
 
   /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
@@ -160,8 +166,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     throw new UnsupportedOperationException("readBinary is not supported");
   }
 
-  private void readValues(
-      int total, FieldVector vec, int rowId, int typeWidth, IntegerOutputWriter outputWriter) {
+  private void readValues(int total, int rowId, IntegerOutputWriter outputWriter) {
     if (valuesRead + total > totalValueCount) {
       throw new ParquetDecodingException(
           "No more values to read. Total values read:  "
@@ -177,7 +182,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     int currentRowId = rowId;
     // First value
     if (valuesRead == 0) {
-      outputWriter.write(vec, ((long) (currentRowId + valuesRead) * typeWidth), firstValue);
+      outputWriter.write(currentRowId + valuesRead, firstValue);
       lastValueRead = firstValue;
       currentRowId++;
       remaining--;
@@ -186,7 +191,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     while (remaining > 0) {
       int loadedRows;
       try {
-        loadedRows = loadMiniBlockToOutput(remaining, vec, currentRowId, typeWidth, outputWriter);
+        loadedRows = loadMiniBlockToOutput(remaining, currentRowId, outputWriter);
       } catch (IOException e) {
         throw new ParquetDecodingException("Error reading mini block.", e);
       }
@@ -201,8 +206,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
    *
    * @return the number of values read into output
    */
-  private int loadMiniBlockToOutput(
-      int remaining, FieldVector vec, int rowId, int typeWidth, IntegerOutputWriter outputWriter)
+  private int loadMiniBlockToOutput(int remaining, int rowId, IntegerOutputWriter outputWriter)
       throws IOException {
 
     // new block; read the block header
@@ -223,7 +227,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
       // calculate values from deltas unpacked for current block
       long outValue = lastValueRead + minDeltaInCurrentBlock + unpackedValuesBuffer[i];
       lastValueRead = outValue;
-      outputWriter.write(vec, ((long) (rowId + valuesReadInMiniBlock) * typeWidth), outValue);
+      outputWriter.write(rowId + valuesReadInMiniBlock, outValue);
       remainingInBlock--;
       remainingInMiniBlock--;
       valuesReadInMiniBlock++;
@@ -277,18 +281,17 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     }
   }
 
-  /** A functional interface to write long values to into a FieldVector */
+  /** A functional interface to write long values to into a destination buffer */
   @FunctionalInterface
   interface IntegerOutputWriter {
 
     /**
      * A functional interface that can be used to write a long value to a specified row in a
-     * FieldVector
+     * destination buffer
      *
-     * @param vec a FieldVector to write the value into
      * @param index The offset to write to
      * @param val value to write
      */
-    void write(FieldVector vec, long index, long val);
+    void write(int index, long val);
   }
 }
