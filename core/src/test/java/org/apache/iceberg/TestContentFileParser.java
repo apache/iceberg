@@ -210,6 +210,57 @@ public class TestContentFileParser {
     assertThat(deserializedContentFile.partition().get(1, String.class)).isEqualTo("foo");
   }
 
+  @Test
+  public void testInvalidContentType() throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,"
+            + "\"content\":\"invalid-content\","
+            + "\"file-path\":\"/path/to/file.parquet\","
+            + "\"file-format\":\"PARQUET\","
+            + "\"partition\":{},"
+            + "\"file-size-in-bytes\":1,"
+            + "\"record-count\":1}";
+
+    JsonNode node = JsonUtil.mapper().readTree(jsonStr);
+
+    assertThatThrownBy(
+            () -> ContentFileParser.fromJson(node, Map.of(0, PartitionSpec.unpartitioned())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file content value: 'invalid-content'");
+  }
+
+  @ParameterizedTest
+  @MethodSource("enumContentTypeCases")
+  public void testEnumContentTypeSerialization(FileContent content, String expectedJsonContent)
+      throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,"
+            + "\"content\":\""
+            + content.name()
+            + "\","
+            + "\"file-path\":\"/path/to/data.parquet\","
+            + "\"file-format\":\"PARQUET\","
+            + "\"partition\":{},"
+            + "\"file-size-in-bytes\":1,"
+            + "\"record-count\":1}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(0, PartitionSpec.unpartitioned()));
+    assertThat(deserializedContentFile.content()).isEqualTo(content);
+
+    String serializedStr =
+        ContentFileParser.toJson(deserializedContentFile, PartitionSpec.unpartitioned());
+    assertThat(serializedStr).contains("\"content\":\"" + expectedJsonContent + "\"");
+  }
+
+  private static Stream<Arguments> enumContentTypeCases() {
+    return Stream.of(
+        Arguments.of(FileContent.DATA, "data"),
+        Arguments.of(FileContent.POSITION_DELETES, "position-deletes"),
+        Arguments.of(FileContent.EQUALITY_DELETES, "equality-deletes"));
+  }
+
   private static Stream<Arguments> provideSpecAndDataFile() {
     return Stream.of(
         Arguments.of(

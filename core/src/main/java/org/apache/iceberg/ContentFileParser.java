@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
@@ -84,7 +85,8 @@ public class ContentFileParser {
     // as it isn't used and BaseFile constructor doesn't support it.
 
     generator.writeNumberField(SPEC_ID, contentFile.specId());
-    generator.writeStringField(CONTENT, contentFile.content().name());
+    String contentValue = contentFile.content().name().toLowerCase(Locale.ROOT).replace('_', '-');
+    generator.writeStringField(CONTENT, contentValue);
     generator.writeStringField(FILE_PATH, contentFile.location());
     generator.writeStringField(FILE_FORMAT, contentFile.format().name());
 
@@ -147,7 +149,7 @@ public class ContentFileParser {
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
     PartitionSpec spec = specsById.get(specId);
     Preconditions.checkArgument(spec != null, "Invalid partition specId: %s", specId);
-    FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
+    FileContent fileContent = fileContentFromJson(JsonUtil.getString(CONTENT, jsonNode));
     String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
     FileFormat fileFormat = FileFormat.fromString(JsonUtil.getString(FILE_FORMAT, jsonNode));
 
@@ -344,5 +346,25 @@ public class ContentFileParser {
     }
 
     return partitionData;
+  }
+
+  private static FileContent fileContentFromJson(String content) {
+    Preconditions.checkArgument(content != null, "Invalid file content: null");
+    switch (content) {
+      case "data":
+        return FileContent.DATA;
+      case "position-deletes":
+        return FileContent.POSITION_DELETES;
+      case "equality-deletes":
+        return FileContent.EQUALITY_DELETES;
+      default:
+        // Otherwise, fall back to the enum name
+        try {
+          return FileContent.valueOf(content);
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException(
+              String.format("Invalid file content value: '%s'", content), e);
+        }
+    }
   }
 }
