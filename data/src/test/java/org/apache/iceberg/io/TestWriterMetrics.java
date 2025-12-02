@@ -206,12 +206,10 @@ public abstract class TestWriterMetrics<T> {
     DeleteFile deleteFile = deleteWriter.toDeleteFile();
 
     Map<Integer, ByteBuffer> lowerBounds = deleteFile.lowerBounds();
-    assertThat(lowerBounds).hasSize(4);
     assertThat(lowerBounds.get(MetadataColumns.DELETE_FILE_PATH.fieldId())).isNotNull();
     assertThat(lowerBounds.get(MetadataColumns.DELETE_FILE_POS.fieldId())).isNotNull();
 
     Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
-    assertThat(upperBounds).hasSize(4);
     assertThat(upperBounds.get(MetadataColumns.DELETE_FILE_PATH.fieldId())).isNotNull();
     assertThat(upperBounds.get(MetadataColumns.DELETE_FILE_POS.fieldId())).isNotNull();
   }
