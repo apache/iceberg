@@ -21,10 +21,11 @@ package org.apache.iceberg.encryption;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.SerializableByteBuffer;
 
 public class BaseEncryptedKey implements EncryptedKey {
   private final String keyId;
-  private final ByteBuffer keyMetadata;
+  private final SerializableByteBuffer keyMetadata;
   private final String encryptedById;
   private final Map<String, String> properties;
 
@@ -33,7 +34,7 @@ public class BaseEncryptedKey implements EncryptedKey {
     Preconditions.checkArgument(keyId != null, "Key id cannot be null");
     Preconditions.checkArgument(keyMetadata != null, "Encrypted key metadata cannot be null");
     this.keyId = keyId;
-    this.keyMetadata = keyMetadata;
+    this.keyMetadata = SerializableByteBuffer.wrap(keyMetadata);
     this.encryptedById = encryptedById;
     this.properties = properties;
   }
@@ -45,7 +46,7 @@ public class BaseEncryptedKey implements EncryptedKey {
 
   @Override
   public ByteBuffer encryptedKeyMetadata() {
-    return keyMetadata;
+    return keyMetadata.buffer();
   }
 
   @Override
