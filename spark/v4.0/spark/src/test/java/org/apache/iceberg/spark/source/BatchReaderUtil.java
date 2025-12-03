@@ -26,7 +26,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 public class BatchReaderUtil {
   private BatchReaderUtil() {}
 
-  public static CloseableIterable<ColumnarBatch> withDeleteFilter(
+  public static CloseableIterable<ColumnarBatch> applyDeleteFilter(
       CloseableIterable<ColumnarBatch> batches, DeleteFilter<InternalRow> filter) {
     return CloseableIterable.transform(
         batches, new BaseBatchReader.BatchDeleteFilter(filter)::filterBatch);
