@@ -96,18 +96,19 @@ public class AliyunClientFactories {
     /**
      * Check if RRSA environment variables are present. RRSA requires
      * ALIBABA_CLOUD_OIDC_PROVIDER_ARN, ALIBABA_CLOUD_ROLE_ARN and ALIBABA_CLOUD_OIDC_TOKEN_FILE to
-     * be set.
+     * be set. RRSA stands for RAM Roles for Service Accounts. It works by letting pods assume
+     * specific RAM (Resource Access Management) roles when they need to call cloud APIs — no
+     * hard-coded credentials are needed, which reduces risk of credential leaks. Here is the
+     * document for RRSA:
+     * https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-rrsa-to-authorize-pods-to-access-different-cloud-services
      */
     boolean isRrsaEnvironmentAvailable() {
       String oidcProviderArn = System.getenv("ALIBABA_CLOUD_OIDC_PROVIDER_ARN");
       String roleArn = System.getenv("ALIBABA_CLOUD_ROLE_ARN");
       String oidcTokenFile = System.getenv("ALIBABA_CLOUD_OIDC_TOKEN_FILE");
-      return oidcProviderArn != null
-          && !oidcProviderArn.isEmpty()
-          && roleArn != null
-          && !roleArn.isEmpty()
-          && oidcTokenFile != null
-          && !oidcTokenFile.isEmpty();
+      return !Strings.isNullOrEmpty(oidcProviderArn)
+          && !Strings.isNullOrEmpty(roleArn)
+          && !Strings.isNullOrEmpty(oidcTokenFile);
     }
 
     @Override
