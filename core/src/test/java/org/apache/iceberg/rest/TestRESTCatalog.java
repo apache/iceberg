@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +51,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
@@ -125,6 +127,16 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private Server httpServer;
   private RESTCatalogAdapter adapterForRESTServer;
 
+  private enum IdempHeaderExpectation {
+    NONE,
+    REQUIRE,
+    FORBID
+  }
+
+  private static volatile IdempHeaderExpectation idempHeaderExpectation =
+      IdempHeaderExpectation.NONE;
+  private static volatile boolean advertiseIdempInConfig = false;
+
   @BeforeEach
   public void createCatalog() throws Exception {
     File warehouse = temp.toFile();
@@ -153,6 +165,30 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         Mockito.spy(
             new RESTCatalogAdapter(backendCatalog) {
               @Override
+              public <T extends RESTResponse> T handleRequest(
+                  Route route,
+                  Map<String, String> vars,
+                  HTTPRequest httpRequest,
+                  Class<T> responseType,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if (route == Route.CONFIG) {
+                  ConfigResponse.Builder builder =
+                      ConfigResponse.builder()
+                          .withEndpoints(
+                              Arrays.stream(Route.values())
+                                  .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
+                                  .collect(Collectors.toList()));
+                  if (advertiseIdempInConfig) {
+                    builder.withIdempotencyKeyLifetime("PT30M");
+                  }
+
+                  return (T) builder.build();
+                }
+
+                return super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+              }
+
+              @Override
               public <T extends RESTResponse> T execute(
                   HTTPRequest request,
                   Class<T> responseType,
@@ -161,12 +197,24 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 // this doesn't use a Mockito spy because this is used for catalog tests, which have
                 // different method calls
                 if (!ResourcePaths.tokens().equals(request.path())) {
+                  boolean isMutation =
+                      request.method() == HTTPMethod.POST || request.method() == HTTPMethod.DELETE;
+                  if (isMutation) {
+                    boolean hasIdemp = request.headers().contains(RESTUtil.IDEMPOTENCY_KEY_HEADER);
+                    if (idempHeaderExpectation == IdempHeaderExpectation.REQUIRE) {
+                      assertThat(hasIdemp).isTrue();
+                    } else if (idempHeaderExpectation == IdempHeaderExpectation.FORBID) {
+                      assertThat(hasIdemp).isFalse();
+                    }
+                  }
+
                   if (ResourcePaths.config().equals(request.path())) {
                     assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
                   } else {
                     assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
                   }
                 }
+
                 Object body = roundTripSerialize(request.body(), "request");
                 HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
                 T response = super.execute(req, responseType, errorHandler, responseHeaders);
@@ -3258,6 +3306,60 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               eq(LoadTableResponse.class),
               any(),
               any());
+    }
+  }
+
+  @Test
+  public void testClientAutoSendsIdempotencyWhenServerAdvertises() {
+    idempHeaderExpectation = IdempHeaderExpectation.REQUIRE;
+    advertiseIdempInConfig = true;
+    RESTCatalog local = null;
+    try {
+      local = initCatalog("prod", ImmutableMap.of());
+      Namespace ns = Namespace.of("ns_cfg_yes");
+      TableIdentifier ident = TableIdentifier.of(ns, "t_cfg_yes");
+      Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+      local.createNamespace(ns, ImmutableMap.of());
+      local.createTable(ident, schema);
+      assertThat(local.tableExists(ident)).isTrue();
+      local.dropTable(ident);
+    } finally {
+      idempHeaderExpectation = IdempHeaderExpectation.NONE;
+      advertiseIdempInConfig = false;
+      if (local != null) {
+        try {
+          local.close();
+        } catch (Exception e) {
+          throw new RuntimeException("Failed to close RESTCatalog", e);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testClientDoesNotSendIdempotencyWhenServerNotAdvertising() {
+    idempHeaderExpectation = IdempHeaderExpectation.FORBID;
+    advertiseIdempInConfig = false;
+    RESTCatalog local = null;
+    try {
+      local = initCatalog("prod", ImmutableMap.of());
+      Namespace ns = Namespace.of("ns_cfg_no");
+      TableIdentifier ident = TableIdentifier.of(ns, "t_cfg_no");
+      Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+      local.createNamespace(ns, ImmutableMap.of());
+      local.createTable(ident, schema);
+      assertThat(local.tableExists(ident)).isTrue();
+      local.dropTable(ident);
+    } finally {
+      idempHeaderExpectation = IdempHeaderExpectation.NONE;
+      advertiseIdempInConfig = false;
+      if (local != null) {
+        try {
+          local.close();
+        } catch (Exception e) {
+          throw new RuntimeException("Failed to close RESTCatalog", e);
+        }
+      }
     }
   }
 
