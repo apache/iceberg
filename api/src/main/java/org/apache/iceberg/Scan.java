@@ -195,4 +195,17 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement metricsReporter");
   }
+
+  /**
+   * Create a new scan that returns files with at least the given number of rows. This is used as a
+   * hint and is entirely optional in order to not have to return more rows than necessary. This may
+   * return fewer rows if the scan does not contain that many, or it may return more than requested.
+   *
+   * @param numRows The minimum number of rows requested
+   * @return A new scan based on this with at least the given number of rows
+   */
+  default ThisT minRowsRequested(long numRows) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement minRowsRequested");
+  }
 }
