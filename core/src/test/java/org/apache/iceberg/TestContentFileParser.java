@@ -229,6 +229,23 @@ public class TestContentFileParser {
         .hasMessage("Invalid file content value: 'invalid-content'");
   }
 
+  @Test
+  public void testUppercaseFileFormat() throws Exception {
+    String jsonStr =
+        "{\"spec-id\":0,"
+            + "\"content\":\"data\","
+            + "\"file-path\":\"/path/to/file.parquet\","
+            + "\"file-format\":\"PARQUET\","
+            + "\"partition\":{},"
+            + "\"file-size-in-bytes\":1,"
+            + "\"record-count\":1}";
+
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserializedContentFile =
+        ContentFileParser.fromJson(jsonNode, Map.of(0, PartitionSpec.unpartitioned()));
+    assertThat(deserializedContentFile.format()).isEqualTo(FileFormat.PARQUET);
+  }
+
   @ParameterizedTest
   @MethodSource("enumContentTypeCases")
   public void testEnumContentTypeSerialization(FileContent content, String expectedJsonContent)

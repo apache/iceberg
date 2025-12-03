@@ -51,6 +51,9 @@ public class ContentFileParser {
   private static final String REFERENCED_DATA_FILE = "referenced-data-file";
   private static final String CONTENT_OFFSET = "content-offset";
   private static final String CONTENT_SIZE = "content-size-in-bytes";
+  private static final String CONTENT_DATA = "data";
+  private static final String CONTENT_POSITION_DELETES = "position-deletes";
+  private static final String CONTENT_EQUALITY_DELETES = "equality-deletes";
 
   private ContentFileParser() {}
 
@@ -86,12 +89,11 @@ public class ContentFileParser {
 
     generator.writeNumberField(SPEC_ID, contentFile.specId());
     // Since 1.11, we serialize content as lowercase kebab-case values like "equality-deletes"
-    String contentValue = contentFile.content().name().toLowerCase(Locale.ROOT).replace('_', '-');
-    generator.writeStringField(CONTENT, contentValue);
+    generator.writeStringField(
+        CONTENT, contentFile.content().name().toLowerCase(Locale.ROOT).replace('_', '-'));
     generator.writeStringField(FILE_PATH, contentFile.location());
     // Since 1.11, we serialize format as lower-case strings like "parquet"
-    String formatValue = contentFile.format().name().toLowerCase(Locale.ROOT);
-    generator.writeStringField(FILE_FORMAT, formatValue);
+    generator.writeStringField(FILE_FORMAT, contentFile.format().name().toLowerCase(Locale.ROOT));
 
     if (contentFile.partition() != null) {
       generator.writeFieldName(PARTITION);
@@ -352,13 +354,12 @@ public class ContentFileParser {
   }
 
   private static FileContent fileContentFromJson(String content) {
-    Preconditions.checkArgument(content != null, "Invalid file content: null");
     switch (content) {
-      case "data":
+      case CONTENT_DATA:
         return FileContent.DATA;
-      case "position-deletes":
+      case CONTENT_POSITION_DELETES:
         return FileContent.POSITION_DELETES;
-      case "equality-deletes":
+      case CONTENT_EQUALITY_DELETES:
         return FileContent.EQUALITY_DELETES;
       default:
         // In 1.10 and before, file content is serialized as the FileContent enum value
