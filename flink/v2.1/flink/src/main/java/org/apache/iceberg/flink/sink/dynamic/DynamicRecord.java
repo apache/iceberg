@@ -48,8 +48,10 @@ public class DynamicRecord {
    * @param rowData The data matching the provided schema.
    * @param partitionSpec The target table {@link PartitionSpec}.
    * @param distributionMode The {@link DistributionMode}.
-   * @param writeParallelism The number of parallel writers. If set to {@literal <= 0}, will
-   *     automatically configure the maximum available write parallelism.
+   * @param writeParallelism The number of parallel writers. Can be set to any value {@literal > 0},
+   *     but will always be automatically capped by the maximum write parallelism, which is the
+   *     parallelism of the sink. Set to Integer.MAX_VALUE for always using the maximum available
+   *     write parallelism.
    */
   public DynamicRecord(
       TableIdentifier tableIdentifier,
