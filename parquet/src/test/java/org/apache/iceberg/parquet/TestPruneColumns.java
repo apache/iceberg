@@ -198,6 +198,144 @@ public class TestPruneColumns {
   }
 
   @Test
+  public void testNestedListWithStructPruning() {
+    // Test case: list of structs where each struct contains another list of structs
+    // Similar to: pv_requests: list<struct<available, servedItems: list<struct<boosts, clicked,
+    // ...other fields>>>>
+    MessageType fileSchema =
+        Types.buildMessage()
+            .addField(
+                Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .addField(
+                        Types.buildGroup(Type.Repetition.REPEATED)
+                            .addField(
+                                Types.buildGroup(Type.Repetition.OPTIONAL)
+                                    .addField(
+                                        Types.primitive(
+                                                PrimitiveTypeName.BOOLEAN, Type.Repetition.OPTIONAL)
+                                            .id(4)
+                                            .named("available"))
+                                    .addField(
+                                        Types.buildGroup(Type.Repetition.OPTIONAL)
+                                            .addField(
+                                                Types.buildGroup(Type.Repetition.REPEATED)
+                                                    .addField(
+                                                        Types.buildGroup(Type.Repetition.OPTIONAL)
+                                                            .addField(
+                                                                Types.primitive(
+                                                                        PrimitiveTypeName.DOUBLE,
+                                                                        Type.Repetition.OPTIONAL)
+                                                                    .id(8)
+                                                                    .named("boosts"))
+                                                            .addField(
+                                                                Types.primitive(
+                                                                        PrimitiveTypeName.BOOLEAN,
+                                                                        Type.Repetition.OPTIONAL)
+                                                                    .id(9)
+                                                                    .named("clicked"))
+                                                            .addField(
+                                                                Types.primitive(
+                                                                        PrimitiveTypeName.DOUBLE,
+                                                                        Type.Repetition.OPTIONAL)
+                                                                    .id(10)
+                                                                    .named("other_field_1"))
+                                                            .addField(
+                                                                Types.primitive(
+                                                                        PrimitiveTypeName.DOUBLE,
+                                                                        Type.Repetition.OPTIONAL)
+                                                                    .id(11)
+                                                                    .named("other_field_2"))
+                                                            .id(7)
+                                                            .named("element"))
+                                                    .named("list"))
+                                            .as(LogicalTypeAnnotation.listType())
+                                            .id(5)
+                                            .named("servedItems"))
+                                    .id(3)
+                                    .named("element"))
+                            .named("list"))
+                    .as(LogicalTypeAnnotation.listType())
+                    .id(1)
+                    .named("pv_requests"))
+            .named("table");
+
+    // Project only: pv_requests[].available and pv_requests[].servedItems[].boosts, clicked
+    Schema projection =
+        new Schema(
+            NestedField.optional(
+                1,
+                "pv_requests",
+                ListType.ofOptional(
+                    3,
+                    StructType.of(
+                        NestedField.optional(
+                            4, "available", org.apache.iceberg.types.Types.BooleanType.get()),
+                        NestedField.optional(
+                            5,
+                            "servedItems",
+                            ListType.ofOptional(
+                                7,
+                                StructType.of(
+                                    NestedField.optional(8, "boosts", DoubleType.get()),
+                                    NestedField.optional(
+                                        9,
+                                        "clicked",
+                                        org.apache.iceberg.types.Types.BooleanType.get()))))))));
+
+    // Expected: only available, servedItems with boosts and clicked (no other_field_1,
+    // other_field_2)
+    MessageType expected =
+        Types.buildMessage()
+            .addField(
+                Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .addField(
+                        Types.buildGroup(Type.Repetition.REPEATED)
+                            .addField(
+                                Types.buildGroup(Type.Repetition.OPTIONAL)
+                                    .addField(
+                                        Types.primitive(
+                                                PrimitiveTypeName.BOOLEAN, Type.Repetition.OPTIONAL)
+                                            .id(4)
+                                            .named("available"))
+                                    .addField(
+                                        Types.buildGroup(Type.Repetition.OPTIONAL)
+                                            .addField(
+                                                Types.buildGroup(Type.Repetition.REPEATED)
+                                                    .addField(
+                                                        Types.buildGroup(Type.Repetition.OPTIONAL)
+                                                            .addField(
+                                                                Types.primitive(
+                                                                        PrimitiveTypeName.DOUBLE,
+                                                                        Type.Repetition.OPTIONAL)
+                                                                    .id(8)
+                                                                    .named("boosts"))
+                                                            .addField(
+                                                                Types.primitive(
+                                                                        PrimitiveTypeName.BOOLEAN,
+                                                                        Type.Repetition.OPTIONAL)
+                                                                    .id(9)
+                                                                    .named("clicked"))
+                                                            .id(7)
+                                                            .named("element"))
+                                                    .named("list"))
+                                            .as(LogicalTypeAnnotation.listType())
+                                            .id(5)
+                                            .named("servedItems"))
+                                    .id(3)
+                                    .named("element"))
+                            .named("list"))
+                    .as(LogicalTypeAnnotation.listType())
+                    .id(1)
+                    .named("pv_requests"))
+            .named("table");
+
+    MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
+    assertThat(actual)
+        .as("Pruned schema should remove other_field_1 and other_field_2 from nested list")
+        .isEqualTo(expected);
+  }
+
+  @Test
   public void testStructElementName() {
     MessageType fileSchema =
         Types.buildMessage()
