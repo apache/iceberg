@@ -106,6 +106,14 @@ public class AwsKeyManagementClient implements KeyManagementClient {
     }
   }
 
+  EncryptionAlgorithmSpec encryptionAlgorithmSpec() {
+    return encryptionAlgorithmSpec;
+  }
+
+  DataKeySpec dataKeySpec() {
+    return dataKeySpec;
+  }
+
   private KmsClient kmsClient() {
     if (kmsClient == null) {
       synchronized (this) {
