@@ -33,6 +33,7 @@ import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.io.CloseableGroup;
+import org.apache.iceberg.util.SerializableMap;
 
 /**
  * Key management client implementation that uses Google Cloud Key Management. To be used for
@@ -45,31 +46,15 @@ import org.apache.iceberg.io.CloseableGroup;
  */
 public class GcpKeyManagementClient implements KeyManagementClient {
 
-  private KeyManagementServiceClient kmsClient;
-  private CloseableGroup closeableGroup = new CloseableGroup();
+  private Map<String, String> allProperties;
+
+  private transient KeyManagementServiceClient kmsClient;
+  private transient CloseableGroup closeableGroup = new CloseableGroup();
 
   @Override
   public void initialize(Map<String, String> properties) {
+    this.allProperties = SerializableMap.copyOf(properties);
     this.closeableGroup = new CloseableGroup();
-    closeableGroup.setSuppressCloseFailure(true);
-
-    GCPProperties gcpProperties = new GCPProperties(properties);
-
-    try {
-      KeyManagementServiceSettings.Builder kmsBuilder = KeyManagementServiceSettings.newBuilder();
-      if (gcpProperties.oauth2Token().isPresent()) {
-        OAuth2Credentials oAuth2Credentials =
-            GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup);
-        kmsBuilder.setCredentialsProvider(FixedCredentialsProvider.create(oAuth2Credentials));
-      }
-
-      // if not OAuth then defaults to GoogleCredentials.getApplicationDefault()
-      this.kmsClient = KeyManagementServiceClient.create(kmsBuilder.build());
-      closeableGroup.addCloseable(kmsClient);
-
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to create GCP cloud KMS service client", e);
-    }
   }
 
   @Override
@@ -78,7 +63,7 @@ public class GcpKeyManagementClient implements KeyManagementClient {
     requestBuilder = ByteStringShim.setPlainText(requestBuilder, key);
 
     EncryptRequest encryptRequest = requestBuilder.build();
-    EncryptResponse encryptResponse = kmsClient.encrypt(encryptRequest);
+    EncryptResponse encryptResponse = kmsClient().encrypt(encryptRequest);
 
     // need ByteString.copyFrom() leaves the BB in an end position, need to reset
     key.position(0);
@@ -91,7 +76,7 @@ public class GcpKeyManagementClient implements KeyManagementClient {
     requestBuilder = ByteStringShim.setCipherText(requestBuilder, wrappedKey);
 
     DecryptRequest decryptRequest = requestBuilder.build();
-    DecryptResponse decryptResponse = kmsClient.decrypt(decryptRequest);
+    DecryptResponse decryptResponse = kmsClient().decrypt(decryptRequest);
 
     // need ByteString.copyFrom() leaves the BB in an end position, need to reset
     wrappedKey.position(0);
@@ -100,11 +85,39 @@ public class GcpKeyManagementClient implements KeyManagementClient {
 
   @Override
   public void close() {
+    closeableGroup.setSuppressCloseFailure(true);
     try {
       closeableGroup.close();
     } catch (IOException ioe) {
       // closure exceptions already suppressed and logged in closeableGroup
     }
+  }
+
+  private KeyManagementServiceClient kmsClient() {
+    if (kmsClient == null) {
+      synchronized (this) {
+        if (kmsClient == null) {
+          GCPProperties gcpProperties = new GCPProperties(allProperties);
+          try {
+            KeyManagementServiceSettings.Builder kmsBuilder =
+                KeyManagementServiceSettings.newBuilder();
+            if (gcpProperties.oauth2Token().isPresent()) {
+              OAuth2Credentials oAuth2Credentials =
+                  GCPAuthUtils.oauth2CredentialsFromGcpProperties(gcpProperties, closeableGroup);
+              kmsBuilder.setCredentialsProvider(FixedCredentialsProvider.create(oAuth2Credentials));
+            }
+
+            // if not OAuth then defaults to GoogleCredentials.getApplicationDefault()
+            this.kmsClient = KeyManagementServiceClient.create(kmsBuilder.build());
+            closeableGroup.addCloseable(kmsClient);
+
+          } catch (IOException e) {
+            throw new RuntimeException("Failed to create GCP cloud KMS service client", e);
+          }
+        }
+      }
+    }
+    return kmsClient;
   }
 
   private static final class ByteStringShim {
