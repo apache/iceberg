@@ -140,6 +140,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           properties,
           allowExisting,
           replace,
+          _,
           _) =>
       CreateV2ViewExec(
         catalog = viewCatalog,

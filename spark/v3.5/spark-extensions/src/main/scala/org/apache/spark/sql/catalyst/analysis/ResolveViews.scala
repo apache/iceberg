@@ -73,6 +73,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
           _,
           _,
           _,
+          _,
           _) if query.resolved && !c.rewritten =>
       val aliased = aliasColumns(query, columnAliases, columnComments)
       c.copy(
