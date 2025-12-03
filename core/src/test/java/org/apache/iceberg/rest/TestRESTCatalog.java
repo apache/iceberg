@@ -295,6 +295,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsUniqueTableLocation() {
+    return false;
+  }
+
   /* RESTCatalog specific tests */
 
   @Test
