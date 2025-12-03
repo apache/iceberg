@@ -95,7 +95,7 @@ public class TestFetchScanTasksResponseParser {
 
     String invalidJson =
         "{\"plan-tasks\":[\"task1\",\"task2\"],"
-            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
+            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
             + "\"partition\":[0],\"file-size-in-bytes\":10,\"record-count\":1}]"
             + "}";
@@ -129,11 +129,11 @@ public class TestFetchScanTasksResponseParser {
 
     String expectedToJson =
         "{"
-            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
+            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
             + "\"partition\":[0],\"file-size-in-bytes\":10,\"record-count\":1}],"
             + "\"file-scan-tasks\":["
-            + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
+            + "{\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
             + "\"file-format\":\"PARQUET\",\"partition\":[0],"
             + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
             + "\"delete-file-references\":[0],"

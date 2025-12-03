@@ -144,7 +144,7 @@ public class TestDataTaskParser {
             + "{\"id\":6,\"name\":\"summary\",\"required\":false,\"type\":{\"type\":\"map\","
             + "\"key-id\":7,\"key\":\"string\",\"value-id\":8,"
             + "\"value\":\"string\",\"value-required\":true}}]},"
-            + "\"metadata-file\":{\"spec-id\":0,\"content\":\"DATA\","
+            + "\"metadata-file\":{\"spec-id\":0,\"content\":\"data\","
             + "\"file-path\":\"/tmp/metadata2.json\","
             + "\"file-format\":\"METADATA\",\"partition\":[],"
             + "\"file-size-in-bytes\":0,\"record-count\":2,\"sort-order-id\":0}"
@@ -172,7 +172,7 @@ public class TestDataTaskParser {
             + "\"fields\":[{\"id\":1,\"name\":\"committed_at\",\"required\":true,\"type\":\"timestamptz\"}]},"
             + "\"projection\":{\"type\":\"struct\",\"schema-id\":0,"
             + "\"fields\":[{\"id\":1,\"name\":\"committed_at\",\"required\":true,\"type\":\"timestamptz\"}]},"
-            + "\"metadata-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/tmp/metadata.json\","
+            + "\"metadata-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/tmp/metadata.json\","
             + "\"file-format\":\"METADATA\",\"partition\":{},\"file-size-in-bytes\":0,\"record-count\":1,\"sort-order-id\":0},"
             + "\"rows\":[{\"1\":\"2009-02-13T23:31:30+00:00\"}]}";
 
@@ -263,7 +263,7 @@ public class TestDataTaskParser {
         + "{\"id\":6,\"name\":\"summary\",\"required\":false,\"type\":{\"type\":\"map\","
         + "\"key-id\":7,\"key\":\"string\",\"value-id\":8,"
         + "\"value\":\"string\",\"value-required\":true}}]},"
-        + "\"metadata-file\":{\"spec-id\":0,\"content\":\"DATA\","
+        + "\"metadata-file\":{\"spec-id\":0,\"content\":\"data\","
         + "\"file-path\":\"/tmp/metadata2.json\","
         + "\"file-format\":\"METADATA\",\"partition\":[],"
         + "\"file-size-in-bytes\":0,\"record-count\":2,\"sort-order-id\":0},"
