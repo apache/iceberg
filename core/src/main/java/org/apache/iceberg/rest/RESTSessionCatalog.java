@@ -803,7 +803,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           newTableOps(
               tableClient,
               paths.table(ident),
-              Map::of,
+              mutationHeaders,
               tableFileIO(context, tableConf, response.credentials()),
               response.tableMetadata(),
               endpoints);
@@ -1043,7 +1043,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       FileIO fileIO,
       TableMetadata current,
       Set<Endpoint> supportedEndpoints) {
-    return new RESTTableOperations(restClient, path, headers, fileIO, current, supportedEndpoints);
+    return new RESTTableOperations(
+        restClient, path, Map::of, headers, fileIO, current, supportedEndpoints);
   }
 
   /**
@@ -1073,7 +1074,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableMetadata current,
       Set<Endpoint> supportedEndpoints) {
     return new RESTTableOperations(
-        restClient, path, headers, fileIO, updateType, createChanges, current, supportedEndpoints);
+        restClient,
+        path,
+        Map::of,
+        headers,
+        fileIO,
+        updateType,
+        createChanges,
+        current,
+        supportedEndpoints);
   }
 
   /**
@@ -1095,7 +1104,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Supplier<Map<String, String>> headers,
       ViewMetadata current,
       Set<Endpoint> supportedEndpoints) {
-    return new RESTViewOperations(restClient, path, headers, current, supportedEndpoints);
+    return new RESTViewOperations(restClient, path, Map::of, headers, current, supportedEndpoints);
   }
 
   private static ConfigResponse fetchConfig(
