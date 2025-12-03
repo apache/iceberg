@@ -330,13 +330,11 @@ public class InclusiveMetricsEvaluator {
       // However, when min == max and the file has no nulls or NaN values, we can safely prune
       // if that value equals the literal.
       T uniqueValue = getUniqueValue(term);
-      if (uniqueValue == null) {
-        return ROWS_MIGHT_MATCH;
-      }
 
-      if (lit.comparator().compare(uniqueValue, lit.value()) == 0) {
+      if (uniqueValue != null && lit.comparator().compare(uniqueValue, lit.value()) == 0) {
         return ROWS_CANNOT_MATCH;
       }
+
       return ROWS_MIGHT_MATCH;
     }
 
@@ -394,11 +392,8 @@ public class InclusiveMetricsEvaluator {
       // However, when min == max and the file has no nulls or NaN values, we can safely prune
       // if that value is in the exclusion set.
       T uniqueValue = getUniqueValue(term);
-      if (uniqueValue == null) {
-        return ROWS_MIGHT_MATCH;
-      }
 
-      if (literalSet.contains(uniqueValue)) {
+      if (uniqueValue != null && literalSet.contains(uniqueValue)) {
         return ROWS_CANNOT_MATCH;
       }
 
