@@ -48,6 +48,11 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
   private final BiFunction<org.apache.iceberg.types.Type, Object, Object> convert;
 
+  /**
+   * @deprecated use {@link VectorizedReaderBuilder#VectorizedReaderBuilder(Schema, MessageType,
+   *     boolean, Map, Function, BiFunction, BufferAllocator)} instead; will be removed in 2.0.0
+   */
+  @Deprecated
   public VectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
@@ -80,7 +85,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         ArrowAllocation.rootAllocator());
   }
 
-  protected VectorizedReaderBuilder(
+  public VectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
       boolean setArrowValidityVector,
@@ -90,8 +95,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       BufferAllocator bufferAllocator) {
     this.parquetSchema = parquetSchema;
     this.icebergSchema = expectedSchema;
-    this.rootAllocator =
-        bufferAllocator.newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+    this.rootAllocator = bufferAllocator;
     this.setArrowValidityVector = setArrowValidityVector;
     this.idToConstant = idToConstant;
     this.readerFactory = readerFactory;
@@ -118,7 +122,11 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     for (Types.NestedField field : icebergFields) {
       VectorizedReader<?> reader =
           VectorizedArrowReader.replaceWithMetadataReader(
-              field, readersById.get(field.fieldId()), idToConstant, setArrowValidityVector);
+              field,
+              readersById.get(field.fieldId()),
+              idToConstant,
+              setArrowValidityVector,
+              rootAllocator);
       reorderedFields.add(defaultReader(field, reader));
     }
     return vectorizedReader(reorderedFields);

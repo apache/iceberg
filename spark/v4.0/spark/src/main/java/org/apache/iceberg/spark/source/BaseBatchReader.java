@@ -18,19 +18,24 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
@@ -80,6 +85,16 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     }
   }
 
+  @Override
+  public void close() throws IOException {
+    super.close();
+    for (BufferAllocator allocator : allocators) {
+      allocator.close();
+    }
+  }
+
+  private final List<BufferAllocator> allocators = Lists.newArrayList();
+
   private CloseableIterable<ColumnarBatch> newParquetIterable(
       InputFile inputFile,
       long start,
@@ -99,8 +114,13 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
                 return VectorizedSparkParquetReaders.buildCometReader(
                     requiredSchema, fileSchema, idToConstant, deleteFilter);
               } else {
+                BufferAllocator allocator =
+                    ArrowAllocation.rootAllocator()
+                        .newChildAllocator("BaseBatchReader", 0, Long.MAX_VALUE);
+                allocators.add(allocator);
+
                 return VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema, fileSchema, idToConstant, deleteFilter);
+                    requiredSchema, fileSchema, idToConstant, deleteFilter, allocator);
               }
             })
         .recordsPerBatch(parquetConf.batchSize())
