@@ -91,9 +91,18 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
       if (fieldId != null && selectedIds.contains(fieldId)) {
-        filteredFields.add(originalField);
+        // Use pruned field if available and different from original, otherwise use original
+        if (field != null && !Objects.equal(field, originalField)) {
+          validatePrunedField(field, originalField);
+          filteredFields.add(field);
+          hasChange = true;
+        } else {
+          filteredFields.add(originalField);
+        }
       } else if (field != null) {
-        filteredFields.add(originalField);
+        // Field not directly selected but has selected children - use pruned field
+        validatePrunedField(field, originalField);
+        filteredFields.add(field);
         hasChange = true;
       }
     }
@@ -115,16 +124,19 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
     Type originalElement = ParquetSchemaUtil.determineListElementType(list);
     Integer elementId = getId(originalElement);
 
-    if (elementId != null && selectedIds.contains(elementId)) {
+    // Check if element was pruned (has fewer fields than original)
+    if (element != null && !Objects.equal(element, originalElement)) {
+      // Validate and apply the pruned element
+      validatePrunedField(element, originalElement);
+      if (originalElement.isRepetition(Type.Repetition.REPEATED)) {
+        return list.withNewFields(element);
+      } else {
+        return list.withNewFields(repeated.asGroupType().withNewFields(element));
+      }
+    } else if (elementId != null && selectedIds.contains(elementId)) {
+      // Element selected but not pruned - return as is
       return list;
     } else if (element != null) {
-      if (!Objects.equal(element, originalElement)) {
-        if (originalElement.isRepetition(Type.Repetition.REPEATED)) {
-          return list.withNewFields(element);
-        } else {
-          return list.withNewFields(repeated.asGroupType().withNewFields(element));
-        }
-      }
       return list;
     }
 
@@ -140,13 +152,16 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
     Integer keyId = getId(originalKey);
     Integer valueId = getId(originalValue);
 
-    if ((keyId != null && selectedIds.contains(keyId))
+    // Check if value was pruned (has fewer fields than original)
+    if (value != null && !Objects.equal(value, originalValue)) {
+      // Validate and apply the pruned value
+      validatePrunedField(value, originalValue);
+      return map.withNewFields(repeated.withNewFields(originalKey, value));
+    } else if ((keyId != null && selectedIds.contains(keyId))
         || (valueId != null && selectedIds.contains(valueId))) {
+      // Key or value selected but not pruned - return as is
       return map;
     } else if (value != null) {
-      if (!Objects.equal(value, originalValue)) {
-        return map.withNewFields(repeated.withNewFields(originalKey, value));
-      }
       return map;
     }
 
@@ -178,5 +193,29 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
       return !LogicalTypeAnnotation.mapType().equals(logicalTypeAnnotation)
           && !LogicalTypeAnnotation.listType().equals(logicalTypeAnnotation);
     }
+  }
+
+  /**
+   * Validates that a pruned field is compatible with the original field. The pruned field must have
+   * the same name, ID, and repetition as the original.
+   */
+  private void validatePrunedField(Type prunedField, Type originalField) {
+    Preconditions.checkState(
+        prunedField.getName().equals(originalField.getName()),
+        "Pruned field must have same name as original: '%s' vs '%s'",
+        prunedField.getName(),
+        originalField.getName());
+
+    Preconditions.checkState(
+        Objects.equal(getId(prunedField), getId(originalField)),
+        "Pruned field must have same ID as original: %s vs %s",
+        getId(prunedField),
+        getId(originalField));
+
+    Preconditions.checkState(
+        prunedField.getRepetition() == originalField.getRepetition(),
+        "Pruned field must have same repetition as original: %s vs %s",
+        prunedField.getRepetition(),
+        originalField.getRepetition());
   }
 }
