@@ -23,7 +23,6 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -48,8 +47,6 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.parquet.column.ParquetProperties;
-import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -245,17 +242,9 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
             TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
             TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
 
-    // Get column index truncate length from Hadoop Configuration (same as ParquetWriter)
-    Configuration hadoopConf = spark().sessionState().newHadoopConf();
-    int columnIndexTruncateLength =
-        hadoopConf.getInt(
-            ParquetOutputFormat.COLUMN_INDEX_TRUNCATE_LENGTH,
-            ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
-
     // Create single merge task with all files
     List<DataFile> dataFiles = Lists.newArrayList(group.rewrittenFiles());
-    MergeTaskInfo mergeTask =
-        new MergeTaskInfo(dataFiles, rowGroupSize, columnIndexTruncateLength, 0, partition, spec);
+    MergeTaskInfo mergeTask = new MergeTaskInfo(dataFiles, rowGroupSize, 0, partition, spec);
 
     // Get FileIO for executors - table().io() is serializable
     FileIO fileIO = table().io();
@@ -332,11 +321,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
     // Merge files - schema and metadata are read from the first file inside ParquetFileMerger
     ParquetFileMerger.mergeFiles(
-        task.dataFiles(),
-        fileIO,
-        encryptedOutputFile,
-        task.rowGroupSize(),
-        task.columnIndexTruncateLength());
+        task.dataFiles(), fileIO, encryptedOutputFile, task.rowGroupSize());
 
     // Get file size from the output file
     String outputPath = encryptedOutputFile.encryptingOutputFile().location();
@@ -357,7 +342,6 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
   private static class MergeTaskInfo implements Serializable {
     private final List<DataFile> dataFiles;
     private final long rowGroupSize;
-    private final int columnIndexTruncateLength;
     private final int batchIndex;
     private final StructLike partition;
     private final PartitionSpec spec;
@@ -365,13 +349,11 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     MergeTaskInfo(
         List<DataFile> dataFiles,
         long rowGroupSize,
-        int columnIndexTruncateLength,
         int batchIndex,
         StructLike partition,
         PartitionSpec spec) {
       this.dataFiles = dataFiles;
       this.rowGroupSize = rowGroupSize;
-      this.columnIndexTruncateLength = columnIndexTruncateLength;
       this.batchIndex = batchIndex;
       this.partition = partition;
       this.spec = spec;
@@ -383,10 +365,6 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
     long rowGroupSize() {
       return rowGroupSize;
-    }
-
-    int columnIndexTruncateLength() {
-      return columnIndexTruncateLength;
     }
 
     StructLike partition() {

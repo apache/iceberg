@@ -29,6 +29,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -48,6 +49,7 @@ import org.apache.parquet.crypto.InternalFileEncryptor;
 import org.apache.parquet.hadoop.CodecFactory;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -395,15 +397,13 @@ public class ParquetFileMerger {
    * @param encryptedOutputFile Encrypted output file for the merged result (encryption handled
    *     based on table configuration)
    * @param rowGroupSize Target row group size in bytes
-   * @param columnIndexTruncateLength Maximum length for min/max values in column index
    * @throws IOException if I/O error occurs during merge operation
    */
   public static void mergeFiles(
       List<DataFile> dataFiles,
       FileIO fileIO,
       EncryptedOutputFile encryptedOutputFile,
-      long rowGroupSize,
-      int columnIndexTruncateLength)
+      long rowGroupSize)
       throws IOException {
     // Convert DataFiles to InputFiles and extract row lineage metadata
     List<InputFile> inputFiles = Lists.newArrayListWithCapacity(dataFiles.size());
@@ -429,6 +429,16 @@ public class ParquetFileMerger {
 
     // Get the encrypting output file (encryption applied based on table configuration)
     OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
+
+    // Initialize columnIndexTruncateLength following the same pattern as Parquet.java
+    Configuration conf =
+        outputFile instanceof HadoopOutputFile
+            ? new Configuration(((HadoopOutputFile) outputFile).getConf())
+            : new Configuration();
+    int columnIndexTruncateLength =
+        conf.getInt(
+            ParquetOutputFormat.COLUMN_INDEX_TRUNCATE_LENGTH,
+            ParquetProperties.DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
 
     // Check if we need to synthesize physical row lineage columns from virtual metadata
     boolean shouldSynthesizeRowLineage =
