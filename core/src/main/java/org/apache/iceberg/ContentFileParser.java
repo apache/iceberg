@@ -85,10 +85,13 @@ public class ContentFileParser {
     // as it isn't used and BaseFile constructor doesn't support it.
 
     generator.writeNumberField(SPEC_ID, contentFile.specId());
+    // Since 1.11, we serialize content as lowercase kebab-case values like "equality-deletes"
     String contentValue = contentFile.content().name().toLowerCase(Locale.ROOT).replace('_', '-');
     generator.writeStringField(CONTENT, contentValue);
     generator.writeStringField(FILE_PATH, contentFile.location());
-    generator.writeStringField(FILE_FORMAT, contentFile.format().name());
+    // Since 1.11, we serialize format as lower-case strings (e.g., "parquet")
+    String formatValue = contentFile.format().name().toLowerCase(Locale.ROOT);
+    generator.writeStringField(FILE_FORMAT, formatValue);
 
     if (contentFile.partition() != null) {
       generator.writeFieldName(PARTITION);
@@ -358,7 +361,7 @@ public class ContentFileParser {
       case "equality-deletes":
         return FileContent.EQUALITY_DELETES;
       default:
-        // Otherwise, fall back to the enum name
+        // In 1.10 and before, file content is serialized as the FileContent enum value
         try {
           return FileContent.valueOf(content);
         } catch (IllegalArgumentException e) {
