@@ -89,7 +89,7 @@ public class ContentFileParser {
     String contentValue = contentFile.content().name().toLowerCase(Locale.ROOT).replace('_', '-');
     generator.writeStringField(CONTENT, contentValue);
     generator.writeStringField(FILE_PATH, contentFile.location());
-    // Since 1.11, we serialize format as lower-case strings (e.g., "parquet")
+    // Since 1.11, we serialize format as lower-case strings like "parquet"
     String formatValue = contentFile.format().name().toLowerCase(Locale.ROOT);
     generator.writeStringField(FILE_FORMAT, formatValue);
 
