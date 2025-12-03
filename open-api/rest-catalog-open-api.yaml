@@ -2066,10 +2066,10 @@ components:
     Namespace:
       description: Reference to one or more levels of a namespace
       allOf:
-        - $ref: '#/components/schemas/CatalogObject'
+        - $ref: '#/components/schemas/CatalogObjectIdentifier'
       example: [ "accounting", "tax" ]
 
-    CatalogObject:
+    CatalogObjectIdentifier:
       describe: Reference to a named object in the catalog, such as namespace, table, or view.
       type: array
       items:
@@ -3542,9 +3542,9 @@ components:
         catalog-objects-by-name:
           type: array
           items:
-            $ref: "#/components/schemas/CatalogObject"
+            $ref: "#/components/schemas/CatalogObjectIdentifier"
           description: >
-            List of catalog objects (namespaces, tables, views) to get events for.
+            Filter events by the list of catalog objects referenced by name (namespaces, tables, views).
             If not provided, events for all objects must be returned subject to other filters.
             For specified namespaces, events for the namespaces and all containing objects
             (namespaces, tables, views) must be returned (recursively).
@@ -3553,7 +3553,7 @@ components:
           items:
             $ref: "#/components/schemas/CatalogObjectUuid"
           description: >
-            List of catalog objects tables and views to get events for by their UUID.
+            Filter events by the list of catalog objects referenced by UUID (tables, views).
         object-types:
           type: array
           items:
@@ -4169,7 +4169,7 @@ components:
             This ID can be used to identify events that were part of the same request.
             Servers generate this ID randomly.
           type: string
-        event-count:
+        request-event-count:
           type: integer
           description: >
             Total number of events in this batch or request.
@@ -4341,6 +4341,7 @@ components:
         - operation-type
         - identifier
         - view-uuid
+        - updates
       properties:
         operation-type:
           $ref: "#/components/schemas/OperationType"
@@ -4350,6 +4351,10 @@ components:
         view-uuid:
           type: string
           format: uuid
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/ViewUpdate"
 
     DropViewOperation:
       required:
