@@ -26,9 +26,11 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -52,13 +54,12 @@ public class TableMetadata implements Serializable {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
-  static final int SUPPORTED_TABLE_FORMAT_VERSION = 3;
+  static final int SUPPORTED_TABLE_FORMAT_VERSION = 4;
+  static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
   static final int INITIAL_ROW_ID = 0;
-  static final boolean DEFAULT_ROW_LINEAGE = false;
-  static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
@@ -133,11 +134,6 @@ public class TableMetadata implements Serializable {
     int freshSortOrderId = sortOrder.isUnsorted() ? sortOrder.orderId() : INITIAL_SORT_ORDER_ID;
     SortOrder freshSortOrder = freshSortOrder(freshSortOrderId, freshSchema, sortOrder);
 
-    // configure row lineage using table properties
-    Boolean rowLineage =
-        PropertyUtil.propertyAsBoolean(
-            properties, TableProperties.ROW_LINEAGE, DEFAULT_ROW_LINEAGE);
-
     // Validate the metrics configuration. Note: we only do this on new tables to we don't
     // break existing tables.
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
@@ -151,7 +147,6 @@ public class TableMetadata implements Serializable {
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(location)
         .setProperties(properties)
-        .setRowLineage(rowLineage)
         .build();
   }
 
@@ -266,13 +261,13 @@ public class TableMetadata implements Serializable {
   private final List<StatisticsFile> statisticsFiles;
   private final List<PartitionStatisticsFile> partitionStatisticsFiles;
   private final List<MetadataUpdate> changes;
+  private final long nextRowId;
+  private final List<EncryptedKey> encryptionKeys;
   private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
   private volatile List<Snapshot> snapshots;
   private volatile Map<Long, Snapshot> snapshotsById;
   private volatile Map<String, SnapshotRef> refs;
   private volatile boolean snapshotsLoaded;
-  private final Boolean rowLineageEnabled;
-  private final long nextRowId;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -299,9 +294,9 @@ public class TableMetadata implements Serializable {
       Map<String, SnapshotRef> refs,
       List<StatisticsFile> statisticsFiles,
       List<PartitionStatisticsFile> partitionStatisticsFiles,
-      List<MetadataUpdate> changes,
-      boolean rowLineageEnabled,
-      long nextRowId) {
+      long nextRowId,
+      List<EncryptedKey> encryptionKeys,
+      List<MetadataUpdate> changes) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(
@@ -320,10 +315,7 @@ public class TableMetadata implements Serializable {
     Preconditions.checkArgument(
         metadataFileLocation == null || changes.isEmpty(),
         "Cannot create TableMetadata with a metadata location and changes");
-    Preconditions.checkArgument(
-        formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE || !rowLineageEnabled,
-        "Cannot enable row lineage when Table Version is less than V3. Table Version is %s",
-        formatVersion);
+    Preconditions.checkArgument(encryptionKeys != null, "Encryption keys cannot be null");
 
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
@@ -346,6 +338,7 @@ public class TableMetadata implements Serializable {
     this.snapshotsLoaded = snapshotsSupplier == null;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
+    this.encryptionKeys = encryptionKeys;
 
     // changes are carried through until metadata is read from a file
     this.changes = changes;
@@ -359,7 +352,6 @@ public class TableMetadata implements Serializable {
     this.partitionStatisticsFiles = ImmutableList.copyOf(partitionStatisticsFiles);
 
     // row lineage
-    this.rowLineageEnabled = rowLineageEnabled;
     this.nextRowId = nextRowId;
 
     HistoryEntry last = null;
@@ -584,12 +576,12 @@ public class TableMetadata implements Serializable {
     return new Builder(this).assignUUID().build();
   }
 
-  public boolean rowLineageEnabled() {
-    return rowLineageEnabled;
-  }
-
   public long nextRowId() {
     return nextRowId;
+  }
+
+  public List<EncryptedKey> encryptionKeys() {
+    return encryptionKeys;
   }
 
   /** Updates the schema */
@@ -634,15 +626,10 @@ public class TableMetadata implements Serializable {
     int newFormatVersion =
         PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
-    Boolean newRowLineage =
-        PropertyUtil.propertyAsBoolean(
-            rawProperties, TableProperties.ROW_LINEAGE, rowLineageEnabled);
-
     return new Builder(this)
         .setProperties(updated)
         .removeProperties(removed)
         .upgradeFormatVersion(newFormatVersion)
-        .setRowLineage(newRowLineage)
         .build();
   }
 
@@ -927,8 +914,8 @@ public class TableMetadata implements Serializable {
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
     private boolean suppressHistoricalSnapshots = false;
-    private boolean rowLineage;
     private long nextRowId;
+    private final List<EncryptedKey> encryptionKeys;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -948,6 +935,7 @@ public class TableMetadata implements Serializable {
     private final Map<Integer, Schema> schemasById;
     private final Map<Integer, PartitionSpec> specsById;
     private final Map<Integer, SortOrder> sortOrdersById;
+    private final Map<String, EncryptedKey> keysById;
 
     private Builder() {
       this(DEFAULT_TABLE_FORMAT_VERSION);
@@ -968,6 +956,7 @@ public class TableMetadata implements Serializable {
       this.startingChangeCount = 0;
       this.snapshotLog = Lists.newArrayList();
       this.previousFiles = Lists.newArrayList();
+      this.encryptionKeys = Lists.newArrayList();
       this.refs = Maps.newHashMap();
       this.statisticsFiles = Maps.newHashMap();
       this.partitionStatisticsFiles = Maps.newHashMap();
@@ -975,7 +964,7 @@ public class TableMetadata implements Serializable {
       this.schemasById = Maps.newHashMap();
       this.specsById = Maps.newHashMap();
       this.sortOrdersById = Maps.newHashMap();
-      this.rowLineage = DEFAULT_ROW_LINEAGE;
+      this.keysById = Maps.newHashMap();
       this.nextRowId = INITIAL_ROW_ID;
     }
 
@@ -997,6 +986,7 @@ public class TableMetadata implements Serializable {
       this.properties = Maps.newHashMap(base.properties);
       this.currentSnapshotId = base.currentSnapshotId;
       this.snapshots = Lists.newArrayList(base.snapshots());
+      this.encryptionKeys = Lists.newArrayList(base.encryptionKeys);
       this.changes = Lists.newArrayList(base.changes);
       this.startingChangeCount = changes.size();
 
@@ -1010,8 +1000,10 @@ public class TableMetadata implements Serializable {
       this.schemasById = Maps.newHashMap(base.schemasById);
       this.specsById = Maps.newHashMap(base.specsById);
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
+      this.keysById =
+          encryptionKeys.stream()
+              .collect(Collectors.toMap(EncryptedKey::keyId, Function.identity()));
 
-      this.rowLineage = base.rowLineageEnabled;
       this.nextRowId = base.nextRowId;
     }
 
@@ -1269,18 +1261,14 @@ public class TableMetadata implements Serializable {
       snapshotsById.put(snapshot.snapshotId(), snapshot);
       changes.add(new MetadataUpdate.AddSnapshot(snapshot));
 
-      if (rowLineage) {
+      if (formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE) {
         ValidationException.check(
-            snapshot.firstRowId() >= nextRowId,
-            "Cannot add a snapshot whose 'first-row-id' (%s) is less than the metadata 'next-row-id' (%s) because this will end up generating duplicate row_ids.",
+            snapshot.firstRowId() != null, "Cannot add a snapshot: first-row-id is null");
+        ValidationException.check(
+            snapshot.firstRowId() != null && snapshot.firstRowId() >= nextRowId,
+            "Cannot add a snapshot, first-row-id is behind table next-row-id: %s < %s",
             snapshot.firstRowId(),
             nextRowId);
-        ValidationException.check(
-            snapshot.addedRows() != null,
-            "Cannot add a snapshot with a null 'added-rows' field when row lineage is enabled");
-        Preconditions.checkArgument(
-            snapshot.addedRows() >= 0,
-            "Cannot decrease 'last-row-id'. 'last-row-id' must increase monotonically. Snapshot reports %s added rows");
 
         this.nextRowId += snapshot.addedRows();
       }
@@ -1441,7 +1429,7 @@ public class TableMetadata implements Serializable {
         if (idsToRemove.contains(snapshotId)) {
           snapshotsById.remove(snapshotId);
           if (!suppress) {
-            changes.add(new MetadataUpdate.RemoveSnapshot(snapshotId));
+            changes.add(new MetadataUpdate.RemoveSnapshots(snapshotId));
           }
           removeStatistics(snapshotId);
           removePartitionStatistics(snapshotId);
@@ -1498,6 +1486,31 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder addEncryptionKey(EncryptedKey key) {
+      if (keysById.containsKey(key.keyId())) {
+        // already exists
+        return this;
+      }
+
+      encryptionKeys.add(key);
+      keysById.put(key.keyId(), key);
+
+      changes.add(new MetadataUpdate.AddEncryptionKey(key));
+
+      return this;
+    }
+
+    public Builder removeEncryptionKey(String keyId) {
+      boolean removed = encryptionKeys.removeIf(key -> key.keyId().equals(keyId));
+      keysById.remove(keyId);
+
+      if (removed) {
+        changes.add(new MetadataUpdate.RemoveEncryptionKey(keyId));
+      }
+
+      return this;
+    }
+
     public Builder discardChanges() {
       this.discardChanges = true;
       return this;
@@ -1505,34 +1518,6 @@ public class TableMetadata implements Serializable {
 
     public Builder setPreviousFileLocation(String previousFileLocation) {
       this.previousFileLocation = previousFileLocation;
-      return this;
-    }
-
-    private Builder setRowLineage(Boolean newRowLineage) {
-      if (newRowLineage == null) {
-        return this;
-      }
-
-      boolean disablingRowLineage = rowLineage && !newRowLineage;
-
-      Preconditions.checkArgument(
-          !disablingRowLineage, "Cannot disable row lineage once it has been enabled");
-
-      if (!rowLineage && newRowLineage) {
-        return enableRowLineage();
-      } else {
-        return this;
-      }
-    }
-
-    public Builder enableRowLineage() {
-      Preconditions.checkArgument(
-          formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE,
-          "Cannot use row lineage with format version %s. Only format version %s or higher support row lineage",
-          formatVersion,
-          MIN_FORMAT_VERSION_ROW_LINEAGE);
-      this.rowLineage = true;
-      changes.add(new MetadataUpdate.EnableRowLineage());
       return this;
     }
 
@@ -1603,9 +1588,9 @@ public class TableMetadata implements Serializable {
           partitionStatisticsFiles.values().stream()
               .flatMap(List::stream)
               .collect(Collectors.toList()),
-          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes),
-          rowLineage,
-          nextRowId);
+          nextRowId,
+          encryptionKeys,
+          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 
     private int addSchemaInternal(Schema schema, int newLastColumnId) {
@@ -1865,7 +1850,7 @@ public class TableMetadata implements Serializable {
       Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
       boolean hasIntermediateSnapshots = !intermediateSnapshotIds.isEmpty();
       boolean hasRemovedSnapshots =
-          changes.stream().anyMatch(MetadataUpdate.RemoveSnapshot.class::isInstance);
+          changes.stream().anyMatch(change -> change instanceof MetadataUpdate.RemoveSnapshots);
 
       if (!hasIntermediateSnapshots && !hasRemovedSnapshots) {
         return snapshotLog;

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import org.apache.arrow.vector.types.DateUnit;
@@ -30,6 +31,8 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
@@ -51,94 +54,140 @@ public class ArrowSchemaUtil {
   public static Schema convert(final org.apache.iceberg.Schema schema) {
     ImmutableList.Builder<Field> fields = ImmutableList.builder();
 
-    for (NestedField f : schema.columns()) {
-      fields.add(convert(f));
+    for (NestedField field : schema.columns()) {
+      fields.add(TypeUtil.visit(field.type(), new IcebergToArrowTypeConverter(field)));
     }
 
     return new Schema(fields.build());
   }
 
   public static Field convert(final NestedField field) {
-    final ArrowType arrowType;
+    return TypeUtil.visit(field.type(), new IcebergToArrowTypeConverter(field));
+  }
 
-    final List<Field> children = Lists.newArrayList();
-    Map<String, String> metadata = null;
+  private static class IcebergToArrowTypeConverter extends TypeUtil.SchemaVisitor<Field> {
+    private final NestedField currentField;
 
-    switch (field.type().typeId()) {
-      case BINARY:
-        arrowType = ArrowType.Binary.INSTANCE;
-        break;
-      case FIXED:
-        final Types.FixedType fixedType = (Types.FixedType) field.type();
-        arrowType = new ArrowType.FixedSizeBinary(fixedType.length());
-        break;
-      case BOOLEAN:
-        arrowType = ArrowType.Bool.INSTANCE;
-        break;
-      case INTEGER:
-        arrowType = new ArrowType.Int(Integer.SIZE, true /* signed */);
-        break;
-      case LONG:
-        arrowType = new ArrowType.Int(Long.SIZE, true /* signed */);
-        break;
-      case FLOAT:
-        arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
-        break;
-      case DOUBLE:
-        arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
-        break;
-      case DECIMAL:
-        final Types.DecimalType decimalType = (Types.DecimalType) field.type();
-        arrowType = new ArrowType.Decimal(decimalType.precision(), decimalType.scale());
-        break;
-      case STRING:
-        arrowType = ArrowType.Utf8.INSTANCE;
-        break;
-      case TIME:
-        arrowType = new ArrowType.Time(TimeUnit.MICROSECOND, Long.SIZE);
-        break;
-      case UUID:
-        arrowType = new ArrowType.FixedSizeBinary(16);
-        break;
-      case TIMESTAMP:
-        arrowType =
-            new ArrowType.Timestamp(
-                TimeUnit.MICROSECOND,
-                ((Types.TimestampType) field.type()).shouldAdjustToUTC() ? "UTC" : null);
-        break;
-      case DATE:
-        arrowType = new ArrowType.Date(DateUnit.DAY);
-        break;
-      case STRUCT:
-        final StructType struct = field.type().asStructType();
-        arrowType = ArrowType.Struct.INSTANCE;
-
-        for (NestedField nested : struct.fields()) {
-          children.add(convert(nested));
-        }
-        break;
-      case LIST:
-        final ListType listType = field.type().asListType();
-        arrowType = ArrowType.List.INSTANCE;
-
-        for (NestedField nested : listType.fields()) {
-          children.add(convert(nested));
-        }
-        break;
-      case MAP:
-        metadata = ImmutableMap.of(ORIGINAL_TYPE, MAP_TYPE);
-        final MapType mapType = field.type().asMapType();
-        arrowType = new ArrowType.Map(false);
-        List<Field> entryFields = Lists.transform(mapType.fields(), ArrowSchemaUtil::convert);
-        Field entry =
-            new Field("", new FieldType(field.isOptional(), arrowType, null), entryFields);
-        children.add(entry);
-        break;
-      default:
-        throw new UnsupportedOperationException("Unsupported field type: " + field);
+    IcebergToArrowTypeConverter(NestedField field) {
+      this.currentField = field;
     }
 
-    return new Field(
-        field.name(), new FieldType(field.isOptional(), arrowType, null, metadata), children);
+    @Override
+    public Field schema(org.apache.iceberg.Schema schema, Field structResult) {
+      return structResult;
+    }
+
+    @Override
+    public Field struct(StructType struct, List<Field> fieldResults) {
+      return new Field(
+          currentField.name(),
+          new FieldType(currentField.isOptional(), ArrowType.Struct.INSTANCE, null),
+          convertChildren(struct.fields()));
+    }
+
+    @Override
+    public Field field(NestedField field, Field fieldResult) {
+      return fieldResult;
+    }
+
+    @Override
+    public Field list(ListType list, Field elementResult) {
+      return new Field(
+          currentField.name(),
+          new FieldType(currentField.isOptional(), ArrowType.List.INSTANCE, null),
+          convertChildren(list.fields()));
+    }
+
+    @Override
+    public Field map(MapType map, Field keyResult, Field valueResult) {
+      Map<String, String> metadata = ImmutableMap.of(ORIGINAL_TYPE, MAP_TYPE);
+      ArrowType arrowType = new ArrowType.Map(false);
+
+      List<Field> entryFields = convertChildren(map.fields());
+
+      Field entry =
+          new Field("", new FieldType(currentField.isOptional(), arrowType, null), entryFields);
+      List<Field> children = Lists.newArrayList(entry);
+
+      return new Field(
+          currentField.name(),
+          new FieldType(currentField.isOptional(), arrowType, null, metadata),
+          children);
+    }
+
+    private List<Field> convertChildren(Collection<NestedField> children) {
+      List<Field> converted = Lists.newArrayListWithCapacity(children.size());
+
+      for (NestedField child : children) {
+        converted.add(TypeUtil.visit(child.type(), new IcebergToArrowTypeConverter(child)));
+      }
+
+      return converted;
+    }
+
+    @Override
+    public Field primitive(Type.PrimitiveType primitive) {
+      final ArrowType arrowType;
+
+      switch (primitive.typeId()) {
+        case BINARY:
+          arrowType = ArrowType.Binary.INSTANCE;
+          break;
+        case FIXED:
+          final Types.FixedType fixedType = (Types.FixedType) primitive;
+          arrowType = new ArrowType.FixedSizeBinary(fixedType.length());
+          break;
+        case BOOLEAN:
+          arrowType = ArrowType.Bool.INSTANCE;
+          break;
+        case INTEGER:
+          arrowType = new ArrowType.Int(Integer.SIZE, true /* signed */);
+          break;
+        case LONG:
+          arrowType = new ArrowType.Int(Long.SIZE, true /* signed */);
+          break;
+        case FLOAT:
+          arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
+          break;
+        case DOUBLE:
+          arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
+          break;
+        case DECIMAL:
+          final Types.DecimalType decimalType = (Types.DecimalType) primitive;
+          arrowType = new ArrowType.Decimal(decimalType.precision(), decimalType.scale(), 128);
+          break;
+        case STRING:
+          arrowType = ArrowType.Utf8.INSTANCE;
+          break;
+        case TIME:
+          arrowType = new ArrowType.Time(TimeUnit.MICROSECOND, Long.SIZE);
+          break;
+        case UUID:
+          arrowType = new ArrowType.FixedSizeBinary(16);
+          break;
+        case TIMESTAMP:
+          arrowType =
+              new ArrowType.Timestamp(
+                  TimeUnit.MICROSECOND,
+                  ((Types.TimestampType) primitive).shouldAdjustToUTC() ? "UTC" : null);
+          break;
+        case TIMESTAMP_NANO:
+          arrowType =
+              new ArrowType.Timestamp(
+                  TimeUnit.NANOSECOND,
+                  ((Types.TimestampNanoType) primitive).shouldAdjustToUTC() ? "UTC" : null);
+          break;
+        case DATE:
+          arrowType = new ArrowType.Date(DateUnit.DAY);
+          break;
+        default:
+          throw new UnsupportedOperationException("Unsupported primitive type: " + primitive);
+      }
+
+      return new Field(
+          currentField.name(),
+          new FieldType(currentField.isOptional(), arrowType, null),
+          Lists.newArrayList());
+    }
   }
 }

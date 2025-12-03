@@ -21,14 +21,17 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestFormatVersions extends TestBase {
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return TestHelpers.ALL_VERSIONS.stream()
+        // skip the latest supported format version
+        .filter(version -> version < TestHelpers.MAX_FORMAT_VERSION)
+        .collect(Collectors.toList());
   }
 
   @TestTemplate
@@ -85,8 +88,7 @@ public class TestFormatVersions extends TestBase {
 
     assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            String.format("Cannot downgrade v%d table to v%d", newFormatVersion, formatVersion));
+        .hasMessage("Cannot downgrade v%d table to v%d", newFormatVersion, formatVersion);
 
     assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
   }
@@ -101,9 +103,8 @@ public class TestFormatVersions extends TestBase {
             () -> ops.commit(base, base.upgradeToFormatVersion(unsupportedFormatVersion)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Cannot upgrade table to unsupported format version: v%d (supported: v%d)",
-                unsupportedFormatVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
+            "Cannot upgrade table to unsupported format version: v%d (supported: v%d)",
+            unsupportedFormatVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
 
     assertThat(ops.current().formatVersion()).isEqualTo(formatVersion);
   }

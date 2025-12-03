@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -31,7 +32,6 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.data.GenericRecord;
@@ -67,8 +67,8 @@ import org.junit.jupiter.api.io.TempDir;
 public abstract class TestMetrics {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  protected static List<Integer> formatVersions() {
+    return ALL_VERSIONS;
   }
 
   @TempDir protected Path temp;
@@ -770,6 +770,10 @@ public abstract class TestMetrics {
       int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
     Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
+    if (null != lowerBound || null != upperBound) {
+      // if there's an expected lower/upper bound, then the original type should be available
+      assertThat(metrics.originalTypes().get(fieldId)).isEqualTo(type);
+    }
 
     if (lowerBounds.containsKey(fieldId)) {
       assertThat((Object) fromByteBuffer(type, lowerBounds.get(fieldId))).isEqualTo(lowerBound);

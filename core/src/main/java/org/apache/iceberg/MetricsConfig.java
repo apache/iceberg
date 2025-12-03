@@ -25,15 +25,20 @@ import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEF
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 import java.io.Serializable;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.Immutable;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -50,6 +55,14 @@ public final class MetricsConfig implements Serializable {
   private static final MetricsMode DEFAULT_MODE =
       MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
   private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(), DEFAULT_MODE);
+  private static final MetricsConfig POSITION_DELETE_MODE =
+      new MetricsConfig(
+          ImmutableMap.of(
+              MetadataColumns.DELETE_FILE_PATH.name(),
+              MetricsModes.Full.get(),
+              MetadataColumns.DELETE_FILE_POS.name(),
+              MetricsModes.Full.get()),
+          DEFAULT_MODE);
 
   private final Map<String, MetricsMode> columnModes;
   private final MetricsMode defaultMode;
@@ -61,6 +74,10 @@ public final class MetricsConfig implements Serializable {
 
   public static MetricsConfig getDefault() {
     return DEFAULT;
+  }
+
+  public static MetricsConfig forPositionDelete() {
+    return POSITION_DELETE_MODE;
   }
 
   /**
@@ -87,7 +104,11 @@ public final class MetricsConfig implements Serializable {
    * Creates a metrics config for a position delete file.
    *
    * @param table an Iceberg table
+   * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #forPositionDelete()} instead.
    */
+  @Deprecated
   public static MetricsConfig forPositionDelete(Table table) {
     ImmutableMap.Builder<String, MetricsMode> columnModes = ImmutableMap.builder();
 
@@ -107,6 +128,92 @@ public final class MetricsConfig implements Serializable {
     return new MetricsConfig(columnModes.build(), defaultMode);
   }
 
+  static Set<Integer> limitFieldIds(Schema schema, int limit) {
+    return TypeUtil.visit(
+        schema,
+        new TypeUtil.CustomOrderSchemaVisitor<>() {
+          private final Set<Integer> idSet = Sets.newHashSet();
+
+          private boolean shouldContinue() {
+            return idSet.size() < limit;
+          }
+
+          private boolean metricsEligible(Type type) {
+            return type.isPrimitiveType() || type.isVariantType();
+          }
+
+          @Override
+          @SuppressWarnings("ReturnValueIgnored")
+          public Set<Integer> schema(Schema schema, Supplier<Set<Integer>> structResult) {
+            // We need to call structResult.get() to visit the schema
+            structResult.get();
+            return idSet;
+          }
+
+          @Override
+          public Set<Integer> struct(Types.StructType struct, Iterable<Set<Integer>> fieldResults) {
+            Iterator<Types.NestedField> fields = struct.fields().iterator();
+            while (shouldContinue() && fields.hasNext()) {
+              Types.NestedField field = fields.next();
+              if (metricsEligible(field.type())) {
+                idSet.add(field.fieldId());
+              }
+            }
+
+            Iterator<Set<Integer>> iter = fieldResults.iterator();
+            while (shouldContinue() && iter.hasNext()) {
+              // visit children lazily to add more ids
+              iter.next();
+            }
+
+            return null;
+          }
+
+          @Override
+          @SuppressWarnings("ReturnValueIgnored")
+          public Set<Integer> field(Types.NestedField field, Supplier<Set<Integer>> fieldResult) {
+            fieldResult.get();
+            return null;
+          }
+
+          @Override
+          public Set<Integer> variant(Types.VariantType variant) {
+            return null;
+          }
+
+          @Override
+          @SuppressWarnings("ReturnValueIgnored")
+          public Set<Integer> list(Types.ListType list, Supplier<Set<Integer>> elementResult) {
+            if (shouldContinue() && metricsEligible(list.elementType())) {
+              idSet.add(list.elementId());
+            }
+
+            elementResult.get();
+            return null;
+          }
+
+          @Override
+          @SuppressWarnings("ReturnValueIgnored")
+          public Set<Integer> map(
+              Types.MapType map,
+              Supplier<Set<Integer>> keyResult,
+              Supplier<Set<Integer>> valueResult) {
+
+            if (shouldContinue() && metricsEligible(map.keyType())) {
+              idSet.add(map.keyId());
+            }
+
+            if (shouldContinue() && metricsEligible(map.valueType())) {
+              idSet.add(map.valueId());
+            }
+
+            keyResult.get();
+            valueResult.get();
+            return null;
+          }
+        });
+  }
+
   /**
    * Generate a MetricsConfig for all columns based on overrides, schema, and sort order.
    *
@@ -123,23 +230,25 @@ public final class MetricsConfig implements Serializable {
     // Handle user override of default mode
     MetricsMode defaultMode;
     String configuredDefault = props.get(DEFAULT_WRITE_METRICS_MODE);
+
     if (configuredDefault != null) {
       // a user-configured default mode is applied for all columns
       defaultMode = parseMode(configuredDefault, DEFAULT_MODE, "default");
-
-    } else if (schema == null || schema.columns().size() <= maxInferredDefaultColumns) {
-      // there are less than the inferred limit, so the default is used everywhere
+    } else if (schema == null) {
       defaultMode = DEFAULT_MODE;
-
     } else {
-      // an inferred default mode is applied to the first few columns, up to the limit
-      Schema subSchema = new Schema(schema.columns().subList(0, maxInferredDefaultColumns));
-      for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
-        columnModes.put(subSchema.findColumnName(id), DEFAULT_MODE);
-      }
+      if (TypeUtil.getProjectedIds(schema).size() <= maxInferredDefaultColumns) {
+        // there are less than the inferred limit (including structs), so the default is used
+        // everywhere
+        defaultMode = DEFAULT_MODE;
+      } else {
+        for (Integer id : limitFieldIds(schema, maxInferredDefaultColumns)) {
+          columnModes.put(schema.findColumnName(id), DEFAULT_MODE);
+        }
 
-      // all other columns don't use metrics
-      defaultMode = MetricsModes.None.get();
+        // all other columns don't use metrics
+        defaultMode = MetricsModes.None.get();
+      }
     }
 
     // First set sorted column with sorted column default (can be overridden by user)

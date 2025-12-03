@@ -31,7 +31,7 @@ Processing engine connectors maintained in the iceberg repository are built for 
 For Spark and Flink, each new version that introduces backwards incompatible upgrade has its dedicated integration codebase and release artifacts.
 For example, the code for Iceberg Spark 3.4 integration is under `/spark/v3.4` and the code for Iceberg Spark 3.5 integration is under `/spark/v3.5`.
 Different artifacts (`iceberg-spark-3.4_2.12` and `iceberg-spark-3.5_2.12`) are released for users to consume.
-By doing this, changes across versions are isolated. 
+By doing this, changes across versions are isolated.
 New features in Iceberg could be developed against the latest features of an engine without breaking support of old APIs in past engine versions.
 
 For Hive, Hive 2 uses the `iceberg-mr` package for Iceberg integration, and Hive 3 requires an additional dependency of the `iceberg-hive3` package.
@@ -41,6 +41,10 @@ For Hive, Hive 2 uses the `iceberg-mr` package for Iceberg integration, and Hive
 Iceberg provides a runtime connector jar for each supported version of Spark, Flink and Hive.
 When using Iceberg with these engines, the runtime jar is the only addition to the classpath needed in addition to vendor dependencies.
 For example, to use Iceberg with Spark 3.5 and AWS integrations, `iceberg-spark-runtime-3.5_2.12` and AWS SDK dependencies are needed for the Spark installation.
+
+> ℹ️ It's important to make sure that only the runtime jars (plus storage specific bundles if needed, eg. `iceberg-aws-bundle` or `iceberg-gcp-bundle`) are included in the runtime classpath.
+> All other modules should be excluded as they may introduce dependency version conflicts with engine runtimes.
+> For example, when packaging an uberjar for a Spark application, only include `iceberg-spark-runtime` and exclude modules such as `iceberg-core` or `iceberg-parquet`.
 
 Spark and Flink provide different runtime jars for each supported engine version.
 Hive 2 and Hive 3 currently share the same runtime jar.
@@ -66,10 +70,11 @@ Each engine version undergoes the following lifecycle stages:
 | 2.4        | End of Life        | 0.7.0-incubating        | 1.2.1                  | [iceberg-spark-runtime-2.4](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-2.4/1.2.1/iceberg-spark-runtime-2.4-1.2.1.jar) |
 | 3.0        | End of Life        | 0.9.0                   | 1.0.0                  | [iceberg-spark-runtime-3.0_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.0_2.12/1.0.0/iceberg-spark-runtime-3.0_2.12-1.0.0.jar) |
 | 3.1        | End of Life        | 0.12.0                  | 1.3.1                  | [iceberg-spark-runtime-3.1_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.1_2.12/1.3.1/iceberg-spark-runtime-3.1_2.12-1.3.1.jar) [1] |
-| 3.2        | End of Life        | 0.13.0                  | 1.4.3                  | [iceberg-spark-runtime-3.2_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.2_2.12/1.4.3/iceberg-spark-runtime-3.2_2.12-1.4.3.jar) |
-| 3.3        | Deprecated         | 0.14.0                  | {{ icebergVersion}}    | [iceberg-spark-runtime-3.3_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.3_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.3_2.12-{{ icebergVersion }}.jar) |
-| 3.4        | Maintained         | 1.3.0                   | {{ icebergVersion }}   | [iceberg-spark-runtime-3.4_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.4_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.4_2.12-{{ icebergVersion }}.jar) |
-| 3.5        | Maintained         | 1.4.0                   | {{ icebergVersion }}   | [iceberg-spark-runtime-3.5_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) |
+| 3.2        | End of Life        | 0.13.0                  | 1.4.3                  | [iceberg-spark-runtime-3.2_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.2_2.12/1.4.3/iceberg-spark-runtime-3.2_2.12-1.4.3.jar), [iceberg-spark-runtime-3.2_2.13](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.2_2.13/1.4.3/iceberg-spark-runtime-3.2_2.13-1.4.3.jar) |
+| 3.3        | End of Life        | 0.14.0                  | 1.8.1                  | [iceberg-spark-runtime-3.3_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.3_2.12/1.8.1/iceberg-spark-runtime-3.3_2.12-1.8.1.jar), [iceberg-spark-runtime-3.3_2.13](https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.3_2.13/1.8.1/iceberg-spark-runtime-3.3_2.13-1.8.1.jar) |
+| 3.4        | Deprecated         | 1.3.0                   | 1.10.0                 | [iceberg-spark-runtime-3.4_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.4_2.12/1.10.0/iceberg-spark-runtime-3.4_2.12-1.10.0.jar), [iceberg-spark-runtime-3.4_2.13](https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.4_2.13/1.10.0/iceberg-spark-runtime-3.4_2.13-1.10.0.jar) |
+| 3.5        | Maintained         | 1.4.0                   | {{ icebergVersion }}   | [iceberg-spark-runtime-3.5_2.12](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar), [iceberg-spark-runtime-3.5_2.13](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.13/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.13-{{ icebergVersion }}.jar) |
+| 4.0        | Maintained         | 1.10.0                  | {{ icebergVersion }}   | [iceberg-spark-runtime-4.0_2.13](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/{{ icebergVersion }}/iceberg-spark-runtime-4.0_2.13-{{ icebergVersion }}.jar) |
 
 <!-- markdown-link-check-enable -->
 
@@ -91,9 +96,10 @@ Users should continuously upgrade their Flink version to stay up-to-date.
 | 1.15    | End of Life     | 0.14.0                  | 1.4.3                  | [iceberg-flink-runtime-1.15](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.15/1.4.3/iceberg-flink-runtime-1.15-1.4.3.jar)                               |
 | 1.16    | End of Life     | 1.1.0                   | 1.5.0                  | [iceberg-flink-runtime-1.16](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.16/1.5.0/iceberg-flink-runtime-1.16-1.5.0.jar)                               |
 | 1.17    | End of Life     | 1.3.0                   | 1.6.1                  | [iceberg-flink-runtime-1.17](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.17/1.6.1/iceberg-flink-runtime-1.17-1.6.1.jar) |
-| 1.18    | Maintained      | 1.5.0                   | {{ icebergVersion }}   | [iceberg-flink-runtime-1.18](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.18/{{ icebergVersion }}/iceberg-flink-runtime-1.18-{{ icebergVersion }}.jar) |
+| 1.18    | End of Life     | 1.5.0                   | 1.9.2                  | [iceberg-flink-runtime-1.18](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.18/1.9.2/iceberg-flink-runtime-1.18-1.9.2.jar) |
 | 1.19    | Maintained      | 1.6.0                   | {{ icebergVersion }}   | [iceberg-flink-runtime-1.19](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.19/{{ icebergVersion }}/iceberg-flink-runtime-1.19-{{ icebergVersion }}.jar) |
 | 1.20    | Maintained      | 1.7.0                   | {{ icebergVersion }}   | [iceberg-flink-runtime-1.20](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar) |
+| 2.0     | Maintained      | 1.10.0                  | {{ icebergVersion }}   | [iceberg-flink-runtime-2.0](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-2.0/{{ icebergVersion }}/iceberg-flink-runtime-2.0-{{ icebergVersion }}.jar)    |
 
 <!-- markdown-link-check-enable -->
 
@@ -103,10 +109,10 @@ Users should continuously upgrade their Flink version to stay up-to-date.
 
 <!-- markdown-link-check-disable -->
 
-| Version        | Recommended minor version | Lifecycle Stage   | Initial Iceberg Support | Latest Iceberg Support | Latest Runtime Jar |
-| -------------- | ------------------------- | ----------------- | ----------------------- | ---------------------- | ------------------ |
-| 2              | 2.3.8                     | Deprecated        | 0.8.0-incubating        | {{ icebergVersion }} | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/1.7.2/iceberg-hive-runtime-1.7.2.jar) |
-| 3              | 3.1.2                     | Deprecated        | 0.10.0                  | {{ icebergVersion }} | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/1.7.2/iceberg-hive-runtime-1.7.2.jar) |
+| Version        | Recommended minor version | Lifecycle Stage   | Initial Iceberg Support | Latest Iceberg Support | Latest Runtime Jar                                                                                                                                   |
+| -------------- | ------------------------- | ----------------- | ----------------------- |------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 2              | 2.3.8                     | Deprecated        | 0.8.0-incubating        | 1.6.1                  | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/1.6.1/iceberg-hive-runtime-1.6.1.jar) |
+| 3              | 3.1.2                     | Deprecated        | 0.10.0                  | 1.6.1                  | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/1.6.1/iceberg-hive-runtime-1.6.1.jar) |
 
 <!-- markdown-link-check-enable -->
 

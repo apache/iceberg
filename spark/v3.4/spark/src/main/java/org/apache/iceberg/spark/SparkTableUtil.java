@@ -20,9 +20,11 @@ package org.apache.iceberg.spark;
 
 import static org.apache.spark.sql.functions.col;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -30,8 +32,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
@@ -57,6 +66,7 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -97,6 +107,8 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.Function2;
 import scala.Option;
 import scala.Some;
@@ -112,6 +124,7 @@ import scala.runtime.AbstractPartialFunction;
  * https://github.com/apache/iceberg/blob/apache-iceberg-0.8.0-incubating/spark/src/main/scala/org/apache/iceberg/spark/SparkTableUtil.scala
  */
 public class SparkTableUtil {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkTableUtil.class);
 
   private static final String DUPLICATE_FILE_MESSAGE =
       "Cannot complete import because data files "
@@ -284,34 +297,26 @@ public class SparkTableUtil {
       SerializableConfiguration conf,
       MetricsConfig metricsConfig,
       NameMapping mapping,
-      int parallelism) {
-    return TableMigrationUtil.listPartition(
-        partition.values,
-        partition.uri,
-        partition.format,
-        spec,
-        conf.get(),
-        metricsConfig,
-        mapping,
-        parallelism);
-  }
-
-  private static List<DataFile> listPartition(
-      SparkPartition partition,
-      PartitionSpec spec,
-      SerializableConfiguration conf,
-      MetricsConfig metricsConfig,
-      NameMapping mapping,
+      boolean ignoreMissingFiles,
       ExecutorService service) {
-    return TableMigrationUtil.listPartition(
-        partition.values,
-        partition.uri,
-        partition.format,
-        spec,
-        conf.get(),
-        metricsConfig,
-        mapping,
-        service);
+    try {
+      return TableMigrationUtil.listPartition(
+          partition.values,
+          partition.uri,
+          partition.format,
+          spec,
+          conf.get(),
+          metricsConfig,
+          mapping,
+          service);
+    } catch (RuntimeException e) {
+      if (ignoreMissingFiles && e.getCause() instanceof FileNotFoundException) {
+        LOG.warn("Ignoring FileNotFoundException when listing partition of {}", partition, e);
+        return Collections.emptyList();
+      } else {
+        throw e;
+      }
+    }
   }
 
   private static SparkPartition toSparkPartition(
@@ -357,6 +362,8 @@ public class SparkTableUtil {
   }
 
   private static Iterator<ManifestFile> buildManifest(
+      int formatVersion,
+      Long snapshotId,
       SerializableConfiguration conf,
       PartitionSpec spec,
       String basePath,
@@ -366,12 +373,16 @@ public class SparkTableUtil {
       TaskContext ctx = TaskContext.get();
       String suffix =
           String.format(
+              Locale.ROOT,
               "stage-%d-task-%d-manifest-%s",
-              ctx.stageId(), ctx.taskAttemptId(), UUID.randomUUID());
+              ctx.stageId(),
+              ctx.taskAttemptId(),
+              UUID.randomUUID());
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
-      ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile);
+      ManifestWriter<DataFile> writer =
+          ManifestFiles.write(formatVersion, spec, outputFile, snapshotId);
 
       try (ManifestWriter<DataFile> writerRef = writer) {
         fileTuples.forEachRemaining(fileTuple -> writerRef.add(fileTuple._2));
@@ -448,7 +459,9 @@ public class SparkTableUtil {
    * @param sourceTableIdent an identifier of the source Spark table
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkTable(
       SparkSession spark,
@@ -490,7 +503,7 @@ public class SparkTableUtil {
         stagingDir,
         partitionFilter,
         checkDuplicateFiles,
-        TableMigrationUtil.migrationService(parallelism));
+        migrationService(parallelism));
   }
 
   /**
@@ -506,7 +519,9 @@ public class SparkTableUtil {
    * @param partitionFilter only import partitions whose values match those in the map, can be
    *     partially defined
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkTable(
       SparkSession spark,
@@ -515,6 +530,45 @@ public class SparkTableUtil {
       String stagingDir,
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
+      ExecutorService service) {
+    importSparkTable(
+        spark,
+        sourceTableIdent,
+        targetTable,
+        stagingDir,
+        partitionFilter,
+        checkDuplicateFiles,
+        false,
+        service);
+  }
+
+  /**
+   * Import files from an existing Spark table to an Iceberg table.
+   *
+   * <p>The import uses the Spark session to get table metadata. It assumes no operation is going on
+   * the original and target table and thus is not thread-safe.
+   *
+   * @param spark a Spark session
+   * @param sourceTableIdent an identifier of the source Spark table
+   * @param targetTable an Iceberg table where to import the data
+   * @param stagingDir a staging directory to store temporary manifest files
+   * @param partitionFilter only import partitions whose values match those in the map, can be
+   *     partially defined
+   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @param ignoreMissingFiles if true, ignore {@link FileNotFoundException} when running {@link
+   *     #listPartition} for the Spark partitions
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
+   */
+  public static void importSparkTable(
+      SparkSession spark,
+      TableIdentifier sourceTableIdent,
+      Table targetTable,
+      String stagingDir,
+      Map<String, String> partitionFilter,
+      boolean checkDuplicateFiles,
+      boolean ignoreMissingFiles,
       ExecutorService service) {
     SessionCatalog catalog = spark.sessionState().catalog();
 
@@ -552,6 +606,7 @@ public class SparkTableUtil {
               spec,
               stagingDir,
               checkDuplicateFiles,
+              ignoreMissingFiles,
               service);
         }
       }
@@ -714,7 +769,7 @@ public class SparkTableUtil {
         spec,
         stagingDir,
         checkDuplicateFiles,
-        TableMigrationUtil.migrationService(parallelism));
+        migrationService(parallelism));
   }
 
   /**
@@ -726,7 +781,9 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkPartitions(
       SparkSession spark,
@@ -735,6 +792,34 @@ public class SparkTableUtil {
       PartitionSpec spec,
       String stagingDir,
       boolean checkDuplicateFiles,
+      ExecutorService service) {
+    importSparkPartitions(
+        spark, partitions, targetTable, spec, stagingDir, checkDuplicateFiles, false, service);
+  }
+
+  /**
+   * Import files from given partitions to an Iceberg table.
+   *
+   * @param spark a Spark session
+   * @param partitions partitions to import
+   * @param targetTable an Iceberg table where to import the data
+   * @param spec a partition spec
+   * @param stagingDir a staging directory to store temporary manifest files
+   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @param ignoreMissingFiles if true, ignore {@link FileNotFoundException} when running {@link
+   *     #listPartition} for the Spark partitions
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
+   */
+  public static void importSparkPartitions(
+      SparkSession spark,
+      List<SparkPartition> partitions,
+      Table targetTable,
+      PartitionSpec spec,
+      String stagingDir,
+      boolean checkDuplicateFiles,
+      boolean ignoreMissingFiles,
       ExecutorService service) {
     Configuration conf = spark.sessionState().newHadoopConf();
     SerializableConfiguration serializableConf = new SerializableConfiguration(conf);
@@ -763,6 +848,7 @@ public class SparkTableUtil {
                             serializableConf,
                             metricsConfig,
                             nameMapping,
+                            ignoreMissingFiles,
                             service)
                         .iterator(),
             Encoders.javaSerialization(DataFile.class));
@@ -784,6 +870,21 @@ public class SparkTableUtil {
               DUPLICATE_FILE_MESSAGE, Joiner.on(",").join((String[]) duplicates.take(10))));
     }
 
+    TableOperations ops = ((HasTableOperations) targetTable).operations();
+    int formatVersion = ops.current().formatVersion();
+    boolean snapshotIdInheritanceEnabled =
+        PropertyUtil.propertyAsBoolean(
+            targetTable.properties(),
+            TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
+            TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+
+    final Long snapshotId;
+    if (formatVersion == 1 && !snapshotIdInheritanceEnabled) {
+      snapshotId = -1L;
+    } else {
+      snapshotId = null;
+    }
+
     List<ManifestFile> manifests =
         filesToImport
             .repartition(numShufflePartitions)
@@ -794,19 +895,18 @@ public class SparkTableUtil {
             .orderBy(col("_1"))
             .mapPartitions(
                 (MapPartitionsFunction<Tuple2<String, DataFile>, ManifestFile>)
-                    fileTuple -> buildManifest(serializableConf, spec, stagingDir, fileTuple),
+                    fileTuple ->
+                        buildManifest(
+                            formatVersion,
+                            snapshotId,
+                            serializableConf,
+                            spec,
+                            stagingDir,
+                            fileTuple),
                 Encoders.javaSerialization(ManifestFile.class))
             .collectAsList();
 
     try {
-      TableOperations ops = ((HasTableOperations) targetTable).operations();
-      int formatVersion = ops.current().formatVersion();
-      boolean snapshotIdInheritanceEnabled =
-          PropertyUtil.propertyAsBoolean(
-              targetTable.properties(),
-              TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
-              TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
-
       AppendFiles append = targetTable.newAppend();
       manifests.forEach(append::appendManifest);
       append.commit();
@@ -851,11 +951,15 @@ public class SparkTableUtil {
   }
 
   private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
-    Tasks.foreach(manifests)
-        .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .run(item -> io.deleteFile(item.path()));
+    if (io instanceof SupportsBulkOperations) {
+      ((SupportsBulkOperations) io).deleteFiles(Lists.transform(manifests, ManifestFile::path));
+    } else {
+      Tasks.foreach(manifests)
+          .executeWith(ThreadPools.getWorkerPool())
+          .noRetry()
+          .suppressFailureWhenFinished()
+          .run(item -> io.deleteFile(item.path()));
+    }
   }
 
   public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {
@@ -1060,6 +1164,111 @@ public class SparkTableUtil {
           !partitionFilterPassed,
           "Cannot use partition filter with an unpartitioned table %s",
           tableName);
+    }
+  }
+
+  @Nullable
+  public static ExecutorService migrationService(int parallelism) {
+    return parallelism == 1 ? null : new LazyExecutorService(parallelism);
+  }
+
+  private static class LazyExecutorService implements ExecutorService, Serializable {
+
+    private final int parallelism;
+    private volatile ExecutorService service;
+
+    LazyExecutorService(int parallelism) {
+      this.parallelism = parallelism;
+    }
+
+    @Override
+    public void shutdown() {
+      getService().shutdown();
+    }
+
+    @Nonnull
+    @Override
+    public List<Runnable> shutdownNow() {
+      return getService().shutdownNow();
+    }
+
+    @Override
+    public boolean isShutdown() {
+      return getService().isShutdown();
+    }
+
+    @Override
+    public boolean isTerminated() {
+      return getService().isTerminated();
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit)
+        throws InterruptedException {
+      return getService().awaitTermination(timeout, unit);
+    }
+
+    @Nonnull
+    @Override
+    public <T> Future<T> submit(@Nonnull Callable<T> task) {
+      return getService().submit(task);
+    }
+
+    @Nonnull
+    @Override
+    public <T> Future<T> submit(@Nonnull Runnable task, T result) {
+      return getService().submit(task, result);
+    }
+
+    @Nonnull
+    @Override
+    public Future<?> submit(@Nonnull Runnable task) {
+      return getService().submit(task);
+    }
+
+    @Nonnull
+    @Override
+    public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks)
+        throws InterruptedException {
+      return getService().invokeAll(tasks);
+    }
+
+    @Nonnull
+    @Override
+    public <T> List<Future<T>> invokeAll(
+        @Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit)
+        throws InterruptedException {
+      return getService().invokeAll(tasks, timeout, unit);
+    }
+
+    @Nonnull
+    @Override
+    public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks)
+        throws InterruptedException, ExecutionException {
+      return getService().invokeAny(tasks);
+    }
+
+    @Override
+    public <T> T invokeAny(
+        @Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit)
+        throws InterruptedException, ExecutionException, TimeoutException {
+      return getService().invokeAny(tasks, timeout, unit);
+    }
+
+    @Override
+    public void execute(@Nonnull Runnable command) {
+      getService().execute(command);
+    }
+
+    private ExecutorService getService() {
+      if (service == null) {
+        synchronized (this) {
+          if (service == null) {
+            service = TableMigrationUtil.migrationService(parallelism);
+          }
+        }
+      }
+      return service;
     }
   }
 }

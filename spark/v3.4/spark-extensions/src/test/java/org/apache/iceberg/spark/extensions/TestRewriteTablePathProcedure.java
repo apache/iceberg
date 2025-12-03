@@ -20,52 +20,54 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.atIndex;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.AnalysisException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-public class TestRewriteTablePathProcedure extends SparkExtensionsTestBase {
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
+  @TempDir private Path staging;
+  @TempDir private Path targetTableDir;
 
-  public String staging = null;
-  public String targetTableDir = null;
-
-  public TestRewriteTablePathProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
-  public void setupTableLocation() throws Exception {
-    this.staging = temp.newFolder("staging").toURI().toString();
-    this.targetTableDir = temp.newFolder("targetTable").toURI().toString();
+  @BeforeEach
+  public void setupTableLocation() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteTablePathWithPositionalArgument() {
+    String location = targetTableDir.toFile().toURI().toString();
     Table table = validationCatalog.loadTable(tableIdent);
-    String metadataJson =
-        (((HasTableOperations) table).operations()).current().metadataFileLocation();
+    String metadataJson = TableUtil.metadataFileLocation(table);
 
     List<Object[]> result =
         sql(
             "CALL %s.system.rewrite_table_path('%s', '%s', '%s')",
-            catalogName, tableIdent, table.location(), targetTableDir);
+            catalogName, tableIdent, table.location(), location);
     assertThat(result).hasSize(1);
     assertThat(result.get(0)[0])
         .as("Should return correct latest version")
@@ -78,18 +80,18 @@ public class TestRewriteTablePathProcedure extends SparkExtensionsTestBase {
     checkFileListLocationCount((String) result.get(0)[1], 1);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteTablePathWithNamedArgument() {
     Table table = validationCatalog.loadTable(tableIdent);
-    String v0Metadata =
-        RewriteTablePathUtil.fileName(
-            (((HasTableOperations) table).operations()).current().metadataFileLocation());
+    String v0Metadata = RewriteTablePathUtil.fileName(TableUtil.metadataFileLocation(table));
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     String v1Metadata =
         RewriteTablePathUtil.fileName(
             (((HasTableOperations) table).operations()).refresh().metadataFileLocation());
 
-    String expectedFileListLocation = staging + "file-list";
+    String targetLocation = targetTableDir.toFile().toURI().toString();
+    String stagingLocation = staging.toFile().toURI().toString();
+    String expectedFileListLocation = stagingLocation + "file-list";
 
     List<Object[]> result =
         sql(
@@ -102,21 +104,24 @@ public class TestRewriteTablePathProcedure extends SparkExtensionsTestBase {
                 + "staging_location => '%s')",
             catalogName,
             tableIdent,
-            this.targetTableDir,
+            targetLocation,
             table.location(),
             v1Metadata,
             v0Metadata,
-            this.staging);
-    assertThat(result).hasSize(1);
-    assertThat(result.get(0)[0]).as("Should return correct latest version").isEqualTo(v1Metadata);
-    assertThat(result.get(0)[1])
-        .as("Should return correct file_list_location")
-        .isEqualTo(expectedFileListLocation);
+            stagingLocation);
+    assertThat(result)
+        .singleElement()
+        .satisfies(
+            objects -> {
+              assertThat(objects).contains(v1Metadata, atIndex(0));
+              assertThat(objects).contains(expectedFileListLocation, atIndex(1));
+            });
     checkFileListLocationCount((String) result.get(0)[1], 4);
   }
 
-  @Test
+  @TestTemplate
   public void testProcedureWithInvalidInput() {
+    String targetLocation = targetTableDir.toFile().toURI().toString();
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_table_path('%s')", catalogName, tableIdent))
@@ -126,21 +131,19 @@ public class TestRewriteTablePathProcedure extends SparkExtensionsTestBase {
             () ->
                 sql(
                     "CALL %s.system.rewrite_table_path('%s','%s')",
-                    catalogName, tableIdent, this.targetTableDir))
+                    catalogName, tableIdent, targetLocation))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Missing required parameters: [target_prefix]");
     assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_table_path('%s', '%s','%s')",
-                    catalogName, "notExists", this.targetTableDir, this.targetTableDir))
+                    catalogName, "notExists", targetLocation, targetLocation))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Couldn't load table");
 
     Table table = validationCatalog.loadTable(tableIdent);
-    String v0Metadata =
-        RewriteTablePathUtil.fileName(
-            (((HasTableOperations) table).operations()).current().metadataFileLocation());
+    String v0Metadata = RewriteTablePathUtil.fileName(TableUtil.metadataFileLocation(table));
     assertThatThrownBy(
             () ->
                 sql(
@@ -149,11 +152,7 @@ public class TestRewriteTablePathProcedure extends SparkExtensionsTestBase {
                         + "source_prefix => '%s', "
                         + "target_prefix => '%s', "
                         + "start_version => '%s')",
-                    catalogName,
-                    tableIdent,
-                    table.location(),
-                    this.targetTableDir,
-                    "v20.metadata.json"))
+                    catalogName, tableIdent, table.location(), targetLocation, "v20.metadata.json"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Cannot find provided version file %s in metadata log.", "v20.metadata.json");
@@ -169,7 +168,7 @@ public class TestRewriteTablePathProcedure extends SparkExtensionsTestBase {
                     catalogName,
                     tableIdent,
                     table.location(),
-                    this.targetTableDir,
+                    targetLocation,
                     v0Metadata,
                     "v11.metadata.json"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -177,8 +176,93 @@ public class TestRewriteTablePathProcedure extends SparkExtensionsTestBase {
             "Cannot find provided version file %s in metadata log.", "v11.metadata.json");
   }
 
+  @TestTemplate
+  public void testRewriteTablePathWithoutFileList() {
+    String location = targetTableDir.toFile().toURI().toString();
+    Table table = validationCatalog.loadTable(tableIdent);
+    String metadataJson = TableUtil.metadataFileLocation(table);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.rewrite_table_path(table => '%s', source_prefix => '%s', target_prefix => '%s', create_file_list => false)",
+            catalogName, tableIdent, table.location(), location);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0])
+        .as("Should return correct latest version")
+        .isEqualTo(RewriteTablePathUtil.fileName(metadataJson));
+    assertThat(result.get(0)[1])
+        .as("Check if file list location is correctly marked as N/A when not generated")
+        .asString()
+        .isEqualTo("N/A");
+  }
+
   private void checkFileListLocationCount(String fileListLocation, long expectedFileCount) {
     long fileCount = spark.read().format("text").load(fileListLocation).count();
     assertThat(fileCount).isEqualTo(expectedFileCount);
+  }
+
+  @TestTemplate
+  public void testRewriteTablePathWithManifestAndDeleteCounts() throws IOException {
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    List<Pair<CharSequence, Long>> rowsToDelete =
+        Lists.newArrayList(
+            Pair.of(
+                table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
+                0L));
+
+    File file = new File(removePrefix(table.location()) + "/data/deletes.parquet");
+    String filePath = file.toURI().toString();
+    if (SparkCatalogConfig.REST.catalogName().equals(catalogName)) {
+      // We applied this special handling because the base path for
+      // matching the RESTCATALOG's Hive BaseLocation is represented
+      // in the form of an AbsolutePath.
+      filePath = file.getAbsolutePath().toString();
+    }
+
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(table, table.io().newOutputFile(filePath), rowsToDelete)
+            .first();
+
+    table.newRowDelta().addDeletes(positionDeletes).commit();
+
+    sql("INSERT INTO %s VALUES (4, 'd')", tableName);
+
+    String targetLocation = targetTableDir.toFile().toURI().toString();
+    String stagingLocation = staging.toFile().toURI().toString();
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.rewrite_table_path("
+                + "table => '%s', "
+                + "source_prefix => '%s', "
+                + "target_prefix => '%s', "
+                + "staging_location => '%s', create_file_list => false)",
+            catalogName, tableIdent, table.location(), targetLocation, stagingLocation);
+
+    assertThat(result).hasSize(1);
+    Object[] row = result.get(0);
+
+    int rewrittenManifestFilesCount = ((Number) row[2]).intValue();
+    int rewrittenDeleteFilesCount = ((Number) row[3]).intValue();
+
+    assertThat(rewrittenDeleteFilesCount)
+        .as(
+            "Expected exactly 1 delete file to be rewritten, but found "
+                + rewrittenDeleteFilesCount)
+        .isEqualTo(1);
+
+    assertThat(rewrittenManifestFilesCount)
+        .as(
+            "Expected exactly 5 manifest files to be rewritten, but found "
+                + rewrittenManifestFilesCount)
+        .isEqualTo(5);
+  }
+
+  private String removePrefix(String path) {
+    return path.substring(path.lastIndexOf(":") + 1);
   }
 }

@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ public class TestSnapshotJson {
     int snapshotId = 23;
     Long parentId = null;
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
+    String keyId = "key-1";
 
     Snapshot expected =
         new BaseSnapshot(
@@ -52,17 +54,18 @@ public class TestSnapshotJson {
             1,
             manifestList,
             null,
-            null);
+            null,
+            keyId);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
-    assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isEqualTo(1);
     assertThat(snapshot.firstRowId()).isNull();
     assertThat(snapshot.addedRows()).isNull();
+    assertThat(snapshot.keyId()).isEqualTo(keyId);
   }
 
   @Test
@@ -81,6 +84,7 @@ public class TestSnapshotJson {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
     String json = SnapshotParser.toJson(expected);
@@ -112,6 +116,7 @@ public class TestSnapshotJson {
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             3,
             manifestList,
+            null,
             null,
             null);
 
@@ -152,7 +157,8 @@ public class TestSnapshotJson {
             null,
             manifestList,
             firstRowId,
-            addedRows);
+            addedRows,
+            null);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -220,8 +226,7 @@ public class TestSnapshotJson {
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
       throws IOException {
-    File manifestList = File.createTempFile("manifests", null, temp.toFile());
-    manifestList.deleteOnExit();
+    File manifestList = temp.resolve("manifests" + System.nanoTime()).toFile();
 
     List<ManifestFile> manifests =
         ImmutableList.of(
@@ -229,7 +234,14 @@ public class TestSnapshotJson {
             new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
 
     try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+        ManifestLists.write(
+            1,
+            Files.localOutput(manifestList),
+            PlaintextEncryptionManager.instance(),
+            snapshotId,
+            parentSnapshotId,
+            0,
+            0L)) {
       writer.addAll(manifests);
     }
 

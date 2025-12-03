@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ManifestFileUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
@@ -80,6 +81,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private int duplicateDeleteCount = 0;
   private boolean caseSensitive = true;
   private boolean allDeletesReferenceManifests = true;
+  // this is only being used for the DeleteManifestFilterManager to detect orphaned DVs for removed
+  // data file paths
+  private Set<String> removedDataFilePaths = Sets.newHashSet();
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -112,6 +116,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   protected void failMissingDeletePaths() {
     this.failMissingDeletePaths = true;
+  }
+
+  protected Set<F> filesToBeDeleted() {
+    return deleteFiles;
   }
 
   /**
@@ -153,6 +161,11 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   void caseSensitive(boolean newCaseSensitive) {
     this.caseSensitive = newCaseSensitive;
+  }
+
+  protected void removeDanglingDeletesFor(Set<DataFile> dataFiles) {
+    this.removedDataFilePaths =
+        dataFiles.stream().map(ContentFile::location).collect(Collectors.toSet());
   }
 
   /** Add a specific path to be deleted in the new snapshot. */
@@ -224,7 +237,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private boolean canTrustManifestReferences(List<ManifestFile> manifests) {
     Set<String> manifestLocations =
         manifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
-    return allDeletesReferenceManifests && manifestLocations.containsAll(manifestsWithDeletes);
+    return allDeletesReferenceManifests
+        && !manifestsWithDeletes.isEmpty()
+        && manifestLocations.containsAll(manifestsWithDeletes);
   }
 
   /**
@@ -404,6 +419,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       return true;
     } else if (!deleteFiles.isEmpty()) {
       return ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
+    } else if (!removedDataFilePaths.isEmpty()) {
+      return true;
     }
 
     return false;
@@ -427,7 +444,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
               || (isDelete
                   && entry.isLive()
                   && entry.dataSequenceNumber() > 0
-                  && entry.dataSequenceNumber() < minSequenceNumber);
+                  && entry.dataSequenceNumber() < minSequenceNumber)
+              || (isDelete && isDanglingDV((DeleteFile) file));
 
       if (markedForDelete || evaluator.rowsMightMatch(file)) {
         boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
@@ -452,6 +470,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     return false;
   }
 
+  private boolean isDanglingDV(DeleteFile file) {
+    return ContentFileUtil.isDV(file) && removedDataFilePaths.contains(file.referencedDataFile());
+  }
+
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
   private ManifestFile filterManifestWithDeletedFiles(
       PartitionAndMetricsEvaluator evaluator, ManifestFile manifest, ManifestReader<F> reader) {
@@ -468,8 +490,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
             .forEach(
                 entry -> {
                   F file = entry.file();
+                  boolean isDanglingDV = isDelete && isDanglingDV((DeleteFile) file);
                   boolean markedForDelete =
-                      deletePaths.contains(file.location())
+                      isDanglingDV
+                          || deletePaths.contains(file.location())
                           || deleteFiles.contains(file)
                           || dropPartitions.contains(file.specId(), file.partition())
                           || (isDelete
@@ -488,6 +512,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
                     if (allRowsMatch) {
                       writer.delete(entry);
+                      F fileCopy = file.copyWithoutStats();
+                      // add the file here in case it was deleted using an expression. The
+                      // DeleteManifestFilterManager will then remove its matching DV
+                      deleteFiles.add(fileCopy);
 
                       if (deletedFiles.contains(file)) {
                         LOG.warn(
@@ -498,7 +526,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                       } else {
                         // only add the file to deletes if it is a new delete
                         // this keeps the snapshot summary accurate for non-duplicate data
-                        deletedFiles.add(file.copyWithoutStats());
+                        deletedFiles.add(fileCopy);
                       }
                     } else {
                       writer.existing(entry);

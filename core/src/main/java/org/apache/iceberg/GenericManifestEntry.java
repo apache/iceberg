@@ -76,7 +76,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.snapshotId = newSnapshotId;
     this.dataSequenceNumber = newDataSequenceNumber;
     this.fileSequenceNumber = null;
-    this.file = newFile;
+    this.file = Delegates.suppressFirstRowId(newFile);
     return this;
   }
 

@@ -22,7 +22,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -34,10 +36,11 @@ import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class OAuth2Manager extends RefreshingAuthManager {
+public class OAuth2Manager implements AuthManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(OAuth2Manager.class);
 
@@ -58,19 +61,19 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   private final String name;
 
-  private RESTClient refreshClient;
+  private volatile RESTClient refreshClient;
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
-  private AuthSessionCache sessionCache;
+  private volatile AuthSessionCache sessionCache;
+  private boolean keepRefreshed = true;
 
   public OAuth2Manager(String managerName) {
-    super(managerName + "-token-refresh");
     this.name = managerName;
   }
 
   @Override
   public OAuth2Util.AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
-    warnIfDeprecatedTokenEndpointUsed(properties);
+    warnIfOAuthServerUriNotSet(properties);
     AuthConfig config =
         ImmutableAuthConfig.builder()
             .from(AuthConfig.fromProperties(properties))
@@ -109,7 +112,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(headers, config);
-    keepRefreshed(config.keepRefreshed());
+    keepRefreshed = config.keepRefreshed();
     // authResponse comes from the init phase: this means we already fetched a token
     // so reuse it now and turn token refresh on.
     if (authResponse != null) {
@@ -155,15 +158,58 @@ public class OAuth2Manager extends RefreshingAuthManager {
   }
 
   @Override
-  public void close() {
-    try {
-      super.close();
-    } finally {
-      AuthSessionCache cache = sessionCache;
-      this.sessionCache = null;
-      if (cache != null) {
-        cache.close();
+  public AuthSession tableSession(RESTClient sharedClient, Map<String, String> properties) {
+    AuthConfig config = AuthConfig.fromProperties(properties);
+    Map<String, String> headers = OAuth2Util.authHeaders(config.token());
+    OAuth2Util.AuthSession parent = new OAuth2Util.AuthSession(headers, config);
+
+    keepRefreshed = config.keepRefreshed();
+
+    // Important: this method is invoked from standalone components; we must not assume that
+    // the refresh client and session cache have been initialized, because catalogSession()
+    // won't be called.
+    // We also assume that this method may be called from multiple threads, so we must
+    // synchronize access to the refresh client and session cache.
+
+    if (refreshClient == null) {
+      synchronized (this) {
+        if (refreshClient == null) {
+          this.refreshClient = sharedClient.withAuthSession(parent);
+        }
       }
+    }
+
+    if (sessionCache == null) {
+      synchronized (this) {
+        if (sessionCache == null) {
+          this.sessionCache = newSessionCache(name, properties);
+        }
+      }
+    }
+
+    String oauth2ServerUri =
+        properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+
+    if (config.token() != null) {
+      String cacheKey = oauth2ServerUri + ":" + config.token();
+      return sessionCache.cachedSession(
+          cacheKey, k -> newSessionFromAccessToken(config.token(), properties, parent));
+    }
+
+    if (config.credential() != null && !config.credential().isEmpty()) {
+      String cacheKey = oauth2ServerUri + ":" + config.credential();
+      return sessionCache.cachedSession(cacheKey, k -> newSessionFromTokenResponse(config, parent));
+    }
+
+    return parent;
+  }
+
+  @Override
+  public void close() {
+    AuthSessionCache cache = sessionCache;
+    this.sessionCache = null;
+    if (cache != null) {
+      cache.close();
     }
   }
 
@@ -226,8 +272,27 @@ public class OAuth2Manager extends RefreshingAuthManager {
         refreshClient, refreshExecutor(), token, tokenType, parent);
   }
 
-  private static void warnIfDeprecatedTokenEndpointUsed(Map<String, String> properties) {
-    if (usesDeprecatedTokenEndpoint(properties)) {
+  protected OAuth2Util.AuthSession newSessionFromTokenResponse(
+      AuthConfig config, OAuth2Util.AuthSession parent) {
+    OAuthTokenResponse response =
+        OAuth2Util.fetchToken(
+            refreshClient,
+            Map.of(),
+            config.credential(),
+            config.scope(),
+            config.oauth2ServerUri(),
+            config.optionalOAuthParams());
+    return OAuth2Util.AuthSession.fromTokenResponse(
+        refreshClient, refreshExecutor(), response, System.currentTimeMillis(), parent);
+  }
+
+  @Nullable
+  protected ScheduledExecutorService refreshExecutor() {
+    return keepRefreshed ? ThreadPools.authRefreshPool() : null;
+  }
+
+  private static void warnIfOAuthServerUriNotSet(Map<String, String> properties) {
+    if (!properties.containsKey(OAuth2Properties.OAUTH2_SERVER_URI)) {
       String credential = properties.get(OAuth2Properties.CREDENTIAL);
       String initToken = properties.get(OAuth2Properties.TOKEN);
       boolean hasCredential = credential != null && !credential.isEmpty();
@@ -235,7 +300,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
       if (hasInitToken || hasCredential) {
         LOG.warn(
             "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}/{}. "
-                + "This automatic fallback will be removed in a future Iceberg release."
+                + "This automatic fallback will be removed in a future Iceberg release. "
                 + "It is recommended to configure the OAuth2 endpoint using the '{}' property to be prepared. "
                 + "This warning will disappear if the OAuth2 endpoint is explicitly configured. "
                 + "See https://github.com/apache/iceberg/issues/10537",
@@ -244,16 +309,6 @@ public class OAuth2Manager extends RefreshingAuthManager {
             OAuth2Properties.OAUTH2_SERVER_URI);
       }
     }
-  }
-
-  private static boolean usesDeprecatedTokenEndpoint(Map<String, String> properties) {
-    if (properties.containsKey(OAuth2Properties.OAUTH2_SERVER_URI)) {
-      String oauth2ServerUri = properties.get(OAuth2Properties.OAUTH2_SERVER_URI);
-      boolean relativePath = !oauth2ServerUri.startsWith("http");
-      boolean sameHost = oauth2ServerUri.startsWith(properties.get(CatalogProperties.URI));
-      return relativePath || sameHost;
-    }
-    return true;
   }
 
   private static Duration sessionTimeout(Map<String, String> props) {

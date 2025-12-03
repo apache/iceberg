@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -66,7 +65,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestAddFilesProcedure extends ExtensionsTestBase {
@@ -87,9 +85,9 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         2
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         2
       }
     };
@@ -100,8 +98,6 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   private final String sourceTableName = "source_table";
   private File fileTableDir;
-
-  @TempDir private Path temp;
 
   @BeforeEach
   public void setupTempDirs() {
@@ -637,6 +633,82 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void addAllPartitionsToPartitionedWithNullValue() {
+    createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id, dept)");
+
+    // Add all partitions including null partitions.
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 10L, 5L);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void addAllPartitionsToNonStringPartitionedWithNullValue() {
+    createPartitionedTableWithNullValueInPartitionColumnOnId("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    // Add all partitions including null partitions.
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 10L, 5L);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void addPartitionsWithNullValueShouldAddFilesToNullPartition() {
+    // This test is to ensure that "null" string partition is not incorrectly created.
+
+    createPartitionedTableWithNullValueInPartitionColumnOnDept("parquet");
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (dept)");
+
+    // Add all partitions including null partitions.
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 6L, 3L);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+
+    // Check if correct partitions are created
+    List<Object[]> actualRows =
+        sql("SELECT partition from %s.partitions ORDER BY partition", tableName);
+    assertEquals(
+        "Other partitions should match",
+        ImmutableList.of(
+            row(new Object[] {new Object[] {null}}),
+            row(new Object[] {new Object[] {"facilities"}}),
+            row(new Object[] {new Object[] {"hr"}})),
+        actualRows);
+  }
+
+  @TestTemplate
   public void addFileTableOldSpecDataAfterPartitionSpecEvolved()
       throws NoSuchTableException, ParseException {
     createPartitionedFileTable("parquet");
@@ -698,7 +770,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD subdept", tableName);
 
     String fullTableName = tableName;
-    if (implementation.equals(SparkCatalogConfig.SPARK.implementation())) {
+    if (implementation.equals(SparkCatalogConfig.SPARK_SESSION.implementation())) {
       fullTableName = String.format("%s.%s", catalogName, tableName);
     }
     assertThatThrownBy(
@@ -743,7 +815,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                 "SELECT id, `naMe`, dept, subdept from %s WHERE `naMe` = 'John Doe' ORDER BY id",
                 sourceTableName))
         .as("If this assert breaks it means that Spark has fixed the pushdown issue")
-        .hasSize(0);
+        .isEmpty();
 
     // Pushdown works for iceberg
     assertThat(
@@ -1114,6 +1186,22 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testAddFilesWithInvalidParallelism() {
+    createUnpartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => -1)",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Parallelism should be larger than 0");
+  }
+
+  @TestTemplate
   public void testAddFilesToTableWithManySpecs() {
     createPartitionedHiveTable();
     createIcebergTable("id Integer, name String, dept String, subdept String"); // Spec 0
@@ -1250,6 +1338,38 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         compositePartitionedDF()
             .unionAll(compositePartitionedNullRecordDF())
             .select("name", "subdept", "id", "dept")
+            .repartition(1);
+
+    unionedDF.write().insertInto(sourceTableName);
+    unionedDF.write().insertInto(sourceTableName);
+  }
+
+  private void createPartitionedTableWithNullValueInPartitionColumnOnDept(String format) {
+    String createParquet =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s "
+            + "PARTITIONED BY (dept) LOCATION '%s'";
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+
+    Dataset<Row> unionedDF =
+        unpartitionedDF()
+            .select("id", "name", "subdept", "dept")
+            .unionAll(singleNullRecordDF().select("id", "name", "subdept", "dept"))
+            .repartition(1);
+
+    unionedDF.write().insertInto(sourceTableName);
+    unionedDF.write().insertInto(sourceTableName);
+  }
+
+  private void createPartitionedTableWithNullValueInPartitionColumnOnId(String format) {
+    String createParquet =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s "
+            + "PARTITIONED BY (id) LOCATION '%s'";
+    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+
+    Dataset<Row> unionedDF =
+        unpartitionedDF()
+            .select("name", "subdept", "dept", "id")
+            .unionAll(singleNullRecordDF().select("name", "subdept", "dept", "id"))
             .repartition(1);
 
     unionedDF.write().insertInto(sourceTableName);

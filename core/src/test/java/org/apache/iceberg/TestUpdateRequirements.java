@@ -25,6 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -148,9 +149,8 @@ public class TestUpdateRequirements {
     assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updated)))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage(
-            String.format(
-                "Requirement failed: UUID does not match: expected %s != %s",
-                updated.uuid(), metadata.uuid()));
+            "Requirement failed: UUID does not match: expected %s != %s",
+            updated.uuid(), metadata.uuid());
   }
 
   @Test
@@ -181,9 +181,8 @@ public class TestUpdateRequirements {
     assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updatedViewMetadata)))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage(
-            String.format(
-                "Requirement failed: view UUID does not match: expected %s != %s",
-                updatedViewMetadata.uuid(), viewMetadata.uuid()));
+            "Requirement failed: view UUID does not match: expected %s != %s",
+            updatedViewMetadata.uuid(), viewMetadata.uuid());
   }
 
   @ParameterizedTest
@@ -264,7 +263,6 @@ public class TestUpdateRequirements {
 
   @Test
   public void addSchemaForView() {
-    int lastColumnId = 1;
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceView(
             viewMetadata,
@@ -704,7 +702,31 @@ public class TestUpdateRequirements {
 
     requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshot(0L)));
+            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshots(0L)));
+
+    assertThat(requirements)
+        .hasSize(1)
+        .hasOnlyElementsOfTypes(UpdateRequirement.AssertTableUUID.class);
+
+    assertTableUUID(requirements);
+  }
+
+  @Test
+  public void addAndRemoveSnapshots() {
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forUpdateTable(
+            metadata, ImmutableList.of(new MetadataUpdate.AddSnapshot(mock(Snapshot.class))));
+    requirements.forEach(req -> req.validate(metadata));
+
+    assertThat(requirements)
+        .hasSize(1)
+        .hasOnlyElementsOfTypes(UpdateRequirement.AssertTableUUID.class);
+
+    assertTableUUID(requirements);
+
+    requirements =
+        UpdateRequirements.forUpdateTable(
+            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshots(Set.of(0L))));
 
     assertThat(requirements)
         .hasSize(1)
@@ -747,7 +769,7 @@ public class TestUpdateRequirements {
 
     requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshot(0L)));
+            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshots(Set.of(0L))));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)

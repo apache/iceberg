@@ -42,18 +42,18 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
         SparkCatalogConfig.HADOOP.properties()
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties()
-      },
-      {
         SparkCatalogConfig.REST.catalogName(),
         SparkCatalogConfig.REST.implementation(),
         ImmutableMap.builder()
             .putAll(SparkCatalogConfig.REST.properties())
             .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
             .build()
-      }
+      },
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK.properties()
+      },
     };
   }
 }

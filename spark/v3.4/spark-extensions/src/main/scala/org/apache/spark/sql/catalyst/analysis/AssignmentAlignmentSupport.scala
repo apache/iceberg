@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -69,8 +68,8 @@ trait AssignmentAlignmentSupport extends CastSupport {
 
     val columnUpdates = assignments.map(a => ColumnUpdate(toAssignmentRef(a.key), a.value))
     val outputExprs = applyUpdates(table.output, columnUpdates)
-    outputExprs.zip(table.output).map {
-      case (expr, attr) => handleCharVarcharLimits(Assignment(attr, expr))
+    outputExprs.zip(table.output).map { case (expr, attr) =>
+      handleCharVarcharLimits(Assignment(attr, expr))
     }
   }
 
@@ -117,8 +116,7 @@ trait AssignmentAlignmentSupport extends CastSupport {
               val colName = (namePrefix :+ col.name).mkString(".")
               throw new AnalysisException(
                 "Updating nested fields is only supported for StructType " +
-                s"but $colName is of type $otherType"
-              )
+                  s"but $colName is of type $otherType")
           }
 
         // if there are conflicting updates, throw an exception
@@ -129,7 +127,7 @@ trait AssignmentAlignmentSupport extends CastSupport {
           val conflictingCols = updates.map(u => (namePrefix ++ u.ref).mkString("."))
           throw new AnalysisException(
             "Updates are in conflict for these columns: " +
-            conflictingCols.distinct.mkString(", "))
+              conflictingCols.distinct.mkString(", "))
       }
     }
   }
@@ -180,8 +178,13 @@ trait AssignmentAlignmentSupport extends CastSupport {
         // e.g. a struct with fields (a, b) is assigned as a struct with fields (a, c) or (b, a)
         val errors = new mutable.ArrayBuffer[String]()
         val canWrite = DataType.canWrite(
-          expr.dataType, tableAttr.dataType, byName = true, resolver, tableAttr.name,
-          storeAssignmentPolicy, err => errors += err)
+          expr.dataType,
+          tableAttr.dataType,
+          byName = true,
+          resolver,
+          tableAttr.name,
+          storeAssignmentPolicy,
+          err => errors += err)
 
         if (!canWrite) {
           throw new AnalysisException(
@@ -195,7 +198,8 @@ trait AssignmentAlignmentSupport extends CastSupport {
       case _ if tableAttr.dataType.sameType(expr.dataType) =>
         expr
       case StoreAssignmentPolicy.ANSI =>
-        val cast = Cast(expr, tableAttr.dataType, Option(conf.sessionLocalTimeZone), ansiEnabled = true)
+        val cast =
+          Cast(expr, tableAttr.dataType, Option(conf.sessionLocalTimeZone), ansiEnabled = true)
         cast.setTagValue(Cast.BY_TABLE_INSERTION, ())
         TableOutputResolver.checkCastOverflowInTableInsert(cast, colPath.quoted)
       case _ =>

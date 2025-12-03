@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -26,13 +25,14 @@ case class ReplacePartitionField(
     table: Seq[String],
     transformFrom: Transform,
     transformTo: Transform,
-    name: Option[String]) extends LeafCommand {
+    name: Option[String])
+    extends LeafCommand {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
     s"ReplacePartitionField ${table.quoted} ${transformFrom.describe} " +
-        s"with ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
+      s"with ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
   }
 }

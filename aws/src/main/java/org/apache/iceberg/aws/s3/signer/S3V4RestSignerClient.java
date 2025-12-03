@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -76,15 +77,13 @@ public abstract class S3V4RestSignerClient
 
   private static final String SCOPE = "sign";
 
-  @SuppressWarnings("immutables:incompat")
-  private volatile AuthManager authManager;
+  @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
+  @VisibleForTesting
+  static volatile AuthManager authManager;
 
   @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
   @VisibleForTesting
   static volatile RESTClient httpClient;
-
-  @SuppressWarnings("immutables:incompat")
-  private volatile AuthSession authSession;
 
   public abstract Map<String, String> properties();
 
@@ -100,7 +99,8 @@ public abstract class S3V4RestSignerClient
 
   @Value.Lazy
   public String endpoint() {
-    return properties().getOrDefault(S3_SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
+    return RESTUtil.resolveEndpoint(
+        baseSignerUri(), properties().getOrDefault(S3_SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT));
   }
 
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
@@ -113,12 +113,16 @@ public abstract class S3V4RestSignerClient
   /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
   @Value.Lazy
   public String oauth2ServerUri() {
-    return properties().getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+    String oauth2ServerUri =
+        properties().getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+    return oauth2ServerUri.startsWith("http")
+        ? oauth2ServerUri
+        : RESTUtil.resolveEndpoint(baseSignerUri(), oauth2ServerUri);
   }
 
   @Value.Lazy
   public Map<String, String> optionalOAuthParams() {
-    return OAuth2Util.buildOptionalParam(properties());
+    return OAuth2Util.buildOptionalParam(properties(), SCOPE);
   }
 
   /** A Bearer token supplier which will be used for interaction with the server. */
@@ -135,15 +139,26 @@ public abstract class S3V4RestSignerClient
         OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
   }
 
+  private AuthManager authManager() {
+    if (null == authManager) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == authManager) {
+          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
+        }
+      }
+    }
+
+    return authManager;
+  }
+
   private RESTClient httpClient() {
     if (null == httpClient) {
       synchronized (S3V4RestSignerClient.class) {
         if (null == httpClient) {
+          // Don't include a base URI because this client may be used for contacting different
+          // catalogs.
           httpClient =
-              HTTPClient.builder(properties())
-                  .uri(baseSignerUri())
-                  .withObjectMapper(S3ObjectMapper.mapper())
-                  .build();
+              HTTPClient.builder(properties()).withObjectMapper(S3ObjectMapper.mapper()).build();
         }
       }
     }
@@ -153,32 +168,23 @@ public abstract class S3V4RestSignerClient
 
   @VisibleForTesting
   AuthSession authSession() {
-    if (null == authSession) {
-      synchronized (S3V4RestSignerClient.class) {
-        if (null == authSession) {
-          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
-          ImmutableMap.Builder<String, String> properties =
-              ImmutableMap.<String, String>builder()
-                  .putAll(properties())
-                  .putAll(optionalOAuthParams())
-                  .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
-                  .put(OAuth2Properties.TOKEN_REFRESH_ENABLED, String.valueOf(keepTokenRefreshed()))
-                  .put(OAuth2Properties.SCOPE, SCOPE);
-          String token = token().get();
-          if (null != token) {
-            properties.put(OAuth2Properties.TOKEN, token);
-          }
-
-          if (credentialProvided()) {
-            properties.put(OAuth2Properties.CREDENTIAL, credential());
-          }
-
-          authSession = authManager.tableSession(httpClient(), properties.buildKeepingLast());
-        }
-      }
+    ImmutableMap.Builder<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties())
+            .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
+            .put(OAuth2Properties.TOKEN_REFRESH_ENABLED, String.valueOf(keepTokenRefreshed()))
+            .put(OAuth2Properties.SCOPE, SCOPE)
+            .putAll(optionalOAuthParams());
+    String token = token().get();
+    if (null != token) {
+      properties.put(OAuth2Properties.TOKEN, token);
     }
 
-    return authSession;
+    if (credentialProvided()) {
+      properties.put(OAuth2Properties.CREDENTIAL, credential());
+    }
+
+    return authManager().tableSession(httpClient(), properties.buildKeepingLast());
   }
 
   private boolean credentialProvided() {
@@ -283,10 +289,7 @@ public abstract class S3V4RestSignerClient
   }
 
   @Override
-  public void close() throws Exception {
-    IoUtils.closeQuietlyV2(authSession, null);
-    IoUtils.closeQuietlyV2(authManager, null);
-  }
+  public void close() throws Exception {}
 
   /**
    * Only add body for DeleteObjectsRequest. Refer to

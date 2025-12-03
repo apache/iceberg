@@ -30,10 +30,10 @@ import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -100,46 +100,43 @@ interface HiveOperationsBase {
             metadataLocation);
   }
 
-  default boolean exposeInHmsProperties() {
-    return maxHiveTablePropertySize() > 0;
+  private static boolean isValidIcebergView(Table table) {
+    String tableType = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
+    return TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(table.getTableType())
+        && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(tableType);
   }
 
-  default void setSchema(Schema schema, Map<String, String> parameters) {
-    parameters.remove(TableProperties.CURRENT_SCHEMA);
-    if (exposeInHmsProperties() && schema != null) {
-      String jsonSchema = SchemaParser.toJson(schema);
-      setField(parameters, TableProperties.CURRENT_SCHEMA, jsonSchema);
-    }
-  }
-
-  default void setField(Map<String, String> parameters, String key, String value) {
-    if (value.length() <= maxHiveTablePropertySize()) {
-      parameters.put(key, value);
-    } else {
-      LOG.warn(
-          "Not exposing {} in HMS since it exceeds {} characters", key, maxHiveTablePropertySize());
-    }
+  private static boolean isValidIcebergTable(Table table) {
+    String tableType = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
+    return BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(tableType);
   }
 
   static void validateTableIsIceberg(Table table, String fullName) {
     String tableType = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
     NoSuchIcebergTableException.check(
-        tableType != null
-            && tableType.equalsIgnoreCase(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE),
-        "Not an iceberg table: %s (type=%s)",
-        fullName,
-        tableType);
+        isValidIcebergTable(table), "Not an iceberg table: %s (type=%s)", fullName, tableType);
   }
 
   static void validateTableIsIcebergView(Table table, String fullName) {
     String tableTypeProp = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
     NoSuchIcebergViewException.check(
-        TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(table.getTableType())
-            && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(tableTypeProp),
+        isValidIcebergView(table),
         "Not an iceberg view: %s (type=%s) (tableType=%s)",
         fullName,
         tableTypeProp,
         table.getTableType());
+  }
+
+  static void validateIcebergTableNotLoadedAsIcebergView(Table table, String fullName) {
+    if (!isValidIcebergView(table) && isValidIcebergTable(table)) {
+      throw new NoSuchViewException("View does not exist: %s", fullName);
+    }
+  }
+
+  static void validateIcebergViewNotLoadedAsIcebergTable(Table table, String fullName) {
+    if (!isValidIcebergTable(table) && isValidIcebergView(table)) {
+      throw new NoSuchTableException("Table does not exist: %s", fullName);
+    }
   }
 
   default void persistTable(Table hmsTable, boolean updateHiveTable, String metadataLocation)

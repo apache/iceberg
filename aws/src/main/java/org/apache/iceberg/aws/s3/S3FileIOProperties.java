@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.exception.SdkServiceException;
@@ -48,7 +49,7 @@ import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.core.retry.conditions.TokenBucketRetryCondition;
-import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
+import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
@@ -958,12 +959,20 @@ public class S3FileIOProperties implements Serializable {
     return (accessKeyId == null) == (secretAccessKey == null);
   }
 
-  public <T extends S3ClientBuilder> void applyCredentialConfigurations(
+  public <T extends S3BaseClientBuilder<T, ?>> void applyCredentialConfigurations(
       AwsClientProperties awsClientProperties, T builder) {
-    builder.credentialsProvider(
-        isRemoteSigningEnabled
-            ? AnonymousCredentialsProvider.create()
-            : awsClientProperties.credentialsProvider(accessKeyId, secretAccessKey, sessionToken));
+    builder.credentialsProvider(getCredentialsProvider(awsClientProperties));
+  }
+
+  public <T extends S3CrtAsyncClientBuilder> void applyCredentialConfigurations(
+      AwsClientProperties awsClientProperties, T builder) {
+    builder.credentialsProvider(getCredentialsProvider(awsClientProperties));
+  }
+
+  private AwsCredentialsProvider getCredentialsProvider(AwsClientProperties awsClientProperties) {
+    return isRemoteSigningEnabled
+        ? AnonymousCredentialsProvider.create()
+        : awsClientProperties.credentialsProvider(accessKeyId, secretAccessKey, sessionToken);
   }
 
   /**
@@ -1012,30 +1021,16 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Override the endpoint for an S3 client.
+   * Override the endpoint for an S3 sync or async client.
    *
    * <p>Sample usage:
    *
    * <pre>
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
-   * </pre>
-   */
-  public <T extends S3ClientBuilder> void applyEndpointConfigurations(T builder) {
-    if (endpoint != null) {
-      builder.endpointOverride(URI.create(endpoint));
-    }
-  }
-
-  /**
-   * Override the endpoint for an S3 async client
-   *
-   * <p>Sample usage:
-   *
-   * <pre>
    *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyEndpointConfigurations)
    * </pre>
    */
-  public <T extends S3AsyncClientBuilder> void applyEndpointConfigurations(T builder) {
+  public <T extends S3BaseClientBuilder<T, ?>> void applyEndpointConfigurations(T builder) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }
@@ -1173,5 +1168,9 @@ public class S3FileIOProperties implements Serializable {
               "Cannot create %s to generate and configure the client SDK Plugin builder", impl),
           e);
     }
+  }
+
+  public Map<String, String> properties() {
+    return allProperties;
   }
 }

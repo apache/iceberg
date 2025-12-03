@@ -28,7 +28,6 @@ import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.Join
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.BINARY_COMPARISON
 import org.apache.spark.sql.catalyst.trees.TreePattern.COMMAND
@@ -48,13 +47,13 @@ import org.apache.spark.sql.types.StructType
 object ReplaceStaticInvoke extends Rule[LogicalPlan] {
 
   override def apply(plan: LogicalPlan): LogicalPlan =
-    plan.transformWithPruning (_.containsAnyPattern(COMMAND, FILTER, JOIN)) {
+    plan.transformWithPruning(_.containsAnyPattern(COMMAND, FILTER, JOIN)) {
       case join @ Join(_, _, _, Some(cond), _) =>
         replaceStaticInvoke(join, cond, newCond => join.copy(condition = Some(newCond)))
 
       case filter @ Filter(cond, _) =>
         replaceStaticInvoke(filter, cond, newCond => filter.copy(condition = newCond))
-  }
+    }
 
   private def replaceStaticInvoke[T <: LogicalPlan](
       node: T,
@@ -87,16 +86,17 @@ object ReplaceStaticInvoke extends Rule[LogicalPlan] {
       return invoke
     }
 
-    val inputType = StructType(invoke.arguments.zipWithIndex.map {
-      case (exp, pos) => StructField(s"_$pos", exp.dataType, exp.nullable)
+    val inputType = StructType(invoke.arguments.zipWithIndex.map { case (exp, pos) =>
+      StructField(s"_$pos", exp.dataType, exp.nullable)
     })
 
-    val bound = try {
-      unbound.bind(inputType)
-    } catch {
-      case _: Exception =>
-        return invoke
-    }
+    val bound =
+      try {
+        unbound.bind(inputType)
+      } catch {
+        case _: Exception =>
+          return invoke
+      }
 
     if (bound.inputTypes().length != invoke.arguments.length) {
       return invoke

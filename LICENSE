@@ -288,6 +288,7 @@ This product includes code from Apache Spark.
 * casting logic in AssignmentAlignmentSupport
 * implementation of SetAccumulator.
 * Connector expressions.
+* implementation of VectorizedDeltaEncodedValuesReader
 
 Copyright: 2011-2018 The Apache Software Foundation
 Home page: https://spark.apache.org/
@@ -331,6 +332,7 @@ This product includes code from Apache Flink.
 * Parameterized test at class level logic in ParameterizedTestExtension.java
 * Parameter provider annotation for parameterized tests in Parameters.java
 * Parameter field annotation for parameterized tests in Parameter.java
+* Primary key validation logic in FlinkSchemaUtil.java
 
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://flink.apache.org/

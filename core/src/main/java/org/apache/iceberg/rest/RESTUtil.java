@@ -28,16 +28,26 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class RESTUtil {
   private static final char NAMESPACE_SEPARATOR = '\u001f';
-  public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
-  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
   private static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
   private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
   private static final Splitter NAMESPACE_ESCAPED_SPLITTER =
       Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     RESTUtil#namespaceToQueryParam(Namespace)}} instead.
+   */
+  @Deprecated public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     RESTUtil#namespaceFromQueryParam(String)} instead.
+   */
+  @Deprecated public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
 
   private RESTUtil() {}
 
@@ -88,15 +98,7 @@ public class RESTUtil {
   public static Map<String, String> extractPrefixMap(
       Map<String, String> properties, String prefix) {
     Preconditions.checkNotNull(properties, "Invalid properties map: null");
-    Map<String, String> result = Maps.newHashMap();
-    properties.forEach(
-        (key, value) -> {
-          if (key != null && key.startsWith(prefix)) {
-            result.put(key.substring(prefix.length()), value);
-          }
-        });
-
-    return result;
+    return PropertyUtil.propertiesWithPrefix(properties, prefix);
   }
 
   private static final Joiner.MapJoiner FORM_JOINER = Joiner.on("&").withKeyValueSeparator("=");
@@ -158,6 +160,41 @@ public class RESTUtil {
   public static String decodeString(String encoded) {
     Preconditions.checkArgument(encoded != null, "Invalid string to decode: null");
     return URLDecoder.decode(encoded, StandardCharsets.UTF_8);
+  }
+
+  /**
+   * This converts the given namespace to a string and separates each part in a multipart namespace
+   * using the unicode character '\u001f'. Note that this method is different from {@link
+   * RESTUtil#encodeNamespace(Namespace)}, which uses the UTF-8 escaped version of '\u001f', which
+   * is '0x1F'.
+   *
+   * <p>{@link #namespaceFromQueryParam(String)} should be used to convert the namespace string back
+   * to a {@link Namespace} instance.
+   *
+   * @param namespace The namespace to convert
+   * @return The namespace converted to a string where each part in a multipart namespace is
+   *     separated using the unicode character '\u001f'
+   */
+  public static String namespaceToQueryParam(Namespace namespace) {
+    Preconditions.checkArgument(null != namespace, "Invalid namespace: null");
+    return RESTUtil.NAMESPACE_JOINER.join(namespace.levels());
+  }
+
+  /**
+   * This converts a namespace where each part in a multipart namespace has been separated using
+   * '\u001f' to its original {@link Namespace} instance.
+   *
+   * <p>{@link #namespaceToQueryParam(Namespace)} should be used to convert the {@link Namespace} to
+   * a string.
+   *
+   * @param namespace The namespace to convert
+   * @return The namespace instance from the given namespace string, where each multipart separator
+   *     ('\u001f') is converted to a separate namespace level
+   */
+  public static Namespace namespaceFromQueryParam(String namespace) {
+    Preconditions.checkArgument(null != namespace, "Invalid namespace: null");
+    return Namespace.of(
+        RESTUtil.NAMESPACE_SPLITTER.splitToStream(namespace).toArray(String[]::new));
   }
 
   /**
@@ -229,5 +266,9 @@ public class RESTUtil {
         "%s%s",
         RESTUtil.stripTrailingSlash(catalogUri),
         endpointPath.startsWith("/") ? endpointPath : "/" + endpointPath);
+  }
+
+  public static Map<String, String> configHeaders(Map<String, String> properties) {
+    return RESTUtil.extractPrefixMap(properties, "header.");
   }
 }

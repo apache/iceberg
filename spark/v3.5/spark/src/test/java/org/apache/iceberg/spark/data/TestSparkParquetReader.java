@@ -18,18 +18,15 @@
  */
 package org.apache.iceberg.spark.data;
 
-import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -39,11 +36,15 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.IcebergGenerics;
+import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -61,7 +62,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
 
-public class TestSparkParquetReader extends AvroDataTest {
+public class TestSparkParquetReader extends AvroDataTestBase {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);
@@ -69,6 +70,13 @@ public class TestSparkParquetReader extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    List<Record> expected = RandomGenericData.generate(writeSchema, 100, 0L);
+    writeAndValidate(writeSchema, expectedSchema, expected);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
+      throws IOException {
     assumeThat(
             TypeUtil.find(
                 writeSchema,
@@ -76,28 +84,37 @@ public class TestSparkParquetReader extends AvroDataTest {
         .as("Parquet Avro cannot write non-string map keys")
         .isNull();
 
-    List<GenericData.Record> expected = RandomData.generateList(writeSchema, 100, 0L);
-
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
-
-    try (FileAppender<GenericData.Record> writer =
-        Parquet.write(Files.localOutput(testFile)).schema(writeSchema).named("test").build()) {
+    OutputFile output = new InMemoryOutputFile();
+    try (FileAppender<Record> writer =
+        Parquet.write(output)
+            .schema(writeSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .named("test")
+            .build()) {
       writer.addAll(expected);
     }
 
     try (CloseableIterable<InternalRow> reader =
-        Parquet.read(Files.localInput(testFile))
+        Parquet.read(output.toInputFile())
             .project(expectedSchema)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(expectedSchema, type))
+            .createReaderFunc(
+                type -> SparkParquetReaders.buildReader(expectedSchema, type, ID_TO_CONSTANT))
             .build()) {
       Iterator<InternalRow> rows = reader.iterator();
-      for (GenericData.Record record : expected) {
+      int pos = 0;
+      for (Record record : expected) {
         assertThat(rows).as("Should have expected number of rows").hasNext();
-        assertEqualsUnsafe(expectedSchema.asStruct(), record, rows.next());
+        GenericsHelpers.assertEqualsUnsafe(
+            expectedSchema.asStruct(), record, rows.next(), ID_TO_CONSTANT, pos);
+        pos += 1;
       }
       assertThat(rows).as("Should not have extra rows").isExhausted();
     }
+  }
+
+  @Override
+  protected boolean supportsRowLineage() {
+    return true;
   }
 
   @Override

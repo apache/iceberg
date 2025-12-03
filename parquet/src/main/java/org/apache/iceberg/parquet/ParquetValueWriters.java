@@ -133,18 +133,6 @@ public class ParquetValueWriters {
     return new MapWriter<>(dl, rl, keyWriter, valueWriter);
   }
 
-  /**
-   * Create a struct writer that produces a StructLike record.
-   *
-   * @deprecated will be removed in 1.10.0; use {@link #recordWriter(Types.StructType, List)}
-   *     instead.
-   */
-  @Deprecated
-  public static <T extends StructLike> StructWriter<T> recordWriter(
-      List<ParquetValueWriter<?>> writers) {
-    return recordWriter(null, writers);
-  }
-
   public static <T extends StructLike> StructWriter<T> recordWriter(
       Types.StructType struct, List<ParquetValueWriter<?>> writers) {
     return new RecordWriter<>(struct, writers);
@@ -468,7 +456,8 @@ public class ParquetValueWriters {
                   nullValueCount,
                   metrics.nanValueCount(),
                   metrics.lowerBound(),
-                  metrics.upperBound()));
+                  metrics.upperBound(),
+                  metrics.originalType()));
         } else {
           throw new IllegalStateException(
               String.format(

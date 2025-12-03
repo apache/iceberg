@@ -516,7 +516,8 @@ class SchemaUpdate implements UpdateSchema {
         Set<String> columnProperties =
             ImmutableSet.of(
                 TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
-                TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
+                TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
+                TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX);
         Map<String, String> updatedProperties =
             PropertyUtil.applySchemaChanges(
                 newMetadata.properties(), deletedColumns, renamedColumns, columnProperties);
@@ -566,7 +567,8 @@ class SchemaUpdate implements UpdateSchema {
             .asStructType();
 
     // validate identifier requirements based on the latest schema
-    Map<String, Integer> nameToId = TypeUtil.indexByName(struct);
+    Map<String, Integer> nameToId =
+        caseSensitive ? TypeUtil.indexByName(struct) : TypeUtil.indexByLowerCaseName(struct);
     Set<Integer> freshIdentifierFieldIds = Sets.newHashSet();
     for (String name : identifierFieldNames) {
       Preconditions.checkArgument(

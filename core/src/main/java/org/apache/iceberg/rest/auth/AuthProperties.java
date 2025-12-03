@@ -28,6 +28,7 @@ public final class AuthProperties {
   public static final String AUTH_TYPE_BASIC = "basic";
   public static final String AUTH_TYPE_OAUTH2 = "oauth2";
   public static final String AUTH_TYPE_SIGV4 = "sigv4";
+  public static final String AUTH_TYPE_GOOGLE = "google";
 
   public static final String AUTH_MANAGER_IMPL_NONE =
       "org.apache.iceberg.rest.auth.NoopAuthManager";
@@ -37,6 +38,8 @@ public final class AuthProperties {
       "org.apache.iceberg.rest.auth.OAuth2Manager";
   public static final String AUTH_MANAGER_IMPL_SIGV4 =
       "org.apache.iceberg.aws.RESTSigV4AuthManager";
+  public static final String AUTH_MANAGER_IMPL_GOOGLE =
+      "org.apache.iceberg.gcp.auth.GoogleAuthManager";
 
   public static final String BASIC_USERNAME = "rest.auth.basic.username";
   public static final String BASIC_PASSWORD = "rest.auth.basic.password";

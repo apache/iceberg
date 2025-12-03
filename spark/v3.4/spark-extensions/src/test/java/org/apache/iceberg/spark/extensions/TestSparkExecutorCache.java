@@ -38,6 +38,8 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -67,12 +69,13 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.storage.memory.MemoryStore;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSparkExecutorCache extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSparkExecutorCache extends ExtensionsTestBase {
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
@@ -99,31 +102,26 @@ public class TestSparkExecutorCache extends SparkExtensionsTestBase {
   private String targetTableName;
   private TableIdentifier targetTableIdent;
 
-  public TestSparkExecutorCache(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void configureTargetTableName() {
     String name = "target_exec_cache_" + JOB_COUNTER.incrementAndGet();
     this.targetTableName = tableName(name);
     this.targetTableIdent = TableIdentifier.of(Namespace.of("default"), name);
   }
 
-  @After
+  @AfterEach
   public void releaseResources() {
     sql("DROP TABLE IF EXISTS %s", targetTableName);
     sql("DROP TABLE IF EXISTS %s", UPDATES_VIEW_NAME);
     INPUT_FILES.clear();
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDelete() throws Exception {
     checkDelete(COPY_ON_WRITE);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDelete() throws Exception {
     checkDelete(MERGE_ON_READ);
   }
@@ -148,12 +146,12 @@ public class TestSparkExecutorCache extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteUpdate() throws Exception {
     checkUpdate(COPY_ON_WRITE);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadUpdate() throws Exception {
     checkUpdate(MERGE_ON_READ);
   }
@@ -181,12 +179,12 @@ public class TestSparkExecutorCache extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteMerge() throws Exception {
     checkMerge(COPY_ON_WRITE);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadMerge() throws Exception {
     checkMerge(MERGE_ON_READ);
   }
@@ -282,13 +280,13 @@ public class TestSparkExecutorCache extends SparkExtensionsTestBase {
       deletes.add(delete.copy(col, value));
     }
 
-    OutputFile out = Files.localOutput(temp.newFile("eq-deletes-" + UUID.randomUUID()));
+    OutputFile out = Files.localOutput(new File(temp.toFile(), "eq-deletes-" + UUID.randomUUID()));
     return FileHelpers.writeDeleteFile(table, out, null, deletes, deleteSchema);
   }
 
   private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
       Table table, List<Pair<CharSequence, Long>> deletes) throws IOException {
-    OutputFile out = Files.localOutput(temp.newFile("pos-deletes-" + UUID.randomUUID()));
+    OutputFile out = Files.localOutput(new File(temp.toFile(), "pos-deletes-" + UUID.randomUUID()));
     return FileHelpers.writeDeleteFile(table, out, null, deletes);
   }
 
@@ -362,5 +360,139 @@ public class TestSparkExecutorCache extends SparkExtensionsTestBase {
     public boolean exists() {
       return delegate.exists();
     }
+  }
+
+  @TestTemplate
+  public void testCopyOnWriteDeleteWithDeleteFileCacheDisabled() {
+    checkDeleteWithDeleteFilesCacheDisabled(COPY_ON_WRITE);
+  }
+
+  @TestTemplate
+  public void testMergeOnReadDeleteWithDeleteFileCacheDisabled() {
+    checkDeleteWithDeleteFilesCacheDisabled(MERGE_ON_READ);
+  }
+
+  private void checkDeleteWithDeleteFilesCacheDisabled(RowLevelOperationMode mode) {
+    withSQLConf(
+        ImmutableMap.of(
+            "spark.sql.iceberg.executor-cache.enabled", "true",
+            "spark.sql.iceberg.executor-cache.delete-files.enabled", "false"),
+        () -> {
+          try {
+            List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.DELETE_MODE, mode);
+
+            sql("DELETE FROM %s WHERE id = 1 OR id = 4", targetTableName);
+
+            // When cache is disabled, delete files should be opened multiple times
+            // The cached CoW test has a maximum of 3 scans, so we expect more than that when
+            // disabled.
+            // The cached MoR test has a maximum of 1 scan, so we expect more than that when
+            // disabled.
+            int expectedMinStreamCount = mode == COPY_ON_WRITE ? 4 : 2;
+            assertThat(deleteFiles)
+                .allMatch(deleteFile -> streamCount(deleteFile) >= expectedMinStreamCount);
+
+            assertEquals(
+                "Should have expected rows",
+                ImmutableList.of(),
+                sql("SELECT * FROM %s ORDER BY id ASC", targetTableName));
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        });
+  }
+
+  @TestTemplate
+  public void testCopyOnWriteUpdateWithDeleteFilesCacheDisabled() throws Exception {
+    checkUpdateWithDeleteFilesCacheDisabled(COPY_ON_WRITE);
+  }
+
+  @TestTemplate
+  public void testMergeOnReadUpdateWithDeleteFilesCacheDisabled() throws Exception {
+    checkUpdateWithDeleteFilesCacheDisabled(MERGE_ON_READ);
+  }
+
+  private void checkUpdateWithDeleteFilesCacheDisabled(RowLevelOperationMode mode)
+      throws Exception {
+    withSQLConf(
+        ImmutableMap.of(
+            "spark.sql.iceberg.executor-cache.enabled", "true",
+            "spark.sql.iceberg.executor-cache.delete-files.enabled", "false"),
+        () -> {
+          try {
+            List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.UPDATE_MODE, mode);
+
+            Dataset<Integer> updateDS = spark.createDataset(ImmutableList.of(1, 4), Encoders.INT());
+            updateDS.createOrReplaceTempView(UPDATES_VIEW_NAME);
+
+            sql(
+                "UPDATE %s SET id = -1 WHERE id IN (SELECT * FROM %s)",
+                targetTableName, UPDATES_VIEW_NAME);
+
+            // When cache is disabled, delete files should be opened multiple times
+            // Both CoW and MoR should open delete files at least 2 times without caching
+            int expectedMinStreamCount = 2;
+            assertThat(deleteFiles)
+                .allMatch(deleteFile -> streamCount(deleteFile) >= expectedMinStreamCount);
+
+            assertEquals(
+                "Should have expected rows",
+                ImmutableList.of(row(-1, "hr"), row(-1, "hr")),
+                sql("SELECT * FROM %s", targetTableName));
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        });
+  }
+
+  @TestTemplate
+  public void testCopyOnWriteMergeWithDeleteFilesCacheDisabled() throws Exception {
+    checkMergeWithDeleteFilesCacheDisabled(COPY_ON_WRITE);
+  }
+
+  @TestTemplate
+  public void testMergeOnReadMergeWithDeleteFilesCacheDisabled() throws Exception {
+    checkMergeWithDeleteFilesCacheDisabled(MERGE_ON_READ);
+  }
+
+  private void checkMergeWithDeleteFilesCacheDisabled(RowLevelOperationMode mode) throws Exception {
+    withSQLConf(
+        ImmutableMap.of(
+            "spark.sql.iceberg.executor-cache.enabled", "true",
+            "spark.sql.iceberg.executor-cache.delete-files.enabled", "false"),
+        () -> {
+          try {
+            List<DeleteFile> deleteFiles = createAndInitTable(TableProperties.MERGE_MODE, mode);
+
+            Dataset<Integer> updateDS = spark.createDataset(ImmutableList.of(1, 4), Encoders.INT());
+            updateDS.createOrReplaceTempView(UPDATES_VIEW_NAME);
+
+            sql(
+                "MERGE INTO %s t USING %s s "
+                    + "ON t.id == s.value "
+                    + "WHEN MATCHED THEN "
+                    + "  UPDATE SET id = 100 "
+                    + "WHEN NOT MATCHED THEN "
+                    + "  INSERT (id, dep) VALUES (-1, 'unknown')",
+                targetTableName, UPDATES_VIEW_NAME);
+
+            // When the cache is disabled, delete files are opened more often because each Spark
+            // task reads them.
+            // The cached CoW MERGE test allows up to 3 scans, so we require at least 4 to confirm
+            // the cache is disabled.
+            // For MoR MERGE, the cached test allows 1 scan, so we require at least 2 to confirm the
+            // cache is disabled.
+            int expectedMinStreamCount = mode == COPY_ON_WRITE ? 4 : 2;
+            assertThat(deleteFiles)
+                .allMatch(deleteFile -> streamCount(deleteFile) >= expectedMinStreamCount);
+
+            assertEquals(
+                "Should have expected rows",
+                ImmutableList.of(row(100, "hr"), row(100, "hr")),
+                sql("SELECT * FROM %s", targetTableName));
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        });
   }
 }

@@ -42,9 +42,13 @@ public class TestViewMetadata {
   }
 
   private ViewVersion newViewVersion(int id, int schemaId, String sql) {
+    return newViewVersion(id, schemaId, System.currentTimeMillis(), sql);
+  }
+
+  private ViewVersion newViewVersion(int id, int schemaId, long timestampMillis, String sql) {
     return ImmutableViewVersion.builder()
         .versionId(id)
-        .timestampMillis(System.currentTimeMillis())
+        .timestampMillis(timestampMillis)
         .defaultCatalog("prod")
         .defaultNamespace(Namespace.of("default"))
         .putSummary("user", "some-user")
@@ -394,6 +398,70 @@ public class TestViewMetadata {
     assertThatThrownBy(() -> ViewMetadata.buildFrom(view).setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set current version to unknown version: 1");
+  }
+
+  @Test
+  public void versionHistoryEntryMaintainCorrectTimeline() {
+    ViewVersion viewVersionOne = newViewVersion(1, 0, 1000, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(2, 0, 2000, "select count(*) from ns.tbl");
+    ViewVersion viewVersionThree =
+        newViewVersion(3, 0, 3000, "select count(*) as count from ns.tbl");
+
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(viewVersionOne)
+            .addVersion(viewVersionTwo)
+            .setCurrentVersionId(1)
+            .build();
+
+    // setting an existing view version as the new current should update the timestamp in the
+    // history
+    ViewMetadata updated = ViewMetadata.buildFrom(viewMetadata).setCurrentVersionId(2).build();
+
+    List<ViewHistoryEntry> history = updated.history();
+    assertThat(history)
+        .hasSize(2)
+        .element(0)
+        .isEqualTo(ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(1000).build());
+    assertThat(history)
+        .element(1)
+        .satisfies(
+            v -> {
+              assertThat(v.versionId()).isEqualTo(2);
+              assertThat(v.timestampMillis())
+                  .isGreaterThan(3000)
+                  .isLessThanOrEqualTo(System.currentTimeMillis());
+            });
+
+    // adding a new view version and setting it as current should use the view version's timestamp
+    // in the history (which has been set to a fixed value for testing)
+    updated =
+        ViewMetadata.buildFrom(updated).addVersion(viewVersionThree).setCurrentVersionId(3).build();
+    List<ViewHistoryEntry> historyTwo = updated.history();
+    assertThat(historyTwo)
+        .hasSize(3)
+        .containsAll(history)
+        .element(2)
+        .isEqualTo(ImmutableViewHistoryEntry.builder().versionId(3).timestampMillis(3000).build());
+
+    // setting an older view version as the new current (aka doing a rollback) should update the
+    // timestamp in the history
+    ViewMetadata reactiveOldViewVersion =
+        ViewMetadata.buildFrom(updated).setCurrentVersionId(1).build();
+    List<ViewHistoryEntry> historyThree = reactiveOldViewVersion.history();
+    assertThat(historyThree)
+        .hasSize(4)
+        .containsAll(historyTwo)
+        .element(3)
+        .satisfies(
+            v -> {
+              assertThat(v.versionId()).isEqualTo(1);
+              assertThat(v.timestampMillis())
+                  .isGreaterThan(3000)
+                  .isLessThanOrEqualTo(System.currentTimeMillis());
+            });
   }
 
   @Test
@@ -905,6 +973,26 @@ public class TestViewMetadata {
                     .build())
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot set last added schema: no schema has been added");
+  }
+
+  @Test
+  public void deduplicatingViewVersionByIdAndAssigningSchemaId() {
+    ViewVersion viewVersion = newViewVersion(1, 0, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(2, 1, "select x from ns.tbl");
+    ViewVersion viewVersionThree = newViewVersion(2, -1, "select count(*) from ns.tbl");
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addSchema(new Schema(Types.NestedField.required(2, "y", Types.LongType.get())))
+            .addVersion(viewVersion)
+            .addVersion(viewVersionTwo)
+            .addVersion(viewVersionThree)
+            .setCurrentVersionId(3)
+            .build();
+    assertThat(metadata.versions()).hasSize(3);
+    assertThat(metadata.currentVersion().versionId()).isEqualTo(3);
+    assertThat(metadata.currentVersion().schemaId()).isEqualTo(1);
   }
 
   @Test

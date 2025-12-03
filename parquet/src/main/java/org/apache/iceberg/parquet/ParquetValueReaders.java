@@ -29,6 +29,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -161,6 +164,25 @@ public class ParquetValueReaders {
     return new PositionReader();
   }
 
+  @SuppressWarnings("unchecked")
+  public static ParquetValueReader<Long> rowIds(Long baseRowId, ParquetValueReader<?> idReader) {
+    if (baseRowId != null) {
+      return new RowIdReader(baseRowId, (ParquetValueReader<Long>) idReader);
+    } else {
+      return ParquetValueReaders.nulls();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  public static ParquetValueReader<Long> lastUpdated(
+      Long baseRowId, Long fileLastUpdated, ParquetValueReader<?> seqReader) {
+    if (fileLastUpdated != null && baseRowId != null) {
+      return new LastUpdatedSeqReader(fileLastUpdated, (ParquetValueReader<Long>) seqReader);
+    } else {
+      return ParquetValueReaders.nulls();
+    }
+  }
+
   public static ParquetValueReader<UUID> uuids(ColumnDescriptor desc) {
     return new UUIDReader(desc);
   }
@@ -169,9 +191,40 @@ public class ParquetValueReaders {
     return new TimestampInt96Reader(desc);
   }
 
+  @SuppressWarnings("unchecked")
+  public static <T extends StructLike> ParquetValueReader<T> structLikeReader(
+      List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structClass) {
+    if (structClass.equals(Record.class)) {
+      return ((ParquetValueReader<T>) recordReader(readers, struct));
+    } else {
+      return new StructLikeReader<>(readers, struct, structClass);
+    }
+  }
+
   public static ParquetValueReader<Record> recordReader(
       List<ParquetValueReader<?>> readers, Types.StructType struct) {
     return new RecordReader(readers, struct);
+  }
+
+  public static ParquetValueReader<?> replaceWithMetadataReader(
+      int id, ParquetValueReader<?> reader, Map<Integer, ?> idToConstant, int constantDL) {
+    if (id == MetadataColumns.ROW_ID.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(id);
+      return ParquetValueReaders.rowIds(baseRowId, reader);
+    } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+      Long baseRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
+      Long fileSeqNumber = (Long) idToConstant.get(id);
+      return ParquetValueReaders.lastUpdated(baseRowId, fileSeqNumber, reader);
+    } else if (idToConstant.containsKey(id)) {
+      // containsKey is used because the constant may be null
+      return ParquetValueReaders.constant(idToConstant.get(id), constantDL);
+    } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+      return ParquetValueReaders.position();
+    } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
+      return ParquetValueReaders.constant(false, constantDL);
+    }
+
+    return reader;
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -237,36 +290,9 @@ public class ParquetValueReaders {
       this.children = NullReader.COLUMNS;
     }
 
-    ConstantReader(C constantValue, int definitionLevel) {
+    ConstantReader(C constantValue, int parentDl) {
       this.constantValue = constantValue;
-      this.column =
-          new TripleIterator<Object>() {
-            @Override
-            public int currentDefinitionLevel() {
-              return definitionLevel;
-            }
-
-            @Override
-            public int currentRepetitionLevel() {
-              return 0;
-            }
-
-            @Override
-            public <N> N nextNull() {
-              return null;
-            }
-
-            @Override
-            public boolean hasNext() {
-              return false;
-            }
-
-            @Override
-            public Object next() {
-              return null;
-            }
-          };
-
+      this.column = new ConstantDLColumn<>(parentDl);
       this.children = ImmutableList.of(column);
     }
 
@@ -287,6 +313,39 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore) {}
+
+    private static class ConstantDLColumn<T> implements TripleIterator<T> {
+      private final int definitionLevel;
+
+      private ConstantDLColumn(int definitionLevel) {
+        this.definitionLevel = definitionLevel;
+      }
+
+      @Override
+      public int currentDefinitionLevel() {
+        return definitionLevel;
+      }
+
+      @Override
+      public int currentRepetitionLevel() {
+        return 0;
+      }
+
+      @Override
+      public <N> N nextNull() {
+        return null;
+      }
+
+      @Override
+      public boolean hasNext() {
+        return false;
+      }
+
+      @Override
+      public T next() {
+        return null;
+      }
+    }
   }
 
   private static class PositionReader implements ParquetValueReader<Long> {
@@ -319,6 +378,81 @@ public class ParquetValueReaders {
                       new IllegalArgumentException(
                           "PageReadStore does not contain row index offset"));
       this.rowOffset = -1;
+    }
+  }
+
+  private static class RowIdReader implements ParquetValueReader<Long> {
+    private final long firstRowId;
+    private final ParquetValueReader<Long> idReader;
+    private final ParquetValueReader<Long> posReader;
+
+    private RowIdReader(long firstRowId, ParquetValueReader<Long> idReader) {
+      this.firstRowId = firstRowId;
+      this.idReader = idReader != null ? idReader : nulls();
+      this.posReader = position();
+    }
+
+    @Override
+    public Long read(Long reuse) {
+      // always call the position reader to keep the position accurate
+      long pos = posReader.read(null);
+      Long idFromFile = idReader.read(null);
+      if (idFromFile != null) {
+        return idFromFile;
+      }
+
+      return firstRowId + pos;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return idReader.column();
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return idReader.columns();
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      idReader.setPageSource(pageStore);
+      posReader.setPageSource(pageStore);
+    }
+  }
+
+  private static class LastUpdatedSeqReader implements ParquetValueReader<Long> {
+    private final long fileLastUpdated;
+    private final ParquetValueReader<Long> seqReader;
+
+    private LastUpdatedSeqReader(long fileLastUpdated, ParquetValueReader<Long> seqReader) {
+      this.fileLastUpdated = fileLastUpdated;
+      this.seqReader = seqReader != null ? seqReader : nulls();
+    }
+
+    @Override
+    public Long read(Long reuse) {
+      Long rowLastUpdated = seqReader.read(null);
+      if (rowLastUpdated != null) {
+        return rowLastUpdated;
+      }
+
+      return fileLastUpdated;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return seqReader.column();
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return seqReader.columns();
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      seqReader.setPageSource(pageStore);
     }
   }
 
@@ -1007,6 +1141,46 @@ public class ParquetValueReaders {
         }
       }
       return NullReader.NULL_COLUMN;
+    }
+  }
+
+  private static class StructLikeReader<T extends StructLike> extends StructReader<T, T> {
+    private final Types.StructType struct;
+    private final DynConstructors.Ctor<T> ctor;
+
+    StructLikeReader(
+        List<ParquetValueReader<?>> readers, Types.StructType struct, Class<T> structLikeClass) {
+      super(readers);
+      this.struct = struct;
+      this.ctor =
+          DynConstructors.builder(StructLike.class)
+              .hiddenImpl(structLikeClass, Types.StructType.class)
+              .hiddenImpl(structLikeClass)
+              .build();
+    }
+
+    @Override
+    protected T newStructData(T reuse) {
+      if (reuse != null) {
+        return reuse;
+      } else {
+        return ctor.newInstance(struct);
+      }
+    }
+
+    @Override
+    protected Object getField(T intermediate, int pos) {
+      return intermediate.get(pos, Object.class);
+    }
+
+    @Override
+    protected T buildStruct(T s) {
+      return s;
+    }
+
+    @Override
+    protected void set(T s, int pos, Object value) {
+      s.set(pos, value);
     }
   }
 

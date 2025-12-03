@@ -21,6 +21,10 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -29,9 +33,25 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
+  private final StandardEncryptionManager standardEncryptionManager;
+  private final NativeEncryptionKeyMetadata manifestListKeyMetadata;
+  private final OutputFile outputFile;
 
-  private ManifestListWriter(OutputFile file, Map<String, String> meta) {
-    this.writer = newAppender(file, meta);
+  private ManifestListWriter(
+      OutputFile file, EncryptionManager encryptionManager, Map<String, String> meta) {
+    if (encryptionManager instanceof StandardEncryptionManager) {
+      // ability to encrypt the manifest list key is introduced for standard encryption.
+      this.standardEncryptionManager = (StandardEncryptionManager) encryptionManager;
+      EncryptedOutputFile encryptedFile = this.standardEncryptionManager.encrypt(file);
+      this.outputFile = encryptedFile.encryptingOutputFile();
+      this.manifestListKeyMetadata = (NativeEncryptionKeyMetadata) encryptedFile.keyMetadata();
+    } else {
+      this.standardEncryptionManager = null;
+      this.outputFile = file;
+      this.manifestListKeyMetadata = null;
+    }
+
+    this.writer = newAppender(outputFile, meta);
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
@@ -69,23 +89,117 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return writer.length();
   }
 
-  static class V3Writer extends ManifestListWriter {
-    private final V3Metadata.ManifestFileWrapper wrapper;
+  public Long nextRowId() {
+    return null;
+  }
 
-    V3Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+  public ManifestListFile toManifestListFile() {
+    if (manifestListKeyMetadata != null && manifestListKeyMetadata.encryptionKey() != null) {
+      String manifestListKeyID =
+          standardEncryptionManager.addManifestListKeyMetadata(
+              manifestListKeyMetadata.copyWithLength(writer.length()));
+      return new BaseManifestListFile(outputFile.location(), manifestListKeyID);
+    } else {
+      return new BaseManifestListFile(outputFile.location(), null);
+    }
+  }
+
+  static class V4Writer extends ManifestListWriter {
+    private final V4Metadata.ManifestFileWrapper wrapper;
+    private Long nextRowId;
+
+    V4Writer(
+        OutputFile snapshotFile,
+        EncryptionManager encryptionManager,
+        long snapshotId,
+        Long parentSnapshotId,
+        long sequenceNumber,
+        long firstRowId) {
       super(
           snapshotFile,
+          encryptionManager,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
               "sequence-number", String.valueOf(sequenceNumber),
-              "format-version", "3"));
-      this.wrapper = new V3Metadata.ManifestFileWrapper(snapshotId, sequenceNumber);
+              "first-row-id", String.valueOf(firstRowId),
+              "format-version", "4"));
+      this.wrapper = new V4Metadata.ManifestFileWrapper(snapshotId, sequenceNumber);
+      this.nextRowId = firstRowId;
     }
 
     @Override
     protected ManifestFile prepare(ManifestFile manifest) {
-      return wrapper.wrap(manifest);
+      if (manifest.content() != ManifestContent.DATA || manifest.firstRowId() != null) {
+        return wrapper.wrap(manifest, null);
+      } else {
+        // assign first-row-id and update the next to assign
+        wrapper.wrap(manifest, nextRowId);
+        // leave space for existing and added rows, in case any of the existing data files do not
+        // have an assigned first-row-id (this is the case with manifests from pre-v3 snapshots)
+        this.nextRowId += manifest.existingRowsCount() + manifest.addedRowsCount();
+        return wrapper;
+      }
+    }
+
+    @Override
+    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+      try {
+        return InternalData.write(FileFormat.AVRO, file)
+            .schema(V4Metadata.MANIFEST_LIST_SCHEMA)
+            .named("manifest_file")
+            .meta(meta)
+            .overwrite()
+            .build();
+
+      } catch (IOException e) {
+        throw new RuntimeIOException(
+            e, "Failed to create snapshot list writer for path: %s", file.location());
+      }
+    }
+
+    @Override
+    public Long nextRowId() {
+      return nextRowId;
+    }
+  }
+
+  static class V3Writer extends ManifestListWriter {
+    private final V3Metadata.ManifestFileWrapper wrapper;
+    private Long nextRowId;
+
+    V3Writer(
+        OutputFile snapshotFile,
+        EncryptionManager encryptionManager,
+        long snapshotId,
+        Long parentSnapshotId,
+        long sequenceNumber,
+        long firstRowId) {
+      super(
+          snapshotFile,
+          encryptionManager,
+          ImmutableMap.of(
+              "snapshot-id", String.valueOf(snapshotId),
+              "parent-snapshot-id", String.valueOf(parentSnapshotId),
+              "sequence-number", String.valueOf(sequenceNumber),
+              "first-row-id", String.valueOf(firstRowId),
+              "format-version", "3"));
+      this.wrapper = new V3Metadata.ManifestFileWrapper(snapshotId, sequenceNumber);
+      this.nextRowId = firstRowId;
+    }
+
+    @Override
+    protected ManifestFile prepare(ManifestFile manifest) {
+      if (manifest.content() != ManifestContent.DATA || manifest.firstRowId() != null) {
+        return wrapper.wrap(manifest, null);
+      } else {
+        // assign first-row-id and update the next to assign
+        wrapper.wrap(manifest, nextRowId);
+        // leave space for existing and added rows, in case any of the existing data files do not
+        // have an assigned first-row-id (this is the case with manifests from pre-v3 snapshots)
+        this.nextRowId += manifest.existingRowsCount() + manifest.addedRowsCount();
+        return wrapper;
+      }
     }
 
     @Override
@@ -99,17 +213,29 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .build();
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
+        throw new RuntimeIOException(
+            e, "Failed to create snapshot list writer for path: %s", file.location());
       }
+    }
+
+    @Override
+    public Long nextRowId() {
+      return nextRowId;
     }
   }
 
   static class V2Writer extends ManifestListWriter {
     private final V2Metadata.ManifestFileWrapper wrapper;
 
-    V2Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+    V2Writer(
+        OutputFile snapshotFile,
+        EncryptionManager encryptionManager,
+        long snapshotId,
+        Long parentSnapshotId,
+        long sequenceNumber) {
       super(
           snapshotFile,
+          encryptionManager,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
@@ -134,7 +260,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .build();
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
+        throw new RuntimeIOException(
+            e, "Failed to create snapshot list writer for path: %s", file.location());
       }
     }
   }
@@ -142,9 +269,14 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   static class V1Writer extends ManifestListWriter {
     private final V1Metadata.ManifestFileWrapper wrapper = new V1Metadata.ManifestFileWrapper();
 
-    V1Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
+    V1Writer(
+        OutputFile snapshotFile,
+        EncryptionManager encryptionManager,
+        long snapshotId,
+        Long parentSnapshotId) {
       super(
           snapshotFile,
+          encryptionManager,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
@@ -170,7 +302,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .build();
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
+        throw new RuntimeIOException(
+            e, "Failed to create snapshot list writer for path: %s", file.location());
       }
     }
   }

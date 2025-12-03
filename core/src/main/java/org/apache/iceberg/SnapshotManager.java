@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class SnapshotManager implements ManageSnapshots {
@@ -26,11 +27,12 @@ public class SnapshotManager implements ManageSnapshots {
   private final BaseTransaction transaction;
   private UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation;
 
-  SnapshotManager(String tableName, TableOperations ops) {
+  SnapshotManager(String tableName, TableOperations ops, MetricsReporter reporter) {
     Preconditions.checkState(
         ops.current() != null, "Cannot manage snapshots: table %s does not exist", tableName);
     this.transaction =
-        new BaseTransaction(tableName, ops, BaseTransaction.TransactionType.SIMPLE, ops.refresh());
+        new BaseTransaction(
+            tableName, ops, BaseTransaction.TransactionType.SIMPLE, ops.refresh(), reporter);
     this.isExternalTransaction = false;
   }
 

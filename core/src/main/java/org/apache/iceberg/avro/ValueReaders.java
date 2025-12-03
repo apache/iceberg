@@ -228,50 +228,112 @@ public class ValueReaders {
       Map<Integer, ?> idToConstant,
       BiFunction<Type, Object, Object> convert) {
     Map<Integer, Integer> idToPos = idToPos(expected);
-
     List<Pair<Integer, ValueReader<?>>> readPlan = Lists.newArrayList();
-    List<Schema.Field> fileFields = record.getFields();
-    for (int pos = 0; pos < fileFields.size(); pos += 1) {
+    addFileFieldReadersToPlan(readPlan, record.getFields(), fieldReaders, idToPos, idToConstant);
+    addMissingFileReadersToPlan(readPlan, idToPos, expected, idToConstant, convert);
+    return readPlan;
+  }
+
+  private static void addFileFieldReadersToPlan(
+      List<Pair<Integer, ValueReader<?>>> readPlan,
+      List<Schema.Field> fileFields,
+      List<ValueReader<?>> fieldReaders,
+      Map<Integer, Integer> idToPos,
+      Map<Integer, ?> idToConstant) {
+    for (int pos = 0; pos < fileFields.size(); pos++) {
       Schema.Field field = fileFields.get(pos);
       ValueReader<?> fieldReader = fieldReaders.get(pos);
       Integer fieldId = AvroSchemaUtil.fieldId(field);
       Integer projectionPos = idToPos.remove(fieldId);
+      readPlan.add(fileFieldReader(fieldId, projectionPos, fieldReader, idToConstant));
+    }
+  }
 
-      Object constant = idToConstant.get(fieldId);
-      if (projectionPos != null && constant != null) {
-        readPlan.add(
-            Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant)));
-      } else {
-        readPlan.add(Pair.of(projectionPos, fieldReader));
-      }
+  private static Pair<Integer, ValueReader<?>> fileFieldReader(
+      Integer fieldId,
+      Integer projectionPos,
+      ValueReader<?> fieldReader,
+      Map<Integer, ?> idToConstant) {
+    if (Objects.equals(fieldId, MetadataColumns.ROW_ID.fieldId())) {
+      Long firstRowId = (Long) idToConstant.get(fieldId);
+      return Pair.of(projectionPos, ValueReaders.rowIds(firstRowId, fieldReader));
+    } else if (Objects.equals(fieldId, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId())) {
+      Long firstRowId = (Long) idToConstant.get(MetadataColumns.ROW_ID.fieldId());
+      Long fileSeqNumber = (Long) idToConstant.get(fieldId);
+      return Pair.of(
+          projectionPos, ValueReaders.lastUpdated(firstRowId, fileSeqNumber, fieldReader));
+    } else {
+      return fieldReader(fieldId, projectionPos, fieldReader, idToConstant);
+    }
+  }
+
+  private static Pair<Integer, ValueReader<?>> fieldReader(
+      Integer fieldId,
+      Integer projectionPos,
+      ValueReader<?> fieldReader,
+      Map<Integer, ?> idToConstant) {
+    Object constant = idToConstant.get(fieldId);
+    if (projectionPos != null && constant != null) {
+      return Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant));
     }
 
-    // handle any expected columns that are not in the data file
+    return Pair.of(projectionPos, fieldReader);
+  }
+
+  // Handles expected fields not found in data file
+  private static void addMissingFileReadersToPlan(
+      List<Pair<Integer, ValueReader<?>>> readPlan,
+      Map<Integer, Integer> idToPos,
+      Types.StructType expected,
+      Map<Integer, ?> idToConstant,
+      BiFunction<Type, Object, Object> convert) {
     for (Map.Entry<Integer, Integer> idAndPos : idToPos.entrySet()) {
       int fieldId = idAndPos.getKey();
       int pos = idAndPos.getValue();
+      readPlan.add(
+          Pair.of(pos, createMissingFieldReader(fieldId, expected, idToConstant, convert)));
+    }
+  }
 
-      Object constant = idToConstant.get(fieldId);
-      Types.NestedField field = expected.field(fieldId);
-      if (constant != null) {
-        readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
-      } else if (field.initialDefault() != null) {
-        readPlan.add(
-            Pair.of(
-                pos, ValueReaders.constant(convert.apply(field.type(), field.initialDefault()))));
-      } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
-        readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
-      } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
-        readPlan.add(Pair.of(pos, ValueReaders.positions()));
-      } else if (field.isOptional()) {
-        readPlan.add(Pair.of(pos, ValueReaders.constant(null)));
-      } else {
-        throw new IllegalArgumentException(
-            String.format("Missing required field: %s", field.name()));
-      }
+  // Creates reader for missing field based on default/constant rules
+  private static ValueReader<?> createMissingFieldReader(
+      int fieldId,
+      Types.StructType expected,
+      Map<Integer, ?> idToConstant,
+      BiFunction<Type, Object, Object> convert) {
+    Object constant = idToConstant.get(fieldId);
+    Types.NestedField field = expected.field(fieldId);
+
+    if (constant != null) {
+      return ValueReaders.constant(constant);
+    } else if (field.initialDefault() != null) {
+      return ValueReaders.constant(convert.apply(field.type(), field.initialDefault()));
+    } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
+      return ValueReaders.constant(false);
+    } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
+      return ValueReaders.positions();
+    } else if (field.isOptional()) {
+      return ValueReaders.constant(null);
     }
 
-    return readPlan;
+    throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
+  }
+
+  public static ValueReader<Long> rowIds(Long baseRowId, ValueReader<?> idReader) {
+    if (baseRowId != null) {
+      return new RowIdReader(baseRowId, (ValueReader<Long>) idReader);
+    } else {
+      return ValueReaders.constant(null);
+    }
+  }
+
+  public static ValueReader<Long> lastUpdated(
+      Long baseRowId, Long fileSeqNumber, ValueReader<?> seqReader) {
+    if (fileSeqNumber != null && baseRowId != null) {
+      return new LastUpdatedSeqReader(fileSeqNumber, (ValueReader<Long>) seqReader);
+    } else {
+      return ValueReaders.constant(null);
+    }
   }
 
   private static Map<Integer, Integer> idToPos(Types.StructType struct) {
@@ -1233,6 +1295,66 @@ public class ValueReaders {
     @Override
     public void setRowPositionSupplier(Supplier<Long> posSupplier) {
       this.currentPosition = posSupplier.get() - 1;
+    }
+  }
+
+  static class RowIdReader implements ValueReader<Long>, SupportsRowPosition {
+    private final long firstRowId;
+    private final ValueReader<Long> idReader;
+    private final ValueReader<Long> posReader;
+
+    RowIdReader(Long firstRowId, ValueReader<Long> idReader) {
+      this.firstRowId = firstRowId;
+      this.idReader = idReader != null ? idReader : ValueReaders.constant(null);
+      this.posReader = positions();
+    }
+
+    @Override
+    public Long read(Decoder ignored, Object reuse) throws IOException {
+      Long idFromFile = idReader.read(ignored, reuse);
+      long pos = posReader.read(ignored, reuse);
+
+      if (idFromFile != null) {
+        return idFromFile;
+      }
+
+      return firstRowId + pos;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      idReader.skip(decoder);
+      posReader.skip(decoder);
+    }
+
+    @Override
+    public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+      ((SupportsRowPosition) posReader).setRowPositionSupplier(posSupplier);
+    }
+  }
+
+  static class LastUpdatedSeqReader implements ValueReader<Long> {
+    private final long fileSeqNumber;
+    private final ValueReader<Long> seqReader;
+
+    LastUpdatedSeqReader(long fileSeqNumber, ValueReader<Long> seqReader) {
+      this.fileSeqNumber = fileSeqNumber;
+      this.seqReader = seqReader;
+    }
+
+    @Override
+    public Long read(Decoder ignored, Object reuse) throws IOException {
+      Long rowLastUpdatedSeqNumber = seqReader.read(ignored, reuse);
+      if (rowLastUpdatedSeqNumber != null) {
+        return rowLastUpdatedSeqNumber;
+      }
+
+      return fileSeqNumber;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      seqReader.skip(decoder);
     }
   }
 }

@@ -249,9 +249,17 @@ public interface ViewMetadata extends Serializable {
         changes.add(new MetadataUpdate.SetCurrentViewVersion(newVersionId));
       }
 
+      // Use the timestamp from the view version if it was added in current set of changes.
+      // Otherwise, use the current system time. This handles cases where the view version
+      // was set as current in the past and is being re-activated.
+      boolean versionAddedInThisChange =
+          changes(MetadataUpdate.AddViewVersion.class)
+              .anyMatch(added -> added.viewVersion().versionId() == newVersionId);
+
       this.historyEntry =
           ImmutableViewHistoryEntry.builder()
-              .timestampMillis(version.timestampMillis())
+              .timestampMillis(
+                  versionAddedInThisChange ? version.timestampMillis() : System.currentTimeMillis())
               .versionId(version.versionId())
               .build();
 
@@ -285,11 +293,10 @@ public interface ViewMetadata extends Serializable {
         return newVersionId;
       }
 
-      if (newVersion.schemaId() == LAST_ADDED) {
+      if (version.schemaId() == LAST_ADDED) {
         ValidationException.check(
             lastAddedSchemaId != null, "Cannot set last added schema: no schema has been added");
-        version =
-            ImmutableViewVersion.builder().from(newVersion).schemaId(lastAddedSchemaId).build();
+        version = ImmutableViewVersion.builder().from(version).schemaId(lastAddedSchemaId).build();
       }
 
       Preconditions.checkArgument(

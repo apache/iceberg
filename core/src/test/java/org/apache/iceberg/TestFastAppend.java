@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -39,10 +38,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFastAppend extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testAddManyFiles() {
@@ -384,50 +379,6 @@ public class TestFastAppend extends TestBase {
     } else {
       assertThat(new File(newManifest.path())).exists();
     }
-  }
-
-  @TestTemplate
-  public void testRecoveryWithManifestList() {
-    table.updateProperties().set(TableProperties.MANIFEST_LISTS_ENABLED, "true").commit();
-
-    // inject 3 failures, the last try will succeed
-    TestTables.TestTableOperations ops = table.ops();
-    ops.failCommits(3);
-
-    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
-    Snapshot pending = append.apply();
-    ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
-    assertThat(new File(newManifest.path())).exists();
-
-    append.commit();
-
-    TableMetadata metadata = readMetadata();
-
-    validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
-    assertThat(new File(newManifest.path())).exists();
-    assertThat(metadata.currentSnapshot().allManifests(FILE_IO)).contains(newManifest);
-  }
-
-  @TestTemplate
-  public void testRecoveryWithoutManifestList() {
-    table.updateProperties().set(TableProperties.MANIFEST_LISTS_ENABLED, "false").commit();
-
-    // inject 3 failures, the last try will succeed
-    TestTables.TestTableOperations ops = table.ops();
-    ops.failCommits(3);
-
-    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
-    Snapshot pending = append.apply();
-    ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
-    assertThat(new File(newManifest.path())).exists();
-
-    append.commit();
-
-    TableMetadata metadata = readMetadata();
-
-    validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
-    assertThat(new File(newManifest.path())).exists();
-    assertThat(metadata.currentSnapshot().allManifests(FILE_IO)).contains(newManifest);
   }
 
   @TestTemplate

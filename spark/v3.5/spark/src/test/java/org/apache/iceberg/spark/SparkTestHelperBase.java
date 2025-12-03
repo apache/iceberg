@@ -57,16 +57,13 @@ public class SparkTestHelperBase {
   protected void assertEquals(
       String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
     assertThat(actualRows)
-        .as(context + ": number of results should match")
+        .as("%s: number of results should match", context)
         .hasSameSizeAs(expectedRows);
     for (int row = 0; row < expectedRows.size(); row += 1) {
       Object[] expected = expectedRows.get(row);
       Object[] actual = actualRows.get(row);
       assertThat(actual).as("Number of columns should match").hasSameSizeAs(expected);
-      for (int col = 0; col < actualRows.get(row).length; col += 1) {
-        String newContext = String.format("%s: row %d col %d", context, row + 1, col + 1);
-        assertEquals(newContext, expected, actual);
-      }
+      assertEquals(context + ": row " + (row + 1), expected, actual);
     }
   }
 
@@ -83,7 +80,7 @@ public class SparkTestHelperBase {
           assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
         }
       } else if (expectedValue != ANY) {
-        assertThat(actualValue).as(context + " contents should match").isEqualTo(expectedValue);
+        assertThat(actualValue).as("%s contents should match", context).isEqualTo(expectedValue);
       }
     }
   }

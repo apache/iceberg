@@ -21,10 +21,7 @@ package org.apache.iceberg.hive;
 import static java.util.Collections.emptySet;
 
 import java.util.Collections;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -93,6 +90,10 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
 
     try {
       table = metaClients.run(client -> client.getTable(database, viewName));
+
+      // Check if we are trying to load an Iceberg Table as a View
+      HiveOperationsBase.validateIcebergTableNotLoadedAsIcebergView(table, fullName);
+      // Check if it is a valid Iceberg View
       HiveOperationsBase.validateTableIsIcebergView(table, fullName);
 
       metadataLocation =
@@ -175,9 +176,13 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
                 .filter(key -> !metadata.properties().containsKey(key))
                 .collect(Collectors.toSet());
       }
-
-      setHmsTableParameters(newMetadataLocation, tbl, metadata, removedProps);
-
+      HMSTablePropertyHelper.updateHmsTableForIcebergView(
+          newMetadataLocation,
+          tbl,
+          metadata,
+          removedProps,
+          maxHiveTablePropertySize,
+          currentMetadataLocation());
       lock.ensureActive();
 
       try {
@@ -271,36 +276,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
   private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     ViewMetadata metadata = refresh();
     return newMetadataLocation.equals(metadata.metadataFileLocation());
-  }
-
-  private void setHmsTableParameters(
-      String newMetadataLocation, Table tbl, ViewMetadata metadata, Set<String> obsoleteProps) {
-    Map<String, String> parameters =
-        Optional.ofNullable(tbl.getParameters()).orElseGet(Maps::newHashMap);
-
-    // push all Iceberg view properties into HMS
-    metadata.properties().entrySet().stream()
-        .filter(entry -> !entry.getKey().equalsIgnoreCase(HiveCatalog.HMS_TABLE_OWNER))
-        .forEach(entry -> parameters.put(entry.getKey(), entry.getValue()));
-    if (metadata.uuid() != null) {
-      parameters.put("uuid", metadata.uuid());
-    }
-
-    // remove any props from HMS that are no longer present in Iceberg view props
-    obsoleteProps.forEach(parameters::remove);
-
-    parameters.put(
-        BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-        ICEBERG_VIEW_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
-    parameters.put(BaseMetastoreTableOperations.METADATA_LOCATION_PROP, newMetadataLocation);
-
-    if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
-      parameters.put(
-          BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
-    }
-
-    setSchema(metadata.schema(), parameters);
-    tbl.setParameters(parameters);
   }
 
   private static boolean hiveLockEnabled(Configuration conf) {

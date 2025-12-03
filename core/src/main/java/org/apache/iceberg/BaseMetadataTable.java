@@ -80,7 +80,10 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Ser
       int newFieldId = reassignedFields.getOrDefault(field.fieldId(), field.fieldId());
       builder.add(newFieldId, newFieldId, field.name(), Transforms.identity());
     }
-    return builder.build();
+
+    // Enable allowMissingFields for allowing the spec to have missing
+    // source fields in void partition fields
+    return builder.build(true);
   }
 
   /**

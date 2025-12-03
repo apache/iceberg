@@ -41,6 +41,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.ReachableFileUtil;
@@ -52,7 +53,6 @@ import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.data.TestHelpers;
@@ -66,7 +66,9 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
 
   @AfterEach
@@ -140,7 +142,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
                 + "table => '%s',"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
-    assertThat(output3).as("Should be no more orphan files in the data folder").hasSize(0);
+    assertThat(output3).as("Should be no more orphan files in the data folder").isEmpty();
 
     assertEquals(
         "Should have expected rows",
@@ -200,7 +202,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
                 + "table => '%s',"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
-    assertThat(output3).as("Should be no more orphan files").hasSize(0);
+    assertThat(output3).as("Should be no more orphan files").isEmpty();
 
     assertEquals(
         "Should have expected rows",
@@ -270,7 +272,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot handle an empty identifier for argument table");
+        .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
 
   @TestTemplate
@@ -322,7 +324,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
                 + "max_concurrent_deletes => %s,"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, 4, currentTimestamp);
-    assertThat(output3).as("Should be no more orphan files in the data folder").hasSize(0);
+    assertThat(output3).as("Should be no more orphan files in the data folder").isEmpty();
 
     assertEquals(
         "Should have expected rows",
@@ -425,7 +427,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
                 + "table => '%s',"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
-    assertThat(output).as("Should be no orphan files").hasSize(0);
+    assertThat(output).as("Should be no orphan files").isEmpty();
 
     FileSystem localFs = FileSystem.getLocal(new Configuration());
     assertThat(localFs.exists(deleteManifestPath))
@@ -497,8 +499,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
             catalogName, tableIdent, currentTimestamp);
     assertThat(output).as("Should be no orphan files").isEmpty();
 
-    assertThat(statsLocation).exists();
-    assertThat(statsLocation).hasSize(statisticsFile.fileSizeInBytes());
+    assertThat(statsLocation).exists().hasSize(statisticsFile.fileSizeInBytes());
 
     transaction = table.newTransaction();
     transaction.updateStatistics().removeStatistics(statisticsFile.snapshotId()).commit();
@@ -510,10 +511,10 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
                 + "table => '%s',"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
-    assertThat(output).as("Should be orphan files").hasSize(1);
-    assertThat(Iterables.getOnlyElement(output))
-        .as("Deleted files")
-        .containsExactly(statsLocation.toURI().toString());
+    assertThat(output)
+        .hasSize(1)
+        .first()
+        .satisfies(files -> assertThat(files).containsExactly(statsLocation.toURI().toString()));
     assertThat(statsLocation).doesNotExist();
   }
 
@@ -555,10 +556,10 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
                 + "table => '%s',"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
-    assertThat(output).as("Should be orphan files").hasSize(1);
-    assertThat(Iterables.getOnlyElement(output))
-        .as("Deleted files")
-        .containsExactly("file:" + partitionStatsLocation);
+    assertThat(output)
+        .hasSize(1)
+        .first()
+        .satisfies(files -> assertThat(files).containsExactly("file:" + partitionStatsLocation));
     assertThat(new File(partitionStatsLocation))
         .as("partition stats file should be deleted")
         .doesNotExist();

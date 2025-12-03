@@ -56,6 +56,7 @@ class SparkBatch implements Batch {
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
+  private final boolean cacheDeleteFilesOnExecutors;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -76,6 +77,7 @@ class SparkBatch implements Batch {
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
+    this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
   }
 
   @Override
@@ -97,7 +99,8 @@ class SparkBatch implements Batch {
               branch,
               expectedSchemaString,
               caseSensitive,
-              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE);
+              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
+              cacheDeleteFilesOnExecutors);
     }
 
     return partitions;
@@ -141,7 +144,7 @@ class SparkBatch implements Batch {
   }
 
   private OrcBatchReadConf orcBatchReadConf() {
-    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
+    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.orcBatchSize()).build();
   }
 
   // conditions for using Parquet batch reads:
@@ -180,7 +183,10 @@ class SparkBatch implements Batch {
   }
 
   private boolean supportsCometBatchReads(Types.NestedField field) {
-    return field.type().isPrimitiveType() && !field.type().typeId().equals(Type.TypeID.UUID);
+    return field.type().isPrimitiveType()
+        && !field.type().typeId().equals(Type.TypeID.UUID)
+        && field.fieldId() != MetadataColumns.ROW_ID.fieldId()
+        && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
   }
 
   // conditions for using ORC batch reads:

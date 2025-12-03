@@ -34,7 +34,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.DataTestHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
@@ -52,7 +52,7 @@ import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.junit.jupiter.api.Test;
 
-public class TestGenericData extends DataTest {
+public class TestGenericData extends DataTestBase {
   @Override
   protected boolean supportsVariant() {
     return true;
@@ -122,8 +122,7 @@ public class TestGenericData extends DataTest {
       record4.setField("tsTzCol", OffsetDateTime.parse("1935-05-16T17:10:34-08:00"));
       record4.setField("tsCol", LocalDateTime.parse("1935-05-01T00:01:00"));
 
-      File testFile = File.createTempFile("junit", null, temp.toFile());
-      assertThat(testFile.delete()).isTrue();
+      File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
       try (FileAppender<Record> writer =
           ORC.write(Files.localOutput(testFile))
@@ -191,8 +190,7 @@ public class TestGenericData extends DataTest {
 
   @Test
   public void writeAndValidateExternalData() throws IOException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     Configuration conf = new Configuration();
     TypeDescription writerSchema =
@@ -236,8 +234,7 @@ public class TestGenericData extends DataTest {
   }
 
   private void writeAndValidateRecords(Schema schema, List<Record> expected) throws IOException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
+    File testFile = temp.resolve("test-file" + System.nanoTime()).toFile();
 
     try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))

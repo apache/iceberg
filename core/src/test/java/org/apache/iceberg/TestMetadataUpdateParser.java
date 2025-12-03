@@ -25,16 +25,22 @@ import static org.assertj.core.api.Assertions.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.encryption.BaseEncryptedKey;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
@@ -376,7 +382,8 @@ public class TestMetadataUpdateParser {
             schemaId,
             manifestList,
             firstRowId,
-            addedRows);
+            addedRows,
+            "key-1");
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
@@ -408,29 +415,52 @@ public class TestMetadataUpdateParser {
             schemaId,
             manifestList,
             lastRowId,
-            addedRows);
+            addedRows,
+            "key-1");
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
+  /** RemoveSnapshot * */
+  @Test
+  public void testRemoveSnapshotFromJson() {
+    String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
+    long snapshotId = 2L;
+    String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
+    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshots(snapshotId);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+  }
+
+  @Test
+  public void testRemoveSnapshotToJson() {
+    String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
+    long snapshotId = 2L;
+    String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
+    MetadataUpdate update = new MetadataUpdate.RemoveSnapshots(snapshotId);
+    String actual = MetadataUpdateParser.toJson(update);
+    assertThat(actual)
+        .as("Remove snapshots should serialize to the correct JSON value")
+        .isEqualTo(expected);
+  }
+
   /** RemoveSnapshots * */
   @Test
   public void testRemoveSnapshotsFromJson() {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
-    long snapshotId = 2L;
-    String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
-    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshot(snapshotId);
+    Set<Long> snapshotIds = Sets.newHashSet(2L, 3L);
+    String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2,3]}", action);
+    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshots(snapshotIds);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
   @Test
   public void testRemoveSnapshotsToJson() {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
-    long snapshotId = 2L;
-    String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
-    MetadataUpdate update = new MetadataUpdate.RemoveSnapshot(snapshotId);
+    Set<Long> snapshotIds = Sets.newHashSet(2L, 3L);
+    String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2,3]}", action);
+    MetadataUpdate update = new MetadataUpdate.RemoveSnapshots(snapshotIds);
     String actual = MetadataUpdateParser.toJson(update);
     assertThat(actual)
         .as("Remove snapshots should serialize to the correct JSON value")
@@ -942,13 +972,31 @@ public class TestMetadataUpdateParser {
   }
 
   @Test
-  public void testEnableRowLineage() {
-    String action = MetadataUpdateParser.ENABLE_ROW_LINEAGE;
-    String json = "{\"action\":\"enable-row-lineage\"}";
-    MetadataUpdate expected = new MetadataUpdate.EnableRowLineage();
+  public void testAddEncryptionKey() {
+    byte[] keyBytes = "key".getBytes(StandardCharsets.UTF_8);
+    String encodedKey = Base64.getEncoder().encodeToString(keyBytes);
+    String action = MetadataUpdateParser.ADD_ENCRYPTION_KEY;
+    String json =
+        "{\"action\":\"add-encryption-key\",\"encryption-key\":{\"key-id\":\"a\",\"encrypted-key-metadata\":\""
+            + encodedKey
+            + "\",\"encrypted-by-id\":\"b\"}}";
+    MetadataUpdate expected =
+        new MetadataUpdate.AddEncryptionKey(
+            new BaseEncryptedKey("a", ByteBuffer.wrap(keyBytes), "b", Map.of()));
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
     assertThat(MetadataUpdateParser.toJson(expected))
-        .as("Enable row lineage should convert to the correct JSON value")
+        .as("AddEncryptionKey should convert to the correct JSON value")
+        .isEqualTo(json);
+  }
+
+  @Test
+  public void testRemoveEncryptionKey() {
+    String action = MetadataUpdateParser.REMOVE_ENCRYPTION_KEY;
+    String json = "{\"action\":\"remove-encryption-key\",\"key-id\":\"a\"}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveEncryptionKey("a");
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("AddEncryptionKey should convert to the correct JSON value")
         .isEqualTo(json);
   }
 
@@ -1019,8 +1067,8 @@ public class TestMetadataUpdateParser {
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOTS:
         assertEqualsRemoveSnapshots(
-            (MetadataUpdate.RemoveSnapshot) expectedUpdate,
-            (MetadataUpdate.RemoveSnapshot) actualUpdate);
+            (MetadataUpdate.RemoveSnapshots) expectedUpdate,
+            (MetadataUpdate.RemoveSnapshots) actualUpdate);
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOT_REF:
         assertEqualsRemoveSnapshotRef(
@@ -1066,8 +1114,15 @@ public class TestMetadataUpdateParser {
             (MetadataUpdate.RemoveSchemas) expectedUpdate,
             (MetadataUpdate.RemoveSchemas) actualUpdate);
         break;
-      case MetadataUpdateParser.ENABLE_ROW_LINEAGE:
-        assertThat(actualUpdate).isInstanceOf(MetadataUpdate.EnableRowLineage.class);
+      case MetadataUpdateParser.ADD_ENCRYPTION_KEY:
+        assertEqualsAddEncryptionKey(
+            (MetadataUpdate.AddEncryptionKey) expectedUpdate,
+            (MetadataUpdate.AddEncryptionKey) actualUpdate);
+        break;
+      case MetadataUpdateParser.REMOVE_ENCRYPTION_KEY:
+        assertEqualsRemoveEncryptionKey(
+            (MetadataUpdate.RemoveEncryptionKey) expectedUpdate,
+            (MetadataUpdate.RemoveEncryptionKey) actualUpdate);
         break;
       default:
         fail("Unrecognized metadata update action: " + action);
@@ -1225,10 +1280,10 @@ public class TestMetadataUpdateParser {
   }
 
   private static void assertEqualsRemoveSnapshots(
-      MetadataUpdate.RemoveSnapshot expected, MetadataUpdate.RemoveSnapshot actual) {
-    assertThat(actual.snapshotId())
+      MetadataUpdate.RemoveSnapshots expected, MetadataUpdate.RemoveSnapshots actual) {
+    assertThat(actual.snapshotIds())
         .as("Snapshots to remove should be the same")
-        .isEqualTo(expected.snapshotId());
+        .isEqualTo(expected.snapshotIds());
   }
 
   private static void assertEqualsSetSnapshotRef(
@@ -1300,10 +1355,23 @@ public class TestMetadataUpdateParser {
     assertThat(actual.schemaIds()).containsExactlyInAnyOrderElementsOf(expected.schemaIds());
   }
 
+  private static void assertEqualsAddEncryptionKey(
+      MetadataUpdate.AddEncryptionKey expected, MetadataUpdate.AddEncryptionKey actual) {
+    assertThat(actual.key().keyId()).isEqualTo(expected.key().keyId());
+    assertThat(actual.key().encryptedKeyMetadata())
+        .isEqualTo(expected.key().encryptedKeyMetadata());
+    assertThat(actual.key().encryptedById()).isEqualTo(expected.key().encryptedById());
+    assertThat(actual.key().properties()).isEqualTo(expected.key().properties());
+  }
+
+  private void assertEqualsRemoveEncryptionKey(
+      MetadataUpdate.RemoveEncryptionKey expected, MetadataUpdate.RemoveEncryptionKey actual) {
+    assertThat(actual.keyId()).isEqualTo(expected.keyId());
+  }
+
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
       throws IOException {
-    File manifestList = File.createTempFile("manifests", null, temp.toFile());
-    manifestList.deleteOnExit();
+    File manifestList = temp.resolve("manifests" + System.nanoTime()).toFile();
 
     List<ManifestFile> manifests =
         ImmutableList.of(
@@ -1311,7 +1379,14 @@ public class TestMetadataUpdateParser {
             new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
 
     try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+        ManifestLists.write(
+            1,
+            Files.localOutput(manifestList),
+            PlaintextEncryptionManager.instance(),
+            snapshotId,
+            parentSnapshotId,
+            0,
+            0L)) {
       writer.addAll(manifests);
     }
 

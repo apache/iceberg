@@ -232,7 +232,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public ManageSnapshots manageSnapshots() {
-    return new SnapshotManager(name, ops);
+    return new SnapshotManager(name, ops, reporter);
   }
 
   @Override

@@ -25,6 +25,7 @@ import java.util.NoSuchElementException;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.FileReader;
+import org.apache.avro.file.SeekableInput;
 import org.apache.avro.io.DatumReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
@@ -66,7 +67,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       try (DataFileReader<D> reader = newFileReader()) {
         initMetadata(reader);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read metadata for file: %s", file);
+        throw new RuntimeIOException(e, "Failed to read metadata for file: %s", file.location());
       }
     }
     return metadata;
@@ -97,11 +98,19 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
   }
 
   private DataFileReader<D> newFileReader() {
+    SeekableInput stream = null;
     try {
-      return (DataFileReader<D>)
-          DataFileReader.openReader(AvroIO.stream(file.newStream(), file.getLength()), reader);
+      stream = AvroIO.stream(file.newStream(), file.getLength());
+      return (DataFileReader<D>) DataFileReader.openReader(stream, reader);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to open file: %s", file);
+      if (stream != null) {
+        try {
+          stream.close();
+        } catch (IOException closeException) {
+          // Ignore close exception
+        }
+      }
+      throw new RuntimeIOException(e, "Failed to open file: %s", file.location());
     }
   }
 

@@ -24,41 +24,20 @@ Iceberg supports reading and writing Iceberg tables through [Hive](https://hive.
 a [StorageHandler](https://cwiki.apache.org/confluence/display/Hive/StorageHandlers).
 
 ## Feature support
-The following features matrix illustrates the support for different features across Hive releases for Iceberg tables - 
 
-| Feature support                                                 | Hive 2 / 3 | Hive 4 |
-|-----------------------------------------------------------------|------------|--------|
-| [SQL create table](#create-table)                               | ✔️          | ✔️      |
-| [SQL create table as select (CTAS)](#create-table-as-select)    | ✔️          | ✔️      |
-| [SQL create table like table (CTLT)](#create-table-like-table)  | ✔️          | ✔️      |
-| [SQL drop table](#drop-table)                                   | ✔️          | ✔️      |
-| [SQL insert into](#insert-into)                                 | ✔️          | ✔️      |
-| [SQL insert overwrite](#insert-overwrite)                       | ✔️          | ✔️      |
-| [SQL delete from](#delete-from)                                 |            | ✔️      |
-| [SQL update](#update)                                           |            | ✔️      |
-| [SQL merge into](#merge-into)                                   |            | ✔️      |
-| [Branches and tags](#branches-and-tags)                         |            | ✔️      |
+Hive supports the following features with Hive version 4.0.0 and above:
 
-Iceberg compatibility with Hive 2.x and Hive 3.1.2/3 supports the following features:
-
-* Creating a table
-* Dropping a table
-* Reading a table
-* Inserting into a table (INSERT INTO)
-
-!!! warning
-    DML operations work only with MapReduce execution engine.
-
-Hive supports the following additional features with Hive version 4.0.0 and above:
-
-* Creating an Iceberg identity-partitioned table
-* Creating an Iceberg table with any partition spec, including the various transforms supported by Iceberg
-* Creating a table from an existing table (CTAS table)
-* Altering a table while keeping Iceberg and Hive schemas in sync
-* Altering the partition schema (updating columns)
-* Altering the partition schema by specifying partition transforms
+* Creating an Iceberg table.
+* Creating an Iceberg identity-partitioned table.
+* Creating an Iceberg table with any partition spec, including the various transforms supported by Iceberg.
+* Creating a table from an existing table (CTAS table).
+* Dropping a table.
+* Altering a table while keeping Iceberg and Hive schemas in sync.
+* Altering the partition schema (updating columns).
+* Altering the partition schema by specifying partition transforms.
 * Truncating a table / partition, dropping a partition.
-* Migrating tables in Avro, Parquet, or ORC (Non-ACID) format to Iceberg
+* Migrating tables in Avro, Parquet, or ORC (Non-ACID) format to Iceberg.
+* Reading an Iceberg table.
 * Reading the schema of a table.
 * Querying Iceberg metadata tables.
 * Time travel applications.
@@ -66,11 +45,11 @@ Hive supports the following additional features with Hive version 4.0.0 and abov
 * Inserting data overwriting existing data (INSERT OVERWRITE) in a table / partition.
 * Copy-on-write support for delete, update and merge queries, CRUD support for Iceberg V1 tables.
 * Altering a table with expiring snapshots.
-* Create a table like an existing table (CTLT table)
-* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration)
+* Create a table like an existing table (CTLT table).
+* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration).
 * Altering a table metadata location.
 * Supporting table rollback.
-* Honors sort orders on existing tables when writing a table [Sort orders specification](../../spec.md#sort-orders)
+* Honors sort orders on existing tables when writing a table [Sort orders specification](../../spec.md#sort-orders).
 * Creating, writing to and dropping an Iceberg branch / tag.
 * Allowing expire snapshots by Snapshot ID, by time range, by retention of last N snapshots and using table properties.
 * Set current snapshot using snapshot ID for an Iceberg table.
@@ -86,31 +65,19 @@ Hive supports the following additional features with Hive version 4.0.0 and abov
 !!! warning
     DML operations work only with Tez execution engine.
 
-
 ## Enabling Iceberg support in Hive
 
-Hive 4 comes with `hive-iceberg` that ships Iceberg, so no additional downloads or jars are needed. For older versions of Hive a runtime jar has to be added.
+Starting from 1.8.0 Iceberg doesn't release Hive runtime connector. For Hive query engine integration (specifically
+with Hive 2.x and 3.x) use Hive runtime connector coming with Iceberg 1.6.1, or use Hive 4.0.0 or later
+which is released with embedded Iceberg integration.
+
+### Hive 4.1.x
+
+Hive 4.1.x comes with Iceberg 1.9.1 included.
 
 ### Hive 4.0.x
 
 Hive 4.0.x comes with Iceberg 1.4.3 included.
-
-### Hive 2.3.x, Hive 3.1.x
-
-In order to use Hive 2.3.x or Hive 3.1.x, you must load the Iceberg-Hive runtime jar and enable Iceberg support, either globally or for an individual table using a table property.
-
-#### Loading runtime jar
-
-To enable Iceberg support in Hive, the `HiveIcebergStorageHandler` and supporting classes need to be made available on
-Hive's classpath. These are provided by the `iceberg-hive-runtime` jar file. For example, if using the Hive shell, this
-can be achieved by issuing a statement like so:
-
-```
-add jar /path/to/iceberg-hive-runtime.jar;
-```
-
-There are many others ways to achieve this including adding the jar file to Hive's auxiliary classpath so it is
-available by default. Please refer to Hive's documentation for more information.
 
 #### Enabling support
 
@@ -126,9 +93,6 @@ To enable Hive support globally for an application, set `iceberg.engine.hive.ena
 For example, setting this in the `hive-site.xml` loaded by Spark will enable the storage handler for all tables created
 by Spark.
 
-!!! danger
-    Starting with Apache Iceberg `0.11.0`, when using Hive with Tez you also have to disable vectorization (`hive.vectorized.execution.enabled=false`).
-
 ##### Table property configuration
 
 Alternatively, the property `engine.hive.enabled` can be set to `true` and added to the table properties when creating
@@ -143,18 +107,11 @@ Catalog catalog=...;
 
 The table level configuration overrides the global Hadoop configuration.
 
-##### Hive on Tez configuration
-
-To use the Tez engine on Hive `3.1.2` or later, Tez needs to be upgraded to >= `0.10.1` which contains a necessary fix [TEZ-4248](https://issues.apache.org/jira/browse/TEZ-4248).
-
-To use the Tez engine on Hive `2.3.x`, you will need to manually build Tez from the `branch-0.9` branch due to a
-backwards incompatibility issue with Tez `0.10.1`.
-
-In both cases, you will also need to set the following property in the `tez-site.xml` configuration file: `tez.mrreader.config.update.properties=hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids`.
-
 ## Catalog Management
 
 ### Global Hive catalog
+
+HiveCatalog integration supports Hive 2.3.10 or 3.1.3 or later.
 
 From the Hive engine's perspective, there is only one global data catalog that is defined in the Hadoop configuration in
 the runtime environment. In contrast, Iceberg supports multiple different data catalog types such as Hive, Hadoop, AWS
@@ -212,12 +169,6 @@ SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 ```
 
 ## DDL Commands
-
-Not all the features below are supported with Hive 2.3.x and Hive 3.1.x. Please refer to the
-[Feature support](#feature-support) paragraph for further details.
-
-One generally applicable difference is that Hive 4 provides the possibility to use
-`STORED BY ICEBERG` instead of the old `STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'`
 
 ### CREATE TABLE
 
@@ -302,7 +253,6 @@ The supported transformations for Hive are the same as for Spark:
 !!! info
     The resulting table does not create partitions in HMS, but instead, converts partition data into Iceberg partitions.
 
-
 ### CREATE TABLE AS SELECT
 
 `CREATE TABLE AS SELECT` operation resembles the native Hive operation with a single important difference.
@@ -319,11 +269,11 @@ CREATE TABLE target PARTITIONED BY SPEC (year(year_field), identity_field) STORE
 ```sql
 CREATE TABLE target LIKE source STORED BY ICEBERG;
 ```
- 
+
 ### CREATE EXTERNAL TABLE overlaying an existing Iceberg table
 
 The `CREATE EXTERNAL TABLE` command is used to overlay a Hive table "on top of" an existing Iceberg table. Iceberg
-tables are created using either a [`Catalog`](../../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/catalog/Catalog.html), or an implementation of the [`Tables`](../../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/Tables.html) interface, and Hive needs to be configured accordingly to operate on these different types of table.
+tables are created using either a [`Catalog`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/catalog/Catalog.html), or an implementation of the [`Tables`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/Tables.html) interface, and Hive needs to be configured accordingly to operate on these different types of table.
 
 #### Hive catalog tables
 
@@ -394,7 +344,7 @@ TBLPROPERTIES ('iceberg.catalog'='hadoop_cat');
 ### ALTER TABLE
 #### Table properties
 For HiveCatalog tables the Iceberg table properties and the Hive table properties stored in HMS are kept in sync.
-    
+  
 !!! info
     IMPORTANT: This feature is not available for other Catalog implementations.
 
@@ -435,9 +385,9 @@ ALTER TABLE orders REPLACE COLUMNS (remaining string);
     Note, that dropping columns is only thing REPLACE COLUMNS can be used for
     i.e. if columns are specified out-of-order an error will be thrown signalling this limitation.
 
-
 #### Partition evolution
 You change the partitioning schema using the following commands:
+
 * Change the partitioning schema to new identity partitions:
 ```sql
 ALTER TABLE default.customers SET PARTITION SPEC (last_name);
@@ -446,6 +396,7 @@ ALTER TABLE default.customers SET PARTITION SPEC (last_name);
 ```sql
 ALTER TABLE order SET PARTITION SPEC (month(ts));
 ```
+
 #### Table migration
 You can migrate Avro / Parquet / ORC external tables to Iceberg tables using the following command:
 ```sql
@@ -580,8 +531,8 @@ DROP TABLE [IF EXISTS] table_name [PURGE];
 
 ### METADATA LOCATION
 
-The metadata location (snapshot location) only can be changed if the new path contains the exact same metadata json. 
-It can be done only after migrating the table to Iceberg, the two operation cannot be done in one step. 
+The metadata location (snapshot location) only can be changed if the new path contains the exact same metadata json.
+It can be done only after migrating the table to Iceberg, the two operation cannot be done in one step.
 
 ```sql
 ALTER TABLE t set TBLPROPERTIES ('metadata_location'='<path>/hivemetadata/00003-a1ada2b8-fc86-4b5b-8c91-400b6b46d0f2.metadata.json');
@@ -601,14 +552,12 @@ Here are the features highlights for Iceberg Hive read support:
 
 1. **Predicate pushdown**: Pushdown of the Hive SQL `WHERE` clause has been implemented so that these filters are used at the Iceberg `TableScan` level as well as by the Parquet and ORC Readers.
 2. **Column projection**: Columns from the Hive SQL `SELECT` clause are projected down to the Iceberg readers to reduce the number of columns read.
-3. **Hive query engines**:
-   - With Hive 2.3.x, 3.1.x, both the MapReduce and Tez query execution engines are supported.
-   - With Hive 4.x, the Tez query execution engine is supported.
+3. **Hive query engines**: With Hive 4.x, the Tez query execution engine is supported.
 
 Some of the advanced / little used optimizations are not yet implemented for Iceberg tables, so you should check your individual queries.
 Also currently the statistics stored in the MetaStore are used for query planning. This is something we are planning to improve in the future.
 
-Hive 4 supports select operations on branches which also work similar to the table level select operations. However, the branch must be provided as follows - 
+Hive 4 supports select operations on branches which also work similar to the table level select operations. However, the branch must be provided as follows -
 ```sql
 -- Branches should be specified as <database_name>.<table_name>.branch_<branch_name>
 SELECT * FROM default.test.branch_branch1;

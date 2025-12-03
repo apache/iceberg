@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
@@ -31,12 +32,39 @@ public class DataTestHelpers {
   private DataTestHelpers() {}
 
   public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
+    assertEquals(struct, expected, actual, null, -1);
+  }
+
+  public static void assertEquals(
+      Types.StructType struct,
+      Record expected,
+      Record actual,
+      Map<Integer, Object> idToConstant,
+      int pos) {
     Types.StructType expectedType = expected.struct();
     for (Types.NestedField field : struct.fields()) {
       Types.NestedField expectedField = expectedType.field(field.fieldId());
+      Object expectedValue;
       if (expectedField != null) {
-        assertEquals(
-            field.type(), expected.getField(expectedField.name()), actual.getField(field.name()));
+        int id = expectedField.fieldId();
+        if (id == MetadataColumns.ROW_ID.fieldId()) {
+          expectedValue = expected.getField(expectedField.name());
+          if (expectedValue == null && idToConstant != null) {
+            expectedValue = (Long) idToConstant.get(id) + pos;
+          }
+
+        } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+          expectedValue = expected.getField(expectedField.name());
+          if (expectedValue == null && idToConstant != null) {
+            expectedValue = idToConstant.get(id);
+          }
+
+        } else {
+          expectedValue = expected.getField(expectedField.name());
+        }
+
+        assertEquals(field.type(), expectedValue, actual.getField(field.name()));
+
       } else {
         assertEquals(
             field.type(),

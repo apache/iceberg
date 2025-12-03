@@ -23,8 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -37,11 +35,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestManifestReaderStats extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
-
   private static final Map<Integer, Long> VALUE_COUNT = ImmutableMap.of(3, 3L);
   private static final Map<Integer, Long> NULL_VALUE_COUNTS = ImmutableMap.of(3, 0L);
   private static final Map<Integer, Long> NAN_VALUE_COUNTS = ImmutableMap.of(3, 1L);
@@ -161,7 +154,7 @@ public class TestManifestReaderStats extends TestBase {
       assertThat(entry.nanValueCounts()).isNull();
       assertThat(entry.lowerBounds()).isNull();
       assertThat(entry.upperBounds()).isNull();
-      assertNullRecordCount(entry);
+      assertThat(entry.recordCount()).isEqualTo(FILE.recordCount());
     }
   }
 
@@ -184,7 +177,7 @@ public class TestManifestReaderStats extends TestBase {
       assertThat(dataFile.nanValueCounts()).isNull();
       assertThat(dataFile.lowerBounds()).isNull();
       assertThat(dataFile.upperBounds()).isNull();
-      assertNullRecordCount(dataFile);
+      assertThat(dataFile.recordCount()).isEqualTo(FILE.recordCount());
     }
   }
 
@@ -206,7 +199,7 @@ public class TestManifestReaderStats extends TestBase {
       assertThat(dataFile.nanValueCounts()).isNull();
       assertThat(dataFile.lowerBounds()).isNull();
       assertThat(dataFile.upperBounds()).isNull();
-      assertNullRecordCount(dataFile);
+      assertThat(dataFile.recordCount()).isEqualTo(FILE.recordCount());
     }
   }
 
@@ -271,12 +264,5 @@ public class TestManifestReaderStats extends TestBase {
 
     assertThat(dataFile.location())
         .isEqualTo(FILE_PATH); // always select file path in all test cases
-  }
-
-  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
-  private void assertNullRecordCount(DataFile dataFile) {
-    // record count is a primitive type, accessing null record count will throw NPE
-    // no check on the underlying error msg as it might be missing based on the JDK version
-    assertThatThrownBy(dataFile::recordCount).isInstanceOf(NullPointerException.class);
   }
 }

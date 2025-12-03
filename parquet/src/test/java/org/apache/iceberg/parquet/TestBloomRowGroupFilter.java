@@ -190,14 +190,12 @@ public class TestBloomRowGroupFilter {
 
   @BeforeEach
   public void createInputFile() throws IOException {
-
-    assertThat(temp.delete()).isTrue();
-
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
     String compatibleFieldName = "_incompatible_x2Dname";
 
-    OutputFile outFile = Files.localOutput(temp);
+    File file = new File(temp, "test" + System.nanoTime() + ".parquet");
+    OutputFile outFile = Files.localOutput(file);
     try (FileAppender<Record> appender =
         Parquet.write(outFile)
             .schema(FILE_SCHEMA)
@@ -269,7 +267,7 @@ public class TestBloomRowGroupFilter {
       }
     }
 
-    InputFile inFile = Files.localInput(temp);
+    InputFile inFile = Files.localInput(file);
 
     ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile));
 
@@ -299,9 +297,7 @@ public class TestBloomRowGroupFilter {
     shouldRead =
         new ParquetBloomRowGroupFilter(SCHEMA, notNull("struct_not_null.int_field"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-    assertThat(shouldRead)
-        .as("Should read: this field is required and are always not-null")
-        .isTrue();
+    assertThat(shouldRead).as("Should read: bloom filter doesn't help").isTrue();
   }
 
   @Test
@@ -325,8 +321,8 @@ public class TestBloomRowGroupFilter {
         new ParquetBloomRowGroupFilter(SCHEMA, isNull("struct_not_null.int_field"))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead)
-        .as("Should skip: this field is required and are always not-null")
-        .isFalse();
+        .as("Should read: required nested field can still be null if any ancestor is optional")
+        .isTrue();
   }
 
   @Test

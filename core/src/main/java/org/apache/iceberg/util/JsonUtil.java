@@ -189,6 +189,24 @@ public class JsonUtil {
     return getString(property, node);
   }
 
+  public static String getDurationStringOrNull(String property, JsonNode node) {
+    String value = getStringOrNull(property, node);
+    if (value == null) {
+      return null;
+    }
+
+    try {
+      java.time.Duration.parse(value);
+    } catch (RuntimeException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot parse to a duration string value: %s: %s", property, node.get(property)),
+          e);
+    }
+
+    return value;
+  }
+
   public static ByteBuffer getByteBufferOrNull(String property, JsonNode node) {
     if (!node.has(property) || node.get(property).isNull()) {
       return null;
@@ -199,6 +217,14 @@ public class JsonUtil {
         pNode.isTextual(), "Cannot parse byte buffer from non-text value: %s: %s", property, pNode);
     return ByteBuffer.wrap(
         BaseEncoding.base16().decode(pNode.textValue().toUpperCase(Locale.ROOT)));
+  }
+
+  public static Map<String, String> getStringMapOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+
+    return getStringMap(property, node);
   }
 
   public static Map<String, String> getStringMap(String property, JsonNode node) {
@@ -339,11 +365,61 @@ public class JsonUtil {
     }
   }
 
+  public static void writeIntegerFieldIfPresent(String key, Integer value, JsonGenerator generator)
+      throws IOException {
+    writeIntegerFieldIf(value != null, key, value, generator);
+  }
+
   public static void writeLongFieldIf(
       boolean condition, String key, Long value, JsonGenerator generator) throws IOException {
     if (condition) {
       generator.writeNumberField(key, value);
     }
+  }
+
+  public static void writeLongFieldIfPresent(String key, Long value, JsonGenerator generator)
+      throws IOException {
+    writeLongFieldIf(value != null, key, value, generator);
+  }
+
+  public static void writeStringFieldIfPresent(String key, String value, JsonGenerator generator)
+      throws IOException {
+    writeStringFieldIf(value != null, key, value, generator);
+  }
+
+  private static void writeStringFieldIf(
+      boolean condition, String key, String value, JsonGenerator generator) throws IOException {
+    if (condition) {
+      generator.writeStringField(key, value);
+    }
+  }
+
+  public static <T> List<T> getObjectListOrNull(
+      String property, JsonNode node, FromJson<T> fromJson) {
+    if (!node.has(property)) {
+      return null;
+    }
+
+    return getObjectList(property, node, fromJson);
+  }
+
+  public static <T> List<T> getObjectList(String property, JsonNode node, FromJson<T> fromJson) {
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing list: %s", property);
+    Iterator<T> iter =
+        new JsonArrayIterator<>(property, node) {
+          @Override
+          T convert(JsonNode element) {
+            return fromJson.parse(element);
+          }
+
+          @Override
+          void validate(JsonNode element) {
+            Preconditions.checkArgument(
+                element.isObject(), "Cannot parse object from non-object value: %s", element);
+          }
+        };
+
+    return ImmutableList.copyOf(iter);
   }
 
   abstract static class JsonArrayIterator<T> implements Iterator<T> {

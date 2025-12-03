@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -54,6 +56,7 @@ import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -62,9 +65,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -101,12 +106,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
-  private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
-  private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
-  // for backwards compatibility with older REST servers where it can be assumed that a particular
-  // server supports view endpoints but doesn't send the "endpoints" field in the ConfigResponse
-  static final String VIEW_ENDPOINTS_SUPPORTED = "view-endpoints-supported";
-  public static final String REST_PAGE_SIZE = "rest-page-size";
+
+  /**
+   * @deprecated will be removed in 2.0.0. Use {@link
+   *     org.apache.iceberg.rest.RESTCatalogProperties#PAGE_SIZE} instead.
+   */
+  @Deprecated public static final String REST_PAGE_SIZE = "rest-page-size";
 
   // these default endpoints must not be updated in order to maintain backwards compatibility with
   // legacy servers
@@ -156,17 +161,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
 
-  enum SnapshotMode {
-    ALL,
-    REFS;
-
-    Map<String, String> params() {
-      return ImmutableMap.of("snapshots", this.name().toLowerCase(Locale.US));
-    }
-  }
-
   public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build(), null);
+    this(
+        config ->
+            HTTPClient.builder(config)
+                .uri(config.get(CatalogProperties.URI))
+                .withHeaders(RESTUtil.configHeaders(config))
+                .build(),
+        null);
   }
 
   public RESTSessionCatalog(
@@ -185,7 +187,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     // catalog service
     Map<String, String> props = EnvironmentUtil.resolveAll(unresolved);
 
+    this.closeables = new CloseableGroup();
+
     this.authManager = AuthManagers.loadAuthManager(name, props);
+    this.closeables.addCloseable(this.authManager);
 
     ConfigResponse config;
     try (RESTClient initClient = clientBuilder.apply(props);
@@ -200,7 +205,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     if (config.endpoints().isEmpty()) {
       this.endpoints =
-          PropertyUtil.propertyAsBoolean(mergedProps, VIEW_ENDPOINTS_SUPPORTED, false)
+          PropertyUtil.propertyAsBoolean(
+                  mergedProps,
+                  RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED,
+                  RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED_DEFAULT)
               ? ImmutableSet.<Endpoint>builder()
                   .addAll(DEFAULT_ENDPOINTS)
                   .addAll(VIEW_ENDPOINTS)
@@ -211,37 +219,44 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     this.client = clientBuilder.apply(mergedProps);
+    this.closeables.addCloseable(this.client);
+
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     this.catalogAuth = authManager.catalogSession(client, mergedProps);
+    this.closeables.addCloseable(this.catalogAuth);
 
-    this.pageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
+    this.pageSize =
+        PropertyUtil.propertyAsNullableInt(mergedProps, RESTCatalogProperties.PAGE_SIZE);
     if (pageSize != null) {
       Preconditions.checkArgument(
-          pageSize > 0, "Invalid value for %s, must be a positive integer", REST_PAGE_SIZE);
+          pageSize > 0,
+          "Invalid value for %s, must be a positive integer",
+          RESTCatalogProperties.PAGE_SIZE);
     }
 
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
 
     this.fileIOTracker = new FileIOTracker();
-    this.closeables = new CloseableGroup();
-    this.closeables.addCloseable(this.catalogAuth);
-    this.closeables.addCloseable(this.authManager);
     this.closeables.addCloseable(this.io);
-    this.closeables.addCloseable(this.client);
     this.closeables.addCloseable(fileIOTracker);
     this.closeables.setSuppressCloseFailure(true);
 
     this.snapshotMode =
         SnapshotMode.valueOf(
             PropertyUtil.propertyAsString(
-                    mergedProps, REST_SNAPSHOT_LOADING_MODE, SnapshotMode.ALL.name())
+                    mergedProps,
+                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+                    RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
                 .toUpperCase(Locale.US));
 
     this.reporter = CatalogUtil.loadMetricsReporter(mergedProps);
 
     this.reportingViaRestEnabled =
-        PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
+        PropertyUtil.propertyAsBoolean(
+            mergedProps,
+            RESTCatalogProperties.METRICS_REPORTING_ENABLED,
+            RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
     super.initialize(name, mergedProps);
   }
 
@@ -355,6 +370,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
   }
 
+  private static Map<String, String> snapshotModeToParam(SnapshotMode mode) {
+    return ImmutableMap.of("snapshots", mode.name().toLowerCase(Locale.US));
+  }
+
   private LoadTableResponse loadInternal(
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
@@ -363,7 +382,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         .withAuthSession(contextualSession)
         .get(
             paths.table(identifier),
-            mode.params(),
+            snapshotModeToParam(mode),
             LoadTableResponse.class,
             Map.of(),
             ErrorHandlers.tableErrorHandler());
@@ -432,11 +451,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     RESTClient tableClient = client.withAuthSession(tableSession);
     RESTTableOperations ops =
-        new RESTTableOperations(
+        newTableOps(
             tableClient,
             paths.table(finalIdentifier),
             Map::of,
-            tableFileIO(context, response.config()),
+            tableFileIO(context, tableConf, response.credentials()),
             tableMetadata,
             endpoints);
 
@@ -511,11 +530,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
     RESTClient tableClient = client.withAuthSession(tableSession);
     RESTTableOperations ops =
-        new RESTTableOperations(
+        newTableOps(
             tableClient,
             paths.table(ident),
             Map::of,
-            tableFileIO(context, response.config()),
+            tableFileIO(context, tableConf, response.credentials()),
             response.tableMetadata(),
             endpoints);
 
@@ -552,7 +571,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
+      queryParams.put("parent", RESTUtil.namespaceToQueryParam(namespace));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
@@ -770,11 +789,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          new RESTTableOperations(
+          newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
-              tableFileIO(context, response.config()),
+              tableFileIO(context, tableConf, response.credentials()),
               response.tableMetadata(),
               endpoints);
 
@@ -797,11 +816,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          new RESTTableOperations(
+          newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
-              tableFileIO(context, response.config()),
+              tableFileIO(context, tableConf, response.credentials()),
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
@@ -860,11 +879,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       RESTClient tableClient = client.withAuthSession(tableSession);
       RESTTableOperations ops =
-          new RESTTableOperations(
+          newTableOps(
               tableClient,
               paths.table(ident),
               Map::of,
-              tableFileIO(context, response.config()),
+              tableFileIO(context, tableConf, response.credentials()),
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,
@@ -962,22 +981,110 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private FileIO newFileIO(SessionContext context, Map<String, String> properties) {
+    return newFileIO(context, properties, ImmutableList.of());
+  }
+
+  private FileIO newFileIO(
+      SessionContext context, Map<String, String> properties, List<Credential> storageCredentials) {
     if (null != ioBuilder) {
       return ioBuilder.apply(context, properties);
     } else {
       String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
-      return CatalogUtil.loadFileIO(ioImpl, properties, conf);
+      return CatalogUtil.loadFileIO(
+          ioImpl,
+          properties,
+          conf,
+          storageCredentials.stream()
+              .map(c -> StorageCredential.create(c.prefix(), c.config()))
+              .collect(Collectors.toList()));
     }
   }
 
-  private FileIO tableFileIO(SessionContext context, Map<String, String> config) {
-    if (config.isEmpty() && ioBuilder == null) {
-      return io; // reuse client and io since config is the same
+  private FileIO tableFileIO(
+      SessionContext context, Map<String, String> config, List<Credential> storageCredentials) {
+    if (config.isEmpty() && ioBuilder == null && storageCredentials.isEmpty()) {
+      return io; // reuse client and io since config/credentials are the same
     }
 
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
 
-    return newFileIO(context, fullConf);
+    return newFileIO(context, fullConf, storageCredentials);
+  }
+
+  /**
+   * Create a new {@link RESTTableOperations} instance for simple table operations.
+   *
+   * <p>This method can be overridden in subclasses to provide custom table operations
+   * implementations.
+   *
+   * @param restClient the REST client to use for communicating with the catalog server
+   * @param path the REST path for the table
+   * @param headers a supplier for additional HTTP headers to include in requests
+   * @param fileIO the FileIO implementation for reading and writing table metadata and data files
+   * @param current the current table metadata
+   * @param supportedEndpoints the set of supported REST endpoints
+   * @return a new RESTTableOperations instance
+   */
+  protected RESTTableOperations newTableOps(
+      RESTClient restClient,
+      String path,
+      Supplier<Map<String, String>> headers,
+      FileIO fileIO,
+      TableMetadata current,
+      Set<Endpoint> supportedEndpoints) {
+    return new RESTTableOperations(restClient, path, headers, fileIO, current, supportedEndpoints);
+  }
+
+  /**
+   * Create a new {@link RESTTableOperations} instance for transaction-based operations (create or
+   * replace).
+   *
+   * <p>This method can be overridden in subclasses to provide custom table operations
+   * implementations for transaction-based operations.
+   *
+   * @param restClient the REST client to use for communicating with the catalog server
+   * @param path the REST path for the table
+   * @param headers a supplier for additional HTTP headers to include in requests
+   * @param fileIO the FileIO implementation for reading and writing table metadata and data files
+   * @param updateType the {@link RESTTableOperations.UpdateType} being performed
+   * @param createChanges the list of metadata updates to apply during table creation or replacement
+   * @param current the current table metadata (may be null for CREATE operations)
+   * @param supportedEndpoints the set of supported REST endpoints
+   * @return a new RESTTableOperations instance
+   */
+  protected RESTTableOperations newTableOps(
+      RESTClient restClient,
+      String path,
+      Supplier<Map<String, String>> headers,
+      FileIO fileIO,
+      RESTTableOperations.UpdateType updateType,
+      List<MetadataUpdate> createChanges,
+      TableMetadata current,
+      Set<Endpoint> supportedEndpoints) {
+    return new RESTTableOperations(
+        restClient, path, headers, fileIO, updateType, createChanges, current, supportedEndpoints);
+  }
+
+  /**
+   * Create a new {@link RESTViewOperations} instance.
+   *
+   * <p>This method can be overridden in subclasses to provide custom view operations
+   * implementations.
+   *
+   * @param restClient the REST client to use for communicating with the catalog server
+   * @param path the REST path for the view
+   * @param headers a supplier for additional HTTP headers to include in requests
+   * @param current the current view metadata
+   * @param supportedEndpoints the set of supported REST endpoints
+   * @return a new RESTViewOperations instance
+   */
+  protected RESTViewOperations newViewOps(
+      RESTClient restClient,
+      String path,
+      Supplier<Map<String, String>> headers,
+      ViewMetadata current,
+      Set<Endpoint> supportedEndpoints) {
+    return new RESTViewOperations(restClient, path, headers, current, supportedEndpoints);
   }
 
   private static ConfigResponse fetchConfig(
@@ -1001,7 +1108,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 ResourcePaths.config(),
                 queryParams.build(),
                 ConfigResponse.class,
-                configHeaders(properties),
+                RESTUtil.configHeaders(properties),
                 ErrorHandlers.defaultErrorHandler());
     configResponse.validate();
     return configResponse;
@@ -1023,10 +1130,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
     }
-  }
-
-  private static Map<String, String> configHeaders(Map<String, String> properties) {
-    return RESTUtil.extractPrefixMap(properties, "header.");
   }
 
   public void commitTransaction(SessionContext context, List<TableCommit> commits) {
@@ -1128,7 +1231,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     ViewMetadata metadata = response.metadata();
 
     RESTViewOperations ops =
-        new RESTViewOperations(
+        newViewOps(
             client.withAuthSession(tableSession),
             paths.view(identifier),
             Map::of,
@@ -1307,7 +1410,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Map<String, String> tableConf = response.config();
       AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
       RESTViewOperations ops =
-          new RESTViewOperations(
+          newViewOps(
               client.withAuthSession(tableSession),
               paths.view(identifier),
               Map::of,
@@ -1398,7 +1501,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
       RESTViewOperations ops =
-          new RESTViewOperations(
+          newViewOps(
               client.withAuthSession(tableSession),
               paths.view(identifier),
               Map::of,

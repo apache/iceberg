@@ -181,7 +181,6 @@ FROM events
 GROUP BY 2
 ```
 
-
 The metadata JSON file created looks as follows.
 
 The path is intentionally similar to the path for Iceberg tables and uses a `metadata` directory.
@@ -206,7 +205,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
     "default-namespace" : [ "default" ],
     "summary" : {
       "engine-name" : "Spark",
-      "engineVersion" : "3.3.2"
+      "engine-version" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",
@@ -275,7 +274,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-namespace" : [ "default" ],
     "summary" : {
       "engine-name" : "Spark",
-      "engineVersion" : "3.3.2"
+      "engine-version" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",
@@ -290,7 +289,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
     "default-namespace" : [ "default" ],
     "summary" : {
       "engine-name" : "Spark",
-      "engineVersion" : "3.3.2"
+      "engine-version" : "3.3.2"
     },
     "representations" : [ {
       "type" : "sql",

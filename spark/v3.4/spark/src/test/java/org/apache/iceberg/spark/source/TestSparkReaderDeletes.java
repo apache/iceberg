@@ -28,6 +28,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import javax.annotation.Nonnull;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -86,7 +87,6 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -95,7 +95,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkReaderDeletes extends DeleteReadTests {
-
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
@@ -108,14 +107,16 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Parameters(name = "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}")
   public static Object[][] parameters() {
-    return new Object[][] {
-      new Object[] {FileFormat.PARQUET, 2, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.PARQUET, 2, true, PlanningMode.LOCAL},
-      new Object[] {FileFormat.ORC, 2, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.AVRO, 2, false, PlanningMode.LOCAL},
-      new Object[] {FileFormat.PARQUET, 3, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL},
-    };
+    List<Object[]> parameters = Lists.newArrayList();
+    for (int version : TestHelpers.V2_AND_ABOVE) {
+      parameters.add(new Object[] {FileFormat.PARQUET, version, false, PlanningMode.DISTRIBUTED});
+      parameters.add(new Object[] {FileFormat.PARQUET, version, true, PlanningMode.LOCAL});
+      if (version == 2) {
+        parameters.add(new Object[] {FileFormat.ORC, version, false, PlanningMode.DISTRIBUTED});
+        parameters.add(new Object[] {FileFormat.AVRO, version, false, PlanningMode.LOCAL});
+      }
+    }
+    return parameters.toArray(new Object[0][]);
   }
 
   @BeforeAll
@@ -323,7 +324,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     for (CombinedScanTask task : tasks) {
       try (EqualityDeleteRowReader reader =
-          new EqualityDeleteRowReader(task, table, null, table.schema(), false)) {
+          new EqualityDeleteRowReader(task, table, null, table.schema(), false, true)) {
         while (reader.next()) {
           actualRowSet.add(
               new InternalRowWrapper(
@@ -672,7 +673,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     return set;
   }
 
-  @NotNull
+  @Nonnull
   private static List recordsWithDeletedColumn() {
     List records = Lists.newArrayList();
 

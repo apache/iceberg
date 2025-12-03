@@ -22,6 +22,7 @@ import static org.apache.iceberg.PartitionSpec.builderFor;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
@@ -63,6 +64,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.hadoop.ConfigProperties;
@@ -183,6 +185,7 @@ public class TestHiveCommitLocks {
                 overriddenHiveConf,
                 spyCachedClientPool,
                 ops.io(),
+                null,
                 catalog.name(),
                 dbName,
                 tableName));
@@ -203,6 +206,37 @@ public class TestHiveCommitLocks {
     } catch (Throwable t) {
       // Ignore any exception
     }
+  }
+
+  @Test
+  public void testMultipleAlterTableForNoLock() throws Exception {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    table.updateProperties().set(TableProperties.HIVE_LOCK_ENABLED, "false").commit();
+    spyOps.refresh();
+    TableMetadata metadataV3 = spyOps.current();
+    AtomicReference<Throwable> alterTableException = new AtomicReference<>(null);
+    doAnswer(
+            i -> {
+              try {
+                // mock a situation where alter table is unexpectedly invoked more than once
+                i.callRealMethod();
+                return i.callRealMethod();
+              } catch (Throwable e) {
+                alterTableException.compareAndSet(null, e);
+                throw e;
+              }
+            })
+        .when(spyClient)
+        .alter_table_with_environmentContext(anyString(), anyString(), any(), any());
+    spyOps.commit(metadataV3, metadataV1);
+    verify(spyClient, times(1))
+        .alter_table_with_environmentContext(anyString(), anyString(), any(), any());
+    assertThat(alterTableException)
+        .as("Expecting to trigger an exception indicating table has been modified")
+        .hasValueMatching(
+            t ->
+                t.getMessage()
+                    .contains("The table has been modified. The parameter value for key '"));
   }
 
   @Test
@@ -582,6 +616,7 @@ public class TestHiveCommitLocks {
                 confWithLock,
                 spyCachedClientPool,
                 ops.io(),
+                null,
                 catalog.name(),
                 TABLE_IDENTIFIER.namespace().level(0),
                 TABLE_IDENTIFIER.name()));

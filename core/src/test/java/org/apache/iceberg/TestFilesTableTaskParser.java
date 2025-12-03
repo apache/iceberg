@@ -109,7 +109,8 @@ public class TestFilesTableTaskParser {
         + "\"added-files-count\":1,\"existing-files-count\":3,\"deleted-files-count\":0,"
         + "\"added-rows-count\":10,\"existing-rows-count\":30,\"deleted-rows-count\":0,"
         + "\"partition-field-summary\":[{\"contains-null\":true,\"contains-nan\":false,"
-        + "\"lower-bound\":\"0A000000\",\"upper-bound\":\"64000000\"}],\"key-metadata\":\"DB030000\"}}";
+        + "\"lower-bound\":\"0A000000\",\"upper-bound\":\"64000000\"}],\"key-metadata\":\"DB030000\","
+        + "\"first-row-id\":10}}";
   }
 
   private void assertTaskEquals(

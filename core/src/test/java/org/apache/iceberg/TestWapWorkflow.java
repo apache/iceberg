@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Arrays;
-import java.util.List;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -33,10 +31,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestWapWorkflow extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @BeforeEach
   public void setupTableProperties() {
@@ -597,7 +591,6 @@ public class TestWapWorkflow extends TestBase {
             // double cherrypicking of second snapshot
             () -> table.manageSnapshots().cherrypick(firstSnapshotId).commit())
         .isInstanceOf(CherrypickAncestorCommitException.class)
-        .hasMessage(
-            String.format("Cannot cherrypick snapshot %s: already an ancestor", firstSnapshotId));
+        .hasMessage("Cannot cherrypick snapshot %s: already an ancestor", firstSnapshotId);
   }
 }

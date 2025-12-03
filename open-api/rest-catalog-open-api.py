@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
@@ -64,6 +64,12 @@ class CatalogConfig(BaseModel):
             'GET /v1/{prefix}/namespaces/{namespace}/tables/{table}',
             'GET /v1/{prefix}/namespaces/{namespace}/views/{view}',
         ],
+    )
+    idempotency_key_lifetime: Optional[timedelta] = Field(
+        None,
+        alias='idempotency-key-lifetime',
+        description='Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H). Interpreted as the maximum time from the first submission using a key to the last retry during which a client may reuse that key. Servers SHOULD accept retries for at least this duration and MAY include a grace period to account for delays/clock skew. Clients SHOULD NOT reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any subsequent attempt. Presence of this field indicates the server supports Idempotency-Key semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.',
+        example='PT30M',
     )
 
 
@@ -194,6 +200,13 @@ class SortOrder(BaseModel):
     fields: List[SortField]
 
 
+class EncryptedKey(BaseModel):
+    key_id: str = Field(..., alias='key-id')
+    encrypted_key_metadata: str = Field(..., alias='encrypted-key-metadata')
+    encrypted_by_id: Optional[str] = Field(None, alias='encrypted-by-id')
+    properties: Optional[Dict[str, str]] = None
+
+
 class Summary(BaseModel):
     operation: Literal['append', 'replace', 'overwrite', 'delete']
 
@@ -208,6 +221,16 @@ class Snapshot(BaseModel):
         alias='manifest-list',
         description="Location of the snapshot's manifest list file",
     )
+    first_row_id: Optional[int] = Field(
+        None,
+        alias='first-row-id',
+        description='The first _row_id assigned to the first row in the first data file in the first manifest',
+    )
+    added_rows: Optional[int] = Field(
+        None,
+        alias='added-rows',
+        description='The upper bound of the number of rows with assigned row IDs',
+    )
     summary: Summary
     schema_id: Optional[int] = Field(None, alias='schema-id')
 
@@ -221,7 +244,7 @@ class SnapshotReference(BaseModel):
 
 
 class SnapshotReferences(BaseModel):
-    __root__: Optional[Dict[str, SnapshotReference]] = None
+    __root__: Dict[str, SnapshotReference]
 
 
 class SnapshotLogItem(BaseModel):
@@ -395,8 +418,14 @@ class RemoveSchemasUpdate(BaseUpdate):
     schema_ids: List[int] = Field(..., alias='schema-ids')
 
 
-class EnableRowLineageUpdate(BaseUpdate):
-    action: str = Field('enable-row-lineage', const=True)
+class AddEncryptionKeyUpdate(BaseUpdate):
+    action: str = Field('add-encryption-key', const=True)
+    encryption_key: EncryptedKey = Field(..., alias='encryption-key')
+
+
+class RemoveEncryptionKeyUpdate(BaseUpdate):
+    action: str = Field('remove-encryption-key', const=True)
+    key_id: str = Field(..., alias='key-id')
 
 
 class TableRequirement(BaseModel):
@@ -422,7 +451,10 @@ class AssertTableUUID(TableRequirement):
 
 class AssertRefSnapshotId(TableRequirement):
     """
-    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
+    The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`.
+    The `snapshot-id` field is required in this object, but in the case of a `null`
+    the ref must not already exist.
+
     """
 
     type: str = Field('assert-ref-snapshot-id', const=True)
@@ -593,7 +625,7 @@ class MetricResult(BaseModel):
 
 
 class Metrics(BaseModel):
-    __root__: Optional[Dict[str, MetricResult]] = None
+    __root__: Dict[str, MetricResult]
 
 
 class CommitReport(BaseModel):
@@ -955,8 +987,8 @@ class FailedPlanningResult(IcebergErrorResponse):
 
 class AsyncPlanningResult(BaseModel):
     status: Literal['submitted'] = Field(..., const=True)
-    plan_id: Optional[str] = Field(
-        None, alias='plan-id', description='ID used to track a planning request'
+    plan_id: str = Field(
+        ..., alias='plan-id', description='ID used to track a planning request'
     )
 
 
@@ -991,6 +1023,11 @@ class ValueMap(BaseModel):
 
 class DataFile(ContentFile):
     content: str = Field(..., const=True)
+    first_row_id: Optional[int] = Field(
+        None,
+        alias='first-row-id',
+        description='The first row ID assigned to the first row in the data file',
+    )
     column_sizes: Optional[CountMap] = Field(
         None,
         alias='column-sizes',
@@ -1124,10 +1161,15 @@ class NotExpression(BaseModel):
 
 
 class TableMetadata(BaseModel):
-    format_version: int = Field(..., alias='format-version', ge=1, le=2)
+    format_version: int = Field(..., alias='format-version', ge=1, le=3)
     table_uuid: str = Field(..., alias='table-uuid')
     location: Optional[str] = None
     last_updated_ms: Optional[int] = Field(None, alias='last-updated-ms')
+    next_row_id: Optional[int] = Field(
+        None,
+        alias='next-row-id',
+        description="A long higher than all assigned row IDs; the next snapshot's first-row-id.",
+    )
     properties: Optional[Dict[str, str]] = None
     schemas: Optional[List[Schema]] = None
     current_schema_id: Optional[int] = Field(None, alias='current-schema-id')
@@ -1139,6 +1181,7 @@ class TableMetadata(BaseModel):
     last_partition_id: Optional[int] = Field(None, alias='last-partition-id')
     sort_orders: Optional[List[SortOrder]] = Field(None, alias='sort-orders')
     default_sort_order_id: Optional[int] = Field(None, alias='default-sort-order-id')
+    encryption_keys: Optional[List[EncryptedKey]] = Field(None, alias='encryption-keys')
     snapshots: Optional[List[Snapshot]] = None
     refs: Optional[SnapshotReferences] = None
     current_snapshot_id: Optional[int] = Field(None, alias='current-snapshot-id')
@@ -1193,7 +1236,8 @@ class TableUpdate(BaseModel):
         RemoveStatisticsUpdate,
         RemovePartitionSpecsUpdate,
         RemoveSchemasUpdate,
-        EnableRowLineageUpdate,
+        AddEncryptionKeyUpdate,
+        RemoveEncryptionKeyUpdate,
     ]
 
 
@@ -1401,6 +1445,11 @@ class PlanTableScanRequest(BaseModel):
     filter: Optional[Expression] = Field(
         None, description='Expression used to filter the table data'
     )
+    min_rows_requested: Optional[int] = Field(
+        None,
+        alias='min-rows-requested',
+        description='The minimum number of rows requested for the scan. This is used as a hint to the server to not have to return more rows than necessary. It is not required for the server to return that many rows since the scan may not produce that many rows. The server can also return more rows than requested.',
+    )
     case_sensitive: Optional[bool] = Field(
         True,
         alias='case-sensitive',
@@ -1455,6 +1504,11 @@ class CompletedPlanningResult(ScanTasks):
     """
 
     status: Literal['completed'] = Field(..., const=True)
+    storage_credentials: Optional[List[StorageCredential]] = Field(
+        None,
+        alias='storage-credentials',
+        description='Storage credentials for accessing the files returned in the scan result.\nIf the server returns storage credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to read the files returned in the FileScanTasks as part of the scan result.',
+    )
 
 
 class FetchScanTasksResult(ScanTasks):
@@ -1468,8 +1522,8 @@ class ReportMetricsRequest1(ScanReport):
 
 
 class CompletedPlanningWithIDResult(CompletedPlanningResult):
-    plan_id: Optional[str] = Field(
-        None, alias='plan-id', description='ID used to track a planning request'
+    plan_id: str = Field(
+        ..., alias='plan-id', description='ID used to track a planning request'
     )
     status: Literal['completed']
 

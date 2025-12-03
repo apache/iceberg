@@ -74,6 +74,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 | Hadoop Filesystem | Y    | Y         | Y    | Y  |
 | S3 Compatible     | Y    | Y         | Y    | Y  |
 | GCS Compatible    | Y    | Y         | Y    | Y  |
+| ADLS Compatible   | Y    | Y         | Y    | Y  |
 
 ## Table Maintenance Operations
 
@@ -81,12 +82,12 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 | Operation                   | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
-| Update schema               | Y    | N         | Y    | N  |
-| Update partition spec       | Y    | N         | Y    | N  |
+| Update schema               | Y    | Y         | Y    | N  |
+| Update partition spec       | Y    | Y         | Y    | N  |
 | Update table properties     | Y    | Y         | Y    | Y  |
 | Replace sort order          | Y    | N         | N    | N  |
-| Update table location       | Y    | N         | N    | N  |
-| Update statistics           | Y    | N         | N    | N  |
+| Update table location       | Y    | Y         | N    | N  |
+| Update statistics           | Y    | Y         | N    | N  |
 | Update partition statistics | Y    | N         | N    | N  |
 | Expire snapshots            | Y    | N         | N    | N  |
 | Manage snapshots            | Y    | N         | N    | N  |
@@ -99,8 +100,8 @@ This section lists the libraries that implement the Apache Iceberg specification
 | Update partition spec       | Y    | Y         | N    | N  |
 | Update table properties     | Y    | Y         | Y    | Y  |
 | Replace sort order          | Y    | N         | N    | N  |
-| Update table location       | Y    | N         | N    | N  |
-| Update statistics           | Y    | N         | N    | N  |
+| Update table location       | Y    | Y         | N    | N  |
+| Update statistics           | Y    | Y         | N    | N  |
 | Update partition statistics | Y    | N         | N    | N  |
 | Expire snapshots            | Y    | N         | N    | N  |
 | Manage snapshots            | Y    | N         | N    | N  |
@@ -113,9 +114,9 @@ This section lists the libraries that implement the Apache Iceberg specification
 |-------------------|------|-----------|------|----|
 | Append data files | Y    | Y         | N    | Y  |
 | Rewrite files     | Y    | Y         | N    | N  |
-| Rewrite manifests | Y    | Y         | N    | N  |
+| Rewrite manifests | Y    | Y         | N    | Y  |
 | Overwrite files   | Y    | Y         | N    | N  |
-| Delete files      | Y    | N         | N    | N  |
+| Delete files      | Y    | Y         | N    | N  |
 
 ### Table Spec V2
 
@@ -123,7 +124,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 |-------------------|------|-----------|------|----|
 | Append data files | Y    | Y         | N    | Y  |
 | Rewrite files     | Y    | Y         | N    | N  |
-| Rewrite manifests | Y    | Y         | N    | N  |
+| Rewrite manifests | Y    | Y         | N    | Y  |
 | Overwrite files   | Y    | Y         | N    | N  |
 | Row delta         | Y    | N         | N    | N  |
 | Delete files      | Y    | Y         | N    | N  |
@@ -156,13 +157,13 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 | Operation   | Java | PyIceberg | Rust | Go |
 |-------------|------|-----------|------|----|
-| Append data | Y    | Y         | Y    | N  |
+| Append data | Y    | Y         | Y    | Y  |
 
 ### Table Spec V2
 
 | Operation              | Java | PyIceberg | Rust | Go |
 |------------------------|------|-----------|------|----|
-| Append data            | Y    | Y         | Y    | N  |
+| Append data            | Y    | Y         | Y    | Y  |
 | Write position deletes | Y    | N         | N    | N  |
 | Write equality deletes | Y    | N         | N    | N  |
 
@@ -199,9 +200,9 @@ This section lists the libraries that implement the Apache Iceberg specification
 | View Operation | Java | PyIceberg | Rust | Go |
 |----------------|------|-----------|------|----|
 | createView     | Y    | N         | N    | N  |
-| dropView       | Y    | N         | N    | N  |
-| listView       | Y    | N         | N    | N  |
-| viewExists     | Y    | N         | N    | N  |
+| dropView       | Y    | Y         | N    | N  |
+| listView       | Y    | Y         | N    | N  |
+| viewExists     | Y    | Y         | N    | N  |
 | replaceView    | Y    | N         | N    | N  |
 | renameView     | Y    | N         | N    | N  |
 
@@ -212,9 +213,9 @@ This section lists the libraries that implement the Apache Iceberg specification
 | listNamespaces            | Y    | Y         | Y    | Y  |
 | createNamespace           | Y    | Y         | Y    | Y  |
 | dropNamespace             | Y    | Y         | Y    | Y  |
-| namespaceExists           | Y    | N         | Y    | Y  |
+| namespaceExists           | Y    | Y         | Y    | Y  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
-| loadNamespaceMetadata     | Y    | N         | Y    | Y  |
+| loadNamespaceMetadata     | Y    | Y         | Y    | Y  |
 
 ### Sql Catalog
 
@@ -265,12 +266,12 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Namespace Operation       | Java | PyIceberg | Rust | Go |
 |---------------------------|------|-----------|------|----|
-| listNamespaces            | Y    | N         | N    | Y  |
-| createNamespace           | Y    | N         | N    | Y  |
+| listNamespaces            | Y    | Y         | N    | Y  |
+| createNamespace           | Y    | Y         | N    | Y  |
 | dropNamespace             | Y    | Y         | Y    | Y  |
 | namespaceExists           | Y    | N         | N    | Y  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
-| loadNamespaceMetadata     | Y    | N         | N    | N  |
+| loadNamespaceMetadata     | Y    | Y         | N    | Y  |
 
 ### Glue Catalog
 
@@ -313,12 +314,12 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Namespace Operation       | Java | PyIceberg | Rust | Go |
 |---------------------------|------|-----------|------|----|
-| listNamespaces            | Y    | N         | N    | N  |
-| createNamespace           | Y    | N         | N    | N  |
-| dropNamespace             | Y    | N         | N    | N  |
-| namespaceExists           | Y    | N         | N    | N  |
+| listNamespaces            | Y    | Y         | N    | Y  |
+| createNamespace           | Y    | Y         | N    | Y  |
+| dropNamespace             | Y    | Y         | N    | Y  |
+| namespaceExists           | Y    | N         | N    | Y  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
-| loadNamespaceMetadata     | Y    | N         | N    | N  |
+| loadNamespaceMetadata     | Y    | Y         | N    | Y  |
 
 ### Hive Metastore Catalog
 
@@ -361,9 +362,9 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Namespace Operation       | Java | PyIceberg | Rust | Go |
 |---------------------------|------|-----------|------|----|
-| listNamespaces            | Y    | N         | N    | N  |
-| createNamespace           | Y    | N         | N    | N  |
-| dropNamespace             | Y    | N         | N    | N  |
+| listNamespaces            | Y    | Y         | N    | N  |
+| createNamespace           | Y    | Y         | N    | N  |
+| dropNamespace             | Y    | Y         | N    | N  |
 | namespaceExists           | Y    | N         | N    | N  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
-| loadNamespaceMetadata     | Y    | N         | N    | N  |
+| loadNamespaceMetadata     | Y    | Y         | N    | N  |

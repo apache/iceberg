@@ -203,7 +203,7 @@ public class FileHelpers {
     }
   }
 
-  private static EncryptedOutputFile encrypt(OutputFile out) {
+  public static EncryptedOutputFile encrypt(OutputFile out) {
     return EncryptedFiles.encryptedOutput(out, EncryptionKeyMetadata.EMPTY);
   }
 }

@@ -19,7 +19,7 @@
 
 This subproject contains the [MkDocs projects](https://www.mkdocs.org/) that define the non-versioned Iceberg site and the versioned Iceberg documentation. The Iceberg site MkDocs project contains a plugin that builds all the static sites for each version of documentation. These subsites are all weaved together to  make the final Apache Iceberg site and docs with a single build.
 
-## Requirements 
+## Requirements
 
 * Python >=3.9
 * pip
@@ -28,9 +28,9 @@ This subproject contains the [MkDocs projects](https://www.mkdocs.org/) that def
 
 The directory structure in this repository aims to mimic the sitemap hierarchy of the website. This helps contributors find the source files needed when updating or adding new documentation. It's helpful to have some basic understanding of the MkDocs framework defaults.
 
-### MkDocs background 
+### MkDocs background
 
-In MkDocs, the [`docs_dir`](https://www.mkdocs.org/user-guide/configuration/#docs_dir) points to the root directory containing the source markdown files for an MkDocs project. By default, this points to directory named `docs` in the same location as the [`mkdocs.yaml` file](https://www.mkdocs.org/user-guide/configuration/#introduction). Use `mkdocs build`is used to build the project. During the build, MkDocs generates the static site in the [`site_dir`](https://www.mkdocs.org/user-guide/configuration/#site_dir) which becomes the root of that project for the generated site. 
+In MkDocs, the [`docs_dir`](https://www.mkdocs.org/user-guide/configuration/#docs_dir) points to the root directory containing the source markdown files for an MkDocs project. By default, this points to directory named `docs` in the same location as the [`mkdocs.yaml` file](https://www.mkdocs.org/user-guide/configuration/#introduction). Use `mkdocs build`is used to build the project. During the build, MkDocs generates the static site in the [`site_dir`](https://www.mkdocs.org/user-guide/configuration/#site_dir) which becomes the root of that project for the generated site.
 
 ### Iceberg docs layout
 
@@ -60,23 +60,26 @@ The static Iceberg site pages are Markdown files that live at `/site/docs/*.md`.
 
 ### Building the versioned docs
 
-The Iceberg versioned docs are committed in two [orphan](https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddeforphanaorphan) branches and mounted using [git worktree](https://git-scm.com/docs/git-worktree) at build time: 
+The Iceberg versioned docs are committed in two [orphan](https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddeforphanaorphan) branches and mounted using [git worktree](https://git-scm.com/docs/git-worktree) at build time:
 
- 1. [`docs`](https://github.com/apache/iceberg/tree/docs) - contains the state of the documentation source files (`/docs`) during release. These versions are mounted at the `/site/docs/docs/<version>` directory at build time. 
+ 1. [`docs`](https://github.com/apache/iceberg/tree/docs) - contains the state of the documentation source files (`/docs`) during release. These versions are mounted at the `/site/docs/docs/<version>` directory at build time.
  1. [`javadoc`](https://github.com/apache/iceberg/tree/javadoc) - contains prior statically generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` directory at  build time.
 
 The `latest` version, is a soft link to the most recent [semver version](https://semver.org/) in the `docs` branch. The `nightly` version, is a soft link to the current local state of the `/docs` markdown files.
 
 The docs are built, run, and released using [make](https://www.gnu.org/software/make/manual/make.html). The [Makefile](Makefile) and the [common shell script](dev/common.sh) support the following command:
 
-``` site > make help```
+```site > make help```
 > [build](dev/build.sh): Clean and build the site locally.
 > [clean](dev/clean.sh): Clean the local site.
 > [deploy](dev/deploy.sh): Clean, build, and deploy the Iceberg docs site.
 > help: Show help for each of the Makefile recipes.
 > [serve](dev/serve.sh): Clean, build, and run the site locally.
+> [serve-dev](dev/serve-dev.sh): Fast iterative development mode - only builds nightly and latest.
+> [lint](dev/lint.sh): Scan markdown files for style issues.
+> [lint-fix](dev/lint.sh): Run linting with auto-fix on the markdown files.
 
-To scaffold the versioned docs and build the project, run the `build` recipe. 
+To scaffold the versioned docs and build the project, run the `build` recipe.
 
 ```
 make build
@@ -102,6 +105,20 @@ This step will generate the staged source code which blends into the original so
     └─.asf.yaml
 ```
 
+#### Linting
+
+To check for markdown style issues without building the entire site, use the `lint` make command:
+
+```sh
+make lint
+```
+
+To automatically fix markdown style issues, use the `lint-fix` make command:
+
+```sh
+make lint-fix
+```
+
 <!-- markdown-link-check-disable-next-line -->
 To run this, run the `serve` recipe, which runs the `build` recipe and calls `mkdocs serve`. This will run locally at <http://localhost:8000>.
 ```sh
@@ -113,9 +130,28 @@ To clear all build files, run `clean`.
 make clean
 ```
 
+#### Fast iterative development mode
+
+When working on the documentation, building all historical versions significantly slows down the build process. For faster iteration during development, use the `serve-dev` recipe:
+
+```sh
+make serve-dev
+```
+
+This development mode:
+- **Only builds `nightly` and `latest` versions** - Skips all historical versions
+- **Significantly reduces build time** - Typically 5-10x faster than building all versions
+- **Uses the `--dirty` flag** - Only rebuilds changed files for even faster iteration
+- **Perfect for iterative development** - Great for working on documentation content
+
+The development mode sets the `ICEBERG_DEV_MODE=true` environment variable and uses a simplified mkdocs configuration (`mkdocs-dev.yml`) that only includes the most recent versions.
+
+> [!NOTE]
+> Development mode is only for local iteration. Always use `make serve` or `make build` before creating a pull request to ensure all versioned docs build correctly.
+
 #### Testing local changes on versioned docs
 
-When you build the docs as described above, by default the versioned docs are mounted from the upstream remote repositiory called `iceberg_docs`. One exception is the `nightly` version that is a soft link to the local `docs/` folder.
+When you build the docs as described above, by default the versioned docs are mounted from the upstream remote repository called `iceberg_docs`. One exception is the `nightly` version that is a soft link to the local `docs/` folder.
 
 When you make changes to some of the historical versioned docs in a local git branch you can mount this git branch instead of the remote one by setting the following environment variables:
 
@@ -125,18 +161,18 @@ When you make changes to some of the historical versioned docs in a local git br
 
 #### Offline mode
 
-One of the great advantages to the MkDocs material plugin is the [offline feature](https://squidfunk.github.io/mkdocs-material/plugins/offline). You can view the Iceberg docs without the need of a server. To enable OFFLINE builds, add theOFFLINE environment variable to either `build` or `serve` recipes.
+One of the great advantages to the MkDocs material plugin is the [offline feature](https://squidfunk.github.io/mkdocs-material/plugins/offline). You can view the Iceberg docs without the need of a server. To enable OFFLINE builds, add the OFFLINE environment variable to either `build` or `serve` recipes.
 
 ```sh
 make build OFFLINE=true
 ```
 
 > [!WARNING]  
-> Building with offline mode disables the [use_directory_urls](https://www.mkdocs.org/user-guide/configuration/#use_directory_urls) setting, ensuring that users can open your documentation directly from the local file system. Do not enable this for releases or deployments. 
+> Building with offline mode disables the [use_directory_urls](https://www.mkdocs.org/user-guide/configuration/#use_directory_urls) setting, ensuring that users can open your documentation directly from the local file system. Do not enable this for releases or deployments.
 
 ## Release process
 
-Deploying the docs is a two step process:
+Deploying the docs is a two-step process:
 
 > [!WARNING]  
 > The `make release` directive is currently unavailable as we wanted to discuss the best way forward on how or if we should automate the release. It involves taking an existing snapshot of the versioned documentation, and potentially automerging the [`docs` branch](https://github.com/apache/iceberg/tree/docs) and the [`javadoc` branch](https://github.com/apache/iceberg/tree/javadoc) which are independent from the `main` branch. Once this is complete, we can create a pull request with an offline build of the documentation to verify everything renders correctly, and then have the release manager merge that PR to finalize the docs release. So the real process would be manually invoking a docs release action, then merging a pull request.
@@ -145,9 +181,12 @@ Deploying the docs is a two step process:
     ```sh
     make release ICEBERG_VERSION=${ICEBERG_VERSION}
     ```
- 1. Build and push the generated site to `asf-site`.
+ 1. Build and push the generated site to the `asf-site` branch of [remote repo](https://github.com/apache/iceberg). This requires committer write permission.
     ```sh
-    make deploy 
+    # Default remote name is 'origin'
+    make deploy
+    # Or specify a different remote
+    make deploy remote_name=apache
     ```
 
 ## Validate Links
@@ -170,7 +209,7 @@ As mentioned in the MkDocs section, when you build MkDocs `mkdocs build`, MkDocs
 │   │       ├── docs
 │   │       └── mkdocs.yml
 │   └─ javadoc
-│      ├── nightly 
+│      ├── nightly
 │      ├── latest
 │      └── 1.4.0
 └── mkdocs.yml
@@ -182,7 +221,7 @@ To ensure the links work, you may use linkchecker to traverse the links on the l
 
 The main issue with using static analysis tools like [mkdocs-linkcheck](https://pypi.org/project/mkdocs-linkcheck) is that they verify links within a single project and do not yet have the ability to analyse a stitched monorepo that we are building with this site.
 
-A step that hasn't been tested yet is considering to use the [offline plugin](https://squidfunk.github.io/mkdocs-material/setup/building-for-offline-usage/) to build a local offline version and test that the internal offline generated site links all work with mkdocs-linkcheck. This would be much faster and less error prone for internal doc links than depending on a running live site. linkchecker will still be a useful tool to run daily on the site to automate any live linking issues. 
+A step that hasn't been tested yet is considering to use the [offline plugin](https://squidfunk.github.io/mkdocs-material/setup/building-for-offline-usage/) to build a local offline version and test that the internal offline generated site links all work with mkdocs-linkcheck. This would be much faster and less error prone for internal doc links than depending on a running live site. linkchecker will still be a useful tool to run daily on the site to automate any live linking issues.
 
 ```
 pip install linkchecker
@@ -194,7 +233,7 @@ cat ./link_warnings.csv
 
 ## Things to consider
 
- - Do not use static links from within the documentation to the public Iceberg site (i.e. [branching](https://iceberg.apache.org/docs/latest/branching)). If you are running in a local environment and made changes to the page you're linking to, your changes mysteriously won't take effect and you'll be scratching your head unless you happen to notice the url bar change.
- - Only use relative links. If you want to reference the root (the directory where the main mkdocs.yml is located `site` in our case) use "spec.md" vs "/spec.md". Also, static sites should only reference the `docs/*` (see next point), but docs can reference the static content normally (e.g. `branching.md` page which is a versioned page linking to `spec.md` which is a static page).
- - Avoid statically linking a specific version of the documentation ('nightly', 'latest', '1.4.0', etc...) unless it is absolutely relevant to the context being provided. This should almost never be the case unless referencing legacy functionality.
- - When internally linking markdown files to other markdown files, [always use the `.md` suffix](https://github.com/mkdocs/mkdocs/issues/2456#issuecomment-881877986). That will indicate to mkdocs exactly how to treat that link depending on the mode the link is compiled with, e.g. if it becomes a <filename>/index.html or <filename>.html. Using the `.md` extension will work with either mode. 
+- Do not use static links from within the documentation to the public Iceberg site (i.e. [branching](https://iceberg.apache.org/docs/latest/branching)). If you are running in a local environment and made changes to the page you're linking to, your changes mysteriously won't take effect and you'll be scratching your head unless you happen to notice the url bar change.
+- Only use relative links. If you want to reference the root (the directory where the main mkdocs.yml is located `site` in our case) use "spec.md" vs "/spec.md". Also, static sites should only reference the `docs/*` (see next point), but docs can reference the static content normally (e.g. `branching.md` page which is a versioned page linking to `spec.md` which is a static page).
+- Avoid statically linking a specific version of the documentation ('nightly', 'latest', '1.4.0', etc...) unless it is absolutely relevant to the context being provided. This should almost never be the case unless referencing legacy functionality.
+- When internally linking markdown files to other markdown files, [always use the `.md` suffix](https://github.com/mkdocs/mkdocs/issues/2456#issuecomment-881877986). That will indicate to mkdocs exactly how to treat that link depending on the mode the link is compiled with, e.g. if it becomes a <filename>/index.html or <filename>.html. Using the `.md` extension will work with either mode.

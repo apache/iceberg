@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import org.apache.iceberg.types.Type;
+
 /** Iceberg internally tracked field level metrics. */
 public class FieldMetrics<T> {
   private final int id;
@@ -26,17 +28,23 @@ public class FieldMetrics<T> {
   private final long nanValueCount;
   private final T lowerBound;
   private final T upperBound;
+  private final Type originalType;
 
   public FieldMetrics(int id, long valueCount, long nullValueCount) {
-    this(id, valueCount, nullValueCount, -1L, null, null);
+    this(id, valueCount, nullValueCount, -1L, null, null, null);
   }
 
   public FieldMetrics(int id, long valueCount, long nullValueCount, T lowerBound, T upperBound) {
-    this(id, valueCount, nullValueCount, -1L, lowerBound, upperBound);
+    this(id, valueCount, nullValueCount, -1L, lowerBound, upperBound, null);
   }
 
   public FieldMetrics(int id, long valueCount, long nullValueCount, long nanValueCount) {
-    this(id, valueCount, nullValueCount, nanValueCount, null, null);
+    this(id, valueCount, nullValueCount, nanValueCount, null, null, null);
+  }
+
+  public FieldMetrics(
+      int id, long valueCount, long nullValueCount, T lowerBound, T upperBound, Type originalType) {
+    this(id, valueCount, nullValueCount, -1L, lowerBound, upperBound, originalType);
   }
 
   public FieldMetrics(
@@ -46,12 +54,24 @@ public class FieldMetrics<T> {
       long nanValueCount,
       T lowerBound,
       T upperBound) {
+    this(id, valueCount, nullValueCount, nanValueCount, lowerBound, upperBound, null);
+  }
+
+  public FieldMetrics(
+      int id,
+      long valueCount,
+      long nullValueCount,
+      long nanValueCount,
+      T lowerBound,
+      T upperBound,
+      Type originalType) {
     this.id = id;
     this.valueCount = valueCount;
     this.nullValueCount = nullValueCount;
     this.nanValueCount = nanValueCount;
     this.lowerBound = lowerBound;
     this.upperBound = upperBound;
+    this.originalType = originalType;
   }
 
   /** Returns the id of the field that the metrics within this class are associated with. */
@@ -85,6 +105,11 @@ public class FieldMetrics<T> {
   /** Returns the upper bound value of this field. */
   public T upperBound() {
     return upperBound;
+  }
+
+  /** Returns the original type of the upper/lower bound value of this field. */
+  public Type originalType() {
+    return originalType;
   }
 
   /** Returns if the metrics has bounds (i.e. there is at least non-null value for this field) */

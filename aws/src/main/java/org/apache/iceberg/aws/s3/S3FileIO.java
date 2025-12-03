@@ -30,7 +30,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -39,9 +38,15 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
@@ -80,22 +85,27 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
  * schemes s3a, s3n, https are also treated as s3 file paths. Using this FileIO with other schemes
  * will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
-public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRecoveryOperations {
+public class S3FileIO
+    implements CredentialSupplier,
+        DelegateFileIO,
+        SupportsRecoveryOperations,
+        SupportsStorageCredentials {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final String ROOT_PREFIX = "s3";
   private static volatile ExecutorService executorService;
 
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
   private SerializableSupplier<S3AsyncClient> s3Async;
-  private S3FileIOProperties s3FileIOProperties;
   private SerializableMap<String, String> properties = null;
-  private transient volatile S3Client client;
-  private transient volatile S3AsyncClient asyncClient;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
+  // use modifiable collection for Kryo serde
+  private List<StorageCredential> storageCredentials = Lists.newArrayList();
+  private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -112,7 +122,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
    * @param s3 s3 supplier
    */
   public S3FileIO(SerializableSupplier<S3Client> s3) {
-    this(s3, null, new S3FileIOProperties());
+    this(s3, null);
   }
 
   /**
@@ -124,70 +134,34 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
    * @param s3Async s3Async supplier
    */
   public S3FileIO(SerializableSupplier<S3Client> s3, SerializableSupplier<S3AsyncClient> s3Async) {
-    this(s3, s3Async, new S3FileIOProperties());
-  }
-
-  /**
-   * Constructor with custom s3 supplier and S3FileIO properties.
-   *
-   * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
-   *
-   * @param s3 s3 supplier
-   * @param s3FileIOProperties S3 FileIO properties
-   */
-  public S3FileIO(SerializableSupplier<S3Client> s3, S3FileIOProperties s3FileIOProperties) {
-    this(s3, null, s3FileIOProperties);
-  }
-
-  /**
-   * Constructor with custom s3 supplier, s3Async supplier and S3FileIO properties.
-   *
-   * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
-   *
-   * @param s3 s3 supplier
-   * @param s3Async s3Async supplier
-   * @param s3FileIOProperties S3 FileIO properties
-   */
-  public S3FileIO(
-      SerializableSupplier<S3Client> s3,
-      SerializableSupplier<S3AsyncClient> s3Async,
-      S3FileIOProperties s3FileIOProperties) {
     this.s3 = s3;
     this.s3Async = s3Async;
-    this.s3FileIOProperties = s3FileIOProperties;
     this.createStack = Thread.currentThread().getStackTrace();
+    this.properties = SerializableMap.copyOf(Maps.newHashMap());
   }
 
   @Override
   public InputFile newInputFile(String path) {
-    if (shouldUseAsyncClient()) {
-      return S3InputFile.fromLocation(path, client(), asyncClient(), s3FileIOProperties, metrics);
-    }
-    return S3InputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
+    return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    if (shouldUseAsyncClient()) {
-      return S3InputFile.fromLocation(
-          path, length, client(), asyncClient(), s3FileIOProperties, metrics);
-    }
-    return S3InputFile.fromLocation(path, length, client(), s3FileIOProperties, metrics);
+    return S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    if (shouldUseAsyncClient()) {
-      return S3OutputFile.fromLocation(path, client(), asyncClient(), s3FileIOProperties, metrics);
-    }
-    return S3OutputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
+    return S3OutputFile.fromLocation(path, clientForStoragePath(path), metrics);
   }
 
   @Override
   public void deleteFile(String path) {
+    PrefixedS3Client client = clientForStoragePath(path);
+    S3FileIOProperties s3FileIOProperties = client.s3FileIOProperties();
     if (s3FileIOProperties.deleteTags() != null && !s3FileIOProperties.deleteTags().isEmpty()) {
       try {
-        tagFileToDelete(path, s3FileIOProperties.deleteTags());
+        tagFileToDelete(client, path, s3FileIOProperties.deleteTags());
       } catch (S3Exception e) {
         LOG.warn("Failed to add delete tags: {} to {}", s3FileIOProperties.deleteTags(), path, e);
       }
@@ -201,7 +175,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     DeleteObjectRequest deleteRequest =
         DeleteObjectRequest.builder().bucket(location.bucket()).key(location.key()).build();
 
-    client().deleteObject(deleteRequest);
+    client.s3().deleteObject(deleteRequest);
   }
 
   @Override
@@ -219,6 +193,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
    */
   @Override
   public void deleteFiles(Iterable<String> paths) throws BulkDeletionFailureException {
+    S3FileIOProperties s3FileIOProperties = clientForStoragePath(ROOT_PREFIX).s3FileIOProperties();
     if (s3FileIOProperties.deleteTags() != null && !s3FileIOProperties.deleteTags().isEmpty()) {
       Tasks.foreach(paths)
           .noRetry()
@@ -231,7 +206,10 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
                       s3FileIOProperties.deleteTags(),
                       path,
                       exc))
-          .run(path -> tagFileToDelete(path, s3FileIOProperties.deleteTags()));
+          .run(
+              path ->
+                  tagFileToDelete(
+                      clientForStoragePath(path), path, s3FileIOProperties.deleteTags()));
     }
 
     if (s3FileIOProperties.isDeleteEnabled()) {
@@ -239,14 +217,15 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
           Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
       List<Future<List<String>>> deletionTasks = Lists.newArrayList();
       for (String path : paths) {
-        S3URI location = new S3URI(path, s3FileIOProperties.bucketToAccessPointMapping());
+        PrefixedS3Client client = clientForStoragePath(path);
+        S3URI location = new S3URI(path, client.s3FileIOProperties().bucketToAccessPointMapping());
         String bucket = location.bucket();
         String objectKey = location.key();
         bucketToObjects.get(bucket).add(objectKey);
-        if (bucketToObjects.get(bucket).size() == s3FileIOProperties.deleteBatchSize()) {
+        if (bucketToObjects.get(bucket).size() == client.s3FileIOProperties().deleteBatchSize()) {
           Set<String> keys = Sets.newHashSet(bucketToObjects.get(bucket));
           Future<List<String>> deletionTask =
-              executorService().submit(() -> deleteBatch(bucket, keys));
+              executorService().submit(() -> deleteBatch(client, bucket, keys));
           deletionTasks.add(deletionTask);
           bucketToObjects.removeAll(bucket);
         }
@@ -258,7 +237,8 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
         String bucket = bucketToObjectsEntry.getKey();
         Collection<String> keys = bucketToObjectsEntry.getValue();
         Future<List<String>> deletionTask =
-            executorService().submit(() -> deleteBatch(bucket, keys));
+            executorService()
+                .submit(() -> deleteBatch(clientForStoragePath("s3://" + bucket), bucket, keys));
         deletionTasks.add(deletionTask);
       }
 
@@ -284,14 +264,15 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     }
   }
 
-  private void tagFileToDelete(String path, Set<Tag> deleteTags) throws S3Exception {
-    S3URI location = new S3URI(path, s3FileIOProperties.bucketToAccessPointMapping());
+  private void tagFileToDelete(PrefixedS3Client client, String path, Set<Tag> deleteTags)
+      throws S3Exception {
+    S3URI location = new S3URI(path, client.s3FileIOProperties().bucketToAccessPointMapping());
     String bucket = location.bucket();
     String objectKey = location.key();
     GetObjectTaggingRequest getObjectTaggingRequest =
         GetObjectTaggingRequest.builder().bucket(bucket).key(objectKey).build();
     GetObjectTaggingResponse getObjectTaggingResponse =
-        client().getObjectTagging(getObjectTaggingRequest);
+        client.s3().getObjectTagging(getObjectTaggingRequest);
     // Get existing tags, if any and then add the delete tags
     Set<Tag> tags = Sets.newHashSet();
     if (getObjectTaggingResponse.hasTagSet()) {
@@ -305,10 +286,11 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
             .key(objectKey)
             .tagging(Tagging.builder().tagSet(tags).build())
             .build();
-    client().putObjectTagging(putObjectTaggingRequest);
+    client.s3().putObjectTagging(putObjectTaggingRequest);
   }
 
-  private List<String> deleteBatch(String bucket, Collection<String> keysToDelete) {
+  private List<String> deleteBatch(
+      PrefixedS3Client client, String bucket, Collection<String> keysToDelete) {
     List<ObjectIdentifier> objectIds =
         keysToDelete.stream()
             .map(key -> ObjectIdentifier.builder().key(key).build())
@@ -320,7 +302,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
             .build();
     List<String> failures = Lists.newArrayList();
     try {
-      DeleteObjectsResponse response = client().deleteObjects(request);
+      DeleteObjectsResponse response = client.s3().deleteObjects(request);
       if (response.hasErrors()) {
         failures.addAll(
             response.errors().stream()
@@ -339,9 +321,11 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
 
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
-    S3URI uri = new S3URI(prefix, s3FileIOProperties.bucketToAccessPointMapping());
+    PrefixedS3Client client = clientForStoragePath(prefix);
+
+    S3URI uri = new S3URI(prefix, client.s3FileIOProperties().bucketToAccessPointMapping());
     if (uri.useS3DirectoryBucket()
-        && s3FileIOProperties.isS3DirectoryBucketListPrefixAsDirectory()) {
+        && client.s3FileIOProperties().isS3DirectoryBucketListPrefixAsDirectory()) {
       uri = uri.toDirectoryPath();
     }
 
@@ -350,7 +334,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
         ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
 
     return () ->
-        client().listObjectsV2Paginator(request).stream()
+        client.s3().listObjectsV2Paginator(request).stream()
             .flatMap(r -> r.contents().stream())
             .map(
                 o ->
@@ -375,29 +359,72 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
   }
 
   public S3Client client() {
-    if (client == null) {
-      synchronized (this) {
-        if (client == null) {
-          client = s3.get();
-        }
-      }
-    }
-    return client;
+    return client(ROOT_PREFIX);
+  }
+
+  @SuppressWarnings("resource")
+  public S3Client client(String storagePath) {
+    return clientForStoragePath(storagePath).s3();
   }
 
   public S3AsyncClient asyncClient() {
-    if (asyncClient == null) {
+    return asyncClient(ROOT_PREFIX);
+  }
+
+  @SuppressWarnings("resource")
+  public S3AsyncClient asyncClient(String storagePath) {
+    return clientForStoragePath(storagePath).s3Async();
+  }
+
+  @VisibleForTesting
+  PrefixedS3Client clientForStoragePath(String storagePath) {
+    PrefixedS3Client client;
+    String matchingPrefix = ROOT_PREFIX;
+
+    for (String storagePrefix : clientByPrefix().keySet()) {
+      if (storagePath.startsWith(storagePrefix)
+          && storagePrefix.length() > matchingPrefix.length()) {
+        matchingPrefix = storagePrefix;
+      }
+    }
+
+    client = clientByPrefix().getOrDefault(matchingPrefix, null);
+
+    Preconditions.checkState(
+        null != client, "[BUG] S3 client for storage path not available: %s", storagePath);
+    return client;
+  }
+
+  private Map<String, PrefixedS3Client> clientByPrefix() {
+    if (null == clientByPrefix) {
       synchronized (this) {
-        if (asyncClient == null) {
-          asyncClient = s3Async.get();
+        if (null == clientByPrefix) {
+          Map<String, PrefixedS3Client> localClientByPrefix = Maps.newHashMap();
+
+          localClientByPrefix.put(
+              ROOT_PREFIX, new PrefixedS3Client(ROOT_PREFIX, properties, s3, s3Async));
+          storageCredentials.stream()
+              .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
+              .collect(Collectors.toList())
+              .forEach(
+                  storageCredential -> {
+                    Map<String, String> propertiesWithCredentials =
+                        ImmutableMap.<String, String>builder()
+                            .putAll(properties)
+                            .putAll(storageCredential.config())
+                            .buildKeepingLast();
+
+                    localClientByPrefix.put(
+                        storageCredential.prefix(),
+                        new PrefixedS3Client(
+                            storageCredential.prefix(), propertiesWithCredentials, s3, s3Async));
+                  });
+          this.clientByPrefix = localClientByPrefix;
         }
       }
     }
-    return asyncClient;
-  }
 
-  private boolean shouldUseAsyncClient() {
-    return s3FileIOProperties.isS3AnalyticsAcceleratorEnabled();
+    return clientByPrefix;
   }
 
   private ExecutorService executorService() {
@@ -406,7 +433,8 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
         if (executorService == null) {
           executorService =
               ThreadPools.newExitingWorkerPool(
-                  "iceberg-s3fileio-delete", s3FileIOProperties.deleteThreads());
+                  "iceberg-s3fileio-delete",
+                  clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().deleteThreads());
         }
       }
     }
@@ -422,37 +450,16 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
-    this.s3FileIOProperties = new S3FileIOProperties(properties);
+
     this.createStack =
-        PropertyUtil.propertyAsBoolean(props, "init-creation-stacktrace", true)
+        PropertyUtil.propertyAsBoolean(properties, "init-creation-stacktrace", true)
             ? Thread.currentThread().getStackTrace()
             : null;
 
-    // Do not override s3 client if it was provided
     if (s3 == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(props);
-      if (clientFactory instanceof S3FileIOAwsClientFactory) {
-        this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
-      }
-      if (clientFactory instanceof AwsClientFactory) {
-        this.s3 = ((AwsClientFactory) clientFactory)::s3;
-      }
+      Object clientFactory = S3FileIOAwsClientFactories.initialize(properties);
       if (clientFactory instanceof CredentialSupplier) {
         this.credential = ((CredentialSupplier) clientFactory).getCredential();
-      }
-      if (s3FileIOProperties.isPreloadClientEnabled()) {
-        client();
-      }
-    }
-
-    // Do not override s3Async client if it was provided
-    if (s3Async == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(props);
-      if (clientFactory instanceof S3FileIOAwsClientFactory) {
-        this.s3Async = ((S3FileIOAwsClientFactory) clientFactory)::s3Async;
-      }
-      if (clientFactory instanceof AwsClientFactory) {
-        this.s3Async = ((AwsClientFactory) clientFactory)::s3Async;
       }
     }
 
@@ -467,7 +474,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
           DynConstructors.builder(MetricsContext.class)
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
-      MetricsContext context = ctor.newInstance("s3");
+      MetricsContext context = ctor.newInstance(ROOT_PREFIX);
       context.initialize(props);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
@@ -480,13 +487,9 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
   public void close() {
     // handles concurrent calls to close()
     if (isResourceClosed.compareAndSet(false, true)) {
-      if (client != null) {
-        client.close();
-      }
-      if (asyncClient != null) {
-        // cleanup usage in analytics accelerator if any
-        AnalyticsAcceleratorUtil.cleanupCache(asyncClient, s3FileIOProperties);
-        asyncClient.close();
+      if (clientByPrefix != null) {
+        clientByPrefix.values().forEach(PrefixedS3Client::close);
+        this.clientByPrefix = null;
       }
     }
   }
@@ -508,9 +511,11 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
 
   @Override
   public boolean recoverFile(String path) {
-    S3URI location = new S3URI(path, s3FileIOProperties.bucketToAccessPointMapping());
+    PrefixedS3Client client = clientForStoragePath(path);
+    S3URI location = new S3URI(path, client.s3FileIOProperties().bucketToAccessPointMapping());
     ListObjectVersionsIterable response =
-        client()
+        client
+            .s3()
             .listObjectVersionsPaginator(
                 builder -> builder.bucket(location.bucket()).prefix(location.key()));
 
@@ -519,10 +524,12 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     Optional<ObjectVersion> recoverVersion =
         response.versions().stream().max(Comparator.comparing(ObjectVersion::lastModified));
 
-    return recoverVersion.map(version -> recoverObject(version, location.bucket())).orElse(false);
+    return recoverVersion
+        .map(version -> recoverObject(client, version, location.bucket()))
+        .orElse(false);
   }
 
-  private boolean recoverObject(ObjectVersion version, String bucket) {
+  private boolean recoverObject(PrefixedS3Client client, ObjectVersion version, String bucket) {
     if (version.isLatest()) {
       return true;
     }
@@ -531,7 +538,8 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     try {
       // Perform a copy instead of deleting the delete marker
       // so that recovery does not rely on delete permissions
-      client()
+      client
+          .s3()
           .copyObject(
               builder ->
                   builder
@@ -546,5 +554,17 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     }
 
     return true;
+  }
+
+  @Override
+  public void setCredentials(List<StorageCredential> credentials) {
+    Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
+    // copy credentials into a modifiable collection for Kryo serde
+    this.storageCredentials = Lists.newArrayList(credentials);
+  }
+
+  @Override
+  public List<StorageCredential> credentials() {
+    return ImmutableList.copyOf(storageCredentials);
   }
 }

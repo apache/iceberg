@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.apache.iceberg.rest.RESTCatalogAdapter.Route.CONFIG;
-
 import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
@@ -50,13 +51,17 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
 
           @Override
           public <T extends RESTResponse> T handleRequest(
-              Route route, Map<String, String> vars, Object body, Class<T> responseType) {
-            if (CONFIG == route) {
+              Route route,
+              Map<String, String> vars,
+              HTTPRequest httpRequest,
+              Class<T> responseType,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (Route.CONFIG == route) {
               // simulate a legacy server that doesn't send back supported endpoints
               return castResponse(responseType, ConfigResponse.builder().build());
             }
 
-            return super.handleRequest(route, vars, body, responseType);
+            return super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
           }
         };
 
@@ -66,7 +71,7 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
     servletContext.setHandler(new GzipHandler());
 
-    this.httpServer = new Server(0);
+    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
     httpServer.start();
 
@@ -89,7 +94,7 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
             "credential",
             "catalog:12345",
             // assume that the server supports view endpoints
-            RESTSessionCatalog.VIEW_ENDPOINTS_SUPPORTED,
+            RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED,
             "true",
             CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
             "catalog-default-key1",

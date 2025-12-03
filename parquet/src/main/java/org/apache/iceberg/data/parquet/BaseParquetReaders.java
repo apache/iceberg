@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -54,6 +53,9 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 abstract class BaseParquetReaders<T> {
+  // Root ID is used for the top-level struct in the Parquet Schema
+  protected static final int ROOT_ID = -1;
+
   protected BaseParquetReaders() {}
 
   protected ParquetValueReader<T> createReader(Schema expectedSchema, MessageType fileSchema) {
@@ -76,8 +78,26 @@ abstract class BaseParquetReaders<T> {
     }
   }
 
-  protected abstract ParquetValueReader<T> createStructReader(
-      List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
+  /**
+   * @deprecated will be removed in 1.12.0. Subclasses should override {@link
+   *     #createStructReader(List, Types.StructType, Integer)} instead
+   */
+  @Deprecated
+  protected ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType) {
+    throw new UnsupportedOperationException(
+        "Deprecated method is not used in this implementation, only createStructReader(list, Types.Struct, Integer) should be used");
+  }
+
+  /**
+   * This method can be overridden to provide a custom implementation which also uses the fieldId of
+   * the Schema when creating the struct reader
+   */
+  protected ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType, Integer fieldId) {
+    // Fallback to the signature without fieldId if not overridden
+    return createStructReader(fieldReaders, structType);
+  }
 
   protected abstract ParquetValueReader<?> fixedReader(ColumnDescriptor desc);
 
@@ -100,8 +120,9 @@ abstract class BaseParquetReaders<T> {
     @Override
     public ParquetValueReader<?> message(
         Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
-      // the top level matches by ID, but the remaining IDs are missing
-      return super.struct(expected, message, fieldReaders);
+      // The top level matches by ID, but the remaining IDs are missing
+      // Mark the top-level struct with the ROOT_ID
+      return super.struct(expected, message.withId(ROOT_ID), fieldReaders);
     }
 
     @Override
@@ -110,7 +131,6 @@ abstract class BaseParquetReaders<T> {
       // the expected struct is ignored because nested fields are never found when the
       List<ParquetValueReader<?>> newFields =
           Lists.newArrayListWithExpectedSize(fieldReaders.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         ParquetValueReader<?> fieldReader = fieldReaders.get(i);
@@ -118,12 +138,16 @@ abstract class BaseParquetReaders<T> {
           Type fieldType = fields.get(i);
           int fieldD = type().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
           newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReader));
-          types.add(fieldType);
         }
       }
 
-      return createStructReader(types, newFields, expected);
+      return createStructReader(newFields, expected, fieldId(struct));
     }
+  }
+
+  /** Returns the field ID from a Parquet GroupType, returning null if the ID is not set */
+  private static Integer fieldId(GroupType struct) {
+    return struct.getId() != null ? struct.getId().intValue() : null;
   }
 
   private class LogicalTypeReadBuilder
@@ -219,16 +243,18 @@ abstract class BaseParquetReaders<T> {
     @Override
     public ParquetValueReader<?> message(
         Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
-      return struct(expected, message.asGroupType(), fieldReaders);
+      return struct(expected, message.asGroupType().withId(ROOT_ID), fieldReaders);
     }
 
     @Override
     public ParquetValueReader<?> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+      if (null == expected) {
+        return createStructReader(ImmutableList.of(), null, fieldId(struct));
+      }
+
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
-      Map<Integer, Type> typesById = Maps.newHashMap();
-      Map<Integer, Integer> maxDefinitionLevelsById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         ParquetValueReader<?> fieldReader = fieldReaders.get(i);
@@ -237,55 +263,37 @@ abstract class BaseParquetReaders<T> {
           int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
           int id = fieldType.getId().intValue();
           readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReader));
-          typesById.put(id, fieldType);
-          if (idToConstant.containsKey(id)) {
-            maxDefinitionLevelsById.put(id, fieldD);
-          }
         }
       }
 
-      List<Types.NestedField> expectedFields =
-          expected != null ? expected.fields() : ImmutableList.of();
+      int constantDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+      List<Types.NestedField> expectedFields = expected.fields();
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
-      // Defaulting to parent max definition level
-      int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
+
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        ParquetValueReader<?> reader = readersById.get(id);
-        if (idToConstant.containsKey(id)) {
-          // containsKey is used because the constant may be null
-          int fieldMaxDefinitionLevel =
-              maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
-          reorderedFields.add(
-              ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
-          types.add(null);
-        } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
-          reorderedFields.add(ParquetValueReaders.position());
-          types.add(null);
-        } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
-          reorderedFields.add(ParquetValueReaders.constant(false));
-          types.add(null);
-        } else if (reader != null) {
-          reorderedFields.add(reader);
-          types.add(typesById.get(id));
-        } else if (field.initialDefault() != null) {
-          reorderedFields.add(
-              ParquetValueReaders.constant(
-                  convertConstant(field.type(), field.initialDefault()),
-                  maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
-          types.add(typesById.get(id));
-        } else if (field.isOptional()) {
-          reorderedFields.add(ParquetValueReaders.nulls());
-          types.add(null);
-        } else {
-          throw new IllegalArgumentException(
-              String.format("Missing required field: %s", field.name()));
-        }
+        ParquetValueReader<?> reader =
+            ParquetValueReaders.replaceWithMetadataReader(
+                id, readersById.get(id), idToConstant, constantDefinitionLevel);
+        reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
       }
 
-      return createStructReader(types, reorderedFields, expected);
+      return createStructReader(reorderedFields, expected, fieldId(struct));
+    }
+
+    private ParquetValueReader<?> defaultReader(
+        Types.NestedField field, ParquetValueReader<?> reader, int constantDL) {
+      if (reader != null) {
+        return reader;
+      } else if (field.initialDefault() != null) {
+        return ParquetValueReaders.constant(
+            convertConstant(field.type(), field.initialDefault()), constantDL);
+      } else if (field.isOptional()) {
+        return ParquetValueReaders.nulls();
+      }
+
+      throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
     }
 
     @Override

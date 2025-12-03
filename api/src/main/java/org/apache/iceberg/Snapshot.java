@@ -178,22 +178,32 @@ public interface Snapshot extends Serializable {
    * value were created in a snapshot that was added to the table (but not necessarily commited to
    * this branch) in the past.
    *
-   * @return the first row-id to be used in this snapshot or null if row lineage was not enabled
-   *     when the table was created.
+   * @return the first row-id to be used in this snapshot or null when row lineage is not supported
    */
   default Long firstRowId() {
     return null;
   }
 
   /**
-   * The total number of newly added rows in this snapshot. It should be the summation of {@link
-   * ManifestFile#ADDED_ROWS_COUNT} for every manifest added in this snapshot.
+   * The upper bound of number of rows with assigned row IDs in this snapshot. It can be used safely
+   * to increment the table's `next-row-id` during a commit. It can be more than the number of rows
+   * added in this snapshot and include some existing rows.
    *
-   * <p>This field is optional but is required when row lineage is enabled.
+   * <p>This field is optional but is required when the table version supports row lineage.
    *
-   * @return the total number of new rows in this snapshot or null if the value was not stored.
+   * @return the upper bound of number of rows with assigned row IDs in this snapshot or null if the
+   *     value was not stored.
    */
   default Long addedRows() {
+    return null;
+  }
+
+  /**
+   * ID of the encryption key used to encrypt this snapshot's manifest list.
+   *
+   * @return a string key ID
+   */
+  default String keyId() {
     return null;
   }
 }
