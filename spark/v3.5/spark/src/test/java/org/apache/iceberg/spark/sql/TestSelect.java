@@ -151,6 +151,19 @@ public class TestSelect extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void selectWithLimit() {
+    Object[] first = row(1L, "a", 1.0F);
+    Object[] second = row(2L, "b", 2.0F);
+    Object[] third = row(3L, "c", Float.NaN);
+
+    // verify that LIMIT is properly applied in case SupportsPushDownLimit.isPartiallyPushed() is
+    // ever overridden in SparkScanBuilder
+    assertThat(sql("SELECT * FROM %s LIMIT 1", tableName)).containsExactly(first);
+    assertThat(sql("SELECT * FROM %s LIMIT 2", tableName)).containsExactly(first, second);
+    assertThat(sql("SELECT * FROM %s LIMIT 3", tableName)).containsExactly(first, second, third);
+  }
+
+  @TestTemplate
   public void testProjection() {
     List<Object[]> expected = ImmutableList.of(row(1L), row(2L), row(3L));
 
