@@ -97,7 +97,7 @@ public class TestFetchScanTasksResponseParser {
         "{\"plan-tasks\":[\"task1\",\"task2\"],"
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
-            + "\"partition\":[0],\"file-size-in-bytes\":10,\"record-count\":1}]"
+            + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1}]"
             + "}";
 
     assertThatThrownBy(
@@ -131,10 +131,10 @@ public class TestFetchScanTasksResponseParser {
         "{"
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
-            + "\"partition\":[0],\"file-size-in-bytes\":10,\"record-count\":1}],"
+            + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1}],"
             + "\"file-scan-tasks\":["
             + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
-            + "\"file-format\":\"PARQUET\",\"partition\":[0],"
+            + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"
             + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
             + "\"delete-file-references\":[0],"
             + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
