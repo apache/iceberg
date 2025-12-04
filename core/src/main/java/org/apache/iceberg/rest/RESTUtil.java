@@ -34,8 +34,11 @@ import org.apache.iceberg.util.UUIDUtil;
 
 @SuppressWarnings("UnicodeEscape")
 public class RESTUtil {
+  /** The namespace separator as Unicode character */
   private static final char NAMESPACE_SEPARATOR_AS_UNICODE = '\u001f';
-  static final String NAMESPACE_SEPARATOR_AS_UTF_8 = "%1F";
+
+  /** The namespace separator as url encoded UTF-8 character */
+  static final String NAMESPACE_SEPARATOR_URLENCODED_UTF_8 = "%1F";
 
   /**
    * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
@@ -262,7 +265,7 @@ public class RESTUtil {
    * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
    */
   public static String encodeNamespace(Namespace ns) {
-    return encodeNamespace(ns, NAMESPACE_SEPARATOR_AS_UTF_8);
+    return encodeNamespace(ns, NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
 
   /**
@@ -303,7 +306,7 @@ public class RESTUtil {
    * @return a namespace
    */
   public static Namespace decodeNamespace(String encodedNs) {
-    return decodeNamespace(encodedNs, NAMESPACE_SEPARATOR_AS_UTF_8);
+    return decodeNamespace(encodedNs, NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
 
   /**
@@ -326,8 +329,8 @@ public class RESTUtil {
     // with %1F
     Splitter splitter =
         Splitter.on(
-            encodedNamespace.contains(NAMESPACE_SEPARATOR_AS_UTF_8)
-                ? NAMESPACE_SEPARATOR_AS_UTF_8
+            encodedNamespace.contains(NAMESPACE_SEPARATOR_URLENCODED_UTF_8)
+                ? NAMESPACE_SEPARATOR_URLENCODED_UTF_8
                 : separator);
     String[] levels = Iterables.toArray(splitter.split(encodedNamespace), String.class);
 

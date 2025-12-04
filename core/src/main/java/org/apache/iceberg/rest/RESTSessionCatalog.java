@@ -268,7 +268,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         PropertyUtil.propertyAsString(
             mergedProps,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
-            RESTUtil.NAMESPACE_SEPARATOR_AS_UTF_8);
+            RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
 
     super.initialize(name, mergedProps);
   }
