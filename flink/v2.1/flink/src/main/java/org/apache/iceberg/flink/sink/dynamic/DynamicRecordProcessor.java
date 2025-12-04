@@ -109,7 +109,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
     TableMetadataCache.ResolvedSchemaInfo foundSchema =
         exists
-            ? tableCache.schema(data.tableIdentifier(), data.schema())
+            ? tableCache.schema(data.tableIdentifier(), data.schema(), dropUnusedColumns)
             : TableMetadataCache.NOT_FOUND;
 
     PartitionSpec foundSpec = exists ? tableCache.spec(data.tableIdentifier(), data.spec()) : null;

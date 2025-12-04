@@ -125,7 +125,7 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
       if (struct.field(existingField.name()) == null) {
         String columnName = this.existingSchema.findColumnName(existingField.fieldId());
         if (dropUnusedColumns) {
-          LOG.info("{}: Dropping column: {}", identifier.name(), columnName);
+          LOG.debug("{}: Dropping column: {}", identifier.name(), columnName);
           this.api.deleteColumn(columnName);
         } else {
           if (existingField.isRequired()) {

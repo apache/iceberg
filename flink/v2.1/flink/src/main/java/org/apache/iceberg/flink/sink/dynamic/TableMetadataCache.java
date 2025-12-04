@@ -89,10 +89,6 @@ class TableMetadataCache {
     return branch(identifier, branch, true);
   }
 
-  ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input) {
-    return schema(identifier, input, true, false);
-  }
-
   ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input, boolean dropUnusedColumns) {
     return schema(identifier, input, true, dropUnusedColumns);
   }
