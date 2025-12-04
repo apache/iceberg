@@ -51,8 +51,8 @@ Iceberg materialized views are implemented as a combination of an Iceberg view a
 Materialized View metadata is a superset of View metadata with an additional pointer to the storage table. The storage table is an Iceberg table with additional materialized view refresh state metadata.
 Refresh metadata contains information about the "source tables" and/or "source views", which are the tables/views referenced in the query definition of the materialized view.
 During read time, a materialized view (storage table) can be interpreted as "fresh", "stale" or "invalid", depending on the following situations:
-* **fresh** -- The `snapshot_id`s of the last refresh operation match the current `snapshot_id`s of all the source tables.
-* **stale** -- The `snapshot_id`s do not match for at-least one source table, indicating that a refresh operation needs to be performed to capture the latest source table changes.
+* **fresh** -- The `snapshot_id`s of the last refresh operation match the current `snapshot_id`s of all the source tables, OR all source table snapshots that differ from the last refresh have timestamps within a configured staleness window.
+* **stale** -- The `snapshot_id`s do not match for at least one source table and at least one differing snapshot has a timestamp outside the configured staleness window, indicating that a refresh operation needs to be performed to capture the latest source table changes.
 * **invalid** -- The current `version_id` of the materialized view does not match the `view-version-id` of the refresh state.
 
 ## Specification
@@ -79,13 +79,13 @@ The view version metadata file has the following fields:
 | _required_  | `versions`           | A list of known [versions](#versions) of the view [1] |
 | _required_  | `version-log`        | A list of [version log](#version-log) entries with the timestamp and `version-id` for every change to `current-version-id` |
 | _optional_  | `properties`         | A string to string map of view properties [2] |
-| _optional_  | `max-staleness-ms`   | The maximum time interval in milliseconds after a refresh operation during which the materialized view's data is considered fresh [3] |
+| _optional_  | `max-staleness-ms`   | The maximum time interval in milliseconds during which changed source table snapshots are considered fresh enough to skip refreshing [3] |
 
 Notes:
 
 1. The number of versions to retain is controlled by the view property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
-3. The `max-staleness-ms` field only applies to materialized views and must be set to `null` for common views. If `max-staleness-ms` is not `null` and the time elapsed since the last refresh operation is less than `max-staleness-ms`, the query engine may return data directly from the `storage-table` without evaluating freshness based on the source tables and views. If `max-staleness-ms` is `null` for a materialized view, the data in the `storage-table` is always considered fresh.
+3. The `max-staleness-ms` field only applies to materialized views and must be set to `null` for common views. When `max-staleness-ms` is not `null`, the query engine may return data directly from the `storage-table` without refreshing if all source table snapshots that differ from those used in the last refresh have timestamps within `max-staleness-ms` of the current time. When `max-staleness-ms` is `null` for a materialized view, the data in the `storage-table` is always considered fresh.
 
 #### Versions
 
