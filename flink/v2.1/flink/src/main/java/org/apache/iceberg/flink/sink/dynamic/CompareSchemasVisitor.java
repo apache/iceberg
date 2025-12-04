@@ -92,20 +92,15 @@ public class CompareSchemasVisitor
     }
 
     for (Types.NestedField tableField : tableSchemaType.asStructType().fields()) {
-      if (tableField.isRequired() && struct.field(tableField.name()) == null) {
+      if (struct.field(tableField.name()) == null
+          && (tableField.isRequired() || dropUnusedColumns)) {
         // If a field from the table schema does not exist in the input schema, then we won't visit
-        // it and check for required/optional compatibility. The only choice is to make the table
-        // field optional.
+        // it. The only choice is to make the table field optional or drop it.
         return Result.SCHEMA_UPDATE_NEEDED;
       }
     }
 
     if (struct.fields().size() != tableSchemaType.asStructType().fields().size()) {
-      if (dropUnusedColumns
-          && struct.fields().size() < tableSchemaType.asStructType().fields().size()) {
-        // We need to drop fields
-        return Result.SCHEMA_UPDATE_NEEDED;
-      }
       return Result.DATA_CONVERSION_NEEDED;
     }
 
