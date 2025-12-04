@@ -213,7 +213,7 @@ For source materialized views, both the source view and its storage table are in
 
 #### Source table
 
-A source table record captures the state of a source table at the time of the last refresh operation.
+A source table record captures the state of a source table (including source MV's storage table) at the time of the last refresh operation.
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
