@@ -1833,7 +1833,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EventsResponse'
+                $ref: '#/components/schemas/QueryEventsResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -3531,7 +3531,7 @@ components:
           format: int64
           description: >
             The (server) timestamp in milliseconds to start consuming events from (inclusive).
-            If not provided, the first available timestamp is used.
+            If not provided, no filtering based on timestamp values.
         operation-types:
           type: array
           items:
@@ -4132,7 +4132,7 @@ components:
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
-    EventsResponse:
+    QueryEventsResponse:
       type: object
       required:
         - highest-processed-timestamp-ms

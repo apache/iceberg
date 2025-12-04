@@ -980,7 +980,7 @@ class QueryEventsRequest(BaseModel):
     after_timestamp_ms: Optional[int] = Field(
         None,
         alias='after-timestamp-ms',
-        description='The (server) timestamp in milliseconds to start consuming events from (inclusive). If not provided, the first available timestamp is used.\n',
+        description='The (server) timestamp in milliseconds to start consuming events from (inclusive). If not provided, no filtering based on timestamp values.\n',
     )
     operation_types: Optional[List[OperationType]] = Field(
         None,
@@ -1554,7 +1554,7 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
-class EventsResponse(BaseModel):
+class QueryEventsResponse(BaseModel):
     next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
     highest_processed_timestamp_ms: int = Field(
         ...,
@@ -1760,7 +1760,7 @@ PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
-EventsResponse.update_forward_refs()
+QueryEventsResponse.update_forward_refs()
 Event.update_forward_refs()
 CompletedPlanningResult.update_forward_refs()
 FetchScanTasksResult.update_forward_refs()
