@@ -24,7 +24,6 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -69,7 +68,6 @@ public class ExpressionUtil {
           "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{7,9})?)?([-+]\\d{2}:\\d{2}|Z)");
 
   static final int LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD = 10;
-  private static final int LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN = 5;
 
   private ExpressionUtil() {}
 
@@ -502,19 +500,20 @@ public class ExpressionUtil {
 
   private static List<String> abbreviateValues(List<String> sanitizedValues) {
     if (sanitizedValues.size() >= LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD) {
-      Set<String> distinctValues = ImmutableSet.copyOf(sanitizedValues);
-      if (distinctValues.size()
-          <= sanitizedValues.size() - LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN) {
-        List<String> abbreviatedList = Lists.newArrayListWithCapacity(distinctValues.size() + 1);
-        abbreviatedList.addAll(distinctValues);
+      List<String> distinctValues = ImmutableSet.copyOf(sanitizedValues).asList();
+      int abbreviatedSize =
+          Math.min(distinctValues.size(), LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD);
+      List<String> abbreviatedList = Lists.newArrayListWithCapacity(abbreviatedSize + 1);
+      abbreviatedList.addAll(distinctValues.subList(0, abbreviatedSize));
+      if (abbreviatedSize < sanitizedValues.size()) {
         abbreviatedList.add(
             String.format(
                 Locale.ROOT,
                 "... (%d values hidden, %d in total)",
-                sanitizedValues.size() - distinctValues.size(),
+                sanitizedValues.size() - abbreviatedSize,
                 sanitizedValues.size()));
-        return abbreviatedList;
       }
+      return abbreviatedList;
     }
     return sanitizedValues;
   }
