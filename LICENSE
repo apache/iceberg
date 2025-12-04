@@ -290,6 +290,7 @@ This product includes code from Apache Spark.
 * Connector expressions.
 * implementation of VectorizedDeltaEncodedValuesReader
 * implementation of VectorizedDeltaLengthByteArrayValuesReader
+* implementation of VectorizedDeltaByteArrayReader
 
 Copyright: 2011-2018 The Apache Software Foundation
 Home page: https://spark.apache.org/

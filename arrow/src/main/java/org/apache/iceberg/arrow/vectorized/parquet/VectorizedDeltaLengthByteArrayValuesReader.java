@@ -29,8 +29,8 @@ import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
 
 /**
- * A {@link VectorizedValuesReader} implementation for the encoding type DELTA_LENGTH_BYTE_ARRAY. This
- * is adapted from Spark's VectorizedDeltaLengthByteArrayReader.
+ * A {@link VectorizedValuesReader} implementation for the encoding type DELTA_LENGTH_BYTE_ARRAY.
+ * This is adapted from Spark's VectorizedDeltaLengthByteArrayReader.
  *
  * @see <a
  *     href="https://github.com/apache/parquet-format/blob/master/Encodings.md#delta-length-byte-array-delta_length_byte_array--6">
@@ -59,6 +59,14 @@ public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedVal
   @Override
   public Binary readBinary(int len) {
     readValues(1, null, 0, x -> len, (f, i, v) -> byteBuffer = v);
+    return Binary.fromReusedByteBuffer(byteBuffer);
+  }
+
+  Binary readBinaryForRow(int rowId) {
+    if (lengths[rowId] == 0) {
+      return Binary.EMPTY;
+    }
+    readValues(1, null, rowId, ignored -> lengths[rowId], (f, i, v) -> byteBuffer = v);
     return Binary.fromReusedByteBuffer(byteBuffer);
   }
 
