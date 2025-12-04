@@ -264,8 +264,9 @@ paths:
             If not provided, all top-level namespaces should be listed.
             For backward compatibility, empty string is treated as absent for now.
             If parent is a multipart namespace, the parts must be separated by the namespace separator as
-            indicated via the /config override `namespace-separator`, which defaults to the unit separator (`0x1F`) byte.
+            indicated via the /config override `namespace-separator`, which defaults to the unit separator `0x1F` byte (url encoded `%1F`).
             To be compatible with older clients, servers must use both the advertised separator and `0x1F` as valid separators when decoding namespaces.
+            The `namespace-separator` should be provided in a url encoded form.
           required: false
           schema:
             type: string
@@ -1840,8 +1841,9 @@ components:
       description:
         A namespace identifier as a single string.
         Multipart namespace parts must be separated by the namespace separator as
-        indicated via the /config override `namespace-separator`, which defaults to the unit separator (`0x1F`) byte.
+        indicated via the /config override `namespace-separator`, which defaults to the unit separator `0x1F` byte (url encoded `%1F`).
         To be compatible with older clients, servers must use both the advertised separator and `0x1F` as valid separators when decoding namespaces.
+        The `namespace-separator` should be provided in a url encoded form.
       schema:
         type: string
       examples:
