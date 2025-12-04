@@ -4479,7 +4479,7 @@ components:
           type: integer
           format: int64
         select:
-          description: List of selected schema fields2
+          description: List of selected schema fields
           type: array
           items:
             $ref: '#/components/schemas/FieldName'
