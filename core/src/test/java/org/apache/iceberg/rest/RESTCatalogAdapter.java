@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -61,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -74,6 +76,7 @@ import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.Pair;
@@ -169,6 +172,23 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                         .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                         .collect(Collectors.toList()))
                 .build());
+
+      case LOAD_TABLE_CREDENTIALS:
+        {
+          // Load Table Credentials is implementation dependent.
+          // We're creating a dummy credential to simulate what the REST Catalog would do.
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          return castResponse(
+              responseType,
+              ImmutableLoadCredentialsResponse.builder()
+                  .addAllCredentials(
+                      Collections.singletonList(
+                          ImmutableCredential.builder()
+                              .prefix("dummy")
+                              .config(Map.of("table", ident.name()))
+                              .build()))
+                  .build());
+        }
 
       case LIST_NAMESPACES:
         if (asNamespaceCatalog != null) {

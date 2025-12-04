@@ -90,6 +90,8 @@ import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -2895,6 +2897,26 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ((BaseTable) tbl).operations().current().metadataFileLocation());
 
     assertThat(respHeaders).containsEntry(HttpHeaders.ETAG, eTag);
+  }
+
+  @Test
+  public void testLoadTableCredentials() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+
+    List<Credential> credentials = catalog.loadTableCredentials(TABLE);
+    // We're expecting the dummy credential
+    assertThat(credentials).hasSize(1);
+    Credential credential = credentials.get(0);
+    assertThat(credential)
+        .isEqualTo(
+            ImmutableCredential.builder()
+                .prefix("dummy")
+                .config(Map.of("table", TABLE.name()))
+                .build());
   }
 
   @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")

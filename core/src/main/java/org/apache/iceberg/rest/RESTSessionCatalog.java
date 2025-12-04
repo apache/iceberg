@@ -85,6 +85,7 @@ import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
@@ -1188,6 +1189,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             null,
             mutationHeaders,
             ErrorHandlers.tableCommitHandler());
+  }
+
+  public LoadCredentialsResponse loadTableCredentials(
+      SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_TABLE_CREDENTIALS);
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    return client
+        .withAuthSession(contextualSession)
+        .get(
+            paths.loadTableCredentials(identifier),
+            null,
+            LoadCredentialsResponse.class,
+            Map.of(),
+            ErrorHandlers.defaultErrorHandler());
   }
 
   @Override

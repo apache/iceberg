@@ -41,6 +41,8 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
@@ -289,6 +291,11 @@ public class RESTCatalog
   public void commitTransaction(TableCommit... commits) {
     sessionCatalog.commitTransaction(
         context, ImmutableList.<TableCommit>builder().add(commits).build());
+  }
+
+  public List<Credential> loadTableCredentials(TableIdentifier identifier) {
+    LoadCredentialsResponse resp = sessionCatalog.loadTableCredentials(context, identifier);
+    return resp.credentials();
   }
 
   @Override
