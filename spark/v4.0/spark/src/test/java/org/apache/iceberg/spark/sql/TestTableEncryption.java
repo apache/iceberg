@@ -165,18 +165,18 @@ public class TestTableEncryption extends CatalogTestBase {
 
     // Write data for a replace transaction that will be committed later
     Transaction secondReplace =
-            validationCatalog
-                    .buildTable(tableIdent, schema)
-                    .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
-                    .replaceTransaction();
+        validationCatalog
+            .buildTable(tableIdent, schema)
+            .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
+            .replaceTransaction();
     secondReplace.newFastAppend().appendFile(file).commit();
 
     // Commit another replace transaction first
     Transaction firstReplace =
-            validationCatalog
-                    .buildTable(tableIdent, schema)
-                    .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
-                    .replaceTransaction();
+        validationCatalog
+            .buildTable(tableIdent, schema)
+            .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
+            .replaceTransaction();
     firstReplace.newFastAppend().appendFile(file).commit();
     firstReplace.commitTransaction();
 
