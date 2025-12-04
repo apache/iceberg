@@ -21,8 +21,6 @@ package org.apache.iceberg.spark.data;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,12 +35,15 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -51,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
+import org.apache.iceberg.spark.source.BatchReaderUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -181,22 +183,52 @@ public class TestSparkParquetReadMetadataColumns {
     Parquet.ReadBuilder builder =
         Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
 
-    DeleteFilter deleteFilter = mock(DeleteFilter.class);
-    when(deleteFilter.hasPosDeletes()).thenReturn(true);
-    PositionDeleteIndex deletedRowPos = new CustomizedPositionDeleteIndex();
-    deletedRowPos.delete(98, 103);
-    when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
+    DeleteFilter<InternalRow> deleteFilter = new TestDeleteFilter(true);
 
     builder.createBatchedReaderFunc(
         fileSchema ->
             VectorizedSparkParquetReaders.buildReader(
-                PROJECTION_SCHEMA, fileSchema, Maps.newHashMap(), deleteFilter));
+                PROJECTION_SCHEMA, fileSchema, Maps.newHashMap()));
     builder.recordsPerBatch(RECORDS_PER_BATCH);
 
-    validate(expectedRowsAfterDelete, builder);
+    validate(expectedRowsAfterDelete, builder, deleteFilter);
   }
 
-  private class CustomizedPositionDeleteIndex implements PositionDeleteIndex {
+  private static class TestDeleteFilter extends DeleteFilter<InternalRow> {
+    private final boolean hasDeletes;
+
+    protected TestDeleteFilter(boolean hasDeletes) {
+      super("", List.of(), DATA_SCHEMA, PROJECTION_SCHEMA, new DeleteCounter(), true);
+      this.hasDeletes = hasDeletes;
+    }
+
+    @Override
+    protected StructLike asStructLike(InternalRow record) {
+      return null;
+    }
+
+    @Override
+    protected InputFile getInputFile(String location) {
+      return null;
+    }
+
+    @Override
+    public boolean hasPosDeletes() {
+      return hasDeletes;
+    }
+
+    @Override
+    public PositionDeleteIndex deletedRowPositions() {
+      PositionDeleteIndex deletedRowPos = new CustomizedPositionDeleteIndex();
+      if (hasDeletes) {
+        deletedRowPos.delete(98, 103);
+      }
+
+      return deletedRowPos;
+    }
+  }
+
+  private static class CustomizedPositionDeleteIndex implements PositionDeleteIndex {
     private final Set<Long> deleteIndex;
 
     private CustomizedPositionDeleteIndex() {
@@ -266,7 +298,7 @@ public class TestSparkParquetReadMetadataColumns {
       builder.createBatchedReaderFunc(
           fileSchema ->
               VectorizedSparkParquetReaders.buildReader(
-                  PROJECTION_SCHEMA, fileSchema, Maps.newHashMap(), null));
+                  PROJECTION_SCHEMA, fileSchema, Maps.newHashMap()));
       builder.recordsPerBatch(RECORDS_PER_BATCH);
     } else {
       builder =
@@ -282,13 +314,13 @@ public class TestSparkParquetReadMetadataColumns {
       builder = builder.split(splitStart, splitLength);
     }
 
-    validate(expected, builder);
+    validate(expected, builder, new TestDeleteFilter(false));
   }
 
-  private void validate(List<InternalRow> expected, Parquet.ReadBuilder builder)
+  private void validate(
+      List<InternalRow> expected, Parquet.ReadBuilder builder, DeleteFilter<InternalRow> filter)
       throws IOException {
-    try (CloseableIterable<InternalRow> reader =
-        vectorized ? batchesToRows(builder.build()) : builder.build()) {
+    try (CloseableIterable<InternalRow> reader = reader(builder, filter)) {
       final Iterator<InternalRow> actualRows = reader.iterator();
 
       for (InternalRow internalRow : expected) {
@@ -297,6 +329,15 @@ public class TestSparkParquetReadMetadataColumns {
       }
 
       assertThat(actualRows).as("Should not have extra rows").isExhausted();
+    }
+  }
+
+  private CloseableIterable<InternalRow> reader(
+      Parquet.ReadBuilder builder, DeleteFilter<InternalRow> filter) {
+    if (!vectorized) {
+      return builder.build();
+    } else {
+      return batchesToRows(BatchReaderUtil.applyDeleteFilter(builder.build(), filter));
     }
   }
 

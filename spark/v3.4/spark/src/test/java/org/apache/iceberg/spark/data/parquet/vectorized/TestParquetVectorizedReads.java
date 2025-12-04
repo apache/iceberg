@@ -174,7 +174,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                   .createBatchedReaderFunc(
                       type ->
                           VectorizedSparkParquetReaders.buildReader(
-                              schema, type, Maps.newHashMap(), null, allocator));
+                              schema, type, Maps.newHashMap(), allocator));
           if (reuseContainers) {
             readBuilder.reuseContainers();
           }
@@ -204,8 +204,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                         new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))),
                     new MessageType(
                         "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
-                    Maps.newHashMap(),
-                    null))
+                    Maps.newHashMap()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Vectorized reads are not supported yet for struct fields");
   }
