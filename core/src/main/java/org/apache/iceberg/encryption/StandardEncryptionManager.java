@@ -145,10 +145,9 @@ public class StandardEncryptionManager implements EncryptionManager {
    */
   @Deprecated
   public ByteBuffer wrapKey(ByteBuffer secretKey) {
-    if (transientState == null) {
-      throw new IllegalStateException(
-          "Cannot wrap key after called after serialization (missing KMS client)");
-    }
+    Preconditions.checkState(
+        transientState != null,
+        "Cannot wrap key after called after serialization (missing KMS client)");
 
     return transientState.kmsClient.wrapKey(secretKey, tableKeyId);
   }
@@ -158,25 +157,21 @@ public class StandardEncryptionManager implements EncryptionManager {
    */
   @Deprecated
   public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
-    if (transientState == null) {
-      throw new IllegalStateException("Cannot unwrap key after serialization");
-    }
+    Preconditions.checkState(transientState != null, "Cannot unwrap key after serialization");
 
     return transientState.kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
   }
 
   Map<String, EncryptedKey> encryptionKeys() {
-    if (transientState == null) {
-      throw new IllegalStateException("Cannot return the encryption keys after serialization");
-    }
+    Preconditions.checkState(
+        transientState != null, "Cannot return the encryption keys after serialization");
 
     return transientState.encryptionKeys;
   }
 
   String keyEncryptionKeyID() {
-    if (transientState == null) {
-      throw new IllegalStateException("Cannot return the current key after serialization");
-    }
+    Preconditions.checkState(
+        transientState != null, "Cannot return the current key after serialization");
 
     // Find unexpired key encryption key
     for (String keyID : transientState.encryptionKeys.keySet()) {
@@ -214,28 +209,26 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   ByteBuffer encryptedByKey(String manifestListKeyID) {
-    if (transientState == null) {
-      throw new IllegalStateException("Cannot find key encryption key after serialization");
-    }
+    Preconditions.checkState(
+        transientState != null, "Cannot find key encryption key after serialization");
 
     EncryptedKey encryptedKeyMetadata = transientState.encryptionKeys.get(manifestListKeyID);
-    if (encryptedKeyMetadata == null) {
-      throw new IllegalStateException(
-          "Cannot find manifest list key metadata with id " + manifestListKeyID);
-    }
 
-    if (encryptedKeyMetadata.encryptedById().equals(tableKeyId)) {
-      throw new IllegalArgumentException(
-          manifestListKeyID + " is a key encryption key, not manifest list key metadata");
-    }
+    Preconditions.checkState(
+        encryptedKeyMetadata != null,
+        "Cannot find manifest list key metadata with id %s",
+        manifestListKeyID);
+
+    Preconditions.checkArgument(
+        !encryptedKeyMetadata.encryptedById().equals(tableKeyId),
+        "%s is a key encryption key, not manifest list key metadata",
+        manifestListKeyID);
 
     return transientState.unwrappedKeyCache.get(encryptedKeyMetadata.encryptedById());
   }
 
   public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
-    if (transientState == null) {
-      throw new IllegalStateException("Cannot add key metadata after serialization");
-    }
+    Preconditions.checkState(transientState != null, "Cannot add key metadata after serialization");
 
     String manifestListKeyID = generateKeyId();
     String keyEncryptionKeyID = keyEncryptionKeyID();
