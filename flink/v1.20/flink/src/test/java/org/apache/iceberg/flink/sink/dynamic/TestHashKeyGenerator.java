@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Collections;
 import java.util.Map;
@@ -155,6 +156,34 @@ class TestHashKeyGenerator {
     assertThat(getSubTaskId(writeKey1, writeParallelism, maxWriteParallelism)).isEqualTo(1);
     assertThat(getSubTaskId(writeKey2, writeParallelism, maxWriteParallelism)).isEqualTo(1);
     assertThat(getSubTaskId(writeKey3, writeParallelism, maxWriteParallelism)).isEqualTo(0);
+  }
+
+  @Test
+  void testFailOnNonPositiveWriteParallelism() {
+    final int maxWriteParallelism = 5;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+
+    assertThatThrownBy(
+        () -> {
+          getWriteKey(
+              generator,
+              PartitionSpec.unpartitioned(),
+              DistributionMode.NONE,
+              -1, // writeParallelism
+              Collections.emptySet(),
+              GenericRowData.of());
+        });
+
+    assertThatThrownBy(
+        () -> {
+          getWriteKey(
+              generator,
+              PartitionSpec.unpartitioned(),
+              DistributionMode.NONE,
+              0, // writeParallelism
+              Collections.emptySet(),
+              GenericRowData.of());
+        });
   }
 
   @Test
