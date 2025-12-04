@@ -116,6 +116,17 @@ public class ResourcePaths {
     return SLASH.join("v1", prefix, "transactions", "commit");
   }
 
+  public String loadTableCredentials(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "credentials");
+  }
+
   public String views(Namespace ns) {
     return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns), "views");
   }
