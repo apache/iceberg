@@ -110,7 +110,7 @@ public class TestRESTUtil {
     Namespace namespace = Namespace.of("first", "second", "third");
     // old client would call encodeNamespace without specifying a separator
     String encodedNamespace = RESTUtil.encodeNamespace(namespace);
-    assertThat(encodedNamespace).contains(RESTUtil.NAMESPACE_SEPARATOR_AS_UTF_8);
+    assertThat(encodedNamespace).contains(RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
 
     // old client would also call namespaceToQueryParam without specifying a separator
     String namespaceAsUnicode = RESTUtil.namespaceToQueryParam(namespace);

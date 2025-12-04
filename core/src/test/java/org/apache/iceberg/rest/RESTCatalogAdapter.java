@@ -85,7 +85,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   @SuppressWarnings("AvoidEscapedUnicodeCharacters")
   private static final String NAMESPACE_SEPARATOR_UNICODE = "\u002e";
 
-  private static final String NAMESPACE_SEPARATOR_AS_UTF_8 = "%2E";
+  private static final String NAMESPACE_SEPARATOR_URLENCODED_UTF_8 = "%2E";
 
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
       ImmutableMap.<Class<? extends Exception>, Integer>builder()
@@ -175,7 +175,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                         .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                         .collect(Collectors.toList()))
                 .withOverride(
-                    RESTCatalogProperties.NAMESPACE_SEPARATOR, NAMESPACE_SEPARATOR_AS_UTF_8)
+                    RESTCatalogProperties.NAMESPACE_SEPARATOR, NAMESPACE_SEPARATOR_URLENCODED_UTF_8)
                 .build());
 
       case LIST_NAMESPACES:
@@ -653,7 +653,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.decodeNamespace(pathVars.get("namespace"), NAMESPACE_SEPARATOR_AS_UTF_8);
+    return RESTUtil.decodeNamespace(
+        pathVars.get("namespace"), NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
 
   private static TableIdentifier tableIdentFromPathVars(Map<String, String> pathVars) {
