@@ -90,10 +90,11 @@ public class ContentFileParser {
     generator.writeNumberField(SPEC_ID, contentFile.specId());
     // Since 1.11, we serialize content as lowercase kebab-case values like "equality-deletes"
     generator.writeStringField(
-        CONTENT, contentFile.content().name().toLowerCase(Locale.ROOT).replace('_', '-'));
+        CONTENT, contentFile.content().name().toLowerCase(Locale.ENGLISH).replace('_', '-'));
     generator.writeStringField(FILE_PATH, contentFile.location());
     // Since 1.11, we serialize format as lower-case strings like "parquet"
-    generator.writeStringField(FILE_FORMAT, contentFile.format().name().toLowerCase(Locale.ROOT));
+    generator.writeStringField(
+        FILE_FORMAT, contentFile.format().name().toLowerCase(Locale.ENGLISH));
 
     if (contentFile.partition() != null) {
       generator.writeFieldName(PARTITION);
