@@ -127,16 +127,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private Server httpServer;
   private RESTCatalogAdapter adapterForRESTServer;
 
-  private enum IdempHeaderExpectation {
-    NONE,
-    REQUIRE,
-    FORBID
-  }
-
-  private static volatile IdempHeaderExpectation idempHeaderExpectation =
-      IdempHeaderExpectation.NONE;
-  private static volatile boolean advertiseIdempInConfig = false;
-
   @BeforeEach
   public void createCatalog() throws Exception {
     File warehouse = temp.toFile();
@@ -165,30 +155,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         Mockito.spy(
             new RESTCatalogAdapter(backendCatalog) {
               @Override
-              public <T extends RESTResponse> T handleRequest(
-                  Route route,
-                  Map<String, String> vars,
-                  HTTPRequest httpRequest,
-                  Class<T> responseType,
-                  Consumer<Map<String, String>> responseHeaders) {
-                if (route == Route.CONFIG) {
-                  ConfigResponse.Builder builder =
-                      ConfigResponse.builder()
-                          .withEndpoints(
-                              Arrays.stream(Route.values())
-                                  .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
-                                  .collect(Collectors.toList()));
-                  if (advertiseIdempInConfig) {
-                    builder.withIdempotencyKeyLifetime("PT30M");
-                  }
-
-                  return (T) builder.build();
-                }
-
-                return super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
-              }
-
-              @Override
               public <T extends RESTResponse> T execute(
                   HTTPRequest request,
                   Class<T> responseType,
@@ -197,17 +163,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 // this doesn't use a Mockito spy because this is used for catalog tests, which have
                 // different method calls
                 if (!ResourcePaths.tokens().equals(request.path())) {
-                  boolean isMutation =
-                      request.method() == HTTPMethod.POST || request.method() == HTTPMethod.DELETE;
-                  if (isMutation) {
-                    boolean hasIdemp = request.headers().contains(RESTUtil.IDEMPOTENCY_KEY_HEADER);
-                    if (idempHeaderExpectation == IdempHeaderExpectation.REQUIRE) {
-                      assertThat(hasIdemp).isTrue();
-                    } else if (idempHeaderExpectation == IdempHeaderExpectation.FORBID) {
-                      assertThat(hasIdemp).isFalse();
-                    }
-                  }
-
                   if (ResourcePaths.config().equals(request.path())) {
                     assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
                   } else {
@@ -3218,13 +3173,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       protected RESTTableOperations newTableOps(
           RESTClient restClient,
           String path,
-          Supplier<Map<String, String>> headers,
+          Supplier<Map<String, String>> readHeaders,
+          Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
         RESTTableOperations ops =
             new CustomRESTTableOperations(
-                restClient, path, headers, fileIO, current, supportedEndpoints);
+                restClient, path, mutationHeaders, fileIO, current, supportedEndpoints);
         RESTTableOperations spy = Mockito.spy(ops);
         capturedOps.set(spy);
         return spy;
@@ -3234,7 +3190,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       protected RESTTableOperations newTableOps(
           RESTClient restClient,
           String path,
-          Supplier<Map<String, String>> headers,
+          Supplier<Map<String, String>> readHeaders,
+          Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           RESTTableOperations.UpdateType updateType,
           List<MetadataUpdate> createChanges,
@@ -3244,7 +3201,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             new CustomRESTTableOperations(
                 restClient,
                 path,
-                headers,
+                mutationHeaders,
                 fileIO,
                 updateType,
                 createChanges,
@@ -3311,56 +3268,81 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testClientAutoSendsIdempotencyWhenServerAdvertises() {
-    idempHeaderExpectation = IdempHeaderExpectation.REQUIRE;
-    advertiseIdempInConfig = true;
-    RESTCatalog local = null;
-    try {
-      local = initCatalog("prod", ImmutableMap.of());
-      Namespace ns = Namespace.of("ns_cfg_yes");
-      TableIdentifier ident = TableIdentifier.of(ns, "t_cfg_yes");
-      Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
-      local.createNamespace(ns, ImmutableMap.of());
-      local.createTable(ident, schema);
-      assertThat(local.tableExists(ident)).isTrue();
-      local.dropTable(ident);
-    } finally {
-      idempHeaderExpectation = IdempHeaderExpectation.NONE;
-      advertiseIdempInConfig = false;
-      if (local != null) {
-        try {
-          local.close();
-        } catch (Exception e) {
-          throw new RuntimeException("Failed to close RESTCatalog", e);
-        }
-      }
-    }
+    ConfigResponse cfgWithIdem =
+        ConfigResponse.builder()
+            .withIdempotencyKeyLifetime("PT30M")
+            .withEndpoints(
+                Arrays.stream(Route.values())
+                    .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
+                    .collect(Collectors.toList()))
+            .build();
+
+    RESTCatalog local = createCatalogWithIdempAdapter(cfgWithIdem, true);
+
+    Namespace ns = Namespace.of("ns_cfg_idem");
+    TableIdentifier ident = TableIdentifier.of(ns, "t_cfg_idem");
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    local.createNamespace(ns, ImmutableMap.of());
+    local.createTable(ident, schema);
+    assertThat(local.tableExists(ident)).isTrue();
+    local.dropTable(ident);
   }
 
   @Test
   public void testClientDoesNotSendIdempotencyWhenServerNotAdvertising() {
-    idempHeaderExpectation = IdempHeaderExpectation.FORBID;
-    advertiseIdempInConfig = false;
-    RESTCatalog local = null;
-    try {
-      local = initCatalog("prod", ImmutableMap.of());
-      Namespace ns = Namespace.of("ns_cfg_no");
-      TableIdentifier ident = TableIdentifier.of(ns, "t_cfg_no");
-      Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
-      local.createNamespace(ns, ImmutableMap.of());
-      local.createTable(ident, schema);
-      assertThat(local.tableExists(ident)).isTrue();
-      local.dropTable(ident);
-    } finally {
-      idempHeaderExpectation = IdempHeaderExpectation.NONE;
-      advertiseIdempInConfig = false;
-      if (local != null) {
-        try {
-          local.close();
-        } catch (Exception e) {
-          throw new RuntimeException("Failed to close RESTCatalog", e);
-        }
-      }
-    }
+    ConfigResponse cfgNoIdem =
+        ConfigResponse.builder()
+            .withEndpoints(
+                Arrays.stream(Route.values())
+                    .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
+                    .collect(Collectors.toList()))
+            .build();
+
+    RESTCatalog local = createCatalogWithIdempAdapter(cfgNoIdem, false);
+
+    Namespace ns = Namespace.of("ns_cfg_no_idem");
+    TableIdentifier ident = TableIdentifier.of(ns, "t_cfg_no_idem");
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    local.createNamespace(ns, ImmutableMap.of());
+    local.createTable(ident, schema);
+    assertThat(local.tableExists(ident)).isTrue();
+    local.dropTable(ident);
+  }
+
+  private RESTCatalog createCatalogWithIdempAdapter(ConfigResponse cfg, boolean expectOnMutations) {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(responseType, cfg);
+                }
+
+                boolean isMutation =
+                    request.method() == HTTPMethod.POST || request.method() == HTTPMethod.DELETE;
+                boolean hasIdemp = request.headers().contains(RESTUtil.IDEMPOTENCY_KEY_HEADER);
+
+                if (isMutation) {
+                  assertThat(hasIdemp)
+                      .as("Idempotency-Key presence on mutations did not match expectation")
+                      .isEqualTo(expectOnMutations);
+                } else {
+                  assertThat(hasIdemp).as("Idempotency-Key must NOT be sent on reads").isFalse();
+                }
+
+                return super.execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    RESTCatalog local =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    local.initialize("test", ImmutableMap.of());
+    return local;
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {

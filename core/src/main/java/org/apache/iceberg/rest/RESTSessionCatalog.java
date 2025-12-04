@@ -461,6 +461,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         newTableOps(
             tableClient,
             paths.table(finalIdentifier),
+            Map::of,
             mutationHeaders,
             tableFileIO(context, tableConf, response.credentials()),
             tableMetadata,
@@ -540,6 +541,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         newTableOps(
             tableClient,
             paths.table(ident),
+            Map::of,
             mutationHeaders,
             tableFileIO(context, tableConf, response.credentials()),
             response.tableMetadata(),
@@ -803,6 +805,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           newTableOps(
               tableClient,
               paths.table(ident),
+              Map::of,
               mutationHeaders,
               tableFileIO(context, tableConf, response.credentials()),
               response.tableMetadata(),
@@ -830,6 +833,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           newTableOps(
               tableClient,
               paths.table(ident),
+              Map::of,
               mutationHeaders,
               tableFileIO(context, tableConf, response.credentials()),
               RESTTableOperations.UpdateType.CREATE,
@@ -893,6 +897,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           newTableOps(
               tableClient,
               paths.table(ident),
+              Map::of,
               mutationHeaders,
               tableFileIO(context, tableConf, response.credentials()),
               RESTTableOperations.UpdateType.REPLACE,
@@ -1030,7 +1035,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    *
    * @param restClient the REST client to use for communicating with the catalog server
    * @param path the REST path for the table
-   * @param headers a supplier for additional HTTP headers to include in requests
+   * @param readHeaders a supplier for additional HTTP headers to include in read requests
+   *     (GET/HEAD)
+   * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
+   *     requests (POST/DELETE)
    * @param fileIO the FileIO implementation for reading and writing table metadata and data files
    * @param current the current table metadata
    * @param supportedEndpoints the set of supported REST endpoints
@@ -1039,12 +1047,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   protected RESTTableOperations newTableOps(
       RESTClient restClient,
       String path,
-      Supplier<Map<String, String>> headers,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaderSupplier,
       FileIO fileIO,
       TableMetadata current,
       Set<Endpoint> supportedEndpoints) {
     return new RESTTableOperations(
-        restClient, path, Map::of, headers, fileIO, current, supportedEndpoints);
+        restClient, path, readHeaders, mutationHeaderSupplier, fileIO, current, supportedEndpoints);
   }
 
   /**
@@ -1056,7 +1065,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    *
    * @param restClient the REST client to use for communicating with the catalog server
    * @param path the REST path for the table
-   * @param headers a supplier for additional HTTP headers to include in requests
+   * @param readHeaders a supplier for additional HTTP headers to include in read requests
+   *     (GET/HEAD)
+   * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
+   *     requests (POST/DELETE)
    * @param fileIO the FileIO implementation for reading and writing table metadata and data files
    * @param updateType the {@link RESTTableOperations.UpdateType} being performed
    * @param createChanges the list of metadata updates to apply during table creation or replacement
@@ -1067,7 +1079,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   protected RESTTableOperations newTableOps(
       RESTClient restClient,
       String path,
-      Supplier<Map<String, String>> headers,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaderSupplier,
       FileIO fileIO,
       RESTTableOperations.UpdateType updateType,
       List<MetadataUpdate> createChanges,
@@ -1076,8 +1089,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return new RESTTableOperations(
         restClient,
         path,
-        Map::of,
-        headers,
+        readHeaders,
+        mutationHeaderSupplier,
         fileIO,
         updateType,
         createChanges,
@@ -1093,7 +1106,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    *
    * @param restClient the REST client to use for communicating with the catalog server
    * @param path the REST path for the view
-   * @param headers a supplier for additional HTTP headers to include in requests
+   * @param readHeaders a supplier for additional HTTP headers to include in read requests
+   *     (GET/HEAD)
+   * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
+   *     requests (POST/DELETE)
    * @param current the current view metadata
    * @param supportedEndpoints the set of supported REST endpoints
    * @return a new RESTViewOperations instance
@@ -1101,10 +1117,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   protected RESTViewOperations newViewOps(
       RESTClient restClient,
       String path,
-      Supplier<Map<String, String>> headers,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaderSupplier,
       ViewMetadata current,
       Set<Endpoint> supportedEndpoints) {
-    return new RESTViewOperations(restClient, path, Map::of, headers, current, supportedEndpoints);
+    return new RESTViewOperations(
+        restClient, path, readHeaders, mutationHeaderSupplier, current, supportedEndpoints);
   }
 
   private static ConfigResponse fetchConfig(
@@ -1254,6 +1272,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         newViewOps(
             client.withAuthSession(tableSession),
             paths.view(identifier),
+            Map::of,
             mutationHeaders,
             metadata,
             endpoints);
@@ -1433,6 +1452,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           newViewOps(
               client.withAuthSession(tableSession),
               paths.view(identifier),
+              Map::of,
               mutationHeaders,
               response.metadata(),
               endpoints);
@@ -1524,6 +1544,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           newViewOps(
               client.withAuthSession(tableSession),
               paths.view(identifier),
+              Map::of,
               mutationHeaders,
               metadata,
               endpoints);
