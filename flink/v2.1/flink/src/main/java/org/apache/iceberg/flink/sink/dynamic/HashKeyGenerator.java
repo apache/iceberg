@@ -99,7 +99,7 @@ class HashKeyGenerator {
                         dynamicRecord.distributionMode(), DistributionMode.NONE),
                     MoreObjects.firstNonNull(
                         dynamicRecord.equalityFields(), Collections.emptySet()),
-                    dynamicRecord.writeParallelism()));
+                    Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism)));
     try {
       return keySelector.getKey(
           overrideRowData != null ? overrideRowData : dynamicRecord.rowData());
@@ -242,15 +242,17 @@ class HashKeyGenerator {
         String tableName,
         int writeParallelism,
         int maxWriteParallelism) {
-      if (writeParallelism > maxWriteParallelism) {
-        LOG.warn(
-            "{}: writeParallelism {} is greater than maxWriteParallelism {}. Capping writeParallelism at {}",
-            tableName,
-            writeParallelism,
-            maxWriteParallelism,
-            maxWriteParallelism);
-        writeParallelism = maxWriteParallelism;
-      }
+      Preconditions.checkArgument(
+          writeParallelism > 0,
+          "%s: writeParallelism must be > 0 (is: %s)",
+          tableName,
+          writeParallelism);
+      Preconditions.checkArgument(
+          writeParallelism <= maxWriteParallelism,
+          "%s: writeParallelism (%s) must be <= maxWriteParallelism (%s)",
+          tableName,
+          writeParallelism,
+          maxWriteParallelism);
       this.wrapped = wrapped;
       this.writeParallelism = writeParallelism;
       this.distinctKeys = new int[writeParallelism];
