@@ -229,6 +229,7 @@ This product includes code from Apache Parquet.
 * DynConstructors.java
 * IOUtil.java readFully and tests
 * ByteBufferInputStream implementations and tests
+* ByteStreamSplitValuesReader.java
 
 Copyright: 2014-2017 The Apache Software Foundation.
 Home page: https://parquet.apache.org/

@@ -86,7 +86,8 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
           "RLE_DICTIONARY",
           "DELTA_BINARY_PACKED",
           "DELTA_LENGTH_BYTE_ARRAY",
-          "DELTA_BYTE_ARRAY");
+          "DELTA_BYTE_ARRAY",
+          "BYTE_STREAM_SPLIT");
   private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
@@ -94,7 +95,8 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
           "int32", Types.IntegerType.get(),
           "int64", Types.LongType.get(),
           "binary", Types.BinaryType.get(),
-          "boolean", Types.BooleanType.get());
+          "boolean", Types.BooleanType.get(),
+          "double", Types.DoubleType.get());
 
   static final Function<Record, Record> IDENTITY = record -> record;
 
