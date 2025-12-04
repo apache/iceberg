@@ -86,7 +86,8 @@ Hosts are required to ensure that:
 2. All talks should be vendor-neutral and not sales pitches
 3. Each meetup should have at least two talks with speakers representing different companies/organizations
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
-5. All [Community Guidelines](#community-guidelines) must be respected
+5. The talk selection process is transparent and community members who are interested in speaking can/know how to propose a session
+6. All [Community Guidelines](#community-guidelines) must be respected
 
 Meetups *must* be small events under the ASF branding guidelines (linked above) and are typically small, informal gatherings. If you're unsure whether an event is a meetup, meetups usually:
 
