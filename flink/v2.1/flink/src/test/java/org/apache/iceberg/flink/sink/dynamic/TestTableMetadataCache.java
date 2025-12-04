@@ -53,17 +53,22 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     catalog.createTable(tableIdentifier, SCHEMA);
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
 
-    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA, false).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
     assertThat(
-            cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).resolvedTableSchema())
+            cache
+                .schema(tableIdentifier, SerializationUtils.clone(SCHEMA), false)
+                .resolvedTableSchema())
         .isEqualTo(schema1);
 
-    assertThat(cache.schema(tableIdentifier, SCHEMA2)).isEqualTo(TableMetadataCache.NOT_FOUND);
+    assertThat(cache.schema(tableIdentifier, SCHEMA2, false))
+        .isEqualTo(TableMetadataCache.NOT_FOUND);
 
-    schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    schema1 = cache.schema(tableIdentifier, SCHEMA, false).resolvedTableSchema();
     assertThat(
-            cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).resolvedTableSchema())
+            cache
+                .schema(tableIdentifier, SerializationUtils.clone(SCHEMA), false)
+                .resolvedTableSchema())
         .isEqualTo(schema1);
   }
 
@@ -75,7 +80,7 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
     TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
-    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA, false).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
 
     catalog.dropTable(tableIdentifier);
@@ -83,7 +88,7 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     tableUpdater.update(
         tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
 
-    Schema schema2 = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
+    Schema schema2 = cache.schema(tableIdentifier, SCHEMA2, false).resolvedTableSchema();
     assertThat(schema2.sameSchema(SCHEMA2)).isTrue();
   }
 

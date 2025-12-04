@@ -69,7 +69,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
     assertThat(catalog.loadTable(tableIdentifier).properties().get("key")).isEqualTo("value");
     assertThat(catalog.loadTable(tableIdentifier).location()).isEqualTo(locationOverride);
-    TableMetadataCache.ResolvedSchemaInfo cachedSchema = cache.schema(tableIdentifier, SCHEMA);
+    TableMetadataCache.ResolvedSchemaInfo cachedSchema =
+        cache.schema(tableIdentifier, SCHEMA, false);
     assertThat(cachedSchema.resolvedTableSchema().sameSchema(SCHEMA)).isTrue();
   }
 
@@ -132,7 +133,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    cache.schema(tableIdentifier, SCHEMA);
+    cache.schema(tableIdentifier, SCHEMA, false);
     TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
     Schema updated =
@@ -146,7 +147,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
             .f0
             .resolvedTableSchema();
     assertThat(updated.sameSchema(SCHEMA2)).isTrue();
-    assertThat(cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema().sameSchema(SCHEMA2))
+    assertThat(
+            cache.schema(tableIdentifier, SCHEMA2, false).resolvedTableSchema().sameSchema(SCHEMA2))
         .isTrue();
   }
 
@@ -167,7 +169,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     catalog.createTable(tableIdentifier, SCHEMA2);
 
     // Cache still stores the old information
-    assertThat(cache.schema(tableIdentifier, SCHEMA2).compareResult())
+    assertThat(cache.schema(tableIdentifier, SCHEMA2, false).compareResult())
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
 
     assertThat(
@@ -185,5 +187,28 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     // Last result cache should be cleared
     assertThat(cache.getInternalCache().get(tableIdentifier).inputSchemas())
         .doesNotContainKey(SCHEMA2);
+  }
+
+  @Test
+  void testDropUnusedColumns() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+
+    final boolean dropUnusedColumns = true;
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, dropUnusedColumns);
+
+    catalog.createTable(tableIdentifier, SCHEMA2);
+
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
+        tableUpdater.update(
+            tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+
+    assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+    Schema tableSchema = catalog.loadTable(tableIdentifier).schema();
+    assertThat(tableSchema.columns()).hasSize(2);
+    assertThat(tableSchema.findField("id")).isNotNull();
+    assertThat(tableSchema.findField("data")).isNotNull();
+    assertThat(tableSchema.findField("extra")).isNull();
   }
 }
