@@ -395,24 +395,7 @@ class RESTTableOperations implements TableOperations {
       return;
     }
 
-    // Refresh encryption keys from metadata
-    encryptedKeys =
-        Optional.ofNullable(metadata.encryptionKeys())
-            .map(Lists::newLinkedList)
-            .orElseGet(Lists::newLinkedList);
-    // Include pending encryption keys from the encryption manager
-    if (encryptionManager != null) {
-      Set<String> keyIdsFromMetadata =
-          encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
-
-      for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
-        if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
-          encryptedKeys.add(keyFromEM);
-        }
-      }
-    }
-
-    // Refresh encryption-related table properties on new/refreshed metadata
+    // Refresh encryption-related properties and keys on new/refreshed metadata
     Map<String, String> tableProperties = metadata.properties();
     tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
 
@@ -422,6 +405,23 @@ class RESTTableOperations implements TableOperations {
               tableProperties,
               TableProperties.ENCRYPTION_DEK_LENGTH,
               TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+
+      encryptedKeys =
+          Optional.ofNullable(metadata.encryptionKeys())
+              .map(Lists::newLinkedList)
+              .orElseGet(Lists::newLinkedList);
+
+      // Include pending encryption keys from the encryption manager
+      if (encryptionManager != null) {
+        Set<String> keyIdsFromMetadata =
+            encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
+
+        for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
+          if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
+            encryptedKeys.add(keyFromEM);
+          }
+        }
+      }
     }
 
     // Force re-creation of encryption manager

@@ -3187,18 +3187,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> readHeaders,
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
-          KeyManagementClient keyManagementClient,
+          KeyManagementClient kmsClient,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
         RESTTableOperations ops =
             new CustomRESTTableOperations(
-                restClient,
-                path,
-                mutationHeaders,
-                fileIO,
-                keyManagementClient,
-                current,
-                supportedEndpoints);
+                restClient, path, mutationHeaders, fileIO, kmsClient, current, supportedEndpoints);
         RESTTableOperations spy = Mockito.spy(ops);
         capturedOps.set(spy);
         return spy;
@@ -3211,7 +3205,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> readHeaders,
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
-          KeyManagementClient keyManagementClient,
+          KeyManagementClient kmsClient,
           RESTTableOperations.UpdateType updateType,
           List<MetadataUpdate> createChanges,
           TableMetadata current,
@@ -3222,7 +3216,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 path,
                 mutationHeaders,
                 fileIO,
-                keyManagementClient,
+                kmsClient,
                 updateType,
                 createChanges,
                 current,

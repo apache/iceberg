@@ -1054,7 +1054,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
    *     requests (POST/DELETE)
    * @param fileIO the FileIO implementation for reading and writing table metadata and data files
-   * @param keyManagementClient the {@link KeyManagementClient} for encrypted tables
+   * @param kmsClient the {@link KeyManagementClient} for encrypted tables
    * @param current the current table metadata
    * @param supportedEndpoints the set of supported REST endpoints
    * @return a new RESTTableOperations instance
@@ -1065,7 +1065,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Supplier<Map<String, String>> readHeaders,
       Supplier<Map<String, String>> mutationHeaderSupplier,
       FileIO fileIO,
-      KeyManagementClient keyManagementClient,
+      KeyManagementClient kmsClient,
       TableMetadata current,
       Set<Endpoint> supportedEndpoints) {
     return new RESTTableOperations(
@@ -1074,7 +1074,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         readHeaders,
         mutationHeaderSupplier,
         fileIO,
-        keyManagementClient,
+        kmsClient,
         current,
         supportedEndpoints);
   }
@@ -1093,7 +1093,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
    *     requests (POST/DELETE)
    * @param fileIO the FileIO implementation for reading and writing table metadata and data files
-   * @param keyManagementClient the {@link KeyManagementClient} for encrypted tables
+   * @param kmsClient the {@link KeyManagementClient} for encrypted tables
    * @param updateType the {@link RESTTableOperations.UpdateType} being performed
    * @param createChanges the list of metadata updates to apply during table creation or replacement
    * @param current the current table metadata (may be null for CREATE operations)
@@ -1106,7 +1106,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Supplier<Map<String, String>> readHeaders,
       Supplier<Map<String, String>> mutationHeaderSupplier,
       FileIO fileIO,
-      KeyManagementClient keyManagementClient,
+      KeyManagementClient kmsClient,
       RESTTableOperations.UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
@@ -1117,7 +1117,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         readHeaders,
         mutationHeaderSupplier,
         fileIO,
-        keyManagementClient,
+        kmsClient,
         updateType,
         createChanges,
         current,
