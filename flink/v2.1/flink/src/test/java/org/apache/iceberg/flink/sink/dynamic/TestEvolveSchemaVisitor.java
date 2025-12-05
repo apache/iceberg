@@ -114,56 +114,47 @@ public class TestEvolveSchemaVisitor {
   public void testDropUnusedColumns() {
     Schema existingSchema =
         new Schema(
-            Arrays.asList(
-                optional(1, "a", StringType.get()),
-                optional(2, "b", StringType.get()),
-                optional(3, "c", IntegerType.get())));
-    Schema targetSchema = new Schema(Arrays.asList(optional(1, "a", StringType.get())));
+            optional(1, "a", StringType.get()),
+            optional(
+                2,
+                "b",
+                StructType.of(
+                    optional(4, "nested1", StringType.get()),
+                    optional(5, "nested2", StringType.get()))),
+            optional(3, "c", IntegerType.get()));
+
+    Schema targetSchema =
+        new Schema(
+            optional(1, "a", StringType.get()),
+            optional(2, "b", StructType.of(optional(5, "nested2", StringType.get()))));
+
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
     EvolveSchemaVisitor.visit(TABLE, updateApi, existingSchema, targetSchema, DROP_COLUMNS);
+
     Schema newSchema = updateApi.apply();
-    assertThat(newSchema.asStruct().fields()).hasSize(1);
-    assertThat(newSchema.findField("a")).isNotNull();
-    assertThat(newSchema.findField("b")).isNull();
-    assertThat(newSchema.findField("c")).isNull();
+    assertThat(newSchema.sameSchema(targetSchema)).isTrue();
   }
 
   @Test
-  public void testDropUnusedColumnsWithRequiredFields() {
+  public void testPreserveUnusedColumns() {
     Schema existingSchema =
         new Schema(
-            Arrays.asList(
-                required(1, "a", StringType.get()),
-                required(2, "b", StringType.get()),
-                optional(3, "c", IntegerType.get())));
-    Schema targetSchema = new Schema(Arrays.asList(optional(1, "a", StringType.get())));
-    UpdateSchema updateApi = loadUpdateApi(existingSchema);
-    EvolveSchemaVisitor.visit(TABLE, updateApi, existingSchema, targetSchema, DROP_COLUMNS);
-    Schema newSchema = updateApi.apply();
-    assertThat(newSchema.asStruct().fields()).hasSize(1);
-    assertThat(newSchema.findField("a")).isNotNull();
-    assertThat(newSchema.findField("b")).isNull();
-    assertThat(newSchema.findField("c")).isNull();
-  }
+            optional(1, "a", StringType.get()),
+            optional(
+                2,
+                "b",
+                StructType.of(
+                    optional(4, "nested1", StringType.get()),
+                    optional(5, "nested2", StringType.get()))),
+            optional(3, "c", IntegerType.get()));
 
-  @Test
-  public void testDropUnusedColumnsDisabled() {
-    Schema existingSchema =
-        new Schema(
-            Arrays.asList(
-                required(1, "a", StringType.get()),
-                required(2, "b", StringType.get()),
-                optional(3, "c", IntegerType.get())));
-    Schema targetSchema = new Schema(Arrays.asList(optional(1, "a", StringType.get())));
+    Schema targetSchema = new Schema(optional(1, "a", StringType.get()));
+
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
     EvolveSchemaVisitor.visit(TABLE, updateApi, existingSchema, targetSchema, PRESERVE_COLUMNS);
+
     Schema newSchema = updateApi.apply();
-    assertThat(newSchema.asStruct().fields()).hasSize(3);
-    assertThat(newSchema.findField("a")).isNotNull();
-    assertThat(newSchema.findField("b")).isNotNull();
-    assertThat(newSchema.findField("b").isOptional()).isTrue();
-    assertThat(newSchema.findField("c")).isNotNull();
-    assertThat(newSchema.findField("c").isOptional()).isTrue();
+    assertThat(newSchema.sameSchema(existingSchema)).isTrue();
   }
 
   @Test
