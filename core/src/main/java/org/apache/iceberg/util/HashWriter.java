@@ -35,6 +35,7 @@ public class HashWriter extends Writer {
 
   private final MessageDigest digest;
   private final CharsetEncoder encoder;
+  private boolean isClosed = false;
 
   public HashWriter(String hashAlgorithm, Charset charset) throws NoSuchAlgorithmException {
     this.digest = MessageDigest.getInstance(hashAlgorithm);
@@ -43,6 +44,7 @@ public class HashWriter extends Writer {
 
   @Override
   public void write(char[] cbuf, int off, int len) throws IOException {
+    ensureNotClosed();
     CharBuffer chars = CharBuffer.wrap(cbuf, off, len);
     ByteBuffer byteBuffer = encoder.encode(chars);
     digest.update(byteBuffer);
@@ -52,9 +54,25 @@ public class HashWriter extends Writer {
   public void flush() throws IOException {}
 
   @Override
-  public void close() throws IOException {}
+  public void close() throws IOException {
+    isClosed = true;
+  }
 
+  /**
+   * Calculates the final hash value. The underlying digest will be reset thus subsequent getHash()
+   * calls are not permitted.
+   *
+   * @return bytes of final hash value
+   */
   public byte[] getHash() {
+    ensureNotClosed();
+    isClosed = true;
     return digest.digest();
+  }
+
+  private void ensureNotClosed() {
+    if (isClosed) {
+      throw new IllegalStateException("HashWriter is closed.");
+    }
   }
 }

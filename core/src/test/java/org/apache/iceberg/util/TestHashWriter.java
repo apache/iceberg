@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.spy;
@@ -69,5 +70,6 @@ public class TestHashWriter {
         MessageDigest.getInstance("SHA-256")
             .digest(TableMetadataParser.toJson(tableMetadata).getBytes(StandardCharsets.UTF_8));
     assertThat(hashWriter.getHash()).isEqualTo(expectedHash);
+    assertThatThrownBy(() -> hashWriter.getHash()).hasMessageContaining("HashWriter is closed.");
   }
 }
