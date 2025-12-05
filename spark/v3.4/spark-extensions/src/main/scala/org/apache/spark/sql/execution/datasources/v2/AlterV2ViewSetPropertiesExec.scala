@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
@@ -25,17 +24,17 @@ import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.connector.catalog.ViewChange
 
-
 case class AlterV2ViewSetPropertiesExec(
-  catalog: ViewCatalog,
-  ident: Identifier,
-  properties: Map[String, String]) extends LeafV2CommandExec {
+    catalog: ViewCatalog,
+    ident: Identifier,
+    properties: Map[String, String])
+    extends LeafV2CommandExec {
 
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
-    val changes = properties.map {
-      case (property, value) => ViewChange.setProperty(property, value)
+    val changes = properties.map { case (property, value) =>
+      ViewChange.setProperty(property, value)
     }.toSeq
 
     catalog.alterView(ident, changes: _*)

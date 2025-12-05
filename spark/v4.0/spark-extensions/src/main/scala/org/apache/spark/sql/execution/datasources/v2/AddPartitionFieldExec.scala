@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.Spark3Util
@@ -31,7 +30,8 @@ case class AddPartitionFieldExec(
     catalog: TableCatalog,
     ident: Identifier,
     transform: Transform,
-    name: Option[String]) extends LeafV2CommandExec {
+    name: Option[String])
+    extends LeafV2CommandExec {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
@@ -39,12 +39,14 @@ case class AddPartitionFieldExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        iceberg.table.updateSpec()
-            .addField(name.orNull, Spark3Util.toIcebergTerm(transform))
-            .commit()
+        iceberg.table
+          .updateSpec()
+          .addField(name.orNull, Spark3Util.toIcebergTerm(transform))
+          .commit()
 
       case table =>
-        throw new UnsupportedOperationException(s"Cannot add partition field to non-Iceberg table: $table")
+        throw new UnsupportedOperationException(
+          s"Cannot add partition field to non-Iceberg table: $table")
     }
 
     Nil

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -27,14 +26,17 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 case class UnresolvedMergeIntoIcebergTable(
     targetTable: LogicalPlan,
     sourceTable: LogicalPlan,
-    context: MergeIntoContext) extends BinaryCommand {
+    context: MergeIntoContext)
+    extends BinaryCommand {
 
   def duplicateResolved: Boolean = targetTable.outputSet.intersect(sourceTable.outputSet).isEmpty
 
   override def left: LogicalPlan = targetTable
   override def right: LogicalPlan = sourceTable
 
-  override protected def withNewChildrenInternal(newLeft: LogicalPlan, newRight: LogicalPlan): LogicalPlan = {
+  override protected def withNewChildrenInternal(
+      newLeft: LogicalPlan,
+      newRight: LogicalPlan): LogicalPlan = {
     copy(targetTable = newLeft, sourceTable = newRight)
   }
 }
