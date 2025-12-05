@@ -85,6 +85,7 @@ import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
@@ -131,6 +132,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .add(Endpoint.V1_REGISTER_TABLE)
           .add(Endpoint.V1_REPORT_METRICS)
           .add(Endpoint.V1_COMMIT_TRANSACTION)
+          .add(Endpoint.V1_TABLE_CREDENTIALS)
           .build();
 
   // these view endpoints must not be updated in order to maintain backwards compatibility with
@@ -160,6 +162,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
+  private String planId = null;
 
   public RESTSessionCatalog() {
     this(
@@ -257,6 +260,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    this.planId =
+        PropertyUtil.propertyAsString(
+            mergedProps, RESTCatalogProperties.PLAN_ID, RESTCatalogProperties.PLAN_ID_DEFAULT);
     super.initialize(name, mergedProps);
   }
 
@@ -1150,6 +1157,25 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             null,
             Map.of(),
             ErrorHandlers.tableCommitHandler());
+  }
+
+  public LoadCredentialsResponse loadTableCredentials(
+      SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_TABLE_CREDENTIALS);
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (!planId.isEmpty()) {
+      queryParams.put("planId", planId);
+    }
+    return client
+        .withAuthSession(contextualSession)
+        .get(
+            paths.loadTableCredentials(identifier),
+            queryParams,
+            LoadCredentialsResponse.class,
+            Map.of(),
+            ErrorHandlers.defaultErrorHandler());
   }
 
   @Override
