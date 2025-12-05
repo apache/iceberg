@@ -512,10 +512,12 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                     .flatMap(
                         e ->
                             Stream.of(true, false)
-                                .map(
+                                .flatMap(
                                     vectorized ->
-                                        Arguments.of(
-                                            encoding, e.getKey(), e.getValue(), vectorized))));
+                                        Stream.of(Arguments.of(
+                                            encoding, e.getKey(), e.getValue(), vectorized),
+                                                Arguments.of(
+                                                        encoding, e.getKey() + "_with_nulls", e.getValue(), vectorized)))));
   }
 
   private File resourceUrlToLocalFile(URL url) throws IOException, URISyntaxException {

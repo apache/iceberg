@@ -43,6 +43,7 @@ public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedVal
   private ByteBufferInputStream in;
   private int[] lengths;
   private ByteBuffer byteBuffer;
+  private int currentIndex;
 
   VectorizedDeltaLengthByteArrayValuesReader() {
     lengthReader = new VectorizedDeltaEncodedValuesReader();
@@ -51,9 +52,11 @@ public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedVal
   @Override
   public void initFromPage(int valueCount, ByteBufferInputStream inputStream) throws IOException {
     lengthReader.initFromPage(valueCount, inputStream);
-    lengths = lengthReader.readIntegers(valueCount, 0);
+    // actual number of elements in the page may be less than the passed valueCount here due to nulls
+    lengths = lengthReader.readIntegers(lengthReader.getTotalValueCount(), 0);
 
-    this.in = inputStream.remainingStream();
+    in = inputStream.remainingStream();
+    currentIndex = 0;
   }
 
   @Override
@@ -63,10 +66,11 @@ public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedVal
   }
 
   Binary readBinaryForRow(int rowId) {
-    if (lengths[rowId] == 0) {
+    if (lengths[currentIndex] == 0) {
+      currentIndex++;
       return Binary.EMPTY;
     }
-    readValues(1, null, rowId, ignored -> lengths[rowId], (f, i, v) -> byteBuffer = v);
+    readValues(1, null, rowId, ignored -> lengths[currentIndex], (f, i, v) -> byteBuffer = v);
     return Binary.fromReusedByteBuffer(byteBuffer);
   }
 
@@ -76,7 +80,7 @@ public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedVal
         total,
         vec,
         rowId,
-        x -> lengths[x],
+        x -> lengths[currentIndex],
         (f, i, v) ->
             ((BaseVariableWidthVector) vec)
                 .setSafe(
@@ -102,6 +106,7 @@ public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedVal
         throw new ParquetDecodingException("Failed to read " + length + " bytes");
       }
       outputWriter.write(vec, rowId + i, buffer);
+      currentIndex++;
     }
   }
 

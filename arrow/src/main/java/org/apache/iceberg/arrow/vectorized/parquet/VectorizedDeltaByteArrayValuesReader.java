@@ -41,18 +41,21 @@ public class VectorizedDeltaByteArrayValuesReader implements VectorizedValuesRea
 
   private int[] prefixLengths;
   private Binary previous;
+  private int currentIndex;
 
   public VectorizedDeltaByteArrayValuesReader() {
     prefixLengthReader = new VectorizedDeltaEncodedValuesReader();
     suffixReader = new VectorizedDeltaLengthByteArrayValuesReader();
-    previous = Binary.EMPTY;
   }
 
   @Override
   public void initFromPage(int valueCount, ByteBufferInputStream in) throws IOException {
     prefixLengthReader.initFromPage(valueCount, in);
-    prefixLengths = prefixLengthReader.readIntegers(valueCount, 0);
+    // actual number of elements in the page may be less than the passed valueCount here due to nulls
+    prefixLengths = prefixLengthReader.readIntegers(prefixLengthReader.getTotalValueCount(), 0);
     suffixReader.initFromPage(valueCount, in);
+    previous = Binary.EMPTY;
+    currentIndex = 0;
   }
 
   @Override
@@ -73,7 +76,7 @@ public class VectorizedDeltaByteArrayValuesReader implements VectorizedValuesRea
 
   private void readValues(int total, int rowId, BinaryOutputWriter outputWriter) {
     for (int i = 0; i < total; i++) {
-      int prefixLength = prefixLengths[rowId + i];
+      int prefixLength = prefixLengths[currentIndex];
       Binary suffix = suffixReader.readBinaryForRow(rowId + i);
       int length = prefixLength + suffix.length();
 
@@ -87,6 +90,8 @@ public class VectorizedDeltaByteArrayValuesReader implements VectorizedValuesRea
         outputWriter.write(rowId + i, suffix.getBytesUnsafe());
         previous = suffix;
       }
+
+      currentIndex++;
     }
   }
 
