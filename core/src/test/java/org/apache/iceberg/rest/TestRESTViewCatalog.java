@@ -350,11 +350,13 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
       protected RESTViewOperations newViewOps(
           RESTClient restClient,
           String path,
-          Supplier<Map<String, String>> headers,
+          Supplier<Map<String, String>> readHeaders,
+          Supplier<Map<String, String>> mutationHeaders,
           ViewMetadata current,
           Set<Endpoint> supportedEndpoints) {
         RESTViewOperations ops =
-            new CustomRESTViewOperations(restClient, path, headers, current, supportedEndpoints);
+            new CustomRESTViewOperations(
+                restClient, path, mutationHeaders, current, supportedEndpoints);
         RESTViewOperations spy = Mockito.spy(ops);
         capturedOps.set(spy);
         return spy;
