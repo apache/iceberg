@@ -216,21 +216,21 @@ public class EncryptingFileIO implements FileIO, Serializable {
   static class WithSupportsPrefixOperations extends EncryptingFileIO
       implements SupportsPrefixOperations {
 
-    private final SupportsPrefixOperations io;
+    private final SupportsPrefixOperations prefixIo;
 
     WithSupportsPrefixOperations(SupportsPrefixOperations io, EncryptionManager em) {
       super(io, em);
-      this.io = io;
+      this.prefixIo = io;
     }
 
     @Override
     public Iterable<FileInfo> listPrefix(String prefix) {
-      return io.listPrefix(prefix);
+      return prefixIo.listPrefix(prefix);
     }
 
     @Override
     public void deletePrefix(String prefix) {
-      io.deletePrefix(prefix);
+      prefixIo.deletePrefix(prefix);
     }
   }
 }
