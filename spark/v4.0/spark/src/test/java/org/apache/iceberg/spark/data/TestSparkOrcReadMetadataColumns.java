@@ -150,16 +150,8 @@ public class TestSparkOrcReadMetadataColumns {
       expectedRowsAfterDelete.get(i).update(3, true);
     }
 
-    ORC.ReadBuilder builder = ORC.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
-
     DeleteFilter<InternalRow> deleteFilter =
         new TestHelpers.CustomizedDeleteFilter(true, DATA_SCHEMA, PROJECTION_SCHEMA);
-
-    builder.createBatchedReaderFunc(
-        readOrcSchema ->
-            VectorizedSparkOrcReaders.buildReader(
-                PROJECTION_SCHEMA, readOrcSchema, ImmutableMap.of()));
-    builder.recordsPerBatch(RECORDS_PER_BATCH);
 
     readAndValidate(null, null, null, expectedRowsAfterDelete, deleteFilter);
   }
@@ -215,10 +207,12 @@ public class TestSparkOrcReadMetadataColumns {
 
       if (vectorized) {
         builder =
-            builder.createBatchedReaderFunc(
-                readOrcSchema ->
-                    VectorizedSparkOrcReaders.buildReader(
-                        PROJECTION_SCHEMA, readOrcSchema, ImmutableMap.of()));
+            builder
+                .recordsPerBatch(RECORDS_PER_BATCH)
+                .createBatchedReaderFunc(
+                    readOrcSchema ->
+                        VectorizedSparkOrcReaders.buildReader(
+                            PROJECTION_SCHEMA, readOrcSchema, ImmutableMap.of()));
       } else {
         builder =
             builder.createReaderFunc(
