@@ -169,7 +169,28 @@ public class TestTableEncryption extends CatalogTestBase {
             () -> sql("ALTER TABLE %s UNSET TBLPROPERTIES (`encryption.key-id`)", tableName))
         .isInstanceOf(SparkException.class)
         .hasMessageContaining(
-            "Unsupported table change: Cannot remove encryption key ID from an encrypted table");
+            "Unsupported table change: Cannot remove key ID from an encrypted table");
+  }
+
+  @TestTemplate
+  public void testKeyAlter() {
+    assertThatThrownBy(
+            () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='abcd')", tableName))
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining(
+            "Unsupported table change: Cannot modify key ID of an encrypted table");
+  }
+
+  @TestTemplate
+  public void testReplaceKeyChange() {
+    // Replacing a table with a different encryption key is disallowed
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "REPLACE TABLE %s (id bigint) USING iceberg TBLPROPERTIES ('encryption.key-id'='%s')",
+                    tableName, UnitestKMS.MASTER_KEY_NAME2))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot modify key ID of an encrypted table");
   }
 
   @TestTemplate

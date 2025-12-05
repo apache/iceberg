@@ -41,9 +41,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
@@ -72,6 +78,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -3107,9 +3114,175 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
   }
 
+  @Test
+  public void testCustomTableOperationsInjection() throws IOException {
+    AtomicBoolean customTableOpsCalled = new AtomicBoolean();
+    AtomicBoolean customTransactionTableOpsCalled = new AtomicBoolean();
+    AtomicReference<RESTTableOperations> capturedOps = new AtomicReference<>();
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Map<String, String> customHeaders =
+        ImmutableMap.of("X-Custom-Table-Header", "custom-value-12345");
+
+    // Custom RESTTableOperations that adds a custom header
+    class CustomRESTTableOperations extends RESTTableOperations {
+      CustomRESTTableOperations(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        super(client, path, () -> customHeaders, fileIO, current, supportedEndpoints);
+        customTableOpsCalled.set(true);
+      }
+
+      CustomRESTTableOperations(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          RESTTableOperations.UpdateType updateType,
+          List<MetadataUpdate> createChanges,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        super(
+            client,
+            path,
+            () -> customHeaders,
+            fileIO,
+            updateType,
+            createChanges,
+            current,
+            supportedEndpoints);
+        customTransactionTableOpsCalled.set(true);
+      }
+    }
+
+    // Custom RESTSessionCatalog that overrides table operations creation
+    class CustomRESTSessionCatalog extends RESTSessionCatalog {
+      CustomRESTSessionCatalog(
+          Function<Map<String, String>, RESTClient> clientBuilder,
+          BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
+        super(clientBuilder, ioBuilder);
+      }
+
+      @Override
+      protected RESTTableOperations newTableOps(
+          RESTClient restClient,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        RESTTableOperations ops =
+            new CustomRESTTableOperations(
+                restClient, path, headers, fileIO, current, supportedEndpoints);
+        RESTTableOperations spy = Mockito.spy(ops);
+        capturedOps.set(spy);
+        return spy;
+      }
+
+      @Override
+      protected RESTTableOperations newTableOps(
+          RESTClient restClient,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          RESTTableOperations.UpdateType updateType,
+          List<MetadataUpdate> createChanges,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        RESTTableOperations ops =
+            new CustomRESTTableOperations(
+                restClient,
+                path,
+                headers,
+                fileIO,
+                updateType,
+                createChanges,
+                current,
+                supportedEndpoints);
+        RESTTableOperations spy = Mockito.spy(ops);
+        capturedOps.set(spy);
+        return spy;
+      }
+    }
+
+    try (RESTCatalog catalog =
+        catalog(adapter, clientBuilder -> new CustomRESTSessionCatalog(clientBuilder, null))) {
+      catalog.createNamespace(NS);
+
+      // Test table operations without UpdateType
+      assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isFalse();
+      Table table = catalog.createTable(TABLE, SCHEMA);
+      assertThat(customTableOpsCalled).isTrue();
+      assertThat(customTransactionTableOpsCalled).isFalse();
+
+      // Trigger a commit through the custom operations
+      table.updateProperties().set("test-key", "test-value").commit();
+
+      // Verify the custom operations object was created and used
+      assertThat(capturedOps.get()).isNotNull();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
+
+      // Verify the custom operations were used with custom headers
+      Mockito.verify(adapter, Mockito.atLeastOnce())
+          .execute(
+              reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE), customHeaders),
+              eq(LoadTableResponse.class),
+              any(),
+              any());
+
+      // Test table operations with UpdateType and createChanges
+      capturedOps.set(null);
+      customTableOpsCalled.set(false);
+      TableIdentifier table2 = TableIdentifier.of(NS, "table2");
+      catalog.buildTable(table2, SCHEMA).createTransaction().commitTransaction();
+      assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isTrue();
+
+      // Trigger another commit to verify transaction operations also work
+      catalog.loadTable(table2).updateProperties().set("test-key-2", "test-value-2").commit();
+
+      // Verify the custom operations object was created and used
+      assertThat(capturedOps.get()).isNotNull();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
+
+      // Verify the custom operations were used with custom headers
+      Mockito.verify(adapter, Mockito.atLeastOnce())
+          .execute(
+              reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(table2), customHeaders),
+              eq(LoadTableResponse.class),
+              any(),
+              any());
+    }
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    return catalog;
+  }
+
+  private RESTCatalog catalog(
+      RESTCatalogAdapter adapter,
+      Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
+          sessionCatalogFactory) {
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return sessionCatalogFactory.apply(clientBuilder);
+          }
+        };
     catalog.initialize(
         "test",
         ImmutableMap.of(

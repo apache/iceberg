@@ -151,4 +151,9 @@ class BatchScanAdapter implements BatchScan {
   public BatchScan metricsReporter(MetricsReporter reporter) {
     return new BatchScanAdapter(scan.metricsReporter(reporter));
   }
+
+  @Override
+  public BatchScan minRowsRequested(long numRows) {
+    return new BatchScanAdapter(scan.minRowsRequested(numRows));
+  }
 }

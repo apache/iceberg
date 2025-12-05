@@ -76,7 +76,7 @@ jobs:
     env:
       SPARK_LOCAL_IP: localhost
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: actions/setup-java@v5
       with:
         distribution: zulu
@@ -96,7 +96,7 @@ jobs:
           :iceberg-kafka-connect:iceberg-kafka-connect:check \
           :iceberg-kafka-connect:iceberg-kafka-connect-runtime:check \
           -Pquick=true -x javadoc
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       if: failure()
       with:
         name: test logs

@@ -322,11 +322,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             base.properties().keySet().stream()
                 .filter(key -> !metadata.properties().containsKey(key))
                 .collect(Collectors.toSet());
-      }
 
-      Preconditions.checkArgument(
-          !removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY),
-          "Cannot remove encryption key ID from an encrypted table");
+        Preconditions.checkArgument(
+            !removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY),
+            "Cannot remove key ID from an encrypted table");
+
+        Preconditions.checkArgument(
+            Objects.equals(
+                base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
+                metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY)),
+            "Cannot modify key ID of an encrypted table");
+      }
 
       HMSTablePropertyHelper.updateHmsTableForIcebergTable(
           newMetadataLocation,

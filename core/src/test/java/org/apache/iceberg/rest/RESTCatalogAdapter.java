@@ -31,8 +31,9 @@ import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Scan;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
@@ -588,7 +589,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       return 100;
     }
 
-    default boolean shouldPlanTableScanAsync(TableScan tableScan) {
+    default boolean shouldPlanTableScanAsync(Scan<?, FileScanTask, ?> scan) {
       return false;
     }
   }

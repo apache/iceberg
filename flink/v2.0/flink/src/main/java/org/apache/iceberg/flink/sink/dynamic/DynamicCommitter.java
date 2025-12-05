@@ -369,7 +369,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     }
 
     @Override
-    public Boolean apply(Iterable<Snapshot> baseSnapshots) {
+    public boolean validate(Iterable<Snapshot> baseSnapshots) {
       long maxCommittedCheckpointId =
           getMaxCommittedCheckpointId(baseSnapshots, flinkJobId, flinkOperatorId);
       if (maxCommittedCheckpointId >= stagedCheckpointId) {

@@ -28,6 +28,7 @@ import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
@@ -37,6 +38,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -46,6 +48,8 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -262,6 +266,51 @@ public class TestParquet {
           }
         }
       }
+    }
+  }
+
+  @Test
+  public void testFooterMetricsWithNameMappingForFileWithoutIds() throws IOException {
+    Schema schemaWithIds =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "data", Types.StringType.get()));
+
+    NameMapping nameMapping = MappingUtil.create(schemaWithIds);
+
+    File file = createTempFile(temp);
+
+    // Write a Parquet file WITHOUT field IDs using plain Avro schema
+    org.apache.avro.Schema avroSchemaWithoutIds =
+        org.apache.avro.SchemaBuilder.record("test")
+            .fields()
+            .requiredLong("id")
+            .optionalString("data")
+            .endRecord();
+
+    try (ParquetWriter<GenericData.Record> writer =
+        AvroParquetWriter.<GenericData.Record>builder(ParquetIO.file(Files.localOutput(file)))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchemaWithoutIds)
+            .build()) {
+
+      GenericData.Record record = new GenericData.Record(avroSchemaWithoutIds);
+      record.put("id", 1L);
+      record.put("data", "a");
+      writer.write(record);
+    }
+
+    InputFile inputFile = Files.localInput(file);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+      MessageType parquetSchema = reader.getFooter().getFileMetaData().getSchema();
+      assertThat(ParquetSchemaUtil.hasIds(parquetSchema)).isFalse();
+
+      Metrics metrics =
+          ParquetUtil.footerMetrics(
+              reader.getFooter(), Stream.empty(), MetricsConfig.getDefault(), nameMapping);
+
+      // The key assertion: column sizes should be keyed by field IDs from NameMapping
+      assertThat(metrics.columnSizes()).containsOnlyKeys(1, 2);
     }
   }
 
