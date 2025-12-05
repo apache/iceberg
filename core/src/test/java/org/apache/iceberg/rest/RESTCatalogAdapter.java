@@ -81,6 +81,12 @@ import org.apache.iceberg.util.PropertyUtil;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
 public class RESTCatalogAdapter extends BaseHTTPClient {
+
+  @SuppressWarnings("AvoidEscapedUnicodeCharacters")
+  private static final String NAMESPACE_SEPARATOR_UNICODE = "\u002e";
+
+  private static final String NAMESPACE_SEPARATOR_URLENCODED_UTF_8 = "%2E";
+
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
       ImmutableMap.<Class<? extends Exception>, Integer>builder()
           .put(IllegalArgumentException.class, 400)
@@ -168,13 +174,15 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                     Arrays.stream(Route.values())
                         .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                         .collect(Collectors.toList()))
+                .withOverride(
+                    RESTCatalogProperties.NAMESPACE_SEPARATOR, NAMESPACE_SEPARATOR_URLENCODED_UTF_8)
                 .build());
 
       case LIST_NAMESPACES:
         if (asNamespaceCatalog != null) {
           Namespace ns;
           if (vars.containsKey("parent")) {
-            ns = RESTUtil.namespaceFromQueryParam(vars.get("parent"));
+            ns = RESTUtil.namespaceFromQueryParam(vars.get("parent"), NAMESPACE_SEPARATOR_UNICODE);
           } else {
             ns = Namespace.empty();
           }
@@ -645,7 +653,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.decodeNamespace(pathVars.get("namespace"));
+    return RESTUtil.decodeNamespace(
+        pathVars.get("namespace"), NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
 
   private static TableIdentifier tableIdentFromPathVars(Map<String, String> pathVars) {
