@@ -120,7 +120,17 @@ public class RewriteDataFilesSparkAction
   @Override
   public RewriteDataFilesSparkAction binPack() {
     ensureRunnerNotSet();
-    this.runner = createFileRewriteRunner();
+    // Read the option from action options only (no table property fallback)
+    boolean useParquetRowGroupMerge =
+        PropertyUtil.propertyAsBoolean(
+            options(), USE_PARQUET_ROW_GROUP_MERGE, USE_PARQUET_ROW_GROUP_MERGE_DEFAULT);
+
+    if (useParquetRowGroupMerge) {
+      LOG.info("Using Parquet row-group merge runner for rewrite operation");
+      this.runner = new SparkParquetFileMergeRunner(spark(), table);
+    } else {
+      this.runner = new SparkBinPackFileRewriteRunner(spark(), table);
+    }
     return this;
   }
 
@@ -150,21 +160,6 @@ public class RewriteDataFilesSparkAction
         runner == null,
         "Cannot set rewrite mode, it has already been set to %s",
         runner == null ? null : runner.description());
-  }
-
-  private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
-      createFileRewriteRunner() {
-    // Read the option from action options only (no table property fallback)
-    boolean useParquetRowGroupMerge =
-        PropertyUtil.propertyAsBoolean(
-            options(), USE_PARQUET_ROW_GROUP_MERGE, USE_PARQUET_ROW_GROUP_MERGE_DEFAULT);
-
-    if (useParquetRowGroupMerge) {
-      LOG.info("Using Parquet row-group merge runner for rewrite operation");
-      return new SparkParquetFileMergeRunner(spark(), table);
-    } else {
-      return new SparkBinPackFileRewriteRunner(spark(), table);
-    }
   }
 
   @Override

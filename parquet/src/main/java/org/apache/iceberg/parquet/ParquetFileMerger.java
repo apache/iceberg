@@ -21,20 +21,31 @@ package org.apache.iceberg.parquet;
 import static java.util.Collections.emptyMap;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.LongUnaryOperator;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types.LongType;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.bytes.DirectByteBufferAllocator;
 import org.apache.parquet.bytes.HeapByteBufferAllocator;
@@ -112,23 +123,50 @@ public class ParquetFileMerger {
   }
 
   /**
-   * Validates that all input files can be merged.
+   * Validates if a RewriteFileGroup can use row-group level merging.
    *
-   * <p>This method validates that:
+   * <p>This method validates:
    *
    * <ul>
-   *   <li>All files are valid Parquet format (detected by reading Parquet footer)
-   *   <li>All files have identical schemas
-   *   <li>Files are not encrypted (detected by ParquetCryptoRuntimeException)
-   *   <li>If physical row lineage columns exist, all values are non-null
+   *   <li>Group must expect exactly 1 output file (ParquetFileMerger cannot split into multiple
+   *       files)
+   *   <li>Table must not have a sort order (no sorting or z-ordering)
+   *   <li>Files must not have delete files (checked via file scan tasks)
+   *   <li>All Parquet-specific requirements (via {@link #canMerge(List, FileIO, long)})
    * </ul>
    *
-   * <p>This method works with any Iceberg FileIO implementation (S3FileIO, GCSFileIO, etc.).
+   * <p>This validation is useful for compaction operations in Spark, Flink, or other engines that
+   * need to determine if ParquetFileMerger can be used for a file group.
    *
-   * @param inputFiles List of Iceberg input files to validate
-   * @return true if files can be merged, false otherwise
+   * @param group the file group to validate
+   * @param sortOrder the table's sort order
+   * @param fileIO FileIO to use for reading files
+   * @return true if row-group merging can be used, false otherwise
    */
-  public static boolean canMerge(List<InputFile> inputFiles) {
+  public static boolean canMerge(RewriteFileGroup group, SortOrder sortOrder, FileIO fileIO) {
+    // Check if group expects exactly one output file
+    // ParquetFileMerger only supports merging to a single output file
+    if (group.expectedOutputFiles() != 1) {
+      return false;
+    }
+
+    // Check if table has a sort order - row-group merge cannot preserve sort order
+    if (sortOrder.isSorted()) {
+      return false;
+    }
+
+    // Check for delete files via scan tasks - row-group merge cannot apply deletes
+    boolean hasDeletes = group.fileScanTasks().stream().anyMatch(task -> !task.deletes().isEmpty());
+    if (hasDeletes) {
+      return false;
+    }
+
+    // Delegate remaining validation to canMerge(List<DataFile>, FileIO, long)
+    return canMerge(Lists.newArrayList(group.rewrittenFiles()), fileIO, group.maxOutputFileSize());
+  }
+
+  @VisibleForTesting
+  static boolean canMerge(List<InputFile> inputFiles) {
     try {
       if (inputFiles == null || inputFiles.isEmpty()) {
         return false;
@@ -166,6 +204,65 @@ public class ParquetFileMerger {
       // - Any other validation failures
       return false;
     }
+  }
+
+  /**
+   * Validates that DataFiles can be merged, checking both Parquet-specific and data-level
+   * requirements.
+   *
+   * <p>This method validates:
+   *
+   * <ul>
+   *   <li>All Parquet-specific requirements (via {@link #canMerge(List)})
+   *   <li>No files have associated delete files
+   *   <li>All files have the same partition spec
+   *   <li>No files exceed the target output size (not splitting large files)
+   * </ul>
+   *
+   * <p>This validation is useful for compaction operations in Spark, Flink, or other engines that
+   * need to ensure files can be safely merged.
+   *
+   * @param dataFiles List of DataFiles to validate
+   * @param fileIO FileIO to use for reading files
+   * @param targetOutputSize Maximum size for output file (files larger than this cannot be merged)
+   * @return true if files can be merged, false otherwise
+   */
+  @VisibleForTesting
+  static boolean canMerge(List<DataFile> dataFiles, FileIO fileIO, long targetOutputSize) {
+    if (dataFiles == null || dataFiles.isEmpty()) {
+      return false;
+    }
+
+    // Check for delete files - row-group merge cannot apply deletes
+    for (DataFile dataFile : dataFiles) {
+      List<Integer> equalityIds = dataFile.equalityFieldIds();
+      if (equalityIds != null && !equalityIds.isEmpty()) {
+        return false;
+      }
+    }
+
+    // Check partition spec consistency - all files must have the same spec
+    int firstSpecId = dataFiles.get(0).specId();
+    for (int i = 1; i < dataFiles.size(); i++) {
+      if (dataFiles.get(i).specId() != firstSpecId) {
+        return false;
+      }
+    }
+
+    // Check file sizes - don't merge if splitting large files
+    for (DataFile dataFile : dataFiles) {
+      if (dataFile.fileSizeInBytes() > targetOutputSize) {
+        return false;
+      }
+    }
+
+    // Validate Parquet-specific requirements
+    List<InputFile> inputFiles = Lists.newArrayListWithCapacity(dataFiles.size());
+    for (DataFile dataFile : dataFiles) {
+      inputFiles.add(fileIO.newInputFile(dataFile.path().toString()));
+    }
+
+    return canMerge(inputFiles);
   }
 
   /**
@@ -265,6 +362,7 @@ public class ParquetFileMerger {
           if (extraMetadata == null) {
             extraMetadata = reader.getFooter().getFileMetaData().getKeyValueMetaData();
           }
+
           reader.appendTo(writer);
         }
       }
@@ -394,16 +492,20 @@ public class ParquetFileMerger {
    *
    * @param dataFiles List of Iceberg DataFiles to merge
    * @param fileIO FileIO to use for reading input files
-   * @param encryptedOutputFile Encrypted output file for the merged result (encryption handled
-   *     based on table configuration)
+   * @param outputFile Output file for the merged result (caller handles encryption if needed)
    * @param rowGroupSize Target row group size in bytes
+   * @param spec PartitionSpec for the output file
+   * @param partition Partition data for the output file (null for unpartitioned tables)
+   * @return DataFile representing the merged output file with complete metadata
    * @throws IOException if I/O error occurs during merge operation
    */
-  public static void mergeFiles(
+  public static DataFile mergeFiles(
       List<DataFile> dataFiles,
       FileIO fileIO,
-      EncryptedOutputFile encryptedOutputFile,
-      long rowGroupSize)
+      OutputFile outputFile,
+      long rowGroupSize,
+      PartitionSpec spec,
+      StructLike partition)
       throws IOException {
     // Convert DataFiles to InputFiles and extract row lineage metadata
     List<InputFile> inputFiles = Lists.newArrayListWithCapacity(dataFiles.size());
@@ -426,9 +528,6 @@ public class ParquetFileMerger {
 
     // Read schema from first file
     MessageType schema = readSchema(inputFiles.get(0));
-
-    // Get the encrypting output file (encryption applied based on table configuration)
-    OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
 
     // Initialize columnIndexTruncateLength following the same pattern as Parquet.java
     Configuration conf =
@@ -460,6 +559,39 @@ public class ParquetFileMerger {
       // Use simple binary copy (either no row lineage, or files already have physical columns)
       mergeFilesWithSchema(inputFiles, outputFile, schema, rowGroupSize, columnIndexTruncateLength);
     }
+
+    // Build DataFile with metrics and metadata
+    String outputPath = outputFile.location();
+    long fileSize = fileIO.newInputFile(outputPath).getLength();
+
+    // Extract metrics from the merged Parquet file
+    MetricsConfig metricsConfig = MetricsConfig.getDefault();
+    Metrics metrics = ParquetUtil.fileMetrics(fileIO.newInputFile(outputPath), metricsConfig);
+
+    // Build the DataFile
+    DataFiles.Builder builder =
+        DataFiles.builder(spec)
+            .withPath(outputPath)
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(fileSize)
+            .withMetrics(metrics);
+
+    // Add partition if present
+    if (partition != null) {
+      builder.withPartition(partition);
+    }
+
+    // Extract firstRowId from Parquet column statistics (for V3+ tables with row lineage)
+    // The min value of _row_id column becomes firstRowId
+    if (metrics.lowerBounds() != null) {
+      ByteBuffer rowIdLowerBound = metrics.lowerBounds().get(MetadataColumns.ROW_ID.fieldId());
+      if (rowIdLowerBound != null) {
+        Long firstRowId = Conversions.fromByteBuffer(LongType.get(), rowIdLowerBound);
+        builder.withFirstRowId(firstRowId);
+      }
+    }
+
+    return builder.build();
   }
 
   /**

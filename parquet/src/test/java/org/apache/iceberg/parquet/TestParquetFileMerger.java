@@ -36,11 +36,11 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -63,24 +63,7 @@ public class TestParquetFileMerger {
 
   @TempDir private File tempDir;
 
-  // Simple FileIO implementation for tests
-  private final FileIO fileIO =
-      new FileIO() {
-        @Override
-        public InputFile newInputFile(String path) {
-          return Files.localInput(path);
-        }
-
-        @Override
-        public OutputFile newOutputFile(String path) {
-          return Files.localOutput(path);
-        }
-
-        @Override
-        public void deleteFile(String path) {
-          new File(path).delete();
-        }
-      };
+  private final FileIO fileIO = new TestTables.LocalFileIO();
 
   @Test
   public void testCanMergeReturnsFalseForEmptyList() {
@@ -228,8 +211,10 @@ public class TestParquetFileMerger {
     ParquetFileMerger.mergeFiles(
         dataFiles,
         fileIO,
-        EncryptedFiles.plainAsEncryptedOutput(mergedOutput),
-        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+        mergedOutput,
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Verify the merged file has both row lineage columns
     InputFile mergedInput = Files.localInput(mergedFile);
@@ -298,8 +283,10 @@ public class TestParquetFileMerger {
     ParquetFileMerger.mergeFiles(
         dataFiles,
         fileIO,
-        EncryptedFiles.plainAsEncryptedOutput(mergedOutput),
-        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+        mergedOutput,
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Verify row IDs are sequential across row groups
     List<RowLineageRecord> mergedRecords = readRowLineageData(Files.localInput(mergedFile), schema);
@@ -351,8 +338,10 @@ public class TestParquetFileMerger {
     ParquetFileMerger.mergeFiles(
         dataFiles,
         fileIO,
-        EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(mergedFile)),
-        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+        Files.localOutput(mergedFile),
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Verify sequence numbers transition correctly between files
     List<RowLineageRecord> records = readRowLineageData(Files.localInput(mergedFile), schema);
@@ -400,8 +389,10 @@ public class TestParquetFileMerger {
     ParquetFileMerger.mergeFiles(
         dataFiles,
         fileIO,
-        EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(mergedFile)),
-        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+        Files.localOutput(mergedFile),
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Verify merged file does NOT have row lineage columns
     MessageType mergedSchema;
@@ -473,8 +464,10 @@ public class TestParquetFileMerger {
     ParquetFileMerger.mergeFiles(
         dataFiles,
         fileIO,
-        EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(mergedFile)),
-        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+        Files.localOutput(mergedFile),
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Verify physical columns are preserved
     List<RowLineageRecord> records = readRowLineageData(Files.localInput(mergedFile), baseSchema);
@@ -572,8 +565,10 @@ public class TestParquetFileMerger {
     ParquetFileMerger.mergeFiles(
         dataFiles,
         fileIO,
-        EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(outputFile)),
-        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+        Files.localOutput(outputFile),
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Read back the merged data and verify exact row ID values
     List<RowLineageRecord> records = readRowLineageData(Files.localInput(outputFile), schema);
