@@ -101,7 +101,7 @@ public class VectorizedDeltaLengthByteArrayValuesReader extends ValuesReader
     for (int i = 0; i < total; i++) {
       int length = getLength.applyAsInt(rowId + i);
       try {
-        if (length <= 0) {
+        if (length < 0) {
           throw new IllegalStateException("Invalid length: " + length);
         }
         buffer = in.slice(length);
