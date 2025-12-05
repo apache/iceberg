@@ -20,9 +20,13 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
@@ -90,5 +94,34 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     TableMetadataCache cache = new TableMetadataCache(catalog, 0, Long.MAX_VALUE, 10);
 
     assertThat(cache.getInternalCache()).isEmpty();
+  }
+
+  @Test
+  void testNoCacheRefreshingBeforeRefreshIntervalElapses() {
+    // Create table
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA2);
+
+    // Init cache
+    TableMetadataCache cache =
+        new TableMetadataCache(
+            catalog, 10, 100L, 10, Clock.fixed(Instant.now(), ZoneId.systemDefault()));
+    cache.update(tableIdentifier, table);
+
+    // Cache schema
+    Schema schema = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
+    assertThat(schema.sameSchema(SCHEMA2)).isTrue();
+
+    // Cache schema with fewer fields
+    TableMetadataCache.ResolvedSchemaInfo schemaInfo = cache.schema(tableIdentifier, SCHEMA);
+    assertThat(schemaInfo.resolvedTableSchema().sameSchema(SCHEMA2)).isTrue();
+    assertThat(schemaInfo.compareResult())
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+
+    // Assert both schemas are in cache
+    TableMetadataCache.CacheItem cacheItem = cache.getInternalCache().get(tableIdentifier);
+    assertThat(cacheItem).isNotNull();
+    assertThat(cacheItem.inputSchemas()).containsKeys(SCHEMA, SCHEMA2);
   }
 }
