@@ -38,6 +38,7 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 * Commit coordination for centralized Iceberg commits
 * Exactly-once delivery semantics
 * Multi-table fan-out
+* Change data capture
 * Automatic table creation and schema evolution
 * Field name mapping via Iceberg’s column mapping functionality
 
@@ -70,17 +71,20 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.evolve-schema-enabled       | Set to `true` to add any missing record fields to the table schema, default is `false`                           |
 | iceberg.tables.schema-force-optional       | Set to `true` to set columns as optional during table create and evolution, default is `false` to respect schema |
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
+| iceberg.tables.cdc-field                   | Source record field that identifies the type of operation (insert, update, or delete)                            |
+| iceberg.tables.upsert-mode-enabled         | Set to true to treat all appends as upserts, false otherwise.                                                    |
+| iceberg.tables.use-dv                      | Set to true to enable DV (Delete Vector) mode. No effect without id-columns and CDC Field.                       |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
-| iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
-| iceberg.table.<_table-name_\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
-| iceberg.table.<_table-name_\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
-| iceberg.table.<_table-name_\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
+| iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                  |
+| iceberg.table.<_table-name_\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                  |
+| iceberg.table.<_table-name_\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                         |
+| iceberg.table.<_table-name_\>.route-regex   | The regex used to match a record's `routeField` to a table                                                      |
 | iceberg.control.topic                      | Name of the control topic, default is `control-iceberg`                                                          |
 | iceberg.control.group-id-prefix            | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
-| iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                     |
+| iceberg.control.commit.threads             | Number of threads to use for commits, default is (`cores * 2`)                                                   |
 | iceberg.coordinator.transactional.prefix   | Prefix for the transactional id to use for the coordinator producer, default is to use no/empty prefix           |
 | iceberg.catalog                            | Name of the catalog, default is `iceberg`                                                                        |
 | iceberg.catalog.*                          | Properties passed through to Iceberg catalog initialization                                                      |
@@ -361,6 +365,39 @@ See above for creating two tables.
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
   }
+}
+```
+
+### Change data capture
+This example applies inserts, updates, and deletes based on the value of a field in the record.
+For example, if the `_cdc_op` field is set to `I` or `R` then the record is inserted, if `U` then it is
+upserted, and if `D` then it is deleted. This requires that the table be in Iceberg v2 format.
+The Iceberg identifier field(s) are used to identify a row, if that is not set for the table,
+then the `iceberg.tables.default-id-columns` or `iceberg.table.\<table name\>.id-columns`configuration
+can be set instead. CDC can be combined with multi-table fan-out. The property `iceberg.tables.use-dv`
+can be set to `true` to enable delete vector (DV) mode for more efficient deletes. Note that DV mode 
+requires both identifier columns and a CDC field to be configured.
+
+
+#### Create the destination table
+See above for creating the table
+
+#### Connector config
+```json
+{
+"name": "events-sink",
+"config": {
+    "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
+    "tasks.max": "2",
+    "topics": "events",
+    "iceberg.tables": "default.events",
+    "iceberg.tables.cdc-field": "_cdc_op",
+    "iceberg.tables.use-dv": "true",
+    "iceberg.catalog.type": "rest",
+    "iceberg.catalog.uri": "https://localhost",
+    "iceberg.catalog.credential": "<credential>",
+    "iceberg.catalog.warehouse": "<warehouse name>"
+    }
 }
 ```
 
