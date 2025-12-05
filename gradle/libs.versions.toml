@@ -50,6 +50,7 @@ flink120 = { strictly = "1.20.1"}
 flink20 = { strictly = "2.0.0"}
 flink21 = { strictly = "2.1.0"}
 google-libraries-bom = "26.72.0"
+gcs-analytics-core = "1.2.1"
 guava = "33.5.0-jre"
 hadoop3 = "3.4.2"
 httpcomponents-httpclient5 = "5.5.1"
@@ -133,6 +134,7 @@ flink21-metrics-dropwizard = { module = "org.apache.flink:flink-metrics-dropwiza
 flink21-streaming-java = { module = "org.apache.flink:flink-streaming-java", version.ref = "flink21" }
 flink21-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink21" }
 google-libraries-bom = { module = "com.google.cloud:libraries-bom", version.ref = "google-libraries-bom" }
+gcs-analytics-core = { module = "com.google.cloud.gcs.analytics:gcs-analytics-core", version.ref = "gcs-analytics-core" }
 guava-guava = { module = "com.google.guava:guava", version.ref = "guava" }
 hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3" }
 hadoop3-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop3" }

@@ -547,6 +547,12 @@ License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
+Group: com.google.cloud.gcs.analytics  Name: gcs-analytics-core  Version: 1.1.2
+Project URL: https://github.com/GoogleCloudPlatform/gcs-analytics-core
+License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
 Group: com.google.escapevelocity Name: escapevelocity Version: 0.9
 Project URL: https://github.com/google/escapevelocity
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
