@@ -32,6 +32,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -43,6 +44,7 @@ public class OAuth2RefreshCredentialsHandler
     implements OAuth2CredentialsWithRefresh.OAuth2RefreshHandler, AutoCloseable {
   private final Map<String, String> properties;
   private final String credentialsEndpoint;
+  private final String planId;
   // will be used to refresh the OAuth2 token
   private final String catalogEndpoint;
   private volatile HTTPClient client;
@@ -59,6 +61,7 @@ public class OAuth2RefreshCredentialsHandler
         properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
     this.properties = properties;
+    this.planId = properties.getOrDefault(RESTCatalogProperties.REST_SCAN_PLAN_ID, null);
   }
 
   @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
@@ -68,7 +71,7 @@ public class OAuth2RefreshCredentialsHandler
         httpClient()
             .get(
                 credentialsEndpoint,
-                null,
+                null != planId ? Map.of("planId", planId) : null,
                 LoadCredentialsResponse.class,
                 Map.of(),
                 ErrorHandlers.defaultErrorHandler());

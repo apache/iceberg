@@ -133,4 +133,38 @@ public class ResourcePaths {
   public String renameView() {
     return SLASH.join("v1", prefix, "views", "rename");
   }
+
+  public String planTableScan(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "plan");
+  }
+
+  public String plan(TableIdentifier ident, String planId) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "plan",
+        planId);
+  }
+
+  public String fetchScanTasks(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        RESTUtil.encodeNamespace(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "tasks");
+  }
 }
