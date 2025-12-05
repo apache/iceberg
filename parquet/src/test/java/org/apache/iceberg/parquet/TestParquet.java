@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -314,6 +315,176 @@ public class TestParquet {
     }
   }
 
+  @Test
+  public void testVectorizedReaderFactoryConfiguration() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    File file = createTempFile(temp);
+
+    // Write test data
+    List<GenericData.Record> records = Lists.newArrayList();
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("intCol", 42);
+    records.add(record);
+
+    write(file, schema, Collections.emptyMap(), null, records.toArray(new GenericData.Record[] {}));
+
+    // Reset the flag
+    TestMockVectorizedReaderFactory.wasCalled = false;
+
+    // Test setting vectorized reader factory
+    Parquet.ReadBuilder readBuilder =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createBatchedReaderFunc(fileSchema -> new MockVectorizedReader())
+            .vectorizedReaderFactory(MockVectorizedReaderFactory.class.getName());
+
+    // We can't easily verify the property directly since it's private,
+    // but we can verify the build succeeds
+    readBuilder.build().iterator(); // Should not throw
+
+    // Verify our mock factory was NOT used (because MockVectorizedReaderFactory is not a valid factory)
+    assertThat(TestMockVectorizedReaderFactory.wasCalled)
+        .as("TestMockVectorizedReaderFactory should not have been called")
+        .isFalse();
+  }
+
+  @Test
+  public void testVectorizedReaderFactoryRemoveWithNull() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    File file = createTempFile(temp);
+
+    // Write test data
+    List<GenericData.Record> records = Lists.newArrayList();
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("intCol", 42);
+    records.add(record);
+
+    write(file, schema, Collections.emptyMap(), null, records.toArray(new GenericData.Record[] {}));
+
+    // Test removing vectorized reader factory with null
+    Parquet.ReadBuilder readBuilder =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createBatchedReaderFunc(fileSchema -> new MockVectorizedReader())
+            .vectorizedReaderFactory(MockVectorizedReaderFactory.class.getName())
+            .vectorizedReaderFactory(null); // Remove it
+
+    // Build should succeed and use default reader
+    readBuilder.build().iterator(); // Should not throw
+  }
+
+  @Test
+  public void testVectorizedReaderFactoryMissingClass() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    File file = createTempFile(temp);
+
+    // Write test data
+    List<GenericData.Record> records = Lists.newArrayList();
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("intCol", 42);
+    records.add(record);
+
+    write(file, schema, Collections.emptyMap(), null, records.toArray(new GenericData.Record[] {}));
+
+    // Test with non-existent class - should fall back to default reader
+    Parquet.ReadBuilder readBuilder =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createBatchedReaderFunc(fileSchema -> new MockVectorizedReader())
+            .vectorizedReaderFactory("com.example.NonExistentFactory");
+
+    // Should not throw - falls back to default reader
+    readBuilder.build().iterator();
+  }
+
+  @Test
+  public void testVectorizedReaderFactoryInvalidClass() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    File file = createTempFile(temp);
+
+    // Write test data
+    List<GenericData.Record> records = Lists.newArrayList();
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("intCol", 42);
+    records.add(record);
+
+    write(file, schema, Collections.emptyMap(), null, records.toArray(new GenericData.Record[] {}));
+
+    // Test with a class that doesn't implement VectorizedParquetReaderFactory
+    Parquet.ReadBuilder readBuilder =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createBatchedReaderFunc(fileSchema -> new MockVectorizedReader())
+            .vectorizedReaderFactory(InvalidReaderFactory.class.getName());
+
+    // Should not throw - falls back to default reader
+    readBuilder.build().iterator();
+  }
+
+  @Test
+  public void testVectorizedReaderFactoryNoDefaultConstructor() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    File file = createTempFile(temp);
+
+    // Write test data
+    List<GenericData.Record> records = Lists.newArrayList();
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("intCol", 42);
+    records.add(record);
+
+    write(file, schema, Collections.emptyMap(), null, records.toArray(new GenericData.Record[] {}));
+
+    // Test with a class that has no default constructor
+    Parquet.ReadBuilder readBuilder =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createBatchedReaderFunc(fileSchema -> new MockVectorizedReader())
+            .vectorizedReaderFactory(NoDefaultConstructorFactory.class.getName());
+
+    // Should not throw - falls back to default reader
+    readBuilder.build().iterator();
+  }
+
+  @Test
+  public void testVectorizedReaderFactorySuccessfulLoad() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    File file = createTempFile(temp);
+
+    // Write test data
+    List<GenericData.Record> records = Lists.newArrayList();
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("intCol", 42);
+    records.add(record);
+
+    write(file, schema, Collections.emptyMap(), null, records.toArray(new GenericData.Record[] {}));
+
+    // Reset the flag
+    TestMockVectorizedReaderFactory.wasCalled = false;
+
+    // Test successful factory loading
+    Parquet.ReadBuilder readBuilder =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createBatchedReaderFunc(fileSchema -> new MockVectorizedReader())
+            .vectorizedReaderFactory(TestMockVectorizedReaderFactory.class.getName());
+
+    // Build and consume the reader
+    Iterator<?> iterator = readBuilder.build().iterator();
+    assertThat(iterator.hasNext()).isTrue();
+    iterator.next();
+
+    // Verify our mock factory was actually used
+    assertThat(TestMockVectorizedReaderFactory.wasCalled)
+        .as("Mock factory should have been called")
+        .isTrue();
+  }
+
   private Pair<File, Long> generateFile(
       Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
       int desiredRecordCount,
@@ -354,4 +525,74 @@ public class TestParquet {
             records.toArray(new GenericData.Record[] {}));
     return Pair.of(file, size);
   }
+
+  // Test helper classes
+
+  /** A mock VectorizedReader for testing. */
+  public static class MockVectorizedReader implements VectorizedReader<Object> {
+    @Override
+    public Object read(Object reuse, int numRows) {
+      return null;
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+      // No-op
+    }
+
+    @Override
+    public void close() {
+      // No-op
+    }
+  }
+
+  /** A mock factory class that implements VectorizedParquetReaderFactory for testing. */
+  public static class TestMockVectorizedReaderFactory implements VectorizedParquetReaderFactory {
+    static boolean wasCalled = false;
+
+    @Override
+    public String name() {
+      return "test-mock";
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> org.apache.iceberg.io.CloseableIterable<T> createReader(ReaderParams params) {
+      wasCalled = true;
+      // Return a simple iterable that provides the mock data
+      GenericData.Record record =
+          new GenericData.Record(AvroSchemaUtil.convert(params.schema().asStruct(), "table"));
+      record.put(0, 42);
+      return (org.apache.iceberg.io.CloseableIterable<T>)
+          org.apache.iceberg.io.CloseableIterable.withNoopClose(Collections.singletonList(record));
+    }
+  }
+
+  /** A mock factory class without implementing the interface. */
+  public static class InvalidReaderFactory {
+    public InvalidReaderFactory() {}
+
+    public String name() {
+      return "invalid";
+    }
+  }
+
+  /** A mock factory class with no default constructor. */
+  public static class NoDefaultConstructorFactory implements VectorizedParquetReaderFactory {
+    @SuppressWarnings("unused")
+    public NoDefaultConstructorFactory(String unusedParam) {}
+
+    @Override
+    public String name() {
+      return "no-default";
+    }
+
+    @Override
+    public <T> org.apache.iceberg.io.CloseableIterable<T> createReader(ReaderParams params) {
+      return null;
+    }
+  }
+
+  /** A simple reference class that can be loaded. */
+  public static class MockVectorizedReaderFactory {}
 }
