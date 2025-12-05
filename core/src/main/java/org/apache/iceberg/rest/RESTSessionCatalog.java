@@ -132,6 +132,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .add(Endpoint.V1_REGISTER_TABLE)
           .add(Endpoint.V1_REPORT_METRICS)
           .add(Endpoint.V1_COMMIT_TRANSACTION)
+          .add(Endpoint.V1_TABLE_CREDENTIALS)
           .build();
 
   // these view endpoints must not be updated in order to maintain backwards compatibility with
@@ -162,6 +163,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
+  private String planId = null;
 
   public RESTSessionCatalog() {
     this(
@@ -264,6 +266,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    this.planId =
+        PropertyUtil.propertyAsString(
+            mergedProps, RESTCatalogProperties.PLAN_ID, RESTCatalogProperties.PLAN_ID_DEFAULT);
     super.initialize(name, mergedProps);
   }
 
@@ -1196,11 +1202,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Endpoint.check(endpoints, Endpoint.V1_TABLE_CREDENTIALS);
 
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (!planId.isEmpty()) {
+      queryParams.put("planId", planId);
+    }
     return client
         .withAuthSession(contextualSession)
         .get(
             paths.loadTableCredentials(identifier),
-            null,
+            queryParams,
             LoadCredentialsResponse.class,
             Map.of(),
             ErrorHandlers.defaultErrorHandler());

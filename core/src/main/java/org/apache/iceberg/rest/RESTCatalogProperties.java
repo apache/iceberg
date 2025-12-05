@@ -35,6 +35,9 @@ public final class RESTCatalogProperties {
 
   public static final String PAGE_SIZE = "rest-page-size";
 
+  public static final String PLAN_ID = "planId";
+  public static final String PLAN_ID_DEFAULT = "";
+
   public enum SnapshotMode {
     ALL,
     REFS
