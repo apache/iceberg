@@ -24,6 +24,7 @@ import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedWidthVector;
 import org.apache.parquet.bytes.ByteBufferInputStream;
+import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.api.Binary;
 
 /**
@@ -34,7 +35,8 @@ import org.apache.parquet.io.api.Binary;
  *     href="https://github.com/apache/parquet-format/blob/master/Encodings.md#delta-strings-delta_byte_array--7">
  *     Parquet format encodings: DELTA_BYTE_ARRAY</a>
  */
-public class VectorizedDeltaByteArrayValuesReader implements VectorizedValuesReader {
+public class VectorizedDeltaByteArrayValuesReader extends ValuesReader
+    implements VectorizedValuesReader {
 
   private final VectorizedDeltaEncodedValuesReader prefixLengthReader;
   private final VectorizedDeltaLengthByteArrayValuesReader suffixReader;
@@ -51,7 +53,8 @@ public class VectorizedDeltaByteArrayValuesReader implements VectorizedValuesRea
   @Override
   public void initFromPage(int valueCount, ByteBufferInputStream in) throws IOException {
     prefixLengthReader.initFromPage(valueCount, in);
-    // actual number of elements in the page may be less than the passed valueCount here due to nulls
+    // actual number of elements in the page may be less than the passed valueCount here due to
+    // nulls
     prefixLengths = prefixLengthReader.readIntegers(prefixLengthReader.getTotalValueCount(), 0);
     suffixReader.initFromPage(valueCount, in);
     previous = Binary.EMPTY;
@@ -159,6 +162,12 @@ public class VectorizedDeltaByteArrayValuesReader implements VectorizedValuesRea
   @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readDoubles is not supported");
+  }
+
+  /** The Iceberg reader currently does not do skipping */
+  @Override
+  public void skip() {
+    throw new UnsupportedOperationException("skip is not supported");
   }
 
   /** A functional interface to write binary values into a FieldVector */

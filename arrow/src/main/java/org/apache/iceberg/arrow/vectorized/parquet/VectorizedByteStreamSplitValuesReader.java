@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.bytes.ByteBufferInputStream;
+import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.api.Binary;
 
 /**
@@ -34,7 +35,8 @@ import org.apache.parquet.io.api.Binary;
  *     href="https://parquet.apache.org/docs/file-format/data-pages/encodings/#byte-stream-split-byte_stream_split--9">
  *     Parquet format encodings: BYTE_STREAM_SPLIT</a>
  */
-public class VectorizedByteStreamSplitValuesReader implements VectorizedValuesReader {
+public class VectorizedByteStreamSplitValuesReader extends ValuesReader
+    implements VectorizedValuesReader {
 
   private int totalBytesInStream;
   private ByteBufferInputStream in;
@@ -169,5 +171,11 @@ public class VectorizedByteStreamSplitValuesReader implements VectorizedValuesRe
   @Override
   public void readBinary(int total, FieldVector vec, int rowId, boolean setArrowValidityVector) {
     throw new UnsupportedOperationException("readBinary is not supported");
+  }
+
+  /** The Iceberg reader currently does not do skipping */
+  @Override
+  public void skip() {
+    throw new UnsupportedOperationException("skip is not supported");
   }
 }

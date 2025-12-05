@@ -25,6 +25,7 @@ import java.util.function.IntUnaryOperator;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.bytes.ByteBufferInputStream;
+import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
 
@@ -36,7 +37,8 @@ import org.apache.parquet.io.api.Binary;
  *     href="https://github.com/apache/parquet-format/blob/master/Encodings.md#delta-length-byte-array-delta_length_byte_array--6">
  *     Parquet format encodings: DELTA_LENGTH_BYTE_ARRAY</a>
  */
-public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedValuesReader {
+public class VectorizedDeltaLengthByteArrayValuesReader extends ValuesReader
+    implements VectorizedValuesReader {
 
   private final VectorizedDeltaEncodedValuesReader lengthReader;
 
@@ -52,7 +54,8 @@ public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedVal
   @Override
   public void initFromPage(int valueCount, ByteBufferInputStream inputStream) throws IOException {
     lengthReader.initFromPage(valueCount, inputStream);
-    // actual number of elements in the page may be less than the passed valueCount here due to nulls
+    // actual number of elements in the page may be less than the passed valueCount here due to
+    // nulls
     lengths = lengthReader.readIntegers(lengthReader.getTotalValueCount(), 0);
 
     in = inputStream.remainingStream();
@@ -174,6 +177,12 @@ public class VectorizedDeltaLengthByteArrayValuesReader implements VectorizedVal
   @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
     throw new UnsupportedOperationException("readDoubles is not supported");
+  }
+
+  /** The Iceberg reader currently does not do skipping */
+  @Override
+  public void skip() {
+    throw new UnsupportedOperationException("skip is not supported");
   }
 
   /** A functional interface to write binary values into a FieldVector */
