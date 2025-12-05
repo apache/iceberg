@@ -3119,6 +3119,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  @SuppressWarnings("MethodLength")
   public void testCustomTableOperationsInjection() throws IOException {
     AtomicBoolean customTableOpsCalled = new AtomicBoolean();
     AtomicBoolean customTransactionTableOpsCalled = new AtomicBoolean();
