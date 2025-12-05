@@ -122,8 +122,7 @@ class TableUpdater {
       TableIdentifier identifier, Schema schema) {
     TableMetadataCache.ResolvedSchemaInfo fromCache =
         cache.schema(identifier, schema, dropUnusedColumns);
-    if (!dropUnusedColumns
-        && fromCache.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
+    if (fromCache.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
       return fromCache;
     } else {
       Table table = catalog.loadTable(identifier);
