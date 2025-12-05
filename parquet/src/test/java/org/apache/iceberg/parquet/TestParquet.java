@@ -343,7 +343,8 @@ public class TestParquet {
     // but we can verify the build succeeds
     readBuilder.build().iterator(); // Should not throw
 
-    // Verify our mock factory was NOT used (because MockVectorizedReaderFactory is not a valid factory)
+    // Verify our mock factory was NOT used (because MockVectorizedReaderFactory is not a valid
+    // factory)
     assertThat(TestMockVectorizedReaderFactory.wasCalled)
         .as("TestMockVectorizedReaderFactory should not have been called")
         .isFalse();
