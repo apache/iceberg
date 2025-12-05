@@ -497,18 +497,26 @@ The dynamic sink tries to match the schema provided in `DynamicRecord` with the 
 
 The dynamic sink maintains an LRU cache for both table metadata and incoming schemas, with eviction based on size and time constraints. When a DynamicRecord contains a schema that is incompatible with the current table schema, a schema update is triggered. This update can occur either immediately or via a centralized executor, depending on the `immediateTableUpdate` configuration. While centralized updates reduce load on the Catalog, they may introduce backpressure on the sink.
 
-Supported schema updates:
+#### Supported schema updates
 
 - Adding new columns
 - Widening existing column types (e.g., Integer → Long, Float → Double)
 - Making required columns optional
+- Dropping columns (disabled by default)
 
-Unsupported schema updates:
+Dropping columns is disabled by default to prevent issues with late or out-of-order data, as removed fields cannot be easily restored without data loss.
 
-- Dropping columns
+You can opt-in to allow dropping columns (see the configuration options below). Once a column has been dropped, it is
+technically still possible to write data to that column because Iceberg maintains all past table schemas. However,
+regular queries won't be able to reference the column. If the field was to re-appear as part of a new schema, an
+entirely new column would be added, which apart from the name, has nothing in common with the old column, i.e. queries
+for the new column will never return data of the old column.
+
+##### Unsupported schema updates
+
 - Renaming columns
 
-Dropping columns is avoided to prevent issues with late or out-of-order data, as removed fields cannot be easily restored without data loss. Renaming is unsupported because schema comparison is name-based, and renames would require additional metadata or hints to resolve.
+Renaming is unsupported because schema comparison is name-based, and renames would require additional metadata or hints to resolve.
 
 ### Caching
 
@@ -537,6 +545,7 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `set(String property, String value)`                 | Set any Iceberg write property (e.g., `"write.format"`, `"write.upsert.enabled"`).Check out all the options here: [write-options](flink-configuration.md#write-options) |
 | `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
 | `tableCreator(TableCreator creator)` | When DynamicIcebergSink creates new Iceberg tables, allows overriding how tables are created - setting custom table properties and location based on the table name. |
+| `dropUnusedColumns(boolean enabled)`                 | When enabled, drops all columns from the current table schema which are not contained in the input schema (see the caveats above on dropping columns).                  |
 
 ### Notes
 

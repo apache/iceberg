@@ -315,6 +315,17 @@ public class DynamicIcebergSink
       return this;
     }
 
+    /**
+     * Dropping columns is disabled by default to prevent issues with late or out-of-order data, as
+     * removed fields cannot be easily restored without data loss.
+     *
+     * <p>You can opt-in to allow dropping columns. Once a column has been dropped, it is
+     * technically still possible to write data to that column because Iceberg maintains all past
+     * table schemas. However, regular queries won't be able to reference the column. If the field
+     * was to re-appear as part of a new schema, an entirely new column would be added, which apart
+     * from the name, has nothing in common with the old column, i.e. queries for the new column
+     * will never return data of the old column.
+     */
     public Builder<T> dropUnusedColumns(boolean newDropUnusedColumns) {
       this.dropUnusedColumns = newDropUnusedColumns;
       return this;
