@@ -160,6 +160,13 @@ public class FlinkCatalogFactory implements CatalogFactory {
             properties,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_OFF);
+
+    boolean cacheCaseSensitive =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.CACHE_CASE_SENSITIVE,
+            CatalogProperties.CACHE_CASE_SENSITIVE_DEFAULT);
+
     Preconditions.checkArgument(
         cacheExpirationIntervalMs != 0,
         "%s is not allowed to be 0.",
@@ -172,7 +179,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
         catalogLoader,
         properties,
         cacheEnabled,
-        cacheExpirationIntervalMs);
+        cacheExpirationIntervalMs,
+        cacheCaseSensitive);
   }
 
   private static Configuration mergeHiveConf(

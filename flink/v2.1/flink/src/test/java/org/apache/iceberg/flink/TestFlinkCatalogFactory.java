@@ -21,8 +21,10 @@ package org.apache.iceberg.flink;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.lang.reflect.Field;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.hadoop.HadoopCatalog;
@@ -104,6 +106,28 @@ public class TestFlinkCatalogFactory {
             () -> FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageStartingWith("Unknown catalog-type: fooType");
+  }
+
+  @Test
+  public void testCacheCaseSensitivePropertyIsRespected() throws Exception {
+    String catalogName = "caseSensitiveCatalog";
+
+    props.put(
+        FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HADOOP);
+    props.put(CatalogProperties.CACHE_ENABLED, "true");
+    props.put(CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS, "-1");
+    props.put(CatalogProperties.CACHE_CASE_SENSITIVE, "false");
+    org.apache.flink.table.catalog.Catalog flinkCatalog =
+        new FlinkCatalogFactory().createCatalog(catalogName, props, new Configuration());
+
+    Catalog icebergCatalog = ((FlinkCatalog) flinkCatalog).catalog();
+
+    assertThat(icebergCatalog).isInstanceOf(CachingCatalog.class);
+
+    Field field = CachingCatalog.class.getDeclaredField("caseSensitive");
+    field.setAccessible(true);
+
+    assertThat(field.getBoolean(icebergCatalog)).isFalse();
   }
 
   public static class CustomHadoopCatalog extends HadoopCatalog {
