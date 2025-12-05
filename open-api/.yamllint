@@ -15,6 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-openapi-spec-validator==0.7.2
-datamodel-code-generator==0.36.0
-yamllint==1.37.1
+---
+extends: default
+
+rules:
+  line-length:
+    max: 350
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: -1
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: -1
