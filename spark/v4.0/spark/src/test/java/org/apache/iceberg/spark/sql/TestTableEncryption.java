@@ -86,7 +86,7 @@ public class TestTableEncryption extends CatalogTestBase {
 
   @AfterEach
   public void removeTables() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s PURGE", tableName);
   }
 
   @TestTemplate
