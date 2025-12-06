@@ -42,12 +42,24 @@ An atomic swap of one view metadata file for another provides the basis for maki
 
 Writers create view metadata files optimistically, assuming that the current metadata location will not be changed before the writer's commit. Once a writer has created an update, it commits by swapping the view's metadata file pointer from the base location to the new location.
 
+### Materialized Views
+
+Materialized views are a type of view with precomputed results from the view query stored as a table.
+When queried, engines may return the precomputed data for the materialized views, shifting the cost of query execution to the precomputation step.
+
+Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, the "storage-table", which stores the precomputed data.
+Materialized View metadata is a superset of View metadata with an additional pointer to the storage table. The storage table is an Iceberg table with additional materialized view refresh state metadata.
+Refresh metadata contains information about the "source tables" and/or "source views", which are the tables/views referenced in the query definition of the materialized view.
+
 ## Specification
 
 ### Terms
 
 * **Schema** -- Names and types of fields in a view.
 * **Version** -- The state of a view at some point in time.
+* **Storage table** -- Iceberg table that stores the precomputed data of the materialized view.
+* **Source table** -- A table reference that occurs in the query definition of the materialized view. The materialized view depends on the data from the source tables.
+* **Source view** -- A view reference that occurs in the query definition of the materialized view. The materialized view depends on the definitions from the source views.
 
 ### View Metadata
 
@@ -63,11 +75,13 @@ The view version metadata file has the following fields:
 | _required_  | `versions`           | A list of known [versions](#versions) of the view [1] |
 | _required_  | `version-log`        | A list of [version log](#version-log) entries with the timestamp and `version-id` for every change to `current-version-id` |
 | _optional_  | `properties`         | A string to string map of view properties [2] |
+| _optional_  | `max-staleness-ms`   | The maximum time interval in milliseconds during which changed source table snapshots are considered fresh enough to skip refreshing [3] |
 
 Notes:
 
 1. The number of versions to retain is controlled by the view property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
+3. The `max-staleness-ms` field only applies to materialized views and must be set to `null` for common views. This field defines the staleness window for determining freshness state (see [Materialized Views](#materialized-views) section above). When `max-staleness-ms` is `null` for a materialized view, the data in the `storage-table` is always considered fresh.
 
 #### Versions
 
@@ -82,8 +96,11 @@ Each version in `versions` is a struct with the following fields:
 | _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
+| _optional_  | `storage-table`     | A [storage table identifier](#storage-table-identifier) of the storage table |
 
 When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
+
+When 'storage-table' is `null` or not set, the entity is a common view, otherwise it is a materialized view.
 
 #### Summary
 
@@ -159,6 +176,71 @@ Each entry in `version-log` is a struct with the following fields:
 |-------------|----------------|-------------|
 | _required_  | `timestamp-ms` | Timestamp when the view's `current-version-id` was updated (ms from epoch) |
 | _required_  | `version-id`   | ID that `current-version-id` was set to |
+
+#### Storage Table Identifier
+
+The table identifier for the storage table that stores the precomputed results.
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `namespace`    | A list of strings for namespace levels |
+| _required_  | `name`         | A string specifying the name of the table |
+
+### Storage table metadata
+
+This section describes additional metadata for the storage table that supplements the regular table metadata and is required for materialized views.
+The property "refresh-state" is set on the [snapshot summary](https://iceberg.apache.org/spec/#snapshots) property of every storage table snapshot to determine the freshness of the precomputed data of the storage table.
+
+| Requirement | Field name      | Description |
+|-------------|-----------------|-------------|
+| _required_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string |
+
+#### Refresh state
+
+The refresh state record captures the state of source tables, views, and materialized views at refresh time.
+
+* Source view states are stored in `source-view-states`. It includes indirect references — views nested within other views (excluding MVs).
+* Source table states are stored in `source-table-states`. It includes indirect references - tables nested within other views (excluding MVs).
+
+For directly referenced source materialized views, both the source view and its storage table are included in the refresh state. Indirect references (views or tables) from source materialized views are excluded in the refresh-state. During read time, a query engine recursively expands the query tree to determine freshness if it chooses to enforce recursive evaluation semantic.
+
+The refresh state has the following fields:
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `view-version-id`         | The `version-id` of the materialized view when the refresh operation was performed  |
+| _required_  | `source-table-states`        | A list of [source table](#source-table) records for tables directly or indirectly referenced through common views, plus storage tables of directly referenced source materialized views |
+| _required_  | `source-view-states`         | A list of [source view](#source-view) records for all views (including materialized views) that are directly referenced, plus common views indirectly referenced through other common views |
+| _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
+
+#### Source table
+
+A source table record captures the state of a source table (including source MV's storage table) at the time of the last refresh operation.
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `uuid`         | The uuid of the source table |
+| _required_  | `snapshot-id`  | Snapshot-id of when the last refresh operation was performed |
+| _optional_  | `ref`          | Branch name of the source table being referenced in the view query |
+
+When `ref` is `null` or not set, it defaults to "main".
+
+#### Source view
+
+A source view record captures the state of a source view at the time of the last refresh operation.
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `uuid`         | The uuid of the source view |
+| _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
+
+#### Status Interpretation
+
+During read time, a materialized view (storage table) can be interpreted as "fresh", "stale" or "invalid", depending on the following situations:
+
+* **invalid** -- The current `version_id` of the materialized view does not match the `view-version-id` recorded in its refresh state. A read operation cannot proceed using the materialized view's data.
+* **fresh** -- Valid and the stored data represents the result set that would have been retrieved if the underlying View Query was executed at some point during the defined Staleness Window (the time interval defined by `max-staleness-ms`).
+* **stale** -- Valid but not Fresh.
 
 ## Appendix A: An Example
 
