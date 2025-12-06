@@ -28,7 +28,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import org.apache.hadoop.conf.Configuration;
@@ -104,6 +106,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
+  protected static Map<String, Object> extraConf = new HashMap<>();
 
   @Parameter(index = 2)
   private boolean vectorized;
@@ -138,6 +141,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             .config("spark.ui.liveUpdate.period", 0)
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .config(extraConf)
             .enableHiveSupport()
             .getOrCreate();
 
