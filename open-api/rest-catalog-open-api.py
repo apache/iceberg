@@ -223,7 +223,7 @@ class SnapshotReference(BaseModel):
 
 
 class SnapshotReferences(BaseModel):
-    __root__: Optional[Dict[str, SnapshotReference]] = None
+    __root__: Dict[str, SnapshotReference]
 
 
 class SnapshotLogItem(BaseModel):
@@ -584,7 +584,7 @@ class MetricResult(BaseModel):
 
 
 class Metrics(BaseModel):
-    __root__: Optional[Dict[str, MetricResult]] = None
+    __root__: Dict[str, MetricResult]
 
 
 class CommitReport(BaseModel):
@@ -971,7 +971,11 @@ class EmptyPlanningResult(BaseModel):
 
 
 class QueryEventsRequest(BaseModel):
-    page_token: Optional[PageToken] = Field(None, alias='page-token')
+    continuation_token: Optional[str] = Field(
+        None,
+        alias='continuation-token',
+        description='A continuation token to resume fetching events from a previous request. If not provided, events are fetched from the beginning of the event log subject to other filters.\n',
+    )
     page_size: Optional[int] = Field(
         None,
         alias='page-size',
@@ -1555,7 +1559,11 @@ class CommitTableResponse(BaseModel):
 
 
 class QueryEventsResponse(BaseModel):
-    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
+    next_page_token: str = Field(
+        ...,
+        alias='next-page-token',
+        description="An opaque continuation token to fetch the next page of events. This token encodes the server's cursor position and filter state. Clients should treat this as an opaque value and pass it unmodified in subsequent requests.\n",
+    )
     highest_processed_timestamp_ms: int = Field(
         ...,
         alias='highest-processed-timestamp-ms',

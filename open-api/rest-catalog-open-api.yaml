@@ -3516,8 +3516,12 @@ components:
     QueryEventsRequest:
       type: object
       properties:
-        page-token:
-          $ref: "#/components/schemas/PageToken"
+        continuation-token:
+          type: string
+          description: >
+            A continuation token to resume fetching events from a previous request.
+            If not provided, events are fetched from the beginning of the event log
+            subject to other filters.
         page-size:
           type: integer
           format: int32
@@ -4135,11 +4139,16 @@ components:
     QueryEventsResponse:
       type: object
       required:
+        - next-page-token
         - highest-processed-timestamp-ms
         - events
       properties:
         next-page-token:
-          $ref: "#/components/schemas/PageToken"
+          type: string
+          description: >
+            An opaque continuation token to fetch the next page of events.
+            This token encodes the server's cursor position and filter state.
+            Clients should treat this as an opaque value and pass it unmodified in subsequent requests.
         highest-processed-timestamp-ms:
           description: >
             The highest event timestamp processed when generating this response. 
