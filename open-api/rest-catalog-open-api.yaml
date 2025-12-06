@@ -615,6 +615,7 @@ paths:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/data-access'
     post:
       tags:
         - Catalog API
@@ -702,6 +703,7 @@ paths:
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
       - $ref: '#/components/parameters/plan-id'
+      - $ref: '#/components/parameters/data-access'
 
     get:
       tags:
