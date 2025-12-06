@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.BatchScan;
+import org.apache.iceberg.BatchScanAdapter;
 import org.apache.iceberg.ImmutableTableScanContext;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
@@ -66,5 +68,10 @@ class RESTTable extends BaseTable {
         tableIdentifier,
         resourcePaths,
         supportedEndpoints);
+  }
+
+  @Override
+  public BatchScan newBatchScan() {
+    return new BatchScanAdapter(newScan());
   }
 }
