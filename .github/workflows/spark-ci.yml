@@ -107,7 +107,7 @@ jobs:
             :iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check \
             :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check \
             :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check \
-            -Pquick=true -x javadoc
+            -Pquick=true -x javadoc -DtestParallelism=2
       - uses: actions/upload-artifact@v5
         if: failure()
         with:
