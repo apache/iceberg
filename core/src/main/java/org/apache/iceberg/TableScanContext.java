@@ -60,6 +60,11 @@ abstract class TableScanContext {
     return false;
   }
 
+  @Value.Default
+  public boolean removeUnusedDeletesWhenPlanning() {
+    return false;
+  }
+
   @Nullable
   public abstract Set<Integer> columnsToKeepStats();
 
@@ -129,6 +134,13 @@ abstract class TableScanContext {
     return ImmutableTableScanContext.builder()
         .from(this)
         .returnColumnStats(returnColumnStats)
+        .build();
+  }
+
+  TableScanContext shouldRemoveUnusedDeletesWhenPlanning(boolean removeUnusedDeletesWhenPlanning) {
+    return ImmutableTableScanContext.builder()
+        .from(this)
+        .removeUnusedDeletesWhenPlanning(removeUnusedDeletesWhenPlanning)
         .build();
   }
 
