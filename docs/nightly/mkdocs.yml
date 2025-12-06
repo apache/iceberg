@@ -1,0 +1,77 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+site_name: docs/nightly
+
+plugins:
+  - search
+
+nav:
+  - index.md
+  - Concepts:
+    - Tables:
+      - branching.md
+      - configuration.md
+      - encryption.md
+      - evolution.md
+      - maintenance.md
+      - metrics-reporting.md
+      - partitioning.md
+      - performance.md
+      - reliability.md
+      - schemas.md
+    - Views:
+      - view-configuration.md
+  - API:
+    - Quickstart: java-api-quickstart.md
+    - API: api.md
+    - File I/O: fileio.md
+    - Javadoc: ../../javadoc/nightly
+  - Integrations:
+    - Apache Spark:
+      - spark-getting-started.md
+      - spark-configuration.md
+      - spark-ddl.md
+      - spark-procedures.md
+      - spark-queries.md
+      - spark-structured-streaming.md
+      - spark-writes.md
+    - Apache Flink:
+      - flink.md
+      - flink-connector.md
+      - flink-ddl.md
+      - flink-queries.md
+      - flink-writes.md
+      - flink-maintenance.md
+      - flink-configuration.md
+    - Kafka Connect: kafka-connect.md
+    - Apache Hive: hive.md
+  - Migration:
+      - Overview: table-migration.md
+      - Hive Migration: hive-migration.md
+      - Delta Lake Migration: delta-lake-migration.md
+  - Catalogs:
+    - AWS Glue: aws/#glue-catalog
+    - AWS DynamoDB: aws/#dynamodb-catalog
+    - HadoopCatalog: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hadoop/HadoopCatalog.html
+    - HiveCatalog: hive/#global-hive-catalog
+    - jdbc.md
+    - custom-catalog.md
+    - nessie.md
+  - Storage:
+    - AWS S3: aws/#s3-fileio
+    - Dell ECS: dell.md
