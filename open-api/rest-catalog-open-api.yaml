@@ -4305,7 +4305,7 @@ components:
       required:
         - event-id
         - request-id
-        - event-count
+        - request-event-count
         - timestamp-ms
         - operation
       properties:
@@ -4548,11 +4548,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/CreateNamespaceResponse"
       required:
-        - namespace
         - operation-type
       properties:
-        namespace:
-          $ref: '#/components/schemas/Namespace'
         operation-type:
           $ref: "#/components/schemas/OperationType"
           const: "create-namespace"
