@@ -126,14 +126,23 @@ Notes:
 
 #### Defaults and Overload Compatibility
 When a parameter has a default value, the definition supports multiple invocation arities. These arities are reserved,
-and new overloads MUST NOT introduce ambiguity. For example, an existing definition 
-`foo(int, float default 1.0, string default "a")` has valid invocation arities, 1, 2, and 3.
-Therefore, the following overloads are not allowed, because they overlap with the arity space created by default values:
+and new overloads MUST NOT introduce ambiguity. 
+
+For example, an existing definition `foo(int, float default 1.0, string default "a")` yields the following invocation arities:
 ```
-foo(int)                                   -- conflicts with arity=1
-foo(int, float)                            -- conflicts with arity=2
-foo(int, string default "a")               -- arity=1 or 2, ambiguous with (int)
-foo(int, float, date default "2023-11-26") -- arity=2, ambiguous with (int, float)
+foo(int)
+foo(int, float)
+foo(int, string)
+foo(int, float, string)
+```
+Therefore, any overloads yields one of above arites are not allowed. For example:
+```
+foo(int)                                   -- conflicts with foo(int)
+foo(int, string default "a")               -- conflicts with foo(int)
+foo(int, float)                            -- conflicts with foo(int, float)
+foo(int, string, float default 1.0)        -- conflicts with foo(int, string)
+foo(int, float, date default "2023-11-26") -- conflicts with foo(int, float)
+foo(int, float, string, int default 1)     -- conflicts with foo(int, float, string)
 ```
 However, unrelated type-prefix overloads such as `foo(float), foo(int, long)` are allowed, since they do not conflict with the
 optional-argument arities of the existing definition.
@@ -328,6 +337,66 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
     }
   ],
   "doc": "UDTF returning (name, color) rows filtered by the given color",
+  "secure": false
+}
+```
+
+Appendix C: Example - Multi-Parameter Scalar UDF with Multiple Default Values
+
+SQL statement:
+
+```sql
+CREATE OR REPLACE FUNCTION wrap_string(
+    word VARCHAR COMMENT 'Main word to wrap',
+    prefix VARCHAR DEFAULT 'pre-' COMMENT 'String to prepend',
+    suffix VARCHAR DEFAULT '-post' COMMENT 'String to append'
+)
+COMMENT 'Wrap a word with an optional prefix and suffix'
+RETURNS VARCHAR
+RETURN prefix || word || suffix;
+```
+
+```json
+{
+  "function-uuid": "8f9c4c2e-2b3a-4d5e-9a10-123456789abc",
+  "format-version": 1,
+  "parameter-names": [
+    { "name": "word", "doc": "Main word to wrap" },
+    { "name": "prefix", "doc": "String to prepend" },
+    { "name": "suffix", "doc": "String to append" }
+  ],
+  "definitions": [
+    {
+      "definition-id": "(string,string,string)",
+      "parameters": [
+        { "type": "string" },
+        { "type": "string", "default": "pre-" },
+        { "type": "string", "default": "-post" }
+      ],
+      "return-type": "string",
+      "doc": "Wrap a word with an optional prefix and suffix",
+      "versions": [
+        {
+          "version-id": 1,
+          "deterministic": true,
+          "representations": [
+            { "type": "sql", "dialect": "trino", "body": "prefix || word || suffix" },
+            { "type": "sql", "dialect": "spark", "body": "concat(prefix, word, suffix)" }
+          ],
+          "timestamp-ms": 1735608000123
+        }
+      ],
+      "current-version-id": 1
+    }
+  ],
+  "definition-log": [
+    {
+      "timestamp-ms": 1735608000123,
+      "definition-versions": [
+        { "definition-id": "(string,string,string)", "version-id": 1 }
+      ]
+    }
+  ],
   "secure": false
 }
 ```
