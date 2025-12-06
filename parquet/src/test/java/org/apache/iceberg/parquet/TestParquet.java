@@ -218,7 +218,7 @@ public class TestParquet {
     writer.close();
 
     GenericData.Record recordRead =
-        Iterables.getOnlyElement(
+        Iterables.<GenericData.Record>getOnlyElement(
             Parquet.read(Files.localInput(testFile)).project(schema).callInit().build());
 
     assertThat(recordRead.get("arraybytes")).isEqualTo(expectedByteList);
