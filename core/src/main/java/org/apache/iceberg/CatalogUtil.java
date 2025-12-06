@@ -25,8 +25,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.IsolateClassloaderConfigurable;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
@@ -47,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.IsolatedClassLoader;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -240,6 +243,24 @@ public class CatalogUtil {
     }
   }
 
+  public static Catalog loadCatalog(
+      String impl, String catalogName, Map<String, String> properties, Object hadoopConf) {
+    String catalogJars =
+        PropertyUtil.propertyAsString(properties, CatalogProperties.CATALOG_LOAD_JARS, "");
+    if (!catalogJars.isBlank()) {
+      IsolatedClassLoader isolatedClassLoader =
+          IsolatedClassLoader.buildClassLoader(List.of(catalogJars));
+      return isolatedClassLoader.withClassLoader(
+          cl ->
+              loadCatalogWithClassLoader(
+                  impl, catalogName, properties, hadoopConf, Optional.of(isolatedClassLoader)),
+          RuntimeException.class);
+    } else {
+      return loadCatalogWithClassLoader(
+          impl, catalogName, properties, hadoopConf, Optional.empty());
+    }
+  }
+
   /**
    * Load a custom catalog implementation.
    *
@@ -254,8 +275,12 @@ public class CatalogUtil {
    * @return initialized catalog object
    * @throws IllegalArgumentException if no-arg constructor not found or error during initialization
    */
-  public static Catalog loadCatalog(
-      String impl, String catalogName, Map<String, String> properties, Object hadoopConf) {
+  public static Catalog loadCatalogWithClassLoader(
+      String impl,
+      String catalogName,
+      Map<String, String> properties,
+      Object hadoopConf,
+      Optional<IsolatedClassLoader> isolatedClassLoader) {
     Preconditions.checkNotNull(impl, "Cannot initialize custom Catalog, impl class name is null");
     DynConstructors.Ctor<Catalog> ctor;
     try {
@@ -274,7 +299,7 @@ public class CatalogUtil {
       throw new IllegalArgumentException(
           String.format("Cannot initialize Catalog, %s does not implement Catalog.", impl), e);
     }
-
+    isolatedClassLoader.ifPresent(classLoader -> configureClassLoader(catalog, classLoader));
     configureHadoopConf(catalog, hadoopConf);
 
     catalog.initialize(catalogName, properties);
@@ -484,6 +509,16 @@ public class CatalogUtil {
     }
 
     setConf.invoke(conf);
+  }
+
+  public static void configureClassLoader(
+      Object maybeConfigurable, IsolatedClassLoader isolatedClassLoader) {
+    if (!(maybeConfigurable instanceof IsolateClassloaderConfigurable)) {
+      LOG.info(" {} can't support config classloader", maybeConfigurable.getClass().getName());
+      return;
+    }
+    ((IsolateClassloaderConfigurable) maybeConfigurable)
+        .setIsolatedClassLoader(isolatedClassLoader);
   }
 
   /**
