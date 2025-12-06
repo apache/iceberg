@@ -33,6 +33,7 @@ import org.apache.iceberg.io.ContentCache;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.CacheMetrics;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -84,6 +85,11 @@ public class ManifestFiles {
   public static void dropCache(FileIO fileIO) {
     CONTENT_CACHES.invalidate(fileIO);
     CONTENT_CACHES.cleanUp();
+  }
+
+  /** Get statistics of the manifest file content cache for a FileIO. */
+  public static CacheMetrics contentCacheStats(FileIO io) {
+    return CacheMetrics.of(contentCache(io).stats());
   }
 
   /**
