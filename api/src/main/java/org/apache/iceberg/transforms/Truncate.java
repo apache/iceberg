@@ -161,6 +161,12 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     return "truncate[" + width + "]";
   }
 
+  @Override
+  public T toSourceTypeValue(Type sourceType, T transformedValue) {
+    // Truncate preserves the source type, so just return the value
+    return transformedValue;
+  }
+
   private static class TruncateInteger extends Truncate<Integer>
       implements SerializableFunction<Integer, Integer> {
 

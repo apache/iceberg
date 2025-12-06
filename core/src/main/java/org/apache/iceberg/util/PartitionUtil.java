@@ -18,16 +18,23 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.AbstractMap.SimpleEntry;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -118,5 +125,94 @@ public class PartitionUtil {
     }
 
     return builder.build();
+  }
+
+  // Return a function that extracts partition data from the source spec to the output spec.
+  public static UnaryOperator<StructLike> convertPartitionFunc(
+      PartitionSpec sourceSpec, PartitionSpec outputSpec) {
+
+    if (sourceSpec.equals(outputSpec)) {
+      return partition -> partition;
+    }
+
+    List<SimpleEntry<Integer, PartitionField>> sourceFieldsIndexedByPos =
+        IntStream.range(0, sourceSpec.fields().size())
+            .mapToObj(i -> new SimpleEntry<>(i, sourceSpec.fields().get(i)))
+            .collect(Collectors.toList());
+    Map<Integer, List<SimpleEntry<Integer, PartitionField>>> bySourceId =
+        sourceFieldsIndexedByPos.stream()
+            .collect(Collectors.groupingBy(entry -> entry.getValue().sourceId()));
+
+    // a function to calculate the output partition from a source partition
+    return (StructLike inPartition) -> {
+      StructLike outPartition = GenericRecord.create(outputSpec.partitionType());
+
+      // fill the output partition with the source partition data on a best-effort basis.
+      // some fields can be null, and it's ok.
+      for (int outIdx = 0; outIdx < outputSpec.fields().size(); outIdx++) {
+        PartitionField outField = outputSpec.fields().get(outIdx);
+        int finalOutIdx = outIdx;
+        bySourceId
+            .getOrDefault(outField.sourceId(), Collections.emptyList())
+            .forEach(
+                entry -> {
+                  int pos = entry.getKey();
+                  PartitionField inField = entry.getValue();
+                  Object inValue = inPartition.get(pos, Object.class);
+                  Type sourceType = sourceSpec.schema().findType(outField.sourceId());
+                  Object outValue =
+                      convertPartitionValue(
+                          inField.transform(), outField.transform(), inValue, sourceType);
+                  outPartition.set(finalOutIdx, outValue);
+                });
+      }
+      return outPartition;
+    };
+  }
+
+  // Whether partition of output spec can be fully derived from partition of sourceSpec
+  public static boolean needRepartition(PartitionSpec sourceSpec, PartitionSpec outputSpec) {
+    Map<Integer, List<PartitionField>> sourcePartitionFields =
+        sourceSpec.fields().stream().collect(Collectors.groupingBy(PartitionField::sourceId));
+    Map<Integer, List<PartitionField>> outputPartitionFields =
+        outputSpec.fields().stream().collect(Collectors.groupingBy(PartitionField::sourceId));
+
+    if (!sourcePartitionFields.keySet().containsAll(outputPartitionFields.keySet())) {
+      return true;
+    }
+
+    return !outputSpec.fields().stream()
+        .allMatch(
+            outField ->
+                sourcePartitionFields.get(outField.sourceId()).stream()
+                    .anyMatch(
+                        inField -> inField.transform().satisfiesOrderOf(outField.transform())));
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Object convertPartitionValue(
+      Transform<?, ?> inTransform, Transform<?, ?> outTransform, Object inValue, Type sourceType) {
+
+    if (inValue == null) {
+      return null;
+    }
+
+    if (inTransform.equals(outTransform)) {
+      return inValue;
+    }
+
+    try {
+      // Convert transformed value back to source type
+      @SuppressWarnings("rawtypes")
+      Transform rawInTransform = inTransform;
+      @SuppressWarnings("rawtypes")
+      Transform rawOutTransform = outTransform;
+      Object sourceValue = rawInTransform.toSourceTypeValue(sourceType, inValue);
+
+      return rawOutTransform.bind(sourceType).apply(sourceValue);
+    } catch (UnsupportedOperationException e) {
+      // Transform doesn't support toSourceTypeValue
+      return null;
+    }
   }
 }

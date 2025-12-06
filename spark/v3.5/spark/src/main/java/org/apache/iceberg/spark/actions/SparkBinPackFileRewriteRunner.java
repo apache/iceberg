@@ -23,6 +23,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -65,7 +66,8 @@ class SparkBinPackFileRewriteRunner extends SparkDataFileRewriteRunner {
   // invoke a shuffle if the original spec does not match the output spec
   private DistributionMode distributionMode(RewriteFileGroup group) {
     boolean requiresRepartition =
-        !group.fileScanTasks().get(0).spec().equals(spec(group.outputSpecId()));
+        PartitionUtil.needRepartition(
+            group.fileScanTasks().get(0).spec(), spec(group.outputSpecId()));
     return requiresRepartition ? DistributionMode.RANGE : DistributionMode.NONE;
   }
 }

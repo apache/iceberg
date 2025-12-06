@@ -183,6 +183,12 @@ class Identity<T> implements Transform<T, T> {
     return "identity";
   }
 
+  @Override
+  public T toSourceTypeValue(Type sourceType, T transformedValue) {
+    // Identity transform preserves the value as-is
+    return transformedValue;
+  }
+
   Object writeReplace() throws ObjectStreamException {
     return SerializationProxies.IdentityTransformProxy.get();
   }
