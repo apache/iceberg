@@ -1041,7 +1041,7 @@ class QueryEventsRequest(BaseModel):
     custom_filters: Optional[Dict[str, str]] = Field(
         None,
         alias='custom-filters',
-        description='Implementation-specific filter extensions. Implementations may define custom filter  properties beyond the standard ones defined in this specification.\n',
+        description='Implementation-specific filter extensions. Implementations may define custom filter properties beyond the standard ones defined in this specification.\n',
     )
 
 
@@ -1611,7 +1611,7 @@ class QueryEventsResponse(BaseModel):
     highest_processed_timestamp_ms: int = Field(
         ...,
         alias='highest-processed-timestamp-ms',
-        description='The highest event timestamp processed when generating this response.  This may not necessarily appear in the returned changes if it was filtered out.\n',
+        description='The highest event timestamp processed when generating this response. This may not necessarily appear in the returned changes if it was filtered out.\n',
     )
     events: List[Event]
 

@@ -1833,18 +1833,18 @@ paths:
         - Catalog API
       summary: Get events for changes to catalog objects
       description: >
-        Returns a sequence of changes to catalog objects (tables, namespaces, views) 
-        that allows clients to efficiently track metadata modifications without polling individual 
-        resources. Consumers track their progress through a next-page-token, enabling resumable 
+        Returns a sequence of changes to catalog objects (tables, namespaces, views)
+        that allows clients to efficiently track metadata modifications without polling individual
+        resources. Consumers track their progress through a next-page-token, enabling resumable
         synchronization after downtime or errors.
 
-        This endpoint primarily supports use cases like catalog federation, workflow triggering, 
+        This endpoint primarily supports use cases like catalog federation, workflow triggering,
         and basic audit capabilities.
 
-        When a request includes a `next-page-token`, it takes precedence over 
+        When a request includes a `next-page-token`, it takes precedence over
         all other filters including `after-timestamp-ms` and `operation-type`.
-        The server encodes all necessary state in the token to ensure 
-        consistent filtering across pages. Clients should use the returned `next-page-token` for 
+        The server encodes all necessary state in the token to ensure
+        consistent filtering across pages. Clients should use the returned `next-page-token` for
         subsequent requests.
 
         Consumers should be prepared to handle 410 Gone responses when requested sequences are
@@ -3251,20 +3251,20 @@ components:
         This enum is extended in future versions of the REST specification. Clients should
         ignore unknown operation types.
       anyOf:
-      - enum:
-        - create-table
-        - register-table
-        - drop-table
-        - update-table
-        - rename-table
-        - create-view
-        - drop-view
-        - update-view
-        - rename-view
-        - create-namespace
-        - update-namespace-properties
-        - drop-namespace
-      - $ref: '#/components/schemas/CustomOperationType'
+        - enum:
+          - create-table
+          - register-table
+          - drop-table
+          - update-table
+          - rename-table
+          - create-view
+          - drop-view
+          - update-view
+          - rename-view
+          - create-namespace
+          - update-namespace-properties
+          - drop-namespace
+        - $ref: '#/components/schemas/CustomOperationType'
 
     CustomOperationType:
       type: string
@@ -3714,7 +3714,7 @@ components:
           additionalProperties:
             type: string
           description: >
-            Implementation-specific filter extensions. Implementations may define custom filter 
+            Implementation-specific filter extensions. Implementations may define custom filter
             properties beyond the standard ones defined in this specification.
 
     CommitTableRequest:
@@ -4291,7 +4291,7 @@ components:
             Clients should treat this as an opaque value and pass it unmodified in subsequent requests.
         highest-processed-timestamp-ms:
           description: >
-            The highest event timestamp processed when generating this response. 
+            The highest event timestamp processed when generating this response.
             This may not necessarily appear in the returned changes if it was filtered out.
           type: integer
           format: int64
