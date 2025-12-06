@@ -30,6 +30,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.flink.FlinkRowData;
@@ -93,7 +94,19 @@ class FlinkOrcWriters {
   }
 
   static OrcValueWriter<RowData> struct(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
-    return new RowDataWriter(writers, types);
+    int[] fieldIndexes = new int[writers.size()];
+    int fieldIndex = 0;
+    List<LogicalType> logicalTypes = Lists.newArrayList();
+    for (int i = 0; i < types.size(); i += 1) {
+      LogicalType logicalType = types.get(i);
+      if (!logicalType.is(LogicalTypeRoot.NULL)) {
+        fieldIndexes[fieldIndex] = i;
+        fieldIndex += 1;
+        logicalTypes.add(logicalType);
+      }
+    }
+
+    return new RowDataWriter(fieldIndexes, writers, logicalTypes);
   }
 
   private static class StringWriter implements OrcValueWriter<StringData> {
@@ -294,12 +307,12 @@ class FlinkOrcWriters {
   static class RowDataWriter extends GenericOrcWriters.StructWriter<RowData> {
     private final List<RowData.FieldGetter> fieldGetters;
 
-    RowDataWriter(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
+    RowDataWriter(int[] fieldIndexes, List<OrcValueWriter<?>> writers, List<LogicalType> types) {
       super(writers);
 
       this.fieldGetters = Lists.newArrayListWithExpectedSize(types.size());
       for (int i = 0; i < types.size(); i++) {
-        fieldGetters.add(FlinkRowData.createFieldGetter(types.get(i), i));
+        fieldGetters.add(FlinkRowData.createFieldGetter(types.get(i), fieldIndexes[i]));
       }
     }
 
