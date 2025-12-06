@@ -31,15 +31,20 @@ public class AuthManagers {
 
   private static final Logger LOG = LoggerFactory.getLogger(AuthManagers.class);
 
-  /** Old property name for enabling SigV4 authentication. */
-  private static final String SIGV4_ENABLED_LEGACY = "rest.sigv4-enabled";
+  /**
+   * Old property name for enabling SigV4 authentication.
+   *
+   * @deprecated Use {@link AuthProperties#AUTH_TYPE}={@link AuthProperties#AUTH_TYPE_SIGV4}
+   *     instead. Will be removed in 1.12.0.
+   */
+  @Deprecated private static final String SIGV4_ENABLED_LEGACY = "rest.sigv4-enabled";
 
   private AuthManagers() {}
 
   public static AuthManager loadAuthManager(String name, Map<String, String> properties) {
     if (properties.containsKey(SIGV4_ENABLED_LEGACY)) {
       LOG.warn(
-          "The property {} is deprecated and will be removed in a future release. "
+          "The property {} is deprecated and will be removed in 1.12.0. "
               + "Please use the property {}={} instead.",
           SIGV4_ENABLED_LEGACY,
           AuthProperties.AUTH_TYPE,

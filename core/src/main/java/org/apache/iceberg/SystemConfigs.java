@@ -81,7 +81,7 @@ public class SystemConfigs {
           Integer::parseUnsignedInt);
 
   /**
-   * @deprecated will be removed in 2.0.0; use name mapping instead
+   * @deprecated will be removed in 1.12.0; use name mapping instead
    */
   @Deprecated
   public static final ConfigEntry<Boolean> NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED =
@@ -91,7 +91,7 @@ public class SystemConfigs {
           true,
           s -> {
             LOG.warn(
-                "Fallback ID assignment in Parquet is UNSAFE and will be removed in 2.0.0. Use name mapping instead.");
+                "Fallback ID assignment in Parquet is UNSAFE and will be removed in 1.12.0. Use name mapping instead.");
             return Boolean.parseBoolean(s);
           });
 
