@@ -181,7 +181,8 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     try {
       client.update(tableReference, table);
     } catch (ValidationException e) {
-      if (e.getMessage().toLowerCase(Locale.ENGLISH).contains("etag mismatch")) {
+      String msg = e.getMessage().toLowerCase(Locale.ENGLISH);
+      if (msg.contains("etag mismatch") || msg.contains("did not meet condition IF_MATCH")) {
         throw new CommitFailedException(
             "Updating table failed due to conflict updates (etag mismatch). Retry the update");
       }
