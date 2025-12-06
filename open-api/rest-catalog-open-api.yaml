@@ -2384,6 +2384,7 @@ components:
       type: string
       example:
         - "identity"
+        - "void"
         - "year"
         - "month"
         - "day"
