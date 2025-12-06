@@ -404,8 +404,10 @@ public class FlinkParquetReaders {
     @Override
     public TimestampData read(TimestampData ignored) {
       long value = readLong();
+      long mills = Math.floorDiv(value, 1_000_000_000L);
+      long nanos = Math.floorMod(value, 1_000_000_000L);
       return TimestampData.fromEpochMillis(
-          Math.floorDiv(value, 1_000_000L), Math.floorMod(value, 1_000_000));
+          mills + Math.floorDiv(nanos, 1_000_000L), (int) Math.floorMod(nanos, 1_000_000L));
     }
   }
 
