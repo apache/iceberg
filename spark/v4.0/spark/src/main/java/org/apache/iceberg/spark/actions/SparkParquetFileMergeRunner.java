@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.parquet.schema.MessageType;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -155,8 +156,9 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
    * <p>IMPORTANT: OutputFileFactory is created here on the executor (not serialized from driver)
    * using TaskContext.taskAttemptId() to ensure unique filenames across task retry attempts.
    *
-   * <p>This method calls {@link ParquetFileMerger#mergeFiles} which handles the merge and returns a
-   * complete DataFile with metrics.
+   * <p>This method first validates and gets the schema using {@link
+   * ParquetFileMerger#canMergeAndGetMessageType}, then passes it to {@link
+   * ParquetFileMerger#mergeFiles} to avoid redundant file reads.
    */
   private static DataFile mergeFilesForTask(
       List<DataFile> dataFiles,
@@ -166,6 +168,16 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       FileIO fileIO,
       Table table)
       throws IOException {
+    // Get schema and validate (this reads the first file once)
+    MessageType schema =
+        ParquetFileMerger.canMergeAndGetMessageType(
+            dataFiles, fileIO, Long.MAX_VALUE /* no size check here */);
+
+    if (schema == null) {
+      throw new IllegalArgumentException(
+          "Files cannot be merged - validation failed. This should have been caught by canMerge().");
+    }
+
     // Create OutputFileFactory on executor using Spark's TaskContext.taskAttemptId()
     // This ensures unique filenames across retry attempts (taskAttemptId changes on each retry)
     TaskContext sparkContext = TaskContext.get();
@@ -184,9 +196,8 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
 
     // Merge files and return DataFile with complete metadata
-    // ParquetFileMerger handles schema reading, merging, metrics extraction, and DataFile
-    // construction
+    // Pass schema to avoid re-reading the first file
     return ParquetFileMerger.mergeFiles(
-        dataFiles, fileIO, outputFile, rowGroupSize, spec, partition);
+        dataFiles, fileIO, outputFile, schema, rowGroupSize, spec, partition);
   }
 }

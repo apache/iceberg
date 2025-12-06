@@ -132,7 +132,8 @@ public class ParquetFileMerger {
    *       files)
    *   <li>Table must not have a sort order (no sorting or z-ordering)
    *   <li>Files must not have delete files (checked via file scan tasks)
-   *   <li>All Parquet-specific requirements (via {@link #canMerge(List, FileIO, long)})
+   *   <li>All Parquet-specific requirements (via {@link #canMergeAndGetMessageType(List, FileIO,
+   *       long)})
    * </ul>
    *
    * <p>This validation is useful for compaction operations in Spark, Flink, or other engines that
@@ -161,15 +162,17 @@ public class ParquetFileMerger {
       return false;
     }
 
-    // Delegate remaining validation to canMerge(List<DataFile>, FileIO, long)
-    return canMerge(Lists.newArrayList(group.rewrittenFiles()), fileIO, group.maxOutputFileSize());
+    // Delegate remaining validation to canMergeAndGetMessageType(List<DataFile>, FileIO, long)
+    return canMergeAndGetMessageType(
+            Lists.newArrayList(group.rewrittenFiles()), fileIO, group.maxOutputFileSize())
+        != null;
   }
 
   @VisibleForTesting
-  static boolean canMerge(List<InputFile> inputFiles) {
+  static MessageType canMergeAndGetMessageType(List<InputFile> inputFiles) {
     try {
       if (inputFiles == null || inputFiles.isEmpty()) {
-        return false;
+        return null;
       }
 
       // Read schema from the first file
@@ -185,7 +188,7 @@ public class ParquetFileMerger {
         MessageType currentSchema = readSchema(inputFiles.get(i));
 
         if (!firstSchema.equals(currentSchema)) {
-          return false;
+          return null;
         }
       }
 
@@ -194,50 +197,50 @@ public class ParquetFileMerger {
         validateRowLineageColumnsHaveNoNulls(inputFiles);
       }
 
-      return true;
+      return firstSchema;
     } catch (RuntimeException | IOException e) {
-      // Returns false for:
+      // Returns null for:
       // - Non-Parquet files (IOException when reading Parquet footer)
       // - Encrypted files (ParquetCryptoRuntimeException extends RuntimeException)
       // - Files with null row lineage values (IllegalArgumentException from
       // validateRowLineageColumnsHaveNoNulls)
       // - Any other validation failures
-      return false;
+      return null;
     }
   }
 
   /**
-   * Validates that DataFiles can be merged, checking both Parquet-specific and data-level
-   * requirements.
+   * Validates that DataFiles can be merged and returns the Parquet schema if validation succeeds.
    *
    * <p>This method validates:
    *
    * <ul>
-   *   <li>All Parquet-specific requirements (via {@link #canMerge(List)})
+   *   <li>All Parquet-specific requirements (via {@link #canMergeAndGetMessageType(List)})
    *   <li>No files have associated delete files
    *   <li>All files have the same partition spec
    *   <li>No files exceed the target output size (not splitting large files)
    * </ul>
    *
    * <p>This validation is useful for compaction operations in Spark, Flink, or other engines that
-   * need to ensure files can be safely merged.
+   * need to ensure files can be safely merged. The returned MessageType can be passed to {@link
+   * #mergeFiles} to avoid re-reading the schema.
    *
    * @param dataFiles List of DataFiles to validate
    * @param fileIO FileIO to use for reading files
    * @param targetOutputSize Maximum size for output file (files larger than this cannot be merged)
-   * @return true if files can be merged, false otherwise
+   * @return MessageType schema if files can be merged, null otherwise
    */
-  @VisibleForTesting
-  static boolean canMerge(List<DataFile> dataFiles, FileIO fileIO, long targetOutputSize) {
+  public static MessageType canMergeAndGetMessageType(
+      List<DataFile> dataFiles, FileIO fileIO, long targetOutputSize) {
     if (dataFiles == null || dataFiles.isEmpty()) {
-      return false;
+      return null;
     }
 
     // Check for delete files - row-group merge cannot apply deletes
     for (DataFile dataFile : dataFiles) {
       List<Integer> equalityIds = dataFile.equalityFieldIds();
       if (equalityIds != null && !equalityIds.isEmpty()) {
-        return false;
+        return null;
       }
     }
 
@@ -245,14 +248,14 @@ public class ParquetFileMerger {
     int firstSpecId = dataFiles.get(0).specId();
     for (int i = 1; i < dataFiles.size(); i++) {
       if (dataFiles.get(i).specId() != firstSpecId) {
-        return false;
+        return null;
       }
     }
 
     // Check file sizes - don't merge if splitting large files
     for (DataFile dataFile : dataFiles) {
       if (dataFile.fileSizeInBytes() > targetOutputSize) {
-        return false;
+        return null;
       }
     }
 
@@ -262,7 +265,7 @@ public class ParquetFileMerger {
       inputFiles.add(fileIO.newInputFile(dataFile.path().toString()));
     }
 
-    return canMerge(inputFiles);
+    return canMergeAndGetMessageType(inputFiles);
   }
 
   /**
@@ -487,12 +490,14 @@ public class ParquetFileMerger {
    *   <li>_last_updated_sequence_number: data sequence number when row was last updated
    * </ul>
    *
-   * <p>The schema and metadata are read from the first input file. All files must have compatible
-   * schemas (as validated by {@link #canMerge}).
+   * <p>The provided schema parameter should be obtained from {@link
+   * #canMergeAndGetMessageType(List, FileIO, long)} to avoid redundant file reads. All files must
+   * have compatible schemas (as validated by {@link #canMergeAndGetMessageType}).
    *
    * @param dataFiles List of Iceberg DataFiles to merge
    * @param fileIO FileIO to use for reading input files
    * @param outputFile Output file for the merged result (caller handles encryption if needed)
+   * @param schema Parquet schema from canMergeAndGetMessageType (avoids re-reading first file)
    * @param rowGroupSize Target row group size in bytes
    * @param spec PartitionSpec for the output file
    * @param partition Partition data for the output file (null for unpartitioned tables)
@@ -503,6 +508,7 @@ public class ParquetFileMerger {
       List<DataFile> dataFiles,
       FileIO fileIO,
       OutputFile outputFile,
+      MessageType schema,
       long rowGroupSize,
       PartitionSpec spec,
       StructLike partition)
@@ -525,9 +531,6 @@ public class ParquetFileMerger {
         hasRowLineage = true;
       }
     }
-
-    // Read schema from first file
-    MessageType schema = readSchema(inputFiles.get(0));
 
     // Initialize columnIndexTruncateLength following the same pattern as Parquet.java
     Configuration conf =
