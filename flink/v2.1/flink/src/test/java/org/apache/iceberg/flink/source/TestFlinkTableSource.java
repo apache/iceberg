@@ -501,6 +501,15 @@ public class TestFlinkTableSource extends TableSourceTestBase {
         .as("Should contain the push down filter")
         .asString()
         .isEqualTo(expectedScan);
+
+    expectedFilter = "ref(name=\"data\") contains \"\"e\"\"";
+    sqlLike = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%%e%%' ";
+    resultLike = sql(sqlLike);
+    assertThat(resultLike).hasSize(1).first().isEqualTo(Row.of(1, "iceberg", 10.0));
+    assertThat(lastScanEvent.filter())
+        .as("Should contain the push down filter")
+        .asString()
+        .isEqualTo(expectedFilter);
   }
 
   @TestTemplate
@@ -509,13 +518,6 @@ public class TestFlinkTableSource extends TableSourceTestBase {
     String sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%%i' ";
     List<Row> resultLike = sql(sqlNoPushDown);
     assertThat(resultLike).isEmpty();
-    assertThat(lastScanEvent.filter())
-        .as("Should not push down a filter")
-        .isEqualTo(Expressions.alwaysTrue());
-
-    sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%%i%%' ";
-    resultLike = sql(sqlNoPushDown);
-    assertThat(resultLike).hasSize(1).first().isEqualTo(expectRecord);
     assertThat(lastScanEvent.filter())
         .as("Should not push down a filter")
         .isEqualTo(Expressions.alwaysTrue());
