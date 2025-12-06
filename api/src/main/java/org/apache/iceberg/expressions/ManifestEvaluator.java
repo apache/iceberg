@@ -400,6 +400,22 @@ public class ManifestEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean endsWith(BoundReference<T> ref, Literal<T> lit) {
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+      if (fieldStats.lowerBound() == null) {
+        return ROWS_CANNOT_MATCH; // values are all null, cannot end with the literal
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEndsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
     private boolean allValuesAreNull(PartitionFieldSummary summary, Type.TypeID typeId) {
       // containsNull encodes whether at least one partition value is null,
       // lowerBound is null if all partition values are null

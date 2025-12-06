@@ -203,8 +203,8 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
     checkFilters(
         "dep LIKE '%d5' AND id IN (1, 5)" /* query predicate */,
-        "EndsWith(dep, d5) AND id IN (1,5)" /* Spark post scan filter */,
-        "dep IS NOT NULL, id IN (1, 5)" /* Iceberg scan filters */,
+        "id IN (1,5)" /* Spark post scan filter */,
+        "dep IS NOT NULL, dep LIKE '%d5', id IN (1, 5)" /* Iceberg scan filters */,
         ImmutableList.of(row(5, 500, "d5")));
   }
 

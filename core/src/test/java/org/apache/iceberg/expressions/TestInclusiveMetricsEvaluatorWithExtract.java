@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.extract;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
@@ -29,6 +30,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEndsWith;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -166,6 +168,14 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
 
     assertThat(shouldRead(notStartsWith(extract("all_nulls", "$.event_type", "string"), "a")))
         .as("Should read: notStartsWith on all null column")
+        .isTrue();
+
+    assertThat(shouldRead(endsWith(extract("all_nulls", "$.event_type", "string"), "a")))
+        .as("Should skip: endsWith on all null column")
+        .isFalse();
+
+    assertThat(shouldRead(notEndsWith(extract("all_nulls", "$.event_type", "string"), "a")))
+        .as("Should read: notEndsWith on all null column")
         .isTrue();
 
     assertThat(shouldRead(isNaN(extract("all_nulls", "$.measurement", "double"))))
@@ -564,6 +574,20 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
 
     assertThat(shouldRead(notStartsWith(extract("variant", "$.str", "string"), "abex")))
         .as("Should read: upper is prefix of value, some values do not match")
+        .isTrue();
+  }
+
+  @Test
+  public void testStringEndsWith() {
+    assertThat(shouldRead(endsWith(extract("variant", "$.str", "string"), "c")))
+        .as("Should read: no bounds-based pruning for endsWith")
+        .isTrue();
+  }
+
+  @Test
+  public void testStringNotEndsWith() {
+    assertThat(shouldRead(notEndsWith(extract("variant", "$.str", "string"), "c")))
+        .as("Should read: no bounds-based pruning for notEndsWith")
         .isTrue();
   }
 

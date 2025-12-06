@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -28,6 +29,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEndsWith;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -163,6 +165,16 @@ public class TestInclusiveManifestEvaluator {
         ManifestEvaluator.forRowFilter(notStartsWith("all_nulls_missing_nan", "asad"), SPEC, true)
             .eval(FILE);
     assertThat(shouldRead).as("Should read: notStartsWith on all null column").isTrue();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(endsWith("all_nulls_missing_nan", "asad"), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should skip: endsWith on all null column").isFalse();
+
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notEndsWith("all_nulls_missing_nan", "asad"), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: notEndsWith on all null column").isTrue();
   }
 
   @Test
@@ -258,7 +270,8 @@ public class TestInclusiveManifestEvaluator {
           lessThan("id", 5), lessThanOrEqual("id", 30), equal("id", 70),
           greaterThan("id", 78), greaterThanOrEqual("id", 90), notEqual("id", 101),
           isNull("id"), notNull("id"), startsWith("all_nulls_missing_nan", "a"),
-          isNaN("float"), notNaN("float"), notStartsWith("all_nulls_missing_nan", "a")
+          isNaN("float"), notNaN("float"), notStartsWith("all_nulls_missing_nan", "a"),
+          endsWith("all_nulls_missing_nan", "a"), notEndsWith("all_nulls_missing_nan", "a")
         };
 
     for (Expression expr : exprs) {
@@ -641,6 +654,21 @@ public class TestInclusiveManifestEvaluator {
         ManifestEvaluator.forRowFilter(notStartsWith("no_nulls_same_value_a", "a"), SPEC, false)
             .eval(FILE);
     assertThat(shouldRead).as("Should not read: all values start with the prefix").isFalse();
+  }
+
+  @Test
+  public void testStringEndsWith() {
+    assertThat(ManifestEvaluator.forRowFilter(endsWith("some_nulls", "a"), SPEC, false).eval(FILE))
+        .as("Should read: no bounds-based pruning for endsWith")
+        .isTrue();
+  }
+
+  @Test
+  public void testStringNotEndsWith() {
+    assertThat(
+            ManifestEvaluator.forRowFilter(notEndsWith("some_nulls", "a"), SPEC, false).eval(FILE))
+        .as("Should read: no bounds-based pruning for notEndsWith")
+        .isTrue();
   }
 
   @Test
