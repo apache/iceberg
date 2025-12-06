@@ -186,6 +186,25 @@ public class TestBigQueryTableOperations {
   }
 
   @Test
+  public void failWhenIfMatchConditionNotMet() throws Exception {
+    Table tableWithEtag = createTestTable().setEtag("etag");
+    reset(client);
+    when(client.load(TABLE_REFERENCE)).thenReturn(tableWithEtag);
+
+    org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
+
+    when(client.update(any(), any()))
+        .thenThrow(
+            new ValidationException(
+                "Precondition check failed: Resource did not meet condition IF_MATCH"));
+    assertThatThrownBy(
+            () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining(
+            "Updating table failed due to conflict updates (etag mismatch). Retry the update");
+  }
+
+  @Test
   public void failWhenMetadataLocationDiff() throws Exception {
     Table tableWithEtag = createTestTable().setEtag("etag");
     Table tableWithNewMetadata =
