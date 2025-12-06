@@ -822,6 +822,55 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(totalAddedRecords).isEqualTo(records.size());
   }
 
+  @Test
+  void testOptInDropUnusedColumns() throws Exception {
+    Schema schema1 =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "extra", Types.StringType.get()));
+
+    Schema schema2 =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data", Types.StringType.get()));
+
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, "t1");
+    catalog.createTable(tableIdentifier, schema1);
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            // Drop columns
+            new DynamicIcebergDataImpl(schema2, "t1", "main", PartitionSpec.unpartitioned()),
+            // Re-add columns
+            new DynamicIcebergDataImpl(schema1, "t1", "main", PartitionSpec.unpartitioned()));
+
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(rows, TypeInformation.of(new TypeHint<>() {}));
+    env.setParallelism(1);
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new Generator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .immediateTableUpdate(true)
+        .dropUnusedColumns(true)
+        .append();
+
+    env.execute("Test Drop Unused Columns");
+
+    Table table = catalog.loadTable(tableIdentifier);
+    table.refresh();
+
+    assertThat(table.schema().columns()).hasSize(2);
+    assertThat(table.schema().findField("id")).isNotNull();
+    assertThat(table.schema().findField("data")).isNotNull();
+    assertThat(table.schema().findField("extra")).isNull();
+
+    List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
+    assertThat(records).hasSize(2);
+  }
+
   /**
    * Represents a concurrent duplicate commit during an ongoing commit operation, which can happen
    * in production scenarios when using REST catalog.

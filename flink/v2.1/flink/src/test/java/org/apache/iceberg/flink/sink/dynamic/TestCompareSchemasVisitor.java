@@ -33,6 +33,9 @@ import org.junit.jupiter.api.Test;
 
 class TestCompareSchemasVisitor {
 
+  private static final boolean DROP_COLUMNS = true;
+  private static final boolean PRESERVE_COLUMNS = false;
+
   @Test
   void testSchema() {
     assertThat(
@@ -225,5 +228,64 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()),
                     optional(2, "list1", ListType.ofOptional(3, IntegerType.get())))))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void testDropUnusedColumnsEnabled() {
+    Schema dataSchema = new Schema(optional(1, "id", IntegerType.get()));
+    Schema tableSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()),
+            optional(2, "data", StringType.get()),
+            optional(3, "extra", StringType.get()));
+
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, DROP_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void testDropUnusedColumnsWithRequiredField() {
+    Schema dataSchema = new Schema(optional(1, "id", IntegerType.get()));
+    Schema tableSchema =
+        new Schema(optional(1, "id", IntegerType.get()), required(2, "data", StringType.get()));
+
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, DROP_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void testDropUnusedColumnsWhenInputHasMoreFields() {
+    Schema dataSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()),
+            optional(2, "data", StringType.get()),
+            optional(3, "extra", StringType.get()));
+    Schema tableSchema = new Schema(optional(1, "id", IntegerType.get()));
+
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, DROP_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void testDropUnusedColumnsInNestedStruct() {
+    Schema dataSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()),
+            optional(2, "struct1", StructType.of(optional(3, "field1", StringType.get()))));
+    Schema tableSchema =
+        new Schema(
+            optional(1, "id", IntegerType.get()),
+            optional(
+                2,
+                "struct1",
+                StructType.of(
+                    optional(3, "field1", StringType.get()),
+                    optional(4, "field2", IntegerType.get()))));
+
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, DROP_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 }
