@@ -125,7 +125,7 @@ The value of these properties are not persisted as a part of the table metadata.
 
 | Property       | Default  | Description                                                                                                                          |
 | -------------- | -------- |--------------------------------------------------------------------------------------------------------------------------------------|
-| format-version | 2        | Table's format version as defined in the [Spec](../../format/spec.md#format-versioning). Defaults to 2 since version 1.4.0. |
+| format-version | 2        | Table's format version as defined in the [Spec](../../spec.md#format-versioning). Defaults to 2 since version 1.4.0. |
 
 ### Compatibility flags
 
