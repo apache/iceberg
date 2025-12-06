@@ -20,6 +20,8 @@ package org.apache.iceberg.jdbc;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
+import static org.apache.iceberg.jdbc.JdbcUtil.CATALOG_TABLE_VIEW_NAME;
+import static org.apache.iceberg.jdbc.JdbcUtil.withTableName;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -197,7 +199,10 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     assertThatThrownBy(() -> jdbcCatalog.listNamespaces())
         .isInstanceOf(UncheckedSQLException.class)
-        .hasMessage("Failed to execute query: %s", JdbcUtil.LIST_ALL_NAMESPACES_SQL);
+        .hasMessage(
+            "Failed to execute query: %s",
+            withTableName(
+                JdbcUtil.LIST_ALL_NAMESPACES_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, null));
   }
 
   @Test
@@ -1081,7 +1086,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
       mockedStatic
-          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any(), any()))
           .thenThrow(new SQLException());
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(UncheckedSQLException.class)
@@ -1101,7 +1106,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
       mockedStatic
-          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any()))
+          .when(() -> JdbcUtil.loadTable(any(), any(), any(), any(), any()))
           .thenThrow(new SQLException("constraint failed"));
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(AlreadyExistsException.class)
@@ -1157,7 +1162,12 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     try (Connection connection = dataSource.getConnection()) {
       // create "old style" SQL schema
-      connection.prepareStatement(JdbcUtil.V0_CREATE_CATALOG_SQL).executeUpdate();
+
+      connection
+          .prepareStatement(
+              JdbcUtil.withTableName(
+                  JdbcUtil.V0_CREATE_CATALOG_SQL_TEMPLATE, CATALOG_TABLE_VIEW_NAME, null))
+          .executeUpdate();
       connection
           .prepareStatement(
               "INSERT INTO "
