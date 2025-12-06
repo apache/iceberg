@@ -105,6 +105,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS =
       "iceberg.coordinator-executor-keep-alive-timeout-ms";
 
+  private static final String COMMITTER_CLASS_PROP = "iceberg.committer.class";
+
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 
   public static final ConfigDef CONFIG_DEF = newConfigDef();
@@ -235,6 +237,15 @@ public class IcebergSinkConfig extends AbstractConfig {
         120000L,
         Importance.LOW,
         "config to control coordinator executor keep alive time");
+    configDef.define(
+        COMMITTER_CLASS_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.MEDIUM,
+        "Fully-qualified class name of a custom Committer implementation. "
+            + "If not specified, uses the default CommitterImpl. "
+            + "Custom implementations must implement the org.apache.iceberg.connect.Committer interface "
+            + "and provide a public no-arg constructor.");
     return configDef;
   }
 
@@ -450,6 +461,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public JsonConverter jsonConverter() {
     return jsonConverter;
+  }
+
+  public String committerClass() {
+    return getString(COMMITTER_CLASS_PROP);
   }
 
   @VisibleForTesting
