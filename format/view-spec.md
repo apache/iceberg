@@ -202,15 +202,15 @@ The refresh state record captures the state of source tables, views, and materia
 * Source view states are stored in `source-view-states`. It includes indirect references — views nested within other views (excluding MVs).
 * Source table states are stored in `source-table-states`. It includes indirect references - tables nested within other views (excluding MVs).
 
-For directly referenced source materialized views, both the source view and its storage table are included in the refresh state. Indirect references (views or tables) from source materialized views are excluded in the refresh-state. During read time, a query engine recursively expand the query tree to determine freshness if it chooses to enforce recursive evaluation semantic.
+For directly referenced source materialized views, both the source view and its storage table are included in the refresh state. Indirect references (views or tables) from source materialized views are excluded in the refresh-state. During read time, a query engine recursively expands the query tree to determine freshness if it chooses to enforce recursive evaluation semantic.
 
 The refresh state has the following fields:
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
 | _required_  | `view-version-id`         | The `version-id` of the materialized view when the refresh operation was performed  |
-| _required_  | `source-table-states`        | A list of [source table](#source-table) records for all tables that are directly or indirectly referenced in the materialized view query |
-| _required_  | `source-view-states`         | A list of [source view](#source-view) records for all views that are directly or indirectly referenced in the materialized view query |
+| _required_  | `source-table-states`        | A list of [source table](#source-table) records for tables directly or indirectly referenced through common views, plus storage tables of directly referenced source materialized views |
+| _required_  | `source-view-states`         | A list of [source view](#source-view) records for all views (including materialized views) that are directly referenced, plus common views indirectly referenced through other common views |
 | _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
 
 #### Source table
@@ -239,7 +239,7 @@ A source view record captures the state of a source view at the time of the last
 During read time, a materialized view (storage table) can be interpreted as "fresh", "stale" or "invalid", depending on the following situations:
 
 * **invalid** -- The current `version_id` of the materialized view does not match the `view-version-id` recorded in its refresh state. A read operation cannot proceed using the materialized view's data.
-* **fresh** -- Valid and the stored data represents the result set that would have been retrieved if the underlying View Query was executed at some point during the defined Staleness Window.
+* **fresh** -- Valid and the stored data represents the result set that would have been retrieved if the underlying View Query was executed at some point during the defined Staleness Window (the time interval defined by `max-staleness-ms`).
 * **stale** -- Valid but not Fresh.
 
 ## Appendix A: An Example
