@@ -91,6 +91,15 @@ public class TestBase {
           .withPartitionPath("data_bucket=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+  public static final DeleteFile FILE_A_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-a-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+
   static final DeleteFile FILE_A_DV =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
@@ -127,6 +136,14 @@ public class TestBase {
           .withPartitionPath("data_bucket=1") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+  public static final DeleteFile FILE_B_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-b-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=1") // same partition as FILE_B
+          .withRecordCount(1)
+          .build();
   static final DeleteFile FILE_B_DV =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
@@ -154,6 +171,14 @@ public class TestBase {
           .withPartitionPath("data_bucket=2") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+  public static final DeleteFile FILE_C_EQUALITY_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1) // delete on column 1 (id column)
+          .withPath("/path/to/data-c-equality-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=2") // same partition as FILE_C
+          .withRecordCount(1)
+          .build();
   static final DataFile FILE_D =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-d.parquet")
@@ -170,7 +195,7 @@ public class TestBase {
           .withPartitionPath("data_bucket=3") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DataFile FILE_WITH_STATS =
+  public static final DataFile FILE_WITH_STATS =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-with-stats.parquet")
           .withMetrics(

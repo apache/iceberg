@@ -38,7 +38,9 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
@@ -113,8 +115,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       new Schema(required(1, "some_id", Types.IntegerType.get()));
 
   // Partition spec used to create tables
-  protected static final PartitionSpec SPEC =
-      PartitionSpec.builderFor(SCHEMA).bucket("id", 16).build();
+  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).bucket("id", 16).build();
 
   protected static final PartitionSpec TABLE_SPEC =
       PartitionSpec.builderFor(TABLE_SCHEMA).bucket("id", 16).build();
@@ -132,7 +133,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   protected static final SortOrder REPLACE_WRITE_ORDER =
       SortOrder.builderFor(REPLACE_SCHEMA).asc(Expressions.bucket("id", 16)).asc("id").build();
 
-  protected static final DataFile FILE_A =
+  public static final DataFile FILE_A =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
@@ -140,7 +141,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
 
-  protected static final DataFile FILE_B =
+  public static final DataFile FILE_B =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-b.parquet")
           .withFileSizeInBytes(10)
@@ -148,12 +149,31 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
           .build();
 
-  protected static final DataFile FILE_C =
+  static final DataFile FILE_C =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-c.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("id_bucket=2") // easy way to set partition data for now
           .withRecordCount(2) // needs at least one record or else metrics will filter it out
+          .build();
+
+  // Delete files for testing
+  static final DeleteFile FILE_A_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=0") // same partition as FILE_A
+          .withRecordCount(1)
+          .build();
+
+  static final DeleteFile FILE_B_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-b-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_bucket=1") // same partition as FILE_B
+          .withRecordCount(1)
           .build();
 
   protected abstract C catalog();
