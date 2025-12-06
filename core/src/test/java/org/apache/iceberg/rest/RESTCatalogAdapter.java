@@ -21,11 +21,17 @@ package org.apache.iceberg.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
@@ -58,6 +64,7 @@ import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -107,6 +114,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   private AuthSession authSession = AuthSession.EMPTY;
   private final PlanningBehavior planningBehavior = planningBehavior();
+  private final ConcurrentMap<String, IdempotencyEntry> idempotencyStore = Maps.newConcurrentMap();
+  private static final Set<String> SIMULATE_503_ON_FIRST_SUCCESS_KEYS =
+      Collections.newSetFromMap(Maps.newConcurrentMap());
+  private static volatile long idempotencyLifetimeMillis = TimeUnit.MINUTES.toMillis(30);
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
@@ -557,6 +568,19 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         vars.putAll(request.queryParameters());
         vars.putAll(routeAndVars.second());
 
+        Optional<HTTPHeaders.HTTPHeader> keyHeader =
+            request.headers().firstEntry(RESTUtil.IDEMPOTENCY_KEY_HEADER);
+        boolean isMutation =
+            request.method() == HTTPMethod.POST || request.method() == HTTPMethod.DELETE;
+        if (isMutation && keyHeader.isPresent()) {
+          T response =
+              handleIdempotentMutation(
+                  request, responseType, responseHeaders, routeAndVars, vars, keyHeader.get());
+          if (response != null) {
+            return response;
+          }
+        }
+
         return handleRequest(
             routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
       } catch (RuntimeException e) {
@@ -667,5 +691,124 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         queryParams
             .getOrDefault("snapshots", RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
             .toUpperCase(Locale.US));
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T extends RESTResponse> T handleIdempotentMutation(
+      HTTPRequest request,
+      Class<T> responseType,
+      Consumer<Map<String, String>> responseHeaders,
+      Pair<Route, Map<String, String>> routeAndVars,
+      ImmutableMap.Builder<String, String> vars,
+      HTTPHeaders.HTTPHeader keyHeader) {
+    String key = keyHeader.value();
+    IdempotencyEntry existing = idempotencyStore.get(key);
+    if (existing != null) {
+      long now = System.currentTimeMillis();
+      boolean expired =
+          existing.status == IdempotencyEntry.Status.FINALIZED
+              && (now - existing.firstSeenMillis) > idempotencyLifetimeMillis;
+
+      if (!expired) {
+        existing.awaitFinalized();
+        if (existing.error != null) {
+          throw existing.error;
+        }
+        if (existing.responseHeaders != null) {
+          responseHeaders.accept(existing.responseHeaders);
+        }
+        return (T) existing.responseBody;
+      } else {
+        idempotencyStore.remove(key, existing);
+      }
+    }
+
+    IdempotencyEntry entry = IdempotencyEntry.inProgress();
+    idempotencyStore.put(key, entry);
+    Map<String, String> recordedHeaders = Maps.newHashMap();
+    Consumer<Map<String, String>> recordingHeaders =
+        h -> {
+          recordedHeaders.putAll(h);
+          responseHeaders.accept(h);
+        };
+    try {
+      T res =
+          handleRequest(
+              routeAndVars.first(), vars.build(), request, responseType, recordingHeaders);
+      entry.finalizeSuccess(res, recordedHeaders);
+
+      if (SIMULATE_503_ON_FIRST_SUCCESS_KEYS.remove(key)) {
+        throw new CommitStateUnknownException(
+            new RuntimeException("simulated transient 503 after success"));
+      }
+      return res;
+    } catch (RuntimeException e) {
+      if (entry.status != IdempotencyEntry.Status.FINALIZED || entry.responseBody == null) {
+        entry.finalizeError(e);
+      }
+      throw e;
+    }
+  }
+
+  private static final class IdempotencyEntry {
+    enum Status {
+      IN_PROGRESS,
+      FINALIZED
+    }
+
+    private final CountDownLatch latch;
+    final long firstSeenMillis;
+    volatile Status status;
+    volatile Object responseBody;
+    volatile Map<String, String> responseHeaders;
+    volatile RuntimeException error;
+
+    private IdempotencyEntry(Status status) {
+      this.status = status;
+      this.latch = new CountDownLatch(1);
+      this.firstSeenMillis = System.currentTimeMillis();
+    }
+
+    static IdempotencyEntry inProgress() {
+      return new IdempotencyEntry(Status.IN_PROGRESS);
+    }
+
+    void finalizeSuccess(Object body, Map<String, String> headers) {
+      this.responseBody = body;
+      this.responseHeaders = headers;
+      this.status = Status.FINALIZED;
+      this.latch.countDown();
+    }
+
+    void finalizeError(RuntimeException cause) {
+      this.error = cause;
+      this.status = Status.FINALIZED;
+      this.latch.countDown();
+    }
+
+    void awaitFinalized() {
+      try {
+        this.latch.await();
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(
+            "Interrupted while waiting for idempotent request to complete", ie);
+      }
+    }
+  }
+
+  public static void simulate503OnFirstSuccessForKey(String key) {
+    SIMULATE_503_ON_FIRST_SUCCESS_KEYS.add(key);
+  }
+
+  public static void setIdempotencyLifetimeFromIso(String isoDuration) {
+    if (isoDuration == null) {
+      return;
+    }
+    try {
+      idempotencyLifetimeMillis = Duration.parse(isoDuration).toMillis();
+    } catch (Exception e) {
+      // ignore parse errors; keep default
+    }
   }
 }
