@@ -23,18 +23,29 @@ import java.util.Objects;
 
 public class Offset implements Comparable<Offset> {
 
-  public static final Offset NULL_OFFSET = new Offset(null, null);
+  public static final Offset NULL_OFFSET = new Offset(null, null, null);
 
-  private final Long offset;
+  private final Long startOffset;
+  private final Long endOffset;
   private final OffsetDateTime timestamp;
 
-  public Offset(Long offset, OffsetDateTime timestamp) {
-    this.offset = offset;
+  public Offset(Long startOffset, Long endOffset, OffsetDateTime timestamp) {
+    this.startOffset = startOffset;
+    this.endOffset = endOffset;
     this.timestamp = timestamp;
   }
 
+  public Long startOffset() {
+    return startOffset;
+  }
+
+  public Long endOffset() {
+    return endOffset;
+  }
+
+  // For backward compatibility - returns the end offset
   public Long offset() {
-    return offset;
+    return endOffset;
   }
 
   public OffsetDateTime timestamp() {
@@ -43,10 +54,10 @@ public class Offset implements Comparable<Offset> {
 
   @Override
   public int compareTo(Offset other) {
-    if (Objects.equals(this.offset, other.offset)) {
+    if (Objects.equals(this.endOffset, other.endOffset)) {
       return 0;
     }
-    if (this.offset == null || (other.offset != null && other.offset > this.offset)) {
+    if (this.endOffset == null || (other.endOffset != null && other.endOffset > this.endOffset)) {
       return -1;
     }
     return 1;
