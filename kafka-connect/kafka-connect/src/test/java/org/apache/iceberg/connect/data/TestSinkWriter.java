@@ -106,6 +106,23 @@ public class TestSinkWriter {
   }
 
   @Test
+  public void testTopicRoute() {
+    TableSinkConfig tableConfig = mock(TableSinkConfig.class);
+    when(tableConfig.routeRegex()).thenReturn(Pattern.compile("topic"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tablesRouteWith()).thenAnswer(invocation -> RecordRouter.TopicRecordRouter.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(tableConfig);
+
+    Map<String, Object> value = ImmutableMap.of();
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults.size()).isEqualTo(1);
+    IcebergWriterResult writerResult = writerResults.get(0);
+    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @Test
   public void testStaticRoute() {
     TableSinkConfig tableConfig = mock(TableSinkConfig.class);
     when(tableConfig.routeRegex()).thenReturn(Pattern.compile("val"));
