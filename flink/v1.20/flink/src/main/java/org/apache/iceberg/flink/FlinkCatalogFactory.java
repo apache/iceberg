@@ -31,6 +31,7 @@ import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogProperties.CacheExpirationPolicy;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -163,6 +164,14 @@ public class FlinkCatalogFactory implements CatalogFactory {
         "%s is not allowed to be 0.",
         CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
 
+    CacheExpirationPolicy cacheExpirationPolicy =
+        CacheExpirationPolicy.valueOf(
+            PropertyUtil.propertyAsString(
+                    properties,
+                    CatalogProperties.CACHE_EXPIRATION_POLICY,
+                    CatalogProperties.CACHE_EXPIRATION_POLICY_DEFAULT.name())
+                .toUpperCase(Locale.US));
+
     return new FlinkCatalog(
         name,
         defaultDatabase,
@@ -170,7 +179,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
         catalogLoader,
         properties,
         cacheEnabled,
-        cacheExpirationIntervalMs);
+        cacheExpirationIntervalMs,
+        cacheExpirationPolicy);
   }
 
   private static Configuration mergeHiveConf(

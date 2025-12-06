@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -34,6 +35,7 @@ import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogProperties.CacheExpirationPolicy;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
@@ -764,6 +766,14 @@ public class SparkCatalog extends BaseCatalog {
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
 
+    CacheExpirationPolicy cacheExpirationPolicy =
+        CacheExpirationPolicy.valueOf(
+            PropertyUtil.propertyAsString(
+                    options,
+                    CatalogProperties.CACHE_EXPIRATION_POLICY,
+                    CatalogProperties.CACHE_EXPIRATION_POLICY_DEFAULT.name())
+                .toUpperCase(Locale.US));
+
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
     if (cacheExpirationIntervalMs == 0) {
@@ -779,7 +789,8 @@ public class SparkCatalog extends BaseCatalog {
             SparkUtil.hadoopConfCatalogOverrides(SparkSession.getActiveSession().get(), name));
     this.icebergCatalog =
         cacheEnabled
-            ? CachingCatalog.wrap(catalog, cacheCaseSensitive, cacheExpirationIntervalMs)
+            ? CachingCatalog.wrap(
+                catalog, cacheCaseSensitive, cacheExpirationIntervalMs, cacheExpirationPolicy)
             : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
