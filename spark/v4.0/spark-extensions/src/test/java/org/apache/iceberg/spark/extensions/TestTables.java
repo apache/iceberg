@@ -20,11 +20,13 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.types.Types;
@@ -154,5 +156,36 @@ public class TestTables extends ExtensionsTestBase {
         .containsEntry("p1", "1")
         .containsEntry("p2", "b")
         .containsEntry("p3", "2");
+  }
+
+  @TestTemplate
+  public void testSortOrderIsCopied() {
+    sql(
+        "CREATE OR REPLACE TABLE %s (id bigint NOT NULL, data string) USING iceberg",
+        srcTableName);
+    sql("ALTER TABLE %s WRITE ORDERED BY id DESC, data ASC NULLS LAST", srcTableName);
+
+    sql("CREATE TABLE %s LIKE %s", tableName, srcTableName);
+
+    Schema expectedSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    SortOrder expectedSortOrder =
+        SortOrder.builderFor(expectedSchema)
+            .desc("id", NullOrder.NULLS_LAST)
+            .asc("data", NullOrder.NULLS_LAST)
+            .build();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThat(table.schema().asStruct())
+        .as("Should have expected schema")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(table.sortOrder().isSorted()).as("Table should be sorted").isTrue();
+    assertThat(table.sortOrder().fields())
+        .as("Sort order fields should match source table")
+        .isEqualTo(expectedSortOrder.fields());
   }
 }
