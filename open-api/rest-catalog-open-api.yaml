@@ -3251,7 +3251,8 @@ components:
         This enum is extended in future versions of the REST specification. Clients should
         ignore unknown operation types.
       anyOf:
-        - enum:
+        - type: string
+          enum:
           - create-table
           - register-table
           - drop-table
