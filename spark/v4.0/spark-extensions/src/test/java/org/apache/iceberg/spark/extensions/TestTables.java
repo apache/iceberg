@@ -160,9 +160,7 @@ public class TestTables extends ExtensionsTestBase {
 
   @TestTemplate
   public void testSortOrderIsCopied() {
-    sql(
-        "CREATE OR REPLACE TABLE %s (id bigint NOT NULL, data string) USING iceberg",
-        srcTableName);
+    sql("CREATE OR REPLACE TABLE %s (id bigint NOT NULL, data string) USING iceberg", srcTableName);
     sql("ALTER TABLE %s WRITE ORDERED BY id DESC, data ASC NULLS LAST", srcTableName);
 
     sql("CREATE TABLE %s LIKE %s", tableName, srcTableName);
