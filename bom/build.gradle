@@ -17,38 +17,5 @@
  * under the License.
  */
 
-project(":iceberg-azure-bundle") {
+// This file is intentionally minimal - BOM configuration is in root build.gradle
 
-  apply plugin: 'com.gradleup.shadow'
-
-  tasks.jar.dependsOn tasks.shadowJar
-
-  dependencies {
-    implementation platform(libs.azuresdk.bom)
-    implementation "com.azure:azure-storage-file-datalake"
-    implementation "com.azure:azure-identity"
-  }
-
-  shadowJar {
-    archiveClassifier.set(null)
-    zip64 = true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
-    dependencies {
-      exclude(dependency('org.slf4j:slf4j-api'))
-    }
-
-    // relocate Azure-specific versions
-    relocate 'io.netty', 'org.apache.iceberg.azure.shaded.io.netty'
-    relocate 'com.fasterxml.jackson', 'org.apache.iceberg.azure.shaded.com.fasterxml.jackson'
-  }
-
-  jar {
-    enabled = false
-  }
-}
