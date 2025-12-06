@@ -18,35 +18,19 @@
  */
 package org.apache.iceberg;
 
+import java.io.Serializable;
+
 /**
- * Content type stored in a file.
+ * Interface for applying inheritable metadata to tracked file entries in V4 manifests.
  *
- * <p>For V1-V3 tables: DATA, POSITION_DELETES, or EQUALITY_DELETES.
- *
- * <p>For V4 tables: DATA, POSITION_DELETES, EQUALITY_DELETES, DATA_MANIFEST, DELETE_MANIFEST, or
- * MANIFEST_DV.
+ * <p>Similar to {@link InheritableMetadata} but for V4 TrackedFile entries.
  */
-public enum FileContent {
-  DATA(0),
-  POSITION_DELETES(1),
-  EQUALITY_DELETES(2),
-  /** Data manifest entry (V4+ only) - references data files in a root manifest. */
-  DATA_MANIFEST(3),
-  /** Delete manifest entry (V4+ only) - references delete files in a root manifest. */
-  DELETE_MANIFEST(4),
+interface InheritableTrackedMetadata extends Serializable {
   /**
-   * Manifest deletion vector entry (V4+ only) - marks entries in a manifest as deleted without
-   * rewriting the manifest.
+   * Apply inheritable metadata to a tracked file entry.
+   *
+   * @param entry the tracked file entry
+   * @return the entry with metadata applied
    */
-  MANIFEST_DV(5);
-
-  private final int id;
-
-  FileContent(int id) {
-    this.id = id;
-  }
-
-  public int id() {
-    return id;
-  }
+  TrackedFile<?> apply(TrackedFile<?> entry);
 }
