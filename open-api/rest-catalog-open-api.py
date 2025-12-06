@@ -1038,7 +1038,7 @@ class QueryEventsRequest(BaseModel):
         alias='object-types',
         description='Filter events by the type of catalog object. If not provided, events for all object types must be returned.\n',
     )
-    custom_filters: Optional[Dict[str, str]] = Field(
+    custom_filters: Optional[Dict[str, Any]] = Field(
         None,
         alias='custom-filters',
         description='Implementation-specific filter extensions. Implementations may define custom filter properties beyond the standard ones defined in this specification.\n',

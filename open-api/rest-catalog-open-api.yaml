@@ -3712,8 +3712,7 @@ components:
             If not provided, events for all object types must be returned.
         custom-filters:
           type: object
-          additionalProperties:
-            type: string
+          additionalProperties: true
           description: >
             Implementation-specific filter extensions. Implementations may define custom filter
             properties beyond the standard ones defined in this specification.
