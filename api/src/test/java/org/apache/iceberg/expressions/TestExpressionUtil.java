@@ -1340,4 +1340,101 @@ public class TestExpressionUtil {
         .hasToString(expected.transform().toString());
     assertEquals(expected.ref(), actual.ref());
   }
+
+  @Test
+  public void testExtractByIdInclusiveWithNonPrimitiveTypes() {
+    // Test schema with a mix of primitive and non-primitive types
+    // This simulates a table that had partition evolution with an old partition field
+    // that references a non-primitive type (like list<string>)
+    Schema schemaWithList =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "timestamp", Types.TimestampType.withoutZone()),
+            Types.NestedField.required(
+                38, "is_ok", Types.ListType.ofRequired(39, Types.StringType.get())),
+            Types.NestedField.required(40, "data", Types.StringType.get()));
+
+    // Create an expression that references both primitive and non-primitive fields
+    Expression expr =
+        Expressions.and(
+            Expressions.greaterThan("id", 100L), Expressions.equal("data", "test_value"));
+
+    // This should not throw ValidationException even though field 38 (is_ok) is a list
+    // The extractByIdInclusive method should skip non-primitive types when building
+    // the identity partition spec
+    Expression result =
+        ExpressionUtil.extractByIdInclusive(expr, schemaWithList, true, 1, 2, 38, 40);
+
+    // The result should still be a valid expression
+    assertThat(result).isNotNull();
+
+    // Verify that the expression can be evaluated (it should not throw an exception)
+    // The key point is that this test should not fail with:
+    // "Invalid partition field parent: list<string>"
+  }
+
+  @Test
+  public void testExtractByIdInclusiveWithMapType() {
+    // Test with map type (another non-primitive type)
+    Schema schemaWithMap =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(
+                2,
+                "properties",
+                Types.MapType.ofRequired(3, 4, Types.StringType.get(), Types.StringType.get())),
+            Types.NestedField.required(5, "name", Types.StringType.get()));
+
+    Expression expr =
+        Expressions.and(Expressions.greaterThan("id", 50L), Expressions.isNull("name"));
+
+    // This should not throw ValidationException even though field 2 (properties) is a map
+    Expression result = ExpressionUtil.extractByIdInclusive(expr, schemaWithMap, true, 1, 2, 5);
+
+    assertThat(result).isNotNull();
+  }
+
+  @Test
+  public void testExtractByIdInclusiveWithStructType() {
+    // Test with struct type (another non-primitive type)
+    Schema schemaWithStruct =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(
+                2,
+                "address",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "street", Types.StringType.get()),
+                    Types.NestedField.required(4, "city", Types.StringType.get()))),
+            Types.NestedField.required(5, "age", Types.IntegerType.get()));
+
+    Expression expr =
+        Expressions.and(Expressions.lessThan("id", 1000L), Expressions.greaterThan("age", 18));
+
+    // This should not throw ValidationException even though field 2 (address) is a struct
+    Expression result = ExpressionUtil.extractByIdInclusive(expr, schemaWithStruct, true, 1, 2, 5);
+
+    assertThat(result).isNotNull();
+  }
+
+  @Test
+  public void testExtractByIdInclusiveOnlyPrimitiveTypes() {
+    // Test that primitive types still work correctly
+    Schema schemaOnlyPrimitives =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "value", Types.IntegerType.get()),
+            Types.NestedField.required(3, "name", Types.StringType.get()));
+
+    Expression expr =
+        Expressions.and(
+            Expressions.greaterThan("id", 100L),
+            Expressions.and(Expressions.lessThan("value", 500), Expressions.notNull("name")));
+
+    // All fields are primitive, so this should work as before
+    Expression result =
+        ExpressionUtil.extractByIdInclusive(expr, schemaOnlyPrimitives, true, 1, 2, 3);
+
+    assertThat(result).isNotNull();
+  }
 }

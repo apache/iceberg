@@ -740,7 +740,12 @@ public class ExpressionUtil {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema);
 
     for (int id : ids) {
-      specBuilder.identity(schema.findColumnName(id));
+      Type fieldType = schema.findType(id);
+      // Only add identity partitions for primitive types to avoid validation errors
+      // Non-primitive types (list, map, struct) cannot be used as partition fields
+      if (fieldType != null && fieldType.isPrimitiveType()) {
+        specBuilder.identity(schema.findColumnName(id));
+      }
     }
 
     return specBuilder.build();
