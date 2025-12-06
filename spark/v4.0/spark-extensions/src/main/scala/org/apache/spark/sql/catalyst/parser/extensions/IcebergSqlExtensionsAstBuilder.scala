@@ -37,6 +37,7 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergParserUtils.withOr
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.BranchOptions
+import org.apache.spark.sql.catalyst.plans.logical.CreateIcebergTableLike
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DropBranch
@@ -64,6 +65,27 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface)
   private def toBuffer[T](list: java.util.List[T]): scala.collection.mutable.Buffer[T] =
     list.asScala
   private def toSeq[T](list: java.util.List[T]): Seq[T] = toBuffer(list).toSeq
+
+  /**
+   * Create a CREATE TABLE LIKE command.
+   */
+  override def visitCreateTableLike(ctx: CreateTableLikeContext): CreateIcebergTableLike =
+    withOrigin(ctx) {
+      val tableName = typedVisit[Seq[String]](ctx.multipartIdentifier(0))
+      val sourceTableName = typedVisit[Seq[String]](ctx.multipartIdentifier(1))
+      val properties = Option(ctx.tableProperty())
+        .map(tableProperty => {
+          toSeq(tableProperty).map { prop =>
+            val key = prop.key.getText
+            val value = Option(prop.value).map(visitConstant(_).toString()).getOrElse("")
+            key -> value
+          }.toMap
+        })
+        .getOrElse(Map.empty[String, String])
+      val ifNotExists = ctx.EXISTS() != null
+
+      CreateIcebergTableLike(tableName, sourceTableName, properties, ifNotExists)
+    }
 
   /**
    * Create an ADD PARTITION FIELD logical command.
