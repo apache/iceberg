@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.NullOrder
@@ -45,7 +44,8 @@ case class CreateV2TableLikeExec(
     sourceCatalog: TableCatalog,
     sourceIdent: Identifier,
     tableProps: Map[String, String],
-    ignoreIfExists: Boolean) extends LeafV2CommandExec {
+    ignoreIfExists: Boolean)
+    extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 

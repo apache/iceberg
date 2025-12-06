@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
-
 
 case class CreateIcebergTableLike(
     tableName: Seq[String],
     sourceTableName: Seq[String],
     tableProps: Map[String, String],
-    ifNotExists: Boolean) extends LeafCommand {
+    ifNotExists: Boolean)
+    extends LeafCommand {
 
   override lazy val output: Seq[Attribute] = Nil
 

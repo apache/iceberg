@@ -69,22 +69,23 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface)
   /**
    * Create a CREATE TABLE LIKE command.
    */
-  override def visitCreateTableLike(ctx: CreateTableLikeContext): CreateIcebergTableLike = withOrigin(ctx) {
-    val tableName = typedVisit[Seq[String]](ctx.multipartIdentifier(0))
-    val sourceTableName = typedVisit[Seq[String]](ctx.multipartIdentifier(1))
-    val properties = Option(ctx.tableProperty())
-      .map(tableProperty => {
-        toSeq(tableProperty).map { prop =>
-          val key = prop.key.getText
-          val value = Option(prop.value).map(visitConstant(_).toString()).getOrElse("")
-          key -> value
-        }.toMap
-      })
-      .getOrElse(Map.empty[String, String])
-    val ifNotExists = ctx.EXISTS() != null
+  override def visitCreateTableLike(ctx: CreateTableLikeContext): CreateIcebergTableLike =
+    withOrigin(ctx) {
+      val tableName = typedVisit[Seq[String]](ctx.multipartIdentifier(0))
+      val sourceTableName = typedVisit[Seq[String]](ctx.multipartIdentifier(1))
+      val properties = Option(ctx.tableProperty())
+        .map(tableProperty => {
+          toSeq(tableProperty).map { prop =>
+            val key = prop.key.getText
+            val value = Option(prop.value).map(visitConstant(_).toString()).getOrElse("")
+            key -> value
+          }.toMap
+        })
+        .getOrElse(Map.empty[String, String])
+      val ifNotExists = ctx.EXISTS() != null
 
-    CreateIcebergTableLike(tableName, sourceTableName, properties, ifNotExists)
-  }
+      CreateIcebergTableLike(tableName, sourceTableName, properties, ifNotExists)
+    }
 
   /**
    * Create an ADD PARTITION FIELD logical command.
