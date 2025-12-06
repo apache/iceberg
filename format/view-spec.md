@@ -50,10 +50,6 @@ When queried, engines may return the precomputed data for the materialized views
 Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, the "storage-table", which stores the precomputed data.
 Materialized View metadata is a superset of View metadata with an additional pointer to the storage table. The storage table is an Iceberg table with additional materialized view refresh state metadata.
 Refresh metadata contains information about the "source tables" and/or "source views", which are the tables/views referenced in the query definition of the materialized view.
-During read time, a materialized view (storage table) can be interpreted as "fresh", "stale" or "invalid", depending on the following situations:
-* **fresh** -- The `snapshot_id`s of the last refresh operation match the current `snapshot_id`s of all the source tables, OR all source table snapshots that differ from the last refresh have timestamps within a configured staleness window.
-* **stale** -- The `snapshot_id`s do not match for at least one source table and at least one differing snapshot has a timestamp outside the configured staleness window, indicating that a refresh operation needs to be performed to capture the latest source table changes.
-* **invalid** -- The current `version_id` of the materialized view does not match the `view-version-id` of the refresh state.
 
 ## Specification
 
@@ -85,7 +81,7 @@ Notes:
 
 1. The number of versions to retain is controlled by the view property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
-3. The `max-staleness-ms` field only applies to materialized views and must be set to `null` for common views. When `max-staleness-ms` is not `null`, the query engine may return data directly from the `storage-table` without refreshing if all source table snapshots that differ from those used in the last refresh have timestamps within `max-staleness-ms` of the current time. When `max-staleness-ms` is `null` for a materialized view, the data in the `storage-table` is always considered fresh.
+3. The `max-staleness-ms` field only applies to materialized views and must be set to `null` for common views. This field defines the staleness window for determining freshness state (see [Materialized Views](#materialized-views) section above). When `max-staleness-ms` is `null` for a materialized view, the data in the `storage-table` is always considered fresh.
 
 #### Versions
 
@@ -188,7 +184,7 @@ The table identifier for the storage table that stores the precomputed results.
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
 | _required_  | `namespace`    | A list of strings for namespace levels |
-| _required_  | `name`         | A string specifying the name of the table/view |
+| _required_  | `name`         | A string specifying the name of the table |
 
 ### Storage table metadata
 
@@ -201,8 +197,14 @@ The property "refresh-state" is set on the [snapshot summary](https://iceberg.ap
 
 #### Refresh state
 
-The refresh state record captures the state of all source tables, views, and materialized views in the materialized view's fully expanded query tree at refresh time. Source table states are stored in `source-table-states` and source view states in `source-view-states`. For source views, `source-view-states` includes indirect references — tables or views nested within other views (exluding MVs) but not directly referenced in the query.
-For source materialized views, both the source view and its storage table are included in the refresh state. Indirect references are excluded for materialized view sources; during read time, query engines may recursively expand the query tree to determine freshness. The refresh state has the following fields:
+The refresh state record captures the state of source tables, views, and materialized views at refresh time.
+
+* Source view states are stored in `source-view-states`. It includes indirect references — views nested within other views (excluding MVs).
+* Source table states are stored in `source-table-states`. It includes indirect references - tables nested within other views (excluding MVs).
+
+For directly referenced source materialized views, both the source view and its storage table are included in the refresh state. Indirect references (views or tables) from source materialized views are excluded in the refresh-state. During read time, a query engine recursively expand the query tree to determine freshness if it chooses to enforce recursive evaluation semantic.
+
+The refresh state has the following fields:
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
@@ -231,6 +233,14 @@ A source view record captures the state of a source view at the time of the last
 |-------------|----------------|-------------|
 | _required_  | `uuid`         | The uuid of the source view |
 | _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
+
+#### Status Interpretation
+
+During read time, a materialized view (storage table) can be interpreted as "fresh", "stale" or "invalid", depending on the following situations:
+
+* **invalid** -- The current `version_id` of the materialized view does not match the `view-version-id` recorded in its refresh state. A read operation cannot proceed using the materialized view's data.
+* **fresh** -- Valid and the stored data represents the result set that would have been retrieved if the underlying View Query was executed at some point during the defined Staleness Window.
+* **stale** -- Valid but not Fresh.
 
 ## Appendix A: An Example
 
