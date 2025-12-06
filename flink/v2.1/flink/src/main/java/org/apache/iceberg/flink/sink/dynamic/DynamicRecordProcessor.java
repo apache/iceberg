@@ -44,6 +44,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final TableCreator tableCreator;
+  private final boolean caseSensitive;
 
   private transient TableMetadataCache tableCache;
   private transient HashKeyGenerator hashKeyGenerator;
@@ -59,7 +60,8 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       int cacheMaximumSize,
       long cacheRefreshMs,
       int inputSchemasPerTableCacheMaximumSize,
-      TableCreator tableCreator) {
+      TableCreator tableCreator,
+      boolean caseSensitive) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.immediateUpdate = immediateUpdate;
@@ -67,6 +69,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCreator = tableCreator;
+    this.caseSensitive = caseSensitive;
   }
 
   @Override
@@ -75,12 +78,16 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     Catalog catalog = catalogLoader.loadCatalog();
     this.tableCache =
         new TableMetadataCache(
-            catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize);
+            catalog,
+            cacheMaximumSize,
+            cacheRefreshMs,
+            inputSchemasPerTableCacheMaximumSize,
+            caseSensitive);
     this.hashKeyGenerator =
         new HashKeyGenerator(
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());
     if (immediateUpdate) {
-      updater = new TableUpdater(tableCache, catalog);
+      updater = new TableUpdater(tableCache, catalog, caseSensitive);
     } else {
       updateStream =
           new OutputTag<>(

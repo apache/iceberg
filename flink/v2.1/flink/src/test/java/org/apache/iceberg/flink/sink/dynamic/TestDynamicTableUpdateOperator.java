@@ -62,7 +62,8 @@ class TestDynamicTableUpdateOperator {
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
-            TableCreator.DEFAULT);
+            TableCreator.DEFAULT,
+            true);
     operator.open(null);
 
     DynamicRecordInternal input =
@@ -95,7 +96,8 @@ class TestDynamicTableUpdateOperator {
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
-            TableCreator.DEFAULT);
+            TableCreator.DEFAULT,
+            true);
     operator.open(null);
 
     catalog.createTable(table, SCHEMA1);
