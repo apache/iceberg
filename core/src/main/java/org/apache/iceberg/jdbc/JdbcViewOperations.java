@@ -50,6 +50,22 @@ public class JdbcViewOperations extends BaseViewOperations {
   private final FileIO fileIO;
   private final JdbcClientPool connections;
   private final Map<String, String> catalogProperties;
+  private final String schemaName;
+
+  protected JdbcViewOperations(
+      JdbcClientPool dbConnPool,
+      FileIO fileIO,
+      String catalogName,
+      TableIdentifier viewIdentifier,
+      Map<String, String> catalogProperties,
+      String schemaName) {
+    this.catalogName = catalogName;
+    this.viewIdentifier = viewIdentifier;
+    this.fileIO = fileIO;
+    this.connections = dbConnPool;
+    this.catalogProperties = catalogProperties;
+    this.schemaName = schemaName;
+  }
 
   protected JdbcViewOperations(
       JdbcClientPool dbConnPool,
@@ -57,11 +73,7 @@ public class JdbcViewOperations extends BaseViewOperations {
       String catalogName,
       TableIdentifier viewIdentifier,
       Map<String, String> catalogProperties) {
-    this.catalogName = catalogName;
-    this.viewIdentifier = viewIdentifier;
-    this.fileIO = fileIO;
-    this.connections = dbConnPool;
-    this.catalogProperties = catalogProperties;
+    this(dbConnPool, fileIO, catalogName, viewIdentifier, catalogProperties, null);
   }
 
   @Override
@@ -69,7 +81,9 @@ public class JdbcViewOperations extends BaseViewOperations {
     Map<String, String> view;
 
     try {
-      view = JdbcUtil.loadView(JdbcUtil.SchemaVersion.V1, connections, catalogName, viewIdentifier);
+      view =
+          JdbcUtil.loadView(
+              schemaName, JdbcUtil.SchemaVersion.V1, connections, catalogName, viewIdentifier);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted during refresh");
@@ -99,7 +113,8 @@ public class JdbcViewOperations extends BaseViewOperations {
     String newMetadataLocation = writeNewMetadataIfRequired(metadata);
     try {
       Map<String, String> view =
-          JdbcUtil.loadView(JdbcUtil.SchemaVersion.V1, connections, catalogName, viewIdentifier);
+          JdbcUtil.loadView(
+              schemaName, JdbcUtil.SchemaVersion.V1, connections, catalogName, viewIdentifier);
       if (base != null) {
         validateMetadataLocation(view, base);
         String oldMetadataLocation = base.metadataFileLocation();
@@ -165,7 +180,12 @@ public class JdbcViewOperations extends BaseViewOperations {
       throws SQLException, InterruptedException {
     int updatedRecords =
         JdbcUtil.updateView(
-            connections, catalogName, viewIdentifier, newMetadataLocation, oldMetadataLocation);
+            schemaName,
+            connections,
+            catalogName,
+            viewIdentifier,
+            newMetadataLocation,
+            oldMetadataLocation);
 
     if (updatedRecords == 1) {
       LOG.debug("Successfully committed to existing view: {}", viewIdentifier);
@@ -178,23 +198,24 @@ public class JdbcViewOperations extends BaseViewOperations {
   private void createView(String newMetadataLocation) throws SQLException, InterruptedException {
     Namespace namespace = viewIdentifier.namespace();
     if (PropertyUtil.propertyAsBoolean(catalogProperties, JdbcUtil.STRICT_MODE_PROPERTY, false)
-        && !JdbcUtil.namespaceExists(catalogName, connections, namespace)) {
+        && !JdbcUtil.namespaceExists(schemaName, catalogName, connections, namespace)) {
       throw new NoSuchNamespaceException(
           "Cannot create view %s in catalog %s. Namespace %s does not exist",
           viewIdentifier, catalogName, namespace);
     }
 
-    if (JdbcUtil.tableExists(JdbcUtil.SchemaVersion.V1, catalogName, connections, viewIdentifier)) {
+    if (JdbcUtil.tableExists(
+        schemaName, JdbcUtil.SchemaVersion.V1, catalogName, connections, viewIdentifier)) {
       throw new AlreadyExistsException("Table with same name already exists: %s", viewIdentifier);
     }
 
-    if (JdbcUtil.viewExists(catalogName, connections, viewIdentifier)) {
+    if (JdbcUtil.viewExists(schemaName, catalogName, connections, viewIdentifier)) {
       throw new AlreadyExistsException("View already exists: %s", viewIdentifier);
     }
 
     int insertRecord =
         JdbcUtil.doCommitCreateView(
-            connections, catalogName, namespace, viewIdentifier, newMetadataLocation);
+            schemaName, connections, catalogName, namespace, viewIdentifier, newMetadataLocation);
 
     if (insertRecord == 1) {
       LOG.debug("Successfully committed to new view: {}", viewIdentifier);
