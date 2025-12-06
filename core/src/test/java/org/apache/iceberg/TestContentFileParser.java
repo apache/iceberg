@@ -64,6 +64,21 @@ public class TestContentFileParser {
         .hasMessage("Invalid partition spec: null");
   }
 
+  @Test
+  public void testNanCountsOnlyWritesNanValueCounts() throws Exception {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    DataFile dataFile = dataFileWithOnlyNanCounts(spec);
+    String jsonStr = ContentFileParser.toJson(dataFile, spec);
+    // ensure nan counts are present and null counts are not emitted
+    assertThat(jsonStr).contains("\"nan-value-counts\"");
+    assertThat(jsonStr).doesNotContain("\"null-value-counts\"");
+    JsonNode jsonNode = JsonUtil.mapper().readTree(jsonStr);
+    ContentFile<?> deserialized =
+        ContentFileParser.fromJson(jsonNode, Map.of(TestBase.SPEC.specId(), spec));
+    assertThat(deserialized).isInstanceOf(DataFile.class);
+    assertContentFileEquals(dataFile, deserialized, spec);
+  }
+
   @ParameterizedTest
   @MethodSource("provideSpecAndDataFile")
   public void testDataFile(PartitionSpec spec, DataFile dataFile, String expectedJson)
@@ -119,6 +134,30 @@ public class TestContentFileParser {
 
     if (spec.isPartitioned()) {
       // easy way to set partition data for now
+      builder.withPartitionPath("data_bucket=1");
+    }
+
+    return builder.build();
+  }
+
+  private static DataFile dataFileWithOnlyNanCounts(PartitionSpec spec) {
+    DataFiles.Builder builder =
+        DataFiles.builder(spec)
+            .withPath("/path/to/data-nan-only.parquet")
+            .withMetrics(
+                new Metrics(
+                    1L, // record count
+                    null, // column sizes
+                    null, // value counts
+                    null, // null value counts (intentionally null)
+                    ImmutableMap.of(3, 0L), // nan value counts present
+                    null, // lower bounds
+                    null // upper bounds
+                    ))
+            .withFileSizeInBytes(10)
+            .withRecordCount(1);
+
+    if (spec.isPartitioned()) {
       builder.withPartitionPath("data_bucket=1");
     }
 
