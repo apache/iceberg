@@ -18,25 +18,12 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.PartitionStatsHandler.DATA_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.DATA_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_AT;
-import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_SNAPSHOT_ID;
 import static org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_ID;
-import static org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_NAME;
-import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.SPEC_ID;
-import static org.apache.iceberg.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES;
-import static org.apache.iceberg.PartitionStatsHandler.TOTAL_RECORD_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -46,10 +33,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -61,10 +45,9 @@ import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public abstract class PartitionStatsHandlerTestBase {
+public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsTestBase {
 
   public abstract FileFormat format();
 
@@ -75,34 +58,8 @@ public abstract class PartitionStatsHandlerTestBase {
 
   @Parameter protected int formatVersion;
 
-  private static final Schema SCHEMA =
-      new Schema(
-          optional(1, "c1", Types.IntegerType.get()),
-          optional(2, "c2", Types.StringType.get()),
-          optional(3, "c3", Types.StringType.get()));
-
-  protected static final PartitionSpec SPEC =
-      PartitionSpec.builderFor(SCHEMA).identity("c2").identity("c3").build();
-
-  @TempDir public File temp;
-
-  private static final Random RANDOM = ThreadLocalRandom.current();
-
   private final Map<String, String> fileFormatProperty =
       ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format().name());
-
-  // position in StructLike
-  private static final int DATA_RECORD_COUNT_POSITION = 2;
-  private static final int DATA_FILE_COUNT_POSITION = 3;
-  private static final int TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION = 4;
-  private static final int POSITION_DELETE_RECORD_COUNT_POSITION = 5;
-  private static final int POSITION_DELETE_FILE_COUNT_POSITION = 6;
-  private static final int EQUALITY_DELETE_RECORD_COUNT_POSITION = 7;
-  private static final int EQUALITY_DELETE_FILE_COUNT_POSITION = 8;
-  private static final int TOTAL_RECORD_COUNT_POSITION = 9;
-  private static final int LAST_UPDATED_AT_POSITION = 10;
-  private static final int LAST_UPDATED_SNAPSHOT_ID_POSITION = 11;
-  private static final int DV_COUNT_POSITION = 12;
 
   @Test
   public void testPartitionStatsOnEmptyTable() throws Exception {
@@ -223,18 +180,31 @@ public abstract class PartitionStatsHandlerTestBase {
     partitionData.set(13, new BigDecimal("12345678901234567890.1234567890"));
     partitionData.set(14, Literal.of("10:10:10").to(Types.TimeType.get()).value());
 
-    PartitionStats partitionStats = new PartitionStats(partitionData, RANDOM.nextInt(10));
-    partitionStats.set(DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
-    partitionStats.set(DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
-    partitionStats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
-    List<PartitionStats> expected = Collections.singletonList(partitionStats);
-    PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
+    BasePartitionStatistics partitionStats = randomStats(partitionData);
+    List<PartitionStatistics> expected = Collections.singletonList(partitionStats);
 
-    List<PartitionStats> written;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, testTable.io().newInputFile(statisticsFile.path()))) {
+    // Add a dummy file to the table to have a snapshot
+    DataFile dataFile =
+        DataFiles.builder(spec)
+            .withPath("some_path")
+            .withPartition(partitionData)
+            .withFileSizeInBytes(15)
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(1)
+            .build();
+    testTable.newAppend().appendFile(dataFile).commit();
+    long snapshotId = testTable.currentSnapshot().snapshotId();
+
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(
+            PartitionStatsHandler.writePartitionStatsFile(
+                testTable, snapshotId, dataSchema, expected))
+        .commit();
+
+    List<PartitionStatistics> written;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().useSnapshot(snapshotId).scan()) {
       written = Lists.newArrayList(recordIterator);
     }
 
@@ -260,16 +230,10 @@ public abstract class PartitionStatsHandlerTestBase {
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
     Schema dataSchema = PartitionStatsHandler.schema(partitionSchema, formatVersion);
 
-    ImmutableList.Builder<PartitionStats> partitionListBuilder = ImmutableList.builder();
+    ImmutableList.Builder<PartitionStatistics> partitionListBuilder = ImmutableList.builder();
     for (int i = 0; i < 5; i++) {
-      PartitionData partitionData =
-          new PartitionData(dataSchema.findField(PARTITION_FIELD_ID).type().asStructType());
-      partitionData.set(0, RANDOM.nextInt());
-
-      PartitionStats stats = new PartitionStats(partitionData, RANDOM.nextInt(10));
-      stats.set(DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
-      stats.set(DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
-      stats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
+      BasePartitionStatistics stats =
+          randomStats(dataSchema.findField(PARTITION_FIELD_ID).type().asStructType());
       stats.set(POSITION_DELETE_RECORD_COUNT_POSITION, null);
       stats.set(POSITION_DELETE_FILE_COUNT_POSITION, null);
       stats.set(EQUALITY_DELETE_RECORD_COUNT_POSITION, null);
@@ -282,29 +246,41 @@ public abstract class PartitionStatsHandlerTestBase {
       partitionListBuilder.add(stats);
     }
 
-    List<PartitionStats> expected = partitionListBuilder.build();
+    List<PartitionStatistics> expected = partitionListBuilder.build();
 
     assertThat(expected.get(0))
         .extracting(
-            PartitionStats::positionDeleteRecordCount,
-            PartitionStats::positionDeleteFileCount,
-            PartitionStats::equalityDeleteRecordCount,
-            PartitionStats::equalityDeleteFileCount,
-            PartitionStats::totalRecords,
-            PartitionStats::lastUpdatedAt,
-            PartitionStats::lastUpdatedSnapshotId,
-            PartitionStats::dvCount)
-        .isEqualTo(
-            Arrays.asList(
-                0L, 0, 0L, 0, null, null, null, 0)); // null counters must be initialized to zero.
+            PartitionStatistics::positionDeleteRecordCount,
+            PartitionStatistics::positionDeleteFileCount,
+            PartitionStatistics::equalityDeleteRecordCount,
+            PartitionStatistics::equalityDeleteFileCount,
+            PartitionStatistics::totalRecords,
+            PartitionStatistics::lastUpdatedAt,
+            PartitionStatistics::lastUpdatedSnapshotId,
+            PartitionStatistics::dvCount)
+        .isEqualTo(Arrays.asList(0L, 0, 0L, 0, null, null, null, 0));
 
-    PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
+    // Add a dummy file to the table to have a snapshot
+    DataFile dataFile =
+        DataFiles.builder(spec)
+            .withPath("some_path")
+            .withFileSizeInBytes(15)
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(1)
+            .build();
+    testTable.newAppend().appendFile(dataFile).commit();
+    long snapshotId = testTable.currentSnapshot().snapshotId();
 
-    List<PartitionStats> written;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, testTable.io().newInputFile(statisticsFile.path()))) {
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(
+            PartitionStatsHandler.writePartitionStatsFile(
+                testTable, snapshotId, dataSchema, expected))
+        .commit();
+
+    List<PartitionStatistics> written;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().useSnapshot(snapshotId).scan()) {
       written = Lists.newArrayList(recordIterator);
     }
 
@@ -315,8 +291,12 @@ public abstract class PartitionStatsHandlerTestBase {
     }
   }
 
+  /**
+   * @deprecated will be removed in 1.12.0
+   */
   @SuppressWarnings("checkstyle:MethodLength")
   @Test
+  @Deprecated
   public void testPartitionStats() throws Exception {
     Table testTable =
         TestTables.create(
@@ -512,27 +492,24 @@ public abstract class PartitionStatsHandlerTestBase {
 
     testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
 
-    PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
-    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
 
-    assertThat(
-            PartitionStatsHandler.readPartitionStatsFile(
-                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2),
-                testTable.io().newInputFile(statisticsFile.path())))
+    assertThat(testTable.newPartitionStatisticsScan().scan())
         .allMatch(s -> (s.dataRecordCount() != 0 && s.dataFileCount() != 0));
 
     testTable.newDelete().deleteFile(dataFile1).commit();
     testTable.newDelete().deleteFile(dataFile2).commit();
 
-    PartitionStatisticsFile statisticsFileNew =
-        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
 
     // stats must be decremented to zero as all the files removed from table.
-    assertThat(
-            PartitionStatsHandler.readPartitionStatsFile(
-                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2),
-                testTable.io().newInputFile(statisticsFileNew.path())))
+    assertThat(testTable.newPartitionStatisticsScan().scan())
         .allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
   }
 
@@ -611,7 +588,11 @@ public abstract class PartitionStatsHandlerTestBase {
     assertThat(PartitionStatsHandler.latestStatsFile(testTable, snapshotBranchBId)).isNull();
   }
 
+  /**
+   * @deprecated will be removed in 1.12.0
+   */
   @Test
+  @Deprecated
   public void testReadingStatsWithInvalidSchema() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Table testTable =
@@ -660,15 +641,15 @@ public abstract class PartitionStatsHandlerTestBase {
     testTable.updatePartitionStatistics().setPartitionStatistics(invalidStatisticsFile).commit();
 
     testTable.newAppend().appendFile(dataFile).commit();
-    PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
 
     // read the partition entries from the stats file
-    List<PartitionStats> partitionStats;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            PartitionStatsHandler.schema(partitionType, 2),
-            testTable.io().newInputFile(statisticsFile.path()))) {
+    List<PartitionStatistics> partitionStats;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().scan()) {
       partitionStats = Lists.newArrayList(recordIterator);
     }
 
@@ -677,7 +658,11 @@ public abstract class PartitionStatsHandlerTestBase {
     assertThat(partitionStats.get(0).dataFileCount()).isEqualTo(2);
   }
 
+  /**
+   * @deprecated will be removed in 1.12.0
+   */
   @Test
+  @Deprecated
   public void testV2toV3SchemaEvolution() throws Exception {
     Table testTable =
         TestTables.create(
@@ -718,14 +703,6 @@ public abstract class PartitionStatsHandlerTestBase {
     }
   }
 
-  private static StructLike partitionRecord(
-      Types.StructType partitionType, String val1, String val2) {
-    GenericRecord record = GenericRecord.create(partitionType);
-    record.set(0, val1);
-    record.set(1, val2);
-    return record;
-  }
-
   private static void computeAndValidatePartitionStats(
       Table testTable, Schema recordSchema, Tuple... expectedValues) throws IOException {
     // compute and commit partition stats file
@@ -758,38 +735,6 @@ public abstract class PartitionStatsHandlerTestBase {
             PartitionStats::lastUpdatedSnapshotId,
             PartitionStats::dvCount)
         .containsExactlyInAnyOrder(expectedValues);
-  }
-
-  private File tempDir(String folderName) throws IOException {
-    return java.nio.file.Files.createTempDirectory(temp.toPath(), folderName).toFile();
-  }
-
-  private Schema invalidOldSchema(Types.StructType unifiedPartitionType) {
-    // field ids starts from 0 instead of 1
-    return new Schema(
-        Types.NestedField.required(0, PARTITION_FIELD_NAME, unifiedPartitionType),
-        Types.NestedField.required(1, SPEC_ID.name(), Types.IntegerType.get()),
-        Types.NestedField.required(2, DATA_RECORD_COUNT.name(), Types.LongType.get()),
-        Types.NestedField.required(3, DATA_FILE_COUNT.name(), Types.IntegerType.get()),
-        Types.NestedField.required(4, TOTAL_DATA_FILE_SIZE_IN_BYTES.name(), Types.LongType.get()),
-        Types.NestedField.optional(5, POSITION_DELETE_RECORD_COUNT.name(), Types.LongType.get()),
-        Types.NestedField.optional(6, POSITION_DELETE_FILE_COUNT.name(), Types.IntegerType.get()),
-        Types.NestedField.optional(7, EQUALITY_DELETE_RECORD_COUNT.name(), Types.LongType.get()),
-        Types.NestedField.optional(8, EQUALITY_DELETE_FILE_COUNT.name(), Types.IntegerType.get()),
-        Types.NestedField.optional(9, TOTAL_RECORD_COUNT.name(), Types.LongType.get()),
-        Types.NestedField.optional(10, LAST_UPDATED_AT.name(), Types.LongType.get()),
-        Types.NestedField.optional(11, LAST_UPDATED_SNAPSHOT_ID.name(), Types.LongType.get()));
-  }
-
-  private PartitionStats randomStats(Types.StructType partitionType) {
-    PartitionData partitionData = new PartitionData(partitionType);
-    partitionData.set(0, RANDOM.nextInt());
-
-    PartitionStats stats = new PartitionStats(partitionData, RANDOM.nextInt(10));
-    stats.set(DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
-    stats.set(DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
-    stats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
-    return stats;
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
