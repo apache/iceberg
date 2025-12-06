@@ -3253,18 +3253,18 @@ components:
       anyOf:
         - type: string
           enum:
-          - create-table
-          - register-table
-          - drop-table
-          - update-table
-          - rename-table
-          - create-view
-          - drop-view
-          - update-view
-          - rename-view
-          - create-namespace
-          - update-namespace-properties
-          - drop-namespace
+            - create-table
+            - register-table
+            - drop-table
+            - update-table
+            - rename-table
+            - create-view
+            - drop-view
+            - update-view
+            - rename-view
+            - create-namespace
+            - update-namespace-properties
+            - drop-namespace
         - $ref: '#/components/schemas/CustomOperationType'
 
     CustomOperationType:
