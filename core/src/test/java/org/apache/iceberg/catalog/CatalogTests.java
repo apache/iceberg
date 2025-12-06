@@ -1947,7 +1947,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction create =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation("file:/tmp/ns/table")
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -1983,7 +1983,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should match requested")
-          .isEqualTo("file:/tmp/ns/table");
+          .isEqualTo(baseTableLocation(TABLE));
     }
     assertFiles(table, FILE_A);
     assertFilesPartitionSpec(table);

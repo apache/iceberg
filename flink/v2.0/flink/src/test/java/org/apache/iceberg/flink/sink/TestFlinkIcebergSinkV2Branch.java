@@ -46,20 +46,23 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
   static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
-  @Parameter(index = 4)
+  @Parameter(index = 5)
   protected String branch;
 
   @Parameters(
       name =
-          "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}, Branch={4}")
+          "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}, IsTableSchema={4}, Branch={5}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {
-        FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, "main"
+      // Remove after the deprecation of TableSchema - BEGIN
+      {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true, "main"},
+      {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true, "testBranch"},
+      // Remove after the deprecation of TableSchema - END
+
+      {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false, "main"},
+      {
+        FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false, "testBranch"
       },
-      new Object[] {
-        FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, "testBranch"
-      }
     };
   }
 

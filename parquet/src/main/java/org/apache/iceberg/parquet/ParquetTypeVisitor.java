@@ -22,6 +22,7 @@ import java.util.Deque;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -46,6 +47,9 @@ public class ParquetTypeVisitor<T> {
         return visitList(group, visitor);
       } else if (LogicalTypeAnnotation.mapType().equals(annotation)) {
         return visitMap(group, visitor);
+      } else if (LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION)
+          .equals(annotation)) {
+        return visitVariant(group, visitor);
       }
 
       return visitor.struct(group, visitFields(group, visitor));
@@ -168,6 +172,10 @@ public class ParquetTypeVisitor<T> {
     }
   }
 
+  private static <T> T visitVariant(GroupType variant, ParquetTypeVisitor<T> visitor) {
+    return visitor.variant(variant);
+  }
+
   private static <T> List<T> visitFields(GroupType group, ParquetTypeVisitor<T> visitor) {
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
     for (Type field : group.getFields()) {
@@ -199,6 +207,10 @@ public class ParquetTypeVisitor<T> {
   }
 
   public T primitive(PrimitiveType primitive) {
+    return null;
+  }
+
+  public T variant(GroupType variant) {
     return null;
   }
 

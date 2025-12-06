@@ -282,6 +282,6 @@ public class TestRollbackToSnapshotProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_snapshot('', 1L)", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot handle an empty identifier for argument table");
+        .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
 }

@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -203,6 +205,30 @@ public class TestFindFiles extends TestBase {
 
     // verify an empty collection of data file is returned
     assertThat(files).hasSize(0);
+  }
+
+  @TestTemplate
+  public void testPlanWith() {
+    table
+        .newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .commit();
+
+    ExecutorService executorService = Executors.newFixedThreadPool(2);
+    try {
+      Iterable<DataFile> files =
+          FindFiles.in(table)
+              .planWith(executorService)
+              .withMetadataMatching(Expressions.startsWith("file_path", "/path/to/data"))
+              .collect();
+
+      assertThat(pathSet(files)).isEqualTo(pathSet(FILE_A, FILE_B, FILE_C, FILE_D));
+    } finally {
+      executorService.shutdown();
+    }
   }
 
   private Set<String> pathSet(DataFile... files) {

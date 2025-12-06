@@ -26,8 +26,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -35,10 +35,12 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynFields;
+import org.apache.iceberg.data.BaseFileWriterFactory;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.BaseTaskWriter;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
@@ -211,7 +213,7 @@ public class TestCompressionSettings {
 
   private static OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult>
       createIcebergStreamWriter(
-          Table icebergTable, TableSchema flinkSchema, Map<String, String> override)
+          Table icebergTable, ResolvedSchema flinkSchema, Map<String, String> override)
           throws Exception {
     RowType flinkRowType = FlinkSink.toFlinkRowType(icebergTable.schema(), flinkSchema);
     FlinkWriteConf flinkWriteConfig =
@@ -230,7 +232,7 @@ public class TestCompressionSettings {
   }
 
   private static Map<String, String> appenderProperties(
-      Table table, TableSchema schema, Map<String, String> override) throws Exception {
+      Table table, ResolvedSchema schema, Map<String, String> override) throws Exception {
     try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter(table, schema, override)) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
@@ -244,14 +246,14 @@ public class TestCompressionSettings {
           DynFields.builder()
               .hiddenImpl(IcebergStreamWriter.class, "writer")
               .build(operatorField.get());
-      DynFields.BoundField<FlinkAppenderFactory> appenderField =
+      DynFields.BoundField<FileWriterFactory> writerFactoryField =
           DynFields.builder()
-              .hiddenImpl(BaseTaskWriter.class, "appenderFactory")
+              .hiddenImpl(BaseTaskWriter.class, "writerFactory")
               .build(writerField.get());
       DynFields.BoundField<Map<String, String>> propsField =
           DynFields.builder()
-              .hiddenImpl(FlinkAppenderFactory.class, "props")
-              .build(appenderField.get());
+              .hiddenImpl(BaseFileWriterFactory.class, "writerProperties")
+              .build(writerFactoryField.get());
       return propsField.get();
     }
   }

@@ -44,11 +44,13 @@ import org.apache.spark.sql.types.StructType;
  */
 class PublishChangesProcedure extends BaseProcedure {
 
+  private static final ProcedureParameter TABLE_PARAM =
+      requiredInParameter("table", DataTypes.StringType);
+  private static final ProcedureParameter WAP_ID_PARAM =
+      requiredInParameter("wap_id", DataTypes.StringType);
+
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("wap_id", DataTypes.StringType)
-      };
+      new ProcedureParameter[] {TABLE_PARAM, WAP_ID_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -82,8 +84,10 @@ class PublishChangesProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    String wapId = args.getString(1);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+
+    Identifier tableIdent = input.ident(TABLE_PARAM);
+    String wapId = input.asString(WAP_ID_PARAM);
 
     return modifyIcebergTable(
         tableIdent,
@@ -95,7 +99,7 @@ class PublishChangesProcedure extends BaseProcedure {
                       snapshot -> wapId.equals(WapUtil.stagedWapId(snapshot)),
                       null));
           if (!wapSnapshot.isPresent()) {
-            throw new ValidationException(String.format("Cannot apply unknown WAP ID '%s'", wapId));
+            throw new ValidationException("Cannot apply unknown WAP ID '%s'", wapId);
           }
 
           long wapSnapshotId = wapSnapshot.get().snapshotId();

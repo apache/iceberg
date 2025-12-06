@@ -49,6 +49,9 @@ import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
@@ -221,7 +224,7 @@ public class TestVariantWriters {
     List<Record> actual =
         writeAndRead((id, name) -> ParquetVariantUtil.toParquetSchema(variant.value()), expected);
 
-    assertThat(actual.size()).isEqualTo(expected.size());
+    assertThat(actual).hasSameSizeAs(expected);
 
     for (int i = 0; i < expected.size(); i += 1) {
       InternalTestHelpers.assertEquals(SCHEMA.asStruct(), expected.get(i), actual.get(i));
@@ -245,6 +248,18 @@ public class TestVariantWriters {
             .build()) {
       for (Record record : records) {
         writer.add(record);
+      }
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(outputFile.toInputFile()))) {
+      MessageType schema = reader.getFileMetaData().getSchema();
+      for (Types.NestedField column : SCHEMA.columns()) {
+        if (column.type() == Types.VariantType.get()) {
+          int fieldIndex = schema.getFieldIndex(column.name());
+          assertThat(schema.getFields().get(fieldIndex).getLogicalTypeAnnotation())
+              .isEqualTo(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION));
+        }
       }
     }
 

@@ -27,7 +27,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -301,7 +300,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
     assertThat(catalog.remainingAgeFor(tableIdent))
         .as("Loading a non-cached metadata table should refresh the main table's age")
-        .isEqualTo(Optional.of(EXPIRATION_TTL));
+        .contains(EXPIRATION_TTL);
 
     // Move time forward and access already cached metadata tables.
     ticker.advance(HALF_OF_EXPIRATION);
@@ -312,7 +311,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
 
     assertThat(catalog.remainingAgeFor(tableIdent))
         .as("Accessing a cached metadata table should not affect the main table's age")
-        .isEqualTo(Optional.of(HALF_OF_EXPIRATION));
+        .contains(HALF_OF_EXPIRATION);
 
     // Move time forward so the data table drops.
     ticker.advance(HALF_OF_EXPIRATION);

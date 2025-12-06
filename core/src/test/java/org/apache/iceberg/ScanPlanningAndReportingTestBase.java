@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Expressions;
@@ -46,8 +45,8 @@ public abstract class ScanPlanningAndReportingTestBase<
   private final TestMetricsReporter reporter = new TestMetricsReporter();
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
-    return Arrays.asList(2, 3);
+  protected static List<Integer> formatVersions() {
+    return TestHelpers.V2_AND_ABOVE;
   }
 
   protected abstract ScanT newScan(Table table);

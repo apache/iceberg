@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -112,7 +113,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     BoundTerm<T> bound = term().bind(struct, caseSensitive);
 
     if (literals == null) {
-      return bindUnaryOperation(bound);
+      return bindUnaryOperation(struct, bound);
     }
 
     if (op() == Operation.IN || op() == Operation.NOT_IN) {
@@ -122,17 +123,19 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     return bindLiteralOperation(bound);
   }
 
-  private Expression bindUnaryOperation(BoundTerm<T> boundTerm) {
+  private Expression bindUnaryOperation(StructType struct, BoundTerm<T> boundTerm) {
     switch (op()) {
       case IS_NULL:
-        if (!boundTerm.producesNull()) {
+        if (!boundTerm.producesNull()
+            && allAncestorFieldsAreRequired(struct, boundTerm.ref().fieldId())) {
           return Expressions.alwaysFalse();
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysTrue();
         }
         return new BoundUnaryPredicate<>(Operation.IS_NULL, boundTerm);
       case NOT_NULL:
-        if (!boundTerm.producesNull()) {
+        if (!boundTerm.producesNull()
+            && allAncestorFieldsAreRequired(struct, boundTerm.ref().fieldId())) {
           return Expressions.alwaysTrue();
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysFalse();
@@ -153,6 +156,11 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       default:
         throw new ValidationException("Operation must be IS_NULL, NOT_NULL, IS_NAN, or NOT_NAN");
     }
+  }
+
+  private boolean allAncestorFieldsAreRequired(StructType struct, int fieldId) {
+    return TypeUtil.ancestorFields(struct.asSchema(), fieldId).stream()
+        .allMatch(Types.NestedField::isRequired);
   }
 
   private boolean floatingType(Type.TypeID typeID) {

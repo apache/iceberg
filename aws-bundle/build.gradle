@@ -53,7 +53,9 @@ project(":iceberg-aws-bundle") {
     }
 
     dependencies {
-      exclude(dependency('org.slf4j:slf4j-api'))
+      exclude(dependency('org.slf4j:.*'))
+      exclude(dependency('org.apache.logging.log4j:.*'))
+      exclude(dependency('org.apache.logging.slf4j:.*'))
     }
 
     // relocate AWS-specific versions

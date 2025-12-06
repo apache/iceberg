@@ -41,7 +41,6 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
-import org.apache.parquet.schema.Type;
 
 public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
@@ -59,21 +58,9 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     return INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
-  /**
-   * Create a struct reader.
-   *
-   * @deprecated will be removed in 1.10.0; use {@link #createStructReader(List, StructType)}
-   *     instead.
-   */
-  @Deprecated
-  protected ParquetValueReader<Record> createStructReader(
-      List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return ParquetValueReaders.recordReader(fieldReaders, structType);
-  }
-
   @Override
   protected ParquetValueReader<Record> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, StructType structType) {
+      List<ParquetValueReader<?>> fieldReaders, StructType structType, Integer fieldId) {
     return ParquetValueReaders.recordReader(fieldReaders, structType);
   }
 

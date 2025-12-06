@@ -56,11 +56,11 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
-import org.apache.iceberg.actions.SizeBasedDataRewriter;
-import org.apache.iceberg.actions.SizeBasedFileRewriter;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.deletes.DeleteGranularity;
@@ -74,6 +74,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.FourColumnRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -169,7 +170,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
 
     int expectedDeleteFilesCount = deleteGranularity == DeleteGranularity.FILE ? 2 : 1;
@@ -194,7 +195,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
     assertThat(newDeleteFiles).as("New delete files").hasSize(1);
@@ -228,8 +229,10 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Long.toString(Long.MAX_VALUE - 1))
             .execute();
 
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
@@ -273,8 +276,10 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .filter(filter)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Long.toString(Long.MAX_VALUE - 1))
             .execute();
 
     List<DeleteFile> newDeleteFiles = except(deleteFiles(table), deleteFiles);
@@ -325,8 +330,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, String.valueOf(avgSize / 2))
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES, String.valueOf(avgSize / 2))
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
     assertThat(newDeleteFiles).as("New delete files").hasSize(8);
@@ -365,13 +370,13 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     SparkActions.get(spark)
         .rewriteDataFiles(table)
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .execute();
 
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
     assertThat(newDeleteFiles).as("New delete files").isEmpty();
@@ -418,7 +423,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     RewriteDataFiles.Result result =
         SparkActions.get(spark)
             .rewriteDataFiles(validationCatalog.loadTable(tableIdent))
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
 
@@ -462,8 +467,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         SparkActions.get(spark)
             .rewriteDataFiles(validationCatalog.loadTable(tableIdent))
             .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
-            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
-            .option(SizeBasedDataRewriter.DELETE_RATIO_THRESHOLD, "1.0")
+            .option(BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "0")
+            .option(BinPackRewriteFilePlanner.DELETE_RATIO_THRESHOLD, "1.0")
             .execute();
 
     Set<DeleteFile> deleteFilesAfter =
@@ -496,13 +501,13 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     SparkActions.get(spark)
         .rewriteDataFiles(table)
         .filter(filter)
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .execute();
 
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
     assertThat(newDeleteFiles).as("New delete files").hasSize(2);
@@ -548,7 +553,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     SparkActions.get(spark)
         .rewriteDataFiles(table)
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .execute();
 
     Expression filter = Expressions.or(Expressions.equal("c1", 0), Expressions.equal("c1", 1));
@@ -556,8 +561,10 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .filter(filter)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Long.toString(Long.MAX_VALUE - 1))
             .execute();
 
     List<DeleteFile> newDeleteFiles = except(deleteFiles(table), deleteFiles);
@@ -609,7 +616,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
 
     List<DeleteFile> rewrittenDeleteFiles =
@@ -660,7 +667,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
     assertThat(newDeleteFiles).as("New delete files").hasSize(3);
@@ -707,7 +714,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
 
     List<DeleteFile> rewrittenDeleteFiles =
@@ -738,7 +745,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
             .snapshotProperty("key", "value")
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
     assertThat(table.currentSnapshot().summary())
         .containsAllEntriesOf(ImmutableMap.of("key", "value"));
@@ -803,8 +810,10 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .option(SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Long.toString(Long.MAX_VALUE - 1))
             .execute();
 
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
@@ -841,7 +850,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Result result =
         SparkActions.get(spark)
             .rewritePositionDeletes(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .execute();
     assertThat(result.rewrittenDeleteFilesCount()).isEqualTo(2);
     assertThat(result.addedDeleteFilesCount()).isEqualTo(2);
@@ -857,9 +866,12 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     return spark
         .read()
         .format("iceberg")
+        .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+        .option(SparkReadOptions.FILE_OPEN_COST, 0)
         .load(name(table) + ".position_deletes")
         .select("file_path", "delete_file_path")
         .where(col("delete_file_path").endsWith(".puffin"))
+        .coalesce(1)
         .distinct()
         .collectAsList();
   }
@@ -980,7 +992,15 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
   private List<Object[]> records(Table table) {
     return rowsToJava(
-        spark.read().format("iceberg").load(name(table)).sort("c1", "c2", "c3").collectAsList());
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
+            .load(name(table))
+            .coalesce(1)
+            .sort("c1", "c2", "c3")
+            .collectAsList());
   }
 
   private List<Object[]> deleteRecords(Table table) {
@@ -996,8 +1016,11 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         spark
             .read()
             .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+            .option(SparkReadOptions.FILE_OPEN_COST, 0)
             .load(name(table) + ".position_deletes")
             .select("file_path", additionalFields)
+            .coalesce(1)
             .sort("file_path", "pos")
             .collectAsList());
   }
@@ -1096,7 +1119,12 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
   private void assertLocallySorted(List<DeleteFile> deleteFiles) {
     for (DeleteFile deleteFile : deleteFiles) {
       Dataset<Row> deletes =
-          spark.read().format("iceberg").load("default." + TABLE_NAME + ".position_deletes");
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.FILE_OPEN_COST, 0)
+              .option(SparkReadOptions.SPLIT_SIZE, 1024 * 1024 * 64)
+              .load("default." + TABLE_NAME + ".position_deletes");
       deletes.filter(deletes.col("delete_file_path").equalTo(deleteFile.location()));
       List<Row> rows = deletes.collectAsList();
       assertThat(rows).as("Empty delete file found").isNotEmpty();

@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -61,7 +62,7 @@ public class IcebergSinkTask extends SinkTask {
 
   private void close() {
     if (committer != null) {
-      committer.close(context.assignment());
+      committer.close(List.of());
       committer = null;
     }
 

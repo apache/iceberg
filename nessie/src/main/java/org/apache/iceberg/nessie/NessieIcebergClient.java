@@ -270,6 +270,16 @@ public class NessieIcebergClient implements AutoCloseable {
       } else {
         org.projectnessie.model.Namespace root =
             org.projectnessie.model.Namespace.of(namespace.levels());
+        Content existing =
+            api.getContent()
+                .reference(getReference())
+                .key(root.toContentKey())
+                .get()
+                .get(root.toContentKey());
+        if (existing == null) {
+          throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+        }
+
         filter +=
             String.format(
                 Locale.ROOT,

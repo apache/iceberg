@@ -84,6 +84,12 @@ public class BaseDVFileWriter implements DVFileWriter {
       CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
       List<DeleteFile> rewrittenDeleteFiles = Lists.newArrayList();
 
+      // Only create PuffinWriter if there are deletes to write
+      if (deletesByPath.isEmpty()) {
+        this.result = new DeleteWriteResult(dvs, referencedDataFiles, rewrittenDeleteFiles);
+        return;
+      }
+
       PuffinWriter writer = newWriter();
 
       try (PuffinWriter closeableWriter = writer) {

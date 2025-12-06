@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.nio.ByteBuffer;
+import java.util.Map;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
@@ -38,15 +42,13 @@ public class TestFlinkWriterMetrics extends TestWriterMetrics<RowData> {
         .dataSchema(sourceTable.schema())
         .dataFileFormat(fileFormat)
         .deleteFileFormat(fileFormat)
-        .positionDeleteRowSchema(sourceTable.schema())
         .build();
   }
 
   @Override
   protected RowData toRow(Integer id, String data, boolean boolValue, Long longValue) {
     GenericRowData nested = GenericRowData.of(boolValue, longValue);
-    GenericRowData row = GenericRowData.of(id, StringData.fromString(data), nested);
-    return row;
+    return GenericRowData.of(id, StringData.fromString(data), nested);
   }
 
   @Override
@@ -56,5 +58,15 @@ public class TestFlinkWriterMetrics extends TestWriterMetrics<RowData> {
       row.setField(i, value);
     }
     return row;
+  }
+
+  @Override
+  protected void checkRowStatistics(Map<Integer, ByteBuffer> bounds) {
+    assertThat(bounds).hasSize(2);
+  }
+
+  @Override
+  protected void checkNotExistingRowStatistics(Map<Integer, ByteBuffer> bounds) {
+    assertThat(bounds).isNull();
   }
 }

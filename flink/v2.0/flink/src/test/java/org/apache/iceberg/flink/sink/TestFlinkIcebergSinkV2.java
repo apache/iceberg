@@ -109,7 +109,9 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA).table(table)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
 
     // Use schema identifier field IDs as equality field id list by default
     assertThat(builder.checkAndGetEqualityFieldIds())
@@ -165,15 +167,21 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   }
 
   @TestTemplate
-  public void testUpsertModeCheck() throws Exception {
+  public void testUpsertModeCheck() {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .tableLoader(tableLoader)
-            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-            .writeParallelism(parallelism)
-            .upsert(true);
+        isTableSchema
+            ? FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .tableLoader(tableLoader)
+                .tableSchema(SimpleDataUtil.FLINK_TABLE_SCHEMA)
+                .writeParallelism(parallelism)
+                .upsert(true)
+            : FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+                .tableLoader(tableLoader)
+                .resolvedSchema(SimpleDataUtil.FLINK_SCHEMA)
+                .writeParallelism(parallelism)
+                .upsert(true);
 
     assertThatThrownBy(
             () ->

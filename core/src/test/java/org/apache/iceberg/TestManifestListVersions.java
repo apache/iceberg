@@ -33,6 +33,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -335,8 +336,7 @@ public class TestManifestListVersions {
 
   @Test
   public void testManifestsWithoutRowStats() throws IOException {
-    File manifestListFile = File.createTempFile("manifest-list", ".avro", temp.toFile());
-    assertThat(manifestListFile.delete()).isTrue();
+    File manifestListFile = temp.resolve("manifest-list" + System.nanoTime() + ".avro").toFile();
 
     Collection<String> columnNamesWithoutRowStats =
         ImmutableList.of(
@@ -456,6 +456,7 @@ public class TestManifestListVersions {
         ManifestLists.write(
             formatVersion,
             outputFile,
+            PlaintextEncryptionManager.instance(),
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
             formatVersion > 1 ? SEQ_NUM : 0,

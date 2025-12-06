@@ -185,12 +185,14 @@ public interface Snapshot extends Serializable {
   }
 
   /**
-   * The total number of newly added rows in this snapshot. It should be the summation of {@link
-   * ManifestFile#ADDED_ROWS_COUNT} for every manifest added in this snapshot.
+   * The upper bound of number of rows with assigned row IDs in this snapshot. It can be used safely
+   * to increment the table's `next-row-id` during a commit. It can be more than the number of rows
+   * added in this snapshot and include some existing rows.
    *
    * <p>This field is optional but is required when the table version supports row lineage.
    *
-   * @return the total number of new rows in this snapshot or null if the value was not stored.
+   * @return the upper bound of number of rows with assigned row IDs in this snapshot or null if the
+   *     value was not stored.
    */
   default Long addedRows() {
     return null;

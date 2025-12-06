@@ -28,7 +28,9 @@ import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
@@ -113,6 +115,37 @@ public class TestParquetSchemaUtil {
                             "m2",
                             Types.MapType.ofOptional(
                                 28, 29, Types.StringType.get(), SUPPORTED_PRIMITIVES))))));
+
+    Schema schema =
+        new Schema(
+            TypeUtil.assignFreshIds(structType, new AtomicInteger(0)::incrementAndGet)
+                .asStructType()
+                .fields());
+    NameMapping nameMapping = MappingUtil.create(schema);
+    MessageType messageTypeWithIds = ParquetSchemaUtil.convert(schema, "parquet_type");
+    MessageType messageTypeWithIdsFromNameMapping =
+        ParquetSchemaUtil.applyNameMapping(RemoveIds.removeIds(messageTypeWithIds), nameMapping);
+
+    assertThat(messageTypeWithIdsFromNameMapping).isEqualTo(messageTypeWithIds);
+  }
+
+  @Test
+  public void testAssignIdsToVariantTypesByNameMapping() {
+    Types.StructType structType =
+        Types.StructType.of(
+            optional(30, "variant_col", Types.VariantType.get()),
+            optional(
+                31,
+                "struct_with_variant",
+                Types.StructType.of(
+                    Types.NestedField.required(32, "id", Types.IntegerType.get()),
+                    Types.NestedField.optional(33, "data", Types.VariantType.get()))),
+            required(
+                34, "list_of_variants", Types.ListType.ofOptional(35, Types.VariantType.get())),
+            required(
+                36,
+                "map_with_variant_value",
+                Types.MapType.ofOptional(37, 38, Types.StringType.get(), Types.VariantType.get())));
 
     Schema schema =
         new Schema(
@@ -257,6 +290,47 @@ public class TestParquetSchemaUtil {
                 "map_col_5",
                 Types.MapType.ofRequired(
                     28, 29, Types.IntegerType.get(), Types.IntegerType.get())));
+
+    Schema actualSchema = ParquetSchemaUtil.convertAndPrune(messageType);
+    assertThat(actualSchema.asStruct())
+        .as("Schema must match")
+        .isEqualTo(expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testVariantTypesWithoutAssigningIds() {
+    MessageType messageType =
+        new MessageType(
+            "test",
+            variant(30, "variant_col_1", Repetition.OPTIONAL),
+            variant(null, "variant_col_2", Repetition.REQUIRED),
+            struct(
+                31,
+                "struct_col_3",
+                Repetition.REQUIRED,
+                primitive(32, "n1", PrimitiveTypeName.INT32, Repetition.REQUIRED),
+                variant(null, "variant_field", Repetition.OPTIONAL)),
+            list(33, "list_col_6", Repetition.OPTIONAL, variant(34, "v", Repetition.OPTIONAL)),
+            map(
+                35,
+                "map_col_6",
+                Repetition.REQUIRED,
+                primitive(36, "k", PrimitiveTypeName.INT32, Repetition.REQUIRED),
+                variant(37, "v", Repetition.OPTIONAL)));
+
+    Schema expectedSchema =
+        new Schema(
+            optional(30, "variant_col_1", Types.VariantType.get()),
+            required(
+                31,
+                "struct_col_3",
+                Types.StructType.of(required(32, "n1", Types.IntegerType.get()))),
+            optional(33, "list_col_6", Types.ListType.ofOptional(34, Types.VariantType.get())),
+            required(
+                35,
+                "map_col_6",
+                Types.MapType.ofOptional(
+                    36, 37, Types.IntegerType.get(), Types.VariantType.get())));
 
     Schema actualSchema = ParquetSchemaUtil.convertAndPrune(messageType);
     assertThat(actualSchema.asStruct())
@@ -459,6 +533,20 @@ public class TestParquetSchemaUtil {
     MapBuilder<GroupType> builder = org.apache.parquet.schema.Types.map(repetition);
     builder.key(keyType);
     builder.value(valueType);
+    if (id != null) {
+      builder.id(id);
+    }
+    return builder.named(name);
+  }
+
+  private Type variant(Integer id, String name, Repetition repetition) {
+    GroupBuilder<GroupType> builder =
+        org.apache.parquet.schema.Types.buildGroup(repetition)
+            .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
+            .primitive(PrimitiveTypeName.BINARY, Repetition.REQUIRED)
+            .named("metadata")
+            .primitive(PrimitiveTypeName.BINARY, Repetition.REQUIRED)
+            .named("value");
     if (id != null) {
       builder.id(id);
     }

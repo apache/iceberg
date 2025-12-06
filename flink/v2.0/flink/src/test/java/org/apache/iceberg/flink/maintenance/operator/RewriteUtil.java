@@ -27,6 +27,7 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -47,7 +48,8 @@ class RewriteUtil {
                     tableLoader,
                     11,
                     10_000_000L,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2")))) {
+                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                    Expressions.alwaysTrue()))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

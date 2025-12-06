@@ -54,7 +54,7 @@ public class TableMetadata implements Serializable {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
-  static final int SUPPORTED_TABLE_FORMAT_VERSION = 3;
+  static final int SUPPORTED_TABLE_FORMAT_VERSION = 4;
   static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
@@ -576,16 +576,6 @@ public class TableMetadata implements Serializable {
     return new Builder(this).assignUUID().build();
   }
 
-  /**
-   * Whether row lineage is enabled.
-   *
-   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
-   */
-  @Deprecated
-  public boolean rowLineageEnabled() {
-    return formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE;
-  }
-
   public long nextRowId() {
     return nextRowId;
   }
@@ -1017,22 +1007,6 @@ public class TableMetadata implements Serializable {
       this.nextRowId = base.nextRowId;
     }
 
-    /**
-     * Enables row lineage in v3 tables.
-     *
-     * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
-     */
-    @Deprecated
-    public Builder enableRowLineage() {
-      if (formatVersion < MIN_FORMAT_VERSION_ROW_LINEAGE) {
-        throw new UnsupportedOperationException(
-            "Cannot enable row lineage for format-version=" + formatVersion);
-      }
-
-      // otherwise this is a no-op
-      return this;
-    }
-
     public Builder withMetadataLocation(String newMetadataLocation) {
       this.metadataLocation = newMetadataLocation;
       if (null != base) {
@@ -1450,24 +1424,18 @@ public class TableMetadata implements Serializable {
     private Builder rewriteSnapshotsInternal(Collection<Long> idsToRemove, boolean suppress) {
       List<Snapshot> retainedSnapshots =
           Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
-      Set<Long> snapshotIdsToRemove = Sets.newHashSet();
-
       for (Snapshot snapshot : snapshots) {
         long snapshotId = snapshot.snapshotId();
         if (idsToRemove.contains(snapshotId)) {
           snapshotsById.remove(snapshotId);
           if (!suppress) {
-            snapshotIdsToRemove.add(snapshotId);
+            changes.add(new MetadataUpdate.RemoveSnapshots(snapshotId));
           }
           removeStatistics(snapshotId);
           removePartitionStatistics(snapshotId);
         } else {
           retainedSnapshots.add(snapshot);
         }
-      }
-
-      if (!snapshotIdsToRemove.isEmpty()) {
-        changes.add(new MetadataUpdate.RemoveSnapshots(snapshotIdsToRemove));
       }
 
       this.snapshots = retainedSnapshots;
@@ -1882,11 +1850,7 @@ public class TableMetadata implements Serializable {
       Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
       boolean hasIntermediateSnapshots = !intermediateSnapshotIds.isEmpty();
       boolean hasRemovedSnapshots =
-          changes.stream()
-              .anyMatch(
-                  change ->
-                      change instanceof MetadataUpdate.RemoveSnapshots
-                          || change instanceof MetadataUpdate.RemoveSnapshot);
+          changes.stream().anyMatch(change -> change instanceof MetadataUpdate.RemoveSnapshots);
 
       if (!hasIntermediateSnapshots && !hasRemovedSnapshots) {
         return snapshotLog;

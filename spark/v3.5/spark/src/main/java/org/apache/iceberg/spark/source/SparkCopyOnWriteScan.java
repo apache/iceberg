@@ -111,6 +111,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     return estimateStatistics(snapshot);
   }
 
+  @Override
   public NamedReference[] filterAttributes() {
     NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
     return new NamedReference[] {file};

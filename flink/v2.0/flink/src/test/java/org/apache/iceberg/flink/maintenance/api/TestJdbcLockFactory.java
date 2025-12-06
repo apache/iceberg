@@ -19,31 +19,15 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import static org.apache.iceberg.flink.maintenance.api.JdbcLockFactory.INIT_LOCK_TABLES_PROPERTY;
-import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.jupiter.api.Test;
 
 class TestJdbcLockFactory extends TestLockFactoryBase {
   @Override
-  TriggerLockFactory lockFactory() {
-    return lockFactory("tableName");
-  }
-
-  @Test
-  void testMultiTableLock() {
-    JdbcLockFactory other = lockFactory("tableName2");
-    other.open((JdbcLockFactory) this.lockFactory);
-    TriggerLockFactory.Lock lock1 = lockFactory.createLock();
-    TriggerLockFactory.Lock lock2 = other.createLock();
-    assertThat(lock1.tryLock()).isTrue();
-    assertThat(lock2.tryLock()).isTrue();
-  }
-
-  private JdbcLockFactory lockFactory(String tableName) {
+  TriggerLockFactory lockFactory(String tableName) {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");

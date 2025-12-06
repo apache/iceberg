@@ -293,11 +293,10 @@ public interface ViewMetadata extends Serializable {
         return newVersionId;
       }
 
-      if (newVersion.schemaId() == LAST_ADDED) {
+      if (version.schemaId() == LAST_ADDED) {
         ValidationException.check(
             lastAddedSchemaId != null, "Cannot set last added schema: no schema has been added");
-        version =
-            ImmutableViewVersion.builder().from(newVersion).schemaId(lastAddedSchemaId).build();
+        version = ImmutableViewVersion.builder().from(version).schemaId(lastAddedSchemaId).build();
       }
 
       Preconditions.checkArgument(

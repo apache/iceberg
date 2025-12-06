@@ -53,6 +53,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
   private static final byte TIMESTAMPNTZ_NANOS_HEADER =
       VariantUtil.primitiveHeader(Primitives.TYPE_TIMESTAMPNTZ_NANOS);
   private static final byte UUID_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_UUID);
+  private static final int MAX_SHORT_STRING_LENGTH = 63;
 
   private final PhysicalType type;
   private final T value;
@@ -114,7 +115,9 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
         }
-
+        if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
+          return 1 + buffer.remaining(); // 1 header + value length
+        }
         return 5 + buffer.remaining(); // 1 header + 4 length + value length
       case UUID:
         return 1 + 16; // 1 header + 16 length
@@ -208,15 +211,19 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, binary);
         return 5 + binary.remaining();
       case STRING:
-        // TODO: use short string when possible
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
         }
-
-        outBuffer.put(offset, STRING_HEADER);
-        outBuffer.putInt(offset + 1, buffer.remaining());
-        VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, buffer);
-        return 5 + buffer.remaining();
+        if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
+          outBuffer.put(offset, VariantUtil.shortStringHeader(buffer.remaining()));
+          VariantUtil.writeBufferAbsolute(outBuffer, offset + 1, buffer);
+          return 1 + buffer.remaining();
+        } else {
+          outBuffer.put(offset, STRING_HEADER);
+          outBuffer.putInt(offset + 1, buffer.remaining());
+          VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, buffer);
+          return 5 + buffer.remaining();
+        }
       case TIME:
         outBuffer.put(offset, TIME_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);

@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
 import org.apache.flink.core.execution.JobClient;
@@ -33,6 +34,7 @@ import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.SinkTransformation;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.iceberg.DataFile;
@@ -43,10 +45,12 @@ import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -83,8 +87,13 @@ public class OperatorTestBase {
 
   static final long EVENT_TIME = 10L;
   static final long EVENT_TIME_2 = 11L;
+  static final Watermark WATERMARK = new Watermark(EVENT_TIME);
   protected static final String DUMMY_TASK_NAME = "dummyTask";
   protected static final String DUMMY_TABLE_NAME = "dummyTable";
+
+  static final String FILE_NAME_1 = "fileName1";
+  static final String FILE_NAME_2 = "fileName2";
+  static final Watermark WATERMARK_2 = new Watermark(EVENT_TIME_2);
 
   @RegisterExtension
   protected static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
@@ -115,6 +124,10 @@ public class OperatorTestBase {
   }
 
   protected static Table createTable() {
+    return createTable(2);
+  }
+
+  protected static Table createTable(int formatVersion) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -122,10 +135,18 @@ public class OperatorTestBase {
             SimpleDataUtil.SCHEMA,
             PartitionSpec.unpartitioned(),
             null,
-            ImmutableMap.of("flink.max-continuous-empty-commits", "100000"));
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION,
+                String.valueOf(formatVersion),
+                "flink.max-continuous-empty-commits",
+                "100000"));
   }
 
   protected static Table createTableWithDelete() {
+    return createTableWithDelete(2);
+  }
+
+  protected static Table createTableWithDelete(int formatVersion) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -133,10 +154,11 @@ public class OperatorTestBase {
             SCHEMA_WITH_PRIMARY_KEY,
             PartitionSpec.unpartitioned(),
             null,
-            ImmutableMap.of("format-version", "2", "write.upsert.enabled", "true"));
+            ImmutableMap.of(
+                "format-version", String.valueOf(formatVersion), "write.upsert.enabled", "true"));
   }
 
-  protected static Table createPartitionedTable() {
+  protected static Table createPartitionedTable(int formatVersion) {
     return CATALOG_EXTENSION
         .catalog()
         .createTable(
@@ -144,12 +166,31 @@ public class OperatorTestBase {
             SimpleDataUtil.SCHEMA,
             PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build(),
             null,
-            ImmutableMap.of("flink.max-continuous-empty-commits", "100000"));
+            ImmutableMap.of(
+                "format-version",
+                String.valueOf(formatVersion),
+                "flink.max-continuous-empty-commits",
+                "100000"));
+  }
+
+  protected static Table createPartitionedTable() {
+    return createPartitionedTable(2);
   }
 
   protected void insert(Table table, Integer id, String data) throws IOException {
     new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
         .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data)));
+    table.refresh();
+  }
+
+  protected void insert(Table table, List<Record> records) throws IOException {
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir).appendToTable(records);
+    table.refresh();
+  }
+
+  protected void insert(Table table, Integer id, String data, String extra) throws IOException {
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+        .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data, extra)));
     table.refresh();
   }
 
@@ -185,6 +226,35 @@ public class OperatorTestBase {
    * @param oldData the old data to be deleted
    * @param tempData the temp data to be inserted and deleted with a position delete
    * @param newData the new data to be inserted
+   * @param formatVersion the format version to use
+   */
+  protected void update(
+      Table table, Integer id, String oldData, String tempData, String newData, int formatVersion)
+      throws IOException {
+    DataFile dataFile =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+            .writeFile(
+                Lists.newArrayList(
+                    SimpleDataUtil.createRecord(id, tempData),
+                    SimpleDataUtil.createRecord(id, newData)));
+    DeleteFile eqDelete = writeEqualityDelete(table, id, oldData);
+    DeleteFile posDelete = writePosDelete(table, dataFile.path(), 0, id, tempData, formatVersion);
+
+    table.newRowDelta().addRows(dataFile).addDeletes(eqDelete).addDeletes(posDelete).commit();
+  }
+
+  /**
+   * For the same identifier column id this methods simulate the following row operations: <tr>
+   * <li>add an equality delete on oldData
+   * <li>insert tempData
+   * <li>add a position delete on tempData
+   * <li>insert newData </tr>
+   *
+   * @param table to modify
+   * @param id the identifier column id
+   * @param oldData the old data to be deleted
+   * @param tempData the temp data to be inserted and deleted with a position delete
+   * @param newData the new data to be inserted
    */
   protected void update(Table table, Integer id, String oldData, String tempData, String newData)
       throws IOException {
@@ -195,7 +265,7 @@ public class OperatorTestBase {
                     SimpleDataUtil.createRecord(id, tempData),
                     SimpleDataUtil.createRecord(id, newData)));
     DeleteFile eqDelete = writeEqualityDelete(table, id, oldData);
-    DeleteFile posDelete = writePosDelete(table, dataFile.path(), 0, id, tempData);
+    DeleteFile posDelete = writePosDelete(table, dataFile.path(), 0, id, tempData, 2);
 
     table.newRowDelta().addRows(dataFile).addDeletes(eqDelete).addDeletes(posDelete).commit();
   }
@@ -212,6 +282,13 @@ public class OperatorTestBase {
         .appendToTable(
             TestHelpers.Row.of(data, id),
             Lists.newArrayList(SimpleDataUtil.createRecord(id, data)));
+    table.refresh();
+  }
+
+  protected void insertPartitioned(Table table, List<Record> records, String partition)
+      throws IOException {
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+        .appendToTable(TestHelpers.Row.of(partition), records);
     table.refresh();
   }
 
@@ -310,7 +387,8 @@ public class OperatorTestBase {
   }
 
   private DeleteFile writePosDelete(
-      Table table, CharSequence path, Integer pos, Integer id, String oldData) throws IOException {
+      Table table, CharSequence path, Integer pos, Integer id, String oldData, int formatVersion)
+      throws IOException {
     File file = File.createTempFile("junit", null, warehouseDir.toFile());
     assertThat(file.delete()).isTrue();
     PositionDelete<GenericRecord> posDelete = PositionDelete.create();
@@ -319,7 +397,7 @@ public class OperatorTestBase {
     nested.set(1, oldData);
     posDelete.set(path, pos, nested);
     return FileHelpers.writePosDeleteFile(
-        table, Files.localOutput(file), null, Lists.newArrayList(posDelete));
+        table, Files.localOutput(file), null, Lists.newArrayList(posDelete), formatVersion);
   }
 
   static void trigger(OneInputStreamOperatorTestHarness<Trigger, ?> harness) throws Exception {

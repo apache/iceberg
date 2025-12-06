@@ -240,7 +240,7 @@ public class TestEvaluator {
 
   @Test
   public void testEqual() {
-    assertThat(equal("x", 5).literals().size()).isEqualTo(1);
+    assertThat(equal("x", 5).literals()).hasSize(1);
 
     Evaluator evaluator = new Evaluator(STRUCT, equal("x", 7));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 == 7 => true").isTrue();
@@ -271,7 +271,7 @@ public class TestEvaluator {
 
   @Test
   public void testNotEqual() {
-    assertThat(notEqual("x", 5).literals().size()).isEqualTo(1);
+    assertThat(notEqual("x", 5).literals()).hasSize(1);
 
     Evaluator evaluator = new Evaluator(STRUCT, notEqual("x", 7));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 != 7 => false").isFalse();

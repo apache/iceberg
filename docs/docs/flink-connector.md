@@ -63,7 +63,6 @@ CREATE TABLE flink_table (
 !!! info
     The underlying catalog database (`hive_db` in the above example) will be created automatically if it does not exist when writing records into the Flink table.
 
-
 ## Table managed in hadoop catalog
 
 The following SQL will create a Flink table in current Flink catalog, which maps to the iceberg table `default_database.flink_table` managed in hadoop catalog.

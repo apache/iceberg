@@ -196,7 +196,7 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -220,7 +220,7 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -244,7 +244,7 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -273,7 +273,7 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -302,7 +302,7 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when Min == X == Max
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -338,7 +338,7 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when X < Min or Max < X because it is not in the range
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -375,7 +375,7 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -415,7 +415,7 @@ public class StrictMetricsEvaluator {
 
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }

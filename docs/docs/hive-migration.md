@@ -27,7 +27,7 @@ the migration process essentially involves creating a new Iceberg table with the
 After the initial migration, any new data files are added to the new Iceberg table using the Add Files action.
 
 ## Enabling Migration from Hive to Iceberg
-The Hive table migration actions are supported by the Spark Integration module via Spark Procedures. 
+The Hive table migration actions are supported by the Spark Integration module via Spark Procedures.
 The procedures are bundled in the Spark runtime jar, which is available in the [Iceberg Release Downloads](../../releases.md#downloads).
 
 ## Snapshot Hive Table to Iceberg

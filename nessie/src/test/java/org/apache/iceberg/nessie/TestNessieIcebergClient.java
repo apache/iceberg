@@ -98,7 +98,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     // just create a new commit on the branch and then delete & re-create it
     Namespace namespace = Namespace.of("a");
     client.createNamespace(namespace, ImmutableMap.of());
-    assertThat(client.listNamespaces(namespace)).isNotNull();
+    assertThat(client.listNamespaces(namespace)).isEmpty();
     client
         .getApi()
         .deleteBranch()
@@ -123,7 +123,8 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
 
     client.createNamespace(Namespace.of("a"), Map.of());
-    assertThat(client.listNamespaces(Namespace.of("a"))).isNotNull();
+    assertThat(client.listNamespaces(Namespace.of("a"))).isEmpty();
+    assertThat(client.listNamespaces(Namespace.empty())).containsOnly(Namespace.of("a"));
 
     List<LogResponse.LogEntry> entries = api.getCommitLog().refName(branch).get().getLogEntries();
     assertThat(entries)

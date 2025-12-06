@@ -38,7 +38,6 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopTableExtension;
@@ -61,8 +60,6 @@ public class TestColumnStatsWatermarkExtractor {
           required(2, "timestamptz_column", Types.TimestampType.withZone()),
           required(3, "long_column", Types.LongType.get()),
           required(4, "string_column", Types.StringType.get()));
-
-  private static final GenericAppenderFactory APPENDER_FACTORY = new GenericAppenderFactory(SCHEMA);
 
   private static final List<List<Record>> TEST_RECORDS =
       ImmutableList.of(
@@ -131,7 +128,7 @@ public class TestColumnStatsWatermarkExtractor {
     IcebergSourceSplit combinedSplit =
         IcebergSourceSplit.fromCombinedScanTask(
             ReaderUtil.createCombinedScanTask(
-                TEST_RECORDS, temporaryFolder, FileFormat.PARQUET, APPENDER_FACTORY));
+                TEST_RECORDS, temporaryFolder, FileFormat.PARQUET, SCHEMA));
 
     ColumnStatsWatermarkExtractor extractor =
         new ColumnStatsWatermarkExtractor(SCHEMA, columnName, null);
@@ -168,9 +165,6 @@ public class TestColumnStatsWatermarkExtractor {
   private IcebergSourceSplit split(int id) throws IOException {
     return IcebergSourceSplit.fromCombinedScanTask(
         ReaderUtil.createCombinedScanTask(
-            ImmutableList.of(TEST_RECORDS.get(id)),
-            temporaryFolder,
-            FileFormat.PARQUET,
-            APPENDER_FACTORY));
+            ImmutableList.of(TEST_RECORDS.get(id)), temporaryFolder, FileFormat.PARQUET, SCHEMA));
   }
 }

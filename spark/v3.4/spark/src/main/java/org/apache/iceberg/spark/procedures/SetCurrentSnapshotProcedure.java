@@ -43,12 +43,15 @@ import org.apache.spark.sql.types.StructType;
  */
 class SetCurrentSnapshotProcedure extends BaseProcedure {
 
+  private static final ProcedureParameter TABLE_PARAM =
+      requiredInParameter("table", DataTypes.StringType);
+  private static final ProcedureParameter SNAPSHOT_ID_PARAM =
+      optionalInParameter("snapshot_id", DataTypes.LongType);
+  private static final ProcedureParameter REF_PARAM =
+      optionalInParameter("ref", DataTypes.StringType);
+
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("snapshot_id", DataTypes.LongType),
-        ProcedureParameter.optional("ref", DataTypes.StringType)
-      };
+      new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM, REF_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -82,9 +85,10 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    Long snapshotId = args.isNullAt(1) ? null : args.getLong(1);
-    String ref = args.isNullAt(2) ? null : args.getString(2);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+    Identifier tableIdent = input.ident(TABLE_PARAM);
+    Long snapshotId = input.asLong(SNAPSHOT_ID_PARAM, null);
+    String ref = input.asString(REF_PARAM, null);
     Preconditions.checkArgument(
         (snapshotId != null && ref == null) || (snapshotId == null && ref != null),
         "Either snapshot_id or ref must be provided, not both");
@@ -110,7 +114,7 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
 
   private long toSnapshotId(Table table, String refName) {
     SnapshotRef ref = table.refs().get(refName);
-    ValidationException.check(ref != null, "Cannot find matching snapshot ID for ref " + refName);
+    ValidationException.check(ref != null, "Cannot find matching snapshot ID for ref %s", refName);
     return ref.snapshotId();
   }
 }

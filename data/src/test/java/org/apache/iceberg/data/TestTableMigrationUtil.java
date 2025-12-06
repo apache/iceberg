@@ -96,8 +96,7 @@ class TestTableMigrationUtil {
 
   private static void writePartitionFile(File outputDir) throws IOException {
     Iterable<GenericData.Record> records = RandomAvroData.generate(SCHEMA, 1000, 54310);
-    File testFile = File.createTempFile("junit", ".parquet", outputDir);
-    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    File testFile = new File(outputDir, "junit" + System.nanoTime() + ".parquet");
 
     try (FileAppender<GenericData.Record> writer =
         Parquet.write(Files.localOutput(testFile))

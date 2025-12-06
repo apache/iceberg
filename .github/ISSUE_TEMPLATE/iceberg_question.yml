@@ -24,7 +24,10 @@ labels: ["question"]
 body:
   - type: markdown
     attributes:
-      value: "Feel free to ask your question on [Slack](https://join.slack.com/t/apache-iceberg/shared_invite/zt-2561tq9qr-UtISlHgsdY3Virs3Z2_btQ) as well."
+      value: |
+        Feel free to ask your question on [Slack](https://join.slack.com/t/apache-iceberg/shared_invite/zt-2561tq9qr-UtISlHgsdY3Virs3Z2_btQ) as well.
+
+        Do **NOT** share any sensitive information like passwords, security tokens, private URLs etc.
   - type: textarea
     attributes:
       label: Query engine

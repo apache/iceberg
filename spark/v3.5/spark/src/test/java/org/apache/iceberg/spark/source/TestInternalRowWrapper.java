@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.source;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Iterator;
-import org.apache.iceberg.RecordWrapperTest;
+import org.apache.iceberg.RecordWrapperTestBase;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.InternalRecordWrapper;
@@ -33,7 +33,7 @@ import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.jupiter.api.Disabled;
 
-public class TestInternalRowWrapper extends RecordWrapperTest {
+public class TestInternalRowWrapper extends RecordWrapperTestBase {
 
   @Disabled
   @Override

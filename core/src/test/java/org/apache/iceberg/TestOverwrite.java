@@ -30,8 +30,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -109,11 +110,9 @@ public class TestOverwrite extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {1, "main"},
-        new Object[] {1, "testBranch"},
-        new Object[] {2, "main"},
-        new Object[] {2, "testBranch"});
+    return TestHelpers.ALL_VERSIONS.stream()
+        .flatMap(v -> Stream.of(new Object[] {v, "main"}, new Object[] {v, "testBranch"}))
+        .collect(Collectors.toList());
   }
 
   private static ByteBuffer longToBuffer(long value) {

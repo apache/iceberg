@@ -20,14 +20,22 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.net.InetAddress;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -52,26 +60,22 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestPartitionValues {
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false},
-      {"parquet", true},
-      {"avro", false},
-      {"orc", false},
-      {"orc", true}
+      {FileFormat.PARQUET, false},
+      {FileFormat.PARQUET, true},
+      {FileFormat.AVRO, false},
+      {FileFormat.ORC, false},
+      {FileFormat.ORC, true}
     };
   }
 
@@ -102,39 +106,41 @@ public class TestPartitionValues {
 
   private static SparkSession spark = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
-    TestPartitionValues.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestPartitionValues.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestPartitionValues.spark;
     TestPartitionValues.spark = null;
     currentSpark.stop();
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
-  private final String format;
-  private final boolean vectorized;
+  @Parameter(index = 0)
+  private FileFormat format;
 
-  public TestPartitionValues(String format, boolean vectorized) {
-    this.format = format;
-    this.vectorized = vectorized;
-  }
+  @Parameter(index = 1)
+  private boolean vectorized;
 
-  @Test
-  public void testNullPartitionValue() throws Exception {
+  @TestTemplate
+  public void testNullPartitionValue() {
     String desc = "null_part";
-    File parent = temp.newFolder(desc);
+    File parent = new File(temp.toFile(), desc);
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+    assertThat(dataFolder.mkdirs()).as("mkdirs should succeed").isTrue();
 
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
     List<SimpleRecord> expected =
         Lists.newArrayList(
@@ -161,21 +167,20 @@ public class TestPartitionValues {
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testReorderedColumns() throws Exception {
     String desc = "reorder_columns";
-    File parent = temp.newFolder(desc);
+    File parent = new File(temp.toFile(), desc);
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+    assertThat(dataFolder.mkdirs()).as("mkdirs should succeed").isTrue();
 
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
     List<SimpleRecord> expected =
         Lists.newArrayList(
@@ -200,21 +205,20 @@ public class TestPartitionValues {
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testReorderedColumnsNoNullability() throws Exception {
     String desc = "reorder_columns_no_nullability";
-    File parent = temp.newFolder(desc);
+    File parent = new File(temp.toFile(), desc);
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
-    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+    assertThat(dataFolder.mkdirs()).as("mkdirs should succeed").isTrue();
 
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
     List<SimpleRecord> expected =
         Lists.newArrayList(
@@ -240,11 +244,10 @@ public class TestPartitionValues {
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionValueTypes() throws Exception {
     String[] columnNames =
         new String[] {
@@ -254,13 +257,13 @@ public class TestPartitionValues {
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
 
     // create a table around the source data
-    String sourceLocation = temp.newFolder("source_table").toString();
+    String sourceLocation = temp.resolve("source_table").toString();
     Table source = tables.create(SUPPORTED_PRIMITIVES, sourceLocation);
 
     // write out an Avro data file with all of the data types for source data
     List<GenericData.Record> expected = RandomData.generateList(source.schema(), 2, 128735L);
-    File avroData = temp.newFile("data.avro");
-    Assert.assertTrue(avroData.delete());
+    File avroData = File.createTempFile("data", ".avro", temp.toFile());
+    assertThat(avroData.delete()).isTrue();
     try (FileAppender<GenericData.Record> appender =
         Avro.write(Files.localOutput(avroData)).schema(source.schema()).build()) {
       appender.addAll(expected);
@@ -286,15 +289,15 @@ public class TestPartitionValues {
     for (String column : columnNames) {
       String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
 
-      File parent = temp.newFolder(desc);
+      File parent = new File(temp.toFile(), desc);
       File location = new File(parent, "test");
       File dataFolder = new File(location, "data");
-      Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+      assertThat(dataFolder.mkdirs()).as("mkdirs should succeed").isTrue();
 
       PartitionSpec spec = PartitionSpec.builderFor(SUPPORTED_PRIMITIVES).identity(column).build();
 
       Table table = tables.create(SUPPORTED_PRIMITIVES, spec, location.toString());
-      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
       sourceDF
           .write()
@@ -311,7 +314,7 @@ public class TestPartitionValues {
               .load(location.toString())
               .collectAsList();
 
-      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+      assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
 
       for (int i = 0; i < expected.size(); i += 1) {
         TestHelpers.assertEqualsSafe(
@@ -320,7 +323,7 @@ public class TestPartitionValues {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testNestedPartitionValues() throws Exception {
     String[] columnNames =
         new String[] {
@@ -331,13 +334,13 @@ public class TestPartitionValues {
     Schema nestedSchema = new Schema(optional(1, "nested", SUPPORTED_PRIMITIVES.asStruct()));
 
     // create a table around the source data
-    String sourceLocation = temp.newFolder("source_table").toString();
+    String sourceLocation = temp.resolve("source_table").toString();
     Table source = tables.create(nestedSchema, sourceLocation);
 
     // write out an Avro data file with all of the data types for source data
     List<GenericData.Record> expected = RandomData.generateList(source.schema(), 2, 128735L);
-    File avroData = temp.newFile("data.avro");
-    Assert.assertTrue(avroData.delete());
+    File avroData = File.createTempFile("data", ".avro", temp.toFile());
+    assertThat(avroData.delete()).isTrue();
     try (FileAppender<GenericData.Record> appender =
         Avro.write(Files.localOutput(avroData)).schema(source.schema()).build()) {
       appender.addAll(expected);
@@ -363,16 +366,16 @@ public class TestPartitionValues {
     for (String column : columnNames) {
       String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
 
-      File parent = temp.newFolder(desc);
+      File parent = new File(temp.toFile(), desc);
       File location = new File(parent, "test");
       File dataFolder = new File(location, "data");
-      Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+      assertThat(dataFolder.mkdirs()).as("mkdirs should succeed").isTrue();
 
       PartitionSpec spec =
           PartitionSpec.builderFor(nestedSchema).identity("nested." + column).build();
 
       Table table = tables.create(nestedSchema, spec, location.toString());
-      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
       sourceDF
           .write()
@@ -389,7 +392,7 @@ public class TestPartitionValues {
               .load(location.toString())
               .collectAsList();
 
-      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+      assertThat(actual).as("Number of rows should match").hasSameSizeAs(expected);
 
       for (int i = 0; i < expected.size(); i += 1) {
         TestHelpers.assertEqualsSafe(nestedSchema.asStruct(), expected.get(i), actual.get(i));
@@ -403,7 +406,7 @@ public class TestPartitionValues {
    * thrown with the message like: Cannot cast org.apache.spark.unsafe.types.UTF8String to
    * java.lang.CharSequence
    */
-  @Test
+  @TestTemplate
   public void testPartitionedByNestedString() throws Exception {
     // schema and partition spec
     Schema nestedSchema =
@@ -417,7 +420,7 @@ public class TestPartitionValues {
 
     // create table
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
-    String baseLocation = temp.newFolder("partition_by_nested_string").toString();
+    String baseLocation = temp.resolve("partition_by_nested_string").toString();
     tables.create(nestedSchema, spec, baseLocation);
 
     // input data frame
@@ -448,12 +451,12 @@ public class TestPartitionValues {
             .load(baseLocation)
             .collectAsList();
 
-    Assert.assertEquals("Number of rows should match", rows.size(), actual.size());
+    assertThat(actual).as("Number of rows should match").hasSameSizeAs(rows);
   }
 
-  @Test
+  @TestTemplate
   public void testReadPartitionColumn() throws Exception {
-    Assume.assumeTrue("Temporary skip ORC", !"orc".equals(format));
+    assumeThat(format).as("Temporary skip ORC").isNotEqualTo(FileFormat.ORC);
 
     Schema nestedSchema =
         new Schema(
@@ -469,9 +472,9 @@ public class TestPartitionValues {
 
     // create table
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
-    String baseLocation = temp.newFolder("partition_by_nested_string").toString();
+    String baseLocation = temp.resolve("partition_by_nested_string").toString();
     Table table = tables.create(nestedSchema, spec, baseLocation);
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.toString()).commit();
 
     // write into iceberg
     MapFunction<Long, ComplexRecord> func =
@@ -495,10 +498,10 @@ public class TestPartitionValues {
             .as(Encoders.STRING())
             .collectAsList();
 
-    Assert.assertEquals("Number of rows should match", 10, actual.size());
+    assertThat(actual).as("Number of rows should match").hasSize(10);
 
     List<String> inputRecords =
         IntStream.range(0, 10).mapToObj(i -> "name_" + i).collect(Collectors.toList());
-    Assert.assertEquals("Read object should be matched", inputRecords, actual);
+    assertThat(actual).as("Read object should be matched").isEqualTo(inputRecords);
   }
 }

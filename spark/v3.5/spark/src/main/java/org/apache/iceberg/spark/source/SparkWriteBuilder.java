@@ -44,6 +44,7 @@ import org.apache.spark.sql.connector.write.Write;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
 import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StructType;
 
 class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwrite {
@@ -119,13 +120,24 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public Write build() {
     // The write schema should only include row lineage in the output if it's an overwrite
-    // operation.
+    // operation or if it's a compaction.
     // In any other case, only null row IDs and sequence numbers would be produced which
     // means the row lineage columns can be excluded from the output files
-    boolean writeIncludesRowLineage = TableUtil.supportsRowLineage(table) && overwriteFiles;
-    Schema writeSchema =
-        validateOrMergeWriteSchema(table, dsSchema, writeConf, writeIncludesRowLineage);
+    boolean writeRequiresRowLineage =
+        TableUtil.supportsRowLineage(table)
+            && (overwriteFiles || writeConf.rewrittenFileSetId() != null);
+    boolean writeAlreadyIncludesLineage =
+        dsSchema.exists(field -> field.name().equals(MetadataColumns.ROW_ID.name()));
+    StructType sparkWriteSchema = dsSchema;
+    if (writeRequiresRowLineage && !writeAlreadyIncludesLineage) {
+      sparkWriteSchema = sparkWriteSchema.add(MetadataColumns.ROW_ID.name(), LongType$.MODULE$);
+      sparkWriteSchema =
+          sparkWriteSchema.add(
+              MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), LongType$.MODULE$);
+    }
 
+    Schema writeSchema =
+        validateOrMergeWriteSchema(table, sparkWriteSchema, writeConf, writeRequiresRowLineage);
     SparkUtil.validatePartitionTransforms(table.spec());
 
     // Get application id

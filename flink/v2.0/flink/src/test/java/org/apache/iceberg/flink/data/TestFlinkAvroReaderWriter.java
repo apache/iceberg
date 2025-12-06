@@ -27,7 +27,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -39,7 +39,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class TestFlinkAvroReaderWriter extends DataTest {
+public class TestFlinkAvroReaderWriter extends DataTestBase {
 
   private static final int NUM_RECORDS = 100;
 

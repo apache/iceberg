@@ -22,6 +22,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
@@ -30,7 +32,8 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
-class ManifestOutputFileFactory {
+@Internal
+public class ManifestOutputFileFactory {
   // Users could define their own flink manifests directory by setting this value in table
   // properties.
   @VisibleForTesting static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
@@ -41,6 +44,7 @@ class ManifestOutputFileFactory {
   private final int subTaskId;
   private final long attemptNumber;
   private final AtomicInteger fileCount = new AtomicInteger(0);
+  @Nullable private final String suffix;
 
   ManifestOutputFileFactory(
       Supplier<Table> tableSupplier,
@@ -48,29 +52,32 @@ class ManifestOutputFileFactory {
       String flinkJobId,
       String operatorUniqueId,
       int subTaskId,
-      long attemptNumber) {
+      long attemptNumber,
+      @Nullable String suffix) {
     this.tableSupplier = tableSupplier;
     this.props = props;
     this.flinkJobId = flinkJobId;
     this.operatorUniqueId = operatorUniqueId;
     this.subTaskId = subTaskId;
     this.attemptNumber = attemptNumber;
+    this.suffix = suffix;
   }
 
   private String generatePath(long checkpointId) {
     return FileFormat.AVRO.addExtension(
         String.format(
             Locale.ROOT,
-            "%s-%s-%05d-%d-%d-%05d",
+            "%s-%s-%05d-%d-%d-%05d%s",
             flinkJobId,
             operatorUniqueId,
             subTaskId,
             attemptNumber,
             checkpointId,
-            fileCount.incrementAndGet()));
+            fileCount.incrementAndGet(),
+            suffix != null ? "-" + suffix : ""));
   }
 
-  OutputFile create(long checkpointId) {
+  public OutputFile create(long checkpointId) {
     String flinkManifestDir = props.get(FLINK_MANIFEST_LOCATION);
     TableOperations ops = ((HasTableOperations) tableSupplier.get()).operations();
 

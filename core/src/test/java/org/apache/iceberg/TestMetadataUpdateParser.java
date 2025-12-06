@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.encryption.BaseEncryptedKey;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -428,7 +429,7 @@ public class TestMetadataUpdateParser {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
     long snapshotId = 2L;
     String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
-    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshot(snapshotId);
+    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshots(snapshotId);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
@@ -437,7 +438,7 @@ public class TestMetadataUpdateParser {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
     long snapshotId = 2L;
     String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
-    MetadataUpdate update = new MetadataUpdate.RemoveSnapshot(snapshotId);
+    MetadataUpdate update = new MetadataUpdate.RemoveSnapshots(snapshotId);
     String actual = MetadataUpdateParser.toJson(update);
     assertThat(actual)
         .as("Remove snapshots should serialize to the correct JSON value")
@@ -1065,15 +1066,9 @@ public class TestMetadataUpdateParser {
             (MetadataUpdate.AddSnapshot) expectedUpdate, (MetadataUpdate.AddSnapshot) actualUpdate);
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOTS:
-        if (actualUpdate instanceof MetadataUpdate.RemoveSnapshot) {
-          assertEqualsRemoveSnapshot(
-              (MetadataUpdate.RemoveSnapshot) expectedUpdate,
-              (MetadataUpdate.RemoveSnapshot) actualUpdate);
-        } else {
-          assertEqualsRemoveSnapshots(
-              (MetadataUpdate.RemoveSnapshots) expectedUpdate,
-              (MetadataUpdate.RemoveSnapshots) actualUpdate);
-        }
+        assertEqualsRemoveSnapshots(
+            (MetadataUpdate.RemoveSnapshots) expectedUpdate,
+            (MetadataUpdate.RemoveSnapshots) actualUpdate);
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOT_REF:
         assertEqualsRemoveSnapshotRef(
@@ -1284,13 +1279,6 @@ public class TestMetadataUpdateParser {
     assertThat(actual.snapshot().schemaId()).isEqualTo(expected.snapshot().schemaId());
   }
 
-  private static void assertEqualsRemoveSnapshot(
-      MetadataUpdate.RemoveSnapshot expected, MetadataUpdate.RemoveSnapshot actual) {
-    assertThat(actual.snapshotId())
-        .as("Snapshot to remove should be the same")
-        .isEqualTo(expected.snapshotId());
-  }
-
   private static void assertEqualsRemoveSnapshots(
       MetadataUpdate.RemoveSnapshots expected, MetadataUpdate.RemoveSnapshots actual) {
     assertThat(actual.snapshotIds())
@@ -1383,8 +1371,7 @@ public class TestMetadataUpdateParser {
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
       throws IOException {
-    File manifestList = File.createTempFile("manifests", null, temp.toFile());
-    manifestList.deleteOnExit();
+    File manifestList = temp.resolve("manifests" + System.nanoTime()).toFile();
 
     List<ManifestFile> manifests =
         ImmutableList.of(
@@ -1393,7 +1380,13 @@ public class TestMetadataUpdateParser {
 
     try (ManifestListWriter writer =
         ManifestLists.write(
-            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0L)) {
+            1,
+            Files.localOutput(manifestList),
+            PlaintextEncryptionManager.instance(),
+            snapshotId,
+            parentSnapshotId,
+            0,
+            0L)) {
       writer.addAll(manifests);
     }
 

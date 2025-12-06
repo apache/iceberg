@@ -99,7 +99,11 @@ public interface DataFile extends ContentFile<DataFile> {
       optional(140, "sort_order_id", IntegerType.get(), "Sort order ID");
   Types.NestedField SPEC_ID = optional(141, "spec_id", IntegerType.get(), "Partition spec ID");
   Types.NestedField FIRST_ROW_ID =
-      optional(142, "first_row_id", LongType.get(), "Starting row ID to assign to new rows");
+      optional(
+          142,
+          "first_row_id",
+          LongType.get(),
+          "The first row ID assigned to the first row in the data file");
   Types.NestedField REFERENCED_DATA_FILE =
       optional(
           143,

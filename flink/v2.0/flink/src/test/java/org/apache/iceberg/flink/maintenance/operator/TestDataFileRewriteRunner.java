@@ -45,6 +45,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.parquet.Parquet;
@@ -248,6 +249,26 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
   }
 
   @Test
+  void testV3Table() throws Exception {
+    Table table = createTableWithDelete(3);
+    update(table, 1, null, "a", "b", 3);
+    update(table, 1, "b", "c");
+
+    List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
+    assertThat(planned).hasSize(1);
+
+    List<DataFileRewriteRunner.ExecutedGroup> actual = executeRewrite(planned);
+    assertThat(actual).hasSize(1);
+
+    assertRewriteFileGroup(
+        actual.get(0),
+        table,
+        records(table.schema(), ImmutableSet.of(ImmutableList.of(1, "c"))),
+        1,
+        ImmutableSet.of(new PartitionData(PartitionSpec.unpartitioned().partitionType())));
+  }
+
+  @Test
   void testSplitSize() throws Exception {
     Table table = createTable();
 
@@ -286,7 +307,8 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
                         MIN_INPUT_FILES,
                         "2",
                         TARGET_FILE_SIZE_BYTES,
-                        String.valueOf(targetFileSize))))) {
+                        String.valueOf(targetFileSize)),
+                    Expressions.alwaysTrue()))) {
       testHarness.open();
 
       OperatorTestBase.trigger(testHarness);

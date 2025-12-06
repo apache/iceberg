@@ -210,7 +210,24 @@ This binary artifact contains:
 Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.2
 Project URL: https://github.com/FasterXML/jackson-core
 License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.18.2
+Project URL: https://github.com/FasterXML/jackson
 License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.18.2
+Project URL: https://github.com/FasterXML/jackson
+License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.18.2
+Project URL: https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310 
+License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -220,27 +237,133 @@ License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: api-common  Version: 2.46.1
-License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
-License: BSD-3-Clause - https://github.com/googleapis/api-common-java/blob/main/LICENSE
+Group: com.google.api  Name: api-common  Version: 2.52.0
+License: BSD-3-Clause
+Copyright 2016, Google Inc.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax  Version: 2.63.1
-License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
-License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
+Group: com.google.api  Name: gax  Version: 2.69.0
+Project URL: https://github.com/googleapis/gax-java
+License: BSD-3-Clause
+Copyright 2016, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-grpc  Version: 2.63.1
-License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
-License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
+Group: com.google.api  Name: gax-grpc  Version: 2.69.0
+Project URL: https://github.com/googleapis/gax-java
+License: BSD-3-Clause
+Copyright 2016, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-httpjson  Version: 2.63.1
-License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
-License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
+Group: com.google.api  Name: gax-httpjson  Version: 2.69.0
+Project URL: https://github.com/googleapis/gax-java
+License: BSD-3-Clause
+Copyright 2016, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -250,45 +373,165 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.50.0
+Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.55.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.50.0
+Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.55.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.50.0
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.55.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.54.1
+Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.60.0
 Project URL: https://github.com/googleapis/sdk-platform-java
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.49.1
+Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.55.0
 Project URL: https://github.com/googleapis/sdk-platform-java
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.apis  Name: google-api-services-storage  Version: v1-rev20250224-2.0.0
+Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1  Version: 3.16.2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta1  Version: 0.188.2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: grpc-google-cloud-bigquerystorage-v1beta2  Version: 0.188.2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1  Version: 3.16.2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1alpha  Version: 3.16.2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta  Version: 3.16.2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta1  Version: 0.188.2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-bigquerystorage-v1beta2  Version: 0.188.2
+Project URL: https://github.com/googleapis/java-bigquerystorage/
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-monitoring-v3  Version: 3.73.0
+Project URL: https://github.com/googleapis/google-cloud-java
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.55.0
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt 
+
+--------------------------------------------------------------------------------
+
+Group: com.google.apis  Name: google-api-services-storage  Version: v1-rev20250718-2.0.0
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.33.1
-License: BSD New license - http://opensource.org/licenses/BSD-3-Clause
+Group: com.google.apis  Name: google-api-services-bigquery  Version: v2-rev20250706-2.0.0
+License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.33.1
-License: BSD New license - http://opensource.org/licenses/BSD-3-Clause
+Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.37.1
+License: BSD New license
+Copyright 2014, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.37.1
+License: BSD New license
+Copyright 2014, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -298,35 +541,141 @@ License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core  Version: 2.53.1
+Group: com.google.auto.value  Name: auto-value  Version: 1.11.0
+Project URL: https://github.com/google/auto/tree/main/value
+License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.escapevelocity Name: escapevelocity Version: 0.9
+Project URL: https://github.com/google/escapevelocity
+License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.squareup Name: javapoet Version: 1.13.0
+Project URL: https://github.com/square/javapoet
+License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.ow2.asm Name: asm Version: 9.2
+Project URL: https://asm.ow2.io/
+License: BSD-3-Clause
+
+Copyright (c) 2000-2011 INRIA, France Telecom
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+
+Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer in the
+documentation and/or other materials provided with the distribution.
+
+Neither the name of the copyright holders nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud  Name: google-cloud-core  Version: 2.59.0
+Project URL: https://github.com/googleapis/java-core
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.53.1
+Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.59.0
+Project URL: https://github.com/googleapis/java-core
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.53.1
+Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.59.0
+Project URL: https://github.com/googleapis/java-core
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-storage  Version: 2.50.0
+Group: com.google.cloud  Name: google-cloud-storage  Version: 2.55.0
 Project URL: https://github.com/googleapis/java-storage
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.code.gson  Name: gson  Version: 2.12.1
-Project URL: https://github.com/google/gson/gson
+Group: com.google.cloud  Name: google-cloud-bigquery  Version: 2.54.1
+Project URL: https://github.com/googleapis/java-bigquery
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.36.0
+Group: com.google.cloud  Name: google-cloud-bigquerystorage  Version: 3.16.2
+Project URL: https://github.com/googleapis/java-bigquerystorage
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud  Name: google-cloud-monitoring  Version: 3.73.0
+Project URL: https://github.com/googleapis/google-cloud-java
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud.opentelemetry  Name: detector-resources-support  Version: 0.33.0
+Project URL: https://github.com/GoogleCloudPlatform/opentelemetry-operations-java
+License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud.opentelemetry  Name: exporter-metrics  Version: 0.33.0
+Project URL: https://github.com/GoogleCloudPlatform/opentelemetry-operations-java
+License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.cloud.opentelemetry  Name: shared-resourcemapping  Version: 0.33.0
+Project URL: https://github.com/GoogleCloudPlatform/opentelemetry-operations-java
+License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt 
+
+--------------------------------------------------------------------------------
+
+Group: com.google.code.gson  Name: gson  Version: 2.12.1
+Project URL: https://github.com/google/gson/
+License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.code.findbugs  Name: jsr305  Version: 3.0.2
+Project URL: http://findbugs.sourceforge.net/
+License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.38.0
+Project URL: https://github.com/google/error-prone
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: com.google.flatbuffers  Name: flatbuffers-java  Version: 24.3.25
+Project URL: https://github.com/google/flatbuffers
+License: Apache License V2.0 - https://raw.githubusercontent.com/google/flatbuffers/master/LICENSE
 
 --------------------------------------------------------------------------------
 
@@ -347,29 +696,32 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client  Version: 1.47.1
 Project URL: https://www.google.com/
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-apache-v2  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client-apache-v2  Version: 1.47.1
 Project URL: https://www.google.com/
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-appengine  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client-appengine  Version: 1.47.1
+Project URL: https://github.com/googleapis/google-http-java-client
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-gson  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client-gson  Version: 1.47.1
+Project URL: https://github.com/googleapis/google-http-java-client
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.http-client  Name: google-http-client-jackson2  Version: 1.46.3
+Group: com.google.http-client  Name: google-http-client-jackson2  Version: 1.47.1
+Project URL: https://github.com/googleapis/google-http-java-client
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -380,7 +732,7 @@ License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.oauth-client  Name: google-oauth-client  Version: 1.37.0
+Group: com.google.oauth-client  Name: google-oauth-client  Version: 1.39.0
 Project URL: https://www.google.com/
 License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -388,19 +740,115 @@ License: The Apache Software License, Version 2.0 - https://www.apache.org/licen
 
 Group: com.google.protobuf  Name: protobuf-java  Version: 4.29.4
 Project URL: https://developers.google.com/protocol-buffers/
-License: BSD-3-Clause - https://opensource.org/licenses/BSD-3-Clause
+License: BSD-3-Clause
+Copyright 2008 Google Inc.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Code generated by the Protocol Buffer compiler is owned by the owner
+of the input file used when generating it.  This code is not
+standalone and requires a support library to be linked with it.  This
+support library is itself covered by the above license.
 
 --------------------------------------------------------------------------------
 
 Group: com.google.protobuf  Name: protobuf-java-util  Version: 4.29.4
 Project URL: https://developers.google.com/protocol-buffers/
-License: BSD-3-Clause - https://opensource.org/licenses/BSD-3-Clause
+License: BSD-3-Clause
+Copyright 2008 Google Inc.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Code generated by the Protocol Buffer compiler is owned by the owner
+of the input file used when generating it.  This code is not
+standalone and requires a support library to be linked with it.  This
+support library is itself covered by the above license.
 
 --------------------------------------------------------------------------------
 
-Group: com.google.re2j  Name: re2j  Version: 1.7
+Group: com.google.re2j  Name: re2j  Version: 1.8
 Project URL: http://github.com/google/re2j
-License: Go License - https://golang.org/LICENSE
+License: Go License
+This is a work derived from Russ Cox's RE2 in Go, whose license
+http://golang.org/LICENSE is as follows:
+
+Copyright (c) 2009 The Go Authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+     notice, this list of conditions and the following disclaimer.
+
+   * Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in
+     the documentation and/or other materials provided with the
+     distribution.
+
+   * Neither the name of Google Inc. nor the names of its contributors
+     may be used to endorse or promote products derived from this
+     software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -410,87 +858,117 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-alts  Version: 1.70.0
+Group: io.grpc  Name: grpc-alts  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-api  Version: 1.70.0
+Group: io.grpc  Name: grpc-api  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-auth  Version: 1.70.0
+Group: io.grpc  Name: grpc-auth  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-context  Version: 1.70.0
+Group: io.grpc  Name: grpc-context  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-core  Version: 1.70.0
+Group: io.grpc  Name: grpc-core  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-googleapis  Version: 1.70.0
+Group: io.grpc  Name: grpc-googleapis  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-grpclb  Version: 1.70.0
+Group: io.grpc  Name: grpc-grpclb  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-netty-shaded  Version: 1.70.0
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-protobuf  Version: 1.70.0
+Group: io.grpc  Name: grpc-protobuf  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-protobuf-lite  Version: 1.70.0
+Group: io.grpc  Name: grpc-protobuf-lite  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-rls  Version: 1.70.0
+Group: io.grpc  Name: grpc-rls  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-services  Version: 1.70.0
+Group: io.grpc  Name: grpc-services  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-stub  Version: 1.70.0
+Group: io.grpc  Name: grpc-stub  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-xds  Version: 1.70.0
+Group: io.grpc  Name: grpc-xds  Version: 1.71.0
 Project URL: https://github.com/grpc/grpc-java
 License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
+
+--------------------------------------------------------------------------------
+
+Group: io.grpc  Name: grpc-inprocess  Version: 1.71.0
+Project URL: https://github.com/grpc/grpc-java 
+License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
+
+--------------------------------------------------------------------------------
+
+Group: io.grpc  Name: grpc-opentelemetry  Version: 1.71.0
+Project URL: https://github.com/grpc/grpc-java
+License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
+
+--------------------------------------------------------------------------------
+
+Group: io.grpc  Name: grpc-util  Version: 1.71.0
+Project URL: https://github.com/grpc/grpc-java
+License: Apache 2.0 - https://opensource.org/licenses/Apache-2.0
+
+--------------------------------------------------------------------------------
+
+Group: io.netty  Name: netty-buffer  Version: 4.1.110.Final
+Project URL: https://netty.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+Group: io.netty  Name: netty-common  Version: 4.1.110.Final
+Project URL: https://netty.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0 
 
 --------------------------------------------------------------------------------
 
@@ -526,8 +1004,28 @@ License: The MIT License - http://opensource.org/licenses/MIT
 --------------------------------------------------------------------------------
 
 Group: org.codehaus.mojo  Name: animal-sniffer-annotations  Version: 1.24
-License: MIT license - https://spdx.org/licenses/MIT.txt
-License: The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+License: MIT license
+The MIT License
+
+Copyright (c) 2009 codehaus.org.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 --------------------------------------------------------------------------------
 
@@ -538,9 +1036,37 @@ License: Apache 2 - https://www.apache.org/licenses/LICENSE-2.0
 --------------------------------------------------------------------------------
 
 Group: org.threeten  Name: threetenbp  Version: 1.7.0
-Project URL: https://www.threeten.org
 Project URL: https://www.threeten.org/threetenbp
-License: BSD-3-Clause - https://raw.githubusercontent.com/ThreeTen/threetenbp/main/LICENSE.txt
+License: BSD-3-Clause
+Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of JSR-310 nor the names of its contributors
+  may be used to endorse or promote products derived from this software
+  without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -601,3 +1127,153 @@ License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENS
 Group: io.opentelemetry.semconv Name: opentelemetry-semconv Version: 1.27.0-alpha
 Project URL: https://opentelemetry.io/
 License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.arrow  Name: arrow-format  Version: 17.0.0
+Project URL: https://github.com/apache/arrow
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.arrow  Name: arrow-memory-core  Version: 17.0.0
+Project URL: https://github.com/apache/arrow
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt 
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.arrow  Name: arrow-memory-netty  Version: 17.0.0
+Project URL: https://github.com/apache/arrow
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.arrow  Name: arrow-vector  Version: 17.0.0
+Project URL: https://github.com/apache/arrow
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents  Name: httpclient  Version: 4.5.14
+Project URL: http://hc.apache.org/httpcomponents-client-ga
+License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents  Name: httpcore  Version: 4.4.16
+Project URL: http://hc.apache.org/httpcomponents-core-ga
+License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.checkerframework  Name: checker-compat-qual  Version: 2.5.6
+Project URL: https://checkerframework.org
+License: The MIT License
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+Group: org.checkerframework  Name: checker-qual  Version: 3.49.0
+Project URL: https://checkerframework.org/
+License: The MIT License
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+Group: org.json  Name: json  Version: 20250107
+Project URL: https://github.com/douglascrockford/JSON-java
+License: Public Domain - https://github.com/stleary/JSON-java/blob/master/LICENSE
+
+--------------------------------------------------------------------------------
+
+Group: org.slf4j  Name: slf4j-api  Version: 2.0.17
+Project URL: http://www.slf4j.org
+License: MIT
+Copyright (c) 2004-2025 QOS.ch
+ All rights reserved.
+
+ Permission is hereby granted, free  of charge, to any person obtaining
+ a  copy  of this  software  and  associated  documentation files  (the
+ "Software"), to  deal in  the Software without  restriction, including
+ without limitation  the rights to  use, copy, modify,  merge, publish,
+ distribute,  sublicense, and/or sell  copies of  the Software,  and to
+ permit persons to whom the Software  is furnished to do so, subject to
+ the following conditions:
+
+ The  above  copyright  notice  and  this permission  notice  shall  be
+ included in all copies or substantial portions of the Software.
+
+ THE  SOFTWARE IS  PROVIDED  "AS  IS", WITHOUT  WARRANTY  OF ANY  KIND,
+ EXPRESS OR  IMPLIED, INCLUDING  BUT NOT LIMITED  TO THE  WARRANTIES OF
+ MERCHANTABILITY,    FITNESS    FOR    A   PARTICULAR    PURPOSE    AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ OF CONTRACT, TORT OR OTHERWISE,  ARISING FROM, OUT OF OR IN CONNECTION
+ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+Group: org.threeten  Name: threeten-extra  Version: 1.8.0
+Project URL: https://www.threeten.org/threeten-extra 
+License: BSD 3-clause
+Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
+
+All rights reserved.
+
+* Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of JSR-310 nor the names of its contributors
+  may be used to endorse or promote products derived from this software
+  without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

@@ -22,6 +22,7 @@ import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -55,8 +56,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SerializationUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -404,6 +407,15 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
             toRow(3, "aaa"),
             toRow(4, "aaa"));
     assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
+  }
+
+  @Test
+  void testSerialization() {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+    assertThatNoException().isThrownBy(() -> SerializationUtil.serializeToBytes(writerFactory));
+
+    byte[] serialized = SerializationUtil.serializeToBytes(writerFactory);
+    assertThatNoException().isThrownBy(() -> SerializationUtil.deserializeFromBytes(serialized));
   }
 
   private DataFile writeData(

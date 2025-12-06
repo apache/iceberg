@@ -20,6 +20,9 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -27,6 +30,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -49,9 +53,9 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
         1
       },
       {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties(),
+        SparkCatalogConfig.SPARK_SESSION.catalogName(),
+        SparkCatalogConfig.SPARK_SESSION.implementation(),
+        SparkCatalogConfig.SPARK_SESSION.properties(),
         2
       }
     };
@@ -582,5 +586,47 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
           "CREATE TABLE %s (%s) USING iceberg PARTITIONED BY (%s) TBLPROPERTIES ('%s' '%d')",
           tableName, schema, spec, TableProperties.FORMAT_VERSION, formatVersion);
     }
+  }
+
+  private void runCreateAndDropPartitionField(
+      String column, String partitionType, List<Object[]> expected, String predicate) {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql(
+        "CREATE TABLE %s (col_int INTEGER, col_ts TIMESTAMP_NTZ, col_long BIGINT) USING ICEBERG TBLPROPERTIES ('format-version' = %d)",
+        tableName, formatVersion);
+    sql("INSERT INTO %s VALUES (1000, CAST('2024-03-01 19:25:00' as TIMESTAMP), 2100)", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD %s AS col2_partition", tableName, partitionType);
+    sql("INSERT INTO %s VALUES (2000, CAST('2024-04-01 19:25:00' as TIMESTAMP), 2200)", tableName);
+    sql("ALTER TABLE %s DROP PARTITION FIELD col2_partition", tableName);
+    sql("INSERT INTO %s VALUES (3000, CAST('2024-05-01 19:25:00' as TIMESTAMP), 2300)", tableName);
+    sql("ALTER TABLE %s DROP COLUMN %s", tableName, column);
+
+    assertEquals(
+        "Should return correct data",
+        expected,
+        sql("SELECT * FROM %s WHERE %s ORDER BY col_int", tableName, predicate));
+  }
+
+  @TestTemplate
+  public void testDropPartitionAndSourceColumnLong() {
+    String predicateTs = "col_long >= 2200";
+    List<Object[]> expectedTs =
+        Lists.newArrayList(new Object[] {2000, 2200L}, new Object[] {3000, 2300L});
+    runCreateAndDropPartitionField("col_ts", "col_ts", expectedTs, predicateTs);
+    runCreateAndDropPartitionField("col_ts", "year(col_ts)", expectedTs, predicateTs);
+    runCreateAndDropPartitionField("col_ts", "month(col_ts)", expectedTs, predicateTs);
+    runCreateAndDropPartitionField("col_ts", "day(col_ts)", expectedTs, predicateTs);
+  }
+
+  @TestTemplate
+  public void testDropPartitionAndSourceColumnTimestamp() {
+    String predicate = "col_ts >= '2024-04-01 19:25:00'";
+    List<Object[]> expected =
+        Lists.newArrayList(
+            new Object[] {2000, LocalDateTime.ofEpochSecond(1711999500, 0, ZoneOffset.UTC)},
+            new Object[] {3000, LocalDateTime.ofEpochSecond(1714591500, 0, ZoneOffset.UTC)});
+    runCreateAndDropPartitionField("col_long", "col_long", expected, predicate);
+    runCreateAndDropPartitionField("col_long", "truncate(2, col_long)", expected, predicate);
+    runCreateAndDropPartitionField("col_long", "bucket(16, col_long)", expected, predicate);
   }
 }

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -28,8 +29,11 @@ import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
@@ -55,17 +59,21 @@ public class TestFlinkIcebergSinkBase {
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   protected static final TypeInformation<Row> ROW_TYPE_INFO =
-      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+      new RowTypeInfo(
+          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().stream()
+              .map(ExternalTypeInfo::of)
+              .toArray(TypeInformation[]::new));
 
   protected static final DataFormatConverters.RowConverter CONVERTER =
-      new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+      new DataFormatConverters.RowConverter(
+          SimpleDataUtil.FLINK_SCHEMA.getColumnDataTypes().toArray(DataType[]::new));
 
   protected TableLoader tableLoader;
   protected Table table;
   protected StreamExecutionEnvironment env;
 
-  protected BoundedTestSource<Row> createBoundedSource(List<Row> rows) {
-    return new BoundedTestSource<>(rows.toArray(new Row[0]));
+  protected <T> BoundedTestSource<T> createBoundedSource(List<T> rows) {
+    return new BoundedTestSource<>(Collections.singletonList(rows));
   }
 
   protected List<Row> createRows(String prefix) {
@@ -86,18 +94,32 @@ public class TestFlinkIcebergSinkBase {
   }
 
   protected void testWriteRow(
-      int writerParallelism, TableSchema tableSchema, DistributionMode distributionMode)
+      int writerParallelism,
+      ResolvedSchema resolvedSchema,
+      DistributionMode distributionMode,
+      boolean isTableSchema)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .tableSchema(tableSchema)
-        .writeParallelism(writerParallelism)
-        .distributionMode(distributionMode)
-        .append();
+    if (isTableSchema) {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .tableSchema(
+              resolvedSchema != null ? TableSchema.fromResolvedSchema(resolvedSchema) : null)
+          .writeParallelism(writerParallelism)
+          .distributionMode(distributionMode)
+          .append();
+    } else {
+      FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .resolvedSchema(resolvedSchema)
+          .writeParallelism(writerParallelism)
+          .distributionMode(distributionMode)
+          .append();
+    }
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");

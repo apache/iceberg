@@ -171,8 +171,14 @@ public class TableProperties {
       "write.parquet.bloom-filter-fpp.column.";
   public static final double PARQUET_BLOOM_FILTER_COLUMN_FPP_DEFAULT = 0.01;
 
+  public static final String PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX =
+      "write.parquet.bloom-filter-ndv.column.";
+
   public static final String PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX =
       "write.parquet.bloom-filter-enabled.column.";
+
+  public static final String PARQUET_COLUMN_STATS_ENABLED_PREFIX =
+      "write.parquet.stats-enabled.column.";
 
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
@@ -276,12 +282,12 @@ public class TableProperties {
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
 
   /**
-   * @deprecated will be removed in 2.0.0, writing manifest lists is always enabled
+   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
    */
   @Deprecated public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
 
   /**
-   * @deprecated will be removed in 2.0.0, writing manifest lists is always enabled
+   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
    */
   @Deprecated public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 
@@ -388,11 +394,4 @@ public class TableProperties {
   public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
 
   public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
-
-  /**
-   * Property to enable row lineage.
-   *
-   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
-   */
-  @Deprecated public static final String ROW_LINEAGE = "row-lineage";
 }

@@ -181,6 +181,10 @@ class VariantUtil {
     return (byte) ((isLarge ? 0b10000 : 0) | (offsetSize - 1) << 2 | 0b11);
   }
 
+  static byte shortStringHeader(int length) {
+    return (byte) ((length << 2) | BASIC_TYPE_SHORT_STRING);
+  }
+
   static BasicType basicType(int header) {
     int basicType = header & BASIC_TYPE_MASK;
     switch (basicType) {

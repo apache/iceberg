@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
@@ -165,5 +166,50 @@ public class TestRESTUtil {
     assertThat(
             RESTUtil.resolveEndpoint("http://catalog-uri/", "relative-endpoint/refresh-endpoint"))
         .isEqualTo("http://catalog-uri/relative-endpoint/refresh-endpoint");
+  }
+
+  @Test
+  public void namespaceToQueryParam() {
+    assertThatThrownBy(() -> RESTUtil.namespaceToQueryParam(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
+
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.empty())).isEqualTo("");
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of(""))).isEqualTo("");
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of("ns"))).isEqualTo("ns");
+
+    // verify that the unicode character (\001f) and not its UTF-8 escaped version (%1F) is used
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of("one", "ns")))
+        .isEqualTo("one\u001fns")
+        .isNotEqualTo("one%1Fns");
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of("one", "two", "ns")))
+        .isEqualTo("one\u001ftwo\u001fns")
+        .isNotEqualTo("one%1Ftwo%1Fns");
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of("one.two", "three.four", "ns")))
+        .isEqualTo("one.two\u001fthree.four\u001fns")
+        .isNotEqualTo("one.two%1Fthree.four%1Fns");
+  }
+
+  @Test
+  public void namespaceFromQueryParam() {
+    assertThatThrownBy(() -> RESTUtil.namespaceFromQueryParam(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
+
+    assertThat(RESTUtil.namespaceFromQueryParam("")).isEqualTo(Namespace.of(""));
+    assertThat(RESTUtil.namespaceFromQueryParam("ns")).isEqualTo(Namespace.of("ns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one\u001fns"))
+        .isEqualTo(Namespace.of("one", "ns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one\u001ftwo\u001fns"))
+        .isEqualTo(Namespace.of("one", "two", "ns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one.two\u001fthree.four\u001fns"))
+        .isEqualTo(Namespace.of("one.two", "three.four", "ns"));
+
+    // using the UTF-8 escaped version will produce a wrong namespace instance
+    assertThat(RESTUtil.namespaceFromQueryParam("one%1Fns")).isEqualTo(Namespace.of("one%1Fns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one%1Ftwo%1Fns"))
+        .isEqualTo(Namespace.of("one%1Ftwo%1Fns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one%1Ftwo\u001fns"))
+        .isEqualTo(Namespace.of("one%1Ftwo", "ns"));
   }
 }

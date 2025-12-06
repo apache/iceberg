@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.DataFile;
@@ -46,6 +47,7 @@ import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,7 +83,7 @@ public class TestProjectMetaColumn {
             SimpleDataUtil.createInsert(1, "AAA"),
             SimpleDataUtil.createInsert(2, "BBB"),
             SimpleDataUtil.createInsert(3, "CCC"));
-    writeAndCommit(table, ImmutableList.of(), false, rows);
+    writeAndCommit(table, ImmutableSet.of(), false, rows);
 
     FlinkInputFormat input =
         FlinkSource.forRowData().tableLoader(TableLoader.fromHadoopTable(location)).buildFormat();
@@ -124,7 +126,7 @@ public class TestProjectMetaColumn {
             SimpleDataUtil.createInsert(2, "AAA"),
             SimpleDataUtil.createInsert(2, "BBB"));
     int eqFieldId = table.schema().findField("data").fieldId();
-    writeAndCommit(table, ImmutableList.of(eqFieldId), true, rows);
+    writeAndCommit(table, ImmutableSet.of(eqFieldId), true, rows);
 
     FlinkInputFormat input =
         FlinkSource.forRowData().tableLoader(TableLoader.fromHadoopTable(location)).buildFormat();
@@ -147,8 +149,7 @@ public class TestProjectMetaColumn {
   }
 
   private void writeAndCommit(
-      Table table, List<Integer> eqFieldIds, boolean upsert, List<RowData> rows)
-      throws IOException {
+      Table table, Set<Integer> eqFieldIds, boolean upsert, List<RowData> rows) throws IOException {
     TaskWriter<RowData> writer = createTaskWriter(table, eqFieldIds, upsert);
     try (TaskWriter<RowData> io = writer) {
       for (RowData row : rows) {
@@ -171,7 +172,7 @@ public class TestProjectMetaColumn {
   }
 
   private TaskWriter<RowData> createTaskWriter(
-      Table table, List<Integer> equalityFieldIds, boolean upsert) {
+      Table table, Set<Integer> equalityFieldIds, boolean upsert) {
     TaskWriterFactory<RowData> taskWriterFactory =
         new RowDataTaskWriterFactory(
             SerializableTable.copyOf(table),

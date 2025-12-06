@@ -78,6 +78,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   public S3Client s3() {
     if (isTableRegisteredWithLakeFormation()) {
       return S3Client.builder()
+          .applyMutation(awsClientProperties()::applyLegacyMd5Plugin)
           .applyMutation(httpClientProperties()::applyHttpClientConfigurations)
           .applyMutation(s3FileIOProperties()::applyEndpointConfigurations)
           .applyMutation(s3FileIOProperties()::applyServiceConfigurations)

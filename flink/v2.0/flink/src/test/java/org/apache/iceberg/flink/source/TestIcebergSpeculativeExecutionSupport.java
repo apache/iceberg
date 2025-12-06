@@ -44,12 +44,16 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.TestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 /**
@@ -57,6 +61,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
  * anything goes wrong unexpectedly.
  */
 @Timeout(value = 60)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   private static final int NUM_TASK_MANAGERS = 1;
   private static final int NUM_TASK_SLOTS = 3;
@@ -90,6 +95,14 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
     return tEnv;
   }
 
+  @Parameter(index = 0)
+  private boolean useV2Sink;
+
+  @Parameters(name = "useV2Sink = {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {{true}, {false}};
+  }
+
   @BeforeEach
   public void before() throws IOException {
     String warehouse =
@@ -114,8 +127,9 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
     dropCatalog(CATALOG_NAME, true);
   }
 
-  @Test
+  @TestTemplate
   public void testSpeculativeExecution() throws Exception {
+    tEnv.getConfig().set("table.exec.iceberg.use-v2-sink", String.valueOf(useV2Sink));
     Table table =
         tEnv.sqlQuery(String.format("SELECT * FROM %s.%s", DATABASE_NAME, INPUT_TABLE_NAME));
     DataStream<Row> slowStream =

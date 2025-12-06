@@ -128,6 +128,7 @@ public class SparkCatalog extends BaseCatalog {
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
   private static final Pattern BRANCH = Pattern.compile("branch_(.*)");
   private static final Pattern TAG = Pattern.compile("tag_(.*)");
+  private static final String REWRITE = "rewrite";
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -189,7 +190,8 @@ public class SparkCatalog extends BaseCatalog {
         SnapshotRef ref = sparkTable.table().refs().get(version);
         ValidationException.check(
             ref != null,
-            "Cannot find matching snapshot ID or reference name for version " + version);
+            "Cannot find matching snapshot ID or reference name for version %s",
+            version);
 
         if (ref.isBranch()) {
           return sparkTable.copyWithBranch(version);
@@ -228,6 +230,15 @@ public class SparkCatalog extends BaseCatalog {
 
     } else {
       throw new IllegalArgumentException("Unknown Spark table type: " + table.getClass().getName());
+    }
+  }
+
+  @Override
+  public boolean tableExists(Identifier ident) {
+    if (isPathIdentifier(ident)) {
+      return tables.exists(((PathIdentifier) ident).location());
+    } else {
+      return icebergCatalog.tableExists(buildIdentifier(ident));
     }
   }
 
@@ -454,6 +465,12 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public boolean namespaceExists(String[] namespace) {
+    return asNamespaceCatalog != null
+        && asNamespaceCatalog.namespaceExists(Namespace.of(namespace));
+  }
+
+  @Override
   public Map<String, String> loadNamespaceMetadata(String[] namespace)
       throws NoSuchNamespaceException {
     if (asNamespaceCatalog != null) {
@@ -547,6 +564,11 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     return new Identifier[0];
+  }
+
+  @Override
+  public boolean viewExists(Identifier ident) {
+    return asViewCatalog != null && asViewCatalog.viewExists(buildIdentifier(ident));
   }
 
   @Override
@@ -894,6 +916,10 @@ public class SparkCatalog extends BaseCatalog {
         }
       }
 
+      if (ident.name().equalsIgnoreCase(REWRITE)) {
+        return new SparkTable(table, null, !cacheEnabled, true);
+      }
+
       // the name wasn't a valid snapshot selector and did not point to the changelog
       // throw the original exception
       throw e;
@@ -921,10 +947,16 @@ public class SparkCatalog extends BaseCatalog {
     String branch = null;
     String tag = null;
     boolean isChangelog = false;
+    boolean isRewrite = false;
 
     for (String meta : parsed.second()) {
       if (meta.equalsIgnoreCase(SparkChangelogTable.TABLE_NAME)) {
         isChangelog = true;
+        continue;
+      }
+
+      if (REWRITE.equals(meta)) {
+        isRewrite = true;
         continue;
       }
 
@@ -987,6 +1019,9 @@ public class SparkCatalog extends BaseCatalog {
       Preconditions.checkArgument(
           tagSnapshot != null, "Cannot find snapshot associated with tag name: %s", tag);
       return new SparkTable(table, tagSnapshot.snapshotId(), !cacheEnabled);
+
+    } else if (isRewrite) {
+      return new SparkTable(table, null, !cacheEnabled, true);
 
     } else {
       return new SparkTable(table, snapshotId, !cacheEnabled);

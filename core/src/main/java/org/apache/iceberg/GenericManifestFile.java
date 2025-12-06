@@ -135,47 +135,6 @@ public class GenericManifestFile extends SupportsIndexProjection
   }
 
   /**
-   * GenericManifestFile constructor.
-   *
-   * @deprecated will be removed in 1.10.0; use {@link ManifestWriter#toManifestFile()} instead.
-   */
-  @Deprecated
-  public GenericManifestFile(
-      String path,
-      long length,
-      int specId,
-      ManifestContent content,
-      long sequenceNumber,
-      long minSequenceNumber,
-      Long snapshotId,
-      int addedFilesCount,
-      long addedRowsCount,
-      int existingFilesCount,
-      long existingRowsCount,
-      int deletedFilesCount,
-      long deletedRowsCount,
-      List<PartitionFieldSummary> partitions,
-      ByteBuffer keyMetadata) {
-    super(ManifestFile.schema().columns().size());
-    this.avroSchema = AVRO_SCHEMA;
-    this.manifestPath = path;
-    this.length = length;
-    this.specId = specId;
-    this.content = content;
-    this.sequenceNumber = sequenceNumber;
-    this.minSequenceNumber = minSequenceNumber;
-    this.snapshotId = snapshotId;
-    this.addedFilesCount = addedFilesCount;
-    this.addedRowsCount = addedRowsCount;
-    this.existingFilesCount = existingFilesCount;
-    this.existingRowsCount = existingRowsCount;
-    this.deletedFilesCount = deletedFilesCount;
-    this.deletedRowsCount = deletedRowsCount;
-    this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
-    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
-  }
-
-  /**
    * Copy constructor.
    *
    * @param toCopy a generic manifest file to copy.

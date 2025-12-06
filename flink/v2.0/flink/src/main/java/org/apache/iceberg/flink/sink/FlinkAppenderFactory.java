@@ -48,6 +48,11 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
+/**
+ * @deprecated Deprecated as of 1.11.0 in favor of {@link FlinkFileWriterFactory}. This class will
+ *     be removed in the 1.12.0.
+ */
+@Deprecated
 public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
   private final Schema schema;
   private final RowType flinkSchema;
@@ -61,6 +66,23 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private RowType eqDeleteFlinkSchema = null;
   private RowType posDeleteFlinkSchema = null;
 
+  public FlinkAppenderFactory(
+      Table table,
+      Schema schema,
+      RowType flinkSchema,
+      Map<String, String> props,
+      PartitionSpec spec,
+      int[] equalityFieldIds,
+      Schema eqDeleteRowSchema) {
+    this(table, schema, flinkSchema, props, spec, equalityFieldIds, eqDeleteRowSchema, null);
+  }
+
+  /**
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #FlinkAppenderFactory(Table, Schema, RowType, Map, PartitionSpec, int[], Schema)} instead.
+   */
+  @Deprecated
   public FlinkAppenderFactory(
       Table table,
       Schema schema,

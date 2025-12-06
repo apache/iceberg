@@ -36,7 +36,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.TestBase;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
@@ -53,7 +53,7 @@ public class TestBaseTaskWriter extends TestBase {
   private final GenericRecord gRecord = GenericRecord.create(SCHEMA);
 
   private OutputFileFactory fileFactory = null;
-  private FileAppenderFactory<Record> appenderFactory = null;
+  private FileWriterFactory<Record> fileWriterFactory = null;
 
   @Parameter(index = 1)
   protected FileFormat format;
@@ -76,13 +76,11 @@ public class TestBaseTaskWriter extends TestBase {
 
     int firstFieldId = table.schema().findField("id").fieldId();
     int secondFieldId = table.schema().findField("data").fieldId();
-    this.appenderFactory =
-        new GenericAppenderFactory(
-            table.schema(),
-            table.spec(),
-            new int[] {firstFieldId, secondFieldId},
-            table.schema(),
-            null);
+    this.fileWriterFactory =
+        new GenericFileWriterFactory.Builder(table)
+            .equalityFieldIds(new int[] {firstFieldId, secondFieldId})
+            .equalityDeleteRowSchema(table.schema())
+            .build();
 
     table.updateProperties().defaultFormat(format).commit();
   }
@@ -209,7 +207,7 @@ public class TestBaseTaskWriter extends TestBase {
 
   private TestTaskWriter createTaskWriter(long targetFileSize) {
     return new TestTaskWriter(
-        table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
+        table.spec(), format, fileWriterFactory, fileFactory, table.io(), targetFileSize);
   }
 
   private static class TestTaskWriter extends BaseTaskWriter<Record> {
@@ -220,11 +218,11 @@ public class TestBaseTaskWriter extends TestBase {
     private TestTaskWriter(
         PartitionSpec spec,
         FileFormat format,
-        FileAppenderFactory<Record> appenderFactory,
+        FileWriterFactory<Record> fileWriterFactory,
         OutputFileFactory fileFactory,
         FileIO io,
         long targetFileSize) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+      super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
       this.dataWriter = new RollingFileWriter(null);
       this.deleteWriter = new RollingEqDeleteWriter(null);
     }

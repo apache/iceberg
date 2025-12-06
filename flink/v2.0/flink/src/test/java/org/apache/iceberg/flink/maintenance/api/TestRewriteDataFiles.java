@@ -33,7 +33,11 @@ import java.util.List;
 import java.util.stream.StreamSupport;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -76,6 +80,118 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             createRecord(2, "b"),
             createRecord(3, "c"),
             createRecord(4, "d")));
+  }
+
+  @Test
+  void testRewriteUnpartitionedPreserveLineage() throws Exception {
+    Table table = createTable(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    insert(table, 3, "c");
+    insert(table, 4, "d");
+
+    assertFileNum(table, 4, 0);
+
+    appendRewriteDataFiles(
+        RewriteDataFiles.builder()
+            .parallelism(2)
+            .deleteFileThreshold(10)
+            .targetFileSizeBytes(1_000_000L)
+            .maxFileGroupSizeBytes(10_000_000L)
+            .maxFileSizeBytes(2_000_000L)
+            .minFileSizeBytes(500_000L)
+            .minInputFiles(2)
+            .partialProgressEnabled(true)
+            .partialProgressMaxCommits(1)
+            .maxRewriteBytes(100_000L)
+            .rewriteAll(false));
+
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    assertFileNum(table, 1, 0);
+
+    Schema schema = MetadataColumns.schemaWithRowLineage(table.schema());
+    SimpleDataUtil.assertTableRecords(
+        table,
+        ImmutableList.of(
+            SimpleDataUtil.createRecordWithRowId(1, "a", 0L, 1L),
+            SimpleDataUtil.createRecordWithRowId(2, "b", 1L, 2L),
+            SimpleDataUtil.createRecordWithRowId(3, "c", 2L, 3L),
+            SimpleDataUtil.createRecordWithRowId(4, "d", 3L, 4L)),
+        SnapshotRef.MAIN_BRANCH,
+        schema);
+  }
+
+  @Test
+  void testRewriteTheSameFilePreserveLineage() throws Exception {
+    Table table = createTable(3);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    // Create a file with two lines of data to verify that the rowid is read correctly.
+    insert(
+        table,
+        ImmutableList.of(SimpleDataUtil.createRecord(3, "c"), SimpleDataUtil.createRecord(4, "d")));
+
+    assertFileNum(table, 3, 0);
+
+    appendRewriteDataFiles(
+        RewriteDataFiles.builder()
+            .parallelism(2)
+            .deleteFileThreshold(10)
+            .targetFileSizeBytes(1_000_000L)
+            .maxFileGroupSizeBytes(10_000_000L)
+            .maxFileSizeBytes(2_000_000L)
+            .minFileSizeBytes(500_000L)
+            .minInputFiles(2)
+            .partialProgressEnabled(true)
+            .partialProgressMaxCommits(1)
+            .maxRewriteBytes(100_000L)
+            .rewriteAll(false));
+
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    assertFileNum(table, 1, 0);
+
+    Schema schema = MetadataColumns.schemaWithRowLineage(table.schema());
+    SimpleDataUtil.assertTableRecords(
+        table,
+        ImmutableList.of(
+            SimpleDataUtil.createRecordWithRowId(1, "a", 0L, 1L),
+            SimpleDataUtil.createRecordWithRowId(2, "b", 1L, 2L),
+            // The Ids 3 and 4 come from the same file, so the last updated sequence number should
+            // be the same.
+            SimpleDataUtil.createRecordWithRowId(3, "c", 2L, 3L),
+            SimpleDataUtil.createRecordWithRowId(4, "d", 3L, 3L)),
+        SnapshotRef.MAIN_BRANCH,
+        schema);
+  }
+
+  @Test
+  void testRewritePartitionedPreserveLineage() throws Exception {
+    Table table = createPartitionedTable(3);
+    insertPartitioned(table, 1, "p1");
+    insertPartitioned(table, 2, "p1");
+    insertPartitioned(table, 3, "p2");
+    insertPartitioned(table, 4, "p2");
+
+    assertFileNum(table, 4, 0);
+
+    appendRewriteDataFiles();
+
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    assertFileNum(table, 2, 0);
+
+    Schema schema = MetadataColumns.schemaWithRowLineage(table.schema());
+    SimpleDataUtil.assertTableRecords(
+        table,
+        ImmutableList.of(
+            SimpleDataUtil.createRecordWithRowId(1, "p1", 0L, 1L),
+            SimpleDataUtil.createRecordWithRowId(2, "p1", 1L, 2L),
+            SimpleDataUtil.createRecordWithRowId(3, "p2", 2L, 3L),
+            SimpleDataUtil.createRecordWithRowId(4, "p2", 3L, 4L)),
+        SnapshotRef.MAIN_BRANCH,
+        schema);
   }
 
   @Test
@@ -307,8 +423,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
 
-    // After #11131 we don't remove the delete files
-    assertFileNum(table, 1, 3);
+    assertFileNum(table, 1, 1);
 
     SimpleDataUtil.assertTableRecords(table, ImmutableList.of(createRecord(1, "c")));
 
@@ -372,6 +487,46 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
                     REMOVED_DATA_FILE_SIZE_METRIC),
                 -1L)
             .build());
+  }
+
+  @Test
+  void testRewriteWithFilter() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    insert(table, 3, "c");
+    insert(table, 4, "d");
+
+    assertFileNum(table, 4, 0);
+
+    appendRewriteDataFiles(
+        RewriteDataFiles.builder()
+            .parallelism(2)
+            .deleteFileThreshold(10)
+            .targetFileSizeBytes(1_000_000L)
+            .maxFileGroupSizeBytes(10_000_000L)
+            .maxFileSizeBytes(2_000_000L)
+            .minFileSizeBytes(500_000L)
+            .minInputFiles(2)
+            // Only rewrite data files where id is 1 or 2 for testing rewrite
+            .filter(Expressions.in("id", 1, 2))
+            .partialProgressEnabled(true)
+            .partialProgressMaxCommits(1)
+            .maxRewriteBytes(100_000L)
+            .rewriteAll(false));
+
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
+
+    // There is four files, only id is 1 and 2 will be rewritten. so expect 3 files.
+    assertFileNum(table, 3, 0);
+
+    SimpleDataUtil.assertTableRecords(
+        table,
+        ImmutableList.of(
+            createRecord(1, "a"),
+            createRecord(2, "b"),
+            createRecord(3, "c"),
+            createRecord(4, "d")));
   }
 
   private void appendRewriteDataFiles() {

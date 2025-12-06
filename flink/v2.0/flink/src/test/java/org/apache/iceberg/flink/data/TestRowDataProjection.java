@@ -164,7 +164,7 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
-    assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns()).isNotEmpty();
     generateAndValidate(schema, idOnly);
     testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(
@@ -177,7 +177,7 @@ public class TestRowDataProjection {
                 3,
                 "location",
                 Types.StructType.of(Types.NestedField.required(1, "lat", Types.FloatType.get()))));
-    assertThat(latOnly.columns().size()).isGreaterThan(0);
+    assertThat(latOnly.columns()).isNotEmpty();
     generateAndValidate(schema, latOnly);
     testEqualsAndHashCode(schema, latOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(
@@ -190,7 +190,7 @@ public class TestRowDataProjection {
                 3,
                 "location",
                 Types.StructType.of(Types.NestedField.required(2, "long", Types.FloatType.get()))));
-    assertThat(longOnly.columns().size()).isGreaterThan(0);
+    assertThat(longOnly.columns()).isNotEmpty();
     generateAndValidate(schema, longOnly);
     testEqualsAndHashCode(schema, longOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(
@@ -198,7 +198,7 @@ public class TestRowDataProjection {
 
     // Project location.
     Schema locationOnly = schema.select("location");
-    assertThat(locationOnly.columns().size()).isGreaterThan(0);
+    assertThat(locationOnly.columns()).isNotEmpty();
     generateAndValidate(schema, locationOnly);
     testEqualsAndHashCode(schema, locationOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(
@@ -253,12 +253,12 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = schema.select("row_id");
-    assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns()).isNotEmpty();
     generateAndValidate(schema, idOnly);
 
     // Project map only.
     Schema mapOnly = schema.select("map_of_primitives");
-    assertThat(mapOnly.columns().size()).isGreaterThan(0);
+    assertThat(mapOnly.columns()).isNotEmpty();
     generateAndValidate(schema, mapOnly);
 
     // Project all.
@@ -311,12 +311,12 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = schema.select("row_id");
-    assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns()).isNotEmpty();
     generateAndValidate(schema, idOnly);
 
     // Project map only.
     Schema mapOnly = schema.select("map");
-    assertThat(mapOnly.columns().size()).isGreaterThan(0);
+    assertThat(mapOnly.columns()).isNotEmpty();
     generateAndValidate(schema, mapOnly);
 
     // Project all.
@@ -415,12 +415,12 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = schema.select("row_id");
-    assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns()).isNotEmpty();
     generateAndValidate(schema, idOnly);
 
     // Project list only.
     Schema arrayOnly = schema.select("array_of_int");
-    assertThat(arrayOnly.columns().size()).isGreaterThan(0);
+    assertThat(arrayOnly.columns()).isNotEmpty();
     generateAndValidate(schema, arrayOnly);
 
     // Project all.
@@ -477,12 +477,12 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = schema.select("row_id");
-    assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns()).isNotEmpty();
     generateAndValidate(schema, idOnly);
 
     // Project list only.
     Schema arrayOnly = schema.select("array_of_struct");
-    assertThat(arrayOnly.columns().size()).isGreaterThan(0);
+    assertThat(arrayOnly.columns()).isNotEmpty();
     generateAndValidate(schema, arrayOnly);
 
     // Project all.

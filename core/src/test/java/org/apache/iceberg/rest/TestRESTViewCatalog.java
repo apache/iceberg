@@ -27,25 +27,36 @@ import static org.mockito.Mockito.times;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.view.ViewCatalogTests;
+import org.apache.iceberg.view.ViewMetadata;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -105,7 +116,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
     servletContext.setHandler(new GzipHandler());
 
-    this.httpServer = new Server(0);
+    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
     httpServer.start();
 
@@ -166,7 +177,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
+    catalog.initialize("test", ImmutableMap.of(RESTCatalogProperties.PAGE_SIZE, "10"));
 
     String namespaceName = "newdb";
     String viewName = "newview";
@@ -200,26 +211,29 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     // verify initial request with empty pageToken
     Mockito.verify(adapter)
         .handleRequest(
-            eq(RESTCatalogAdapter.Route.LIST_VIEWS),
+            eq(Route.LIST_VIEWS),
             eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
 
     // verify second request with update pageToken
     Mockito.verify(adapter)
         .handleRequest(
-            eq(RESTCatalogAdapter.Route.LIST_VIEWS),
+            eq(Route.LIST_VIEWS),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
 
     // verify third request with update pageToken
     Mockito.verify(adapter)
         .handleRequest(
-            eq(RESTCatalogAdapter.Route.LIST_VIEWS),
+            eq(Route.LIST_VIEWS),
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
   }
 
   @Test
@@ -300,7 +314,108 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     // client relies on the default endpoints
     verifyViewExistsFallbackToGETRequest(
         ConfigResponse.builder().build(),
-        ImmutableMap.of(RESTSessionCatalog.VIEW_ENDPOINTS_SUPPORTED, "true"));
+        ImmutableMap.of(RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED, "true"));
+  }
+
+  @Test
+  public void testCustomViewOperationsInjection() throws Exception {
+    AtomicBoolean customViewOpsCalled = new AtomicBoolean();
+    AtomicReference<RESTViewOperations> capturedOps = new AtomicReference<>();
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Map<String, String> customHeaders =
+        ImmutableMap.of("X-Custom-View-Header", "custom-value-12345");
+
+    // Custom RESTViewOperations that adds a custom header
+    class CustomRESTViewOperations extends RESTViewOperations {
+      CustomRESTViewOperations(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          ViewMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        super(client, path, () -> customHeaders, current, supportedEndpoints);
+        customViewOpsCalled.set(true);
+      }
+    }
+
+    // Custom RESTSessionCatalog that overrides view operations creation
+    class CustomRESTSessionCatalog extends RESTSessionCatalog {
+      CustomRESTSessionCatalog(
+          Function<Map<String, String>, RESTClient> clientBuilder,
+          BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
+        super(clientBuilder, ioBuilder);
+      }
+
+      @Override
+      protected RESTViewOperations newViewOps(
+          RESTClient restClient,
+          String path,
+          Supplier<Map<String, String>> headers,
+          ViewMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        RESTViewOperations ops =
+            new CustomRESTViewOperations(restClient, path, headers, current, supportedEndpoints);
+        RESTViewOperations spy = Mockito.spy(ops);
+        capturedOps.set(spy);
+        return spy;
+      }
+    }
+
+    try (RESTCatalog catalog =
+        catalog(adapter, clientBuilder -> new CustomRESTSessionCatalog(clientBuilder, null))) {
+      Namespace namespace = Namespace.of("ns");
+      catalog.createNamespace(namespace);
+
+      // Test view operations
+      assertThat(customViewOpsCalled).isFalse();
+      TableIdentifier viewIdentifier = TableIdentifier.of(namespace, "view1");
+      org.apache.iceberg.view.View view =
+          catalog
+              .buildView(viewIdentifier)
+              .withSchema(SCHEMA)
+              .withDefaultNamespace(namespace)
+              .withQuery("spark", "select * from ns.table")
+              .create();
+
+      // Verify custom operations was created
+      assertThat(customViewOpsCalled).isTrue();
+
+      // Update view properties to trigger a commit through the custom operations
+      view.updateProperties().set("test-key", "test-value").commit();
+
+      // Verify the custom operations object was created and used
+      assertThat(capturedOps.get()).isNotNull();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
+
+      // Verify the custom operations were used with custom headers
+      ResourcePaths resourcePaths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
+      Mockito.verify(adapter, Mockito.atLeastOnce())
+          .execute(
+              reqMatcher(HTTPMethod.POST, resourcePaths.view(viewIdentifier), customHeaders),
+              eq(LoadViewResponse.class),
+              any(),
+              any());
+    }
+  }
+
+  private RESTCatalog catalog(
+      RESTCatalogAdapter adapter,
+      Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
+          sessionCatalogFactory) {
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return sessionCatalogFactory.apply(clientBuilder);
+          }
+        };
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    return catalog;
   }
 
   @Override

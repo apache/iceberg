@@ -53,6 +53,14 @@ public class SystemConfigs {
           Math.max(2, 4 * Runtime.getRuntime().availableProcessors()),
           Integer::parseUnsignedInt);
 
+  /** Sets the core size of the thread pool used for refreshing authentication data. */
+  public static final ConfigEntry<Integer> AUTH_REFRESH_THREAD_POOL_SIZE =
+      new ConfigEntry<>(
+          "iceberg.rest.auth.refresh.num-threads",
+          "ICEBERG_AUTH_REFRESH_NUM_THREADS",
+          1,
+          Integer::parseUnsignedInt);
+
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
       new ConfigEntry<>(

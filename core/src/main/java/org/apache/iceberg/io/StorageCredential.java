@@ -21,26 +21,19 @@ package org.apache.iceberg.io;
 import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.SerializableMap;
-import org.immutables.value.Value;
 
-@Value.Immutable
 public interface StorageCredential extends Serializable {
 
   String prefix();
 
-  SerializableMap<String, String> config();
+  Map<String, String> config();
 
-  @Value.Check
   default void validate() {
     Preconditions.checkArgument(!prefix().isEmpty(), "Invalid prefix: must be non-empty");
     Preconditions.checkArgument(!config().isEmpty(), "Invalid config: must be non-empty");
   }
 
   static StorageCredential create(String prefix, Map<String, String> config) {
-    return ImmutableStorageCredential.builder()
-        .prefix(prefix)
-        .config(SerializableMap.copyOf(config))
-        .build();
+    return ImmutableStorageCredential.builder().prefix(prefix).config(config).build();
   }
 }

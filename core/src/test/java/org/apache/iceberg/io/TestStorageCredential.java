@@ -26,6 +26,8 @@ import java.util.Map;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestStorageCredential {
   @Test
@@ -42,22 +44,16 @@ public class TestStorageCredential {
         .hasMessage("Invalid config: must be non-empty");
   }
 
-  @Test
-  public void kryoSerDe() throws IOException {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void serialization(TestHelpers.RoundTripSerializer<StorageCredential> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
     // using a single element in the map will create a singleton map, which will work with Kryo.
     // However, creating two config elements will fail if the config in StorageCredential isn't a
     // SerializableMap
     StorageCredential credential =
         StorageCredential.create(
             "randomPrefix", ImmutableMap.of("token1", "storageToken1", "token2", "storageToken2"));
-    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(credential)).isEqualTo(credential);
-  }
-
-  @Test
-  public void javaSerDe() throws IOException, ClassNotFoundException {
-    StorageCredential credential =
-        StorageCredential.create(
-            "randomPrefix", ImmutableMap.of("token", "storageToken", "token2", "storageToken2"));
-    assertThat(TestHelpers.roundTripSerialize(credential)).isEqualTo(credential);
+    assertThat(roundTripSerializer.apply(credential)).isEqualTo(credential);
   }
 }

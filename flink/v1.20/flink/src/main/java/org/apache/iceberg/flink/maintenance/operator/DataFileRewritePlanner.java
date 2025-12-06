@@ -33,6 +33,7 @@ import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
 import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteFileGroup;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.io.CloseableIterator;
@@ -60,6 +61,7 @@ public class DataFileRewritePlanner
   private final long maxRewriteBytes;
   private final Map<String, String> rewriterOptions;
   private transient Counter errorCounter;
+  private final Expression filter;
 
   public DataFileRewritePlanner(
       String tableName,
@@ -68,7 +70,9 @@ public class DataFileRewritePlanner
       TableLoader tableLoader,
       int newPartialProgressMaxCommits,
       long maxRewriteBytes,
-      Map<String, String> rewriterOptions) {
+      Map<String, String> rewriterOptions,
+      Expression filter) {
+
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
@@ -81,6 +85,7 @@ public class DataFileRewritePlanner
     this.partialProgressMaxCommits = newPartialProgressMaxCommits;
     this.maxRewriteBytes = maxRewriteBytes;
     this.rewriterOptions = rewriterOptions;
+    this.filter = filter;
   }
 
   @Override
@@ -113,7 +118,7 @@ public class DataFileRewritePlanner
         return;
       }
 
-      BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+      BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table, filter);
       planner.init(rewriterOptions);
 
       FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
