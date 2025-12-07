@@ -141,16 +141,16 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
       .trim()
 
     isCreateTableLike(normalized) ||
-      (normalized.startsWith("alter table") && (normalized.contains("add partition field") ||
-        normalized.contains("drop partition field") ||
-        normalized.contains("replace partition field") ||
-        normalized.contains("write ordered by") ||
-        normalized.contains("write locally ordered by") ||
-        normalized.contains("write distributed by") ||
-        normalized.contains("write unordered") ||
-        normalized.contains("set identifier fields") ||
-        normalized.contains("drop identifier fields") ||
-        isSnapshotRefDdl(normalized)))
+    (normalized.startsWith("alter table") && (normalized.contains("add partition field") ||
+      normalized.contains("drop partition field") ||
+      normalized.contains("replace partition field") ||
+      normalized.contains("write ordered by") ||
+      normalized.contains("write locally ordered by") ||
+      normalized.contains("write distributed by") ||
+      normalized.contains("write unordered") ||
+      normalized.contains("set identifier fields") ||
+      normalized.contains("drop identifier fields") ||
+      isSnapshotRefDdl(normalized)))
   }
 
   private def isCreateTableLike(normalized: String): Boolean = {

@@ -59,13 +59,15 @@ case class CreateV2TableLikeExec(
     val sourceTable = sourceCatalog.loadTable(sourceIdent) match {
       case iceberg: SparkTable => iceberg
       case table =>
-        throw new UnsupportedOperationException(s"Cannot create table like for non-Iceberg table: $table")
+        throw new UnsupportedOperationException(
+          s"Cannot create table like for non-Iceberg table: $table")
     }
 
     val schema: Schema = sourceTable.table().schema()
-    val columns = SparkSchemaUtil.convert(schema).fields.map { case StructField(name, dataType, nullable, _) =>
-      Column.create(name, dataType, nullable)
-    }
+    val columns =
+      SparkSchemaUtil.convert(schema).fields.map { case StructField(name, dataType, nullable, _) =>
+        Column.create(name, dataType, nullable)
+      }
 
     val partitionSpec: PartitionSpec = sourceTable.table().spec()
     val partitioning: Array[Transform] = Spark3Util.toTransforms(partitionSpec)
