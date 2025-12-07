@@ -63,9 +63,8 @@ case class CreateV2TableLikeExec(
     }
 
     val schema: Schema = sourceTable.table().schema()
-    val columns = SparkSchemaUtil.convert(schema).fields.map {
-      case StructField(name, dataType, nullable, _) =>
-        Column.create(name, dataType, nullable)
+    val columns = SparkSchemaUtil.convert(schema).fields.map { case StructField(name, dataType, nullable, _) =>
+      Column.create(name, dataType, nullable)
     }
 
     val partitionSpec: PartitionSpec = sourceTable.table().spec()

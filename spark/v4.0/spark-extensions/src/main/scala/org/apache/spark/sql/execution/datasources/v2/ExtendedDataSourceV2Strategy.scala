@@ -65,7 +65,13 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           IcebergCatalogAndIdentifier(sourceCatalog, sourceTableIdent),
           tableProps,
           ignoreIfExists) =>
-      CreateV2TableLikeExec(catalog, ident, sourceCatalog, sourceTableIdent, tableProps, ignoreIfExists) :: Nil
+      CreateV2TableLikeExec(
+        catalog,
+        ident,
+        sourceCatalog,
+        sourceTableIdent,
+        tableProps,
+        ignoreIfExists) :: Nil
 
     case AddPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform, name) =>
       AddPartitionFieldExec(catalog, ident, transform, name) :: Nil
