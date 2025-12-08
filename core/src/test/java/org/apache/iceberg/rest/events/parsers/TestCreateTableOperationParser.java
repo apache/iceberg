@@ -104,7 +104,7 @@ public class TestCreateTableOperationParser {
         .isInstanceOf(MetadataUpdate.AssignUUID.class);
     assertThat(((MetadataUpdate.AssignUUID) actualCreateTableOperation.updates().get(0)).uuid())
         .isEqualTo(
-            ((MetadataUpdate.AssignUUID) actualCreateTableOperation.updates().get(0)).uuid());
+            ((MetadataUpdate.AssignUUID) createTableOperation.updates().get(0)).uuid());
   }
 
   @Test
