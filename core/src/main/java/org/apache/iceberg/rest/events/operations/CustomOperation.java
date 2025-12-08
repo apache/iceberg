@@ -46,5 +46,6 @@ public interface CustomOperation extends Operation {
   @Nullable
   String viewUuid();
 
+  // additional properties
   Map<String, String> properties();
 }
