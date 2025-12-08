@@ -182,7 +182,7 @@ public class TestBigQueryTableOperations {
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining(
-            "Updating table failed due to conflict updates (etag mismatch). Retry the update");
+            "BigQuery detected concurrent update");
   }
 
   @Test
@@ -201,7 +201,7 @@ public class TestBigQueryTableOperations {
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining(
-            "Updating table failed due to conflict updates (etag mismatch). Retry the update");
+            "BigQuery detected concurrent update");
   }
 
   @Test
