@@ -21,15 +21,12 @@ package org.apache.iceberg.flink;
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -43,18 +40,17 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.flink.sink.TaskWriterFactory;
 import org.apache.iceberg.flink.source.DataIterator;
-import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
-import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.flink.source.reader.ReaderUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -64,7 +60,7 @@ import org.junit.jupiter.api.io.TempDir;
 class TestFlinkUnknownType {
   private static final long TARGET_FILE_SIZE = 128 * 1024 * 1024;
 
-  private static final Schema SCHEMA_NULL =
+  private static final Schema SCHEMA_WITH_UNKNOWN_COL =
       new Schema(
           Lists.newArrayList(
               Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -80,6 +76,10 @@ class TestFlinkUnknownType {
 
   @Parameter private FileFormat fileFormat;
 
+  private Table table;
+  private static final List<GenericRowData> EXCEPTED_ROW_DATA = exceptedRowData();
+  private static final List<Record> EXPECTED_RECORDS = exceptedRecords();
+
   @Parameters(name = "fileFormat={0}")
   public static Iterable<Object[]> parameters() {
     return ImmutableList.of(
@@ -88,21 +88,32 @@ class TestFlinkUnknownType {
         new Object[] {FileFormat.ORC});
   }
 
+  @BeforeEach
+  public void before() {
+    table =
+        CATALOG_EXTENSION
+            .catalog()
+            .createTable(
+                TestFixtures.TABLE_IDENTIFIER,
+                SCHEMA_WITH_UNKNOWN_COL,
+                PartitionSpec.unpartitioned(),
+                null,
+                ImmutableMap.of("format-version", "3", "write.format.default", fileFormat.name()));
+  }
+
   @TestTemplate
   void testV3TableUnknownTypeRead() throws Exception {
-    Table table = createTableWithNull(fileFormat);
+    new GenericAppenderHelper(table, fileFormat, warehouseDir).appendToTable(EXPECTED_RECORDS);
+    table.refresh();
 
-    List<GenericRowData> expected = createExcepted();
-    List<Record> expectedRecords = records(expected, table.schema());
-    insert(table, expectedRecords, fileFormat);
-    List<GenericRowData> records = Lists.newArrayList();
+    List<GenericRowData> genericRowData = Lists.newArrayList();
     CloseableIterable<CombinedScanTask> combinedScanTasks = table.newScan().planTasks();
     for (CombinedScanTask combinedScanTask : combinedScanTasks) {
       DataIterator<RowData> dataIterator =
-          createDataIterator(combinedScanTask, table.schema(), table.schema());
+          ReaderUtil.createDataIterator(combinedScanTask, table.schema(), table.schema());
       while (dataIterator.hasNext()) {
         GenericRowData rowData = (GenericRowData) dataIterator.next();
-        records.add(
+        genericRowData.add(
             GenericRowData.of(
                 rowData.getInt(0),
                 rowData.getString(1),
@@ -111,15 +122,13 @@ class TestFlinkUnknownType {
       }
     }
 
-    assertThat(records).containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(genericRowData).containsExactlyInAnyOrderElementsOf(EXCEPTED_ROW_DATA);
   }
 
   @TestTemplate
   void testV3TableUnknownTypeWrite() throws Exception {
-    Table table = createTableWithNull(fileFormat);
-    List<GenericRowData> exceptList = createExcepted();
-    try (TaskWriter<RowData> taskWriter = createTaskWriter(table)) {
-      for (GenericRowData rowData : exceptList) {
+    try (TaskWriter<RowData> taskWriter = createTaskWriter()) {
+      for (GenericRowData rowData : EXCEPTED_ROW_DATA) {
         taskWriter.write(rowData);
       }
 
@@ -131,39 +140,11 @@ class TestFlinkUnknownType {
 
       appendFiles.commit();
       List<Record> records = SimpleDataUtil.tableRecords(table);
-      List<Record> expectedRecords = records(exceptList, table.schema());
-      assertThat(records).containsExactlyInAnyOrderElementsOf(expectedRecords);
+      assertThat(records).containsExactlyInAnyOrderElementsOf(exceptedRecords());
     }
   }
 
-  private static Table createTableWithNull(FileFormat fileFormat) {
-    return CATALOG_EXTENSION
-        .catalog()
-        .createTable(
-            TestFixtures.TABLE_IDENTIFIER,
-            SCHEMA_NULL,
-            PartitionSpec.unpartitioned(),
-            null,
-            ImmutableMap.of("format-version", "3", "write.format.default", fileFormat.name()));
-  }
-
-  private List<GenericRowData> createExcepted() {
-    return Lists.newArrayList(
-        GenericRowData.of(1, StringData.fromString("data"), null, StringData.fromString("data1")),
-        GenericRowData.of(2, StringData.fromString("data"), null, StringData.fromString("data1")));
-  }
-
-  private DataIterator<RowData> createDataIterator(
-      CombinedScanTask combinedTask, Schema tableSchema, Schema projectSchema) {
-    return new DataIterator<>(
-        new RowDataFileScanTaskReader(
-            tableSchema, projectSchema, null, true, Collections.emptyList()),
-        combinedTask,
-        new HadoopFileIO(new Configuration()),
-        PlaintextEncryptionManager.instance());
-  }
-
-  private TaskWriter<RowData> createTaskWriter(Table table) {
+  private TaskWriter<RowData> createTaskWriter() {
     RowType flinkWriteType = FlinkSchemaUtil.convert(table.schema());
     TaskWriterFactory<RowData> taskWriterFactory =
         new RowDataTaskWriterFactory(
@@ -172,10 +153,16 @@ class TestFlinkUnknownType {
     return taskWriterFactory.create();
   }
 
-  private List<Record> records(List<GenericRowData> records, Schema schema) {
-    GenericRecord record = GenericRecord.create(schema);
+  private static List<GenericRowData> exceptedRowData() {
+    return Lists.newArrayList(
+        GenericRowData.of(1, StringData.fromString("data"), null, StringData.fromString("data1")),
+        GenericRowData.of(2, StringData.fromString("data"), null, StringData.fromString("data1")));
+  }
+
+  private static List<Record> exceptedRecords() {
+    GenericRecord record = GenericRecord.create(SCHEMA_WITH_UNKNOWN_COL);
     ImmutableList.Builder<Record> builder = ImmutableList.builder();
-    records.forEach(
+    EXCEPTED_ROW_DATA.forEach(
         recordData -> {
           GenericRecord copy = record.copy();
           for (int i = 0; i < recordData.getArity(); i++) {
@@ -191,10 +178,5 @@ class TestFlinkUnknownType {
         });
 
     return builder.build();
-  }
-
-  private void insert(Table table, List<Record> records, FileFormat format) throws IOException {
-    new GenericAppenderHelper(table, format, warehouseDir).appendToTable(records);
-    table.refresh();
   }
 }
