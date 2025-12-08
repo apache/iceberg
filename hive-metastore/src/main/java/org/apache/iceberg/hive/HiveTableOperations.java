@@ -590,7 +590,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
     LOG.warn(
         "Full metadata integrity check skipped because no metadata hash was recorded in HMS for table {}."
-            + "Falling back to encryption property based check.",
+            + " Falling back to encryption property based check.",
         tableName);
 
     Map<String, String> propertiesFromMetadata = metadata.properties();
