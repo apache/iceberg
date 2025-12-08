@@ -46,7 +46,8 @@ public class QueryEventsResponseParser {
     return JsonUtil.generate(gen -> toJson(queryEventsResponse, gen), pretty);
   }
 
-  public static void toJson(QueryEventsResponse queryEventsResponse, JsonGenerator gen) throws IOException {
+  public static void toJson(QueryEventsResponse queryEventsResponse, JsonGenerator gen)
+      throws IOException {
     Preconditions.checkNotNull(queryEventsResponse, "Invalid query events response: null");
 
     gen.writeStartObject();

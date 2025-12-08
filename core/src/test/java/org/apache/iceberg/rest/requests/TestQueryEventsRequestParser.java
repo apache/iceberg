@@ -41,8 +41,10 @@ public class TestQueryEventsRequestParser {
             .pageSize(10)
             .afterTimestampMs(123L)
             .operationTypes(List.of(OperationType.CREATE_TABLE, OperationType.DROP_TABLE))
-            .catalogObjectsByName(List.of(CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
-            .catalogObjectsById(List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
+            .catalogObjectsByName(
+                List.of(CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
+            .catalogObjectsById(
+                List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1"))
             .build();
@@ -66,8 +68,10 @@ public class TestQueryEventsRequestParser {
             .pageSize(10)
             .afterTimestampMs(123L)
             .operationTypes(List.of(OperationType.CREATE_TABLE, OperationType.DROP_TABLE))
-            .catalogObjectsByName(List.of(CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
-            .catalogObjectsById(List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
+            .catalogObjectsByName(
+                List.of(CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
+            .catalogObjectsById(
+                List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1"))
             .build();
@@ -114,8 +118,10 @@ public class TestQueryEventsRequestParser {
             .pageSize(10)
             .afterTimestampMs(123L)
             .operationTypes(List.of(OperationType.CREATE_TABLE, OperationType.DROP_TABLE))
-            .catalogObjectsByName(List.of(CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
-            .catalogObjectsById(List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
+            .catalogObjectsByName(
+                List.of(CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
+            .catalogObjectsById(
+                List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1", "k2", "v2"))
             .build();

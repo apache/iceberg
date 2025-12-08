@@ -29,7 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * org.apache.iceberg.Table}, or {@link org.apache.iceberg.view.View}.
  */
 public class CatalogObjectIdentifier {
-  private static final CatalogObjectIdentifier EMPTY_CATALOG_OBJECT = new CatalogObjectIdentifier(new String[] {});
+  private static final CatalogObjectIdentifier EMPTY_CATALOG_OBJECT =
+      new CatalogObjectIdentifier(new String[] {});
   private static final Joiner DOT = Joiner.on(".");
   private static final Predicate<String> CONTAINS_NULL_CHARACTER =
       Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
@@ -39,13 +40,15 @@ public class CatalogObjectIdentifier {
   }
 
   public static CatalogObjectIdentifier of(String... levels) {
-    Preconditions.checkArgument(null != levels, "Cannot create CatalogObjectIdentifier from null array");
+    Preconditions.checkArgument(
+        null != levels, "Cannot create CatalogObjectIdentifier from null array");
     if (levels.length == 0) {
       return empty();
     }
 
     for (String level : levels) {
-      Preconditions.checkNotNull(level, "Cannot create a CatalogObjectIdentifier with a null level");
+      Preconditions.checkNotNull(
+          level, "Cannot create a CatalogObjectIdentifier with a null level");
       Preconditions.checkArgument(
           !CONTAINS_NULL_CHARACTER.test(level),
           "Cannot create a CatalogObjectIdentifier with the null-byte character");

@@ -87,6 +87,5 @@ public class TestCatalogObjectUuidParser {
     String invalidType = "{\"uuid\":\"uuid\",\"type\":123}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CatalogObjectUuidParser.fromJson(invalidType));
-
   }
 }

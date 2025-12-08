@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.rest.events.Event;
@@ -129,7 +128,8 @@ public class TestEventParser {
 
     String missingRequestEventCount =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingRequestEventCount));
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> EventParser.fromJson(missingRequestEventCount));
 
     String missingTimestamp =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
@@ -155,7 +155,8 @@ public class TestEventParser {
     // request-event-count present but not an integer
     String invalidRequestEventCount =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":\"two\",\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidRequestEventCount));
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> EventParser.fromJson(invalidRequestEventCount));
 
     // timestamp-ms present but not a long
     String invalidTimestamp =

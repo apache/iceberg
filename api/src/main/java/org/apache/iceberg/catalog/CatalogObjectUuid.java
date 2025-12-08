@@ -22,9 +22,12 @@ import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Identifies a {@link org.apache.iceberg.Table} or {@link org.apache.iceberg.view.View} by UUID. */
+/**
+ * Identifies a {@link org.apache.iceberg.Table} or {@link org.apache.iceberg.view.View} by UUID.
+ */
 public class CatalogObjectUuid {
   private final String uuid;
+
   /** one of ["table", "view"]. Assign using {@link CatalogObjectType#type()} */
   private final String type;
 
@@ -35,8 +38,8 @@ public class CatalogObjectUuid {
       throw new IllegalArgumentException("Invalid UUID: empty");
     }
 
-    if(!type.equals(CatalogObjectType.TABLE.type()) && !type.equals(CatalogObjectType.VIEW.type()))
-        throw new IllegalArgumentException("Invalid type: " + type);
+    if (!type.equals(CatalogObjectType.TABLE.type()) && !type.equals(CatalogObjectType.VIEW.type()))
+      throw new IllegalArgumentException("Invalid type: " + type);
 
     this.uuid = uuid;
     this.type = type;

@@ -88,19 +88,14 @@ public class TestCreateViewOperationParser {
             .build();
     CreateViewOperation actual = CreateViewOperationParser.fromJson(json);
 
-    assertThat(actual.operationType())
-        .isEqualTo(expected.operationType());
-    assertThat(actual.identifier())
-        .isEqualTo(expected.identifier());
+    assertThat(actual.operationType()).isEqualTo(expected.operationType());
+    assertThat(actual.identifier()).isEqualTo(expected.identifier());
     assertThat(actual.viewUuid()).isEqualTo(expected.viewUuid());
 
     assertThat(actual.updates()).hasSize(1);
-    assertThat(actual.updates().get(0))
-        .isInstanceOf(MetadataUpdate.AssignUUID.class);
+    assertThat(actual.updates().get(0)).isInstanceOf(MetadataUpdate.AssignUUID.class);
     assertThat(((MetadataUpdate.AssignUUID) actual.updates().get(0)).uuid())
-        .isEqualTo(
-            ((MetadataUpdate.AssignUUID) expected.updates().get(0)).uuid());
-
+        .isEqualTo(((MetadataUpdate.AssignUUID) expected.updates().get(0)).uuid());
   }
 
   @Test

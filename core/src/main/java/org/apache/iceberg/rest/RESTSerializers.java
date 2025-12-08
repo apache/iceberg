@@ -68,15 +68,13 @@ import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ConfigResponseParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
-import org.apache.iceberg.rest.responses.QueryEventsResponse;
-import org.apache.iceberg.rest.responses.QueryEventsResponseParser;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponseParser;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponseParser;
-import org.apache.iceberg.rest.responses.ImmutableQueryEventsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.ImmutableQueryEventsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponseParser;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -86,6 +84,8 @@ import org.apache.iceberg.rest.responses.LoadViewResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponseParser;
+import org.apache.iceberg.rest.responses.QueryEventsResponse;
+import org.apache.iceberg.rest.responses.QueryEventsResponseParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class RESTSerializers {
@@ -637,7 +637,8 @@ public class RESTSerializers {
     }
   }
 
-  static class EventsResponseDeSerializer<T extends QueryEventsResponse> extends JsonDeserializer<T> {
+  static class EventsResponseDeSerializer<T extends QueryEventsResponse>
+      extends JsonDeserializer<T> {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
