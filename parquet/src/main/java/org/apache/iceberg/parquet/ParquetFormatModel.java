@@ -45,14 +45,14 @@ import org.apache.parquet.schema.MessageType;
 public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
   public static final String WRITER_VERSION_KEY = "parquet.writer.version";
 
-  private final Class<D> type;
+  private final Class<? extends D> type;
   private final Class<S> schemaType;
   private final ReaderFunction<D> readerFunction;
   private final BatchReaderFunction<D> batchReaderFunction;
   private final WriterFunction<S> writerFunction;
 
   private ParquetFormatModel(
-      Class<D> type,
+      Class<? extends D> type,
       Class<S> schemaType,
       ReaderFunction<D> readerFunction,
       BatchReaderFunction<D> batchReaderFunction,
@@ -77,7 +77,7 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   public ParquetFormatModel(
-      Class<D> type, Class<S> schemaType, BatchReaderFunction<D> batchReaderFunction) {
+      Class<? extends D> type, Class<S> schemaType, BatchReaderFunction<D> batchReaderFunction) {
     this(type, schemaType, null, batchReaderFunction, null);
   }
 
@@ -87,7 +87,7 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public Class<D> type() {
+  public Class<? extends D> type() {
     return type;
   }
 
@@ -109,16 +109,12 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
   @FunctionalInterface
   public interface ReaderFunction<D> {
     ParquetValueReader<D> read(
-        Schema schema, MessageType messageType, Map<Integer, ?> constantValues);
+        Schema schema, MessageType messageType, Map<Integer, ?> idToConstant);
   }
 
   @FunctionalInterface
   public interface BatchReaderFunction<D> {
-    VectorizedReader<D> read(
-        Schema schema,
-        MessageType messageType,
-        Map<Integer, ?> constantValues,
-        Map<String, String> config);
+    VectorizedReader<D> read(Schema schema, MessageType messageType, Map<Integer, ?> idToConstant);
   }
 
   @FunctionalInterface
@@ -323,7 +319,7 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
         return internal
             .createBatchedReaderFunc(
                 (icebergSchema, messageType) ->
-                    batchReaderFunction.read(icebergSchema, messageType, idToConstant, config))
+                    batchReaderFunction.read(icebergSchema, messageType, idToConstant))
             .build();
       } else {
         throw new IllegalStateException("Either readerFunction or batchReaderFunction must be set");

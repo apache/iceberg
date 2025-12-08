@@ -58,7 +58,7 @@ public interface FormatModel<D, S> {
    *
    * @return the type of the data structures handled by this model implementation
    */
-  Class<D> type();
+  Class<? extends D> type();
 
   /**
    * Return the schema type class for the object model implementation processed by this factory.

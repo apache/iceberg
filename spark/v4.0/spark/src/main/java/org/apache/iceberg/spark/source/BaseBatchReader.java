@@ -35,6 +35,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.data.vectorized.ColumnVectorWithFilter;
 import org.apache.iceberg.spark.data.vectorized.ColumnarBatchUtil;
 import org.apache.iceberg.spark.data.vectorized.UpdatableDeletedColumnVector;
@@ -72,17 +73,20 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Expression residual,
       Map<Integer, ?> idToConstant,
       @Nonnull SparkDeleteFilter deleteFilter) {
-    ReadBuilder<ColumnarBatch, ?> readBuilder =
-        FormatModelRegistry.readBuilder(format, ColumnarBatch.class, inputFile);
+    ReadBuilder<ColumnarBatch, ?> readBuilder;
     if (parquetConf != null) {
       readBuilder =
-          readBuilder
-              .recordsPerBatch(parquetConf.batchSize())
-              .set(
-                  VectorizedSparkParquetReaders.PARQUET_READER_TYPE,
-                  parquetConf.readerType().name());
-    } else if (orcConf != null) {
-      readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
+          parquetConf.readerType() == ParquetReaderType.COMET
+              ? FormatModelRegistry.readBuilder(
+                  format, VectorizedSparkParquetReaders.CometColumnarBatch.class, inputFile)
+              : FormatModelRegistry.readBuilder(format, ColumnarBatch.class, inputFile);
+
+      readBuilder = readBuilder.recordsPerBatch(parquetConf.batchSize());
+    } else {
+      readBuilder = FormatModelRegistry.readBuilder(format, ColumnarBatch.class, inputFile);
+      if (orcConf != null) {
+        readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
+      }
     }
 
     CloseableIterable<ColumnarBatch> iterable =

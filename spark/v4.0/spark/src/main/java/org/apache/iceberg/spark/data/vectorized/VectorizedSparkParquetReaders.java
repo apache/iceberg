@@ -28,9 +28,9 @@ import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
-import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.parquet.schema.MessageType;
+import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,8 +43,6 @@ public class VectorizedSparkParquetReaders {
   private static final String ENABLE_NULL_CHECK_FOR_GET = "arrow.enable_null_check_for_get";
   private static final String ENABLE_NULL_CHECK_FOR_GET_ENV = "ARROW_ENABLE_NULL_CHECK_FOR_GET";
 
-  public static final String PARQUET_READER_TYPE = "parquet.reader.type";
-
   static {
     try {
       enableUnsafeMemoryAccess();
@@ -55,18 +53,6 @@ public class VectorizedSparkParquetReaders {
   }
 
   private VectorizedSparkParquetReaders() {}
-
-  public static VectorizedReader<ColumnarBatch> buildReader(
-      Schema expectedSchema,
-      MessageType fileSchema,
-      Map<Integer, ?> idToConstant,
-      Map<String, String> config) {
-    if (ParquetReaderType.COMET.name().equals(config.get(PARQUET_READER_TYPE))) {
-      return buildCometReader(expectedSchema, fileSchema, idToConstant);
-    } else {
-      return buildReader(expectedSchema, fileSchema, idToConstant);
-    }
-  }
 
   public static ColumnarBatchReader buildReader(
       Schema expectedSchema,
@@ -91,9 +77,9 @@ public class VectorizedSparkParquetReaders {
     return buildReader(expectedSchema, fileSchema, idToConstant, ArrowAllocation.rootAllocator());
   }
 
-  public static CometColumnarBatchReader buildCometReader(
+  public static VectorizedReader<ColumnarBatch> buildCometReader(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
-    return (CometColumnarBatchReader)
+    return (VectorizedReader<ColumnarBatch>)
         TypeWithSchemaVisitor.visit(
             expectedSchema.asStruct(),
             fileSchema,
@@ -102,6 +88,13 @@ public class VectorizedSparkParquetReaders {
                 fileSchema,
                 idToConstant,
                 readers -> new CometColumnarBatchReader(readers, expectedSchema)));
+  }
+
+  /** A subclass of ColumnarBatch to identify Comet readers. */
+  public static class CometColumnarBatch extends ColumnarBatch {
+    public CometColumnarBatch(ColumnVector[] columns) {
+      super(columns);
+    }
   }
 
   // enables unsafe memory access to avoid costly checks to see if index is within bounds
