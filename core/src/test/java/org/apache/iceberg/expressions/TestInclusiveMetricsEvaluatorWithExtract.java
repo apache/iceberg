@@ -1031,6 +1031,6 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     DataFile file =
         new TestDataFile("file.parquet", Row.of(), 50, null, null, null, lowerBounds, upperBounds);
     Expression expr = equal(extract("variant", "$.event_uuid", PhysicalType.UUID.name()), uuid);
-    assertThat(shouldRead(expr, file)).as("Should read: many possible timestamps" + expr).isTrue();
+    assertThat(shouldRead(expr, file)).as("Should read: many possible UUIDs" + expr).isTrue();
   }
 }

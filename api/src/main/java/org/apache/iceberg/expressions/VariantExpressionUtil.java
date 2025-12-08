@@ -148,6 +148,7 @@ class VariantExpressionUtil {
               (Integer) DateTimeUtil.nanosToDays(((Number) value.asPrimitive().get()).longValue());
         }
     }
+
     return null;
   }
 }
