@@ -139,7 +139,7 @@ class TestDynamicTableUpdateOperator {
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT);
-    operator.open(null);
+    operator.open((OpenContext) null);
 
     catalog.createTable(table, SCHEMA2);
 
@@ -180,7 +180,7 @@ class TestDynamicTableUpdateOperator {
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT);
-    operator.open(null);
+    operator.open((OpenContext) null);
 
     catalog.createTable(table, SCHEMA2);
 
