@@ -218,7 +218,7 @@ be found in the [Google Cloud documentation](https://cloud.google.com/docs/authe
 "iceberg.catalog.type": "rest",
 "iceberg.catalog.uri": "https://catalog:8181",
 "iceberg.catalog.warehouse": "gs://bucket-name/warehouse",
-"iceberg.catalog.io-impl": "org.apache.iceberg.google.gcs.GCSFileIO"
+"iceberg.catalog.io-impl": "org.apache.iceberg.gcp.gcs.GCSFileIO"
 ```
 
 ### Hadoop configuration

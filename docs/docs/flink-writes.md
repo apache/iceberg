@@ -536,8 +536,10 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `immediateTableUpdate(boolean enabled)`              | Controls whether table metadata (schema/partition spec) updates immediately (default: false)                                                                                                                                                                   |
 | `set(String property, String value)`                 | Set any Iceberg write property (e.g., `"write.format"`, `"write.upsert.enabled"`).Check out all the options here: [write-options](flink-configuration.md#write-options) |
 | `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
+| `tableCreator(TableCreator creator)` | When DynamicIcebergSink creates new Iceberg tables, allows overriding how tables are created - setting custom table properties and location based on the table name. |
 
 ### Notes
 
 - **Range distribution mode**: Currently, the dynamic sink does not support the `RANGE` distribution mode, if set, it will fall back to `HASH`.
 - **Property Precedence Note**: When conflicts occur between table properties and sink properties, the sink properties will override the table properties configuration.
+- **Table Format Version upgrade**: Dynamic sink does not support upgrading a table with dynamic records. The job should not be running while the V2 to V3 upgrade is in progress.

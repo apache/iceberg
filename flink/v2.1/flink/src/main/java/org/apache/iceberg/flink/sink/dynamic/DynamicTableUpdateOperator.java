@@ -41,6 +41,7 @@ class DynamicTableUpdateOperator
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
+  private final TableCreator tableCreator;
 
   private transient TableUpdater updater;
 
@@ -48,11 +49,13 @@ class DynamicTableUpdateOperator
       CatalogLoader catalogLoader,
       int cacheMaximumSize,
       long cacheRefreshMs,
-      int inputSchemasPerTableCacheMaximumSize) {
+      int inputSchemasPerTableCacheMaximumSize,
+      TableCreator tableCreator) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
+    this.tableCreator = tableCreator;
   }
 
   @Override
@@ -70,7 +73,11 @@ class DynamicTableUpdateOperator
   public DynamicRecordInternal map(DynamicRecordInternal data) throws Exception {
     Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
         updater.update(
-            TableIdentifier.parse(data.tableName()), data.branch(), data.schema(), data.spec());
+            TableIdentifier.parse(data.tableName()),
+            data.branch(),
+            data.schema(),
+            data.spec(),
+            tableCreator);
     TableMetadataCache.ResolvedSchemaInfo compareInfo = newData.f0;
 
     data.setSchema(compareInfo.resolvedTableSchema());

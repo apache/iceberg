@@ -397,6 +397,54 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testExtraSnapshotMetadataReflectsSessionConfig() {
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
+        () -> {
+          Table table = validationCatalog.loadTable(tableIdent);
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+
+          Map<String, String> metadata = writeConf.extraSnapshotMetadata();
+
+          assertThat(metadata).containsEntry("test-key", "session-value");
+        });
+  }
+
+  @TestTemplate
+  public void testExtraSnapshotMetadataWriteOptionsOverrideSessionConfig() {
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
+        () -> {
+          Table table = validationCatalog.loadTable(tableIdent);
+          Map<String, String> writeOptions =
+              ImmutableMap.of("snapshot-property.test-key", "write-option-value");
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
+
+          Map<String, String> metadata = writeConf.extraSnapshotMetadata();
+
+          // Assert that writeOptions take precedence over session config
+          assertThat(metadata).containsEntry("test-key", "write-option-value");
+        });
+  }
+
+  @TestTemplate
+  public void testExtraSnapshotMetadataPersistedOnWrite() {
+    String propertyKey = "test-key";
+    String propertyValue = "session-value";
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
+        () -> {
+          spark.sql(
+              String.format(
+                  "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+                  tableName));
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
+        });
+  }
+
+  @TestTemplate
   public void testDataPropsDefaultsAsDeleteProps() {
     List<List<Map<String, String>>> propertiesSuites =
         Lists.newArrayList(

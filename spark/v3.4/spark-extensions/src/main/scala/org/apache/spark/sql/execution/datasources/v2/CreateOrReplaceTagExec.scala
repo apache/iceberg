@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions
@@ -33,7 +32,8 @@ case class CreateOrReplaceTagExec(
     tagOptions: TagOptions,
     create: Boolean,
     replace: Boolean,
-    ifNotExists: Boolean) extends LeafV2CommandExec {
+    ifNotExists: Boolean)
+    extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
@@ -47,8 +47,10 @@ case class CreateOrReplaceTagExec(
           .map(java.lang.Long.valueOf)
           .orNull
 
-        Preconditions.checkArgument(snapshotId != null,
-          "Cannot complete create or replace tag operation on %s, main has no snapshot", ident)
+        Preconditions.checkArgument(
+          snapshotId != null,
+          "Cannot complete create or replace tag operation on %s, main has no snapshot",
+          ident)
 
         val manageSnapshot = iceberg.table.manageSnapshots()
         val refExists = null != iceberg.table().refs().get(tag)

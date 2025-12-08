@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.expressions.And
@@ -48,15 +47,21 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
     // use native Spark planning for delta-based plans
     // unlike other commands, these plans have filters that can be pushed down directly
-    case RewrittenRowLevelCommand(command, _: DataSourceV2Relation, rewritePlan: WriteIcebergDelta) =>
+    case RewrittenRowLevelCommand(
+          command,
+          _: DataSourceV2Relation,
+          rewritePlan: WriteIcebergDelta) =>
       val newRewritePlan = V2ScanRelationPushDown.apply(rewritePlan)
       command.withNewRewritePlan(newRewritePlan)
 
     // group-based MERGE operations are rewritten as joins and may be planned in a special way
     // the join condition is the MERGE condition and can be pushed into the source
     // this allows us to remove completely pushed down predicates from the join condition
-    case UnplannedGroupBasedMergeOperation(command, rd: ReplaceIcebergData,
-        join @ Join(_, _, _, Some(joinCond), _), relation: DataSourceV2Relation) =>
+    case UnplannedGroupBasedMergeOperation(
+          command,
+          rd: ReplaceIcebergData,
+          join @ Join(_, _, _, Some(joinCond), _),
+          relation: DataSourceV2Relation) =>
 
       val table = relation.table.asRowLevelOperationTable
       val scanBuilder = table.newScanBuilder(relation.options)
@@ -70,8 +75,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
 
       val (scan, output) = PushDownUtils.pruneColumns(scanBuilder, relation, relation.output, Nil)
 
-      logInfo(
-        s"""
+      logInfo(s"""
            |Pushing MERGE operators to ${relation.name}
            |Pushed filters: $pushedFiltersStr
            |Original JOIN condition: $joinCond
@@ -107,8 +111,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
 
       val (scan, output) = PushDownUtils.pruneColumns(scanBuilder, relation, relation.output, Nil)
 
-      logInfo(
-        s"""
+      logInfo(s"""
            |Pushing operators to ${relation.name}
            |Pushed filters: $pushedFiltersStr
            |Filters that were not pushed: ${remainingFilters.mkString(",")}
@@ -128,7 +131,8 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
   private def pushFilters(
       cond: Expression,
       scanBuilder: ScanBuilder,
-      tableAttrs: Seq[AttributeReference]): (Either[Seq[Filter], Seq[Predicate]], Seq[Expression]) = {
+      tableAttrs: Seq[AttributeReference])
+      : (Either[Seq[Filter], Seq[Predicate]], Seq[Expression]) = {
 
     val tableAttrSet = AttributeSet(tableAttrs)
     val filters = splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
@@ -178,8 +182,12 @@ object UnplannedGroupBasedMergeOperation {
         case rd @ ReplaceIcebergData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
           val joinsAndRelations = query.collect {
             case j @ Join(
-                NoStatsUnaryNode(ScanOperation(_, pushDownFilters, pushUpFilters, r: DataSourceV2Relation)), _, _, _, _)
-                if pushUpFilters.isEmpty && pushDownFilters.isEmpty && r.table.eq(table) =>
+                  NoStatsUnaryNode(
+                    ScanOperation(_, pushDownFilters, pushUpFilters, r: DataSourceV2Relation)),
+                  _,
+                  _,
+                  _,
+                  _) if pushUpFilters.isEmpty && pushDownFilters.isEmpty && r.table.eq(table) =>
               j -> r
           }
 

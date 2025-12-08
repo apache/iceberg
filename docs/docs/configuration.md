@@ -90,6 +90,15 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.merge.isolation-level                         | serializable                | Isolation level for merge commands: serializable or snapshot                                                                                                                                                                                       |
 | write.delete.granularity                            | partition                   | Controls the granularity of generated delete files: partition or file                                                                                                                                                                              |
 
+### Encryption properties
+
+| Property                          | Default            | Description                                                                           |
+| --------------------------------- | ------------------ | ------------------------------------------------------------------------------------- |
+| encryption.key-id                 | (not set)          | ID of the master key of the table                                                     |
+| encryption.data-key-length        | 16 (bytes)         | Length of keys used for encryption of table files. Valid values are 16, 24, 32 bytes  |
+
+See the [Encryption](encryption.md) document for additional details.
+
 ### Table behavior properties
 
 | Property                           | Default          | Description                                                   |
@@ -108,6 +117,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | history.expire.max-snapshot-age-ms | 432000000 (5 days) | Default max age of snapshots to keep on the table and all of its branches while expiring snapshots |
 | history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep on the table and all of its branches while expiring snapshots |
 | history.expire.max-ref-age-ms      | `Long.MAX_VALUE` (forever) | For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires. |
+| gc.enabled                         | true             | Allows garbage collection operations such as expiring snapshots and removing orphan files |
 
 ### Reserved table properties
 Reserved table properties are only used to control behaviors when creating or updating a table.
@@ -137,6 +147,7 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | cache-enabled                     | true               | Whether to cache catalog entries |
 | cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
 | metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting.md) section for additional details |
+| encryption.kms-impl               | null               | a custom `KeyManagementClient` implementation to use in a catalog for interactions with KMS (key management service). See the [Encryption](encryption.md) document for additional details |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
 Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.

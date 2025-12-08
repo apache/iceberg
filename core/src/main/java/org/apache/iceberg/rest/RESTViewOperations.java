@@ -32,7 +32,8 @@ import org.apache.iceberg.view.ViewOperations;
 class RESTViewOperations implements ViewOperations {
   private final RESTClient client;
   private final String path;
-  private final Supplier<Map<String, String>> headers;
+  private final Supplier<Map<String, String>> readHeaders;
+  private final Supplier<Map<String, String>> mutationHeaders;
   private final Set<Endpoint> endpoints;
   private ViewMetadata current;
 
@@ -42,10 +43,21 @@ class RESTViewOperations implements ViewOperations {
       Supplier<Map<String, String>> headers,
       ViewMetadata current,
       Set<Endpoint> endpoints) {
+    this(client, path, headers, headers, current, endpoints);
+  }
+
+  RESTViewOperations(
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaders,
+      ViewMetadata current,
+      Set<Endpoint> endpoints) {
     Preconditions.checkArgument(null != current, "Invalid view metadata: null");
     this.client = client;
     this.path = path;
-    this.headers = headers;
+    this.readHeaders = readHeaders;
+    this.mutationHeaders = mutationHeaders;
     this.current = current;
     this.endpoints = endpoints;
   }
@@ -59,7 +71,7 @@ class RESTViewOperations implements ViewOperations {
   public ViewMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_VIEW);
     return updateCurrentMetadata(
-        client.get(path, LoadViewResponse.class, headers, ErrorHandlers.viewErrorHandler()));
+        client.get(path, LoadViewResponse.class, readHeaders, ErrorHandlers.viewErrorHandler()));
   }
 
   @Override
@@ -74,7 +86,11 @@ class RESTViewOperations implements ViewOperations {
 
     LoadViewResponse response =
         client.post(
-            path, request, LoadViewResponse.class, headers, ErrorHandlers.viewCommitHandler());
+            path,
+            request,
+            LoadViewResponse.class,
+            mutationHeaders,
+            ErrorHandlers.viewCommitHandler());
 
     updateCurrentMetadata(response);
   }
