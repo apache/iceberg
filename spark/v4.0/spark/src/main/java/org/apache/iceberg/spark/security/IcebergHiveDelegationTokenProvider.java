@@ -94,7 +94,6 @@ public class IcebergHiveDelegationTokenProvider implements HadoopDelegationToken
   private static final String DELEGATION_TOKEN_RENEWAL_ENABLE = "delegation.token.renewal.enabled";
   private static final String SPARK_KERBEROS_KEYTAB = "spark.kerberos.keytab";
   private static final String DEPLOY_MODE_CLIENT = "client";
-  private static final String HIVE_METASTORE_TOKEN_SIGNATURE = "hive.metastore.token.signature";
 
   @Override
   public String serviceName() {
@@ -233,7 +232,7 @@ public class IcebergHiveDelegationTokenProvider implements HadoopDelegationToken
         hiveConf.getBoolean(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname, false);
 
     // Use token signature instead of metastore URI as service
-    String tokenSignature = hiveConf.get(HIVE_METASTORE_TOKEN_SIGNATURE, null);
+    String tokenSignature = hiveConf.get(HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE.varname, null);
     if (StringUtils.isBlank(tokenSignature)) {
       tokenSignature = metastoreUri;
     }
@@ -360,7 +359,7 @@ public class IcebergHiveDelegationTokenProvider implements HadoopDelegationToken
    * @return token signature
    */
   private String obtainTokenSignature(HiveConf conf) {
-    String tokenSignature = conf.get(HIVE_METASTORE_TOKEN_SIGNATURE, null);
+    String tokenSignature = conf.get(HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE.varname, null);
     if (StringUtils.isNotBlank(tokenSignature)) {
       return tokenSignature;
     }
