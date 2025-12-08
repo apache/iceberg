@@ -181,8 +181,7 @@ public class TestBigQueryTableOperations {
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining(
-            "BigQuery detected concurrent update");
+        .hasMessageContaining("BigQuery detected concurrent update");
   }
 
   @Test
@@ -200,8 +199,7 @@ public class TestBigQueryTableOperations {
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining(
-            "BigQuery detected concurrent update");
+        .hasMessageContaining("BigQuery detected concurrent update");
   }
 
   @Test
