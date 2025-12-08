@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest.events.operations;
 
+import java.util.List;
+import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.immutables.value.Value;
 
@@ -32,4 +34,6 @@ public interface CreateViewOperation extends Operation {
   TableIdentifier identifier();
 
   String viewUuid();
+
+  List<MetadataUpdate> updates();
 }

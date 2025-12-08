@@ -74,9 +74,10 @@ public class TestOperationParser {
       ImmutableCreateViewOperation.builder()
           .identifier(TableIdentifier.of(Namespace.empty(), "view"))
           .viewUuid("uuid")
+          .updates(Lists.newArrayList())
           .build();
   String createViewOperationJson =
-      "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
+      "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[]}";
 
   DropNamespaceOperation dropNamespaceOperation =
       ImmutableDropNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();

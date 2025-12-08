@@ -21,6 +21,9 @@ package org.apache.iceberg.rest.events.parsers;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.util.List;
+import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.MetadataUpdateParser;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -32,6 +35,7 @@ public class CreateViewOperationParser {
   private static final String OPERATION_TYPE = "operation-type";
   private static final String IDENTIFIER = "identifier";
   private static final String VIEW_UUID = "view-uuid";
+  private static final String UPDATES = "updates";
 
   private CreateViewOperationParser() {}
 
@@ -59,6 +63,12 @@ public class CreateViewOperationParser {
 
     gen.writeStringField(VIEW_UUID, operation.viewUuid());
 
+    gen.writeArrayFieldStart(UPDATES);
+    for (MetadataUpdate update : operation.updates()) {
+      MetadataUpdateParser.toJson(update, gen);
+    }
+    gen.writeEndArray();
+
     gen.writeEndObject();
   }
 
@@ -71,7 +81,13 @@ public class CreateViewOperationParser {
 
     TableIdentifier identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
     String viewUuid = JsonUtil.getString(VIEW_UUID, json);
+    List<MetadataUpdate> updates =
+        JsonUtil.getObjectList(UPDATES, json, MetadataUpdateParser::fromJson);
 
-    return ImmutableCreateViewOperation.builder().identifier(identifier).viewUuid(viewUuid).build();
+    return ImmutableCreateViewOperation.builder()
+        .identifier(identifier)
+        .viewUuid(viewUuid)
+        .updates(updates)
+        .build();
   }
 }

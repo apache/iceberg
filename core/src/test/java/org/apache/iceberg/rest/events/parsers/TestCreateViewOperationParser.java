@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.List;
+import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.rest.events.operations.CreateViewOperation;
@@ -36,9 +38,10 @@ public class TestCreateViewOperationParser {
         ImmutableCreateViewOperation.builder()
             .identifier(TableIdentifier.of(Namespace.empty(), "view"))
             .viewUuid("uuid")
+            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
             .build();
     String json =
-        "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
+        "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
     assertThat(CreateViewOperationParser.toJson(op)).isEqualTo(json);
   }
 
@@ -48,6 +51,7 @@ public class TestCreateViewOperationParser {
         ImmutableCreateViewOperation.builder()
             .identifier(TableIdentifier.of(Namespace.empty(), "view"))
             .viewUuid("uuid")
+            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
             .build();
     String json =
         "{\n"
@@ -56,7 +60,11 @@ public class TestCreateViewOperationParser {
             + "    \"namespace\" : [ ],\n"
             + "    \"name\" : \"view\"\n"
             + "  },\n"
-            + "  \"view-uuid\" : \"uuid\"\n"
+            + "  \"view-uuid\" : \"uuid\",\n"
+            + "  \"updates\" : [ {\n"
+            + "    \"action\" : \"assign-uuid\",\n"
+            + "    \"uuid\" : \"uuid\"\n"
+            + "  } ]\n"
             + "}";
     assertThat(CreateViewOperationParser.toJsonPretty(op)).isEqualTo(json);
   }
@@ -71,13 +79,28 @@ public class TestCreateViewOperationParser {
   @Test
   void testFromJson() {
     String json =
-        "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
+        "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":[{\"action\":\"assign-uuid\",\"uuid\":\"uuid\"}]}";
     CreateViewOperation expected =
         ImmutableCreateViewOperation.builder()
             .identifier(TableIdentifier.of(Namespace.empty(), "view"))
             .viewUuid("uuid")
+            .updates(List.of(new MetadataUpdate.AssignUUID("uuid")))
             .build();
-    assertThat(CreateViewOperationParser.fromJson(json)).isEqualTo(expected);
+    CreateViewOperation actual = CreateViewOperationParser.fromJson(json);
+
+    assertThat(actual.operationType())
+        .isEqualTo(expected.operationType());
+    assertThat(actual.identifier())
+        .isEqualTo(expected.identifier());
+    assertThat(actual.viewUuid()).isEqualTo(expected.viewUuid());
+
+    assertThat(actual.updates()).hasSize(1);
+    assertThat(actual.updates().get(0))
+        .isInstanceOf(MetadataUpdate.AssignUUID.class);
+    assertThat(((MetadataUpdate.AssignUUID) actual.updates().get(0)).uuid())
+        .isEqualTo(
+            ((MetadataUpdate.AssignUUID) expected.updates().get(0)).uuid());
+
   }
 
   @Test
@@ -97,6 +120,11 @@ public class TestCreateViewOperationParser {
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"}}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CreateViewOperationParser.fromJson(missingUuid));
+
+    String missingUpdates =
+        "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\"}";
+    assertThatIllegalArgumentException()
+        .isThrownBy((() -> CreateViewOperationParser.fromJson(missingUpdates)));
   }
 
   @Test
@@ -112,5 +140,11 @@ public class TestCreateViewOperationParser {
         "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":123}";
     assertThatIllegalArgumentException()
         .isThrownBy(() -> CreateViewOperationParser.fromJson(invalidUuid));
+
+    // updates present but not an array
+    String invalidUpdates =
+        "{\"operation-type\":\"create-view\",\"identifier\":{\"namespace\":[],\"name\":\"view\"},\"view-uuid\":\"uuid\",\"updates\":\"not-an-array\"}";
+    assertThatIllegalArgumentException()
+        .isThrownBy((() -> CreateViewOperationParser.fromJson(invalidUpdates)));
   }
 }
