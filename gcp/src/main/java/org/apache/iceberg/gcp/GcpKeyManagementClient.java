@@ -51,8 +51,8 @@ public class GcpKeyManagementClient implements KeyManagementClient {
 
   private Map<String, String> allProperties;
 
-  private volatile transient KeyManagementServiceClient kmsClient;
-  private volatile transient CloseableGroup closeableGroup = new CloseableGroup();
+  private transient volatile KeyManagementServiceClient kmsClient;
+  private transient volatile CloseableGroup closeableGroup = new CloseableGroup();
 
   @Override
   public void initialize(Map<String, String> properties) {
