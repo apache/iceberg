@@ -59,8 +59,8 @@ public class EventParser {
     gen.writeNumberField(EVENT_COUNT, event.eventCount());
     gen.writeNumberField(TIMESTAMP_MS, event.timestampMs());
 
-    if (event.actor() != null) {
-      gen.writeStringField(ACTOR, event.actor());
+    if (!event.actor().isEmpty()) {
+      JsonUtil.writeStringMap(ACTOR, event.actor(), gen);
     }
 
     gen.writeFieldName(OPERATION);
@@ -90,7 +90,7 @@ public class EventParser {
             .timestampMs(timestampMs);
 
     if (json.has(ACTOR)) {
-      builder.actor(JsonUtil.getString(ACTOR, json));
+      builder.actor(JsonUtil.getStringMap(ACTOR, json));
     }
 
     builder.operation(operation);

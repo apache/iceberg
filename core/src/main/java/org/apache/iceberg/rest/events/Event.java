@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest.events;
 
+import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.iceberg.rest.events.operations.Operation;
 import org.immutables.value.Value;
@@ -33,8 +34,7 @@ public interface Event {
 
   Long timestampMs();
 
-  @Nullable
-  String actor();
+  Map<String, String> actor();
 
   Operation operation();
 }

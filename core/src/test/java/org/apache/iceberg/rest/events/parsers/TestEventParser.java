@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.rest.events.Event;
 import org.apache.iceberg.rest.events.ImmutableEvent;
@@ -42,7 +44,7 @@ public class TestEventParser {
         .requestId("r-1")
         .eventCount(2)
         .timestampMs(123L)
-        .actor("user1")
+        .actor(Map.of("id", "user1"))
         .operation(sampleOperation())
         .build();
   }
@@ -61,7 +63,7 @@ public class TestEventParser {
   void testToJson() {
     Event event = sampleEventWithActor();
     String expected =
-        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThat(EventParser.toJson(event)).isEqualTo(expected);
   }
 
@@ -74,7 +76,9 @@ public class TestEventParser {
             + "  \"request-id\" : \"r-1\",\n"
             + "  \"event-count\" : 2,\n"
             + "  \"timestamp-ms\" : 123,\n"
-            + "  \"actor\" : \"user1\",\n"
+            + "  \"actor\" : {\n"
+            + "    \"id\" : \"user1\"\n"
+            + "  },\n"
             + "  \"operation\" : {\n"
             + "    \"operation-type\" : \"create-namespace\",\n"
             + "    \"namespace\" : [ \"a\", \"b\" ]\n"
@@ -101,7 +105,7 @@ public class TestEventParser {
   @Test
   void testFromJson() {
     String json =
-        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     Event expected = sampleEventWithActor();
     assertThat(EventParser.fromJson(json)).isEqualTo(expected);
   }
@@ -158,7 +162,7 @@ public class TestEventParser {
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":\"123\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidTimestamp));
 
-    // actor present but not a string
+    // actor present but not a map
     String invalidActor =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidActor));

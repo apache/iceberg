@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.rest.events.Event;
 import org.apache.iceberg.rest.events.ImmutableEvent;
@@ -43,7 +44,7 @@ public class TestEventsResponseParser {
         .requestId("r-1")
         .eventCount(2)
         .timestampMs(123L)
-        .actor("user1")
+        .actor(Map.of("id", "user1"))
         .operation(sampleOperation())
         .build();
   }
@@ -59,7 +60,7 @@ public class TestEventsResponseParser {
 
     String expected =
         "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":5000,\"events\":[{"
-            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
+            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
     assertThat(EventsResponseParser.toJson(response)).isEqualTo(expected);
   }
 
@@ -81,7 +82,9 @@ public class TestEventsResponseParser {
             + "    \"request-id\" : \"r-1\",\n"
             + "    \"event-count\" : 2,\n"
             + "    \"timestamp-ms\" : 123,\n"
-            + "    \"actor\" : \"user1\",\n"
+            + "    \"actor\" : {\n"
+            + "      \"id\" : \"user1\"\n"
+            + "    },\n"
             + "    \"operation\" : {\n"
             + "      \"operation-type\" : \"create-namespace\",\n"
             + "      \"namespace\" : [ \"a\", \"b\" ]\n"
@@ -108,7 +111,7 @@ public class TestEventsResponseParser {
             .build();
     String json =
         "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":5000,\"events\":[{"
-            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":\"user1\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
+            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
 
     assertThat(EventsResponseParser.fromJson(json)).isEqualTo(response);
   }
