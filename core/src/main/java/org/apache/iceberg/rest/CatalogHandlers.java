@@ -33,7 +33,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -114,9 +113,8 @@ public class CatalogHandlers {
   private static final ExecutorService ASYNC_PLANNING_POOL = Executors.newSingleThreadExecutor();
   // Advanced idempotency store with TTL and in-flight coalescing
   private static final ConcurrentMap<String, IdempotencyEntry> IDEMPOTENCY_STORE =
-      new ConcurrentHashMap<>();
-  private static final Set<String> SIMULATE_503_ON_FIRST_SUCCESS_KEYS =
-      Collections.newSetFromMap(new ConcurrentHashMap<>());
+      Maps.newConcurrentMap();
+  private static final Set<String> SIMULATE_503_ON_FIRST_SUCCESS_KEYS = Sets.newConcurrentHashSet();
   private static volatile long idempotencyLifetimeMillis = TimeUnit.MINUTES.toMillis(30);
 
   private CatalogHandlers() {}
@@ -214,10 +212,10 @@ public class CatalogHandlers {
     }
 
     private final CountDownLatch latch;
-    final long firstSeenMillis;
-    volatile Status status;
-    volatile Object responseBody;
-    volatile RuntimeException error;
+    private final long firstSeenMillis;
+    private volatile Status status;
+    private volatile Object responseBody;
+    private volatile RuntimeException error;
 
     private IdempotencyEntry(Status status) {
       this.status = status;
