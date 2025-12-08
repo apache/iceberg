@@ -165,7 +165,7 @@ class SchemaUpdate implements UpdateSchema {
     int newId = assignNewColumnId();
 
     // update tracking for moves
-    addedNameToId.put(caseSensitiveName(fullName), newId);
+    addedNameToId.put(caseSensitivityAwareName(fullName), newId);
     if (parentId != TABLE_ROOT_ID) {
       idToParent.put(newId, parentId);
     }
@@ -392,7 +392,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private boolean isAdded(String name) {
-    return addedNameToId.containsKey(caseSensitiveName(name));
+    return addedNameToId.containsKey(caseSensitivityAwareName(name));
   }
 
   private Types.NestedField findForUpdate(String name) {
@@ -406,7 +406,7 @@ class SchemaUpdate implements UpdateSchema {
       return existing;
     }
 
-    Integer addedId = addedNameToId.get(caseSensitiveName(name));
+    Integer addedId = addedNameToId.get(caseSensitivityAwareName(name));
     if (addedId != null) {
       return updates.get(addedId);
     }
@@ -415,7 +415,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private Integer findForMove(String name) {
-    Integer addedId = addedNameToId.get(caseSensitiveName(name));
+    Integer addedId = addedNameToId.get(caseSensitivityAwareName(name));
     if (addedId != null) {
       return addedId;
     }
@@ -872,7 +872,7 @@ class SchemaUpdate implements UpdateSchema {
     return caseSensitive ? schema.findField(fieldName) : schema.caseInsensitiveFindField(fieldName);
   }
 
-  private String caseSensitiveName(String name) {
+  private String caseSensitivityAwareName(String name) {
     return caseSensitive ? name : name.toLowerCase(Locale.ROOT);
   }
 }
