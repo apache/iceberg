@@ -131,7 +131,7 @@ public class TestQueryEventsRequestParser {
             + "\"catalog-objects-by-name\":[\"a.b\",\"c\"],"
             + "\"catalog-objects-by-id\":[{\"uuid\":\"uuid1\",\"type\":\"table\"}],"
             + "\"object-types\":[\"table\",\"namespace\"],"
-            + "\"custom-filters\":{\"k1\":\"v1\",\"k2\":\"v2\"}}";
+            + "\"custom-filters\":{\"k1\":\"v1\",\"k2\":{\"uuid\":\"uuid1\",\"type\":\"table\"}}}";
 
     assertThat(QueryEventsRequestParser.fromJson(json)).isEqualTo(request);
   }

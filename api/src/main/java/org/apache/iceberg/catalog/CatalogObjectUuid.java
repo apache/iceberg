@@ -41,7 +41,7 @@ public class CatalogObjectUuid {
     if (!type.equals(CatalogObjectType.TABLE.type())
         && !type.equals(CatalogObjectType.VIEW.type())) {
       throw new IllegalArgumentException("Invalid type: " + type);
-      }
+    }
 
     this.uuid = uuid;
     this.type = type;
