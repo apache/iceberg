@@ -186,7 +186,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
           || msg.contains("did not meet condition if_match")
           || msg.contains("precondition check failed")) {
         throw new CommitFailedException(
-            "Updating table failed due to conflict updates (etag mismatch). Retry the update");
+                e, "Cannot commit %s because BigQuery detected concurrent update", tableName());
       }
 
       throw e;
