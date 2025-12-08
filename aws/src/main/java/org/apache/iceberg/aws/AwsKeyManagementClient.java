@@ -20,6 +20,7 @@ package org.apache.iceberg.aws;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.core.SdkBytes;
@@ -40,18 +41,17 @@ import software.amazon.awssdk.services.kms.model.GenerateDataKeyResponse;
  */
 public class AwsKeyManagementClient implements KeyManagementClient {
 
+  private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+
   private Map<String, String> allProperties;
   private EncryptionAlgorithmSpec encryptionAlgorithmSpec;
   private DataKeySpec dataKeySpec;
 
-  private transient KmsClient kmsClient;
+  private transient volatile KmsClient kmsClient;
 
   @Override
   public void initialize(Map<String, String> properties) {
     this.allProperties = SerializableMap.copyOf(properties);
-
-    AwsClientFactory clientFactory = AwsClientFactories.from(properties);
-    this.kmsClient = clientFactory.kms();
 
     AwsProperties awsProperties = new AwsProperties(properties);
     this.encryptionAlgorithmSpec = awsProperties.kmsEncryptionAlgorithmSpec();
@@ -101,8 +101,10 @@ public class AwsKeyManagementClient implements KeyManagementClient {
 
   @Override
   public void close() {
-    if (kmsClient != null) {
-      kmsClient.close();
+    if (isResourceClosed.compareAndSet(false, true)) {
+      if (kmsClient != null) {
+        kmsClient.close();
+      }
     }
   }
 

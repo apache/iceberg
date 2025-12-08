@@ -50,8 +50,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   // used in key encryption key rotation unitests
   private long testTimeShift;
 
-  private final transient LoadingCache<String, ByteBuffer> unwrappedKeyCache;
-
+  private transient volatile LoadingCache<String, ByteBuffer> unwrappedKeyCache;
   private transient volatile SecureRandom lazyRNG = null;
 
   /**
@@ -94,14 +93,6 @@ public class StandardEncryptionManager implements EncryptionManager {
                 key.keyId(), key.encryptedKeyMetadata(), key.encryptedById(), key.properties()));
       }
     }
-
-    this.unwrappedKeyCache =
-        Caffeine.newBuilder()
-            .expireAfterWrite(1, TimeUnit.HOURS)
-            .build(
-                keyId ->
-                    kmsClient.unwrapKey(
-                        encryptionKeys.get(keyId).encryptedKeyMetadata(), tableKeyId));
   }
 
   @Override
@@ -122,6 +113,20 @@ public class StandardEncryptionManager implements EncryptionManager {
   @Override
   public Iterable<InputFile> decrypt(Iterable<EncryptedInputFile> encrypted) {
     return Iterables.transform(encrypted, this::decrypt);
+  }
+
+  private LoadingCache<String, ByteBuffer> unwrappedKeyCache() {
+    if (this.unwrappedKeyCache == null) {
+      this.unwrappedKeyCache =
+          Caffeine.newBuilder()
+              .expireAfterWrite(1, TimeUnit.HOURS)
+              .build(
+                  keyId ->
+                      kmsClient.unwrapKey(
+                          encryptionKeys.get(keyId).encryptedKeyMetadata(), tableKeyId));
+    }
+
+    return unwrappedKeyCache;
   }
 
   private SecureRandom workerRNG() {
@@ -146,18 +151,6 @@ public class StandardEncryptionManager implements EncryptionManager {
   @Deprecated
   public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
     return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
-  }
-
-  private ByteBuffer unwrapKey(String keyId) {
-    if (unwrappedKeyCache != null) {
-      return unwrappedKeyCache.get(keyId);
-    }
-
-    EncryptedKey encryptedKey = encryptionKeys.get(keyId);
-    if (encryptedKey == null) {
-      throw new IllegalStateException("Cannot find key with id " + keyId);
-    }
-    return kmsClient.unwrapKey(encryptedKey.encryptedKeyMetadata(), tableKeyId);
   }
 
   Map<String, EncryptedKey> encryptionKeys() {
@@ -185,9 +178,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     EncryptedKey key = new BaseEncryptedKey(generateKeyId(), wrapped, tableKeyId, properties);
 
     // update internal tracking
-    if (unwrappedKeyCache != null) {
-      unwrappedKeyCache.put(key.keyId(), unwrapped);
-    }
+    unwrappedKeyCache().put(key.keyId(), unwrapped);
     encryptionKeys.put(key.keyId(), key);
 
     return key.keyId();
@@ -214,7 +205,7 @@ public class StandardEncryptionManager implements EncryptionManager {
           manifestListKeyID + " is a key encryption key, not manifest list key metadata");
     }
 
-    return unwrapKey(encryptedKey.encryptedById());
+    return unwrappedKeyCache().get(encryptedKey.encryptedById());
   }
 
   public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
@@ -224,7 +215,7 @@ public class StandardEncryptionManager implements EncryptionManager {
         encryptionKeys.get(keyEncryptionKeyID).properties().get(KEY_TIMESTAMP);
     ByteBuffer encryptedKeyMetadata =
         EncryptionUtil.encryptManifestListKeyMetadata(
-            unwrapKey(keyEncryptionKeyID), keyEncryptionKeyTimestamp, keyMetadata);
+            unwrappedKeyCache().get(keyEncryptionKeyID), keyEncryptionKeyTimestamp, keyMetadata);
     BaseEncryptedKey key =
         new BaseEncryptedKey(manifestListKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
 
