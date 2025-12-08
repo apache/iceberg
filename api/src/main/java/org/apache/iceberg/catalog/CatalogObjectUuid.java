@@ -38,8 +38,10 @@ public class CatalogObjectUuid {
       throw new IllegalArgumentException("Invalid UUID: empty");
     }
 
-    if (!type.equals(CatalogObjectType.TABLE.type()) && !type.equals(CatalogObjectType.VIEW.type()))
+    if (!type.equals(CatalogObjectType.TABLE.type())
+        && !type.equals(CatalogObjectType.VIEW.type())) {
       throw new IllegalArgumentException("Invalid type: " + type);
+      }
 
     this.uuid = uuid;
     this.type = type;
