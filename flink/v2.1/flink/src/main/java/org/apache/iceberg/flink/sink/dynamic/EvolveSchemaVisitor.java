@@ -48,9 +48,9 @@ import org.slf4j.LoggerFactory;
  *   <li>Renaming columns
  * </ul>
  *
- * By default, columns that exist in the table but not in the input schema are made optional to
- * avoid issues with late/out-of-order data. When dropUnusedColumns is enabled, these columns are
- * dropped instead for 1:1 schema syncing.
+ * By default, any columns present in the table but absent from the input schema are marked as
+ * optional to prevent issues caused by late or out-of-order data. If dropUnusedColumns is enabled,
+ * these columns are removed instead to ensure a strict one-to-one schema alignment.
  */
 public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boolean> {
 
