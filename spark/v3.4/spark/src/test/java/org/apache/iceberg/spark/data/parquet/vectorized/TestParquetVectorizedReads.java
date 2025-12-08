@@ -296,11 +296,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     // Float and double column types are written using plain encoding with Parquet V2,
     // also Parquet V2 will dictionary encode decimals that use fixed length binary
     // (i.e. decimals > 8 bytes)
-    Schema schema =
-        new Schema(
-            optional(102, "float_data", Types.FloatType.get()),
-            optional(103, "double_data", Types.DoubleType.get()),
-            optional(104, "decimal_data", Types.DecimalType.of(25, 5)));
+    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
 
     OutputFile outputFile = new InMemoryOutputFile();
     Iterable<GenericData.Record> data =
@@ -309,26 +305,6 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       writer.addAll(data);
     }
     assertRecordsMatch(schema, 30000, data, outputFile.toInputFile(), false, BATCH_SIZE);
-  }
-
-  @Test
-  public void testUnsupportedReadsForParquetV2() throws Exception {
-    // Longs, ints, string types etc use delta encoding and which are not supported for vectorized
-    // reads
-    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    OutputFile outputFile = new InMemoryOutputFile();
-    Iterable<GenericData.Record> data =
-        generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
-    try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, outputFile)) {
-      writer.addAll(data);
-    }
-    assertThatThrownBy(
-            () ->
-                assertRecordsMatch(
-                    schema, 30000, data, outputFile.toInputFile(), false, BATCH_SIZE))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageStartingWith("Cannot support vectorized reads for column")
-        .hasMessageEndingWith("Disable vectorized reads to read this table/file");
   }
 
   @Test
