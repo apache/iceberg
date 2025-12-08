@@ -29,6 +29,7 @@ import com.google.cloud.kms.v1.KeyManagementServiceSettings;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.KeyManagementClient;
@@ -46,10 +47,12 @@ import org.apache.iceberg.util.SerializableMap;
  */
 public class GcpKeyManagementClient implements KeyManagementClient {
 
+  private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+
   private Map<String, String> allProperties;
 
-  private transient KeyManagementServiceClient kmsClient;
-  private transient CloseableGroup closeableGroup = new CloseableGroup();
+  private volatile transient KeyManagementServiceClient kmsClient;
+  private volatile transient CloseableGroup closeableGroup = new CloseableGroup();
 
   @Override
   public void initialize(Map<String, String> properties) {
@@ -85,11 +88,15 @@ public class GcpKeyManagementClient implements KeyManagementClient {
 
   @Override
   public void close() {
-    closeableGroup.setSuppressCloseFailure(true);
-    try {
-      closeableGroup.close();
-    } catch (IOException ioe) {
-      // closure exceptions already suppressed and logged in closeableGroup
+    if (isResourceClosed.compareAndSet(false, true)) {
+      if (closeableGroup != null) {
+        closeableGroup.setSuppressCloseFailure(true);
+        try {
+          closeableGroup.close();
+        } catch (IOException ioe) {
+          // closure exceptions already suppressed and logged in closeableGroup
+        }
+      }
     }
   }
 
