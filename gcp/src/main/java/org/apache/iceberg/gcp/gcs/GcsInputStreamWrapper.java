@@ -33,18 +33,16 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 
-class GoogleCloudStorageInputStreamWrapper extends SeekableInputStream implements RangeReadable {
-  private final Counter readBytesCounter;
-  private final Counter readOperationsCounter;
+class GcsInputStreamWrapper extends SeekableInputStream implements RangeReadable {
+  private final Counter readBytes;
+  private final Counter readOperations;
   private final GoogleCloudStorageInputStream stream;
 
-  GoogleCloudStorageInputStreamWrapper(
-      GoogleCloudStorageInputStream stream, MetricsContext metrics) {
+  GcsInputStreamWrapper(GoogleCloudStorageInputStream stream, MetricsContext metrics) {
     Preconditions.checkArgument(null != stream, "Invalid input stream : null");
     this.stream = stream;
-    this.readBytesCounter =
-        metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
-    this.readOperationsCounter = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
   }
 
   @Override
@@ -60,8 +58,8 @@ class GoogleCloudStorageInputStreamWrapper extends SeekableInputStream implement
   @Override
   public int read() throws IOException {
     int readByte = stream.read();
-    readBytesCounter.increment();
-    readOperationsCounter.increment();
+    readBytes.increment();
+    readOperations.increment();
     return readByte;
   }
 
@@ -74,9 +72,9 @@ class GoogleCloudStorageInputStreamWrapper extends SeekableInputStream implement
   public int read(byte[] b, int off, int len) throws IOException {
     int bytesRead = stream.read(b, off, len);
     if (bytesRead > 0) {
-      readBytesCounter.increment(bytesRead);
+      readBytes.increment(bytesRead);
     }
-    readOperationsCounter.increment();
+    readOperations.increment();
     return bytesRead;
   }
 

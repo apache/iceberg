@@ -128,7 +128,7 @@ public class TestGcsInputFile {
   @Test
   public void newStreamGcsAnalyticsCoreEnabled() throws IOException {
     GCPProperties enabledGcpProperties =
-        new GCPProperties(ImmutableMap.of("gcs.analytics-core.enabled", "true"));
+        new GCPProperties(ImmutableMap.of(GCPProperties.GCS_ANALYTICS_CORE_ENABLED, "true"));
     BlobId blobId = BlobId.fromGsUtilUri(LOCATION);
     GcsItemId itemId =
         GcsItemId.builder()
@@ -158,7 +158,7 @@ public class TestGcsInputFile {
               metricsContext);
 
       try (SeekableInputStream stream = inputFile.newStream()) {
-        assertThat(stream).isInstanceOf(GoogleCloudStorageInputStreamWrapper.class);
+        assertThat(stream).isInstanceOf(GcsInputStreamWrapper.class);
       }
     }
   }
@@ -166,7 +166,7 @@ public class TestGcsInputFile {
   @Test
   public void newStreamGcsAnalyticsCoreEnabledObjectSizeNull() throws IOException {
     GCPProperties enabledGcpProperties =
-        new GCPProperties(ImmutableMap.of("gcs.analytics-core.enabled", "true"));
+        new GCPProperties(ImmutableMap.of(GCPProperties.GCS_ANALYTICS_CORE_ENABLED, "true"));
     BlobId blobId = BlobId.fromGsUtilUri(LOCATION);
     GcsItemId itemId =
         GcsItemId.builder()
@@ -189,7 +189,7 @@ public class TestGcsInputFile {
               metricsContext);
 
       try (SeekableInputStream stream = inputFile.newStream()) {
-        assertThat(stream).isInstanceOf(GoogleCloudStorageInputStreamWrapper.class);
+        assertThat(stream).isInstanceOf(GcsInputStreamWrapper.class);
       }
     }
   }
@@ -224,9 +224,9 @@ public class TestGcsInputFile {
   }
 
   @Test
-  public void newStream_analyticsCoreInitializationFailed() throws IOException {
+  public void newStreamAnalyticsCoreInitializationFailed() throws IOException {
     GCPProperties enabledGcpProperties =
-        new GCPProperties(ImmutableMap.of("gcs.analytics-core.enabled", "true"));
+        new GCPProperties(ImmutableMap.of(GCPProperties.GCS_ANALYTICS_CORE_ENABLED, "true"));
     BlobId blobId = BlobId.fromGsUtilUri(LOCATION);
     GcsItemId itemId =
         GcsItemId.builder()
@@ -262,6 +262,7 @@ public class TestGcsInputFile {
         SeekableInputStream stream = inputFile.newStream();
         assertThat(stream).isInstanceOf(GCSInputStream.class);
         assertThat(inputStreamMocked.constructed()).hasSize(1);
+        mocked.verify(() -> GoogleCloudStorageInputStream.create(gcsFileSystem, itemId));
         stream.close();
       }
     }

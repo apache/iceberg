@@ -128,6 +128,7 @@ class PrefixedStorage implements AutoCloseable {
         }
       }
     }
+
     return this.gcsFileSystem;
   }
 

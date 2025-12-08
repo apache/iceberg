@@ -87,15 +87,17 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
             e);
       }
     }
+
     return new GCSInputStream(storage(), blobId(), blobSize, gcpProperties(), metrics());
   }
 
   private SeekableInputStream newGoogleCloudStorageInputStream() throws IOException {
     if (null == blobSize) {
-      return new GoogleCloudStorageInputStreamWrapper(
+      return new GcsInputStreamWrapper(
           GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsItemId()), metrics());
     }
-    return new GoogleCloudStorageInputStreamWrapper(
+
+    return new GcsInputStreamWrapper(
         GoogleCloudStorageInputStream.create(gcsFileSystem(), gcsFileInfo()), metrics());
   }
 
@@ -106,6 +108,7 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
     if (blobId.getGeneration() != null) {
       builder.setContentGeneration(blobId.getGeneration());
     }
+
     return builder.build();
   }
 

@@ -35,17 +35,16 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public class TestGoogleCloudStorageInputStreamWrapper {
+public class TestGcsInputStreamWrapper {
 
   @Mock private GoogleCloudStorageInputStream googleCloudStorageInputStream;
 
-  private GoogleCloudStorageInputStreamWrapper inputStreamWrapper;
+  private GcsInputStreamWrapper inputStreamWrapper;
 
   @BeforeEach
   public void before() {
     inputStreamWrapper =
-        new GoogleCloudStorageInputStreamWrapper(
-            googleCloudStorageInputStream, MetricsContext.nullMetrics());
+        new GcsInputStreamWrapper(googleCloudStorageInputStream, MetricsContext.nullMetrics());
   }
 
   @Test

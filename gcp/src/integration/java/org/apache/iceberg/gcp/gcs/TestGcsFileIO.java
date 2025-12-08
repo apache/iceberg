@@ -92,7 +92,6 @@ public class TestGcsFileIO {
 
   @BeforeAll
   public static void beforeClass() {
-    GCS_EMULATOR.start();
     String endpoint = String.format("http://localhost:%d", GCS_EMULATOR_PORT);
     StorageOptions options =
         StorageOptions.newBuilder()
@@ -109,7 +108,6 @@ public class TestGcsFileIO {
     if (storage != null) {
       storage.delete(BUCKET);
     }
-    GCS_EMULATOR.stop();
   }
 
   @BeforeEach
@@ -164,7 +162,7 @@ public class TestGcsFileIO {
       IOUtil.readFully(is, actual, 0, expected.length);
     }
 
-    assertThat(inputStream).isInstanceOf(GoogleCloudStorageInputStreamWrapper.class);
+    assertThat(inputStream).isInstanceOf(GcsInputStreamWrapper.class);
     assertThat(actual).isEqualTo(expected);
   }
 
