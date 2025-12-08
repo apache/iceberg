@@ -37,13 +37,21 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
@@ -72,6 +80,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -160,6 +169,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                     assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
                   }
                 }
+
                 Object body = roundTripSerialize(request.body(), "request");
                 HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
                 T response = super.execute(req, responseType, errorHandler, responseHeaders);
@@ -3107,9 +3117,256 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
   }
 
+  @Test
+  public void testCustomTableOperationsInjection() throws IOException {
+    AtomicBoolean customTableOpsCalled = new AtomicBoolean();
+    AtomicBoolean customTransactionTableOpsCalled = new AtomicBoolean();
+    AtomicReference<RESTTableOperations> capturedOps = new AtomicReference<>();
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Map<String, String> customHeaders =
+        ImmutableMap.of("X-Custom-Table-Header", "custom-value-12345");
+
+    // Custom RESTTableOperations that adds a custom header
+    class CustomRESTTableOperations extends RESTTableOperations {
+      CustomRESTTableOperations(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        super(client, path, () -> customHeaders, fileIO, current, supportedEndpoints);
+        customTableOpsCalled.set(true);
+      }
+
+      CustomRESTTableOperations(
+          RESTClient client,
+          String path,
+          Supplier<Map<String, String>> headers,
+          FileIO fileIO,
+          RESTTableOperations.UpdateType updateType,
+          List<MetadataUpdate> createChanges,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        super(
+            client,
+            path,
+            () -> customHeaders,
+            fileIO,
+            updateType,
+            createChanges,
+            current,
+            supportedEndpoints);
+        customTransactionTableOpsCalled.set(true);
+      }
+    }
+
+    // Custom RESTSessionCatalog that overrides table operations creation
+    class CustomRESTSessionCatalog extends RESTSessionCatalog {
+      CustomRESTSessionCatalog(
+          Function<Map<String, String>, RESTClient> clientBuilder,
+          BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
+        super(clientBuilder, ioBuilder);
+      }
+
+      @Override
+      protected RESTTableOperations newTableOps(
+          RESTClient restClient,
+          String path,
+          Supplier<Map<String, String>> readHeaders,
+          Supplier<Map<String, String>> mutationHeaders,
+          FileIO fileIO,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        RESTTableOperations ops =
+            new CustomRESTTableOperations(
+                restClient, path, mutationHeaders, fileIO, current, supportedEndpoints);
+        RESTTableOperations spy = Mockito.spy(ops);
+        capturedOps.set(spy);
+        return spy;
+      }
+
+      @Override
+      protected RESTTableOperations newTableOps(
+          RESTClient restClient,
+          String path,
+          Supplier<Map<String, String>> readHeaders,
+          Supplier<Map<String, String>> mutationHeaders,
+          FileIO fileIO,
+          RESTTableOperations.UpdateType updateType,
+          List<MetadataUpdate> createChanges,
+          TableMetadata current,
+          Set<Endpoint> supportedEndpoints) {
+        RESTTableOperations ops =
+            new CustomRESTTableOperations(
+                restClient,
+                path,
+                mutationHeaders,
+                fileIO,
+                updateType,
+                createChanges,
+                current,
+                supportedEndpoints);
+        RESTTableOperations spy = Mockito.spy(ops);
+        capturedOps.set(spy);
+        return spy;
+      }
+    }
+
+    try (RESTCatalog catalog =
+        catalog(adapter, clientBuilder -> new CustomRESTSessionCatalog(clientBuilder, null))) {
+      catalog.createNamespace(NS);
+
+      // Test table operations without UpdateType
+      assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isFalse();
+      Table table = catalog.createTable(TABLE, SCHEMA);
+      assertThat(customTableOpsCalled).isTrue();
+      assertThat(customTransactionTableOpsCalled).isFalse();
+
+      // Trigger a commit through the custom operations
+      table.updateProperties().set("test-key", "test-value").commit();
+
+      // Verify the custom operations object was created and used
+      assertThat(capturedOps.get()).isNotNull();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
+
+      // Verify the custom operations were used with custom headers
+      Mockito.verify(adapter, Mockito.atLeastOnce())
+          .execute(
+              reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE), customHeaders),
+              eq(LoadTableResponse.class),
+              any(),
+              any());
+
+      // Test table operations with UpdateType and createChanges
+      capturedOps.set(null);
+      customTableOpsCalled.set(false);
+      TableIdentifier table2 = TableIdentifier.of(NS, "table2");
+      catalog.buildTable(table2, SCHEMA).createTransaction().commitTransaction();
+      assertThat(customTableOpsCalled).isFalse();
+      assertThat(customTransactionTableOpsCalled).isTrue();
+
+      // Trigger another commit to verify transaction operations also work
+      catalog.loadTable(table2).updateProperties().set("test-key-2", "test-value-2").commit();
+
+      // Verify the custom operations object was created and used
+      assertThat(capturedOps.get()).isNotNull();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).current();
+      Mockito.verify(capturedOps.get(), Mockito.atLeastOnce()).commit(any(), any());
+
+      // Verify the custom operations were used with custom headers
+      Mockito.verify(adapter, Mockito.atLeastOnce())
+          .execute(
+              reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.table(table2), customHeaders),
+              eq(LoadTableResponse.class),
+              any(),
+              any());
+    }
+  }
+
+  @Test
+  public void testClientAutoSendsIdempotencyWhenServerAdvertises() {
+    ConfigResponse cfgWithIdem =
+        ConfigResponse.builder()
+            .withIdempotencyKeyLifetime("PT30M")
+            .withEndpoints(
+                Arrays.stream(Route.values())
+                    .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
+                    .collect(Collectors.toList()))
+            .build();
+
+    RESTCatalog local = createCatalogWithIdempAdapter(cfgWithIdem, true);
+
+    Namespace ns = Namespace.of("ns_cfg_idem");
+    TableIdentifier ident = TableIdentifier.of(ns, "t_cfg_idem");
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    local.createNamespace(ns, ImmutableMap.of());
+    local.createTable(ident, schema);
+    assertThat(local.tableExists(ident)).isTrue();
+    local.dropTable(ident);
+  }
+
+  @Test
+  public void testClientDoesNotSendIdempotencyWhenServerNotAdvertising() {
+    ConfigResponse cfgNoIdem =
+        ConfigResponse.builder()
+            .withEndpoints(
+                Arrays.stream(Route.values())
+                    .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
+                    .collect(Collectors.toList()))
+            .build();
+
+    RESTCatalog local = createCatalogWithIdempAdapter(cfgNoIdem, false);
+
+    Namespace ns = Namespace.of("ns_cfg_no_idem");
+    TableIdentifier ident = TableIdentifier.of(ns, "t_cfg_no_idem");
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    local.createNamespace(ns, ImmutableMap.of());
+    local.createTable(ident, schema);
+    assertThat(local.tableExists(ident)).isTrue();
+    local.dropTable(ident);
+  }
+
+  private RESTCatalog createCatalogWithIdempAdapter(ConfigResponse cfg, boolean expectOnMutations) {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(responseType, cfg);
+                }
+
+                boolean isMutation =
+                    request.method() == HTTPMethod.POST || request.method() == HTTPMethod.DELETE;
+                boolean hasIdemp = request.headers().contains(RESTUtil.IDEMPOTENCY_KEY_HEADER);
+
+                if (isMutation) {
+                  assertThat(hasIdemp)
+                      .as("Idempotency-Key presence on mutations did not match expectation")
+                      .isEqualTo(expectOnMutations);
+                } else {
+                  assertThat(hasIdemp).as("Idempotency-Key must NOT be sent on reads").isFalse();
+                }
+
+                return super.execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    RESTCatalog local =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    local.initialize("test", ImmutableMap.of());
+    return local;
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    return catalog;
+  }
+
+  private RESTCatalog catalog(
+      RESTCatalogAdapter adapter,
+      Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
+          sessionCatalogFactory) {
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return sessionCatalogFactory.apply(clientBuilder);
+          }
+        };
     catalog.initialize(
         "test",
         ImmutableMap.of(

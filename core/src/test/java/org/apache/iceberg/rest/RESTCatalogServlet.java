@@ -121,6 +121,8 @@ public class RESTCatalogServlet extends HttpServlet {
           Route route = routeAndVars.first();
           if (route == Route.LOAD_TABLE) {
             response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+          } else if (shouldReturn204(route)) {
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
           }
         }
       }
@@ -131,6 +133,20 @@ public class RESTCatalogServlet extends HttpServlet {
       LOG.error("Unexpected exception when processing REST request", e);
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
+  }
+
+  private boolean shouldReturn204(Route route) {
+    return route == Route.NAMESPACE_EXISTS
+        || route == Route.TABLE_EXISTS
+        || route == Route.VIEW_EXISTS
+        || route == Route.DROP_NAMESPACE
+        || route == Route.DROP_TABLE
+        || route == Route.DROP_VIEW
+        || route == Route.RENAME_TABLE
+        || route == Route.RENAME_VIEW
+        || route == Route.CANCEL_PLAN_TABLE_SCAN
+        || route == Route.REPORT_METRICS
+        || route == Route.COMMIT_TRANSACTION;
   }
 
   protected Consumer<ErrorResponse> handle(HttpServletResponse response) {

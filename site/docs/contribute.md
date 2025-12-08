@@ -125,6 +125,8 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 
 Follow the instructions for [Eclipse](https://github.com/google/google-java-format#eclipse) or
 [IntelliJ](https://github.com/google/google-java-format#intellij-android-studio-and-other-jetbrains-ides) to install the **google-java-format** plugin (note the required manual actions for IntelliJ).
+Follow the [instructions](https://scalameta.org/scalafmt/docs/installation.html) to install **scalafmt** plugin
+and configure it to point to the configuration file located under the directory `.baseline/scala/`.
 
 ## Semantic Versioning
 

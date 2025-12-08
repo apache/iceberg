@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.InternalRow
@@ -25,11 +24,8 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 
-
-case class DropV2ViewExec(
-  catalog: ViewCatalog,
-  ident: Identifier,
-  ifExists: Boolean) extends LeafV2CommandExec {
+case class DropV2ViewExec(catalog: ViewCatalog, ident: Identifier, ifExists: Boolean)
+    extends LeafV2CommandExec {
 
   override lazy val output: Seq[Attribute] = Nil
 
